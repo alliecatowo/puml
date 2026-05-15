@@ -154,17 +154,30 @@ Diagnostics:
 - unsupported `skinparam` keys and `!theme` emit deterministic non-fatal warnings on `stderr`
 - `--diagnostics json` emits `{"diagnostics":[...]}` with stable fields: `severity`, `message`, `span`, `line`, `column`, `snippet`, `caret`
 
-## Benchmarks (Latest Recorded)
+## Benchmarks And Gates
 
-Source: `docs/benchmarks/latest.md` generated on **2026-05-15** (UTC timestamp `2026-05-15T07:44:44Z`).
+Commands:
 
-| Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |
-|---|---:|---:|---:|---|
-| `render_hello` | 212.000 | 74.135 | 5 | `time` |
-| `check_hello` | 180.000 | 0.000 | 5 | `time` |
-| `dump_model` | 176.000 | 4.899 | 5 | `time` |
-| `stdin_single` | 180.000 | 0.000 | 5 | `time` |
-| `stdin_multi` | 182.000 | 4.000 | 5 | `time` |
+```bash
+# full benchmark refresh (records trend artifacts)
+./scripts/bench.sh
+
+# quick profile
+./scripts/bench.sh --quick
+
+# enforce perf + binary-size gates
+./scripts/bench.sh --enforce-gates
+./scripts/bench.sh --quick --enforce-gates
+```
+
+Gate thresholds:
+- `full` (default): scenario mean `<= 250ms`, regression vs previous run `<= 10%`, binary size `<= 2,000,000` bytes
+- `quick`: scenario mean `<= 350ms`, regression vs previous run `<= 20%`, binary size `<= 2,500,000` bytes
+
+Artifacts:
+- raw run: `docs/benchmarks/latest.{md,csv,json}`
+- deterministic trend report: `docs/benchmarks/latest_trend.{md,json}`
+- no-Java oracle placeholder baseline: `docs/benchmarks/parity_latest.json`
 
 ## Feature Matrix
 

@@ -1,18 +1,19 @@
 # Benchmark Results
 
-- Timestamp (UTC): `2026-05-15T17:29:00Z`
+- Timestamp (UTC): `2026-05-15T17:54:53Z`
 - Binary: `/home/Allie/develop/puml/target/release/puml`
 - Mode: `quick`
+- Gate profile: abs mean <= `350ms`, regression <= `20%%`, binary <= `2500000` bytes
 - PlantUML comparison: TODO (no-Java environment baseline run)
 
 | Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |
 |---|---:|---:|---:|---|
-| `cold_start_help` | 116.667 | 37.712 | 3 | `time` |
-| `parser_check` | 100.000 | 0.000 | 3 | `time` |
-| `parser_dump_scene` | 96.667 | 4.714 | 3 | `time` |
+| `cold_start_help` | 123.333 | 16.997 | 3 | `time` |
+| `parser_check` | 96.667 | 4.714 | 3 | `time` |
+| `parser_dump_scene` | 93.333 | 4.714 | 3 | `time` |
 | `render_file` | 100.000 | 0.000 | 3 | `time` |
-| `render_stdin` | 100.000 | 8.165 | 3 | `time` |
-| `render_stdin_multi` | 100.000 | 0.000 | 3 | `time` |
+| `render_stdin` | 100.000 | 0.000 | 3 | `time` |
+| `render_stdin_multi` | 96.667 | 4.714 | 3 | `time` |
 
 ## PlantUML Comparison (TODO)
 Method when Java is available:

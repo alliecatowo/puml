@@ -1,66 +1,55 @@
 # Benchmarks
 
-## One-Command Benchmark Run
+## Commands
 
 ```console
+# full benchmark artifact refresh (records trend, does not fail on gates)
 ./scripts/bench.sh
-```
 
-## Parity Harness Baseline Run
+# quick local benchmark
+./scripts/bench.sh --quick
 
-```console
-# corpus parity (fixtures + docs/examples) with JSON report
+# enforce perf + binary gates (used by check-all)
+./scripts/bench.sh --enforce-gates
+./scripts/bench.sh --quick --enforce-gates
+
+# corpus parity baseline report (oracle placeholders kept intentionally)
 python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
 ```
 
-Generated artifact:
-- `docs/benchmarks/parity_latest.json`
-
-Notes:
-- Includes `tests/fixtures` baseline check/render results.
-- Includes `docs/examples/*.md` discovered linked `.puml` files and fenced `puml` snippets.
-- Verifies example SVG artifacts exist, match current renderer output, and are newer than source markdown/input.
-- PlantUML oracle integration is intentionally placeholder-only (`todo`) in this no-Java baseline.
-
-## What the Script Produces
+## Artifacts
 
 - `docs/benchmarks/latest.md`
 - `docs/benchmarks/latest.csv`
 - `docs/benchmarks/latest.json`
+- `docs/benchmarks/latest_trend.md`
+- `docs/benchmarks/latest_trend.json`
+- `docs/benchmarks/parity_latest.json`
 
-## Behavior
+All benchmark artifacts are deterministic in structure and key ordering.
 
-- Builds `target/release/puml` before benchmarking.
-- Uses `hyperfine` when available (preferred; more stable).
-- Falls back to `/usr/bin/time` when `hyperfine` is unavailable.
-- Runs file, check, dump, stdin single, and stdin multi scenarios.
+## Gate Profiles
 
-## Latest Recorded Run
+- `full` (default):
+- absolute per-scenario mean limit: `250ms`
+- regression limit vs previous `latest.json`: `10%`
+- binary size limit (`target/release/puml`): `2,000,000` bytes
+- `quick` (`--quick`):
+- absolute per-scenario mean limit: `350ms`
+- regression limit vs previous `latest.json`: `20%`
+- binary size limit (`target/release/puml`): `2,500,000` bytes
 
-- Date: `2026-05-15`
-- UTC timestamp: `2026-05-15T07:44:44Z`
-- Source artifact: `docs/benchmarks/latest.md`
+If no previous `latest.json` baseline exists, regression checks are skipped and absolute/binary checks still apply.
 
-| Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |
-|---|---:|---:|---:|---|
-| `render_hello` | 212.000 | 74.135 | 5 | `time` |
-| `check_hello` | 180.000 | 0.000 | 5 | `time` |
-| `dump_model` | 176.000 | 4.899 | 5 | `time` |
-| `stdin_single` | 180.000 | 0.000 | 5 | `time` |
-| `stdin_multi` | 182.000 | 4.000 | 5 | `time` |
+## Failure Handling
 
-## Re-run And Compare
+- `./scripts/bench.sh` reports gate warnings but exits `0` by default.
+- `./scripts/bench.sh --enforce-gates` exits non-zero on any gate failure.
+- `./scripts/check-all.sh` always runs benchmark gates in enforce mode.
+- On failure, inspect `docs/benchmarks/latest_trend.{md,json}` to identify the exact regressing scenario and delta.
 
-```console
-# regenerate latest benchmark artifacts
-./scripts/bench.sh
+## No-Java Baseline
 
-# inspect markdown report
-sed -n '1,120p' docs/benchmarks/latest.md
-```
-
-## Tips for More Stable Results
-
-- Close unrelated heavy workloads.
-- Run multiple times and compare trends, not single-run outliers.
-- Use the same machine/toolchain when tracking regressions over time.
+- PlantUML oracle remains placeholder-only (`todo`) for this repo baseline.
+- `parity_latest.json` and `latest_trend.json` include explicit oracle placeholder metadata.
+- Do not remove placeholders until Java/oracle execution is intentionally enabled.

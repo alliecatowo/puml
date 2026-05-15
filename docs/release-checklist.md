@@ -5,8 +5,16 @@
 - [ ] Confirm target version in `Cargo.toml` is ready.
 - [ ] Run setup if this machine is fresh: `./scripts/setup.sh`.
 - [ ] Run full gate: `./scripts/check-all.sh`.
-- [ ] Run benchmark suite: `./scripts/bench.sh`.
-- [ ] Review benchmark artifacts in `docs/benchmarks/latest.{md,csv,json}` for unexpected regressions.
+- [ ] Run quick gate once for local perf sanity: `./scripts/check-all.sh --quick`.
+- [ ] If benchmark gates fail, inspect `docs/benchmarks/latest_trend.{md,json}` and either optimize or document/approve baseline movement before rerun.
+
+## Benchmark / Perf / Size Contract
+
+- [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%`, binary size `<=2,000,000` bytes).
+- [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%`, binary size `<=2,500,000` bytes).
+- [ ] Review `docs/benchmarks/latest.{md,csv,json}` for raw measurements.
+- [ ] Review deterministic trend artifacts: `docs/benchmarks/latest_trend.{md,json}`.
+- [ ] Verify no-Java baseline is intact: PlantUML oracle fields are still placeholder-only (`todo`).
 
 ## Contract and Docs
 
@@ -25,7 +33,7 @@
 - [ ] Smoke test stdin + `--check`.
 - [ ] Smoke test `--dump scene` and `--multi`.
 - [ ] Validate includes workflow with `--include-root` in stdin mode.
-- [ ] Run `scripts/bench.sh --quick` in non-Java mode and verify cold-start/parser/render rows are produced.
+- [ ] Run `scripts/bench.sh --quick --enforce-gates` in non-Java mode and verify gate pass/fail behavior is explicit.
 
 ## Publish Readiness
 
