@@ -90,4 +90,6 @@ fn is_diagram_fence_info(info: &str) -> bool {
     lang.eq_ignore_ascii_case("puml")
         || lang.eq_ignore_ascii_case("plantuml")
         || lang.eq_ignore_ascii_case("uml")
+        || lang.eq_ignore_ascii_case("puml-sequence")
+        || lang.eq_ignore_ascii_case("uml-sequence")
 }

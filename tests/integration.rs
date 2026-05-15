@@ -661,6 +661,37 @@ fn from_markdown_extracts_fenced_blocks_in_source_order() {
 }
 
 #[test]
+fn from_markdown_supports_sequence_fence_aliases() {
+    let input = "```puml-sequence
+@startuml
+Alice -> Bob: one
+@enduml
+```
+text
+```uml-sequence
+@startuml
+Bob -> Alice: two
+@enduml
+```
+";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array");
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["statements"][0]["kind"]["Message"]["label"], "one");
+    assert_eq!(arr[1]["statements"][0]["kind"]["Message"]["label"], "two");
+}
+
+#[test]
 fn from_markdown_ignores_non_fence_markdown_content() {
     let input = "# not a diagram\nA -x B: malformed outside fence\n\n```puml\n@startuml\nAlice -> Bob: ok\n@enduml\n```\n";
     Command::cargo_bin("puml")
@@ -1197,4 +1228,48 @@ fn explicit_output_with_missing_parent_reports_io_exit_code() {
         .assert()
         .code(2)
         .stderr(predicate::str::contains("failed to write"));
+}
+
+#[test]
+fn markdown_file_auto_extracts_fenced_diagrams_without_flag() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let input = dir.path().join("input.md");
+    fs::write(
+        &input,
+        "# heading\nA -x B: malformed outside fence\n\n```puml\n@startuml\nAlice -> Bob: one\n@enduml\n```\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn markdown_file_diagnostics_map_to_original_markdown_lines() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let input = dir.path().join("invalid.markdown");
+    fs::write(
+        &input,
+        "# header\n\n```puml\n@startuml\nA -x B: bad\n@enduml\n```\n",
+    )
+    .unwrap();
+
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--diagnostics", "json", input.to_str().unwrap()])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["line"], 5);
+    assert_eq!(first["column"], 1);
+    assert_eq!(first["snippet"], "A -x B: bad");
 }
