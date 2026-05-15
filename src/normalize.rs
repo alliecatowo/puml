@@ -29,10 +29,17 @@ pub fn normalize_family_with_options(
     options: &NormalizeOptions,
 ) -> Result<NormalizedDocument, Diagnostic> {
     match document.kind {
-        DiagramKind::Sequence => normalize_with_options(document, options).map(NormalizedDocument::Sequence),
+        DiagramKind::Sequence => {
+            normalize_with_options(document, options).map(NormalizedDocument::Sequence)
+        }
         DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
+        DiagramKind::Component
+        | DiagramKind::Deployment
+        | DiagramKind::State
+        | DiagramKind::Activity
+        | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
         DiagramKind::Unknown => Err(Diagnostic::error(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase syntax",
         )),
@@ -156,6 +163,11 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Component => "component",
+        DiagramKind::Deployment => "deployment",
+        DiagramKind::State => "state",
+        DiagramKind::Activity => "activity",
+        DiagramKind::Timing => "timing",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -212,9 +224,7 @@ pub fn normalize_with_options(
     _options: &NormalizeOptions,
 ) -> Result<SequenceDocument, Diagnostic> {
     if document.kind != DiagramKind::Sequence {
-        return Err(Diagnostic::error(
-            "puml currently renders sequence diagrams only",
-        ));
+        return Err(unsupported_family_diagnostic(document.kind));
     }
 
     let mut participants: Vec<Participant> = Vec::new();
@@ -691,6 +701,24 @@ pub fn normalize_with_options(
         footbox_visible,
         warnings,
     })
+}
+
+fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
+    let (code, family) = match kind {
+        DiagramKind::Component => ("E_FAMILY_COMPONENT_UNSUPPORTED", "component"),
+        DiagramKind::Deployment => ("E_FAMILY_DEPLOYMENT_UNSUPPORTED", "deployment"),
+        DiagramKind::State => ("E_FAMILY_STATE_UNSUPPORTED", "state"),
+        DiagramKind::Activity => ("E_FAMILY_ACTIVITY_UNSUPPORTED", "activity"),
+        DiagramKind::Timing => ("E_FAMILY_TIMING_UNSUPPORTED", "timing"),
+        _ => ("E_FAMILY_UNSUPPORTED", "unknown"),
+    };
+
+    Diagnostic::error_code(
+        code,
+        format!(
+            "diagram family `{family}` is not implemented yet; sequence is currently supported"
+        ),
+    )
 }
 
 fn is_alive(alive_by_id: &BTreeMap<String, bool>, id: &str) -> bool {

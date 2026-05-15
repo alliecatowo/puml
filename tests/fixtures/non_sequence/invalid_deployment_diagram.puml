@@ -1,0 +1,5 @@
+@startuml
+node web
+artifact app
+web --> app
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+clock clk
+@0
+clk is high
+@enduml

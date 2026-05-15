@@ -818,8 +818,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        if detected_kind.is_none() && looks_like_unsupported_family_syntax(line) {
-            detected_kind = Some(DiagramKind::Unknown);
+        if detected_kind.is_none() {
+            if let Some(kind) = detect_non_sequence_family(line) {
+                detected_kind = Some(kind);
+            } else if looks_like_unsupported_family_syntax(line) {
+                detected_kind = Some(DiagramKind::Unknown);
+            }
         }
 
         let allow_sequence_parse =
@@ -969,6 +973,10 @@ fn looks_like_unsupported_family_syntax(line: &str) -> bool {
         || lower.starts_with("activity ")
         || lower.starts_with("deployment ")
         || lower.starts_with("node ")
+        || lower.starts_with("clock ")
+        || lower.starts_with("binary ")
+        || lower.starts_with("robust ")
+        || lower.starts_with("concise ")
 }
 
 fn diagram_kind_name(kind: DiagramKind) -> &'static str {
@@ -977,6 +985,11 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Component => "component",
+        DiagramKind::Deployment => "deployment",
+        DiagramKind::State => "state",
+        DiagramKind::Activity => "activity",
+        DiagramKind::Timing => "timing",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -1052,6 +1065,57 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     }))
 }
 
+fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
+    if line.starts_with("component ")
+        || line.starts_with("interface ")
+        || line.starts_with("port ")
+        || line.starts_with("portin ")
+        || line.starts_with("portout ")
+    {
+        return Some(DiagramKind::Component);
+    }
+
+    if line.starts_with("node ")
+        || line.starts_with("artifact ")
+        || line.starts_with("cloud ")
+        || line.starts_with("frame ")
+        || line.starts_with("storage ")
+    {
+        return Some(DiagramKind::Deployment);
+    }
+
+    if line.starts_with("state ") || line.starts_with("[*]") || line == "[H]" || line == "[H*]" {
+        return Some(DiagramKind::State);
+    }
+
+    if line.starts_with("start")
+        || line.starts_with("stop")
+        || line.starts_with(':')
+        || line.starts_with("if ")
+        || line.starts_with("elseif ")
+        || line == "else"
+        || line.starts_with("endif")
+        || line.starts_with("repeat")
+        || line.starts_with("while ")
+        || line.starts_with("fork")
+        || line.starts_with("partition ")
+        || line.starts_with("swimlane ")
+    {
+        return Some(DiagramKind::Activity);
+    }
+
+    if line.starts_with("robust ")
+        || line.starts_with("concise ")
+        || line.starts_with("clock ")
+        || line.starts_with("binary ")
+        || line.starts_with('@')
+        || line.starts_with("scale ")
+    {
+        return Some(DiagramKind::Timing);
+    }
+
+    None
+}
 fn parse_multiline_keyword_block(
     lines: &[(&str, Span)],
     start: usize,

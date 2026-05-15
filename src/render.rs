@@ -338,6 +338,11 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Component => "component",
+        DiagramKind::Deployment => "deployment",
+        DiagramKind::State => "state",
+        DiagramKind::Activity => "activity",
+        DiagramKind::Timing => "timing",
         DiagramKind::Sequence => "sequence",
         DiagramKind::Unknown => "unknown",
     }

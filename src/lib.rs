@@ -22,6 +22,7 @@ pub enum DiagramFamily {
     Class,
     State,
     Activity,
+    Timing,
     Component,
     Deployment,
     UseCase,
@@ -36,6 +37,7 @@ impl DiagramFamily {
             Self::Class => "class",
             Self::State => "state",
             Self::Activity => "activity",
+            Self::Timing => "timing",
             Self::Component => "component",
             Self::Deployment => "deployment",
             Self::UseCase => "usecase",
@@ -201,17 +203,46 @@ fn render_document_for_family(
         }
         DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase => {
             match normalize::normalize_family(document)? {
-                model::NormalizedDocument::Family(stub) => Ok(vec![render::render_family_stub_svg(&stub)]),
+                model::NormalizedDocument::Family(stub) => {
+                    Ok(vec![render::render_family_stub_svg(&stub)])
+                }
                 model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
                     "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family stub render",
                 )),
             }
         }
-        other => Err(Diagnostic::error(format!(
-            "diagram family `{}` is not implemented yet; supported families are sequence/class/object/usecase",
-            other.as_str()
-        ))),
+        DiagramFamily::Component
+        | DiagramFamily::Deployment
+        | DiagramFamily::State
+        | DiagramFamily::Activity
+        | DiagramFamily::Timing
+        | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
     }
+}
+
+fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
+    let code = match family {
+        DiagramFamily::Component => "E_RENDER_COMPONENT_UNSUPPORTED",
+        DiagramFamily::Deployment => "E_RENDER_DEPLOYMENT_UNSUPPORTED",
+        DiagramFamily::State => "E_RENDER_STATE_UNSUPPORTED",
+        DiagramFamily::Activity => "E_RENDER_ACTIVITY_UNSUPPORTED",
+        DiagramFamily::Timing => "E_RENDER_TIMING_UNSUPPORTED",
+        _ => "E_RENDER_FAMILY_UNSUPPORTED",
+    };
+    Diagnostic::error_code(
+        code,
+        format!(
+            "diagram family `{}` is not implemented yet; sequence is currently supported",
+            family.as_str()
+        ),
+    )
+}
+
+fn render_sequence_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
+    let document = parse(source)?;
+    let sequence = normalize(document)?;
+    let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
+    Ok(scenes.iter().map(render::render_svg).collect())
 }
 
 fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
@@ -220,6 +251,11 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::Class => DiagramFamily::Class,
         ast::DiagramKind::Object => DiagramFamily::Object,
         ast::DiagramKind::UseCase => DiagramFamily::UseCase,
+        ast::DiagramKind::Component => DiagramFamily::Component,
+        ast::DiagramKind::Deployment => DiagramFamily::Deployment,
+        ast::DiagramKind::State => DiagramFamily::State,
+        ast::DiagramKind::Activity => DiagramFamily::Activity,
+        ast::DiagramKind::Timing => DiagramFamily::Timing,
         ast::DiagramKind::Unknown => DiagramFamily::Unknown,
     }
 }
