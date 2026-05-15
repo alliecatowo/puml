@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-15T19:21:23Z",
+  "generated_at_utc": "2026-05-15T20:04:10Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml-wt-17",
+    "cwd": "/home/Allie/develop/puml-wt-1",
     "quick_mode": false
   },
   "oracle": {
@@ -84,7 +84,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 4110,
+          "svg_bytes": 3617,
           "viewbox": null
         }
       },
@@ -290,8 +290,8 @@
   "doc_examples": {
     "summary": {
       "total": 10,
-      "passed": 0,
-      "failed": 10
+      "passed": 10,
+      "failed": 0
     },
     "entries": [
       {
@@ -300,12 +300,10 @@
         "source_ref": "docs/examples/basic_hello.puml",
         "artifact_svg": "docs/examples/basic_hello.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/README.md",
@@ -313,12 +311,10 @@
         "source_ref": "docs/examples/groups_notes.puml",
         "artifact_svg": "docs/examples/groups_notes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/README.md",
@@ -326,12 +322,10 @@
         "source_ref": "docs/examples/lifecycle_autonumber.puml",
         "artifact_svg": "docs/examples/lifecycle_autonumber.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/README.md",
@@ -339,12 +333,10 @@
         "source_ref": "docs/examples/supported_primitives_participants_messages.puml",
         "artifact_svg": "docs/examples/supported_primitives_participants_messages.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/README.md",
@@ -352,12 +344,10 @@
         "source_ref": "docs/examples/supported_primitives_lifecycle_structure.puml",
         "artifact_svg": "docs/examples/supported_primitives_lifecycle_structure.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/README.md",
@@ -365,12 +355,10 @@
         "source_ref": "docs/examples/supported_primitives_styling_groups_notes.puml",
         "artifact_svg": "docs/examples/supported_primitives_styling_groups_notes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/README.md",
@@ -378,12 +366,10 @@
         "source_ref": "docs/examples/README.md#snippet-1",
         "artifact_svg": "docs/examples/README_snippet_1.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/supported_primitives.md",
@@ -391,12 +377,10 @@
         "source_ref": "docs/examples/supported_primitives_participants_messages.puml",
         "artifact_svg": "docs/examples/supported_primitives_participants_messages.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/supported_primitives.md",
@@ -404,12 +388,10 @@
         "source_ref": "docs/examples/supported_primitives_lifecycle_structure.puml",
         "artifact_svg": "docs/examples/supported_primitives_lifecycle_structure.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/supported_primitives.md",
@@ -417,12 +399,10 @@
         "source_ref": "docs/examples/supported_primitives_styling_groups_notes.puml",
         "artifact_svg": "docs/examples/supported_primitives_styling_groups_notes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
+        "artifact_matches_render": true,
         "artifact_up_to_date": true,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       }
     ]
   }
