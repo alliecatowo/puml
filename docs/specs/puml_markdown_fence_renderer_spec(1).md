@@ -4,6 +4,29 @@ Render `puml` diagrams directly inside Markdown wherever the code fence appears:
 
 This is not syntax highlighting. This is Markdown-native diagram rendering.
 
+## Runtime contract snapshot (Current, audited in issue #24)
+
+This spec describes a target package and host-adapter surface. The current shipped/runtime-safe markdown contract in this repository today is CLI-level fence extraction, not a published `@puml/markdown` package.
+
+Current executable surface:
+
+- CLI supports markdown extraction via `--from-markdown` and auto-detect for `.md`/`.markdown`/`.mdown` file inputs.
+- Supported fence language tags in runtime extraction:
+  - `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`
+- Multi-fence/multi-page markdown inputs require explicit `--multi` for output expansion.
+- Markdown extraction routes through existing CLI parse/normalize/render contracts and diagnostics schema (`puml.diagnostics`).
+
+Current non-shipped scope in this repo:
+
+- no implemented `@puml/markdown` package
+- no implemented `puml-md` standalone CLI helper
+- no host-adapter implementations (`markdown-it`/remark/rehype/custom-element) under source control yet
+
+Contract boundary:
+
+- Sections below are target-state design unless explicitly marked as current runtime.
+- Do not market target APIs as shipped until implementation + contract tests land.
+
 ## Name
 
 Package family:
