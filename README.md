@@ -127,7 +127,10 @@ Modes:
 - `--multi` permits multiple diagrams
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
-- `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`; currently routes to PlantUML path)
+- `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
+  `auto|plantuml`: parse PlantUML sequence syntax
+  `mermaid`: supports a baseline `sequenceDiagram` subset (participants + message arrows), with deterministic compatibility diagnostics for unsupported constructs
+  `picouml`: reserved; currently rejected with deterministic "not implemented yet" diagnostic
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
   `extended`: when `--include-root` is omitted, stdin `!include` falls back to current working directory

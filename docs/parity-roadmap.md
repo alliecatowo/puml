@@ -138,6 +138,8 @@ Done criteria:
 - Existing sequence fixtures remain green.
 - New family-routing API is additive and stable.
 - Non-sequence families remain explicit deterministic rejections.
+- Mermaid frontend baseline for `sequenceDiagram` subset routes through shared parse pipeline entrypoint.
+- Unsupported Mermaid families/constructs fail with deterministic compatibility diagnostics.
 
 ### Slice B: Class family bootstrap
 
