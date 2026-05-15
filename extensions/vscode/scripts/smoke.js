@@ -7,11 +7,18 @@ if (!fs.existsSync(dist)) {
 }
 
 const srcPreview = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'previewPanel.ts'), 'utf8');
+const srcLspClient = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'lspClient.ts'), 'utf8');
 if (!srcPreview.includes('puml.renderSvg')) {
   throw new Error('Preview panel contract marker missing: puml.renderSvg');
 }
 if (srcPreview.includes('parseModel(')) {
   throw new Error('Found private parser code in preview panel; scaffold must stay LSP-backed');
+}
+if (!srcLspClient.includes('fs.existsSync')) {
+  throw new Error('LSP client contract drift: expected bundled-binary existence guard');
+}
+if (!srcLspClient.includes("return isWindows ? 'puml-lsp.exe' : 'puml-lsp';")) {
+  throw new Error('LSP client contract drift: expected PATH fallback for puml-lsp');
 }
 
 console.log('[vscode-smoke] build artifact exists and preview is LSP-backed');

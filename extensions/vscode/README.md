@@ -14,7 +14,7 @@ VS Code scaffolding for `puml` that stays aligned with the current CLI/LSP contr
 ## Settings
 
 - `puml.lsp.enabled` (`true`): auto-start language client on activation.
-- `puml.lsp.path` (`""`): optional absolute path to `puml-lsp`. Empty uses bundled path (`bin/puml-lsp` or `bin/puml-lsp.exe`).
+- `puml.lsp.path` (`""`): optional absolute path to `puml-lsp`. Empty resolution order: bundled path (`bin/puml-lsp` or `bin/puml-lsp.exe`) if present, otherwise `puml-lsp` from `PATH`.
 - `puml.lsp.trace` (`off|messages|verbose`): language client trace verbosity.
 
 ## Smoke checks

@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import {
   LanguageClient,
@@ -82,5 +83,8 @@ export class PumlLspClient {
 function defaultServerCommand(context: vscode.ExtensionContext): string {
   const isWindows = process.platform === 'win32';
   const bundled = path.join(context.extensionPath, 'bin', isWindows ? 'puml-lsp.exe' : 'puml-lsp');
-  return bundled;
+  if (fs.existsSync(bundled)) {
+    return bundled;
+  }
+  return isWindows ? 'puml-lsp.exe' : 'puml-lsp';
 }

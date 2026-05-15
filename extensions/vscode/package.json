@@ -61,7 +61,7 @@
         "puml.lsp.path": {
           "type": "string",
           "default": "",
-          "description": "Optional absolute path to puml-lsp binary. Empty uses extension bundled binary path."
+          "description": "Optional absolute path to puml-lsp binary. Empty tries extension bundled binary path first, then puml-lsp from PATH."
         },
         "puml.lsp.trace": {
           "type": "string",
