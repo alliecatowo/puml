@@ -238,13 +238,6 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
     )
 }
 
-fn render_sequence_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
-    let document = parse(source)?;
-    let sequence = normalize(document)?;
-    let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
-    Ok(scenes.iter().map(render::render_svg).collect())
-}
-
 fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
     match kind {
         ast::DiagramKind::Sequence => DiagramFamily::Sequence,

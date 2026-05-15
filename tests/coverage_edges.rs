@@ -127,7 +127,7 @@ fn normalize_family_rejects_unsupported_state_family() {
         .expect("fixture should load");
     let doc = parse(&src).expect("parse should succeed");
     let err = normalize_family(doc).expect_err("state family should be unsupported");
-    assert!(err.message.contains("E_FAMILY_UNKNOWN"));
+    assert!(err.message.contains("E_FAMILY_STATE_UNSUPPORTED"));
 }
 
 #[test]

@@ -1084,7 +1084,7 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         return Some(DiagramKind::Deployment);
     }
 
-    if line.starts_with("state ") || line.starts_with("[*]") || line == "[H]" || line == "[H*]" {
+    if line.starts_with("state ") || line == "[*]" || line == "[H]" || line == "[H*]" {
         return Some(DiagramKind::State);
     }
 
@@ -2388,9 +2388,9 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_family_keyword_is_preserved_for_later_validation() {
+    fn unsupported_family_keyword_is_tagged_for_family_routing() {
         let doc = parse_with_options("state Running\n", &ParseOptions::default()).unwrap();
-        assert_eq!(doc.kind, DiagramKind::Unknown);
+        assert_eq!(doc.kind, DiagramKind::State);
         assert!(matches!(doc.statements[0].kind, StatementKind::Unknown(_)));
     }
 
