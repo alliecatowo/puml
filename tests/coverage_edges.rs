@@ -522,6 +522,114 @@ fn normalize_reports_empty_alt_group() {
 }
 
 #[test]
+fn normalize_rejects_deactivate_without_active_activation() {
+    let src = "@startuml\ndeactivate A\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected deactivate-empty lifecycle error");
+    assert!(err.message.contains("E_LIFECYCLE_DEACTIVATE_EMPTY"));
+}
+
+#[test]
+fn normalize_rejects_deactivate_order_mismatch() {
+    let src = "@startuml\nA -> B++\nB -> C++\ndeactivate B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected deactivate-order lifecycle error");
+    assert!(err.message.contains("E_LIFECYCLE_DEACTIVATE_ORDER"));
+}
+
+#[test]
+fn normalize_rejects_lifecycle_shortcuts_on_virtual_endpoints() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Sequence,
+        statements: vec![puml::ast::Statement {
+            span: Span { start: 0, end: 0 },
+            kind: puml::ast::StatementKind::Message(puml::ast::Message {
+                from: "[".to_string(),
+                to: "A".to_string(),
+                arrow: "->@L++".to_string(),
+                label: None,
+                from_virtual: None,
+                to_virtual: None,
+            }),
+        }],
+    };
+
+    let err = normalize::normalize(doc).expect_err("expected virtual-endpoint lifecycle error");
+    assert!(err.message.contains("E_LIFECYCLE_SHORTCUT_VIRTUAL"));
+}
+
+#[test]
+fn normalize_ignores_horizontal_rule_unknown_syntax_passthrough() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Sequence,
+        statements: vec![
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Unknown("---".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Message(puml::ast::Message {
+                    from: "A".to_string(),
+                    to: "B".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("ok".to_string()),
+                    from_virtual: None,
+                    to_virtual: None,
+                }),
+            },
+        ],
+    };
+
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert_eq!(model.events.len(), 1);
+}
+
+#[test]
+fn normalize_expands_bidirectional_message_into_two_events() {
+    let src = "@startuml\nA <-> B : ping\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    let messages = model
+        .events
+        .iter()
+        .filter(|e| matches!(e.kind, SequenceEventKind::Message { .. }))
+        .count();
+    assert_eq!(messages, 2);
+}
+
+#[test]
+fn paginate_newpage_blank_title_falls_back_to_document_title() {
+    let src = "@startuml\ntitle Primary\nA -> B\nnewpage   \nB -> A\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let pages = normalize::paginate(&model);
+
+    assert_eq!(pages.len(), 2);
+    assert_eq!(pages[0].title.as_deref(), Some("Primary"));
+    assert_eq!(pages[1].title.as_deref(), Some("Primary"));
+}
+
+#[test]
+fn normalize_rejects_autonumber_with_embedded_quote_in_format() {
+    let src = "@startuml\nautonumber 1 1 bad\"fmt\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected autonumber format diagnostic");
+    assert!(err.message.contains("E_AUTONUMBER_FORMAT_UNSUPPORTED"));
+}
+
+#[test]
+fn normalize_rejects_autonumber_with_nontrailing_quoted_format_token() {
+    let src = "@startuml\nautonumber \"<b>\" 1\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected malformed quoted-format diagnostic");
+    assert!(err
+        .message
+        .contains("malformed quoted autonumber format"));
+}
+
+#[test]
 fn theme_classifies_sequence_skinparam_subset() {
     assert_eq!(
         classify_sequence_skinparam("maxMessageSize", "120"),
