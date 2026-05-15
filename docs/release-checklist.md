@@ -18,6 +18,8 @@
 - [ ] Uploaded Actions artifacts include benchmark evidence files:
   `latest.{md,csv,json}` and `latest_trend.{md,json}`.
 - [ ] Branch protection/ruleset requires PR gate checks before merge to `main`.
+- [ ] Branch protection/ruleset validation passes: `./scripts/branch-protection.sh verify`.
+- [ ] If `./scripts/branch-protection.sh apply` was blocked by permissions, include failing-then-passing verification evidence in PR notes per `docs/branch-protection.md`.
 
 ## Benchmark / Perf / Size Contract
 
