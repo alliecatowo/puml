@@ -264,6 +264,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "groups/valid_loop_end.puml",
         "groups/valid_par_else_end.puml",
         "groups/valid_ref_and_else_rendering.puml",
+        "groups/valid_group_nested_mixed_fragments.puml",
+        "groups/valid_group_empty_group_block.puml",
         "autonumber/valid_basic.puml",
         "autonumber/valid_with_format.puml",
         "lifecycle/valid_activate_return.puml",
@@ -338,6 +340,10 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_include_tag_missing.puml",
         "errors/invalid_include_url.puml",
         "errors/invalid_else_inside_loop_group.puml",
+        "errors/invalid_group_else_without_alt.puml",
+        "errors/invalid_group_mismatched_end_keyword.puml",
+        "errors/invalid_group_empty_alt.puml",
+        "errors/invalid_group_empty_else_branch.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -358,6 +364,49 @@ fn else_inside_loop_group_reports_deterministic_normalize_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_GROUP_ELSE_KIND"));
+}
+
+#[test]
+fn strict_group_semantics_accepts_nested_alt_par_critical_and_group() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("groups/valid_group_nested_mixed_fragments.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn strict_group_semantics_allows_empty_group_block() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("groups/valid_group_empty_group_block.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn strict_group_semantics_rejects_empty_alt_and_else_branches() {
+    for case in [
+        "errors/invalid_group_empty_alt.puml",
+        "errors/invalid_group_empty_else_branch.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .code(1)
+            .stderr(predicate::str::contains("E_GROUP_EMPTY"));
+    }
 }
 
 #[test]
@@ -697,6 +746,47 @@ fn malformed_group_structure_reports_diagnostic() {
 }
 
 #[test]
+fn malformed_group_mismatched_end_keyword_reports_diagnostic_snapshot() {
+    let invalid = fixture("errors/invalid_group_mismatched_end_keyword.puml");
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &invalid])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out)
+        .unwrap()
+        .replace(&invalid, "<fixture>");
+    assert!(stderr.contains("E_GROUP_END_KIND"));
+    assert_snapshot!(
+        "malformed_group_mismatched_end_keyword_reports_diagnostic",
+        stderr
+    );
+}
+
+#[test]
+fn malformed_group_empty_alt_reports_diagnostic_snapshot() {
+    let invalid = fixture("errors/invalid_group_empty_alt.puml");
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &invalid])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out)
+        .unwrap()
+        .replace(&invalid, "<fixture>");
+    assert!(stderr.contains("E_GROUP_EMPTY"));
+    assert_snapshot!("malformed_group_empty_alt_reports_diagnostic", stderr);
+}
+
+#[test]
 fn dump_mode_requires_kind() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -973,7 +1063,46 @@ fn from_markdown_extracts_fenced_blocks_in_source_order() {
 }
 
 #[test]
-fn from_markdown_supports_sequence_fence_aliases() {
+fn from_markdown_supports_first_class_fence_frontends_and_aliases() {
+    let input = fs::read_to_string(fixture("markdown/mixed_fences.md")).unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array");
+    let labels = arr
+        .iter()
+        .map(|doc| {
+            doc["statements"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        vec![
+            "puml-one",
+            "pumlx-two",
+            "picouml-three",
+            "plantuml-four",
+            "mermaid-five",
+        ]
+    );
+}
+
+#[test]
+fn from_markdown_supports_legacy_sequence_fence_aliases() {
     let input = "```puml-sequence
 @startuml
 Alice -> Bob: one
@@ -1038,6 +1167,39 @@ fn from_markdown_diagnostics_json_maps_to_markdown_line_column() {
         .as_str()
         .unwrap()
         .contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn stdin_markdown_multi_fences_require_multi_flag() {
+    let input = fs::read_to_string(fixture("markdown/mixed_fences.md")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "-"])
+        .write_stdin(input)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("rerun with --multi"));
+}
+
+#[test]
+fn stdin_markdown_multi_outputs_snippet_named_json() {
+    let input = fs::read_to_string(fixture("markdown/multipage_mixed.md")).unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array output");
+    assert_eq!(arr.len(), 3);
+    assert_eq!(arr[0]["name"], "snippet-1-1.svg");
+    assert_eq!(arr[1]["name"], "snippet-1-2.svg");
+    assert_eq!(arr[2]["name"], "snippet-2.svg");
 }
 
 #[test]
@@ -1597,6 +1759,26 @@ fn markdown_file_auto_extracts_fenced_diagrams_without_flag() {
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn markdown_file_default_render_output_uses_deterministic_snippet_names() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let input = dir.path().join("mixed.md");
+    fs::copy(fixture("markdown/multipage_mixed.md"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg(input.to_str().unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    assert!(dir.path().join("mixed_snippet_1-1.svg").exists());
+    assert!(dir.path().join("mixed_snippet_1-2.svg").exists());
+    assert!(dir.path().join("mixed_snippet_2.svg").exists());
+    assert!(!dir.path().join("mixed-1.svg").exists());
+    assert!(!dir.path().join("mixed-2.svg").exists());
 }
 
 #[test]

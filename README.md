@@ -64,7 +64,7 @@ cargo run -- --dump scene tests/fixtures/basic/hello.puml
 cargo run -- --multi tests/fixtures/structure/multi_three.puml
 cat tests/fixtures/structure/multi_three.puml | cargo run -- --multi -
 
-# markdown fenced extraction mode
+# markdown fenced extraction mode (auto-enabled for .md/.markdown/.mdown files)
 cargo run -- --from-markdown --check docs/sequence-notes.md
 
 # machine-readable diagnostics
@@ -131,6 +131,7 @@ Modes:
 - `--dump ast|model|scene` emits JSON
 - `--multi` permits multiple diagrams
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
+  supported markdown fence langs: `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
   `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
@@ -146,6 +147,9 @@ Outputs:
 - single diagram from file writes `<input-stem>.svg`
 - single diagram from stdin writes SVG to stdout
 - multi diagram from stdin + `--multi` writes JSON array to stdout
+  markdown stdin naming is deterministic: `snippet-<n>.svg` (or `snippet-<n>-<page>.svg` for multipage fences)
+- markdown file default outputs are deterministic snippet files:
+  `<markdown-stem>_snippet_<n>.svg` (or `<markdown-stem>_snippet_<n>-<page>.svg` for multipage fences)
 - `--output PATH` writes to that path for single diagrams, and numbered paths for multi
 
 Exit codes:
