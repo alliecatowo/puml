@@ -1,0 +1,3 @@
+@startuml
+!include /tmp/not_allowed.puml
+@enduml

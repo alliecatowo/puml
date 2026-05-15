@@ -1,0 +1,5 @@
+@startuml
+!if (1)
+Alice -> Bob: unsupported parens
+!endif
+@enduml

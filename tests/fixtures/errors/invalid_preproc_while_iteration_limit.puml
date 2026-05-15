@@ -1,0 +1,6 @@
+@startuml
+!define LOOP 1
+!while LOOP
+Alice -> Bob: spin
+!endwhile
+@enduml
