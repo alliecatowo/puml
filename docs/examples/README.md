@@ -7,6 +7,10 @@ This markdown is the canonical top-layer docs parity source for `scripts/parity_
 - [basic_hello.puml](basic_hello.puml) -> [basic_hello.svg](basic_hello.svg)
 - [groups_notes.puml](groups_notes.puml) -> [groups_notes.svg](groups_notes.svg)
 - [lifecycle_autonumber.puml](lifecycle_autonumber.puml) -> [lifecycle_autonumber.svg](lifecycle_autonumber.svg)
+- [supported_primitives_participants_messages.puml](supported_primitives_participants_messages.puml) -> [supported_primitives_participants_messages.svg](supported_primitives_participants_messages.svg)
+- [supported_primitives_lifecycle_structure.puml](supported_primitives_lifecycle_structure.puml) -> [supported_primitives_lifecycle_structure.svg](supported_primitives_lifecycle_structure.svg)
+- [supported_primitives_styling_groups_notes.puml](supported_primitives_styling_groups_notes.puml) -> [supported_primitives_styling_groups_notes.svg](supported_primitives_styling_groups_notes.svg)
+- [supported_primitives.md](supported_primitives.md)
 
 ## Inline Snippet
 

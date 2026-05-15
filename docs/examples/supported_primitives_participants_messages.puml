@@ -1,0 +1,20 @@
+@startuml
+participant Client as C
+actor User as U
+boundary Gateway as G
+control Service as S
+entity Store as E
+database DB as D
+collections Cache as H
+queue Jobs as Q
+
+U -> C : click button
+C -> G : POST /jobs
+G -> S : validate
+S -> E : load profile
+E -> D : query
+D --> E : row
+E -> H : cache put
+S -> Q : enqueue
+Q --> C : queued
+@enduml

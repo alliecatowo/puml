@@ -40,6 +40,37 @@ Expected success tail:
 - `parity harness wrote ...`
 - `[harness] complete`
 
+## Exact Codex/Claude Harness Runbook
+
+Run from repo root:
+
+```console
+git rev-parse --abbrev-ref HEAD
+./scripts/harness-check.sh --dry
+./scripts/harness-check.sh --quick
+./scripts/harness-check.sh
+```
+
+If docs/examples source markdown or `.puml` changed, re-render and commit artifacts:
+
+```console
+for f in docs/examples/*.puml; do cargo run -- "$f"; done
+cargo run -- --from-markdown docs/examples/README.md --output docs/examples/README_snippet_1.svg
+python3 ./scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
+```
+
+Pre-PR confidence chain:
+
+```console
+./scripts/autonomy-check.sh --quick
+./scripts/autonomy-check.sh
+```
+
+Required green markers before opening PR:
+- `[harness] complete`
+- `[autonomy] complete`
+- `doc_examples.summary.failed = 0` in `docs/benchmarks/parity_latest.json`
+
 ## Codex and Claude Workflow Recipe
 
 1. Author diagrams and skills under `agent-pack/**`.

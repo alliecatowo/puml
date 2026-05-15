@@ -6,6 +6,9 @@ Fast, deterministic sequence-diagram rendering to SVG with a first-class polymor
 ![rust](https://img.shields.io/badge/rust-2021-f97316)
 ![scope](https://img.shields.io/badge/scope-sequence--only-14b8a6)
 ![license](https://img.shields.io/badge/license-MIT-22c55e)
+![docs parity](https://img.shields.io/badge/docs--as--tests-enabled-16a34a)
+![determinism](https://img.shields.io/badge/svg-deterministic-0f766e)
+![agent harness](https://img.shields.io/badge/codex%2Fclaude-harness--ready-f59e0b)
 
 ## Why Sequence-Only
 
@@ -93,6 +96,7 @@ $ cargo run -- --check hello.puml
 ## Rendered Examples
 
 Canonical examples live in [`docs/examples/README.md`](docs/examples/README.md), with committed source/output pairs.
+Supported primitive catalog page: [`docs/examples/supported_primitives.md`](docs/examples/supported_primitives.md).
 
 Re-generate all committed examples:
 
