@@ -78,3 +78,10 @@ This log records intentional contract deviations and updates adopted in the curr
 - Decision: Stage and publish multi-file outputs transactionally for both standard and markdown output paths.
 - Rationale: Prevent partially updated output sets when any numbered output write fails.
 - Impact: Multi-output failures now return I/O exit code `2` without leaving partial numbered files behind.
+
+### D-014: Full release gate must include release-build validation
+- Decision: Treat `cargo build --release` as a required full-gate contract step (alongside fmt, clippy, tests, and coverage).
+- Rationale: Release readiness is incomplete without validating optimized build output under the same audited gate path.
+- Impact:
+  - `./scripts/check-all.sh` full mode now enforces `cargo build --release` before benchmark gate checks.
+  - Release checklist/docs must keep this command chain explicit and deterministic.

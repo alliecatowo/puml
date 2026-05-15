@@ -1,0 +1,5 @@
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+cargo llvm-cov --all-features --workspace --fail-under-lines 90
+cargo build --release

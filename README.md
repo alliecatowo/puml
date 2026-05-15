@@ -32,8 +32,11 @@ cd puml
 # fast local loop (fmt + clippy + test)
 ./scripts/dev.sh
 
-# full quality gate
+# full quality gate (fmt + clippy + test + llvm-cov + release build + bench gates)
 ./scripts/check-all.sh
+
+# quick quality gate (skips coverage + release build, keeps quick bench gates)
+./scripts/check-all.sh --quick
 ```
 
 ## CLI Usage (Explicit Modes)

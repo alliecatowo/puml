@@ -9,7 +9,7 @@ usage() {
 Usage: ./scripts/check-all.sh [--quick]
 
 Options:
-  --quick  run fast quality gate (skips coverage, enforces quick perf/binary gates)
+  --quick  run fast quality gate (skips coverage/release build, enforces quick perf/binary gates)
 USAGE
 }
 
@@ -63,6 +63,9 @@ if [[ "$MODE" == "full" ]]; then
 
   echo "[gate] cargo llvm-cov --all-features --workspace --fail-under-lines 90"
   cargo llvm-cov --all-features --workspace --fail-under-lines 90
+
+  echo "[gate] cargo build --release"
+  cargo build --release
 
   echo "[gate] benchmark full profile with enforced gates"
   ./scripts/bench.sh --enforce-gates
