@@ -3,6 +3,7 @@ use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
 };
 use puml::scene::LayoutOptions;
+use puml::theme::SequenceStyle;
 use puml::{layout, render};
 use std::collections::HashSet;
 
@@ -158,6 +159,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
         caption: None,
         legend: None,
         skinparams: vec![],
+        style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
     };
@@ -169,6 +171,49 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
     assert!(first.contains(">A<"));
     assert!(!first.contains(">[*]<"));
     assert_snapshot!("render_svg_handles_self_found_lost_and_modifiers", first);
+}
+
+#[test]
+fn render_svg_applies_supported_sequence_skinparam_colors() {
+    let src = fixture("styling/valid_skinparam_sequence_colors_supported.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(
+        svg.contains("stroke=\"#ff0000\""),
+        "arrow color should be applied"
+    );
+    assert!(
+        svg.contains("stroke=\"#00aa00\""),
+        "lifeline border color should be applied"
+    );
+    assert!(
+        svg.contains("fill=\"#f0f0ff\""),
+        "participant background should be applied"
+    );
+    assert!(
+        svg.contains("stroke=\"#2222aa\""),
+        "participant border should be applied"
+    );
+    assert!(
+        svg.contains("fill=\"#ffffdd\""),
+        "note background should be applied"
+    );
+    assert!(
+        svg.contains("stroke=\"#aa8800\""),
+        "note border should be applied"
+    );
+    assert!(
+        svg.contains("fill=\"#f5f5f5\""),
+        "group background should be applied"
+    );
+    assert!(
+        svg.contains("stroke=\"#444444\""),
+        "group border should be applied"
+    );
+    assert_snapshot!(
+        "render_svg_applies_supported_sequence_skinparam_colors",
+        svg
+    );
 }
 
 #[test]

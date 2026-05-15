@@ -1,5 +1,5 @@
 use crate::model::{ParticipantRole, VirtualEndpointKind};
-use crate::scene::{Scene, StructureKind};
+use crate::scene::{ParticipantBox, Scene, StructureKind};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
 
@@ -23,33 +23,29 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for p in &scene.participants {
-        render_participant_box(
-            &mut out,
-            p.x,
-            p.y,
-            p.width,
-            p.height,
-            p.role,
-            &p.display_lines,
-        );
+        render_participant_box(&mut out, p, scene);
     }
 
     for l in &scene.lifelines {
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#555\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/>",
-            l.x, l.y1, l.x, l.y2
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/>",
+            l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color
         ));
     }
 
     for g in &scene.groups {
-        let fill = if g.kind.eq_ignore_ascii_case("ref") {
-            "#eef6ff"
-        } else {
-            "#fafafa"
-        };
         out.push_str(&format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"#666\" stroke-width=\"1\"/>",
-            g.x, g.y, g.width, g.height, fill
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            g.x,
+            g.y,
+            g.width,
+            g.height,
+            if g.kind.eq_ignore_ascii_case("ref") {
+                "#eef6ff"
+            } else {
+                scene.style.group_background_color.as_str()
+            },
+            scene.style.group_border_color
         ));
 
         if let Some(label) = &g.label {
@@ -76,11 +72,12 @@ pub fn render_svg(scene: &Scene) -> String {
 
         for sep in &g.separators {
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#666\" stroke-width=\"1\" stroke-dasharray=\"5 4\"/>",
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"5 4\"/>",
                 g.x,
                 sep.y,
                 g.x + g.width,
-                sep.y
+                sep.y,
+                scene.style.group_border_color
             ));
             if let Some(label) = &sep.label {
                 out.push_str(&format!(
@@ -100,29 +97,31 @@ pub fn render_svg(scene: &Scene) -> String {
             ""
         };
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#111\" stroke-width=\"1.5\"{}/>",
-            m.x1, m.y, m.x2, m.y, stroke_dash
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
+            m.x1, m.y, m.x2, m.y, scene.style.arrow_color, stroke_dash
         ));
         let arrow_size = 6;
         if m.x2 >= m.x1 {
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#111\"/>",
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
                 m.x2,
                 m.y,
                 m.x2 - arrow_size,
                 m.y - 4,
                 m.x2 - arrow_size,
-                m.y + 4
+                m.y + 4,
+                scene.style.arrow_color
             ));
         } else {
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#111\"/>",
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
                 m.x2,
                 m.y,
                 m.x2 + arrow_size,
                 m.y - 4,
                 m.x2 + arrow_size,
-                m.y + 4
+                m.y + 4,
+                scene.style.arrow_color
             ));
         }
 
@@ -158,8 +157,8 @@ pub fn render_svg(scene: &Scene) -> String {
 
     for n in &scene.notes {
         out.push_str(&format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"#fff8c4\" stroke=\"#111\" stroke-width=\"1\"/>",
-            n.x, n.y, n.width, n.height
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            n.x, n.y, n.width, n.height, scene.style.note_background_color, scene.style.note_border_color
         ));
 
         let mut text_y = n.y + 20;
@@ -226,15 +225,7 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for p in &scene.footboxes {
-        render_participant_box(
-            &mut out,
-            p.x,
-            p.y,
-            p.width,
-            p.height,
-            p.role,
-            &p.display_lines,
-        );
+        render_participant_box(&mut out, p, scene);
     }
 
     out.push_str("</svg>");
@@ -297,20 +288,26 @@ fn escape_text(input: &str) -> String {
 
 fn render_participant_box(
     out: &mut String,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    role: ParticipantRole,
-    display_lines: &[String],
+    participant: &ParticipantBox,
+    scene: &Scene,
 ) {
+    let x = participant.x;
+    let y = participant.y;
+    let width = participant.width;
+    let height = participant.height;
+    let display_lines = &participant.display_lines;
     let cx = x + (width / 2);
 
-    match role {
+    match participant.role {
         ParticipantRole::Participant => {
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#f6f6f6\" stroke=\"#111\" stroke-width=\"1\"/>",
-                x, y, width, height
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x,
+                y,
+                width,
+                height,
+                scene.style.participant_background_color,
+                scene.style.participant_border_color
             ));
         }
         ParticipantRole::Actor => {

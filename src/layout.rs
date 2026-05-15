@@ -368,6 +368,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         notes,
         groups,
         structures,
+        style: document.style.clone(),
     }
 }
 

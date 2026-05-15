@@ -1,5 +1,6 @@
 use crate::model::ParticipantRole;
 use crate::model::VirtualEndpoint;
+use crate::theme::SequenceStyle;
 
 #[derive(Debug, Clone)]
 pub struct Scene {
@@ -13,6 +14,7 @@ pub struct Scene {
     pub notes: Vec<NoteBox>,
     pub groups: Vec<GroupBox>,
     pub structures: Vec<StructureLine>,
+    pub style: SequenceStyle,
 }
 
 #[derive(Debug, Clone)]

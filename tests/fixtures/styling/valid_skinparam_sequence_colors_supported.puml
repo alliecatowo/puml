@@ -1,0 +1,16 @@
+@startuml
+skinparam ArrowColor #ff0000
+skinparam SequenceLifeLineBorderColor #00aa00
+skinparam ParticipantBackgroundColor #f0f0ff
+skinparam ParticipantBorderColor #2222aa
+skinparam NoteBackgroundColor #ffffdd
+skinparam NoteBorderColor #aa8800
+skinparam GroupBackgroundColor #f5f5f5
+skinparam GroupBorderColor #444444
+participant A
+participant B
+group Branch
+A -> B : hello
+end
+note over A, B: styled note
+@enduml

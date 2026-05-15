@@ -299,7 +299,7 @@ fn check_mode_emits_styling_warnings_but_succeeds() {
 
 #[test]
 fn dump_mode_emits_warnings_in_deterministic_order() {
-    let input = "@startuml\n!theme spacelab\nskinparam ArrowColor red\nskinparam SequenceLifeLineBorderColor blue\nA -> B\n@enduml\n";
+    let input = "@startuml\n!theme spacelab\nskinparam UnknownKey red\nskinparam StillUnknown blue\nA -> B\n@enduml\n";
     let out = Command::cargo_bin("puml")
         .expect("binary")
         .args(["--dump", "model", "-"])
@@ -324,7 +324,7 @@ fn dump_mode_emits_warnings_in_deterministic_order() {
 fn render_mode_emits_styling_warnings_but_succeeds() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .write_stdin("@startuml\n!theme plain\nskinparam ArrowColor red\nA -> B\n@enduml\n")
+        .write_stdin("@startuml\n!theme plain\nskinparam UnknownKey red\nA -> B\n@enduml\n")
         .assert()
         .success()
         .stdout(predicate::str::contains("<svg"))
@@ -336,7 +336,7 @@ fn render_mode_emits_styling_warnings_but_succeeds() {
 
 #[test]
 fn source_related_warning_uses_line_column_and_caret_in_all_modes() {
-    let input = "@startuml\nskinparam ArrowColor red\nA -> B\n@enduml\n";
+    let input = "@startuml\nskinparam UnknownKey red\nA -> B\n@enduml\n";
 
     Command::cargo_bin("puml")
         .expect("binary")
@@ -346,7 +346,7 @@ fn source_related_warning_uses_line_column_and_caret_in_all_modes() {
         .success()
         .stderr(
             predicate::str::contains("line 2, column 1").and(predicate::str::contains(
-                "skinparam ArrowColor red\n^^^^^^^^",
+                "skinparam UnknownKey red\n^^^^^^^^",
             )),
         );
 
@@ -358,7 +358,7 @@ fn source_related_warning_uses_line_column_and_caret_in_all_modes() {
         .success()
         .stderr(
             predicate::str::contains("line 2, column 1").and(predicate::str::contains(
-                "skinparam ArrowColor red\n^^^^^^^^",
+                "skinparam UnknownKey red\n^^^^^^^^",
             )),
         );
 
@@ -369,7 +369,7 @@ fn source_related_warning_uses_line_column_and_caret_in_all_modes() {
         .success()
         .stderr(
             predicate::str::contains("line 2, column 1").and(predicate::str::contains(
-                "skinparam ArrowColor red\n^^^^^^^^",
+                "skinparam UnknownKey red\n^^^^^^^^",
             )),
         );
 }

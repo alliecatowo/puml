@@ -7,7 +7,9 @@ use puml::model::{
 use puml::normalize;
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
-use puml::theme::{classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue};
+use puml::theme::{
+    classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
+};
 use puml::{parse, render};
 use std::fs;
 use tempfile::tempdir;
@@ -154,7 +156,7 @@ fn theme_classifies_sequence_skinparam_subset() {
     );
     assert_eq!(
         classify_sequence_skinparam("ArrowColor", "red"),
-        SequenceSkinParamSupport::UnsupportedKey
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor)
     );
 }
 
@@ -197,6 +199,7 @@ fn layout_handles_return_without_caller() {
         caption: None,
         legend: None,
         skinparams: vec![],
+        style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
     };
@@ -231,6 +234,7 @@ fn render_escapes_text_in_labels_and_titles() {
         caption: None,
         legend: None,
         skinparams: vec![],
+        style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
     };
@@ -303,6 +307,7 @@ fn layout_wraps_participant_labels_and_grows_boxes_by_default() {
         caption: None,
         legend: None,
         skinparams: vec![],
+        style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
     };
@@ -337,6 +342,7 @@ fn layout_uses_ellipsis_for_single_line_overflow_policy() {
         caption: None,
         legend: None,
         skinparams: vec![],
+        style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
     };
