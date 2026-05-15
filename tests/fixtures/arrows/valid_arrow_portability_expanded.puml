@@ -1,0 +1,11 @@
+@startuml
+A ->> B: sync-thin
+B <<- A: reverse-thin
+A -->> B: async-thin
+B <<-- A: reverse-async-thin
+A x-> B: left-endpoint-marker
+A ->o B: right-endpoint-marker
+A x->o B: both-endpoint-markers
+A o<->x B: bidi-endpoint-markers
+A /x->o\\ B: slanted-with-endpoint-markers
+@enduml

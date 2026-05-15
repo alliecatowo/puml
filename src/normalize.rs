@@ -5,6 +5,7 @@ use crate::diagnostic::Diagnostic;
 use crate::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
 };
+use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue};
 
 #[derive(Debug, Clone, Default)]
 pub struct NormalizeOptions {
@@ -87,6 +88,7 @@ pub fn normalize_with_options(
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
     let mut group_stack: Vec<String> = Vec::new();
     let mut last_message: Option<(String, String)> = None;
+    let mut ignore_newpage = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -214,14 +216,31 @@ pub fn normalize_with_options(
             StatementKind::Legend(v) => legend = Some(v),
             StatementKind::SkinParam { key, value } => {
                 skinparams.push((key.clone(), value.clone()));
-                if !is_supported_skinparam(&key) {
-                    warnings.push(
-                        Diagnostic::warning(format!(
-                            "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
-                            key
-                        ))
-                        .with_span(stmt.span),
-                    );
+                match classify_sequence_skinparam(&key, &value) {
+                    SequenceSkinParamSupport::SupportedNoop => {}
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::FootboxVisible(visible),
+                    ) => {
+                        footbox_visible = visible;
+                    }
+                    SequenceSkinParamSupport::UnsupportedValue => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                    SequenceSkinParamSupport::UnsupportedKey => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                                key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
                 }
             }
             StatementKind::Theme(name) => {
@@ -254,10 +273,17 @@ pub fn normalize_with_options(
                 span: stmt.span,
                 kind: SequenceEventKind::Spacer,
             }),
-            StatementKind::NewPage(v) => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: SequenceEventKind::NewPage(v),
-            }),
+            StatementKind::NewPage(v) => {
+                if !ignore_newpage {
+                    events.push(SequenceEvent {
+                        span: stmt.span,
+                        kind: SequenceEventKind::NewPage(v),
+                    });
+                }
+            }
+            StatementKind::IgnoreNewPage => {
+                ignore_newpage = true;
+            }
             StatementKind::Autonumber(v) => events.push(SequenceEvent {
                 span: stmt.span,
                 kind: SequenceEventKind::Autonumber(v),
@@ -450,10 +476,6 @@ fn infer_return_event(
     })
 }
 
-fn is_supported_skinparam(key: &str) -> bool {
-    matches!(key.to_ascii_lowercase().as_str(), "maxmessagesize")
-}
-
 fn ensure_implicit(
     participants: &mut Vec<Participant>,
     index: &mut BTreeMap<String, usize>,
@@ -511,7 +533,7 @@ fn map_role(role: AstRole) -> ParticipantRole {
 }
 
 fn is_virtual_endpoint(id: &str) -> bool {
-    id == "[*]"
+    matches!(id, "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]")
 }
 
 #[derive(Debug, Clone)]
@@ -525,9 +547,24 @@ struct ParsedMessageArrow {
 fn parse_message_arrow(raw: &str) -> Option<ParsedMessageArrow> {
     let (base, left_modifier, right_modifier) = decode_arrow_modifiers(raw)?;
     let canonical_base = base.replace(['/', '\\'], "");
-    let bidirectional = matches!(canonical_base.as_str(), "<->" | "<-->" | "<<->>" | "<<-->>");
+    if canonical_base.is_empty()
+        || !canonical_base
+            .chars()
+            .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x'))
+    {
+        return None;
+    }
+    let stripped_left = canonical_base
+        .strip_prefix('o')
+        .or_else(|| canonical_base.strip_prefix('x'))
+        .unwrap_or(&canonical_base);
+    let stripped = stripped_left
+        .strip_suffix('o')
+        .or_else(|| stripped_left.strip_suffix('x'))
+        .unwrap_or(stripped_left);
+    let bidirectional = matches!(stripped, "<->" | "<-->" | "<<->>" | "<<-->>");
     let render_arrow = if bidirectional {
-        if canonical_base.contains("--") {
+        if stripped.contains("--") {
             "-->".to_string()
         } else {
             "->".to_string()

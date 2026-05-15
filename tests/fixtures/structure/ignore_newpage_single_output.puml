@@ -1,0 +1,6 @@
+@startuml
+A -> B : one
+ignore newpage
+newpage Second
+B -> A : two
+@enduml

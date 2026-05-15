@@ -60,6 +60,12 @@ cargo run -- --dump scene tests/fixtures/basic/hello.puml
 cargo run -- --multi tests/fixtures/structure/multi_three.puml
 cat tests/fixtures/structure/multi_three.puml | cargo run -- --multi -
 
+# markdown fenced extraction mode
+cargo run -- --from-markdown --check docs/sequence-notes.md
+
+# machine-readable diagnostics
+cargo run -- --check --diagnostics json tests/fixtures/invalid_single.puml
+
 # stdin + include support
 cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --include-root ./tests/fixtures/include -
 ```
@@ -91,6 +97,8 @@ Modes:
 - `--check` parses + normalizes only
 - `--dump ast|model|scene` emits JSON
 - `--multi` permits multiple diagrams
+- `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
+- `--diagnostics human|json` controls diagnostics output format (default `human`)
 - `--include-root DIR` resolves `!include` when reading stdin
 
 Outputs:
@@ -108,6 +116,7 @@ Exit codes:
 Diagnostics:
 - source warnings/errors include `line`/`column` and caret snippets when source spans exist
 - unsupported `skinparam` keys and `!theme` emit deterministic non-fatal warnings on `stderr`
+- `--diagnostics json` emits `{"diagnostics":[...]}` with stable fields: `severity`, `message`, `span`, `line`, `column`, `snippet`, `caret`
 
 ## Benchmarks (Latest Recorded)
 

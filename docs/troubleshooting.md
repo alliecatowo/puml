@@ -62,6 +62,22 @@ Symptoms:
 Notes:
 - source-related diagnostics include `line`, `column`, and a caret-marked source snippet in `--check`, `--dump`, and render modes.
 - messages without source spans stay single-line by design.
+- use `--diagnostics json` for machine-readable diagnostics payloads in CI/tooling.
+
+## `--from-markdown` seems to ignore content
+
+Symptoms:
+- diagram-like lines in markdown are ignored.
+
+Cause:
+- `--from-markdown` only reads fenced code blocks tagged as diagram fences (for example ` ```puml `).
+- all non-fence markdown content is intentionally ignored.
+
+Fix:
+
+```console
+cargo run -- --from-markdown --check your-doc.md
+```
 
 ## Snapshot tests fail
 

@@ -20,13 +20,27 @@ pub struct Cli {
     #[arg(long, value_enum, value_name = "KIND", conflicts_with = "check")]
     pub dump: Option<DumpKind>,
 
-    /// Permit multiple diagrams.
+    /// Permit multiple stdin outputs (multiple @startuml blocks and/or newpage pages).
     #[arg(long, action = ArgAction::SetTrue)]
     pub multi: bool,
+
+    /// Extract diagrams from markdown fenced code blocks (```puml / ```plantuml / ```uml).
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub from_markdown: bool,
+
+    /// Diagnostics output format.
+    #[arg(long, value_enum, default_value_t = DiagnosticsFormat::Human)]
+    pub diagnostics: DiagnosticsFormat,
 
     /// Root directory used to resolve !include when reading from stdin.
     #[arg(long, value_name = "DIR")]
     pub include_root: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum DiagnosticsFormat {
+    Human,
+    Json,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]

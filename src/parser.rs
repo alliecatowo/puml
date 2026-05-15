@@ -579,8 +579,22 @@ fn parse_message(line: &str) -> Option<StatementKind> {
     let (from_id_raw, from_modifier) = split_lifecycle_modifier(lhs_raw);
     let (to_id_raw, to_modifier) = split_lifecycle_modifier(rhs_raw);
 
-    let from = normalize_virtual_endpoint(from_id_raw).unwrap_or_else(|| clean_ident(from_id_raw));
-    let to = normalize_virtual_endpoint(to_id_raw).unwrap_or_else(|| clean_ident(to_id_raw));
+    let from = if let Some(v) = normalize_virtual_endpoint(from_id_raw) {
+        v
+    } else {
+        if looks_like_virtual_endpoint_syntax(from_id_raw) {
+            return None;
+        }
+        clean_ident(from_id_raw)
+    };
+    let to = if let Some(v) = normalize_virtual_endpoint(to_id_raw) {
+        v
+    } else {
+        if looks_like_virtual_endpoint_syntax(to_id_raw) {
+            return None;
+        }
+        clean_ident(to_id_raw)
+    };
 
     if from.is_empty() || to.is_empty() {
         return None;
@@ -749,6 +763,9 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower.starts_with("newpage") {
         return Some(StatementKind::NewPage(line[7..].trim().to_string().into()));
     }
+    if lower == "ignore newpage" {
+        return Some(StatementKind::IgnoreNewPage);
+    }
     if lower.starts_with("autonumber") {
         return Some(StatementKind::Autonumber(
             line[10..].trim().to_string().into(),
@@ -873,16 +890,38 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
 }
 
 fn parse_arrow(arrow: &str) -> Option<&str> {
-    const VALID_ARROWS: &[&str] = &[
+    const VALID_BASE_ARROWS: &[&str] = &[
         "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
-        "o->", "o-->", "x->", "x-->", "->o", "-->o", "->x", "-->x", "o<->o", "x<->x",
     ];
-    if VALID_ARROWS.contains(&arrow) {
+    let canonical = arrow.replace(['/', '\\'], "");
+    if canonical.is_empty()
+        || !canonical
+            .chars()
+            .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x'))
+    {
+        return None;
+    }
+    if VALID_BASE_ARROWS.contains(&canonical.as_str()) {
         return Some(arrow);
     }
-
-    let canonical = arrow.replace(['/', '\\'], "");
-    VALID_ARROWS.contains(&canonical.as_str()).then_some(arrow)
+    let with_left_trimmed = canonical
+        .strip_prefix('o')
+        .or_else(|| canonical.strip_prefix('x'))
+        .unwrap_or(&canonical);
+    let (core, right_marker_removed) = if let Some(stripped) = with_left_trimmed.strip_suffix('o') {
+        (stripped, true)
+    } else if let Some(stripped) = with_left_trimmed.strip_suffix('x') {
+        (stripped, true)
+    } else {
+        (with_left_trimmed, false)
+    };
+    if core.is_empty() {
+        return None;
+    }
+    if VALID_BASE_ARROWS.contains(&core) && (right_marker_removed || core != canonical) {
+        return Some(arrow);
+    }
+    None
 }
 
 fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
@@ -897,11 +936,21 @@ fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
 fn normalize_virtual_endpoint(raw: &str) -> Option<String> {
     let t = raw.trim().trim_matches('"');
     let lower = t.to_ascii_lowercase();
-    let is_virtual = matches!(
-        lower.as_str(),
-        "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]" | "o[" | "]o" | "x[" | "]x"
-    );
-    is_virtual.then(|| "[*]".to_string())
+    match lower.as_str() {
+        "[*]" => Some("[*]".to_string()),
+        "[" => Some("[".to_string()),
+        "]" => Some("]".to_string()),
+        "[o" | "o[" => Some("[o".to_string()),
+        "o]" | "]o" => Some("o]".to_string()),
+        "[x" | "x[" => Some("[x".to_string()),
+        "x]" | "]x" => Some("x]".to_string()),
+        _ => None,
+    }
+}
+
+fn looks_like_virtual_endpoint_syntax(raw: &str) -> bool {
+    let t = raw.trim().trim_matches('"').to_ascii_lowercase();
+    t.contains('[') || t.contains(']')
 }
 
 fn looks_like_arrow_syntax(line: &str) -> bool {
@@ -940,6 +989,7 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Separator(_)
             | StatementKind::Spacer
             | StatementKind::NewPage(_)
+            | StatementKind::IgnoreNewPage
             | StatementKind::Autonumber(_)
             | StatementKind::Activate(_)
             | StatementKind::Deactivate(_)

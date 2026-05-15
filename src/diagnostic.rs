@@ -1,4 +1,5 @@
 use crate::source::Span;
+use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
@@ -11,6 +12,23 @@ pub struct Diagnostic {
     pub message: String,
     pub span: Option<Span>,
     pub severity: Severity,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct DiagnosticJson {
+    pub severity: &'static str,
+    pub message: String,
+    pub span: Option<DiagnosticSpanJson>,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub snippet: Option<String>,
+    pub caret: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct DiagnosticSpanJson {
+    pub start: usize,
+    pub end: usize,
 }
 
 impl Diagnostic {
@@ -54,6 +72,43 @@ impl Diagnostic {
             )
         } else {
             self.message.clone()
+        }
+    }
+
+    pub fn to_json_with_source(&self, source: &str) -> DiagnosticJson {
+        let (line, column) = self
+            .span
+            .map(|span| offset_to_line_col(source, span.start))
+            .map(|(l, c)| (Some(l), Some(c)))
+            .unwrap_or((None, None));
+
+        let (snippet, caret) = if let Some(span) = self.span {
+            let (line_start, line_end) = containing_line_bounds(source, span.start);
+            let line_src = source[line_start..line_end].to_string();
+            let marker = render_caret_line(source, span)
+                .lines()
+                .nth(1)
+                .unwrap_or_default()
+                .to_string();
+            (Some(line_src), Some(marker))
+        } else {
+            (None, None)
+        };
+
+        DiagnosticJson {
+            severity: match self.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            },
+            message: self.message.clone(),
+            span: self.span.map(|s| DiagnosticSpanJson {
+                start: s.start,
+                end: s.end,
+            }),
+            line,
+            column,
+            snippet,
+            caret,
         }
     }
 }

@@ -7,6 +7,7 @@ use puml::model::{
 use puml::normalize;
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
+use puml::theme::{classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue};
 use puml::{parse, render};
 use std::fs;
 use tempfile::tempdir;
@@ -93,6 +94,71 @@ fn normalize_reports_destroy_active_for_shortcut() {
     let doc = parse(src).expect("parse should succeed");
     let err = normalize::normalize(doc).expect_err("expected lifecycle error");
     assert!(err.message.contains("E_LIFECYCLE_DESTROY_ACTIVE"));
+}
+
+#[test]
+fn normalize_supports_sequence_footbox_skinparam_without_warning() {
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_sequence_footbox_supported.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    assert!(!model.footbox_visible);
+    assert!(model.warnings.is_empty());
+}
+
+#[test]
+fn normalize_skinparam_unsupported_key_and_value_are_deterministic() {
+    let unsupported_key_src = fs::read_to_string(fixture("styling/valid_skinparam_unsupported.puml"))
+        .expect("fixture should load");
+    let unsupported_key_doc = parse(&unsupported_key_src).expect("parse should succeed");
+    let unsupported_key_model =
+        normalize::normalize(unsupported_key_doc).expect("normalize should succeed");
+    assert_eq!(unsupported_key_model.warnings.len(), 1);
+    assert!(
+        unsupported_key_model.warnings[0]
+            .message
+            .contains("W_SKINPARAM_UNSUPPORTED")
+    );
+
+    let unsupported_value_src =
+        fs::read_to_string(fixture("styling/valid_skinparam_unsupported_value.puml"))
+            .expect("fixture should load");
+    let unsupported_value_doc = parse(&unsupported_value_src).expect("parse should succeed");
+    let unsupported_value_model =
+        normalize::normalize(unsupported_value_doc).expect("normalize should succeed");
+    assert_eq!(unsupported_value_model.warnings.len(), 1);
+    assert!(
+        unsupported_value_model.warnings[0]
+            .message
+            .contains("W_SKINPARAM_UNSUPPORTED_VALUE")
+    );
+}
+
+#[test]
+fn theme_classifies_sequence_skinparam_subset() {
+    assert_eq!(
+        classify_sequence_skinparam("maxMessageSize", "120"),
+        SequenceSkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_sequence_skinparam("sequenceFootbox", "hide"),
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::FootboxVisible(
+            false
+        ))
+    );
+    assert_eq!(
+        classify_sequence_skinparam("footbox", "show"),
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::FootboxVisible(true))
+    );
+    assert_eq!(
+        classify_sequence_skinparam("sequenceFootbox", "bogus"),
+        SequenceSkinParamSupport::UnsupportedValue
+    );
+    assert_eq!(
+        classify_sequence_skinparam("ArrowColor", "red"),
+        SequenceSkinParamSupport::UnsupportedKey
+    );
 }
 
 #[test]

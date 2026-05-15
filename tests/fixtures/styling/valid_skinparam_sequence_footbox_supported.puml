@@ -1,0 +1,4 @@
+@startuml
+skinparam sequenceFootbox hide
+A -> B
+@enduml

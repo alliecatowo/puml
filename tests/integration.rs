@@ -63,6 +63,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/modifiers_basic.puml",
         "arrows/valid_expanded_forms.puml",
         "arrows/valid_slanted_heads.puml",
+        "arrows/valid_endpoint_variants.puml",
+        "arrows/valid_arrow_portability_expanded.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -78,6 +80,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "notes/valid_multiline_blocks.puml",
         "notes/valid_note_across_multi.puml",
         "structure/valid_separator_delay_divider_spacer.puml",
+        "structure/ignore_newpage_single_output.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -125,6 +128,7 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "lifecycle/valid_destroy_then_message.puml",
         "lifecycle/invalid_return_without_caller_context.puml",
         "arrows/invalid_malformed_arrows.puml",
+        "arrows/invalid_endpoint_variants.puml",
         "errors/invalid_malformed_note_ref.puml",
         "notes/invalid_note_position_target_required.puml",
         "structure/invalid_malformed_divider_delay.puml",
@@ -237,6 +241,16 @@ fn malformed_arrow_reports_diagnostic() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--check", &fixture("arrows/invalid_malformed_arrows.puml")])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn malformed_endpoint_variant_reports_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("arrows/invalid_endpoint_variants.puml")])
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_ARROW_INVALID"));
@@ -621,6 +635,88 @@ fn check_and_dump_are_mutually_exclusive() {
 }
 
 #[test]
+fn from_markdown_extracts_fenced_blocks_in_source_order() {
+    let input = "# doc\n```puml\n@startuml\nAlice -> Bob: one\n@enduml\n```\ntext\n```plantuml\n@startuml\nBob -> Alice: two\n@enduml\n```\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array");
+    assert_eq!(arr.len(), 2);
+    let first = arr[0]["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    let second = arr[1]["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(first, "one");
+    assert_eq!(second, "two");
+}
+
+#[test]
+fn from_markdown_ignores_non_fence_markdown_content() {
+    let input = "# not a diagram\nA -x B: malformed outside fence\n\n```puml\n@startuml\nAlice -> Bob: ok\n@enduml\n```\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--check", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn from_markdown_diagnostics_json_maps_to_markdown_line_column() {
+    let input = "# header\n```puml\n@startuml\nA -x B: bad\n@enduml\n```\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--check", "--diagnostics", "json", "-"])
+        .write_stdin(input)
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["severity"], "error");
+    assert_eq!(first["line"], 4);
+    assert_eq!(first["column"], 1);
+    assert_eq!(first["snippet"], "A -x B: bad");
+    assert!(first["message"]
+        .as_str()
+        .unwrap()
+        .contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn diagnostics_default_mode_remains_human_readable() {
+    let input = "# header\n```puml\n@startuml\nA -x B: bad\n@enduml\n```\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--check", "-"])
+        .write_stdin(input)
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out).unwrap();
+    assert!(stderr.contains("line 4, column 1"));
+    assert!(stderr.contains("A -x B: bad\n^^^^^^"));
+    assert!(!stderr.trim_start().starts_with("{\"diagnostics\""));
+}
+
+#[test]
 fn include_cycle_input_reports_cycle_error() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -903,6 +999,33 @@ fn stdin_newpage_with_multi_outputs_json_array_and_stable_order() {
 }
 
 #[test]
+fn stdin_ignore_newpage_without_multi_outputs_single_svg() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin(
+            "@startuml\nA -> B : one\nignore newpage\nnewpage Second\nB -> A : two\n@enduml\n",
+        )
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("<svg"))
+        .stdout(predicate::str::contains("\"diagram-1.svg\"").not());
+}
+
+#[test]
+fn stdin_ignore_newpage_with_multi_still_outputs_single_svg() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "-"])
+        .write_stdin(
+            "@startuml\nA -> B : one\nignore newpage\nnewpage Second\nB -> A : two\n@enduml\n",
+        )
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("<svg"))
+        .stdout(predicate::str::contains("\"diagram-1.svg\"").not());
+}
+
+#[test]
 fn file_newpage_output_writes_numbered_files_without_multi_flag() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("paged.puml");
@@ -920,6 +1043,27 @@ fn file_newpage_output_writes_numbered_files_without_multi_flag() {
 
     assert!(tmp.path().join("paged-1.svg").exists());
     assert!(tmp.path().join("paged-2.svg").exists());
+}
+
+#[test]
+fn file_ignore_newpage_output_writes_single_default_file() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("ignore_newpage.puml");
+    fs::copy(
+        fixture("structure/ignore_newpage_single_output.puml"),
+        &input,
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg(input.to_str().unwrap())
+        .assert()
+        .success();
+
+    assert!(tmp.path().join("ignore_newpage.svg").exists());
+    assert!(!tmp.path().join("ignore_newpage-1.svg").exists());
+    assert!(!tmp.path().join("ignore_newpage-2.svg").exists());
 }
 
 #[test]
@@ -942,6 +1086,41 @@ fn stdin_multi_blocks_with_newpage_flatten_into_stable_named_json_order() {
     assert_eq!(arr[0]["name"], "diagram-1.svg");
     assert_eq!(arr[1]["name"], "diagram-2.svg");
     assert_eq!(arr[2]["name"], "diagram-3.svg");
+}
+
+#[test]
+fn stdin_multi_blocks_with_ignore_newpage_requires_multi() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin(
+            fs::read_to_string(fixture("structure/multi_blocks_ignore_newpage.puml")).unwrap(),
+        )
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "multiple diagrams detected from stdin input; rerun with --multi",
+        ));
+}
+
+#[test]
+fn stdin_multi_blocks_with_ignore_newpage_and_multi_outputs_two_items() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "-"])
+        .write_stdin(
+            fs::read_to_string(fixture("structure/multi_blocks_ignore_newpage.puml")).unwrap(),
+        )
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array output");
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["name"], "diagram-1.svg");
+    assert_eq!(arr[1]["name"], "diagram-2.svg");
 }
 
 #[test]

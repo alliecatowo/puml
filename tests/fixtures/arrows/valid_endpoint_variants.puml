@@ -1,0 +1,10 @@
+@startuml
+[ -> A: left-bracket-found
+A -> ]: right-bracket-lost
+[o -> B: left-circle-found
+B -> o]: right-circle-lost
+[x -> C: left-cross-found
+C -> x]: right-cross-lost
+A x->o B: mixed-endpoint-heads
+B o<--x A: mixed-leftward-endpoint-heads
+@enduml

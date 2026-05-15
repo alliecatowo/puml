@@ -1,7 +1,7 @@
 mod cli;
 
 use clap::Parser;
-use cli::{Cli, DumpKind};
+use cli::{Cli, DiagnosticsFormat, DumpKind};
 use puml::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl,
     ParticipantRole as AstParticipantRole, Statement, StatementKind,
@@ -13,7 +13,10 @@ use puml::model::{
 };
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::LayoutOptions;
-use puml::{normalize, render, Diagnostic};
+use puml::source::Span;
+use puml::{
+    extract_markdown_diagrams, normalize, render, Diagnostic, DiagnosticJson, DiagramInput,
+};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::fs;
@@ -59,6 +62,17 @@ struct SceneRow {
     event: Value,
 }
 
+#[derive(Debug, Clone)]
+struct InputDiagram {
+    source: String,
+    source_span: Option<Span>,
+}
+
+#[derive(Debug, Serialize)]
+struct DiagnosticsPayload {
+    diagnostics: Vec<DiagnosticJson>,
+}
+
 fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
@@ -88,7 +102,8 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         .include_root
         .clone()
         .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
-    let diagrams = split_diagrams(&raw).map_err(|d| diag_err_with_source(&raw, d))?;
+    let diagrams = split_diagrams(&raw, cli.from_markdown)
+        .map_err(|d| diag_err_with_source(&raw, d, cli.diagnostics))?;
 
     if diagrams.is_empty() {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
@@ -98,16 +113,17 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     if diagrams.len() > 1 && should_require_multi && !cli.multi {
         return Err((
             EXIT_VALIDATION,
-            "multiple diagrams detected; rerun with --multi".to_string(),
+            "multiple diagrams detected from stdin input; rerun with --multi".to_string(),
         ));
     }
 
     if cli.check {
         for source in &diagrams {
-            let doc = parse_for_cli(source, include_root.clone())
-                .map_err(|d| diag_err_with_source(source, d))?;
-            let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
-            emit_warnings(&model, source);
+            let doc = parse_for_cli(&source.source, include_root.clone())
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            let model = normalize(doc)
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
         }
         return Ok(());
     }
@@ -117,22 +133,29 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             .iter()
             .map(|source| match dump_kind {
                 DumpKind::Ast => {
-                    let doc = parse_for_cli(source, include_root.clone())
-                        .map_err(|d| diag_err_with_source(source, d))?;
+                    let doc = parse_for_cli(&source.source, include_root.clone()).map_err(|d| {
+                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
+                    })?;
                     Ok(ast_to_json(&doc))
                 }
                 DumpKind::Model => {
-                    let doc = parse_for_cli(source, include_root.clone())
-                        .map_err(|d| diag_err_with_source(source, d))?;
-                    let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
-                    emit_warnings(&model, source);
+                    let doc = parse_for_cli(&source.source, include_root.clone()).map_err(|d| {
+                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
+                    })?;
+                    let model = normalize(doc).map_err(|d| {
+                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
+                    })?;
+                    emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
                     Ok(model_to_json(&model))
                 }
                 DumpKind::Scene => {
-                    let doc = parse_for_cli(source, include_root.clone())
-                        .map_err(|d| diag_err_with_source(source, d))?;
-                    let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
-                    emit_warnings(&model, source);
+                    let doc = parse_for_cli(&source.source, include_root.clone()).map_err(|d| {
+                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
+                    })?;
+                    let model = normalize(doc).map_err(|d| {
+                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
+                    })?;
+                    emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
                     Ok(scene_to_json(&model))
                 }
             })
@@ -159,10 +182,11 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let svgs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
-        let doc = parse_for_cli(source, include_root.clone())
-            .map_err(|d| diag_err_with_source(source, d))?;
-        let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
-        emit_warnings(&model, source);
+        let doc = parse_for_cli(&source.source, include_root.clone())
+            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+        let model = normalize(doc)
+            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+        emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
         let scenes = layout::layout_pages(&model, LayoutOptions::default());
         let mut pages = scenes.iter().map(render::render_svg).collect::<Vec<_>>();
         all.append(&mut pages);
@@ -215,13 +239,37 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     Err((EXIT_INTERNAL, "unexpected stdin output mode".to_string()))
 }
 
-fn diag_err_with_source(source: &str, d: Diagnostic) -> (u8, String) {
-    (EXIT_VALIDATION, d.render_with_source(source))
+fn diag_err_with_source(source: &str, d: Diagnostic, fmt: DiagnosticsFormat) -> (u8, String) {
+    match fmt {
+        DiagnosticsFormat::Human => (EXIT_VALIDATION, d.render_with_source(source)),
+        DiagnosticsFormat::Json => (EXIT_VALIDATION, diagnostics_json_payload(vec![d], source)),
+    }
 }
 
-fn emit_warnings(model: &SequenceDocument, source: &str) {
+fn diag_err_mapped(
+    raw_source: &str,
+    mapping: Option<Span>,
+    d: Diagnostic,
+    fmt: DiagnosticsFormat,
+) -> (u8, String) {
+    let mapped = map_diagnostic_span(d, mapping);
+    diag_err_with_source(raw_source, mapped, fmt)
+}
+
+fn emit_warnings(
+    model: &SequenceDocument,
+    source: &str,
+    mapping: Option<Span>,
+    fmt: DiagnosticsFormat,
+) {
     for warning in &model.warnings {
-        eprintln!("{}", warning.render_with_source(source));
+        let warning = map_diagnostic_span(warning.clone(), mapping);
+        match fmt {
+            DiagnosticsFormat::Human => eprintln!("{}", warning.render_with_source(source)),
+            DiagnosticsFormat::Json => {
+                eprintln!("{}", diagnostics_json_payload(vec![warning], source));
+            }
+        }
     }
 }
 
@@ -246,7 +294,23 @@ fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u
     }
 }
 
-fn split_diagrams(raw: &str) -> Result<Vec<String>, Diagnostic> {
+fn split_diagrams(raw: &str, from_markdown: bool) -> Result<Vec<InputDiagram>, Diagnostic> {
+    if from_markdown {
+        let diagrams = extract_markdown_diagrams(raw)
+            .into_iter()
+            .map(
+                |DiagramInput {
+                     source,
+                     span_in_input,
+                 }| InputDiagram {
+                    source,
+                    source_span: Some(span_in_input),
+                },
+            )
+            .collect::<Vec<_>>();
+        return Ok(diagrams);
+    }
+
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Ok(Vec::new());
@@ -282,7 +346,10 @@ fn split_diagrams(raw: &str) -> Result<Vec<String>, Diagnostic> {
                 current.push(line);
             }
             if in_block && marker.eq_ignore_ascii_case("@enduml") {
-                blocks.push(current.join("\n").trim().to_string());
+                blocks.push(InputDiagram {
+                    source: current.join("\n").trim().to_string(),
+                    source_span: None,
+                });
                 current.clear();
                 in_block = false;
             }
@@ -298,7 +365,29 @@ fn split_diagrams(raw: &str) -> Result<Vec<String>, Diagnostic> {
         }
     }
 
-    Ok(vec![trimmed.to_string()])
+    Ok(vec![InputDiagram {
+        source: trimmed.to_string(),
+        source_span: None,
+    }])
+}
+
+fn map_diagnostic_span(mut d: Diagnostic, mapping: Option<Span>) -> Diagnostic {
+    if let (Some(span), Some(base)) = (d.span, mapping) {
+        d.span = Some(Span::new(base.start + span.start, base.start + span.end));
+    }
+    d
+}
+
+fn diagnostics_json_payload(diags: Vec<Diagnostic>, source: &str) -> String {
+    let payload = DiagnosticsPayload {
+        diagnostics: diags
+            .iter()
+            .map(|d| d.to_json_with_source(source))
+            .collect::<Vec<_>>(),
+    };
+    serde_json::to_string_pretty(&payload).unwrap_or_else(|_| {
+        "{\"diagnostics\":[{\"severity\":\"error\",\"message\":\"failed to serialize diagnostics\",\"span\":null,\"line\":null,\"column\":null,\"snippet\":null,\"caret\":null}]}".to_string()
+    })
 }
 
 fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {
@@ -389,6 +478,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Separator(v) => json!({"Separator": v}),
         StatementKind::Spacer => json!("Spacer"),
         StatementKind::NewPage(v) => json!({"NewPage": v}),
+        StatementKind::IgnoreNewPage => json!("IgnoreNewPage"),
         StatementKind::Autonumber(v) => json!({"Autonumber": v}),
         StatementKind::Activate(v) => json!({"Activate": v}),
         StatementKind::Deactivate(v) => json!({"Deactivate": v}),

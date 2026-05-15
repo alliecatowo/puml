@@ -37,6 +37,7 @@ pub enum StatementKind {
     Separator(Option<String>),
     Spacer,
     NewPage(Option<String>),
+    IgnoreNewPage,
     Autonumber(Option<String>),
     Activate(String),
     Deactivate(String),
