@@ -916,6 +916,44 @@ fn dump_mode_scene_is_deterministic_for_same_input() {
 }
 
 #[test]
+fn dump_mode_scene_preserves_advanced_note_ref_forms_deterministically() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "scene",
+            &fixture("overflow/overflow_note_ref_advanced_forms_nonoverlap.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!(
+        "dump_mode_scene_preserves_advanced_note_ref_forms_deterministically",
+        json
+    );
+}
+
+#[test]
+fn check_mode_accepts_advanced_note_ref_forms() {
+    for case in [
+        "notes/valid_note_advanced_forms.puml",
+        "groups/valid_ref_advanced_forms.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
 fn multi_mode_outputs_all_diagrams_as_json() {
     let out = Command::cargo_bin("puml")
         .expect("binary")

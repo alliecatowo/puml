@@ -193,7 +193,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     height,
                     text: text.clone(),
                 });
-                event_rows += 1;
+                event_rows += row_units_for_height(height, options.message_row_height);
             }
             SequenceEventKind::GroupStart { kind, label } => {
                 let y = events_top + (event_rows * options.message_row_height);
@@ -207,16 +207,32 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 } else {
                     let (x, width) =
                         group_horizontal_bounds(kind, label.as_deref(), &bounds_by_id, &options);
-                    groups.push(GroupBox {
-                        kind: kind.clone(),
-                        label: label.clone(),
-                        x,
-                        y,
-                        width,
-                        height: options.message_row_height,
-                        separators: Vec::new(),
-                    });
-                    open_groups.push(groups.len() - 1);
+                    if kind.eq_ignore_ascii_case("ref") {
+                        let (_, min_height) = group_content_min_size(kind, label.as_deref());
+                        let height = options.message_row_height.max(min_height);
+                        groups.push(GroupBox {
+                            kind: kind.clone(),
+                            label: label.clone(),
+                            x,
+                            y,
+                            width,
+                            height,
+                            separators: Vec::new(),
+                        });
+                        event_rows += row_units_for_height(height, options.message_row_height);
+                        continue;
+                    } else {
+                        groups.push(GroupBox {
+                            kind: kind.clone(),
+                            label: label.clone(),
+                            x,
+                            y,
+                            width,
+                            height: options.message_row_height,
+                            separators: Vec::new(),
+                        });
+                        open_groups.push(groups.len() - 1);
+                    }
                 }
                 event_rows += 1;
             }
@@ -713,6 +729,13 @@ fn message_label_lines(
     let max_chars_by_left_edge = ((tx * 2) / 7).max(1) as usize;
     let max_chars = max_chars_by_span.min(max_chars_by_left_edge);
     normalize_label_lines(label, max_chars, options.text_overflow_policy)
+}
+
+fn row_units_for_height(height: i32, row_height: i32) -> i32 {
+    if row_height <= 0 {
+        return 1;
+    }
+    ((height + row_height - 1) / row_height).max(1)
 }
 
 #[derive(Debug, Default)]

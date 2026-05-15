@@ -796,6 +796,44 @@ fn overflow_unbroken_tokens_stay_within_note_and_ref_rects() {
 }
 
 #[test]
+fn overflow_advanced_note_ref_forms_do_not_overlap_and_render_deterministically() {
+    let src = fixture("overflow/overflow_note_ref_advanced_forms_nonoverlap.puml");
+    let ast = puml::parse(&src).expect("parse should succeed");
+    let doc = puml::normalize(ast).expect("normalize should succeed");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let mut blocks = Vec::new();
+    for note in &scene.notes {
+        blocks.push(("note", note.y, note.y + note.height));
+    }
+    for group in &scene.groups {
+        if group.kind.eq_ignore_ascii_case("ref") {
+            blocks.push(("ref", group.y, group.y + group.height));
+        }
+    }
+
+    blocks.sort_by_key(|(_, y, _)| *y);
+    for window in blocks.windows(2) {
+        let (first_kind, _first_y, first_bottom) = window[0];
+        let (second_kind, second_y, _second_bottom) = window[1];
+        assert!(
+            second_y >= first_bottom,
+            "advanced annotation boxes should not overlap: {first_kind} bottom {} > {second_kind} top {}",
+            first_bottom,
+            second_y
+        );
+    }
+
+    let svg = render::render_svg(&scene);
+    let rerendered = puml::render_source_to_svg(&src).expect("render should succeed");
+    assert_eq!(svg, rerendered, "render output should be deterministic");
+    assert_snapshot!(
+        "overflow_advanced_note_ref_forms_do_not_overlap_and_render_deterministically",
+        svg
+    );
+}
+
+#[test]
 fn overflow_multiline_group_ref_note_combo_stays_within_rects() {
     let src = fixture("overflow/overflow_multiline_group_ref_note_combo.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");

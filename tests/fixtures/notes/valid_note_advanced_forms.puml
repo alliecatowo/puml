@@ -1,0 +1,16 @@
+@startuml
+participant A
+participant B
+participant C
+A -> B: kickoff
+note across: global_inline_across_note
+note across
+across_line_one_for_advanced_forms
+across_line_two_for_advanced_forms
+end note
+hnote over A, C: alias_hex_note_form
+rnote right of B: alias_rounded_note_form
+note over B, C: inline_header_line
+note_body_line_two
+end note
+@enduml
