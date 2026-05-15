@@ -431,9 +431,7 @@ fn definition(d: &Doc, uri: &str, posn: (u64, u64)) -> Option<Value> {
     let (s, e) = word_range_at_pos(&d.text, posn)?;
     let sym = &d.text[s..e];
     let decl = find_participant_decl(d.parsed.as_ref()?, sym)?;
-    Some(
-        json!([{"uri":uri,"range":range(&d.text,decl.0,decl.1),"selectionRange":range(&d.text,decl.0,decl.1)}]),
-    )
+    Some(json!([{"uri":uri,"range":range(&d.text,decl.0,decl.1)}]))
 }
 fn references(d: &Doc, uri: &str, posn: (u64, u64)) -> Value {
     let mut out = Vec::new();
@@ -543,15 +541,21 @@ fn selection_ranges(d: &Doc, msg: &Value) -> Value {
 }
 fn document_links(d: &Doc) -> Value {
     let mut out = Vec::new();
-    for st in d.text.lines() {
+    let mut line_offset = 0usize;
+    for line in d.text.split_inclusive('\n') {
+        let st = line.strip_suffix('\n').unwrap_or(line);
         if let Some(ix) = st.find("!include") {
-            let start = ix + 8;
-            let path = st[start..].trim();
+            let include_end = ix + 8;
+            let tail = &st[include_end..];
+            let ws = tail.chars().take_while(|ch| ch.is_whitespace()).count();
+            let path_start = include_end + ws;
+            let path = st[path_start..].trim_end();
             if !path.is_empty() {
-                let off = d.text.find(st).unwrap_or(0) + start;
+                let off = line_offset + path_start;
                 out.push(json!({"range":range(&d.text,off,off+path.len()),"target":path}));
             }
         }
+        line_offset += line.len();
     }
     Value::Array(out)
 }
@@ -570,10 +574,9 @@ fn semantic_tokens(d: &Doc) -> Value {
         ("destroy", 0),
         ("return", 0),
         ("autonumber", 0),
-        ("newpage", 0),
-        ("->", 1),
         ("-->", 1),
         ("<--", 1),
+        ("->", 1),
     ] {
         for hit in find_word_refs(&d.text, kw) {
             hits.push(TokenHit {
@@ -583,12 +586,21 @@ fn semantic_tokens(d: &Doc) -> Value {
             });
         }
     }
-    hits.sort_by_key(|h| h.start);
+    hits.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| (b.len).cmp(&a.len)));
+
+    let mut filtered = Vec::<TokenHit>::new();
+    let mut last_end = 0usize;
+    for hit in hits {
+        if filtered.is_empty() || hit.start >= last_end {
+            last_end = hit.start + hit.len;
+            filtered.push(hit);
+        }
+    }
 
     let mut data = Vec::<u32>::new();
     let mut prev_line = 0u32;
     let mut prev_char = 0u32;
-    for hit in hits {
+    for hit in filtered {
         let (l, c) = offset_to_lc(&d.text, hit.start);
         let dl = l as u32 - prev_line;
         let dc = if dl == 0 {
@@ -968,6 +980,72 @@ mod tests {
         });
         let (_, _, updated) = change(&msg, Some("@startuml\nA -> B\n@enduml\n")).expect("change");
         assert!(updated.contains("X -> Y"));
+    }
+
+    #[test]
+    fn definition_returns_location_shape() {
+        let src = "@startuml\nparticipant Alice\nAlice -> Bob: hi\n@enduml\n";
+        let doc = Doc {
+            text: src.to_string(),
+            version: 1,
+            parsed: parse(src).ok(),
+        };
+        let out = definition(&doc, "file:///test.puml", (2, 1)).expect("definition");
+        let first = out
+            .as_array()
+            .and_then(|arr| arr.first())
+            .cloned()
+            .expect("array item");
+        assert!(first.get("uri").is_some());
+        assert!(first.get("range").is_some());
+        assert!(first.get("selectionRange").is_none());
+    }
+
+    #[test]
+    fn semantic_tokens_do_not_overlap_arrow_tokens() {
+        let src = "@startuml\nAlice --> Bob\n@enduml\n";
+        let doc = Doc {
+            text: src.to_string(),
+            version: 1,
+            parsed: parse(src).ok(),
+        };
+        let out = semantic_tokens(&doc);
+        let data = out
+            .get("data")
+            .and_then(Value::as_array)
+            .expect("semantic token data");
+        // one operator token for "-->", encoded in groups of 5 u32 values.
+        let token_count = data.len() / 5;
+        assert_eq!(token_count, 1);
+        assert_eq!(data[2].as_u64(), Some(3));
+        assert_eq!(data[3].as_u64(), Some(1));
+    }
+
+    #[test]
+    fn document_links_handles_duplicate_lines_and_whitespace() {
+        let src = "!include   ./a.puml\n!include   ./a.puml\n";
+        let doc = Doc {
+            text: src.to_string(),
+            version: 1,
+            parsed: None,
+        };
+        let out = document_links(&doc);
+        let arr = out.as_array().expect("array");
+        assert_eq!(arr.len(), 2);
+        let first_start = arr[0]
+            .get("range")
+            .and_then(|r| r.get("start"))
+            .and_then(|s| s.get("character"))
+            .and_then(Value::as_u64)
+            .expect("char");
+        let second_line = arr[1]
+            .get("range")
+            .and_then(|r| r.get("start"))
+            .and_then(|s| s.get("line"))
+            .and_then(Value::as_u64)
+            .expect("line");
+        assert_eq!(first_start, 11);
+        assert_eq!(second_line, 1);
     }
 }
 fn pub_diag(w: &mut impl Write, uri: &str, ver: i64, src: &str) -> io::Result<()> {

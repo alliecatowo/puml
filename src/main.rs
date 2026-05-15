@@ -276,12 +276,10 @@ fn lsp_capabilities_manifest() -> Value {
       "languageFeatures": [
         "diagnostics", "completion", "hover", "definition", "references", "rename",
         "documentSymbols", "workspaceSymbols", "semanticTokens", "formatting", "codeActions",
-        "inlayHints", "foldingRanges", "selectionRanges", "documentLinks", "documentColor"
+        "foldingRanges", "selectionRanges", "documentLinks", "documentColor"
       ],
       "customRequests": [
-        "puml/renderSvg", "puml/renderScene", "puml/renderModel", "puml/export",
-        "puml/diagramAtPosition", "puml/listDiagrams", "puml/listParticipants",
-        "puml/getSyntaxTree", "puml/getSemanticModel", "puml/getDiagnostics"
+        "puml.applyFormat", "puml.renderSvg"
       ]
     })
 }
