@@ -1220,6 +1220,31 @@ Bob -> Alice: two
 }
 
 #[test]
+fn from_markdown_supports_uml_fence_alias() {
+    let input = "```uml
+@startuml
+Alice -> Bob: uml-alias
+@enduml
+```
+";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        json["statements"][0]["kind"]["Message"]["label"],
+        "uml-alias"
+    );
+}
+
+#[test]
 fn from_markdown_ignores_non_fence_markdown_content() {
     let input = "# not a diagram\nA -x B: malformed outside fence\n\n```puml\n@startuml\nAlice -> Bob: ok\n@enduml\n```\n";
     Command::cargo_bin("puml")
