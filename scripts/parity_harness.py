@@ -241,7 +241,10 @@ def render_source_text(src: str) -> Dict[str, Any]:
             "stderr": proc.stderr.strip(),
             "svg": None,
         }
-    return {"ok": True, "exit_code": 0, "stderr": "", "svg": proc.stdout}
+    # CLI stdout for render mode appends a trailing newline; normalize so
+    # docs artifacts are compared against canonical SVG payload bytes.
+    normalized_svg = proc.stdout.rstrip("\r\n")
+    return {"ok": True, "exit_code": 0, "stderr": "", "svg": normalized_svg}
 
 
 def discover_doc_examples() -> List[Dict[str, Any]]:

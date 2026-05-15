@@ -57,14 +57,15 @@ Acceptance criteria:
 - CLI exits non-zero with actionable diagnostics for malformed new syntax paths.
 
 Fixture-first plan:
-- TODO fixture candidates (add when implementation begins):
+- Implemented fixture coverage:
   - `tests/fixtures/basic/valid_separator_equals.puml`
   - `tests/fixtures/errors/invalid_separator_unbalanced_equals.puml`
   - `tests/fixtures/basic/valid_participant_queue.puml`
   - `tests/fixtures/errors/invalid_participant_queue_alias_collision.puml`
   - `tests/fixtures/basic/valid_arrows_extended_set.puml`
+  - `tests/fixtures/arrows/valid_arrow_variant_tokenization.puml`
   - `tests/fixtures/errors/invalid_arrow_variant_tokenization.puml`
-- Footbox behavior may require render snapshot fixtures outside `basic/errors`; if so, track in implementation PR scope and keep this roadmap updated.
+- Render parity coverage for footbox and syntax interactions is enforced via deterministic snapshots in `tests/render_e2e.rs`.
 
 ### Stage 2: Semantic Fidelity and Behavioral Depth (P2)
 
@@ -101,11 +102,25 @@ Acceptance criteria:
 - Decision log entries capture rationale for every intentional non-parity boundary.
 
 Fixture-first plan:
-- TODO fixture candidates:
-  - `tests/fixtures/basic/valid_skinparam_sequence_subset.puml`
-  - `tests/fixtures/errors/invalid_skinparam_unsupported_key.puml`
-  - `tests/fixtures/errors/invalid_preprocessor_disallowed_context.puml`
-  - `tests/fixtures/basic/valid_preprocessor_allowed_subset.puml`
+- Implemented fixture coverage:
+  - `tests/fixtures/styling/valid_skinparam_sequence_footbox_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_arrow_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_lifeline_border_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_participant_background_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_participant_border_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_note_background_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_note_border_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_group_background_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_group_border_color_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_sequence_alias_colors_supported.puml`
+  - `tests/fixtures/styling/valid_skinparam_unsupported_mixed_deterministic.puml`
+  - `tests/fixtures/include/include_ok_child.puml`
+  - `tests/fixtures/include/include_with_tag_ok.puml`
+  - `tests/fixtures/errors/invalid_include_only.puml`
+  - `tests/fixtures/errors/invalid_define_only.puml`
+  - `tests/fixtures/errors/invalid_undef_only.puml`
+  - `tests/fixtures/errors/invalid_include_tag_missing.puml`
+  - `tests/fixtures/errors/invalid_include_url.puml`
 
 ### Stage 4: Binary, CLI, and UX Parity Milestone (Cross-Cutting Release Gate)
 
@@ -272,5 +287,11 @@ Slice integration:
 
 ## Track Status
 
-- New placeholder fixtures were not added in this pass to avoid speculative failures without paired implementation.
-- TODO fixture names above are execution-ready and should be introduced at the start of each corresponding implementation slice.
+- Sequence parity epic closure status (2026-05-15):
+  - Sequence parity fixtures/tests in active contract suites are green:
+    - `cargo test --test integration --test render_e2e --test virtual_endpoint_fidelity`
+    - `cargo test --test svg_bounds_audit`
+  - Parity harness report is current and docs example parity is green:
+    - `python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json`
+    - Expected state: `doc_examples.summary.failed = 0`
+  - No known unexpected failing fixtures/tests remain in sequence parity areas.

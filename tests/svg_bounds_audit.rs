@@ -58,6 +58,7 @@ fn parity_harness_report_schema_is_stable() {
     assert!(json.get("summary").is_some());
     assert!(json.get("oracle").is_some());
     assert!(json.get("doc_examples").is_some());
+    assert_eq!(json["doc_examples"]["summary"]["failed"], 0);
     assert!(
         json["doc_examples"]["entries"]
             .as_array()
