@@ -50,23 +50,20 @@ pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     for event in &document.events {
         match &event.kind {
             SequenceEventKind::Message {
-                from, to, label, ..
+                from,
+                to,
+                arrow,
+                label,
             } => {
                 let y = events_top + (event_rows * options.message_row_height);
-                let x1 = centers_by_id
-                    .get(from)
-                    .copied()
-                    .unwrap_or(options.margin + options.participant_width / 2);
-                let x2 = centers_by_id
-                    .get(to)
-                    .copied()
-                    .unwrap_or(options.margin + options.participant_width / 2);
+                let (x1, x2) = message_x_bounds(from, to, &centers_by_id, &options);
                 messages.push(MessageLine {
                     from_id: from.clone(),
                     to_id: to.clone(),
                     x1,
                     y,
                     x2,
+                    arrow: arrow.clone(),
                     label: autonumber.apply(label.clone()),
                 });
                 event_rows += 1;
@@ -88,6 +85,7 @@ pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
                         x1,
                         y,
                         x2,
+                        arrow: "-->".to_string(),
                         label: autonumber.apply(label.clone()),
                     });
                     event_rows += 1;
@@ -170,6 +168,34 @@ pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
         messages,
         notes,
     }
+}
+
+fn message_x_bounds(
+    from: &str,
+    to: &str,
+    centers_by_id: &BTreeMap<String, i32>,
+    options: &LayoutOptions,
+) -> (i32, i32) {
+    let default_center = options.margin + options.participant_width / 2;
+    let from_center = centers_by_id.get(from).copied().unwrap_or(default_center);
+    let to_center = centers_by_id.get(to).copied().unwrap_or(default_center);
+    let virtual_endpoint = "[*]";
+    let side_offset = 56;
+    let self_loop_width = 44;
+
+    if from == to && from != virtual_endpoint {
+        return (from_center, from_center + self_loop_width);
+    }
+    if from == virtual_endpoint && to == virtual_endpoint {
+        return (default_center - side_offset, default_center + side_offset);
+    }
+    if from == virtual_endpoint {
+        return (to_center - side_offset, to_center);
+    }
+    if to == virtual_endpoint {
+        return (from_center, from_center + side_offset);
+    }
+    (from_center, to_center)
 }
 
 #[derive(Debug, Default)]

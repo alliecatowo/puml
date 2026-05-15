@@ -38,9 +38,14 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for m in &scene.messages {
+        let stroke_dash = if m.arrow.contains("--") {
+            " stroke-dasharray=\"6 4\""
+        } else {
+            ""
+        };
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#111\" stroke-width=\"1.5\"/>",
-            m.x1, m.y, m.x2, m.y
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#111\" stroke-width=\"1.5\"{}/>",
+            m.x1, m.y, m.x2, m.y, stroke_dash
         ));
         let arrow_size = 6;
         if m.x2 >= m.x1 {

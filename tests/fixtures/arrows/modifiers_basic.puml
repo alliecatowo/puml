@@ -1,0 +1,6 @@
+@startuml
+A -> B++: inc
+B -> A--: dec
+A -> B**: create
+B -> A!!: destroy
+@enduml

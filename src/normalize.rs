@@ -56,27 +56,37 @@ pub fn normalize_with_options(
                 );
             }
             StatementKind::Message(m) => {
-                ensure_implicit(&mut participants, &mut participant_ix, &m.from);
-                ensure_implicit(&mut participants, &mut participant_ix, &m.to);
-                let from_alive = is_alive(&alive_by_id, &m.from);
-                let to_alive = is_alive(&alive_by_id, &m.to);
-                if !from_alive {
+                let from_virtual = is_virtual_endpoint(&m.from);
+                let to_virtual = is_virtual_endpoint(&m.to);
+                if !from_virtual {
+                    ensure_implicit(&mut participants, &mut participant_ix, &m.from);
+                }
+                if !to_virtual {
+                    ensure_implicit(&mut participants, &mut participant_ix, &m.to);
+                }
+                if !from_virtual && !is_alive(&alive_by_id, &m.from) {
                     return Err(Diagnostic::error(format!(
                         "[E_LIFECYCLE_DESTROYED_SENDER] message sender `{}` is destroyed",
                         m.from
                     ))
                     .with_span(stmt.span));
                 }
-                if !to_alive {
+                if !to_virtual && !is_alive(&alive_by_id, &m.to) {
                     return Err(Diagnostic::error(format!(
                         "[E_LIFECYCLE_DESTROYED_TARGET] message target `{}` is destroyed (recreate it before sending messages to it)",
                         m.to
                     ))
                     .with_span(stmt.span));
                 }
-                alive_by_id.insert(m.from.clone(), true);
-                alive_by_id.insert(m.to.clone(), true);
-                last_message = Some((m.from.clone(), m.to.clone()));
+                if !from_virtual {
+                    alive_by_id.insert(m.from.clone(), true);
+                }
+                if !to_virtual {
+                    alive_by_id.insert(m.to.clone(), true);
+                }
+                if !from_virtual && !to_virtual {
+                    last_message = Some((m.from.clone(), m.to.clone()));
+                }
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Message {
@@ -381,4 +391,8 @@ fn map_role(role: AstRole) -> ParticipantRole {
         AstRole::Database => ParticipantRole::Database,
         AstRole::Collections => ParticipantRole::Collections,
     }
+}
+
+fn is_virtual_endpoint(id: &str) -> bool {
+    id == "[*]"
 }

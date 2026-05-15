@@ -1,4 +1,9 @@
 use insta::assert_snapshot;
+use puml::model::{
+    Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
+};
+use puml::scene::LayoutOptions;
+use puml::{layout, render};
 
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!(
@@ -56,4 +61,77 @@ fn render_svg_output_avoids_active_content_patterns() {
             "svg should not contain forbidden pattern: {forbidden}"
         );
     }
+}
+
+#[test]
+fn render_svg_handles_self_found_lost_and_modifiers() {
+    let doc = SequenceDocument {
+        participants: vec![
+            Participant {
+                id: "A".to_string(),
+                display: "A".to_string(),
+                role: ParticipantRole::Participant,
+                explicit: true,
+            },
+            Participant {
+                id: "B".to_string(),
+                display: "B".to_string(),
+                role: ParticipantRole::Participant,
+                explicit: true,
+            },
+        ],
+        events: vec![
+            SequenceEvent {
+                span: puml::source::Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "[*]".to_string(),
+                    to: "A".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("found".to_string()),
+                },
+            },
+            SequenceEvent {
+                span: puml::source::Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "A".to_string(),
+                    to: "A".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("self".to_string()),
+                },
+            },
+            SequenceEvent {
+                span: puml::source::Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "A".to_string(),
+                    to: "[*]".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("lost".to_string()),
+                },
+            },
+            SequenceEvent {
+                span: puml::source::Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "A".to_string(),
+                    to: "B".to_string(),
+                    arrow: "-->".to_string(),
+                    label: Some("modifier-syntax-safe".to_string()),
+                },
+            },
+        ],
+        title: None,
+        header: None,
+        footer: None,
+        caption: None,
+        legend: None,
+        skinparams: vec![],
+        footbox_visible: true,
+    };
+    let scene = layout::layout(&doc, LayoutOptions::default());
+    let first = render::render_svg(&scene);
+    let second = render::render_svg(&scene);
+
+    assert_eq!(first, second, "render output should be deterministic");
+    assert!(first.contains(">A<"));
+    assert!(!first.contains(">[*]<"));
+    assert_snapshot!("render_svg_handles_self_found_lost_and_modifiers", first);
 }

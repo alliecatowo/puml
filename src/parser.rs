@@ -210,33 +210,65 @@ fn substitute_tokens(line: &str, defines: &BTreeMap<String, String>) -> String {
 
 fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     let mut statements = Vec::new();
+    let mut lines = Vec::new();
     let mut offset = 0usize;
-    let mut seen_sequence = false;
-
     for raw_line in source.lines() {
-        let line = raw_line.trim();
         let span = Span::new(offset, offset + raw_line.len());
+        lines.push((raw_line, span));
         offset += raw_line.len() + 1;
+    }
+
+    let mut seen_sequence = false;
+    let mut i = 0usize;
+    while i < lines.len() {
+        let (raw_line, span) = lines[i];
+        let line = raw_line.trim();
 
         if line.is_empty() || line.starts_with('"') || line.eq_ignore_ascii_case("!pragma") {
+            i += 1;
             continue;
         }
         if line.eq_ignore_ascii_case("@startuml")
             || line.eq_ignore_ascii_case("@enduml")
             || line.eq_ignore_ascii_case("end")
         {
+            i += 1;
+            continue;
+        }
+
+        if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+            seen_sequence = true;
+            let block_span = Span::new(span.start, lines[end_idx].1.end);
+            statements.push(Statement {
+                span: block_span,
+                kind,
+            });
+            i = end_idx + 1;
+            continue;
+        }
+
+        if let Some((kind, end_idx)) = parse_multiline_note_block(&lines, i, line) {
+            seen_sequence = true;
+            let block_span = Span::new(span.start, lines[end_idx].1.end);
+            statements.push(Statement {
+                span: block_span,
+                kind,
+            });
+            i = end_idx + 1;
             continue;
         }
 
         if let Some(kind) = parse_participant(line) {
             seen_sequence = true;
             statements.push(Statement { span, kind });
+            i += 1;
             continue;
         }
 
         if let Some(kind) = parse_message(line) {
             seen_sequence = true;
             statements.push(Statement { span, kind });
+            i += 1;
             continue;
         }
 
@@ -245,6 +277,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 seen_sequence = true;
             }
             statements.push(Statement { span, kind });
+            i += 1;
             continue;
         }
 
@@ -264,6 +297,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             span,
             kind: StatementKind::Unknown(line.to_string()),
         });
+        i += 1;
     }
 
     Ok(Document {
@@ -274,6 +308,67 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         },
         statements,
     })
+}
+
+fn parse_multiline_keyword_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Option<(StatementKind, usize)> {
+    let key = ["title", "header", "footer", "caption", "legend"]
+        .into_iter()
+        .find(|k| line.eq_ignore_ascii_case(k))?;
+    let end_marker = format!("end {key}");
+    let mut body = Vec::new();
+
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
+        let trimmed = raw.trim();
+        if trimmed.eq_ignore_ascii_case(&end_marker) {
+            let text = body.join("\n");
+            let kind = match key {
+                "title" => StatementKind::Title(text),
+                "header" => StatementKind::Header(text),
+                "footer" => StatementKind::Footer(text),
+                "caption" => StatementKind::Caption(text),
+                _ => StatementKind::Legend(text),
+            };
+            return Some((kind, idx));
+        }
+        body.push(trimmed.to_string());
+    }
+
+    None
+}
+
+fn parse_multiline_note_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Option<(StatementKind, usize)> {
+    if !line.to_ascii_lowercase().starts_with("note ") || line.contains(':') {
+        return None;
+    }
+
+    let tail = line[5..].trim();
+    let (position, target) = parse_note_head(tail);
+    let mut body = Vec::new();
+
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
+        let trimmed = raw.trim();
+        if trimmed.eq_ignore_ascii_case("end note") {
+            return Some((
+                StatementKind::Note(Note {
+                    position,
+                    target,
+                    text: body.join("\n"),
+                }),
+                idx,
+            ));
+        }
+        body.push(trimmed.to_string());
+    }
+
+    None
 }
 
 fn parse_participant(line: &str) -> Option<StatementKind> {
@@ -395,9 +490,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower.starts_with("note ") {
         let tail = line[5..].trim();
         let (head, text) = tail.split_once(':').unwrap_or((tail, ""));
-        let mut bits = head.split_whitespace();
-        let pos = bits.next().unwrap_or("over").to_string();
-        let target = bits.next().map(clean_ident);
+        let (pos, target) = parse_note_head(head);
         return Some(StatementKind::Note(Note {
             position: pos,
             target,
@@ -494,6 +587,27 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     }
 
     None
+}
+
+fn parse_note_head(head: &str) -> (String, Option<String>) {
+    let mut bits = head.split_whitespace();
+    let position = bits.next().unwrap_or("over").to_string();
+    let rest = bits.collect::<Vec<_>>();
+    if rest.is_empty() {
+        return (position, None);
+    }
+    if rest[0].eq_ignore_ascii_case("of") {
+        let target = rest[1..].join(" ");
+        return (
+            position,
+            (!target.trim().is_empty()).then(|| clean_ident(target.trim())),
+        );
+    }
+    let target = rest.join(" ");
+    (
+        position,
+        (!target.trim().is_empty()).then(|| clean_ident(target.trim())),
+    )
 }
 
 fn clean_ident(s: &str) -> String {
@@ -637,5 +751,42 @@ mod tests {
         assert!(err
             .message
             .contains("!include from stdin requires include_root option"));
+    }
+
+    #[test]
+    fn parses_multiline_title_and_legend_blocks() {
+        let doc = parse_with_options(
+            "title\nLine 1\nLine 2\nend title\nlegend\nAlpha\nBeta\nend legend\nA -> B\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        match &doc.statements[0].kind {
+            StatementKind::Title(v) => assert_eq!(v, "Line 1\nLine 2"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[1].kind {
+            StatementKind::Legend(v) => assert_eq!(v, "Alpha\nBeta"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        assert!(matches!(doc.statements[2].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn parses_multiline_note_block() {
+        let doc = parse_with_options(
+            "A -> B\nnote right of B\nline 1\nline 2\nend note\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        match &doc.statements[1].kind {
+            StatementKind::Note(n) => {
+                assert_eq!(n.position, "right");
+                assert_eq!(n.target.as_deref(), Some("B"));
+                assert_eq!(n.text, "line 1\nline 2");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
     }
 }

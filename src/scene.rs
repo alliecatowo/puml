@@ -41,6 +41,7 @@ pub struct MessageLine {
     pub x1: i32,
     pub y: i32,
     pub x2: i32,
+    pub arrow: String,
     pub label: Option<String>,
 }
 

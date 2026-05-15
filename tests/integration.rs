@@ -59,6 +59,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "participants/valid_aliases.puml",
         "arrows/valid_directions.puml",
         "arrows/self.puml",
+        "arrows/modifiers_basic.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -67,6 +68,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "autonumber/valid_with_format.puml",
         "lifecycle/valid_activate_return.puml",
         "lifecycle/valid_create_activate_destroy.puml",
+        "notes/valid_multiline_blocks.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -76,6 +78,25 @@ fn check_mode_passes_for_additional_valid_fixtures() {
             .stdout(predicate::str::is_empty())
             .stderr(predicate::str::is_empty());
     }
+}
+
+#[test]
+fn dump_mode_outputs_ast_json_for_multiline_blocks() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("notes/valid_multiline_blocks.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!("dump_mode_outputs_ast_json_for_multiline_blocks", json);
 }
 
 #[test]

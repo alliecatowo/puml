@@ -1,0 +1,27 @@
+@startuml
+title
+System overview
+with details
+end title
+header
+Release train
+2026.05
+end header
+footer
+Confidential
+internal use only
+end footer
+caption
+Flow summary
+all green
+end caption
+legend
+Alpha
+Beta
+end legend
+Alice -> Bob: ping
+note right of Bob
+line 1
+line 2
+end note
+@enduml
