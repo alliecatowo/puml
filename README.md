@@ -1,6 +1,6 @@
 # puml
 
-Fast, deterministic sequence-diagram rendering from PlantUML-style text to SVG, with strict validation and scriptable CLI modes.
+Fast, deterministic sequence-diagram rendering to SVG with a first-class polymorphic multi-language frontend (PicoUML, PlantUML, Mermaid), strict validation, and scriptable CLI modes.
 
 ![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)
 ![rust](https://img.shields.io/badge/rust-2021-f97316)
@@ -11,9 +11,10 @@ Fast, deterministic sequence-diagram rendering from PlantUML-style text to SVG, 
 
 `puml` intentionally supports sequence diagrams only. Non-sequence families (state/class/etc.) are rejected so the parser, validator, layout, and SVG output stay predictable and testable.
 
-Compatibility statement:
-- Supports a focused subset of PlantUML-style **sequence** syntax (see feature matrix below).
-- Does not claim full PlantUML language compatibility.
+Language and compatibility statement:
+- PicoUML is a first-class canonical language surface for this engine.
+- PlantUML support is a first-class 1:1 target for sequence workflows (subset status is tracked in the feature matrix).
+- Mermaid support is first-class for the supported `sequenceDiagram` subset.
 
 ## Install And Dev
 
@@ -128,9 +129,9 @@ Modes:
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
-  `auto|plantuml`: parse PlantUML sequence syntax
-  `mermaid`: supports a baseline `sequenceDiagram` subset (participants + message arrows), with deterministic compatibility diagnostics for unsupported constructs
-  `picouml`: reserved; currently rejected with deterministic "not implemented yet" diagnostic
+  `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
+  `mermaid`: supports a first-class `sequenceDiagram` subset (participants + message arrows), with deterministic compatibility diagnostics for unsupported constructs
+  `picouml`: canonical first-class language surface; explicit frontend selection is currently not implemented and returns a deterministic diagnostic
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
   `extended`: when `--include-root` is omitted, stdin `!include` falls back to current working directory

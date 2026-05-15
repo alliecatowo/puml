@@ -4,6 +4,11 @@ Date: 2026-05-15
 
 This roadmap tracks high-impact sequence-diagram parity work relative to PlantUML behavior and defines execution order, measurable done criteria, and fixture-first delivery.
 
+Product language policy baseline:
+- PicoUML is the first-class canonical language for the engine.
+- PlantUML is a first-class 1:1 compatibility target.
+- Mermaid is a first-class supported frontend for scoped sequence coverage.
+
 ## Source Inputs
 
 - Current parity research: `docs/parity-research-chunk-g-sequence.md`
@@ -138,7 +143,7 @@ Done criteria:
 - Existing sequence fixtures remain green.
 - New family-routing API is additive and stable.
 - Non-sequence families remain explicit deterministic rejections.
-- Mermaid frontend baseline for `sequenceDiagram` subset routes through shared parse pipeline entrypoint.
+- Mermaid frontend baseline for `sequenceDiagram` subset routes through the same first-class shared parse pipeline entrypoint.
 - Unsupported Mermaid families/constructs fail with deterministic compatibility diagnostics.
 
 ### Slice B: Class family bootstrap

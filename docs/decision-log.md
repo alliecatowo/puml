@@ -55,4 +55,9 @@ This log records intentional contract deviations and updates adopted in the curr
   - `compat=strict` keeps deterministic include behavior: stdin `!include` requires explicit `--include-root`.
   - `compat=extended` enables a minimal, real hook: stdin `!include` falls back to current working directory when `--include-root` is omitted.
   - `determinism` interpretation is explicit even though both modes currently execute the same deterministic runtime behavior.
-- Spec/implementation contradiction and resolution: PlantUML offers broader preprocessing convenience; this implementation keeps strict mode conservative and deterministic while exposing limited opt-in convenience in extended mode.
+- Spec/implementation contradiction and resolution: PlantUML offers broader preprocessing convenience; this implementation exposes explicit compatibility profiles while preserving deterministic behavior and a single shared parser pipeline.
+
+### D-010: First-class polymorphic language policy
+- Decision: Treat PicoUML, PlantUML, and Mermaid as first-class product surfaces; position PicoUML as canonical language, PlantUML as first-class 1:1 compatibility target, and Mermaid as first-class supported frontend.
+- Rationale: Prevents hierarchy framing where one surface is presented as "extended mode" or second-class, and keeps product/docs contracts aligned with a single polymorphic engine architecture.
+- Impact: User-facing docs and CLI help should describe language surfaces as first-class and compatibility/determinism as policy controls rather than product tiering.
