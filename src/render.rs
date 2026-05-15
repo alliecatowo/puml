@@ -10,16 +10,26 @@ pub fn render_svg(scene: &Scene) -> String {
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
     if let Some(title) = &scene.title {
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
-            title.x,
-            title.y,
-            escape_text(&title.text)
-        ));
+        for (idx, line) in title.lines.iter().enumerate() {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+                title.x,
+                title.y + (idx as i32 * 24),
+                escape_text(line)
+            ));
+        }
     }
 
     for p in &scene.participants {
-        render_participant_box(&mut out, p.x, p.y, p.width, p.height, p.role, &p.display);
+        render_participant_box(
+            &mut out,
+            p.x,
+            p.y,
+            p.width,
+            p.height,
+            p.role,
+            &p.display_lines,
+        );
     }
 
     for l in &scene.lifelines {
@@ -196,7 +206,15 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for p in &scene.footboxes {
-        render_participant_box(&mut out, p.x, p.y, p.width, p.height, p.role, &p.display);
+        render_participant_box(
+            &mut out,
+            p.x,
+            p.y,
+            p.width,
+            p.height,
+            p.role,
+            &p.display_lines,
+        );
     }
 
     out.push_str("</svg>");
@@ -225,10 +243,9 @@ fn render_participant_box(
     width: i32,
     height: i32,
     role: ParticipantRole,
-    display: &str,
+    display_lines: &[String],
 ) {
     let cx = x + (width / 2);
-    let text_y = y + 21;
 
     match role {
         ParticipantRole::Participant => {
@@ -339,10 +356,12 @@ fn render_participant_box(
         }
     }
 
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">{}</text>",
-        cx,
-        text_y,
-        escape_text(display)
-    ));
+    for (idx, line) in display_lines.iter().enumerate() {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">{}</text>",
+            cx,
+            y + 21 + (idx as i32 * 16),
+            escape_text(line)
+        ));
+    }
 }

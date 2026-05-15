@@ -1,4 +1,5 @@
 use puml::diagnostic::{render_caret_line, Diagnostic, Severity};
+use puml::scene::TextOverflowPolicy;
 use puml::source::{Source, Span};
 use puml::theme::Theme;
 
@@ -73,8 +74,13 @@ fn theme_new_and_default_enable_footbox_and_empty_skinparams() {
     let fresh = Theme::new();
     assert!(fresh.footbox_visible);
     assert!(fresh.skinparams.is_empty());
+    assert_eq!(fresh.text_overflow_policy, TextOverflowPolicy::WrapAndGrow);
 
     let defaulted = Theme::default();
     assert!(!defaulted.footbox_visible);
     assert!(defaulted.skinparams.is_empty());
+    assert_eq!(
+        defaulted.text_overflow_policy,
+        TextOverflowPolicy::WrapAndGrow
+    );
 }

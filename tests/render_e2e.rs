@@ -4,6 +4,7 @@ use puml::model::{
 };
 use puml::scene::LayoutOptions;
 use puml::{layout, render};
+use std::collections::HashSet;
 
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!(
@@ -174,6 +175,20 @@ fn render_svg_note_across_spans_content_width() {
 }
 
 #[test]
+fn render_svg_expands_note_ref_and_group_for_long_multiline_text() {
+    let src = fixture("groups/valid_overflow_long_blocks.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.contains("very long yellow note line"));
+    assert!(svg.contains("External dependency handshake"));
+    assert!(svg.contains("group This group label is intentionally verbose"));
+    assert_snapshot!(
+        "render_svg_expands_note_ref_and_group_for_long_multiline_text",
+        svg
+    );
+}
+
+#[test]
 fn render_svg_hides_footbox_and_ends_lifelines_above_footer_area() {
     let src = "@startuml\nhide footbox\nparticipant A\nparticipant B\nA -> B : hello\n@enduml\n";
     let ast = puml::parse(src).expect("parse should succeed");
@@ -253,4 +268,180 @@ fn render_svg_renders_distinct_participant_kinds() {
     );
     assert!(svg.contains("<ellipse"), "database style should render");
     assert_snapshot!("render_svg_renders_distinct_participant_kinds", svg);
+}
+
+#[test]
+fn overflow_scene_text_anchors_stay_within_note_and_group_bounds() {
+    let src = fixture("overflow/overflow_notes_refs_groups.puml");
+    let ast = puml::parse(&src).expect("parse should succeed");
+    let doc = puml::normalize(ast).expect("normalize should succeed");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    for note in &scene.notes {
+        for (idx, _) in note.text.lines().enumerate() {
+            let text_y = note.y + 20 + (idx as i32 * 16);
+            assert!(
+                text_y > note.y && text_y <= note.y + note.height,
+                "note text baseline should stay within note rect bounds"
+            );
+        }
+    }
+
+    for group in &scene.groups {
+        if let Some(label) = &group.label {
+            let header_y = group.y + 16;
+            assert!(
+                header_y > group.y && header_y <= group.y + group.height,
+                "group header baseline should stay within group rect bounds"
+            );
+            if group.kind.eq_ignore_ascii_case("ref") {
+                for (idx, _) in label.lines().skip(1).enumerate() {
+                    let text_y = group.y + 32 + (idx as i32 * 16);
+                    assert!(
+                        text_y > group.y && text_y <= group.y + group.height,
+                        "ref body baseline should stay within ref rect bounds"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SvgRect {
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    fill: String,
+}
+
+#[derive(Debug, Clone)]
+struct SvgText {
+    x: i32,
+    y: i32,
+    text: String,
+}
+
+fn parse_svg_attr(tag: &str, key: &str) -> Option<String> {
+    let pat = format!("{key}=\"");
+    let start = tag.find(&pat)? + pat.len();
+    let rest = &tag[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
+fn parse_svg_rects(svg: &str) -> Vec<SvgRect> {
+    let mut rects = Vec::new();
+    for chunk in svg.split("<rect ").skip(1) {
+        let Some(end) = chunk.find("/>") else {
+            continue;
+        };
+        let tag = &chunk[..end];
+        let (Some(x), Some(y), Some(width), Some(height), Some(fill)) = (
+            parse_svg_attr(tag, "x").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "y").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "width").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "height").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "fill"),
+        ) else {
+            continue;
+        };
+        rects.push(SvgRect {
+            x,
+            y,
+            width,
+            height,
+            fill,
+        });
+    }
+    rects
+}
+
+fn parse_svg_texts(svg: &str) -> Vec<SvgText> {
+    let mut texts = Vec::new();
+    for chunk in svg.split("<text ").skip(1) {
+        let Some(close) = chunk.find('>') else {
+            continue;
+        };
+        let attrs = &chunk[..close];
+        let body = &chunk[close + 1..];
+        let Some(end) = body.find("</text>") else {
+            continue;
+        };
+        let content = body[..end].to_string();
+        let (Some(x), Some(y)) = (
+            parse_svg_attr(attrs, "x").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(attrs, "y").and_then(|v| v.parse::<i32>().ok()),
+        ) else {
+            continue;
+        };
+        texts.push(SvgText {
+            x,
+            y,
+            text: content,
+        });
+    }
+    texts
+}
+
+#[test]
+fn overflow_svg_text_positions_stay_within_associated_rects() {
+    let src = fixture("overflow/overflow_notes_refs_groups.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+    let rects = parse_svg_rects(&svg);
+    let texts = parse_svg_texts(&svg);
+
+    let note_rects = rects
+        .iter()
+        .filter(|r| r.fill == "#fff8c4")
+        .collect::<Vec<_>>();
+    let group_rects = rects
+        .iter()
+        .filter(|r| r.fill == "#eef6ff" || r.fill == "#fafafa")
+        .collect::<Vec<_>>();
+    assert!(!note_rects.is_empty(), "expected at least one note rect");
+    assert!(
+        !group_rects.is_empty(),
+        "expected at least one group/ref rect"
+    );
+
+    let tracked = [
+        "note_line_one_for_bounds_guardrail",
+        "note_line_two_for_bounds_guardrail",
+        "note_line_three_for_bounds_guardrail",
+        "alt branch_label_for_bounds_guardrail",
+        "ref over A, B",
+        "ref_line_one_for_bounds_guardrail",
+        "ref_line_two_for_bounds_guardrail",
+        "ref_line_three_for_bounds_guardrail",
+        "ref_line_four_for_bounds_guardrail",
+    ];
+
+    let mut seen = HashSet::new();
+    for text in texts {
+        if !tracked.contains(&text.text.as_str()) {
+            continue;
+        }
+        seen.insert(text.text.clone());
+        let owner = note_rects
+            .iter()
+            .copied()
+            .chain(group_rects.iter().copied())
+            .find(|r| {
+                text.x >= r.x && text.x <= r.x + r.width && text.y > r.y && text.y <= r.y + r.height
+            });
+        assert!(
+            owner.is_some(),
+            "tracked text should stay inside associated note/ref/group rect bounds: {}",
+            text.text
+        );
+    }
+
+    for expected in tracked {
+        assert!(
+            seen.contains(expected),
+            "expected tracked overflow guardrail text in svg: {expected}"
+        );
+    }
 }

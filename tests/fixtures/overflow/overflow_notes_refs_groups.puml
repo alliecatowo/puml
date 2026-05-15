@@ -1,0 +1,26 @@
+@startuml
+participant A
+participant B
+participant C
+
+alt branch_label_for_bounds_guardrail
+A -> B: enter branch
+else fallback_branch_label_for_bounds_guardrail
+B -> A: recover
+end
+
+note across A, C
+note_line_one_for_bounds_guardrail
+note_line_two_for_bounds_guardrail
+note_line_three_for_bounds_guardrail
+end note
+
+ref over A, B
+ref_line_one_for_bounds_guardrail
+ref_line_two_for_bounds_guardrail
+ref_line_three_for_bounds_guardrail
+ref_line_four_for_bounds_guardrail
+end ref
+
+A -> C: done
+@enduml

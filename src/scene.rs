@@ -18,18 +18,24 @@ pub struct Scene {
 pub struct Label {
     pub x: i32,
     pub y: i32,
-    pub text: String,
+    pub lines: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ParticipantBox {
     pub id: String,
-    pub display: String,
+    pub display_lines: Vec<String>,
     pub role: ParticipantRole,
     pub x: i32,
     pub y: i32,
     pub width: i32,
     pub height: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextOverflowPolicy {
+    WrapAndGrow,
+    EllipsisSingleLine,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +112,7 @@ pub struct LayoutOptions {
     pub note_width: i32,
     pub note_padding: i32,
     pub footer_height: i32,
+    pub text_overflow_policy: TextOverflowPolicy,
 }
 
 impl Default for LayoutOptions {
@@ -120,6 +127,7 @@ impl Default for LayoutOptions {
             note_width: 180,
             note_padding: 8,
             footer_height: 24,
+            text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         }
     }
 }

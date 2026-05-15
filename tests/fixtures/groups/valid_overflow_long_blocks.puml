@@ -1,0 +1,20 @@
+@startuml
+participant A
+participant B
+
+A -> B : kickoff
+
+note over A, B
+This is a very long yellow note line that should force the container to grow wider than defaults.
+And this second line keeps the multiline height constraints honest.
+end note
+
+ref over A, B
+External dependency handshake with a very long descriptive line that previously escaped the ref block.
+Return payload includes another long descriptive line to stress multiline measurement.
+end ref
+
+group This group label is intentionally verbose so the container width follows measured content correctly
+A -> B : work
+end
+@enduml

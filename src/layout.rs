@@ -4,8 +4,14 @@ use crate::model::{SequenceDocument, SequenceEventKind, SequencePage};
 use crate::normalize;
 use crate::scene::{
     GroupBox, GroupSeparator, Label, LayoutOptions, Lifeline, MessageLine, NoteBox, ParticipantBox,
-    Scene, StructureKind, StructureLine,
+    Scene, StructureKind, StructureLine, TextOverflowPolicy,
 };
+
+const TEXT_LINE_HEIGHT: i32 = 16;
+const GROUP_TEXT_INSET_X: i32 = 8;
+const GROUP_HEADER_BASELINE_Y: i32 = 16;
+const GROUP_REF_BODY_BASELINE_Y: i32 = 32;
+const GROUP_BOTTOM_PADDING: i32 = 8;
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     let mut pages = layout_pages(document, options);
@@ -26,6 +32,22 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let mut bounds_by_id = BTreeMap::new();
 
     let mut max_participant_right = options.margin;
+    let participant_text_max_width = (options.participant_width - 16).max(8);
+    let participant_max_chars = (participant_text_max_width / 7).max(1) as usize;
+    let mut participant_lines_by_id = BTreeMap::new();
+    let mut max_participant_line_count = 1_i32;
+    for participant in &document.participants {
+        let lines = normalize_label_lines(
+            &participant.display,
+            participant_max_chars,
+            options.text_overflow_policy,
+        );
+        max_participant_line_count = max_participant_line_count.max(lines.len() as i32);
+        participant_lines_by_id.insert(participant.id.clone(), lines);
+    }
+    let participant_height = (max_participant_line_count * 16) + 12;
+    let participant_height = participant_height.max(options.participant_height);
+
     for (idx, participant) in document.participants.iter().enumerate() {
         let x = options.margin + (idx as i32 * options.participant_spacing);
         let center_x = x + options.participant_width / 2;
@@ -35,23 +57,27 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
 
         participants.push(ParticipantBox {
             id: participant.id.clone(),
-            display: participant.display.clone(),
+            display_lines: participant_lines_by_id
+                .remove(&participant.id)
+                .unwrap_or_else(|| vec![participant.display.clone()]),
             role: participant.role,
             x,
             y: options.margin,
             width: options.participant_width,
-            height: options.participant_height,
+            height: participant_height,
         });
     }
 
+    let title_max_width = (max_participant_right - (options.margin * 2)).max(200);
+    let title_max_chars = (title_max_width / 9).max(1) as usize;
     let title = document.title.as_ref().map(|text| Label {
         x: options.margin,
         y: options.margin,
-        text: text.clone(),
+        lines: normalize_label_lines(text, title_max_chars, options.text_overflow_policy),
     });
 
-    let title_block_height = if title.is_some() {
-        options.title_height
+    let title_block_height = if let Some(label) = &title {
+        (label.lines.len() as i32 * 24).max(options.title_height)
     } else {
         0
     };
@@ -61,7 +87,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         p.y = participant_top;
     }
 
-    let events_top = participant_top + options.participant_height + 24;
+    let events_top = participant_top + participant_height + 24;
     let mut messages = Vec::new();
     let mut notes = Vec::new();
     let mut groups: Vec<GroupBox> = Vec::new();
@@ -123,14 +149,17 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 position,
             } => {
                 let y = events_top + (event_rows * options.message_row_height);
-                let text_lines = text.lines().count().max(1) as i32;
-                let height = (text_lines * 16) + (options.note_padding * 2);
+                let (content_width, text_lines) = multiline_metrics(text);
+                let width_from_text = content_width + (options.note_padding * 2);
+                let width = options.note_width.max(width_from_text);
+                let height = (text_lines * TEXT_LINE_HEIGHT) + (options.note_padding * 2);
                 let (x, width) = note_horizontal_bounds(
                     position,
                     target.as_deref(),
                     &centers_by_id,
                     &bounds_by_id,
                     max_participant_right,
+                    width,
                     &options,
                 );
 
@@ -155,7 +184,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     }
                 } else {
                     let (x, width) =
-                        group_horizontal_bounds(label.as_deref(), &bounds_by_id, &options);
+                        group_horizontal_bounds(kind, label.as_deref(), &bounds_by_id, &options);
                     groups.push(GroupBox {
                         kind: kind.clone(),
                         label: label.clone(),
@@ -173,6 +202,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 let y = events_top + (event_rows * options.message_row_height);
                 if let Some(ix) = open_groups.pop() {
                     groups[ix].height = (y - groups[ix].y) + options.message_row_height;
+                    let (_, min_height) =
+                        group_content_min_size(&groups[ix].kind, groups[ix].label.as_deref());
+                    groups[ix].height = groups[ix].height.max(min_height);
                 }
                 event_rows += 1;
             }
@@ -231,6 +263,8 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let end_y = events_top + (event_rows * options.message_row_height);
     while let Some(ix) = open_groups.pop() {
         groups[ix].height = (end_y - groups[ix].y).max(options.message_row_height);
+        let (_, min_height) = group_content_min_size(&groups[ix].kind, groups[ix].label.as_deref());
+        groups[ix].height = groups[ix].height.max(min_height);
     }
 
     let events_height = if event_rows > 0 {
@@ -251,7 +285,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             .iter()
             .map(|p| ParticipantBox {
                 id: p.id.clone(),
-                display: p.display.clone(),
+                display_lines: p.display_lines.clone(),
                 role: p.role,
                 x: p.x,
                 y: lifeline_end,
@@ -286,10 +320,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let min_bottom = if footboxes.is_empty() {
         lifeline_end + options.footer_height
     } else {
-        lifeline_end + options.participant_height
+        lifeline_end + participant_height
     };
-    let height =
-        (min_bottom + options.margin).max(participant_top + options.participant_height + 80);
+    let height = (min_bottom + options.margin).max(participant_top + participant_height + 80);
 
     Scene {
         width,
@@ -303,6 +336,110 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         groups,
         structures,
     }
+}
+
+fn normalize_label_lines(text: &str, max_chars: usize, policy: TextOverflowPolicy) -> Vec<String> {
+    match policy {
+        TextOverflowPolicy::EllipsisSingleLine => {
+            let one_line = text.replace('\n', " ");
+            vec![ellipsize(&one_line, max_chars)]
+        }
+        TextOverflowPolicy::WrapAndGrow => text
+            .lines()
+            .flat_map(|line| wrap_line(line, max_chars))
+            .collect::<Vec<_>>(),
+    }
+}
+
+fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
+    if line.is_empty() {
+        return vec![String::new()];
+    }
+    let words = line.split_whitespace().collect::<Vec<_>>();
+    if words.is_empty() {
+        return vec![String::new()];
+    }
+
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in words {
+        let word_len = word.chars().count();
+        if current.is_empty() {
+            if word_len <= max_chars {
+                current.push_str(word);
+            } else {
+                for chunk in chunk_text(word, max_chars) {
+                    lines.push(chunk);
+                }
+            }
+            continue;
+        }
+
+        let next_len = current.chars().count() + 1 + word_len;
+        if next_len <= max_chars {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(current);
+            if word_len <= max_chars {
+                current = word.to_string();
+            } else {
+                let mut chunks = chunk_text(word, max_chars);
+                let tail = chunks.pop().unwrap_or_default();
+                lines.extend(chunks);
+                current = tail;
+            }
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        vec![String::new()]
+    } else {
+        lines
+    }
+}
+
+fn chunk_text(text: &str, max_chars: usize) -> Vec<String> {
+    if max_chars == 0 {
+        return vec![text.to_string()];
+    }
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for ch in text.chars() {
+        current.push(ch);
+        if current.chars().count() >= max_chars {
+            out.push(current);
+            current = String::new();
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    if out.is_empty() {
+        vec![String::new()]
+    } else {
+        out
+    }
+}
+
+fn ellipsize(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+    if max_chars == 0 {
+        return String::new();
+    }
+    if max_chars == 1 {
+        return "…".to_string();
+    }
+    let mut out = String::new();
+    for ch in text.chars().take(max_chars - 1) {
+        out.push(ch);
+    }
+    out.push('…');
+    out
 }
 
 fn structure_bounds(centers_by_id: &BTreeMap<String, i32>, options: &LayoutOptions) -> (i32, i32) {
@@ -358,16 +495,14 @@ fn note_horizontal_bounds(
     centers_by_id: &BTreeMap<String, i32>,
     bounds_by_id: &BTreeMap<String, (i32, i32)>,
     max_participant_right: i32,
+    width: i32,
     options: &LayoutOptions,
 ) -> (i32, i32) {
     if position.eq_ignore_ascii_case("across") {
-        return (
-            options.margin,
-            (max_participant_right - options.margin).max(options.note_width),
-        );
+        let span_width = (max_participant_right - options.margin).max(options.note_width);
+        return (options.margin, span_width.max(width));
     }
 
-    let width = options.note_width;
     let x = if let Some(target_spec) = target_spec {
         let bounds = note_target_bounds(target_spec, bounds_by_id, options);
         let min_left = bounds
@@ -397,14 +532,16 @@ fn note_horizontal_bounds(
         options.margin
     };
 
-    (x, width)
+    (x.max(options.margin), width)
 }
 
 fn group_horizontal_bounds(
+    kind: &str,
     label: Option<&str>,
     bounds_by_id: &BTreeMap<String, (i32, i32)>,
     options: &LayoutOptions,
 ) -> (i32, i32) {
+    let (min_content_width, _) = group_content_min_size(kind, label);
     if let Some(raw) = label {
         if let Some(target_spec) = raw.strip_prefix("over ") {
             let bounds = note_target_bounds(target_spec.trim(), bounds_by_id, options);
@@ -420,19 +557,55 @@ fn group_horizontal_bounds(
                     .max()
                     .unwrap_or(options.margin + options.participant_width);
                 let target_width = (max_right - min_left).max(options.participant_width);
-                let estimated_label_width =
-                    raw.lines().map(estimate_text_px_width).max().unwrap_or(0) + 16;
-                let width = target_width.max(estimated_label_width);
-                let x = min_left - ((width - target_width) / 2);
+                let width = target_width.max(min_content_width);
+                let x = (min_left - ((width - target_width) / 2)).max(options.margin);
                 return (x, width);
             }
         }
     }
-    (
-        options.margin,
-        (bounds_by_id.len() as i32 * options.participant_spacing)
-            .max(options.participant_width + 64),
-    )
+    let width = (bounds_by_id.len() as i32 * options.participant_spacing)
+        .max(options.participant_width + 64)
+        .max(min_content_width);
+    (options.margin, width)
+}
+
+fn multiline_metrics(text: &str) -> (i32, i32) {
+    let mut max_width = 0;
+    let mut lines = 0;
+    for line in text.split('\n') {
+        max_width = max_width.max(estimate_text_px_width(line));
+        lines += 1;
+    }
+    if lines == 0 {
+        lines = 1;
+    }
+    (max_width, lines)
+}
+
+fn group_content_min_size(kind: &str, label: Option<&str>) -> (i32, i32) {
+    let Some(label) = label else {
+        return (0, 0);
+    };
+    let mut lines = label.split('\n');
+    let header = lines.next().unwrap_or("");
+    let header_text = format!("{kind} {header}");
+    let mut max_width = estimate_text_px_width(header_text.trim());
+    let mut height = GROUP_HEADER_BASELINE_Y + GROUP_BOTTOM_PADDING;
+
+    if kind.eq_ignore_ascii_case("ref") {
+        let mut body_lines = 0;
+        for line in lines {
+            max_width = max_width.max(estimate_text_px_width(line));
+            body_lines += 1;
+        }
+        if body_lines > 0 {
+            height = GROUP_REF_BODY_BASELINE_Y
+                + ((body_lines - 1) * TEXT_LINE_HEIGHT)
+                + GROUP_BOTTOM_PADDING;
+        }
+    }
+
+    (max_width + (GROUP_TEXT_INSET_X * 2), height)
 }
 
 fn estimate_text_px_width(line: &str) -> i32 {

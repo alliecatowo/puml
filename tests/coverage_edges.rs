@@ -6,7 +6,7 @@ use puml::model::{
 };
 use puml::normalize;
 use puml::parser::{parse_with_options, ParseOptions};
-use puml::scene::LayoutOptions;
+use puml::scene::{LayoutOptions, TextOverflowPolicy};
 use puml::{parse, render};
 use std::fs;
 use tempfile::tempdir;
@@ -220,4 +220,76 @@ fn parser_reports_unterminated_startuml() {
     let err = parse(src).expect_err("expected unterminated startuml");
     assert!(err.message.contains("unmatched @startuml/@enduml boundary"));
     assert!(err.message.contains("missing a closing @enduml"));
+}
+
+#[test]
+fn layout_wraps_participant_labels_and_grows_boxes_by_default() {
+    let doc = SequenceDocument {
+        participants: vec![Participant {
+            id: "A".to_string(),
+            display: "A very long participant label that should wrap".to_string(),
+            role: ParticipantRole::Participant,
+            explicit: true,
+        }],
+        events: vec![],
+        title: None,
+        header: None,
+        footer: None,
+        caption: None,
+        legend: None,
+        skinparams: vec![],
+        footbox_visible: true,
+        warnings: vec![],
+    };
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let participant = scene
+        .participants
+        .iter()
+        .find(|p| p.id == "A")
+        .expect("expected participant A");
+    assert!(participant.display_lines.len() > 1);
+    assert!(participant.height > LayoutOptions::default().participant_height);
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains(">A very long<"));
+    assert!(svg.contains(">participant<"));
+}
+
+#[test]
+fn layout_uses_ellipsis_for_single_line_overflow_policy() {
+    let doc = SequenceDocument {
+        participants: vec![Participant {
+            id: "A".to_string(),
+            display: "A very long participant label that should truncate".to_string(),
+            role: ParticipantRole::Participant,
+            explicit: true,
+        }],
+        events: vec![],
+        title: None,
+        header: None,
+        footer: None,
+        caption: None,
+        legend: None,
+        skinparams: vec![],
+        footbox_visible: true,
+        warnings: vec![],
+    };
+    let options = LayoutOptions {
+        text_overflow_policy: TextOverflowPolicy::EllipsisSingleLine,
+        ..LayoutOptions::default()
+    };
+    let scene = layout::layout(&doc, options);
+
+    let participant = scene
+        .participants
+        .iter()
+        .find(|p| p.id == "A")
+        .expect("expected participant A");
+    assert_eq!(participant.display_lines.len(), 1);
+    assert!(participant.display_lines[0].contains('…'));
+    assert_eq!(
+        participant.height,
+        LayoutOptions::default().participant_height
+    );
 }

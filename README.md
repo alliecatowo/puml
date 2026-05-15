@@ -119,6 +119,13 @@ A -x B: malformed
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 
+## Text Overflow Policy
+
+`LayoutOptions` supports two participant/title label overflow behaviors:
+
+- `TextOverflowPolicy::WrapAndGrow` (default): wraps long labels and grows label containers vertically.
+- `TextOverflowPolicy::EllipsisSingleLine`: keeps single-line labels and truncates overflow with `…`.
+
 ## Docs Map
 
 - Developer flow: [`docs/codex-workflow.md`](docs/codex-workflow.md)
