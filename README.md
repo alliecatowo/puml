@@ -75,7 +75,7 @@ Exit codes:
 | Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
 | `skinparam maxmessagesize` | Supported | Accepted and normalized. |
 | Other `skinparam` keys | Rejected intentionally | Return validation warning error behavior. |
-| `!include`, `!define`, `!undef` | Recognized but rejected intentionally | Parsed, then fail normalization as unsupported directives. |
+| `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 
 Checklist:
@@ -95,7 +95,7 @@ cargo test
 Coverage target (line coverage >= 90%):
 
 ```bash
-cargo llvm-cov --workspace --all-features --lcov --output-path target/lcov.info
+cargo llvm-cov --all-features --workspace --fail-under-lines 90
 ```
 
 If `cargo llvm-cov` is not installed locally:
@@ -105,9 +105,8 @@ cargo install cargo-llvm-cov
 ```
 
 Fallback guidance when LLVM coverage tooling is unavailable in the environment:
-- Keep the target command above as the canonical CI/local coverage command.
-- Run `cargo test` to validate behavior and use targeted branch tests under `tests/**` as a proxy signal until `cargo llvm-cov` is available.
-- Optionally produce a rough per-file heuristic with `cargo test -- --nocapture` plus test-to-module mapping, then rerun the exact `cargo llvm-cov` command once installed.
+- Install `cargo-llvm-cov` and `llvm-tools-preview`, then re-run the exact gate command above.
+- Until installed, run `cargo test` as a temporary signal only.
 
 Current coverage-oriented suites include:
 - Parser/preprocess and normalization edge-path tests in `tests/coverage_edges.rs`
@@ -122,3 +121,13 @@ Current test suites:
 ## License
 
 MIT. See [LICENSE](./LICENSE).
+
+## Developer Commands
+
+For the full Codex/harness workflow, see [`docs/codex-workflow.md`](docs/codex-workflow.md).
+
+Quick gate:
+
+```console
+./scripts/check-all.sh
+```
