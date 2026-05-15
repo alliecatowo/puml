@@ -98,8 +98,10 @@ fn normalize_reports_destroy_active_for_shortcut() {
 
 #[test]
 fn normalize_supports_sequence_footbox_skinparam_without_warning() {
-    let src = fs::read_to_string(fixture("styling/valid_skinparam_sequence_footbox_supported.puml"))
-        .expect("fixture should load");
+    let src = fs::read_to_string(fixture(
+        "styling/valid_skinparam_sequence_footbox_supported.puml",
+    ))
+    .expect("fixture should load");
     let doc = parse(&src).expect("parse should succeed");
     let model = normalize::normalize(doc).expect("normalize should succeed");
 
@@ -109,17 +111,16 @@ fn normalize_supports_sequence_footbox_skinparam_without_warning() {
 
 #[test]
 fn normalize_skinparam_unsupported_key_and_value_are_deterministic() {
-    let unsupported_key_src = fs::read_to_string(fixture("styling/valid_skinparam_unsupported.puml"))
-        .expect("fixture should load");
+    let unsupported_key_src =
+        fs::read_to_string(fixture("styling/valid_skinparam_unsupported.puml"))
+            .expect("fixture should load");
     let unsupported_key_doc = parse(&unsupported_key_src).expect("parse should succeed");
     let unsupported_key_model =
         normalize::normalize(unsupported_key_doc).expect("normalize should succeed");
     assert_eq!(unsupported_key_model.warnings.len(), 1);
-    assert!(
-        unsupported_key_model.warnings[0]
-            .message
-            .contains("W_SKINPARAM_UNSUPPORTED")
-    );
+    assert!(unsupported_key_model.warnings[0]
+        .message
+        .contains("W_SKINPARAM_UNSUPPORTED"));
 
     let unsupported_value_src =
         fs::read_to_string(fixture("styling/valid_skinparam_unsupported_value.puml"))
@@ -128,11 +129,9 @@ fn normalize_skinparam_unsupported_key_and_value_are_deterministic() {
     let unsupported_value_model =
         normalize::normalize(unsupported_value_doc).expect("normalize should succeed");
     assert_eq!(unsupported_value_model.warnings.len(), 1);
-    assert!(
-        unsupported_value_model.warnings[0]
-            .message
-            .contains("W_SKINPARAM_UNSUPPORTED_VALUE")
-    );
+    assert!(unsupported_value_model.warnings[0]
+        .message
+        .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
 }
 
 #[test]
@@ -143,9 +142,7 @@ fn theme_classifies_sequence_skinparam_subset() {
     );
     assert_eq!(
         classify_sequence_skinparam("sequenceFootbox", "hide"),
-        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::FootboxVisible(
-            false
-        ))
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::FootboxVisible(false))
     );
     assert_eq!(
         classify_sequence_skinparam("footbox", "show"),

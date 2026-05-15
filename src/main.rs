@@ -97,6 +97,32 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<(), (u8, String)> {
+    if cli.dump_capabilities {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&lsp_capabilities_manifest()).map_err(|e| (
+                EXIT_INTERNAL,
+                format!("failed to serialize capability manifest: {e}")
+            ))?
+        );
+        return Ok(());
+    }
+
+    if let Some(path) = &cli.check_fixture {
+        let src = fs::read_to_string(path).map_err(|e| {
+            (
+                EXIT_IO,
+                format!("failed to read fixture '{}': {e}", path.display()),
+            )
+        })?;
+        let include_root = path.parent().map(|p| p.to_path_buf());
+        let doc = parse_for_cli(&src, include_root)
+            .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
+        let model = normalize(doc).map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
+        emit_warnings(&model, &src, None, cli.diagnostics);
+        return Ok(());
+    }
+
     let (_input_name, raw, input_path) = read_input(cli.input.as_deref())?;
     let include_root = cli
         .include_root
@@ -237,6 +263,25 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     Err((EXIT_INTERNAL, "unexpected stdin output mode".to_string()))
+}
+
+fn lsp_capabilities_manifest() -> Value {
+    json!({
+      "server": "puml-lsp",
+      "protocol": "3.17",
+      "languageId": "puml",
+      "extensions": [".puml", ".plantuml", ".iuml", ".pu"],
+      "lifecycle": ["initialize", "initialized", "shutdown", "exit"],
+      "textSync": ["didOpen", "didChange", "didSave", "didClose"],
+      "languageFeatures": [
+        "diagnostics", "completion", "hover", "definition", "references", "rename",
+        "documentSymbols", "workspaceSymbols", "semanticTokens", "formatting", "codeActions",
+        "foldingRanges", "selectionRanges", "documentLinks", "documentColor"
+      ],
+      "customRequests": [
+        "puml.applyFormat", "puml.renderSvg"
+      ]
+    })
 }
 
 fn diag_err_with_source(source: &str, d: Diagnostic, fmt: DiagnosticsFormat) -> (u8, String) {

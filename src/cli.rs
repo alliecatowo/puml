@@ -4,6 +4,13 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Parser)]
 #[command(name = "puml", version, about = "PlantUML CLI")]
 pub struct Cli {
+    /// Print puml-lsp capability manifest and exit.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub dump_capabilities: bool,
+
+    /// Validate a fixture file with parser+normalizer and print diagnostics.
+    #[arg(long, value_name = "FIXTURE", conflicts_with = "input")]
+    pub check_fixture: Option<PathBuf>,
     /// Input file path. Use '-' or omit to read stdin.
     #[arg(value_name = "INPUT")]
     pub input: Option<PathBuf>,
