@@ -114,12 +114,20 @@ Symptoms:
 Cause:
 - `--from-markdown` only reads fenced code blocks tagged as supported diagram fences:
   `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`.
+- fences can use backticks or tildes and may be indented by up to three leading spaces.
+- if a supported fence is opened and never closed, extraction continues through end-of-file.
 - all non-fence markdown content is intentionally ignored.
 
 Fix:
 
 ```console
 cargo run -- --from-markdown --check your-doc.md
+```
+
+If no supported fences are found, `puml` reports:
+
+```text
+no supported markdown diagram fences found; expected one of: puml, pumlx, picouml, plantuml, uml, puml-sequence, uml-sequence, mermaid
 ```
 
 ## Snapshot tests fail

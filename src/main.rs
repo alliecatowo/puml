@@ -90,6 +90,8 @@ struct DiagnosticsPayload {
 
 const DIAGNOSTICS_SCHEMA: &str = "puml.diagnostics";
 const DIAGNOSTICS_SCHEMA_VERSION: u32 = 1;
+const SUPPORTED_MARKDOWN_FENCES: &str =
+    "puml, pumlx, picouml, plantuml, uml, puml-sequence, uml-sequence, mermaid";
 const LINT_REPORT_SCHEMA: &str = "puml.lint_report";
 const LINT_REPORT_SCHEMA_VERSION: u32 = 1;
 
@@ -208,6 +210,14 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         .map_err(|d| diag_err_with_source(&raw, d, cli.diagnostics))?;
 
     if diagrams.is_empty() {
+        if from_markdown {
+            return Err((
+                EXIT_VALIDATION,
+                format!(
+                    "no supported markdown diagram fences found; expected one of: {SUPPORTED_MARKDOWN_FENCES}"
+                ),
+            ));
+        }
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
