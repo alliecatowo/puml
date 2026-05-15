@@ -425,6 +425,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
     }
 
     let mut files = Vec::new();
+    let mut lint_json_diagnostics = Vec::new();
 
     for path in lint_paths {
         let mut acc = LintFileAccumulator::default();
@@ -460,7 +461,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
             Ok(diagrams) => diagrams,
             Err(d) => {
                 acc.errors += 1;
-                emit_lint_diagnostic(&path, &raw, d, cli.diagnostics);
+                emit_lint_diagnostic(&path, &raw, d, cli.diagnostics, &mut lint_json_diagnostics);
                 files.push(LintFileResult {
                     path: path_display,
                     diagrams: acc.diagrams,
@@ -480,6 +481,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 &raw,
                 Diagnostic::error("no diagram content provided"),
                 cli.diagnostics,
+                &mut lint_json_diagnostics,
             );
             files.push(LintFileResult {
                 path: path_display,
@@ -511,6 +513,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                         &raw,
                         map_diagnostic_span(d, source.source_span),
                         cli.diagnostics,
+                        &mut lint_json_diagnostics,
                     );
                     continue;
                 }
@@ -526,13 +529,26 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                         &raw,
                         map_diagnostic_span(d, source.source_span),
                         cli.diagnostics,
+                        &mut lint_json_diagnostics,
                     );
                     continue;
                 }
             };
 
             acc.warnings += model.warnings.len();
-            emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
+            match cli.diagnostics {
+                DiagnosticsFormat::Human => {
+                    emit_warnings(&model, &raw, source.source_span, cli.diagnostics)
+                }
+                DiagnosticsFormat::Json => {
+                    for warning in &model.warnings {
+                        let warning = map_diagnostic_span(warning.clone(), source.source_span);
+                        let mut json = warning.to_json_with_source(&raw);
+                        json.file = Some(path_display.clone());
+                        lint_json_diagnostics.push(json);
+                    }
+                }
+            }
         }
 
         files.push(LintFileResult {
@@ -560,6 +576,12 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
     };
 
     emit_lint_report(cli.lint_report, &summary, &files)?;
+    if cli.diagnostics == DiagnosticsFormat::Json && !lint_json_diagnostics.is_empty() {
+        eprintln!(
+            "{}",
+            diagnostics_json_payload_precomputed(lint_json_diagnostics)
+        );
+    }
 
     if summary.failed_files > 0 {
         return Err((EXIT_VALIDATION, String::new()));
@@ -599,14 +621,22 @@ fn collect_lint_inputs(
     Ok(ordered.into_iter().collect())
 }
 
-fn emit_lint_diagnostic(path: &Path, source: &str, d: Diagnostic, fmt: DiagnosticsFormat) {
+fn emit_lint_diagnostic(
+    path: &Path,
+    source: &str,
+    d: Diagnostic,
+    fmt: DiagnosticsFormat,
+    lint_json_diagnostics: &mut Vec<DiagnosticJson>,
+) {
     match fmt {
         DiagnosticsFormat::Human => {
             eprintln!("--> {}", path.display());
             eprintln!("{}", d.render_with_source(source));
         }
         DiagnosticsFormat::Json => {
-            eprintln!("{}", diagnostics_json_payload(vec![d], source));
+            let mut json = d.to_json_with_source(source);
+            json.file = Some(path.display().to_string());
+            lint_json_diagnostics.push(json);
         }
     }
 }
@@ -923,6 +953,17 @@ fn diagnostics_json_payload(diags: Vec<Diagnostic>, source: &str) -> String {
             .iter()
             .map(|d| d.to_json_with_source(source))
             .collect::<Vec<_>>(),
+    };
+    serde_json::to_string_pretty(&payload).unwrap_or_else(|_| {
+        "{\"schema\":\"puml.diagnostics\",\"schema_version\":1,\"diagnostics\":[{\"code\":null,\"severity\":\"error\",\"message\":\"failed to serialize diagnostics\",\"span\":null,\"line\":null,\"column\":null,\"snippet\":null,\"caret\":null}]}".to_string()
+    })
+}
+
+fn diagnostics_json_payload_precomputed(diags: Vec<DiagnosticJson>) -> String {
+    let payload = DiagnosticsPayload {
+        schema: DIAGNOSTICS_SCHEMA,
+        schema_version: DIAGNOSTICS_SCHEMA_VERSION,
+        diagnostics: diags,
     };
     serde_json::to_string_pretty(&payload).unwrap_or_else(|_| {
         "{\"schema\":\"puml.diagnostics\",\"schema_version\":1,\"diagnostics\":[{\"code\":null,\"severity\":\"error\",\"message\":\"failed to serialize diagnostics\",\"span\":null,\"line\":null,\"column\":null,\"snippet\":null,\"caret\":null}]}".to_string()

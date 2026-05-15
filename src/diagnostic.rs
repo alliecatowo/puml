@@ -16,6 +16,8 @@ pub struct Diagnostic {
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct DiagnosticJson {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
     pub code: Option<String>,
     pub severity: &'static str,
     pub message: String,
@@ -98,6 +100,7 @@ impl Diagnostic {
         };
 
         DiagnosticJson {
+            file: None,
             code,
             severity: match self.severity {
                 Severity::Error => "error",

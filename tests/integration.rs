@@ -2370,6 +2370,54 @@ fn lint_mode_markdown_docs_glob_runs_end_to_end() {
     let diagnostics: Value = serde_json::from_slice(&out.stderr).unwrap();
     assert_eq!(diagnostics["schema"], "puml.diagnostics");
     assert_eq!(diagnostics["diagnostics"][0]["line"], 4);
+    assert_eq!(diagnostics["diagnostics"][0]["file"], "broken.md");
+}
+
+#[test]
+fn lint_mode_json_diagnostics_aggregate_deterministically_across_files() {
+    let tmp = tempdir().unwrap();
+    fs::copy(
+        fixture("invalid_single.puml"),
+        tmp.path().join("a_invalid.puml"),
+    )
+    .unwrap();
+    fs::write(
+        tmp.path().join("b_warning.puml"),
+        "@startuml\nskinparam SequenceFooColor #123456\nAlice -> Bob: ok\n@enduml\n",
+    )
+    .unwrap();
+
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .current_dir(tmp.path())
+        .args([
+            "--check",
+            "--lint-glob",
+            "*.puml",
+            "--lint-report",
+            "json",
+            "--diagnostics",
+            "json",
+        ])
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+
+    let report: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(report["summary"]["total_files"], 2);
+    assert_eq!(report["summary"]["failed_files"], 1);
+    assert_eq!(report["summary"]["warning_count"], 1);
+    assert_eq!(report["summary"]["error_count"], 1);
+
+    let diagnostics: Value = serde_json::from_slice(&out.stderr).unwrap();
+    assert_eq!(diagnostics["schema"], "puml.diagnostics");
+    let entries = diagnostics["diagnostics"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["file"], "a_invalid.puml");
+    assert_eq!(entries[0]["severity"], "error");
+    assert_eq!(entries[1]["file"], "b_warning.puml");
+    assert_eq!(entries[1]["severity"], "warning");
 }
 
 #[test]
