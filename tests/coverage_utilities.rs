@@ -274,3 +274,51 @@ fn mermaid_pipeline_reports_specific_code_for_unsupported_blocks() {
     let err = parse_with_pipeline_options(src, &options).unwrap_err();
     assert!(err.message.contains("E_MERMAID_BLOCK_UNSUPPORTED"));
 }
+
+#[test]
+fn mermaid_pipeline_supports_note_sides_and_destroy_lifecycle() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let src = "sequenceDiagram\nNote left of A: left\ndestroy A\nNote right of A: right\n";
+    parse_with_pipeline_options(src, &options)
+        .expect("left/right notes and destroy should adapt successfully");
+}
+
+#[test]
+fn mermaid_pipeline_reports_specific_codes_for_create_and_link_constructs() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+
+    let create = "sequenceDiagram\ncreate A\n";
+    let create_err = parse_with_pipeline_options(create, &options).unwrap_err();
+    assert!(create_err.message.contains("E_MERMAID_CREATE_UNSUPPORTED"));
+
+    let link = "sequenceDiagram\nlink A: https://example.test\n";
+    let link_err = parse_with_pipeline_options(link, &options).unwrap_err();
+    assert!(link_err.message.contains("E_MERMAID_LINK_UNSUPPORTED"));
+}
+
+#[test]
+fn mermaid_pipeline_reports_empty_and_generic_construct_errors() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+
+    let empty_err = parse_with_pipeline_options("%% comment only\n", &options).unwrap_err();
+    assert!(empty_err.message.contains("E_MERMAID_EMPTY"));
+
+    let unsupported_generic = "sequenceDiagram\ntitle   \n";
+    let generic_err = parse_with_pipeline_options(unsupported_generic, &options).unwrap_err();
+    assert!(generic_err.message.contains("E_MERMAID_CONSTRUCT_UNSUPPORTED"));
+}
