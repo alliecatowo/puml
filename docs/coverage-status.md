@@ -34,9 +34,16 @@ What changed in this pass:
 - Added explicit unsupported-value warning policy: `[W_SKINPARAM_UNSUPPORTED_VALUE]`.
 - Added focused coverage tests for normalize/theme skinparam paths and warning code determinism.
 
+## Perf/Binary Gate Relationship
+
+- Coverage gate is enforced only in full `./scripts/check-all.sh` mode.
+- Quick `./scripts/check-all.sh --quick` skips coverage but enforces benchmark perf + binary-size gates.
+- Benchmark regressions are tracked in `docs/benchmarks/latest_trend.{md,json}` with deterministic scenario rows.
+
 ## Contract Audit Notes
 
 Audit date: 2026-05-15
 
 - Preprocessor/runtime documentation needs alignment: practical checks show `!include` executes with guardrails (not parse-only rejection), while unsupported directive/style paths still produce explicit diagnostics.
 - Release validation should keep command UX and docs in lockstep by re-checking `--help`, exit codes, and warning behavior on each release pass.
+- No-Java baseline remains intentional for oracle hooks; keep placeholder fields until explicit Java enablement.
