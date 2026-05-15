@@ -117,6 +117,43 @@ fn render_for_mismatched_family_reports_deterministic_error() {
 }
 
 #[test]
+fn render_for_unsupported_families_reports_specific_codes() {
+    let cases = [
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            DiagramFamily::Component,
+            "E_RENDER_COMPONENT_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nnode web\n@enduml\n",
+            DiagramFamily::Deployment,
+            "E_RENDER_DEPLOYMENT_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nstate Running\n@enduml\n",
+            DiagramFamily::State,
+            "E_RENDER_STATE_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nstart\n:work;\nstop\n@enduml\n",
+            DiagramFamily::Activity,
+            "E_RENDER_ACTIVITY_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nclock clk\n@enduml\n",
+            DiagramFamily::Timing,
+            "E_RENDER_TIMING_UNSUPPORTED",
+        ),
+        ("@startuml\nfoo bar\n@enduml\n", DiagramFamily::Unknown, "E_RENDER_FAMILY_UNSUPPORTED"),
+    ];
+
+    for (src, family, code) in cases {
+        let err = render_source_to_svg_for_family(src, family).expect_err("unsupported family");
+        assert!(err.message.contains(code), "missing code {code}");
+    }
+}
+
+#[test]
 fn extract_markdown_diagrams_supports_tilde_fences_and_ignores_deep_indentation() {
     let src = concat!(
         "    ```puml\n", // 4-space indentation should be ignored as fence opener
