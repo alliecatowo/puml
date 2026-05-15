@@ -815,6 +815,117 @@ fn check_fixture_supports_json_diagnostics_for_warnings() {
 }
 
 #[test]
+fn layout_row_sizing_advances_y_for_wrapped_message_labels_and_tall_notes() {
+    let src = "@startuml\nA -> B : this is a deliberately long message label that wraps into several rows\nnote over A: note line one\nnote line two\nnote line three\nend note\nB -> A : done\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let options = LayoutOptions {
+        participant_spacing: 90,
+        ..LayoutOptions::default()
+    };
+    let scene = layout::layout(&model, options);
+
+    assert!(scene.messages.len() >= 2, "expected two messages");
+    assert!(
+        scene.messages[0].label_lines.len() > 1,
+        "first message should wrap"
+    );
+
+    assert!(!scene.notes.is_empty(), "expected at least one note");
+    let note = &scene.notes[0];
+    let second_message = &scene.messages[1];
+    assert!(
+        second_message.y >= note.y + options.message_row_height,
+        "second message should be pushed below note row height expansion"
+    );
+}
+
+#[test]
+fn layout_group_else_separator_and_ref_min_height_are_deterministic() {
+    let src = fs::read_to_string(fixture("groups/valid_ref_and_else_rendering.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let options = LayoutOptions::default();
+    let scene = layout::layout(&model, options);
+
+    let alt = scene
+        .groups
+        .iter()
+        .find(|g| g.kind.eq_ignore_ascii_case("alt"))
+        .expect("expected alt group");
+    assert!(
+        !alt.separators.is_empty(),
+        "alt group should capture else separator rows"
+    );
+    assert!(alt.height >= options.message_row_height);
+
+    let reference = scene
+        .groups
+        .iter()
+        .find(|g| g.kind.eq_ignore_ascii_case("ref"))
+        .expect("expected ref group");
+    assert!(
+        reference.height > options.message_row_height,
+        "ref group should use computed min content height"
+    );
+}
+
+#[test]
+fn layout_overflow_bounds_keep_multi_target_note_and_over_group_in_view() {
+    let src = "@startuml\nparticipant AlphaParticipantWithLongName\nparticipant BetaParticipantWithLongName\nparticipant GammaParticipantWithLongName\nnote right of AlphaParticipantWithLongName, BetaParticipantWithLongName: right note with a very long unbroken token AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\ngroup over AlphaParticipantWithLongName, GammaParticipantWithLongName : over Alpha/Gamma\nAlphaParticipantWithLongName -> GammaParticipantWithLongName : ping\nend\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    assert!(!scene.notes.is_empty(), "expected note");
+    assert!(!scene.groups.is_empty(), "expected group");
+    for note in &scene.notes {
+        assert!(note.x >= LayoutOptions::default().margin);
+        assert!(note.x + note.width <= scene.width);
+    }
+    for group in &scene.groups {
+        assert!(group.x >= LayoutOptions::default().margin);
+        assert!(group.x + group.width <= scene.width);
+    }
+}
+
+#[test]
+fn layout_pages_newpage_keeps_page_local_geometry_and_content() {
+    let src = "@startuml\ntitle Base\nA -> B : one\nnewpage Second\nnote over A: page two note\nA -> B : two\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let pages = layout::layout_pages(&model, LayoutOptions::default());
+
+    assert_eq!(pages.len(), 2, "newpage should split into two scene pages");
+    assert_eq!(
+        pages[0]
+            .title
+            .as_ref()
+            .expect("page one title")
+            .lines
+            .first()
+            .expect("line"),
+        "Base"
+    );
+    assert_eq!(
+        pages[1]
+            .title
+            .as_ref()
+            .expect("page two title")
+            .lines
+            .first()
+            .expect("line"),
+        "Second"
+    );
+    assert!(
+        pages[0].notes.is_empty(),
+        "page one should not include page two note"
+    );
+    assert_eq!(pages[1].notes.len(), 1, "page two should contain its note");
+}
+
+#[test]
 fn unknown_family_render_route_reports_deterministic_error_code() {
     use puml::DiagramFamily;
 
