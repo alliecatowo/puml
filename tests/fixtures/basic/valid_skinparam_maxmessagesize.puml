@@ -1,0 +1,4 @@
+@startuml
+skinparam maxMessageSize 120
+Alice -> Bob : this should normalize without warnings
+@enduml

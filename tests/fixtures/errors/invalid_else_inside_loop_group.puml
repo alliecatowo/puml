@@ -1,0 +1,7 @@
+@startuml
+loop retry
+  A -> B : ping
+else fallback
+  A -> B : pong
+end
+@enduml

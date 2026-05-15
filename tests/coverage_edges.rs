@@ -5,9 +5,9 @@ use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
 };
 use puml::normalize;
-use puml::source::Span;
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
+use puml::source::Span;
 use puml::theme::{
     classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
 };
@@ -442,7 +442,6 @@ fn check_fixture_supports_json_diagnostics_for_errors() {
     assert_eq!(json["diagnostics"][0]["column"], 1);
     assert_eq!(json["diagnostics"][0]["snippet"], "A -x B: malformed");
 }
-
 #[test]
 fn check_fixture_supports_json_diagnostics_for_warnings() {
     let out = Command::cargo_bin("puml")
