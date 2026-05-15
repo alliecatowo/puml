@@ -1,0 +1,8 @@
+@startuml
+A -> B: start
+alt happy
+B -> A: ok
+else sad
+B -> A: fail
+end
+@enduml

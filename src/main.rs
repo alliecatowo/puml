@@ -29,6 +29,33 @@ struct MultiSvgOut {
     svg: String,
 }
 
+#[derive(Debug, Serialize)]
+struct SceneDump {
+    size: SceneSize,
+    lanes: Vec<SceneLane>,
+    rows: Vec<SceneRow>,
+}
+
+#[derive(Debug, Serialize)]
+struct SceneSize {
+    width: i32,
+    height: i32,
+}
+
+#[derive(Debug, Serialize)]
+struct SceneLane {
+    id: String,
+    display: String,
+    role: String,
+    x: i32,
+}
+
+#[derive(Debug, Serialize)]
+struct SceneRow {
+    y: i32,
+    event: Value,
+}
+
 fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
@@ -88,10 +115,11 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                     let model = normalize(doc).map_err(diag_err)?;
                     Ok(model_to_json(&model))
                 }
-                DumpKind::Scene => Err((
-                    EXIT_INTERNAL,
-                    "scene dump requested but scene pipeline is not available".to_string(),
-                )),
+                DumpKind::Scene => {
+                    let doc = parse(source).map_err(diag_err)?;
+                    let model = normalize(doc).map_err(diag_err)?;
+                    Ok(scene_to_json(&model))
+                }
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -431,4 +459,42 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
         }
         SequenceEventKind::UndefPlaceholder(v) => json!({"UndefPlaceholder": v}),
     }
+}
+
+fn scene_to_json(model: &SequenceDocument) -> Value {
+    let lane_spacing = 140;
+    let lane_start = 100;
+    let row_spacing = 40;
+    let row_start = 120;
+    let width = 200 + (model.participants.len() as i32 * lane_spacing);
+    let height = 120 + (model.events.len() as i32 * row_spacing);
+
+    let lanes = model
+        .participants
+        .iter()
+        .enumerate()
+        .map(|(idx, p)| SceneLane {
+            id: p.id.clone(),
+            display: p.display.clone(),
+            role: model_role_to_str(p.role).to_string(),
+            x: lane_start + (idx as i32 * lane_spacing),
+        })
+        .collect::<Vec<_>>();
+
+    let rows = model
+        .events
+        .iter()
+        .enumerate()
+        .map(|(idx, e)| SceneRow {
+            y: row_start + (idx as i32 * row_spacing),
+            event: model_event_to_json(e),
+        })
+        .collect::<Vec<_>>();
+
+    let scene = SceneDump {
+        size: SceneSize { width, height },
+        lanes,
+        rows,
+    };
+    serde_json::to_value(scene).unwrap_or_else(|_| json!({"error": "scene serialization failed"}))
 }

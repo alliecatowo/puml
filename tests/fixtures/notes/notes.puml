@@ -1,0 +1,7 @@
+@startuml
+title Login flow
+Alice -> Bob: hi
+note right of Bob: thinking
+Bob --> Alice: hello
+note over Alice, Bob: handshake complete
+@enduml

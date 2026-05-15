@@ -1,0 +1,5 @@
+@startuml
+A -> B: one
+B --> A: two
+A <- B: three
+@enduml

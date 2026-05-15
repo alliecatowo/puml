@@ -1,0 +1,5 @@
+@startuml
+actor "User" as U
+boundary API
+U -> API: request
+@enduml

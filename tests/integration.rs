@@ -56,6 +56,11 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "single_valid.puml",
         "basic/valid_start_end.puml",
         "basic/valid_arrow.txt",
+        "participants/valid_aliases.puml",
+        "arrows/valid_directions.puml",
+        "notes/valid_note_over.puml",
+        "groups/valid_alt_end.puml",
+        "lifecycle/valid_activate_return.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -73,6 +78,8 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "invalid_single.puml",
         "errors/invalid_plain.txt",
         "errors/invalid_unclosed.puml",
+        "errors/invalid_unknown_only.puml",
+        "styling/valid_skinparam_unsupported.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -89,7 +96,9 @@ fn dump_mode_requires_kind() {
         .arg("--dump")
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("a value is required for '--dump <KIND>'"));
+        .stderr(predicate::str::contains(
+            "a value is required for '--dump <KIND>'",
+        ));
 }
 
 #[test]
@@ -108,10 +117,27 @@ fn dump_mode_outputs_ast_json() {
 }
 
 #[test]
+fn dump_mode_outputs_scene_json() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "scene", &fixture("single_valid.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert!(json.get("size").is_some());
+    assert!(json.get("lanes").is_some());
+    assert!(json.get("rows").is_some());
+}
+
+#[test]
 fn multi_mode_outputs_all_diagrams_as_json() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--multi", "-",])
+        .args(["--multi", "-"])
         .write_stdin(fs::read_to_string(fixture("multi_valid.puml")).unwrap())
         .assert()
         .success()

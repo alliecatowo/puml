@@ -1,0 +1,4 @@
+@startuml
+A -> B: ping
+note over A: local note
+@enduml

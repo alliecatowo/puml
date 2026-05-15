@@ -1,0 +1,4 @@
+@startuml
+Alice -> Alice: internal check
+Alice -> Bob: proceed
+@enduml

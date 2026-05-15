@@ -1,0 +1,7 @@
+@startuml
+A -> B: call
+activate B
+B --> A: done
+deactivate B
+return result
+@enduml

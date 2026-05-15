@@ -19,14 +19,15 @@ fn render_svg_is_deterministic_for_same_input() {
 }
 
 #[test]
-fn render_svg_contains_expected_scaffold_structure() {
+fn render_svg_contains_expected_structure() {
     let src = fixture("e2e/deterministic_sequence.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");
 
     assert!(svg.starts_with("<svg "));
     assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
     assert!(svg.contains("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>"));
-    assert!(svg.contains("puml sequence scaffold"));
+    assert!(svg.contains("stroke-dasharray=\"6 4\""));
+    assert!(svg.contains("<polygon points=\""));
     assert!(svg.ends_with("</svg>"));
 }
 

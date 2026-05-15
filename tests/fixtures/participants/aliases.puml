@@ -1,0 +1,6 @@
+@startuml
+participant "Web Server" as ws
+participant "Database" as db
+ws -> db: SELECT *
+db --> ws: rows
+@enduml
