@@ -1,0 +1,4 @@
+@startuml
+!include_many include_ok_child.puml
+!include_many include_ok_child.puml
+@enduml
