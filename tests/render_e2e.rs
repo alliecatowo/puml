@@ -213,3 +213,17 @@ fn render_svg_shows_footbox_and_lifelines_reach_it() {
     );
     assert_snapshot!("render_svg_shows_footbox_and_lifelines_reach_it", svg);
 }
+
+#[test]
+fn render_svg_renders_separator_delay_divider_and_spacer_distinctly() {
+    let src = fixture("structure/valid_separator_delay_divider_spacer.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.contains("== Stage 1 =="));
+    assert!(svg.contains("Midpoint"));
+    assert!(svg.contains("wait"));
+    assert_snapshot!(
+        "render_svg_renders_separator_delay_divider_and_spacer_distinctly",
+        svg
+    );
+}

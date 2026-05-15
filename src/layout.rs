@@ -4,7 +4,7 @@ use crate::model::{SequenceDocument, SequenceEventKind, SequencePage};
 use crate::normalize;
 use crate::scene::{
     GroupBox, GroupSeparator, Label, LayoutOptions, Lifeline, MessageLine, NoteBox, ParticipantBox,
-    Scene,
+    Scene, StructureKind, StructureLine,
 };
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
@@ -62,6 +62,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let mut messages = Vec::new();
     let mut notes = Vec::new();
     let mut groups: Vec<GroupBox> = Vec::new();
+    let mut structures = Vec::new();
     let mut open_groups: Vec<usize> = Vec::new();
     let mut event_rows: i32 = 0;
     let mut autonumber = AutonumberState::default();
@@ -180,6 +181,54 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 }
                 event_rows += 1;
             }
+            SequenceEventKind::Delay(label) => {
+                let y = events_top + (event_rows * options.message_row_height);
+                let (x1, x2) = structure_bounds(&centers_by_id, &options);
+                structures.push(StructureLine {
+                    kind: StructureKind::Delay,
+                    y,
+                    x1,
+                    x2,
+                    label: label.clone(),
+                });
+                event_rows += 1;
+            }
+            SequenceEventKind::Divider(label) => {
+                let y = events_top + (event_rows * options.message_row_height);
+                let (x1, x2) = structure_bounds(&centers_by_id, &options);
+                structures.push(StructureLine {
+                    kind: StructureKind::Divider,
+                    y,
+                    x1,
+                    x2,
+                    label: label.clone(),
+                });
+                event_rows += 1;
+            }
+            SequenceEventKind::Separator(label) => {
+                let y = events_top + (event_rows * options.message_row_height);
+                let (x1, x2) = structure_bounds(&centers_by_id, &options);
+                structures.push(StructureLine {
+                    kind: StructureKind::Separator,
+                    y,
+                    x1,
+                    x2,
+                    label: label.clone(),
+                });
+                event_rows += 1;
+            }
+            SequenceEventKind::Spacer => {
+                let y = events_top + (event_rows * options.message_row_height);
+                let (x1, x2) = structure_bounds(&centers_by_id, &options);
+                structures.push(StructureLine {
+                    kind: StructureKind::Spacer,
+                    y,
+                    x1,
+                    x2,
+                    label: None,
+                });
+                event_rows += 1;
+            }
             _ => {}
         }
     }
@@ -234,6 +283,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     for g in &groups {
         width = width.max(g.x + g.width + options.margin);
     }
+    for s in &structures {
+        width = width.max(s.x2 + options.margin);
+    }
 
     let min_bottom = if footboxes.is_empty() {
         lifeline_end + options.footer_height
@@ -253,7 +305,15 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         messages,
         notes,
         groups,
+        structures,
     }
+}
+
+fn structure_bounds(centers_by_id: &BTreeMap<String, i32>, options: &LayoutOptions) -> (i32, i32) {
+    let x1 = options.margin;
+    let width = (centers_by_id.len() as i32 * options.participant_spacing)
+        .max(options.participant_width + 64);
+    (x1, x1 + width)
 }
 
 fn default_center(options: &LayoutOptions) -> i32 {

@@ -75,6 +75,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "lifecycle/valid_return_inferred_from_shortcut_activation.puml",
         "notes/valid_multiline_blocks.puml",
         "notes/valid_note_across_multi.puml",
+        "structure/valid_separator_delay_divider_spacer.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -535,6 +536,28 @@ fn can_read_tempfile_input() {
 }
 
 #[test]
+fn dump_mode_scene_preserves_separator_delay_divider_and_spacer_rows() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "scene",
+            &fixture("structure/valid_separator_delay_divider_spacer.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!(
+        "dump_mode_scene_preserves_separator_delay_divider_and_spacer_rows",
+        json
+    );
+}
+
+#[test]
 fn stdin_include_requires_include_root_or_fails() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -628,4 +651,102 @@ fn file_newpage_output_writes_numbered_files_without_multi_flag() {
 
     assert!(tmp.path().join("paged-1.svg").exists());
     assert!(tmp.path().join("paged-2.svg").exists());
+}
+
+#[test]
+fn stdin_multi_blocks_with_newpage_flatten_into_stable_named_json_order() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "-"])
+        .write_stdin(
+            "@startuml\nA -> B : one\nnewpage Two\nB -> A : two\n@enduml\n\n@startuml\nX -> Y : three\n@enduml\n",
+        )
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array output");
+    assert_eq!(arr.len(), 3);
+    assert_eq!(arr[0]["name"], "diagram-1.svg");
+    assert_eq!(arr[1]["name"], "diagram-2.svg");
+    assert_eq!(arr[2]["name"], "diagram-3.svg");
+}
+
+#[test]
+fn file_input_infers_include_root_from_parent_directory() {
+    let tmp = tempdir().unwrap();
+    let include = tmp.path().join("child.puml");
+    let parent = tmp.path().join("parent.puml");
+    fs::write(&include, "Alice -> Bob : from child\n").unwrap();
+    fs::write(
+        &parent,
+        "@startuml\n!include child.puml\nBob -> Alice : from parent\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", parent.to_str().unwrap()])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn explicit_output_file_is_overwritten_with_latest_render() {
+    let tmp = tempdir().unwrap();
+    let out = tmp.path().join("explicit.svg");
+    fs::write(&out, "old-content").unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            fixture("single_valid.puml").as_str(),
+            "--output",
+            out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let written = fs::read_to_string(&out).unwrap();
+    assert!(written.contains("<svg"));
+    assert_ne!(written, "old-content");
+}
+
+#[test]
+fn multi_page_output_with_root_path_reports_invalid_output_stem() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("paged.puml");
+    fs::write(
+        &input,
+        "@startuml\nA -> B : one\nnewpage Second\nB -> A : two\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([input.to_str().unwrap(), "--output", "/"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("cannot derive output stem"));
+}
+
+#[test]
+fn explicit_output_with_missing_parent_reports_io_exit_code() {
+    let tmp = tempdir().unwrap();
+    let missing_parent = tmp.path().join("missing").join("out.svg");
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            fixture("single_valid.puml").as_str(),
+            "--output",
+            missing_parent.to_str().unwrap(),
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("failed to write"));
 }

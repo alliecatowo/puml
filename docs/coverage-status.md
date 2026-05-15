@@ -10,17 +10,14 @@ cargo llvm-cov --all-features --workspace --fail-under-lines 90
 
 Result:
 - Gate: failed
-- Total line coverage: 80.66%
+- Total line coverage: 86.29%
 - Target: 90%
-- Gap: 9.34 points
+- Gap: 3.71 points
 
 Top low-coverage modules from latest run:
-- `main.rs`: 72.42% lines
-- `normalize.rs`: 77.20% lines
-- `diagnostic.rs`: 25.00% lines
-- `source.rs`: 16.67% lines
-- `theme.rs`: 0.00% lines
+- `main.rs`: 75.51% lines
+- `normalize.rs`: 79.48% lines
 
-Interpretation:
-- The primary leverage for coverage gains is focused testing around CLI error/IO branches (`main.rs`) and semantic edge paths (`normalize.rs`).
-- Utility modules with little direct behavior (`theme.rs`) can be covered with lightweight smoke tests, or intentionally excluded if policy allows.
+High-confidence next lift areas:
+- `main.rs`: hard-to-hit CLI and output error branches.
+- `normalize.rs`: lifecycle edge/error paths and rare directive/style branches.

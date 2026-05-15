@@ -1,0 +1,118 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "lanes": [
+    {
+      "display": "A",
+      "id": "A",
+      "role": "Participant",
+      "x": 100
+    },
+    {
+      "display": "B",
+      "id": "B",
+      "role": "Participant",
+      "x": 240
+    }
+  ],
+  "rows": [
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "start",
+            "to": "B"
+          }
+        },
+        "span": {
+          "end": 52,
+          "start": 38
+        }
+      },
+      "y": 120
+    },
+    {
+      "event": {
+        "kind": {
+          "Separator": "Stage 1"
+        },
+        "span": {
+          "end": 66,
+          "start": 53
+        }
+      },
+      "y": 160
+    },
+    {
+      "event": {
+        "kind": "Spacer",
+        "span": {
+          "end": 70,
+          "start": 67
+        }
+      },
+      "y": 200
+    },
+    {
+      "event": {
+        "kind": {
+          "Divider": "Midpoint"
+        },
+        "span": {
+          "end": 87,
+          "start": 71
+        }
+      },
+      "y": 240
+    },
+    {
+      "event": {
+        "kind": {
+          "Delay": ""
+        },
+        "span": {
+          "end": 90,
+          "start": 88
+        }
+      },
+      "y": 280
+    },
+    {
+      "event": {
+        "kind": {
+          "Delay": "wait"
+        },
+        "span": {
+          "end": 101,
+          "start": 91
+        }
+      },
+      "y": 320
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "B",
+            "label": "finish",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 117,
+          "start": 102
+        }
+      },
+      "y": 360
+    }
+  ],
+  "size": {
+    "height": 400,
+    "width": 480
+  }
+}

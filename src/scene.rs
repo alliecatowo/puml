@@ -9,6 +9,7 @@ pub struct Scene {
     pub messages: Vec<MessageLine>,
     pub notes: Vec<NoteBox>,
     pub groups: Vec<GroupBox>,
+    pub structures: Vec<StructureLine>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +73,23 @@ pub struct GroupBox {
 pub struct GroupSeparator {
     pub y: i32,
     pub label: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructureLine {
+    pub kind: StructureKind,
+    pub y: i32,
+    pub x1: i32,
+    pub x2: i32,
+    pub label: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureKind {
+    Delay,
+    Divider,
+    Separator,
+    Spacer,
 }
 
 #[derive(Debug, Clone, Copy)]
