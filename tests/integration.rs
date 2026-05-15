@@ -1743,7 +1743,9 @@ fn file_newpage_output_requires_multi_flag() {
         .arg(input.to_str().unwrap())
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("multiple pages detected; rerun with --multi"));
+        .stderr(predicate::str::contains(
+            "multiple pages detected; rerun with --multi",
+        ));
 }
 
 #[test]
@@ -1843,7 +1845,9 @@ fn stdin_multi_blocks_with_ignore_newpage_requires_multi() {
         )
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("multiple diagrams detected; rerun with --multi"));
+        .stderr(predicate::str::contains(
+            "multiple diagrams detected; rerun with --multi",
+        ));
 }
 
 #[test]

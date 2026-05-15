@@ -1,4 +1,5 @@
 @startuml
+state Active
 [*] --> Active
 Active --> [*]
 @enduml

@@ -425,13 +425,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
-        if looks_like_state_transition(line) {
-            return Ok(Document {
-                kind: DiagramKind::Unknown,
-                statements,
-            });
-        }
-
         if let Some(kind) = parse_message(line) {
             seen_sequence = true;
             statements.push(Statement { span, kind });
@@ -994,58 +987,99 @@ fn split_message_label(line: &str) -> (&str, Option<String>) {
 }
 
 fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
-    let arrow_start = core.find(['-', '<']).unwrap_or(core.len());
-    if arrow_start >= core.len() {
-        return None;
+    fn is_arrow_char(c: char) -> bool {
+        matches!(c, '-' | '<' | '>' | '[' | ']' | 'o' | 'x' | '/' | '\\')
     }
-    let lhs = &core[..arrow_start];
-    let arrow_bytes = core.as_bytes();
-    let mut i = arrow_start;
-    while i < core.len() {
-        let c = arrow_bytes[i] as char;
-        if c == '-'
-            || c == '<'
-            || c == '>'
-            || c == '['
-            || c == ']'
-            || c == 'o'
-            || c == 'x'
-            || c == '/'
-            || c == '\\'
-        {
-            i += 1;
+
+    let mut run_start: Option<usize> = None;
+    for (idx, ch) in core.char_indices() {
+        if is_arrow_char(ch) {
+            if run_start.is_none() {
+                run_start = Some(idx);
+            }
             continue;
         }
-        break;
+        if let Some(start) = run_start.take() {
+            let candidate = &core[start..idx];
+            if !candidate.contains('-') {
+                continue;
+            }
+            let lhs = core[..start].trim();
+            let rhs = core[idx..].trim();
+            if !lhs.is_empty() && !rhs.is_empty() {
+                return Some((lhs, candidate.trim(), rhs));
+            }
+        }
     }
-    if i == arrow_start {
-        return None;
+    if let Some(start) = run_start {
+        let candidate = &core[start..];
+        if !candidate.contains('-') {
+            return None;
+        }
+        let lhs = core[..start].trim();
+        if lhs.is_empty() {
+            return None;
+        }
+        return Some((lhs, candidate.trim(), ""));
     }
-    let arrow = core[arrow_start..i].trim();
-    if !arrow.contains('-') {
-        return None;
-    }
-    let rhs = core[i..].trim();
-    Some((lhs.trim(), arrow, rhs))
+    None
 }
 
-fn parse_arrow(arrow: &str) -> Option<&str> {
+fn parse_arrow(arrow: &str) -> Option<String> {
     const VALID_BASE_ARROWS: &[&str] = &[
         "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
     ];
-    let canonical = arrow.replace(['/', '\\'], "");
+    let mut squashed = String::with_capacity(arrow.len());
+    let mut last_slash: Option<char> = None;
+    let mut slash_run_len = 0usize;
+    for ch in arrow.chars() {
+        if matches!(ch, '/' | '\\') {
+            if last_slash == Some(ch) {
+                slash_run_len += 1;
+            } else {
+                last_slash = Some(ch);
+                slash_run_len = 1;
+            }
+            if ch == '/' && slash_run_len > 1 {
+                // Portable slash forms allow a single slash marker only.
+                return None;
+            }
+            if slash_run_len == 1 {
+                squashed.push(ch);
+            }
+            continue;
+        }
+        last_slash = None;
+        slash_run_len = 0;
+        squashed.push(ch);
+    }
+
+    let canonical = squashed.replace(['/', '\\'], "");
     if canonical.is_empty()
         || !canonical
             .chars()
             .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x'))
-        || !arrow
+        || !squashed
             .chars()
             .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x' | '/' | '\\'))
     {
         return None;
     }
+    let has_slash_marker = squashed.contains('/') || squashed.contains('\\');
+    let expanded_marker = squashed.contains("-/") || squashed.contains("-\\");
+
     if VALID_BASE_ARROWS.contains(&canonical.as_str()) {
-        return Some(arrow);
+        if has_slash_marker && !expanded_marker {
+            return Some(canonical);
+        }
+        if expanded_marker
+            && squashed.contains("-\\")
+            && canonical == "-->>"
+            && squashed.contains("->>")
+        {
+            return Some(squashed.replacen("->>", "-->>", 1));
+        }
+        return Some(squashed);
     }
     let with_left_trimmed = canonical
         .strip_prefix('o')
@@ -1062,7 +1096,37 @@ fn parse_arrow(arrow: &str) -> Option<&str> {
         return None;
     }
     if VALID_BASE_ARROWS.contains(&core) && (right_marker_removed || core != canonical) {
-        return Some(arrow);
+        if has_slash_marker && !expanded_marker {
+            let mut out = core.to_string();
+            if let Some(ch) = with_left_trimmed.chars().last() {
+                if matches!(ch, 'o' | 'x') && right_marker_removed {
+                    out.push(ch);
+                }
+            }
+            return Some(out);
+        }
+        if expanded_marker && canonical.contains("-->>") && squashed.contains("->>") {
+            return Some(squashed.replacen("->>", "-->>", 1));
+        }
+        return Some(squashed);
+    }
+    if let Some(stripped_core) = core.strip_prefix('-') {
+        if VALID_BASE_ARROWS.contains(&stripped_core) && (right_marker_removed || core != canonical)
+        {
+            if has_slash_marker && !expanded_marker {
+                let mut out = stripped_core.to_string();
+                if let Some(ch) = with_left_trimmed.chars().last() {
+                    if matches!(ch, 'o' | 'x') && right_marker_removed {
+                        out.push(ch);
+                    }
+                }
+                return Some(out);
+            }
+            if expanded_marker && canonical.contains("-->>") && squashed.contains("->>") {
+                return Some(squashed.replacen("->>", "-->>", 1));
+            }
+            return Some(squashed);
+        }
     }
     None
 }
@@ -1112,13 +1176,6 @@ fn looks_like_arrow_syntax(line: &str) -> bool {
         || line.contains("x-")
         || line.contains("-o")
         || line.contains("o-")
-}
-
-fn looks_like_state_transition(line: &str) -> bool {
-    let trimmed = line.trim();
-    (trimmed.starts_with("[*]") || trimmed.ends_with("[*]"))
-        && (trimmed.contains("-->") || trimmed.contains("->"))
-        && !trimmed.contains(':')
 }
 
 fn is_sequence_keyword(kind: &StatementKind) -> bool {
@@ -1446,7 +1503,7 @@ mod tests {
             other => panic!("unexpected statement: {other:?}"),
         }
         match &doc.statements[1].kind {
-            StatementKind::Message(m) => assert_eq!(m.arrow, "-\\\\->>"),
+            StatementKind::Message(m) => assert_eq!(m.arrow, "-\\-->>"),
             other => panic!("unexpected statement: {other:?}"),
         }
     }
