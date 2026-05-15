@@ -1,7 +1,7 @@
 name,tool,mean_ms,stddev_ms,runs,timestamp_utc
-cold_start_help,time,126.667,4.714,3,2026-05-15T19:22:04Z
-parser_check,time,130.000,0.000,3,2026-05-15T19:22:04Z
-parser_dump_scene,time,130.000,0.000,3,2026-05-15T19:22:04Z
-render_file,time,123.333,4.714,3,2026-05-15T19:22:04Z
-render_stdin,time,123.333,4.714,3,2026-05-15T19:22:04Z
-render_stdin_multi,time,110.000,16.330,3,2026-05-15T19:22:04Z
+cold_start_help,time,96.000,8.000,5,2026-05-15T19:58:55Z
+parser_check,time,92.000,4.000,5,2026-05-15T19:58:55Z
+parser_dump_scene,time,100.000,0.000,5,2026-05-15T19:58:55Z
+render_file,time,98.000,4.000,5,2026-05-15T19:58:55Z
+render_stdin,time,100.000,0.000,5,2026-05-15T19:58:55Z
+render_stdin_multi,time,96.000,4.899,5,2026-05-15T19:58:55Z

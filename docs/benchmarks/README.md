@@ -32,11 +32,11 @@ All benchmark artifacts are deterministic in structure and key ordering.
 
 - `full` (default):
 - absolute per-scenario mean limit: `250ms`
-- regression limit vs previous `latest.json`: `10%`
+- regression limit vs previous `latest.json`: `10%` with absolute delta floor `>20ms`
 - binary size limit (`target/release/puml`): `2,000,000` bytes
 - `quick` (`--quick`):
 - absolute per-scenario mean limit: `350ms`
-- regression limit vs previous `latest.json`: `20%`
+- regression limit vs previous `latest.json`: `20%` with absolute delta floor `>30ms`
 - binary size limit (`target/release/puml`): `2,500,000` bytes
 
 If no previous `latest.json` baseline exists, regression checks are skipped and absolute/binary checks still apply.

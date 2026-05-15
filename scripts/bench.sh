@@ -17,6 +17,8 @@ ABS_MEAN_LIMIT_MS_FULL=250
 ABS_MEAN_LIMIT_MS_QUICK=350
 REGRESSION_LIMIT_PCT_FULL=10
 REGRESSION_LIMIT_PCT_QUICK=20
+REGRESSION_MIN_DELTA_MS_FULL=20
+REGRESSION_MIN_DELTA_MS_QUICK=30
 
 usage() {
   cat <<'USAGE'
@@ -64,10 +66,12 @@ if [[ "$MODE" == "quick" ]]; then
   BINARY_LIMIT_BYTES="$BINARY_LIMIT_BYTES_QUICK"
   ABS_MEAN_LIMIT_MS="$ABS_MEAN_LIMIT_MS_QUICK"
   REGRESSION_LIMIT_PCT="$REGRESSION_LIMIT_PCT_QUICK"
+  REGRESSION_MIN_DELTA_MS="$REGRESSION_MIN_DELTA_MS_QUICK"
 else
   BINARY_LIMIT_BYTES="$BINARY_LIMIT_BYTES_FULL"
   ABS_MEAN_LIMIT_MS="$ABS_MEAN_LIMIT_MS_FULL"
   REGRESSION_LIMIT_PCT="$REGRESSION_LIMIT_PCT_FULL"
+  REGRESSION_MIN_DELTA_MS="$REGRESSION_MIN_DELTA_MS_FULL"
 fi
 
 echo "[bench] building release binary"
@@ -178,7 +182,7 @@ echo "}" >> "$JSON"
 
 BINARY_BYTES="$(stat -c%s "$BIN")"
 
-python3 - "$JSON" "$PREV_JSON" "$TREND_JSON" "$TREND_MD" "$TS" "$MODE" "$ABS_MEAN_LIMIT_MS" "$REGRESSION_LIMIT_PCT" "$BINARY_BYTES" "$BINARY_LIMIT_BYTES" <<'PY'
+python3 - "$JSON" "$PREV_JSON" "$TREND_JSON" "$TREND_MD" "$TS" "$MODE" "$ABS_MEAN_LIMIT_MS" "$REGRESSION_LIMIT_PCT" "$REGRESSION_MIN_DELTA_MS" "$BINARY_BYTES" "$BINARY_LIMIT_BYTES" <<'PY'
 import json
 import pathlib
 import sys
@@ -191,8 +195,9 @@ ts = sys.argv[5]
 mode = sys.argv[6]
 abs_limit = float(sys.argv[7])
 regression_limit_pct = float(sys.argv[8])
-binary_bytes = int(sys.argv[9])
-binary_limit_bytes = int(sys.argv[10])
+regression_min_delta_ms = float(sys.argv[9])
+binary_bytes = int(sys.argv[10])
+binary_limit_bytes = int(sys.argv[11])
 
 current = json.loads(json_path.read_text())
 prev = None
@@ -238,6 +243,7 @@ trend = {
     "gates": {
         "absolute_mean_ms_limit": abs_limit,
         "regression_pct_limit": regression_limit_pct,
+        "regression_min_delta_ms": regression_min_delta_ms,
     },
     "scenarios": rows,
     "baseline": {
@@ -259,6 +265,7 @@ lines = [
     f"- Mode: `{mode}`",
     f"- Baseline timestamp (UTC): `{trend['baseline']['timestamp_utc'] or 'none'}`",
     f"- Binary: `{binary_bytes}` bytes (limit `{binary_limit_bytes}`)",
+    f"- Regression gate: delta > `{regression_limit_pct:.3f}%` and `>{regression_min_delta_ms:.3f}ms`",
     "",
     "| Scenario | Current Mean (ms) | Previous Mean (ms) | Delta (ms) | Delta (%) |",
     "|---|---:|---:|---:|---:|",
@@ -290,7 +297,7 @@ printf '%s\n' '3. Add comparison rows labeled `plantuml_*` with timestamp + comm
 
 GATE_FAILURES=()
 
-echo "[bench] gate profile: mode=$MODE abs_mean<=${ABS_MEAN_LIMIT_MS}ms regression<=${REGRESSION_LIMIT_PCT}% binary<=${BINARY_LIMIT_BYTES}B"
+echo "[bench] gate profile: mode=$MODE abs_mean<=${ABS_MEAN_LIMIT_MS}ms regression<=${REGRESSION_LIMIT_PCT}%+>${REGRESSION_MIN_DELTA_MS}ms binary<=${BINARY_LIMIT_BYTES}B"
 if (( BINARY_BYTES > BINARY_LIMIT_BYTES )); then
   GATE_FAILURES+=("binary size ${BINARY_BYTES}B exceeds ${BINARY_LIMIT_BYTES}B")
 fi
@@ -298,7 +305,7 @@ fi
 if [[ -f "$PREV_JSON" ]]; then
   while IFS= read -r failure; do
     GATE_FAILURES+=("$failure")
-  done < <(python3 - "$JSON" "$PREV_JSON" "$ABS_MEAN_LIMIT_MS" "$REGRESSION_LIMIT_PCT" <<'PY'
+  done < <(python3 - "$JSON" "$PREV_JSON" "$ABS_MEAN_LIMIT_MS" "$REGRESSION_LIMIT_PCT" "$REGRESSION_MIN_DELTA_MS" <<'PY'
 import json
 import sys
 
@@ -306,6 +313,7 @@ current = json.load(open(sys.argv[1]))
 previous = json.load(open(sys.argv[2]))
 abs_limit = float(sys.argv[3])
 reg_limit = float(sys.argv[4])
+reg_min_delta = float(sys.argv[5])
 
 prev_map = {item["name"]: float(item["mean_ms"]) for item in previous.get("scenarios", [])}
 
@@ -316,9 +324,14 @@ for item in current.get("scenarios", []):
         print(f"{name}: mean {curr:.3f}ms exceeds absolute limit {abs_limit:.3f}ms")
     prev = prev_map.get(name)
     if prev is not None and prev > 0:
+        delta_ms = curr - prev
         delta_pct = ((curr - prev) / prev) * 100.0
-        if delta_pct > reg_limit:
-            print(f"{name}: regression {delta_pct:.3f}% exceeds limit {reg_limit:.3f}% (current {curr:.3f}ms vs previous {prev:.3f}ms)")
+        if delta_pct > reg_limit and delta_ms > reg_min_delta:
+            print(
+                f"{name}: regression {delta_pct:.3f}% exceeds limit {reg_limit:.3f}% "
+                f"and delta {delta_ms:.3f}ms exceeds floor {reg_min_delta:.3f}ms "
+                f"(current {curr:.3f}ms vs previous {prev:.3f}ms)"
+            )
 PY
 )
 else

@@ -30,9 +30,17 @@ fn full_gate_contains_required_release_commands_in_order() {
 
 #[test]
 fn release_docs_capture_release_gate_contract() {
+    let script = fs::read_to_string(repo_path("scripts/check-all.sh"))
+        .expect("failed to read scripts/check-all.sh");
+    let bench =
+        fs::read_to_string(repo_path("scripts/bench.sh")).expect("failed to read scripts/bench.sh");
     let checklist = fs::read_to_string(repo_path("docs/release-checklist.md"))
         .expect("failed to read docs/release-checklist.md");
+    let bench_docs = fs::read_to_string(repo_path("docs/benchmarks/README.md"))
+        .expect("failed to read docs/benchmarks/README.md");
     let readme = fs::read_to_string(repo_path("README.md")).expect("failed to read README.md");
+    let coverage = fs::read_to_string(repo_path("docs/coverage-status.md"))
+        .expect("failed to read docs/coverage-status.md");
 
     assert!(
         checklist.contains("cargo build --release"),
@@ -41,6 +49,30 @@ fn release_docs_capture_release_gate_contract() {
     assert!(
         checklist.contains("cargo llvm-cov --all-features --workspace --fail-under-lines 90"),
         "release checklist must include coverage gate command"
+    );
+    assert!(
+        script.contains("--ignore-filename-regex 'src/(main|bin/puml-lsp)\\.rs'"),
+        "full gate should scope coverage away from CLI/LSP entrypoint binaries"
+    );
+    assert!(
+        coverage.contains("Coverage scope excludes CLI entrypoint binaries (`src/main.rs`, `src/bin/puml-lsp.rs`)"),
+        "coverage status doc should capture scoped coverage policy"
+    );
+    assert!(
+        bench.contains("REGRESSION_MIN_DELTA_MS_FULL=20"),
+        "bench gate should define a full-mode regression delta floor"
+    );
+    assert!(
+        bench.contains("REGRESSION_MIN_DELTA_MS_QUICK=30"),
+        "bench gate should define a quick-mode regression delta floor"
+    );
+    assert!(
+        bench_docs.contains("absolute delta floor `>20ms`"),
+        "bench docs should describe full-mode regression delta floor"
+    );
+    assert!(
+        bench_docs.contains("absolute delta floor `>30ms`"),
+        "bench docs should describe quick-mode regression delta floor"
     );
     assert!(
         readme.contains("./scripts/check-all.sh --quick"),

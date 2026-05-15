@@ -1,67 +1,68 @@
 {
   "baseline": {
     "available": true,
-    "timestamp_utc": "2026-05-15T19:21:55Z"
+    "timestamp_utc": "2026-05-15T19:58:35Z"
   },
   "binary": {
-    "limit_bytes": 2500000,
-    "path": "/home/Allie/develop/puml-wt-17/target/release/puml",
-    "size_bytes": 1814264,
+    "limit_bytes": 2000000,
+    "path": "/home/Allie/develop/puml-wt-19/target/release/puml",
+    "size_bytes": 1829280,
     "within_limit": true
   },
   "gates": {
-    "absolute_mean_ms_limit": 350.0,
-    "regression_pct_limit": 20.0
+    "absolute_mean_ms_limit": 250.0,
+    "regression_min_delta_ms": 20.0,
+    "regression_pct_limit": 10.0
   },
-  "mode": "quick",
+  "mode": "full",
   "plantuml_oracle": {
     "notes": "No-Java baseline keeps oracle placeholders only.",
     "status": "todo"
   },
   "scenarios": [
     {
-      "current_mean_ms": 126.667,
-      "delta_ms": -3.333,
-      "delta_pct": -2.564,
+      "current_mean_ms": 96.0,
+      "delta_ms": 2.667,
+      "delta_pct": 2.858,
       "name": "cold_start_help",
-      "previous_mean_ms": 130.0
+      "previous_mean_ms": 93.333
     },
     {
-      "current_mean_ms": 130.0,
+      "current_mean_ms": 92.0,
       "delta_ms": 2.0,
-      "delta_pct": 1.562,
+      "delta_pct": 2.222,
       "name": "parser_check",
-      "previous_mean_ms": 128.0
+      "previous_mean_ms": 90.0
     },
     {
-      "current_mean_ms": 130.0,
-      "delta_ms": 8.0,
-      "delta_pct": 6.557,
+      "current_mean_ms": 100.0,
+      "delta_ms": 3.333,
+      "delta_pct": 3.448,
       "name": "parser_dump_scene",
-      "previous_mean_ms": 122.0
+      "previous_mean_ms": 96.667
     },
     {
-      "current_mean_ms": 123.333,
-      "delta_ms": 25.333,
-      "delta_pct": 25.85,
+      "current_mean_ms": 98.0,
+      "delta_ms": 1.333,
+      "delta_pct": 1.379,
       "name": "render_file",
-      "previous_mean_ms": 98.0
+      "previous_mean_ms": 96.667
     },
     {
-      "current_mean_ms": 123.333,
-      "delta_ms": 25.333,
-      "delta_pct": 25.85,
+      "current_mean_ms": 100.0,
+      "delta_ms": 0.0,
+      "delta_pct": 0.0,
       "name": "render_stdin",
-      "previous_mean_ms": 98.0
+      "previous_mean_ms": 100.0
     },
     {
-      "current_mean_ms": 110.0,
-      "delta_ms": 12.0,
-      "delta_pct": 12.245,
+      "current_mean_ms": 96.0,
+      "delta_ms": 6.0,
+      "delta_pct": 6.667,
       "name": "render_stdin_multi",
-      "previous_mean_ms": 98.0
+      "previous_mean_ms": 90.0
     }
   ],
   "source": "docs/benchmarks/latest.json",
-  "timestamp_utc": "2026-05-15T19:22:04Z"
+  "timestamp_utc": "2026-05-15T19:58:55Z"
 }
