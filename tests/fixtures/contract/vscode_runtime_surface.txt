@@ -1,0 +1,14 @@
+## Runtime contract snapshot (Current, audited in issue #24)
+language id `puml`
+.puml
+.plantuml
+.iuml
+onCommand:puml.preview.open
+onCommand:puml.lsp.restart
+puml.preview.open
+puml.lsp.restart
+puml.lsp.enabled
+puml.lsp.path
+puml.lsp.trace
+puml.renderSvg
+./scripts/vscode-smoke.sh

@@ -4,6 +4,32 @@ Make agents write correct sequence diagrams by giving them the same compiler, la
 
 This is the agent ecosystem layer for `puml`: Codex plugin, Claude Code plugin, Agent Skill package, MCP server, LSP bundle, diagram authoring skill, diagram review skill, and deterministic tools for parse/render/export.
 
+## Runtime contract snapshot (Current, audited in issue #24)
+
+The sections below specify the target package. The current shipped runtime surface that is implemented and release-safe today is:
+
+- plugin manifests:
+  - `agent-pack/.codex-plugin/plugin.json`
+  - `agent-pack/.claude-plugin/plugin.json`
+- marketplace metadata:
+  - `agent-pack/.codex-plugin/marketplace.json`
+  - `agent-pack/.claude-plugin/marketplace.json`
+- MCP contract + runtime bridge:
+  - `agent-pack/.mcp.json`
+  - `agent-pack/bin/puml-mcp`
+- shared skills:
+  - `skills/puml-sequence-author`
+  - `skills/puml-sequence-reviewer`
+- Claude agents:
+  - `agents/puml-diagram-designer.md`
+  - `agents/puml-diagram-reviewer.md`
+
+Current baseline constraints:
+
+- v0.0.1 does not yet ship packaged `.lsp.json`/bundled LSP host wiring in `agent-pack`.
+- `scripts/validate_agent_pack.py` validates manifest keys, marketplace metadata, and MCP runtime/spec contract parity.
+- `agent-pack/tests/mcp_smoke.sh` and `scripts/harness-check.sh` exercise MCP baseline behavior and parity harness integration.
+
 ## Product position
 
 Agents are bad at diagrams when diagrams are treated as prose. They become good when diagrams are treated as source code with a compiler.

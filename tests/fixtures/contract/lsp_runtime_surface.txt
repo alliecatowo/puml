@@ -1,0 +1,10 @@
+## Runtime contract snapshot (Current, audited in issue #24)
+textDocument/publishDiagnostics
+didOpen
+didChange
+didSave
+textDocument/semanticTokens/full
+puml.applyFormat
+puml.renderSvg
+--dump-capabilities
+server: "puml-lsp"

@@ -4,6 +4,31 @@ A first-class VS Code extension for native `puml` sequence diagrams: syntax high
 
 This is not a thin grammar extension. This is the desktop surface for the whole product.
 
+## Runtime contract snapshot (Current, audited in issue #24)
+
+The sections below define the target extension surface. The current shipped VS Code runtime surface that is implemented today is:
+
+- language id `puml` with extensions `.puml`, `.plantuml`, `.iuml`
+- starter TextMate grammar + language configuration + snippets
+- activation events:
+  - `onLanguage:puml`
+  - `onCommand:puml.preview.open`
+  - `onCommand:puml.lsp.restart`
+- commands:
+  - `puml.preview.open` (PUML: Open Preview)
+  - `puml.lsp.restart` (PUML: Restart Language Server)
+- thin `puml-lsp` client startup controlled by:
+  - `puml.lsp.enabled`
+  - `puml.lsp.path`
+  - `puml.lsp.trace`
+- preview path delegates to LSP `workspace/executeCommand` using `puml.renderSvg` (no private parser in extension host/webview)
+
+Current baseline guardrails:
+
+- `./scripts/vscode-smoke.sh` checks `--dump-capabilities` includes `puml.applyFormat` and `puml.renderSvg`.
+- extension smoke script verifies preview stays LSP-backed and build artifact exists.
+- advanced VS Code features listed later in this spec stay target-state until landed in source + tests.
+
 ## Name
 
 Marketplace name:
