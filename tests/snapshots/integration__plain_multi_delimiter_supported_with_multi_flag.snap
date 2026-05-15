@@ -1,0 +1,22 @@
+---
+source: tests/integration.rs
+expression: json
+---
+[
+  {
+    "bytes": 12,
+    "content": "Alice -> Bob",
+    "has_start_enduml": false,
+    "index": 0,
+    "lines": 1,
+    "source": "/home/Allie/develop/puml/tests/fixtures/plain_multi.txt"
+  },
+  {
+    "bytes": 12,
+    "content": "Bob -> Carol",
+    "has_start_enduml": false,
+    "index": 1,
+    "lines": 1,
+    "source": "/home/Allie/develop/puml/tests/fixtures/plain_multi.txt"
+  }
+]

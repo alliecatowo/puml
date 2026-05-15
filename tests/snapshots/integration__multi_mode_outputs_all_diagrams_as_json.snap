@@ -1,0 +1,22 @@
+---
+source: tests/integration.rs
+expression: json
+---
+[
+  {
+    "bytes": 35,
+    "content": "@startuml\nAlice -> Bob: one\n@enduml",
+    "has_start_enduml": true,
+    "index": 0,
+    "lines": 3,
+    "source": "/home/Allie/develop/puml/tests/fixtures/multi_valid.puml"
+  },
+  {
+    "bytes": 35,
+    "content": "@startuml\nBob -> Carol: two\n@enduml",
+    "has_start_enduml": true,
+    "index": 1,
+    "lines": 3,
+    "source": "/home/Allie/develop/puml/tests/fixtures/multi_valid.puml"
+  }
+]
