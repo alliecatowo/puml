@@ -1,0 +1,4 @@
+@startuml
+!endfunction
+Alice -> Bob: unexpected terminator
+@enduml
