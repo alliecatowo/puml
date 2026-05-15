@@ -44,6 +44,8 @@ Scope owner: `docs/parity-research-plantuml.md` only
 | `!theme` | Supported | Missing (warning-only acceptance) | `normalize` emits `W_THEME_UNSUPPORTED` | Non-fatal diagnostic, no theme semantics. |
 | Preprocessor `!include` | Supported (file/url/include-id variants, etc.) | Partial | parser preprocess include with root/cycle/escape guards | Local relative include is implemented; URL/id variants are missing. |
 | Preprocessor `!define` / `!undef` | Legacy but available in PlantUML preprocessing | Partial | parser preprocess substitution map | Simple token substitution only; not full preprocessor model. |
+| Preprocessor conditionals (`!if`/`!elseif`/`!else`/`!endif`, `!ifdef`, `!ifndef`) | Supported | Partial | parser preprocess conditional execution | Deterministic subset only (simple expressions + explicit balance/order diagnostics). |
+| Preprocessor loops (`!while`/`!endwhile`) | Supported | Partial | parser preprocess bounded loop execution | Deterministic subset only; bounded iteration guard and no advanced loop semantics. |
 
 ## CLI/Runtime UX Parity Matrix
 | Area | PlantUML baseline | `puml` status | Evidence | Notes |
@@ -53,7 +55,7 @@ Scope owner: `docs/parity-research-plantuml.md` only
 | Multi-page (`newpage`) output contract | PlantUML splits into multiple images/pages | Partial | sequence docs + `stdin_newpage_*` tests | `puml` file mode writes `-1`, `-2` files; stdin mode errors without `--multi`, then emits JSON array. |
 | Output naming determinism | PlantUML: default source-based name + numbering | Supported | PlantUML sources docs + `write_output_files` tests | `puml` numbering order is stable and snapshot-tested. |
 | Include path policy | PlantUML supports broader include mechanisms (`!include`, URL, include path settings) | Partial | preprocessing/sources docs; parser include guards | `puml` intentionally constrains includes to canonical root and blocks escapes. |
-| Preprocessor breadth | PlantUML preprocessor has variables, conditionals, functions, stdlib constructs | Missing (broadly) | preprocessing docs vs parser behavior | `puml` supports only minimal define/undef replacement + include expansion. |
+| Preprocessor breadth | PlantUML preprocessor has variables, conditionals, functions, stdlib constructs | Partial (bounded) | preprocessing docs vs parser behavior | `puml` supports include + define/undef + conditional/while subset; functions/procedures/advanced expression surface remains unsupported. |
 | Diagnostic formatting options | PlantUML has `-stdrpt` variants | Missing | command-line docs vs `puml` CLI | `puml` has one deterministic diagnostic format (line/column/caret). |
 | Diagnostics quality (source mapping) | PlantUML reports parse errors; format varies by option | Supported (strong local contract) | integration tests for line/column/caret in check/dump/render | High quality and deterministic within current contract. |
 | Deterministic output expectations | PlantUML does not market strict deterministic JSON/scene contracts | Supported (differentiator) | determinism snapshots (`dump scene`, `render svg`) | `puml` deterministic behavior is a product strength, not a parity gap. |

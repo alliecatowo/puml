@@ -1,0 +1,12 @@
+@startuml
+participant A
+participant B
+!define MODE primary
+!if MODE == "primary"
+A -> B: primary
+!elseif MODE == "backup"
+A -> B: backup
+!else
+A -> B: fallback
+!endif
+@enduml

@@ -126,6 +126,13 @@ Fixture-first plan:
   - `tests/fixtures/errors/invalid_undef_only.puml`
   - `tests/fixtures/errors/invalid_include_tag_missing.puml`
   - `tests/fixtures/errors/invalid_include_url.puml`
+  - `tests/fixtures/preprocessor/valid_if_elseif_else.puml`
+  - `tests/fixtures/preprocessor/valid_ifdef_ifndef.puml`
+  - `tests/fixtures/preprocessor/valid_while_define_counter.puml`
+  - `tests/fixtures/errors/invalid_preproc_conditional_order.puml`
+  - `tests/fixtures/errors/invalid_preproc_unclosed_if.puml`
+  - `tests/fixtures/errors/invalid_preproc_procedure_unsupported.puml`
+  - `tests/fixtures/errors/invalid_preproc_endwhile_without_while.puml`
 
 ### Stage 4: Binary, CLI, and UX Parity Milestone (Cross-Cutting Release Gate)
 

@@ -1,0 +1,13 @@
+@startuml
+participant A
+participant B
+!define COUNT 2
+!while COUNT != 0
+A -> B: loop COUNT
+!if COUNT == 2
+!define COUNT 1
+!elseif COUNT == 1
+!define COUNT 0
+!endif
+!endwhile
+@enduml

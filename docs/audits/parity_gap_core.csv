@@ -101,11 +101,11 @@ sequence,"Sequence skinparam surface","Documented on sequence diagram page",part
 sequence,"Theme usage via !theme","Documented on sequence diagram page",partial,"Accepted but warning-only behavior",https://plantuml.com/sequence-diagram
 sequence,"Teoz/parallel-message specific semantics","Documented on sequence diagram page",missing,"No dedicated teoz semantic support",https://plantuml.com/sequence-diagram
 preprocessor,"Variable definition (!$var, =, ?=)","Documented on preprocessing page",missing,"Preprocessor variable language absent",https://plantuml.com/preprocessing
-preprocessor,"Boolean expressions","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
-preprocessor,"Conditional directives (!if/!elseif/!else/!endif)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
-preprocessor,"Loop directives (!while/!endwhile)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
-preprocessor,"Procedures (!procedure)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
-preprocessor,"Functions (!function)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Boolean expressions","Documented on preprocessing page",partial,"Simple deterministic subset implemented (defined(), ==, !=, numeric/bool literals); broader expression language missing",https://plantuml.com/preprocessing
+preprocessor,"Conditional directives (!if/!elseif/!else/!endif)","Documented on preprocessing page",partial,"Implemented for deterministic subset with explicit order/balance diagnostics",https://plantuml.com/preprocessing
+preprocessor,"Loop directives (!while/!endwhile)","Documented on preprocessing page",partial,"Implemented for deterministic subset with bounded iteration limit",https://plantuml.com/preprocessing
+preprocessor,"Procedures (!procedure)","Documented on preprocessing page",missing,"Explicit deterministic rejection (E_PREPROC_UNSUPPORTED)",https://plantuml.com/preprocessing
+preprocessor,"Functions (!function)","Documented on preprocessing page",missing,"Explicit deterministic rejection (E_PREPROC_UNSUPPORTED)",https://plantuml.com/preprocessing
 preprocessor,"Default args/keyword args/unquoted","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
 preprocessor,"Define directives (!define)","Documented on preprocessing page",partial,"Simple token-substitution subset implemented",https://plantuml.com/preprocessing
 preprocessor,"Undef directives (!undef)","Documented on preprocessing page",partial,"Implemented in current substitution model",https://plantuml.com/preprocessing

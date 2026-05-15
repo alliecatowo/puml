@@ -113,3 +113,12 @@ This log records intentional contract deviations and updates adopted in the curr
   - `scripts/bench.sh` now keeps regression comparisons mode-scoped and skips mismatch comparisons.
   - Baseline drift is controlled via explicit refresh commands instead of implicit every-run movement.
   - Gate/trend logic is extracted to `scripts/bench_gate.py` and guarded by dedicated tests.
+
+### D-019: Preprocessor control-flow baseline (`!if`/`!ifdef`/`!while`) with deterministic unsupported diagnostics
+- Decision: Extend bounded preprocessing to execute conditional directives (`!if`/`!elseif`/`!else`/`!endif`, `!ifdef`, `!ifndef`) and simple bounded loops (`!while`/`!endwhile`), while explicitly rejecting unsupported preprocessor directives (notably `!procedure`/`!function`) with deterministic error codes.
+- Rationale: This closes the core control-flow parity gap from issue #112 without implying full PlantUML preprocessor breadth.
+- Impact:
+  - Conditionals and `!while` now run in preprocessing before parse/normalize with deterministic behavior.
+  - Misordered/unbalanced control directives return explicit `E_PREPROC_COND_*` / `E_PREPROC_WHILE_*` diagnostics.
+  - Unsupported directives return explicit `E_PREPROC_UNSUPPORTED` instead of falling through to generic parse-unknown errors.
+- Spec/implementation contradiction and resolution: PlantUML preprocessor still has broader expression/function/procedure capabilities; this implementation deliberately ships a smaller deterministic subset and fails unsupported directives explicitly.

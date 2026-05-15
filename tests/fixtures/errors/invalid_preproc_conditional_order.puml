@@ -1,0 +1,9 @@
+@startuml
+!if 1
+A -> B: one
+!else
+A -> B: two
+!elseif 1
+A -> B: three
+!endif
+@enduml
