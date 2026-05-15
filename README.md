@@ -183,6 +183,7 @@ Diagnostics:
 - unsupported `skinparam` keys and `!theme` emit deterministic non-fatal warnings on `stderr`
 - `--diagnostics json` emits `{"schema":"puml.diagnostics","schema_version":1,"diagnostics":[...]}` with stable fields:
   `code`, `severity`, `message`, `span`, `line`, `column`, `snippet`, `caret`
+  lint mode (`--check` + lint inputs/globs) adds optional `file` per diagnostic entry and emits one aggregated JSON payload on `stderr`
 - stream contract:
   `--check`/render/`--dump` payload outputs remain on `stdout`; diagnostics (human or json) are emitted on `stderr`
   lint/check batch mode keeps the same diagnostics behavior (`stderr`) and writes lint summary reports to `stdout`
