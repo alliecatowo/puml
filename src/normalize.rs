@@ -276,29 +276,29 @@ pub fn normalize_with_options(
                         footbox_visible = visible;
                     }
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::ArrowColor,
-                    ) => style.arrow_color = value.trim().to_string(),
+                        SequenceSkinParamValue::ArrowColor(color),
+                    ) => style.arrow_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::LifelineBorderColor,
-                    ) => style.lifeline_border_color = value.trim().to_string(),
+                        SequenceSkinParamValue::LifelineBorderColor(color),
+                    ) => style.lifeline_border_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::ParticipantBackgroundColor,
-                    ) => style.participant_background_color = value.trim().to_string(),
+                        SequenceSkinParamValue::ParticipantBackgroundColor(color),
+                    ) => style.participant_background_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::ParticipantBorderColor,
-                    ) => style.participant_border_color = value.trim().to_string(),
+                        SequenceSkinParamValue::ParticipantBorderColor(color),
+                    ) => style.participant_border_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::NoteBackgroundColor,
-                    ) => style.note_background_color = value.trim().to_string(),
+                        SequenceSkinParamValue::NoteBackgroundColor(color),
+                    ) => style.note_background_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::NoteBorderColor,
-                    ) => style.note_border_color = value.trim().to_string(),
+                        SequenceSkinParamValue::NoteBorderColor(color),
+                    ) => style.note_border_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::GroupBackgroundColor,
-                    ) => style.group_background_color = value.trim().to_string(),
+                        SequenceSkinParamValue::GroupBackgroundColor(color),
+                    ) => style.group_background_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::GroupBorderColor,
-                    ) => style.group_border_color = value.trim().to_string(),
+                        SequenceSkinParamValue::GroupBorderColor(color),
+                    ) => style.group_border_color = color,
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(

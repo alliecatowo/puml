@@ -85,3 +85,10 @@ This log records intentional contract deviations and updates adopted in the curr
 - Impact:
   - `./scripts/check-all.sh` full mode now enforces `cargo build --release` before benchmark gate checks.
   - Release checklist/docs must keep this command chain explicit and deterministic.
+
+### D-015: Deterministic-safe `skinparam` color token policy
+- Decision: Accept sequence skinparam color values only as deterministic-safe tokens: hex forms (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or alphabetic color names; canonicalize accepted values to lowercase before render.
+- Rationale: Prevent malformed/unsafe attribute injection in SVG and avoid renderer drift from ambiguous free-form color expressions.
+- Impact:
+  - Invalid color values emit deterministic `W_SKINPARAM_UNSUPPORTED_VALUE` warnings and keep existing style defaults/previous valid assignments.
+  - Render output remains deterministic and free of raw unsafe color payloads.

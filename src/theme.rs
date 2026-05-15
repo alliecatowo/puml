@@ -54,20 +54,20 @@ impl Default for SequenceStyle {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SequenceSkinParamValue {
     FootboxVisible(bool),
-    ArrowColor,
-    LifelineBorderColor,
-    ParticipantBackgroundColor,
-    ParticipantBorderColor,
-    NoteBackgroundColor,
-    NoteBorderColor,
-    GroupBackgroundColor,
-    GroupBorderColor,
+    ArrowColor(String),
+    LifelineBorderColor(String),
+    ParticipantBackgroundColor(String),
+    ParticipantBorderColor(String),
+    NoteBackgroundColor(String),
+    NoteBorderColor(String),
+    GroupBackgroundColor(String),
+    GroupBorderColor(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SequenceSkinParamSupport {
     SupportedNoop,
     SupportedWithValue(SequenceSkinParamValue),
@@ -83,58 +83,60 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
             .map(SequenceSkinParamSupport::SupportedWithValue)
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "arrowcolor" | "sequencearrowcolor" => parse_color_value(value)
-            .map(|_| {
-                SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor)
+            .map(|color| {
+                SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(
+                    color,
+                ))
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "lifelinebordercolor" | "sequencelifelinebordercolor" => parse_color_value(value)
-            .map(|_| {
+            .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
-                    SequenceSkinParamValue::LifelineBorderColor,
+                    SequenceSkinParamValue::LifelineBorderColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "participantbackgroundcolor" | "sequenceparticipantbackgroundcolor" => {
             parse_color_value(value)
-                .map(|_| {
+                .map(|color| {
                     SequenceSkinParamSupport::SupportedWithValue(
-                        SequenceSkinParamValue::ParticipantBackgroundColor,
+                        SequenceSkinParamValue::ParticipantBackgroundColor(color),
                     )
                 })
                 .unwrap_or(SequenceSkinParamSupport::UnsupportedValue)
         }
         "participantbordercolor" | "sequenceparticipantbordercolor" => parse_color_value(value)
-            .map(|_| {
+            .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
-                    SequenceSkinParamValue::ParticipantBorderColor,
+                    SequenceSkinParamValue::ParticipantBorderColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "notebackgroundcolor" | "sequencenotebackgroundcolor" => parse_color_value(value)
-            .map(|_| {
+            .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
-                    SequenceSkinParamValue::NoteBackgroundColor,
+                    SequenceSkinParamValue::NoteBackgroundColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "notebordercolor" | "sequencenotebordercolor" => parse_color_value(value)
-            .map(|_| {
+            .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
-                    SequenceSkinParamValue::NoteBorderColor,
+                    SequenceSkinParamValue::NoteBorderColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "groupbackgroundcolor" | "sequencegroupbackgroundcolor" => parse_color_value(value)
-            .map(|_| {
+            .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
-                    SequenceSkinParamValue::GroupBackgroundColor,
+                    SequenceSkinParamValue::GroupBackgroundColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "groupbordercolor" | "sequencegroupbordercolor" => parse_color_value(value)
-            .map(|_| {
+            .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
-                    SequenceSkinParamValue::GroupBorderColor,
+                    SequenceSkinParamValue::GroupBorderColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
@@ -152,10 +154,20 @@ fn parse_footbox_value(value: &str) -> Option<SequenceSkinParamValue> {
     Some(SequenceSkinParamValue::FootboxVisible(visible))
 }
 
-fn parse_color_value(value: &str) -> Option<&str> {
+fn parse_color_value(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return None;
     }
-    Some(trimmed)
+    if let Some(hex) = trimmed.strip_prefix('#') {
+        let valid_len = matches!(hex.len(), 3 | 4 | 6 | 8);
+        if valid_len && hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Some(format!("#{}", hex.to_ascii_lowercase()));
+        }
+        return None;
+    }
+    if trimmed.bytes().all(|b| b.is_ascii_alphabetic()) {
+        return Some(trimmed.to_ascii_lowercase());
+    }
+    None
 }
