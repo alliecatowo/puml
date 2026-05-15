@@ -102,7 +102,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         .include_root
         .clone()
         .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
-    let diagrams = split_diagrams(&raw, cli.from_markdown)
+    let diagrams = split_diagrams(&raw, should_extract_markdown(cli.from_markdown, input_path))
         .map_err(|d| diag_err_with_source(&raw, d, cli.diagnostics))?;
 
     if diagrams.is_empty() {
@@ -292,6 +292,19 @@ fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u
             Ok(("stdin".to_string(), raw, None))
         }
     }
+}
+
+
+fn should_extract_markdown(from_markdown_flag: bool, input_path: Option<&Path>) -> bool {
+    if from_markdown_flag {
+        return true;
+    }
+
+    input_path
+        .and_then(|path| path.extension())
+        .and_then(|ext| ext.to_str())
+        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "md" | "markdown" | "mdown"))
+        .unwrap_or(false)
 }
 
 fn split_diagrams(raw: &str, from_markdown: bool) -> Result<Vec<InputDiagram>, Diagnostic> {
