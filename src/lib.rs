@@ -105,9 +105,10 @@ pub fn parse_with_pipeline_options(
         FrontendSelection::Auto | FrontendSelection::Plantuml => {
             parser::parse_with_options(source, &parser_options)
         }
-        FrontendSelection::Mermaid => Err(Diagnostic::error(
-            "frontend 'mermaid' is not implemented yet",
-        )),
+        FrontendSelection::Mermaid => {
+            let adapted = adapt_mermaid_to_plantuml(source)?;
+            parser::parse_with_options(&adapted, &parser_options)
+        }
         FrontendSelection::Picouml => Err(Diagnostic::error(
             "frontend 'picouml' is not implemented yet",
         )),
@@ -241,4 +242,106 @@ fn is_diagram_fence_info(info: &str) -> bool {
         || lang.eq_ignore_ascii_case("uml")
         || lang.eq_ignore_ascii_case("puml-sequence")
         || lang.eq_ignore_ascii_case("uml-sequence")
+}
+
+fn adapt_mermaid_to_plantuml(source: &str) -> Result<String, Diagnostic> {
+    let mut out = Vec::new();
+    let mut saw_non_empty = false;
+    let mut saw_sequence_header = false;
+    let mut offset = 0usize;
+
+    for raw_line in source.lines() {
+        let line = raw_line.trim();
+        let span = Span::new(offset, offset + raw_line.len());
+        offset += raw_line.len() + 1;
+
+        if line.is_empty() || line.starts_with("%%") {
+            continue;
+        }
+
+        if !saw_non_empty {
+            saw_non_empty = true;
+            if line.eq_ignore_ascii_case("sequenceDiagram") {
+                saw_sequence_header = true;
+                continue;
+            }
+            return Err(Diagnostic::error_code(
+                "E_MERMAID_FAMILY_UNSUPPORTED",
+                "mermaid frontend currently supports sequence diagrams only (expected `sequenceDiagram`)",
+            )
+            .with_span(span));
+        }
+
+        if let Some(converted) = adapt_mermaid_declaration(line) {
+            out.push(converted);
+            continue;
+        }
+
+        if let Some(converted) = adapt_mermaid_message(line) {
+            out.push(converted);
+            continue;
+        }
+
+        return Err(Diagnostic::error_code(
+            "E_MERMAID_CONSTRUCT_UNSUPPORTED",
+            format!("unsupported mermaid sequence construct: `{line}`"),
+        )
+        .with_span(span));
+    }
+
+    if !saw_sequence_header {
+        return Err(Diagnostic::error_code(
+            "E_MERMAID_EMPTY",
+            "mermaid sequence input is empty or missing `sequenceDiagram` header",
+        ));
+    }
+
+    Ok(out.join("\n"))
+}
+
+fn adapt_mermaid_declaration(line: &str) -> Option<String> {
+    let mut words = line.split_ascii_whitespace();
+    let head = words.next()?;
+    if !matches!(head, "participant" | "actor") {
+        return None;
+    }
+    let tail = words.collect::<Vec<_>>().join(" ");
+    if tail.is_empty() {
+        return None;
+    }
+    Some(format!("{head} {tail}"))
+}
+
+fn adapt_mermaid_message(line: &str) -> Option<String> {
+    let (core, label) = line.split_once(':')?;
+    let (from, arrow, to) = split_mermaid_message_core(core.trim())?;
+    let mapped_arrow = match arrow {
+        "->>" => "->>",
+        "-->>" => "-->>",
+        "->" => "->",
+        "-->" => "-->",
+        _ => return None,
+    };
+
+    Some(format!(
+        "{} {} {}: {}",
+        from.trim(),
+        mapped_arrow,
+        to.trim(),
+        label.trim()
+    ))
+}
+
+fn split_mermaid_message_core(core: &str) -> Option<(&str, &str, &str)> {
+    for arrow in ["-->>", "->>", "-->", "->"] {
+        if let Some(idx) = core.find(arrow) {
+            let lhs = core[..idx].trim();
+            let rhs = core[idx + arrow.len()..].trim();
+            if lhs.is_empty() || rhs.is_empty() {
+                return None;
+            }
+            return Some((lhs, arrow, rhs));
+        }
+    }
+    None
 }

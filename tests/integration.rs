@@ -152,22 +152,67 @@ fn extended_stdin_include_uses_current_directory_when_include_root_is_missing() 
 }
 
 #[test]
-fn unsupported_frontends_fail_deterministically() {
-    for frontend in ["mermaid", "picouml"] {
-        Command::cargo_bin("puml")
-            .expect("binary")
-            .args([
-                "--dialect",
-                frontend,
-                "--check",
-                &fixture("single_valid.puml"),
-            ])
-            .assert()
-            .code(1)
-            .stderr(predicate::str::contains(format!(
-                "frontend '{frontend}' is not implemented yet"
-            )));
-    }
+fn picouml_frontend_fails_deterministically() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "picouml",
+            "--check",
+            &fixture("single_valid.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "frontend 'picouml' is not implemented yet",
+        ));
+}
+
+#[test]
+fn mermaid_sequence_subset_routes_through_shared_pipeline() {
+    let src = r#"sequenceDiagram
+participant Alice
+participant Bob
+Alice->>Bob: hello
+Bob-->>Alice: ack"#;
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dialect", "mermaid", "--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mermaid_non_sequence_family_fails_deterministically() {
+    let src = "graph TD\nA-->B";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dialect", "mermaid", "--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_MERMAID_FAMILY_UNSUPPORTED]"));
+}
+
+#[test]
+fn mermaid_unsupported_sequence_construct_fails_deterministically() {
+    let src = r#"sequenceDiagram
+alt happy path
+Alice->>Bob: hello
+end"#;
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dialect", "mermaid", "--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "[E_MERMAID_CONSTRUCT_UNSUPPORTED]",
+        ));
 }
 
 #[test]
