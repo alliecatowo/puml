@@ -19,7 +19,7 @@ pub struct Cli {
     #[arg(value_name = "INPUT", conflicts_with_all = ["lint_input", "lint_glob"])]
     pub input: Option<PathBuf>,
 
-    /// Output file path. For multi-diagram file output, numbered files are generated.
+    /// Output file path. For multi outputs, numbered sibling files are generated (`<stem>-<n>.<ext>`).
     #[arg(short = 'o', long = "output", value_name = "OUTPUT")]
     pub output: Option<PathBuf>,
 
@@ -43,7 +43,8 @@ pub struct Cli {
     #[arg(long, value_enum, value_name = "KIND", conflicts_with = "check")]
     pub dump: Option<DumpKind>,
 
-    /// Permit multiple stdin outputs (multiple @startuml blocks and/or newpage pages).
+    /// Permit multiple stdin render outputs (multiple @startuml blocks and/or `newpage` pages).
+    /// File inputs always emit numbered files for multi outputs without this flag.
     #[arg(long, action = ArgAction::SetTrue)]
     pub multi: bool,
 

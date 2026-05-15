@@ -937,6 +937,7 @@ fn write_markdown_output_files(
     outputs: &[RenderedOutput],
 ) -> Result<(), (u8, String)> {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
+    let mut files = Vec::with_capacity(outputs.len());
     for (idx, out) in outputs.iter().enumerate() {
         let name = out.name_hint.as_ref().ok_or_else(|| {
             (
@@ -945,14 +946,9 @@ fn write_markdown_output_files(
             )
         })?;
         let path = parent.join(name);
-        fs::write(&path, &out.svg).map_err(|e| {
-            (
-                EXIT_IO,
-                format!("failed to write '{}': {e}", path.display()),
-            )
-        })?;
+        files.push((path, out.svg.clone()));
     }
-    Ok(())
+    write_files_transactionally(files)
 }
 
 fn write_output_files(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> {
@@ -981,18 +977,133 @@ fn write_output_files(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> 
         .filter(|s| !s.is_empty())
         .unwrap_or("svg");
     let parent = base.parent().unwrap_or_else(|| Path::new("."));
+    let mut files = Vec::with_capacity(svgs.len());
 
     for (idx, svg) in svgs.iter().enumerate() {
         let path = parent.join(format!("{stem}-{}.{}", idx + 1, ext));
-        fs::write(&path, svg).map_err(|e| {
+        files.push((path, svg.clone()));
+    }
+
+    write_files_transactionally(files)
+}
+
+#[derive(Debug)]
+struct StagedWrite {
+    target: PathBuf,
+    staged: PathBuf,
+    backup: Option<PathBuf>,
+    published: bool,
+}
+
+fn write_files_transactionally(files: Vec<(PathBuf, String)>) -> Result<(), (u8, String)> {
+    if files.is_empty() {
+        return Ok(());
+    }
+
+    let pid = std::process::id();
+    let mut staged_writes = Vec::with_capacity(files.len());
+
+    for (idx, (target, contents)) in files.into_iter().enumerate() {
+        let staged = staging_path_for(&target, "stage", pid, idx);
+        fs::write(&staged, contents).map_err(|e| {
+            cleanup_staged_artifacts(&staged_writes);
             (
                 EXIT_IO,
-                format!("failed to write '{}': {e}", path.display()),
+                format!("failed to stage output for '{}': {e}", target.display()),
             )
         })?;
+        staged_writes.push(StagedWrite {
+            target,
+            staged,
+            backup: None,
+            published: false,
+        });
+    }
+
+    let fail_after = transactional_write_fail_after();
+
+    for idx in 0..staged_writes.len() {
+        let target_display = staged_writes[idx].target.display().to_string();
+
+        if staged_writes[idx].target.exists() {
+            let backup = staging_path_for(&staged_writes[idx].target, "backup", pid, idx);
+            if let Err(e) = fs::rename(&staged_writes[idx].target, &backup) {
+                rollback_staged_writes(&mut staged_writes);
+                return Err((
+                    EXIT_IO,
+                    format!("failed to prepare output '{target_display}': {e}"),
+                ));
+            }
+            staged_writes[idx].backup = Some(backup);
+        }
+
+        if fail_after == Some(idx) {
+            rollback_staged_writes(&mut staged_writes);
+            return Err((
+                EXIT_IO,
+                format!("failed to write '{target_display}': simulated write failure"),
+            ));
+        }
+
+        if let Err(e) = fs::rename(&staged_writes[idx].staged, &staged_writes[idx].target) {
+            rollback_staged_writes(&mut staged_writes);
+            return Err((EXIT_IO, format!("failed to write '{target_display}': {e}")));
+        }
+
+        staged_writes[idx].published = true;
+    }
+
+    for item in staged_writes {
+        if let Some(backup) = item.backup {
+            let _ = fs::remove_file(backup);
+        }
     }
 
     Ok(())
+}
+
+fn staging_path_for(target: &Path, kind: &str, pid: u32, idx: usize) -> PathBuf {
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let name = target
+        .file_name()
+        .and_then(|v| v.to_str())
+        .unwrap_or("output");
+    let base = format!(".{name}.puml.{kind}.{pid}.{idx}");
+    for attempt in 0..32 {
+        let candidate = parent.join(format!("{base}.{attempt}.tmp"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    parent.join(format!("{base}.overflow.tmp"))
+}
+
+fn rollback_staged_writes(staged_writes: &mut [StagedWrite]) {
+    for item in staged_writes.iter_mut().rev() {
+        if item.published {
+            let _ = fs::remove_file(&item.target);
+            if let Some(backup) = item.backup.take() {
+                let _ = fs::rename(&backup, &item.target);
+            }
+        } else {
+            let _ = fs::remove_file(&item.staged);
+            if let Some(backup) = item.backup.take() {
+                let _ = fs::rename(&backup, &item.target);
+            }
+        }
+    }
+}
+
+fn cleanup_staged_artifacts(staged_writes: &[StagedWrite]) {
+    for item in staged_writes {
+        let _ = fs::remove_file(&item.staged);
+    }
+}
+
+fn transactional_write_fail_after() -> Option<usize> {
+    std::env::var("PUML_FAIL_OUTPUT_AFTER")
+        .ok()
+        .and_then(|raw| raw.parse::<usize>().ok())
 }
 
 fn ast_to_json(doc: &Document) -> Value {

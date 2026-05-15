@@ -69,3 +69,12 @@ This log records intentional contract deviations and updates adopted in the curr
   - Any validation failure in the batch returns exit code `1`.
   - Diagnostics still follow the existing stream contract (`stderr`, human/json via `--diagnostics`).
   - Lint summary report is selectable via `--lint-report human|json` and remains on `stdout`.
+### D-012: `newpage` + `ignore newpage` stdin contract
+- Decision: Keep stdin multi-output behavior explicit: multipage stdin (`newpage`) requires `--multi`; `ignore newpage` collapses splits into single-output behavior.
+- Rationale: Preserves deterministic CLI contracts while making mode-specific behavior explicit in help/docs/tests.
+- Impact: File inputs still auto-emit numbered files for multi-page outputs; stdin workflows must opt in to multi-output JSON payloads.
+
+### D-013: Transactional multi-file output writes
+- Decision: Stage and publish multi-file outputs transactionally for both standard and markdown output paths.
+- Rationale: Prevent partially updated output sets when any numbered output write fails.
+- Impact: Multi-output failures now return I/O exit code `2` without leaving partial numbered files behind.

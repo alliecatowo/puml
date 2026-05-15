@@ -153,6 +153,9 @@ Modes:
 Outputs:
 - single diagram from file writes `<input-stem>.svg`
 - single diagram from stdin writes SVG to stdout
+- multipage file inputs (`newpage`) write numbered files (`<stem>-1.svg`, `<stem>-2.svg`, ...)
+- multipage stdin inputs require `--multi`; with `--multi`, stdout is a deterministic JSON array of `{name, svg}`
+- `ignore newpage` collapses multipage splits and keeps single-output behavior
 - multi diagram from stdin + `--multi` writes JSON array to stdout
   markdown stdin naming is deterministic: `snippet-<n>.svg` (or `snippet-<n>-<page>.svg` for multipage fences)
 - markdown file outputs with `--multi` are deterministic snippet files:
@@ -161,6 +164,7 @@ Outputs:
 - lint/check batch mode always emits a lint summary report on `stdout`
   `human`: single summary line + failed file lines
   `json`: `{"schema":"puml.lint_report","schema_version":1,"summary":...,"files":[...]}`
+- multi-file writes are transactional: failures do not leave partially updated numbered outputs
 
 Exit codes:
 - `0` success

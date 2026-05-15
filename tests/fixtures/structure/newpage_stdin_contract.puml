@@ -1,0 +1,6 @@
+@startuml
+Title Contract Base
+A -> B : page one
+newpage Page Two
+B -> A : page two
+@enduml

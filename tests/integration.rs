@@ -1690,6 +1690,22 @@ fn stdin_newpage_with_multi_outputs_json_array_and_stable_order() {
 }
 
 #[test]
+fn stdin_newpage_cli_contract_modes_snapshot() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "-"])
+        .write_stdin(fs::read_to_string(fixture("structure/newpage_stdin_contract.puml")).unwrap())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!("stdin_newpage_cli_contract_modes", json);
+}
+
+#[test]
 fn stdin_ignore_newpage_without_multi_outputs_single_svg() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -1720,11 +1736,7 @@ fn stdin_ignore_newpage_with_multi_still_outputs_single_svg() {
 fn file_newpage_output_requires_multi_flag() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("paged.puml");
-    fs::write(
-        &input,
-        "@startuml\nA -> B : one\nnewpage Second\nB -> A : two\n@enduml\n",
-    )
-    .unwrap();
+    fs::copy(fixture("structure/newpage_stdin_contract.puml"), &input).unwrap();
 
     Command::cargo_bin("puml")
         .expect("binary")
@@ -1752,6 +1764,31 @@ fn file_newpage_output_writes_numbered_files_with_multi_flag() {
 
     assert!(tmp.path().join("paged-1.svg").exists());
     assert!(tmp.path().join("paged-2.svg").exists());
+}
+
+#[test]
+fn multipage_file_output_failure_does_not_leave_partial_writes() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("paged.puml");
+    fs::copy(fixture("structure/newpage_stdin_contract.puml"), &input).unwrap();
+    let output = tmp.path().join("diagram.svg");
+    let first = tmp.path().join("diagram-1.svg");
+
+    fs::write(&first, "stable-original-content").unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .env("PUML_FAIL_OUTPUT_AFTER", "1")
+        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("failed to write"));
+
+    assert_eq!(
+        fs::read_to_string(&first).unwrap(),
+        "stable-original-content".to_string()
+    );
+    assert!(!tmp.path().join("diagram-2.svg").exists());
 }
 
 #[test]
@@ -1942,6 +1979,30 @@ fn markdown_file_default_render_output_uses_deterministic_snippet_names() {
     assert!(dir.path().join("mixed_snippet_2.svg").exists());
     assert!(!dir.path().join("mixed-1.svg").exists());
     assert!(!dir.path().join("mixed-2.svg").exists());
+}
+
+#[test]
+fn markdown_multi_output_failure_does_not_leave_partial_writes() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let input = dir.path().join("mixed.md");
+    fs::copy(fixture("markdown/multipage_mixed.md"), &input).unwrap();
+
+    let first = dir.path().join("mixed_snippet_1-1.svg");
+    fs::write(&first, "stable-original-snippet").unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .env("PUML_FAIL_OUTPUT_AFTER", "1")
+        .arg(input.to_str().unwrap())
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("failed to write"));
+
+    assert_eq!(
+        fs::read_to_string(&first).unwrap(),
+        "stable-original-snippet".to_string()
+    );
+    assert!(!dir.path().join("mixed_snippet_1-2.svg").exists());
 }
 
 #[test]
@@ -2148,6 +2209,9 @@ fn clap_help_exits_successfully() {
         .assert()
         .success()
         .stdout(predicate::str::contains("PicoUML polymorphic sequence CLI"))
+        .stdout(predicate::str::contains(
+            "Permit multiple stdin render outputs",
+        ))
         .stderr(predicate::str::is_empty());
 }
 
