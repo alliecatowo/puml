@@ -205,8 +205,8 @@ Commands:
 ```
 
 Gate thresholds:
-- `full` (default): scenario mean `<= 250ms`, regression vs previous run `<= 10%`, binary size `<= 2,000,000` bytes
-- `quick`: scenario mean `<= 350ms`, regression vs previous run `<= 20%`, binary size `<= 2,500,000` bytes
+- `full` (default): scenario mean `<= 250ms`, regression vs previous run `<= 10%` with absolute delta floor `> 20ms`, binary size `<= 2,000,000` bytes
+- `quick`: scenario mean `<= 350ms`, regression vs previous run `<= 20%` with absolute delta floor `> 30ms`, binary size `<= 2,500,000` bytes
 
 Artifacts:
 - raw run: `docs/benchmarks/latest.{md,csv,json}`

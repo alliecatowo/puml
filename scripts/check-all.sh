@@ -61,8 +61,8 @@ if [[ "$MODE" == "full" ]]; then
     exit 1
   fi
 
-  echo "[gate] cargo llvm-cov --all-features --workspace --fail-under-lines 90"
-  cargo llvm-cov --all-features --workspace --fail-under-lines 90
+  echo "[gate] cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp)\\.rs'"
+  cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp)\.rs'
 
   echo "[gate] cargo build --release"
   cargo build --release

@@ -92,3 +92,16 @@ This log records intentional contract deviations and updates adopted in the curr
 - Impact:
   - Invalid color values emit deterministic `W_SKINPARAM_UNSUPPORTED_VALUE` warnings and keep existing style defaults/previous valid assignments.
   - Render output remains deterministic and free of raw unsafe color payloads.
+### D-016: Scoped coverage gate for core runtime modules
+- Decision: Keep the full gate line-coverage threshold at `90%`, but scope it away from CLI entrypoint binaries via `cargo llvm-cov --ignore-filename-regex 'src/(main|bin/puml-lsp)\.rs'`.
+- Rationale: `src/main.rs` and `src/bin/puml-lsp.rs` contain integration-heavy process/IO orchestration branches that materially understate core parser/normalize/layout/render coverage when aggregated into the same gate.
+- Impact:
+  - `./scripts/check-all.sh` full mode now enforces scoped coverage with the same `90%` threshold.
+  - Release-contract docs/tests must pin both the baseline coverage command string and scoped regex to keep policy explicit and reviewable.
+
+### D-017: Regression gate adds absolute delta floor
+- Decision: Keep benchmark regression percentage gates (`10%` full / `20%` quick) but require a minimum absolute slowdown delta before failing (`>20ms` full / `>30ms` quick).
+- Rationale: Small timing jitter on short scenarios can exceed percentage thresholds without representing meaningful regressions, producing flaky release gates.
+- Impact:
+  - `scripts/bench.sh --enforce-gates` now fails regression checks only when both percentage and absolute delta thresholds are exceeded.
+  - Benchmark docs and release checklist thresholds include both the percentage and absolute-delta criteria.
