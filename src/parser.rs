@@ -974,7 +974,16 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     let mut i = arrow_start;
     while i < core.len() {
         let c = arrow_bytes[i] as char;
-        if c == '-' || c == '<' || c == '>' || c == '[' || c == ']' || c == 'o' || c == 'x' {
+        if c == '-'
+            || c == '<'
+            || c == '>'
+            || c == '['
+            || c == ']'
+            || c == 'o'
+            || c == 'x'
+            || c == '/'
+            || c == '\\'
+        {
             i += 1;
             continue;
         }
@@ -1000,6 +1009,9 @@ fn parse_arrow(arrow: &str) -> Option<&str> {
         || !canonical
             .chars()
             .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x'))
+        || !arrow
+            .chars()
+            .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x' | '/' | '\\'))
     {
         return None;
     }
@@ -1317,6 +1329,19 @@ mod tests {
                 assert_eq!(m.arrow, "->@R++");
                 assert_eq!(m.to, "B");
             }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_expanded_slanted_arrow_tokens() {
+        let doc = parse_with_options("A -/-> B\nB -\\\\->> A\n", &ParseOptions::default()).unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.arrow, "-/->"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[1].kind {
+            StatementKind::Message(m) => assert_eq!(m.arrow, "-\\\\->>"),
             other => panic!("unexpected statement: {other:?}"),
         }
     }

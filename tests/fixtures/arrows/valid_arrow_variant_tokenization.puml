@@ -1,0 +1,8 @@
+@startuml
+A -/-> B: slanted-thin
+B -\\-> A: slanted-thin-reverse
+A -/->> B: slanted-sync
+B -\\->> A: slanted-async-reverse
+A o-/->x B: endpoint-slanted
+B x-\\<<--o A: endpoint-slanted-reverse
+@enduml
