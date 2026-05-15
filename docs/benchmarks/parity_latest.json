@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-15T17:29:12Z",
+  "generated_at_utc": "2026-05-15T18:42:21Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
@@ -121,9 +121,9 @@
   ],
   "doc_examples": {
     "summary": {
-      "total": 4,
-      "passed": 1,
-      "failed": 3
+      "total": 10,
+      "passed": 0,
+      "failed": 10
     },
     "entries": [
       {
@@ -167,14 +167,94 @@
       },
       {
         "source_markdown": "docs/examples/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/supported_primitives_participants_messages.puml",
+        "artifact_svg": "docs/examples/supported_primitives_participants_messages.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/supported_primitives_lifecycle_structure.puml",
+        "artifact_svg": "docs/examples/supported_primitives_lifecycle_structure.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/supported_primitives_styling_groups_notes.puml",
+        "artifact_svg": "docs/examples/supported_primitives_styling_groups_notes.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/README.md",
         "source_kind": "inline_snippet",
         "source_ref": "docs/examples/README.md#snippet-1",
         "artifact_svg": "docs/examples/README_snippet_1.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
+        "artifact_matches_render": false,
         "artifact_up_to_date": true,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/supported_primitives.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/supported_primitives_participants_messages.puml",
+        "artifact_svg": "docs/examples/supported_primitives_participants_messages.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/supported_primitives.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/supported_primitives_lifecycle_structure.puml",
+        "artifact_svg": "docs/examples/supported_primitives_lifecycle_structure.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/supported_primitives.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/supported_primitives_styling_groups_notes.puml",
+        "artifact_svg": "docs/examples/supported_primitives_styling_groups_notes.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
       }
     ]
   }

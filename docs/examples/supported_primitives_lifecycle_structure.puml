@@ -1,0 +1,18 @@
+@startuml
+title Lifecycle + Structure
+autonumber
+actor Caller
+participant API
+create Worker
+
+Caller -> API : start
+activate API
+== Dispatch ==
+API -> Worker : handoff
+... waiting ...
+||
+Worker --> API : done
+API --> Caller : ok
+deactivate API
+destroy Worker
+@enduml
