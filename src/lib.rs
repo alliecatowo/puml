@@ -98,13 +98,13 @@ pub fn parse_with_pipeline_options(
     source: &str,
     options: &ParsePipelineOptions,
 ) -> Result<Document, Diagnostic> {
+    let parser_options = interpret_parser_contract(options)?;
+    interpret_determinism_contract(options.determinism);
+
     match options.frontend {
-        FrontendSelection::Auto | FrontendSelection::Plantuml => parser::parse_with_options(
-            source,
-            &parser::ParseOptions {
-                include_root: options.include_root.clone(),
-            },
-        ),
+        FrontendSelection::Auto | FrontendSelection::Plantuml => {
+            parser::parse_with_options(source, &parser_options)
+        }
         FrontendSelection::Mermaid => Err(Diagnostic::error(
             "frontend 'mermaid' is not implemented yet",
         )),
@@ -112,6 +112,24 @@ pub fn parse_with_pipeline_options(
             "frontend 'picouml' is not implemented yet",
         )),
     }
+}
+
+fn interpret_parser_contract(
+    options: &ParsePipelineOptions,
+) -> Result<parser::ParseOptions, Diagnostic> {
+    let include_root = match options.compat {
+        CompatMode::Strict => options.include_root.clone(),
+        CompatMode::Extended => options
+            .include_root
+            .clone()
+            .or_else(|| std::env::current_dir().ok()),
+    };
+    Ok(parser::ParseOptions { include_root })
+}
+
+fn interpret_determinism_contract(_mode: DeterminismMode) {
+    // Determinism behavior is currently fully deterministic across modes.
+    // Keep this explicit interpretation point to avoid split-brain routing.
 }
 
 pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {

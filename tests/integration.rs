@@ -90,6 +90,68 @@ fn strict_modes_parse_and_route_without_regression() {
 }
 
 #[test]
+fn default_compat_matches_explicit_strict() {
+    let default = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("single_valid.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    let strict = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--compat",
+            "strict",
+            "--check",
+            &fixture("single_valid.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    assert_eq!(default.stdout, strict.stdout);
+    assert_eq!(default.stderr, strict.stderr);
+}
+
+#[test]
+fn strict_stdin_include_requires_explicit_include_root() {
+    let tmp = tempdir().unwrap();
+    let include = tmp.path().join("common.puml");
+    fs::write(&include, "Bob -> Alice: from include\n").unwrap();
+    let stdin_input = "@startuml\n!include common.puml\n@enduml\n";
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .current_dir(tmp.path())
+        .args(["--check", "-", "--compat", "strict"])
+        .write_stdin(stdin_input)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_INCLUDE_ROOT_REQUIRED"));
+}
+
+#[test]
+fn extended_stdin_include_uses_current_directory_when_include_root_is_missing() {
+    let tmp = tempdir().unwrap();
+    let include = tmp.path().join("common.puml");
+    fs::write(&include, "Bob -> Alice: from include\n").unwrap();
+    let stdin_input = "@startuml\n!include common.puml\n@enduml\n";
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .current_dir(tmp.path())
+        .args(["--check", "-", "--compat", "extended"])
+        .write_stdin(stdin_input)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
 fn unsupported_frontends_fail_deterministically() {
     for frontend in ["mermaid", "picouml"] {
         Command::cargo_bin("puml")
