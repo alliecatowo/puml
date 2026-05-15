@@ -257,6 +257,16 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i = end_idx + 1;
             continue;
         }
+        if let Some((kind, end_idx)) = parse_multiline_ref_block(&lines, i, line) {
+            seen_sequence = true;
+            let block_span = Span::new(span.start, lines[end_idx].1.end);
+            statements.push(Statement {
+                span: block_span,
+                kind,
+            });
+            i = end_idx + 1;
+            continue;
+        }
 
         if let Some(kind) = parse_participant(line) {
             seen_sequence = true;
@@ -381,6 +391,41 @@ fn parse_multiline_note_block(
         body.push(trimmed.to_string());
     }
 
+    None
+}
+
+fn parse_multiline_ref_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Option<(StatementKind, usize)> {
+    if !line.to_ascii_lowercase().starts_with("ref ") || line.contains(':') {
+        return None;
+    }
+    let head = line[4..].trim();
+    if head.is_empty() {
+        return None;
+    }
+
+    let mut body = Vec::new();
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
+        let trimmed = raw.trim();
+        if trimmed.eq_ignore_ascii_case("end ref") {
+            let mut label = head.to_string();
+            if !body.is_empty() {
+                label.push('\n');
+                label.push_str(&body.join("\n"));
+            }
+            return Some((
+                StatementKind::Group(Group {
+                    kind: "ref".to_string(),
+                    label: Some(label),
+                }),
+                idx,
+            ));
+        }
+        body.push(trimmed.to_string());
+    }
     None
 }
 
@@ -509,12 +554,38 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
 
     if lower.starts_with("note ") {
         let tail = line[5..].trim();
+        if tail.is_empty() {
+            return Some(StatementKind::Unknown(
+                "[E_NOTE_INVALID] malformed note syntax: missing note head".to_string(),
+            ));
+        }
         let (head, text) = tail.split_once(':').unwrap_or((tail, ""));
         let (pos, target) = parse_note_head(head);
+        if pos.eq_ignore_ascii_case("of") || !is_valid_note_position(&pos) {
+            return Some(StatementKind::Unknown(format!(
+                "[E_NOTE_INVALID] malformed note syntax: `{}`",
+                line
+            )));
+        }
         return Some(StatementKind::Note(Note {
             position: pos,
             target,
             text: text.trim().to_string(),
+        }));
+    }
+    if lower.starts_with("ref ") {
+        let tail = line[4..].trim();
+        let (head, text) = tail.split_once(':').unwrap_or((tail, ""));
+        if head.is_empty() || text.trim().is_empty() {
+            return Some(StatementKind::Unknown(format!(
+                "[E_REF_INVALID] malformed ref syntax: `{}`",
+                line
+            )));
+        }
+        let label = format!("{}\n{}", head.trim(), text.trim());
+        return Some(StatementKind::Group(Group {
+            kind: "ref".to_string(),
+            label: Some(label),
         }));
     }
 
@@ -544,6 +615,18 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             kind: "end".to_string(),
             label: None,
         }));
+    }
+    if let Some(stripped) = lower.strip_prefix("end ") {
+        let tail = stripped.trim();
+        if matches!(
+            tail,
+            "alt" | "opt" | "loop" | "par" | "critical" | "break" | "group" | "ref"
+        ) {
+            return Some(StatementKind::Group(Group {
+                kind: "end".to_string(),
+                label: None,
+            }));
+        }
     }
 
     if line == "..." {
@@ -627,6 +710,13 @@ fn parse_note_head(head: &str) -> (String, Option<String>) {
     (
         position,
         (!target.trim().is_empty()).then(|| clean_ident(target.trim())),
+    )
+}
+
+fn is_valid_note_position(position: &str) -> bool {
+    matches!(
+        position.to_ascii_lowercase().as_str(),
+        "left" | "right" | "over" | "across"
     )
 }
 

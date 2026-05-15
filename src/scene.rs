@@ -7,6 +7,7 @@ pub struct Scene {
     pub lifelines: Vec<Lifeline>,
     pub messages: Vec<MessageLine>,
     pub notes: Vec<NoteBox>,
+    pub groups: Vec<GroupBox>,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +54,23 @@ pub struct NoteBox {
     pub width: i32,
     pub height: i32,
     pub text: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupBox {
+    pub kind: String,
+    pub label: Option<String>,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub separators: Vec<GroupSeparator>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupSeparator {
+    pub y: i32,
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]

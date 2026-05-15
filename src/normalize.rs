@@ -322,7 +322,7 @@ pub fn normalize_with_options(
             }
             StatementKind::Return(v) => events.push(SequenceEvent {
                 span: stmt.span,
-                kind: infer_return_event(v, &mut activation_stack),
+                kind: infer_return_event(stmt.span, v, &mut activation_stack)?,
             }),
             StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
@@ -373,28 +373,30 @@ struct ActivationFrame {
 }
 
 fn infer_return_event(
+    span: crate::source::Span,
     label: Option<String>,
     activation_stack: &mut Vec<ActivationFrame>,
-) -> SequenceEventKind {
-    if let Some(frame) = activation_stack.pop() {
-        if let Some(caller) = frame.caller {
-            return SequenceEventKind::Return {
-                label,
-                from: Some(frame.participant),
-                to: Some(caller),
-            };
-        }
-        return SequenceEventKind::Return {
-            label,
-            from: None,
-            to: None,
-        };
-    }
-    SequenceEventKind::Return {
+) -> Result<SequenceEventKind, Diagnostic> {
+    let Some(frame) = activation_stack.pop() else {
+        return Err(Diagnostic::error(
+            "[E_RETURN_INFER_EMPTY] cannot infer `return` sender/target without an active activation",
+        )
+        .with_span(span));
+    };
+
+    let Some(caller) = frame.caller else {
+        return Err(Diagnostic::error(format!(
+            "[E_RETURN_INFER_CALLER] cannot infer `return` target for `{}`; use an explicit return message instead",
+            frame.participant
+        ))
+        .with_span(span));
+    };
+
+    Ok(SequenceEventKind::Return {
         label,
-        from: None,
-        to: None,
-    }
+        from: Some(frame.participant),
+        to: Some(caller),
+    })
 }
 
 fn is_supported_skinparam(key: &str) -> bool {
@@ -560,10 +562,12 @@ fn apply_lifecycle_shortcuts(
     events: &mut Vec<SequenceEvent>,
 ) -> Result<(), Diagnostic> {
     if let Some(token) = &parsed_arrow.left_modifier {
+        let caller = shortcut_caller(from, to);
         apply_one_lifecycle_shortcut(
             span,
             from,
             token,
+            caller,
             participants,
             participant_ix,
             alive_by_id,
@@ -573,10 +577,12 @@ fn apply_lifecycle_shortcuts(
     }
     if let Some(token) = &parsed_arrow.right_modifier {
         let id = if token == "--" { from } else { to };
+        let caller = shortcut_caller(id, if id == from { to } else { from });
         apply_one_lifecycle_shortcut(
             span,
             id,
             token,
+            caller,
             participants,
             participant_ix,
             alive_by_id,
@@ -592,6 +598,7 @@ fn apply_one_lifecycle_shortcut(
     span: crate::source::Span,
     id: &str,
     token: &str,
+    caller: Option<String>,
     participants: &mut Vec<Participant>,
     participant_ix: &mut BTreeMap<String, usize>,
     alive_by_id: &mut BTreeMap<String, bool>,
@@ -618,7 +625,7 @@ fn apply_one_lifecycle_shortcut(
             alive_by_id.insert(id.to_string(), true);
             activation_stack.push(ActivationFrame {
                 participant: id.to_string(),
-                caller: None,
+                caller,
             });
             events.push(SequenceEvent {
                 span,
@@ -695,4 +702,12 @@ fn apply_one_lifecycle_shortcut(
         }
     }
     Ok(())
+}
+
+fn shortcut_caller(active: &str, other: &str) -> Option<String> {
+    if is_virtual_endpoint(active) || is_virtual_endpoint(other) {
+        None
+    } else {
+        Some(other.to_string())
+    }
 }

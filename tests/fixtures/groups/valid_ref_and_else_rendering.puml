@@ -1,0 +1,14 @@
+@startuml
+participant A
+participant B
+alt primary
+A -> B: call
+else fallback
+B -> A: retry
+end
+note over A, B: shared branch context
+ref over A, B
+external system
+returns result
+end ref
+@enduml

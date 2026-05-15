@@ -1,0 +1,9 @@
+@startuml
+participant A
+participant B
+participant C
+A -> B: hello
+note across A, C: cluster note
+note over A, B: pair note
+note left of C: side note
+@enduml

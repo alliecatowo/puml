@@ -152,3 +152,13 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
     assert!(!first.contains(">[*]<"));
     assert_snapshot!("render_svg_handles_self_found_lost_and_modifiers", first);
 }
+
+#[test]
+fn render_svg_handles_ref_else_and_multi_target_notes() {
+    let src = fixture("groups/valid_ref_and_else_rendering.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.contains("ref over A, B"));
+    assert!(svg.contains("fallback"));
+    assert_snapshot!("render_svg_handles_ref_else_and_multi_target_notes", svg);
+}

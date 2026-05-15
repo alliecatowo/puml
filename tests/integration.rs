@@ -65,12 +65,15 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
         "groups/valid_par_else_end.puml",
+        "groups/valid_ref_and_else_rendering.puml",
         "autonumber/valid_basic.puml",
         "autonumber/valid_with_format.puml",
         "lifecycle/valid_activate_return.puml",
         "lifecycle/valid_create_activate_destroy.puml",
         "lifecycle/valid_shortcuts_expansion.puml",
+        "lifecycle/valid_return_inferred_from_shortcut_activation.puml",
         "notes/valid_multiline_blocks.puml",
+        "notes/valid_note_across_multi.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -117,7 +120,10 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "include/error_include_cycle_self.puml",
         "include/error_include_chain_a.puml",
         "lifecycle/valid_destroy_then_message.puml",
+        "lifecycle/invalid_return_without_activation.puml",
+        "lifecycle/invalid_return_without_caller_context.puml",
         "arrows/invalid_malformed_arrows.puml",
+        "errors/invalid_malformed_note_ref.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -135,6 +141,19 @@ fn malformed_arrow_reports_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn malformed_note_or_ref_reports_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_malformed_note_ref.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_NOTE_INVALID"));
 }
 
 #[test]
@@ -427,6 +446,54 @@ fn lifecycle_shortcuts_are_preserved_in_model_dump() {
 
     let json: Value = serde_json::from_slice(&out).unwrap();
     assert_json_snapshot!("lifecycle_shortcuts_are_preserved_in_model_dump", json);
+}
+
+#[test]
+fn lifecycle_return_inference_from_shortcut_activation_is_preserved_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("lifecycle/valid_return_inferred_from_shortcut_activation.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!(
+        "lifecycle_return_inference_from_shortcut_activation_is_preserved_in_model_dump",
+        json
+    );
+}
+
+#[test]
+fn lifecycle_return_without_activation_reports_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("lifecycle/invalid_return_without_activation.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_RETURN_INFER_EMPTY"));
+}
+
+#[test]
+fn lifecycle_return_without_caller_context_reports_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("lifecycle/invalid_return_without_caller_context.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_RETURN_INFER_CALLER"));
 }
 
 #[test]

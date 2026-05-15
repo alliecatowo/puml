@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use crate::model::{SequenceDocument, SequenceEventKind, SequencePage};
 use crate::normalize;
-use crate::scene::{Label, LayoutOptions, Lifeline, MessageLine, NoteBox, ParticipantBox, Scene};
+use crate::scene::{
+    GroupBox, GroupSeparator, Label, LayoutOptions, Lifeline, MessageLine, NoteBox, ParticipantBox,
+    Scene,
+};
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     let mut pages = layout_pages(document, options);
@@ -58,6 +61,8 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let events_top = participant_top + options.participant_height + 24;
     let mut messages = Vec::new();
     let mut notes = Vec::new();
+    let mut groups: Vec<GroupBox> = Vec::new();
+    let mut open_groups: Vec<usize> = Vec::new();
     let mut event_rows: i32 = 0;
     let mut autonumber = AutonumberState::default();
 
@@ -117,17 +122,17 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 let text_lines = text.lines().count().max(1) as i32;
                 let height = (text_lines * 16) + (options.note_padding * 2);
 
-                let x = if let Some(target_id) = target {
-                    let center = centers_by_id
-                        .get(target_id)
-                        .copied()
-                        .unwrap_or(options.margin + options.participant_width / 2);
+                let x = if let Some(target_spec) = target {
+                    let centers = note_target_centers(target_spec, &centers_by_id, &options);
+                    let min_center = *centers.iter().min().unwrap_or(&default_center(&options));
+                    let max_center = *centers.iter().max().unwrap_or(&default_center(&options));
+                    let mid_center = (min_center + max_center) / 2;
                     if position.eq_ignore_ascii_case("left") {
-                        center - options.note_width - 12
+                        min_center - options.note_width - 12
                     } else if position.eq_ignore_ascii_case("right") {
-                        center + 12
+                        max_center + 12
                     } else {
-                        center - (options.note_width / 2)
+                        mid_center - (options.note_width / 2)
                     }
                 } else {
                     options.margin
@@ -143,8 +148,45 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 });
                 event_rows += 1;
             }
+            SequenceEventKind::GroupStart { kind, label } => {
+                let y = events_top + (event_rows * options.message_row_height);
+                if kind.eq_ignore_ascii_case("else") {
+                    if let Some(ix) = open_groups.last().copied() {
+                        groups[ix].separators.push(GroupSeparator {
+                            y,
+                            label: label.clone(),
+                        });
+                    }
+                } else {
+                    let (x, width) =
+                        group_horizontal_bounds(label.as_deref(), &centers_by_id, &options);
+                    groups.push(GroupBox {
+                        kind: kind.clone(),
+                        label: label.clone(),
+                        x,
+                        y,
+                        width,
+                        height: options.message_row_height,
+                        separators: Vec::new(),
+                    });
+                    open_groups.push(groups.len() - 1);
+                }
+                event_rows += 1;
+            }
+            SequenceEventKind::GroupEnd => {
+                let y = events_top + (event_rows * options.message_row_height);
+                if let Some(ix) = open_groups.pop() {
+                    groups[ix].height = (y - groups[ix].y) + options.message_row_height;
+                }
+                event_rows += 1;
+            }
             _ => {}
         }
+    }
+
+    let end_y = events_top + (event_rows * options.message_row_height);
+    while let Some(ix) = open_groups.pop() {
+        groups[ix].height = (end_y - groups[ix].y).max(options.message_row_height);
     }
 
     let events_height = if event_rows > 0 {
@@ -169,6 +211,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     for n in &notes {
         width = width.max(n.x + n.width + options.margin);
     }
+    for g in &groups {
+        width = width.max(g.x + g.width + options.margin);
+    }
 
     let height =
         (lifeline_end + options.margin).max(participant_top + options.participant_height + 80);
@@ -181,7 +226,56 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         lifelines,
         messages,
         notes,
+        groups,
     }
+}
+
+fn default_center(options: &LayoutOptions) -> i32 {
+    options.margin + options.participant_width / 2
+}
+
+fn parse_target_ids(spec: &str) -> Vec<String> {
+    spec.split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn note_target_centers(
+    target_spec: &str,
+    centers_by_id: &BTreeMap<String, i32>,
+    options: &LayoutOptions,
+) -> Vec<i32> {
+    let default = default_center(options);
+    parse_target_ids(target_spec)
+        .into_iter()
+        .map(|id| centers_by_id.get(&id).copied().unwrap_or(default))
+        .collect::<Vec<_>>()
+}
+
+fn group_horizontal_bounds(
+    label: Option<&str>,
+    centers_by_id: &BTreeMap<String, i32>,
+    options: &LayoutOptions,
+) -> (i32, i32) {
+    if let Some(raw) = label {
+        if let Some(target_spec) = raw.strip_prefix("over ") {
+            let centers = note_target_centers(target_spec.trim(), centers_by_id, options);
+            if !centers.is_empty() {
+                let min_center = *centers.iter().min().unwrap_or(&default_center(options));
+                let max_center = *centers.iter().max().unwrap_or(&default_center(options));
+                let x = min_center - (options.note_width / 2);
+                let width = (max_center - min_center) + options.note_width;
+                return (x, width.max(options.note_width));
+            }
+        }
+    }
+    (
+        options.margin,
+        (centers_by_id.len() as i32 * options.participant_spacing)
+            .max(options.participant_width + 64),
+    )
 }
 
 fn message_x_bounds(

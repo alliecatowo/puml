@@ -1,0 +1,7 @@
+@startuml
+participant A
+participant B
+note of A: bad
+ref over A, B
+end ref
+@enduml

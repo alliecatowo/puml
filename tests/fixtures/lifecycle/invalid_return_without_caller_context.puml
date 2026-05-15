@@ -1,5 +1,4 @@
 @startuml
-A -> B: call
 activate B
-return result
+return done
 @enduml

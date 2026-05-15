@@ -92,6 +92,28 @@ cargo fmt
 cargo test
 ```
 
+Coverage target (line coverage >= 90%):
+
+```bash
+cargo llvm-cov --workspace --all-features --lcov --output-path target/lcov.info
+```
+
+If `cargo llvm-cov` is not installed locally:
+
+```bash
+cargo install cargo-llvm-cov
+```
+
+Fallback guidance when LLVM coverage tooling is unavailable in the environment:
+- Keep the target command above as the canonical CI/local coverage command.
+- Run `cargo test` to validate behavior and use targeted branch tests under `tests/**` as a proxy signal until `cargo llvm-cov` is available.
+- Optionally produce a rough per-file heuristic with `cargo test -- --nocapture` plus test-to-module mapping, then rerun the exact `cargo llvm-cov` command once installed.
+
+Current coverage-oriented suites include:
+- Parser/preprocess and normalization edge-path tests in `tests/coverage_edges.rs`
+- CLI integration and exit-code contract tests in `tests/integration.rs` and `tests/coverage_contract.rs`
+- Render/layout deterministic and edge rendering tests in `tests/render_e2e.rs`
+
 Current test suites:
 - CLI integration: `tests/integration.rs`
 - Render end-to-end snapshots: `tests/render_e2e.rs`

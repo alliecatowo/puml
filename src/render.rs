@@ -37,6 +37,58 @@ pub fn render_svg(scene: &Scene) -> String {
         ));
     }
 
+    for g in &scene.groups {
+        let fill = if g.kind.eq_ignore_ascii_case("ref") {
+            "#eef6ff"
+        } else {
+            "#fafafa"
+        };
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"#666\" stroke-width=\"1\"/>",
+            g.x, g.y, g.width, g.height, fill
+        ));
+
+        if let Some(label) = &g.label {
+            let header = label.lines().next().unwrap_or("");
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\">{}</text>",
+                g.x + 8,
+                g.y + 16,
+                escape_text(format!("{} {}", g.kind, header).trim())
+            ));
+            if g.kind.eq_ignore_ascii_case("ref") {
+                let mut y = g.y + 32;
+                for line in label.lines().skip(1) {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                        g.x + 8,
+                        y,
+                        escape_text(line)
+                    ));
+                    y += 16;
+                }
+            }
+        }
+
+        for sep in &g.separators {
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#666\" stroke-width=\"1\" stroke-dasharray=\"5 4\"/>",
+                g.x,
+                sep.y,
+                g.x + g.width,
+                sep.y
+            ));
+            if let Some(label) = &sep.label {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#333\">{}</text>",
+                    g.x + 8,
+                    sep.y - 6,
+                    escape_text(label)
+                ));
+            }
+        }
+    }
+
     for m in &scene.messages {
         let stroke_dash = if m.arrow.contains("--") {
             " stroke-dasharray=\"6 4\""
