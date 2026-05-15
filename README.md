@@ -296,6 +296,7 @@ Dry-run planning commands:
 ## Docs
 
 - Developer flow: [`docs/codex-workflow.md`](docs/codex-workflow.md)
+- Command cookbook: [`docs/autonomous-workflow-cookbook.md`](docs/autonomous-workflow-cookbook.md)
 - Benchmark workflow: [`docs/benchmarks/README.md`](docs/benchmarks/README.md)
 - Contribution guide: [`docs/contributing.md`](docs/contributing.md)
 - Troubleshooting guide: [`docs/troubleshooting.md`](docs/troubleshooting.md)

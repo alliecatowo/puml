@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-15T20:05:00Z",
+  "generated_at_utc": "2026-05-15T21:19:00Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml-wt-30",
-    "quick_mode": false
+    "cwd": "/home/Allie/develop/puml-wave6",
+    "quick_mode": true
   },
   "oracle": {
     "interface_version": "1",
@@ -15,10 +15,10 @@
     "notes": "Reserved for future PlantUML comparison integration."
   },
   "summary": {
-    "total": 11,
-    "check_passed": 8,
-    "check_failed": 3,
-    "render_passed": 8,
+    "total": 4,
+    "check_passed": 4,
+    "check_failed": 0,
+    "render_passed": 4,
     "render_failed": 0
   },
   "fixtures": [
@@ -117,180 +117,12 @@
         "comparison": null,
         "notes": "PlantUML oracle hook not executed in baseline mode."
       }
-    },
-    {
-      "fixture": "notes/valid_multiline_blocks.puml",
-      "check": {
-        "passed": true,
-        "exit_code": 0,
-        "diagnostics": [],
-        "stderr": ""
-      },
-      "render": {
-        "attempted": true,
-        "passed": true,
-        "exit_code": 0,
-        "stderr": "",
-        "metadata": {
-          "svg_bytes": 1798,
-          "viewbox": null
-        }
-      },
-      "oracle": {
-        "status": "todo",
-        "comparison": null,
-        "notes": "PlantUML oracle hook not executed in baseline mode."
-      }
-    },
-    {
-      "fixture": "structure/valid_separator_delay_divider_spacer.puml",
-      "check": {
-        "passed": true,
-        "exit_code": 0,
-        "diagnostics": [],
-        "stderr": ""
-      },
-      "render": {
-        "attempted": true,
-        "passed": true,
-        "exit_code": 0,
-        "stderr": "",
-        "metadata": {
-          "svg_bytes": 2260,
-          "viewbox": null
-        }
-      },
-      "oracle": {
-        "status": "todo",
-        "comparison": null,
-        "notes": "PlantUML oracle hook not executed in baseline mode."
-      }
-    },
-    {
-      "fixture": "lifecycle/valid_shortcuts_expansion.puml",
-      "check": {
-        "passed": true,
-        "exit_code": 0,
-        "diagnostics": [],
-        "stderr": ""
-      },
-      "render": {
-        "attempted": true,
-        "passed": true,
-        "exit_code": 0,
-        "stderr": "",
-        "metadata": {
-          "svg_bytes": 2485,
-          "viewbox": null
-        }
-      },
-      "oracle": {
-        "status": "todo",
-        "comparison": null,
-        "notes": "PlantUML oracle hook not executed in baseline mode."
-      }
-    },
-    {
-      "fixture": "autonumber/valid_with_format.puml",
-      "check": {
-        "passed": true,
-        "exit_code": 0,
-        "diagnostics": [],
-        "stderr": ""
-      },
-      "render": {
-        "attempted": true,
-        "passed": true,
-        "exit_code": 0,
-        "stderr": "",
-        "metadata": {
-          "svg_bytes": 2297,
-          "viewbox": null
-        }
-      },
-      "oracle": {
-        "status": "todo",
-        "comparison": null,
-        "notes": "PlantUML oracle hook not executed in baseline mode."
-      }
-    },
-    {
-      "fixture": "errors/invalid_unmatched_enduml.puml",
-      "check": {
-        "passed": false,
-        "exit_code": 1,
-        "diagnostics": [],
-        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @enduml at line 1 without a preceding @startuml\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
-      },
-      "render": {
-        "attempted": false,
-        "passed": false,
-        "exit_code": null,
-        "stderr": "",
-        "metadata": {
-          "svg_bytes": null,
-          "viewbox": null
-        }
-      },
-      "oracle": {
-        "status": "todo",
-        "comparison": null,
-        "notes": "PlantUML oracle hook not executed in baseline mode."
-      }
-    },
-    {
-      "fixture": "errors/invalid_malformed_note_ref.puml",
-      "check": {
-        "passed": false,
-        "exit_code": 1,
-        "diagnostics": [],
-        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": \"E_PARSE_UNKNOWN\",\n      \"severity\": \"error\",\n      \"message\": \"[E_PARSE_UNKNOWN] unsupported syntax: `[E_NOTE_INVALID] malformed note syntax: `note of A: bad``\",\n      \"span\": {\n        \"start\": 38,\n        \"end\": 52\n      },\n      \"line\": 4,\n      \"column\": 1,\n      \"snippet\": \"note of A: bad\",\n      \"caret\": \"^^^^^^^^^^^^^^\"\n    }\n  ]\n}"
-      },
-      "render": {
-        "attempted": false,
-        "passed": false,
-        "exit_code": null,
-        "stderr": "",
-        "metadata": {
-          "svg_bytes": null,
-          "viewbox": null
-        }
-      },
-      "oracle": {
-        "status": "todo",
-        "comparison": null,
-        "notes": "PlantUML oracle hook not executed in baseline mode."
-      }
-    },
-    {
-      "fixture": "errors/invalid_nested_startuml.puml",
-      "check": {
-        "passed": false,
-        "exit_code": 1,
-        "diagnostics": [],
-        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @startuml at line 3 before closing previous block started at line 1\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
-      },
-      "render": {
-        "attempted": false,
-        "passed": false,
-        "exit_code": null,
-        "stderr": "",
-        "metadata": {
-          "svg_bytes": null,
-          "viewbox": null
-        }
-      },
-      "oracle": {
-        "status": "todo",
-        "comparison": null,
-        "notes": "PlantUML oracle hook not executed in baseline mode."
-      }
     }
   ],
   "doc_examples": {
     "summary": {
-      "total": 10,
-      "passed": 10,
+      "total": 16,
+      "passed": 16,
       "failed": 0
     },
     "entries": [
@@ -365,6 +197,72 @@
         "source_kind": "inline_snippet",
         "source_ref": "docs/examples/README.md#snippet-1",
         "artifact_svg": "docs/examples/README_snippet_1.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/basic_hello.puml",
+        "artifact_svg": "docs/examples/basic_hello.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/groups_notes.puml",
+        "artifact_svg": "docs/examples/groups_notes.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/lifecycle_autonumber.puml",
+        "artifact_svg": "docs/examples/lifecycle_autonumber.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "inline_snippet",
+        "source_ref": "docs/examples/sequence/README.md#snippet-1",
+        "artifact_svg": "docs/examples/sequence/README_snippet_1.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "inline_snippet",
+        "source_ref": "docs/examples/sequence/README.md#snippet-2",
+        "artifact_svg": "docs/examples/sequence/README_snippet_2.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "inline_snippet",
+        "source_ref": "docs/examples/sequence/README.md#snippet-3",
+        "artifact_svg": "docs/examples/sequence/README_snippet_3.svg",
         "artifact_exists": true,
         "artifact_matches_render": true,
         "artifact_up_to_date": true,

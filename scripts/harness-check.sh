@@ -50,6 +50,6 @@ echo "[harness] running MCP smoke checks"
 bash ./agent-pack/tests/mcp_smoke.sh
 
 echo "[harness] running parity harness ${PARITY_FLAGS[*]:-(full)}"
-python3 ./scripts/parity_harness.py "${PARITY_FLAGS[@]}"
+python3 ./scripts/parity_harness.py --fail-on-doc-drift "${PARITY_FLAGS[@]}"
 
 echo "[harness] complete"

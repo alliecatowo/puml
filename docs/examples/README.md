@@ -2,6 +2,12 @@
 
 This markdown is the canonical top-layer docs parity source for `scripts/parity_harness.py`.
 
+## Canonical Pages
+
+- [Top-level corpus](README.md)
+- [Sequence canonical examples](sequence/README.md)
+- [Supported primitives matrix](supported_primitives.md)
+
 ## Linked Source Files
 
 - [basic_hello.puml](basic_hello.puml) -> [basic_hello.svg](basic_hello.svg)

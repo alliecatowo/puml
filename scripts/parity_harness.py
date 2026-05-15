@@ -61,6 +61,11 @@ def parse_args() -> argparse.Namespace:
             "(stored in report, never executed in baseline mode)"
         ),
     )
+    parser.add_argument(
+        "--fail-on-doc-drift",
+        action="store_true",
+        help="exit non-zero when docs/examples source-to-svg drift is detected",
+    )
     return parser.parse_args()
 
 
@@ -454,6 +459,14 @@ def main() -> int:
             f"{out_path} "
             f"(fixtures={total}, check_passed={check_passed}, render_passed={render_passed})"
         )
+
+    if args.fail_on_doc_drift and report["doc_examples"]["summary"]["failed"] > 0:
+        print(
+            "[parity] docs example drift detected: "
+            f"failed={report["doc_examples"]["summary"]["failed"]}",
+            file=sys.stderr,
+        )
+        return 4
 
     return 0
 
