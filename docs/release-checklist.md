@@ -52,6 +52,7 @@
 - [ ] Smoke test `--dump scene` and `--multi`.
 - [ ] Validate includes workflow with `--include-root` in stdin mode.
 - [ ] Run `scripts/bench.sh --quick --enforce-gates` in non-Java mode and verify gate pass/fail behavior is explicit.
+- [ ] Run ecosystem rollout closure gate: `./scripts/ecosystem-rollout-check.sh --quick` (and full mode before release if VS Code toolchain is available).
 
 ## Publish Readiness
 

@@ -254,6 +254,10 @@ Codex + Claude autonomous repo engineering entrypoints:
 # VS Code scaffold smoke (LSP contract + extension build)
 ./scripts/vscode-smoke.sh
 
+# ecosystem rollout closure check (LSP/VSCode/Studio/plugin contracts)
+./scripts/ecosystem-rollout-check.sh --quick
+./scripts/ecosystem-rollout-check.sh
+
 # full autonomous quality chain
 
 ./scripts/autonomy-check.sh --quick

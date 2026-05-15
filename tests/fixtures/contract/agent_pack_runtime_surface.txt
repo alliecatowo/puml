@@ -1,0 +1,15 @@
+## Runtime contract snapshot (Current, audited in issue #24)
+agent-pack/.codex-plugin/plugin.json
+agent-pack/.claude-plugin/plugin.json
+agent-pack/.codex-plugin/marketplace.json
+agent-pack/.claude-plugin/marketplace.json
+agent-pack/.mcp.json
+agent-pack/bin/puml-mcp
+skills/puml-sequence-author
+skills/puml-sequence-reviewer
+agents/puml-diagram-designer.md
+agents/puml-diagram-reviewer.md
+v0.0.1 does not yet ship packaged `.lsp.json`/bundled LSP host wiring
+scripts/validate_agent_pack.py
+agent-pack/tests/mcp_smoke.sh
+scripts/harness-check.sh

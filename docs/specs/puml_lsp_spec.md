@@ -4,6 +4,34 @@ A real language server for native PlantUML-compatible sequence diagrams: parse, 
 
 This is not an editor helper. This is the language intelligence layer for the whole product. The CLI, browser studio, Codex plugin, Claude plugin, MCP tools, and every future extension must be able to rely on this server and the shared language-service core.
 
+## Runtime contract snapshot (Current, audited in issue #24)
+
+The sections below describe target architecture. The current shipped runtime surface that is already implemented and safe for ecosystem integration today is:
+
+- `textDocument/publishDiagnostics` on `didOpen`/`didChange`/`didSave`
+- completion (+ resolve)
+- hover
+- definition
+- references
+- rename (including prepare rename)
+- document symbols + workspace symbols
+- semantic tokens (`textDocument/semanticTokens/full`)
+- formatting (`textDocument/formatting` + range formatting)
+- folding ranges
+- selection ranges
+- document links
+- document colors + color presentations
+- code actions
+- `workspace/executeCommand` with:
+  - `puml.applyFormat`
+  - `puml.renderSvg`
+
+Current baseline capability mirror:
+
+- CLI `--dump-capabilities` reports `server: "puml-lsp"` and commands `puml.applyFormat`, `puml.renderSvg`.
+- VS Code scaffold preview routes through `puml.renderSvg`.
+- Sequence-first parity remains the current shipped scope; other roadmap ambitions in this spec are target-only until implemented and contract-tested.
+
 ## Product position
 
 `puml-lsp` turns `.puml` files into first-class source code.
