@@ -249,6 +249,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "participants/valid_queue_separator.puml",
         "basic/valid_separator_equals.puml",
         "basic/valid_participant_queue.puml",
+        "basic/valid_pragma_directives.puml",
         "basic/valid_arrows_extended_set.puml",
         "basic/valid_skinparam_maxmessagesize.puml",
         "arrows/valid_directions.puml",

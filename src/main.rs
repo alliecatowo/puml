@@ -768,6 +768,10 @@ fn parse_for_cli(
     cli_determinism: CliDeterminismMode,
     frontend_hint: Option<FrontendSelection>,
 ) -> Result<Document, Diagnostic> {
+    let include_root = include_root.or_else(|| match cli_compat {
+        CliCompatMode::Strict => None,
+        CliCompatMode::Extended => std::env::current_dir().ok(),
+    });
     let options = ParsePipelineOptions {
         frontend: map_frontend(cli_dialect, frontend_hint),
         compat: map_compat(cli_compat),

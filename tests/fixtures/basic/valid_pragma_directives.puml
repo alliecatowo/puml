@@ -1,0 +1,6 @@
+@startuml
+!pragma teoz true
+participant A
+participant B
+A -> B: hello
+@enduml

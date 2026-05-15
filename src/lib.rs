@@ -121,10 +121,7 @@ fn interpret_parser_contract(
 ) -> Result<parser::ParseOptions, Diagnostic> {
     let include_root = match options.compat {
         CompatMode::Strict => options.include_root.clone(),
-        CompatMode::Extended => options
-            .include_root
-            .clone()
-            .or_else(|| std::env::current_dir().ok()),
+        CompatMode::Extended => options.include_root.clone(),
     };
     Ok(parser::ParseOptions { include_root })
 }
@@ -396,4 +393,26 @@ fn split_mermaid_message_core(core: &str) -> Option<(&str, &str, &str)> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_with_pipeline_options, CompatMode, FrontendSelection, ParsePipelineOptions};
+
+    #[test]
+    fn extended_mode_without_include_root_does_not_fallback_to_cwd_in_library_api() {
+        let options = ParsePipelineOptions {
+            frontend: FrontendSelection::Auto,
+            compat: CompatMode::Extended,
+            include_root: None,
+            ..ParsePipelineOptions::default()
+        };
+        let err = parse_with_pipeline_options("!include __puml_missing__.puml\n", &options)
+            .expect_err("expected include-root diagnostic");
+        assert!(
+            err.message.contains("E_INCLUDE_ROOT_REQUIRED"),
+            "unexpected error: {}",
+            err.message
+        );
+    }
 }
