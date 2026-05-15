@@ -2189,6 +2189,39 @@ mod tests {
     }
 
     #[test]
+    fn parses_usecase_relations_with_alias_and_label() {
+        let doc = parse_with_options(
+            "usecase Authenticate as Auth\nusecase User\nAuth --> User : validates\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::UseCase);
+        match &doc.statements[2].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "Auth");
+                assert_eq!(rel.to, "User");
+                assert_eq!(rel.arrow, "-->");
+                assert_eq!(rel.label.as_deref(), Some("validates"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_family_relation_is_preserved_as_unknown_statement() {
+        let doc = parse_with_options("class User\nUser -->\n", &ParseOptions::default()).unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(doc.statements[1].kind, StatementKind::Unknown(_)));
+    }
+
+    #[test]
+    fn unsupported_family_keyword_is_preserved_for_later_validation() {
+        let doc = parse_with_options("state Running\n", &ParseOptions::default()).unwrap();
+        assert_eq!(doc.kind, DiagramKind::Unknown);
+        assert!(matches!(doc.statements[0].kind, StatementKind::Unknown(_)));
+    }
+
+    #[test]
     fn mixed_family_input_reports_deterministic_error() {
         let err = parse_with_options("class A\nnewpage\n", &ParseOptions::default()).unwrap_err();
         assert!(err.message.contains("E_FAMILY_MIXED"));
