@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-15T18:42:21Z",
+  "generated_at_utc": "2026-05-15T19:21:23Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml",
-    "quick_mode": true
+    "cwd": "/home/Allie/develop/puml-wt-17",
+    "quick_mode": false
   },
   "oracle": {
     "interface_version": "1",
@@ -15,10 +15,10 @@
     "notes": "Reserved for future PlantUML comparison integration."
   },
   "summary": {
-    "total": 4,
-    "check_passed": 4,
-    "check_failed": 0,
-    "render_passed": 4,
+    "total": 11,
+    "check_passed": 8,
+    "check_failed": 3,
+    "render_passed": 8,
     "render_failed": 0
   },
   "fixtures": [
@@ -109,6 +109,174 @@
         "stderr": "",
         "metadata": {
           "svg_bytes": 2500,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "notes/valid_multiline_blocks.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 1798,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "structure/valid_separator_delay_divider_spacer.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 2260,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "lifecycle/valid_shortcuts_expansion.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 2485,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "autonumber/valid_with_format.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 2297,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "errors/invalid_unmatched_enduml.puml",
+      "check": {
+        "passed": false,
+        "exit_code": 1,
+        "diagnostics": [],
+        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @enduml at line 1 without a preceding @startuml\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
+      },
+      "render": {
+        "attempted": false,
+        "passed": false,
+        "exit_code": null,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": null,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "errors/invalid_malformed_note_ref.puml",
+      "check": {
+        "passed": false,
+        "exit_code": 1,
+        "diagnostics": [],
+        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": \"E_PARSE_UNKNOWN\",\n      \"severity\": \"error\",\n      \"message\": \"[E_PARSE_UNKNOWN] unsupported syntax: `[E_NOTE_INVALID] malformed note syntax: `note of A: bad``\",\n      \"span\": {\n        \"start\": 38,\n        \"end\": 52\n      },\n      \"line\": 4,\n      \"column\": 1,\n      \"snippet\": \"note of A: bad\",\n      \"caret\": \"^^^^^^^^^^^^^^\"\n    }\n  ]\n}"
+      },
+      "render": {
+        "attempted": false,
+        "passed": false,
+        "exit_code": null,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": null,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "errors/invalid_nested_startuml.puml",
+      "check": {
+        "passed": false,
+        "exit_code": 1,
+        "diagnostics": [],
+        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @startuml at line 3 before closing previous block started at line 1\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
+      },
+      "render": {
+        "attempted": false,
+        "passed": false,
+        "exit_code": null,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": null,
           "viewbox": null
         }
       },

@@ -1,53 +1,53 @@
 {
-  "timestamp_utc": "2026-05-15T17:54:53Z",
-  "binary": "/home/Allie/develop/puml/target/release/puml",
+  "timestamp_utc": "2026-05-15T19:22:04Z",
+  "binary": "/home/Allie/develop/puml-wt-17/target/release/puml",
   "mode": "quick",
   "scenarios": [
     {
       "name": "cold_start_help",
       "tool": "time",
-      "mean_ms": 123.333,
-      "stddev_ms": 16.997,
+      "mean_ms": 126.667,
+      "stddev_ms": 4.714,
       "runs": 3
     }
     ,
     {
       "name": "parser_check",
       "tool": "time",
-      "mean_ms": 96.667,
-      "stddev_ms": 4.714,
+      "mean_ms": 130.000,
+      "stddev_ms": 0.000,
       "runs": 3
     }
     ,
     {
       "name": "parser_dump_scene",
       "tool": "time",
-      "mean_ms": 93.333,
-      "stddev_ms": 4.714,
+      "mean_ms": 130.000,
+      "stddev_ms": 0.000,
       "runs": 3
     }
     ,
     {
       "name": "render_file",
       "tool": "time",
-      "mean_ms": 100.000,
-      "stddev_ms": 0.000,
+      "mean_ms": 123.333,
+      "stddev_ms": 4.714,
       "runs": 3
     }
     ,
     {
       "name": "render_stdin",
       "tool": "time",
-      "mean_ms": 100.000,
-      "stddev_ms": 0.000,
+      "mean_ms": 123.333,
+      "stddev_ms": 4.714,
       "runs": 3
     }
     ,
     {
       "name": "render_stdin_multi",
       "tool": "time",
-      "mean_ms": 96.667,
-      "stddev_ms": 4.714,
+      "mean_ms": 110.000,
+      "stddev_ms": 16.330,
       "runs": 3
     }
   ]
