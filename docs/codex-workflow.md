@@ -4,6 +4,9 @@ This repo supports fully autonomous engineering loops for Codex and Claude with 
 
 ## One-Command Entry Points
 
+Canonical cookbook: [`docs/autonomous-workflow-cookbook.md`](autonomous-workflow-cookbook.md).
+
+
 ```console
 ./scripts/harness-check.sh         # agent-pack + MCP + parity harness only
 ./scripts/autonomy-check.sh        # full chain: lint/test/bench/harness/smoke
@@ -89,3 +92,34 @@ Required green markers before opening PR:
   - Re-render docs examples and commit updated SVG artifacts.
 - Dry-run sanity:
   - Use `./scripts/harness-check.sh --dry` and `./scripts/autonomy-check.sh --dry` to inspect planned execution.
+
+
+## Command Cookbook
+
+```console
+# branch + status
+git rev-parse --abbrev-ref HEAD
+git status --short
+
+# run docs/example drift check only
+python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
+
+# refresh committed docs example SVGs
+for f in docs/examples/*.puml; do cargo run -- "$f"; done
+for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
+cargo run -- --from-markdown docs/examples/README.md --output docs/examples/README_snippet_1.svg
+cargo run -- --from-markdown docs/examples/sequence/README.md --output docs/examples/sequence/README_snippet_1.svg
+
+# strict autonomous loop
+./scripts/harness-check.sh --quick
+./scripts/autonomy-check.sh --quick
+./scripts/autonomy-check.sh
+```
+
+## Codex And Claude Autonomous Workflow
+
+1. Use a dedicated worktree + branch for each chunk (avoid touching teammate edits).
+2. Iterate with `./scripts/harness-check.sh --quick` after diagram/docs changes.
+3. Treat docs examples as test fixtures; if source changes, re-render SVG artifacts before PR.
+4. Run `./scripts/autonomy-check.sh` before opening PR.
+5. Include parity report updates when behavior or corpus changes.

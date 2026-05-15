@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-15T20:05:00Z",
+  "generated_at_utc": "2026-05-15T22:04:15Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml-wt-30",
+    "cwd": "/home/Allie/develop/puml-wave6",
     "quick_mode": false
   },
   "oracle": {
@@ -289,8 +289,8 @@
   ],
   "doc_examples": {
     "summary": {
-      "total": 10,
-      "passed": 10,
+      "total": 16,
+      "passed": 16,
       "failed": 0
     },
     "entries": [
@@ -365,6 +365,72 @@
         "source_kind": "inline_snippet",
         "source_ref": "docs/examples/README.md#snippet-1",
         "artifact_svg": "docs/examples/README_snippet_1.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/basic_hello.puml",
+        "artifact_svg": "docs/examples/basic_hello.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/groups_notes.puml",
+        "artifact_svg": "docs/examples/groups_notes.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/lifecycle_autonumber.puml",
+        "artifact_svg": "docs/examples/lifecycle_autonumber.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "inline_snippet",
+        "source_ref": "docs/examples/sequence/README.md#snippet-1",
+        "artifact_svg": "docs/examples/sequence/README_snippet_1.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "inline_snippet",
+        "source_ref": "docs/examples/sequence/README.md#snippet-2",
+        "artifact_svg": "docs/examples/sequence/README_snippet_2.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "docs/examples/sequence/README.md",
+        "source_kind": "inline_snippet",
+        "source_ref": "docs/examples/sequence/README.md#snippet-3",
+        "artifact_svg": "docs/examples/sequence/README_snippet_3.svg",
         "artifact_exists": true,
         "artifact_matches_render": true,
         "artifact_up_to_date": true,
