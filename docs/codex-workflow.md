@@ -1,56 +1,56 @@
 # Codex Workflow
 
-This repository is optimized for terminal-first agent/human loops.
+This repository is optimized for terminal-first agent and human collaboration.
 
-## Fast local loop
+## One-Command DX Entry Points
 
 ```console
-cargo fmt
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test
+./scripts/setup.sh      # one-time workstation setup
+./scripts/dev.sh        # fast daily loop
+./scripts/check-all.sh  # full quality gate
+./scripts/bench.sh      # benchmark workflow
 ```
 
-## Full quality gate (same as CI/local release gate)
+## What Each Command Does
+
+`./scripts/setup.sh`
+- verifies `cargo` and `rustup`
+- ensures `rustfmt`, `clippy`, and `llvm-tools-preview`
+- installs `cargo-llvm-cov` if missing
+- runs `cargo fetch` and `cargo build`
+
+`./scripts/dev.sh`
+- runs `cargo fmt`
+- runs `cargo clippy --all-targets --all-features -- -D warnings`
+- runs `cargo test`
+
+`./scripts/check-all.sh`
+- runs `cargo fmt --check`
+- runs `cargo clippy --all-targets --all-features -- -D warnings`
+- runs `cargo test`
+- runs `cargo llvm-cov --all-features --workspace --fail-under-lines 90`
+
+`./scripts/bench.sh`
+- builds `target/release/puml`
+- runs benchmark scenarios via `hyperfine` when available
+- falls back to `/usr/bin/time` when `hyperfine` is unavailable
+- writes benchmark artifacts to `docs/benchmarks/latest.{md,csv,json}`
+
+## Useful Render/Debug Commands
 
 ```console
-./scripts/check-all.sh
-```
-
-Equivalent explicit commands:
-
-```console
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test
-cargo llvm-cov --all-features --workspace --fail-under-lines 90
-```
-
-## Render commands
-
-```console
-# file -> adjacent svg
 cargo run -- tests/fixtures/basic/hello.puml
-
-# explicit output path
 cargo run -- tests/fixtures/basic/hello.puml -o out.svg
-
-# stdin single-page -> SVG stdout
 cat tests/fixtures/basic/hello.puml | cargo run -- -
-
-# stdin multi-page/diagram -> JSON array
 cat tests/fixtures/structure/multi_three.puml | cargo run -- --multi -
-```
 
-## Debug/dump commands
-
-```console
 cargo run -- --check tests/fixtures/basic/hello.puml
 cargo run -- --dump ast tests/fixtures/basic/hello.puml
 cargo run -- --dump model tests/fixtures/basic/hello.puml
 cargo run -- --dump scene tests/fixtures/basic/hello.puml
 ```
 
-## Include behavior
+## Include Behavior
 
 - File input: includes resolve relative to the input file directory.
 - Stdin input: requires `--include-root DIR`.

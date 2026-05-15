@@ -1,0 +1,4 @@
+@startuml
+participant A
+else nope
+@enduml

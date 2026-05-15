@@ -1,0 +1,7 @@
+@startuml
+participant A
+participant B
+... almost divider
+|| almost delay
+A -> B: ok
+@enduml

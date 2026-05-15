@@ -1,0 +1,56 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "caption": null,
+  "events": [
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "A",
+          "label": "call",
+          "to": "B"
+        }
+      },
+      "span": {
+        "end": 22,
+        "start": 10
+      }
+    },
+    {
+      "kind": {
+        "Return": {
+          "from": "B",
+          "label": "done",
+          "to": "A"
+        }
+      },
+      "span": {
+        "end": 34,
+        "start": 23
+      }
+    }
+  ],
+  "footbox_visible": true,
+  "footer": null,
+  "header": null,
+  "legend": null,
+  "participants": [
+    {
+      "display": "A",
+      "explicit": false,
+      "id": "A",
+      "role": "Participant"
+    },
+    {
+      "display": "B",
+      "explicit": false,
+      "id": "B",
+      "role": "Participant"
+    }
+  ],
+  "skinparams": [],
+  "title": null
+}

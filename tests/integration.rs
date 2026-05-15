@@ -62,6 +62,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/self.puml",
         "arrows/modifiers_basic.puml",
         "arrows/valid_expanded_forms.puml",
+        "arrows/valid_slanted_heads.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -73,6 +74,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "lifecycle/valid_create_activate_destroy.puml",
         "lifecycle/valid_shortcuts_expansion.puml",
         "lifecycle/valid_return_inferred_from_shortcut_activation.puml",
+        "lifecycle/valid_return_inferred_from_last_message.puml",
         "notes/valid_multiline_blocks.puml",
         "notes/valid_note_across_multi.puml",
         "structure/valid_separator_delay_divider_spacer.puml",
@@ -122,10 +124,15 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "include/error_include_cycle_self.puml",
         "include/error_include_chain_a.puml",
         "lifecycle/valid_destroy_then_message.puml",
-        "lifecycle/invalid_return_without_activation.puml",
         "lifecycle/invalid_return_without_caller_context.puml",
         "arrows/invalid_malformed_arrows.puml",
         "errors/invalid_malformed_note_ref.puml",
+        "notes/invalid_note_position_target_required.puml",
+        "structure/invalid_malformed_divider_delay.puml",
+        "groups/invalid_else_without_open_group.puml",
+        "groups/invalid_end_without_open_group.puml",
+        "groups/invalid_else_inside_ref.puml",
+        "groups/invalid_ref_block_missing_body.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -156,6 +163,19 @@ fn malformed_note_or_ref_reports_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_NOTE_INVALID"));
+}
+
+#[test]
+fn malformed_group_structure_reports_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("groups/invalid_else_without_open_group.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_GROUP_ELSE_UNMATCHED"));
 }
 
 #[test]
@@ -268,6 +288,42 @@ fn multi_mode_handles_three_diagrams() {
 
     let json: Value = serde_json::from_slice(&out).unwrap();
     assert_json_snapshot!("multi_mode_handles_three_diagrams", json);
+}
+
+#[test]
+fn multi_mode_splits_uppercase_start_enduml_blocks() {
+    let input = "@STARTUML\nAlice -> Bob: one\n@ENDUML\n@STARTUML\nBob -> Alice: two\n@ENDUML\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected multi-dump array output");
+    assert_eq!(arr.len(), 2);
+}
+
+#[test]
+fn multi_mode_does_not_drop_unterminated_trailing_startuml_block() {
+    let input = "@startuml\nAlice -> Bob: one\n@enduml\n@startuml\nBob -> Alice: two\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected multi-dump array output");
+    assert_eq!(arr.len(), 2);
 }
 
 #[test]
@@ -473,16 +529,25 @@ fn lifecycle_return_inference_from_shortcut_activation_is_preserved_in_model_dum
 }
 
 #[test]
-fn lifecycle_return_without_activation_reports_diagnostic() {
-    Command::cargo_bin("puml")
+fn lifecycle_return_inference_from_last_message_is_preserved_in_model_dump() {
+    let out = Command::cargo_bin("puml")
         .expect("binary")
         .args([
-            "--check",
-            &fixture("lifecycle/invalid_return_without_activation.puml"),
+            "--dump",
+            "model",
+            &fixture("lifecycle/valid_return_inferred_from_last_message.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_RETURN_INFER_EMPTY"));
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!(
+        "lifecycle_return_inference_from_last_message_is_preserved_in_model_dump",
+        json
+    );
 }
 
 #[test]

@@ -228,10 +228,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
-        if line.eq_ignore_ascii_case("@startuml")
-            || line.eq_ignore_ascii_case("@enduml")
-            || line.eq_ignore_ascii_case("end")
-        {
+        if line.eq_ignore_ascii_case("@startuml") || line.eq_ignore_ascii_case("@enduml") {
             i += 1;
             continue;
         }
@@ -374,6 +371,13 @@ fn parse_multiline_note_block(
 
     let tail = line[5..].trim();
     let (position, target) = parse_note_head(tail);
+    if matches!(
+        position.to_ascii_lowercase().as_str(),
+        "left" | "right" | "across"
+    ) && target.is_none()
+    {
+        return None;
+    }
     let mut body = Vec::new();
 
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
@@ -411,6 +415,9 @@ fn parse_multiline_ref_block(
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
         let trimmed = raw.trim();
         if trimmed.eq_ignore_ascii_case("end ref") {
+            if body.is_empty() {
+                return None;
+            }
             let mut label = head.to_string();
             if !body.is_empty() {
                 label.push('\n');
@@ -562,7 +569,13 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         }
         let (head, text) = tail.split_once(':').unwrap_or((tail, ""));
         let (pos, target) = parse_note_head(head);
-        if pos.eq_ignore_ascii_case("of") || !is_valid_note_position(&pos) {
+        if pos.eq_ignore_ascii_case("of")
+            || !is_valid_note_position(&pos)
+            || (matches!(
+                pos.to_ascii_lowercase().as_str(),
+                "left" | "right" | "across"
+            ) && target.is_none())
+        {
             return Some(StatementKind::Unknown(format!(
                 "[E_NOTE_INVALID] malformed note syntax: `{}`",
                 line
@@ -633,12 +646,12 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if line == "..." {
         return Some(StatementKind::Spacer);
     }
-    if lower.starts_with("...") {
+    if lower.starts_with("...") && line.ends_with("...") && line.len() >= 6 {
         return Some(StatementKind::Divider(Some(
             line.trim_matches('.').trim().to_string(),
         )));
     }
-    if lower.starts_with("||") {
+    if lower.starts_with("||") && line.ends_with("||") && line.len() >= 4 {
         return Some(StatementKind::Delay(Some(
             line.trim_matches('|').trim().to_string(),
         )));
@@ -785,7 +798,12 @@ fn parse_arrow(arrow: &str) -> Option<&str> {
         "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
         "o->", "o-->", "x->", "x-->", "->o", "-->o", "->x", "-->x", "o<->o", "x<->x",
     ];
-    VALID_ARROWS.contains(&arrow).then_some(arrow)
+    if VALID_ARROWS.contains(&arrow) {
+        return Some(arrow);
+    }
+
+    let canonical = arrow.replace(['/', '\\'], "");
+    VALID_ARROWS.contains(&canonical.as_str()).then_some(arrow)
 }
 
 fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {

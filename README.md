@@ -7,15 +7,40 @@
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![tests](https://img.shields.io/badge/tests-cargo%20test-informational)
 
-## Why puml
+## Developer Experience Quickstart
 
-- Purpose-built for sequence diagrams, with clear validation boundaries.
-- Deterministic rendering for stable snapshots and CI checks.
-- Practical CLI modes for rendering, validation, and JSON introspection.
+One-command setup:
 
-See the decision log for intentional contract boundaries and deviations: [docs/decision-log.md](./docs/decision-log.md).
+```bash
+./scripts/setup.sh
+```
 
-## Quickstart
+One-command full quality gate:
+
+```bash
+./scripts/check-all.sh
+```
+
+One-command benchmark workflow:
+
+```bash
+./scripts/bench.sh
+```
+
+Outputs:
+- `docs/benchmarks/latest.md`
+- `docs/benchmarks/latest.csv`
+- `docs/benchmarks/latest.json`
+
+## Daily Development Commands
+
+Fast local loop:
+
+```bash
+./scripts/dev.sh
+```
+
+CLI quick checks:
 
 ```bash
 # Explore CLI options
@@ -78,66 +103,18 @@ Exit codes:
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 
-Checklist:
-- [x] Render SVG from file or stdin
-- [x] Validate syntax/normalization via `--check`
-- [x] Dump AST/model/scene JSON for tooling
-- [x] Deterministic render behavior covered by snapshots
-- [ ] Full PlantUML compatibility (explicitly out of scope)
+## Docs Map
 
-## Development
-
-```bash
-cargo fmt
-cargo test
-```
-
-Coverage target (line coverage >= 90%):
-
-```bash
-cargo llvm-cov --all-features --workspace --fail-under-lines 90
-```
-
-If `cargo llvm-cov` is not installed locally:
-
-```bash
-cargo install cargo-llvm-cov
-```
-
-Fallback guidance when LLVM coverage tooling is unavailable in the environment:
-- Install `cargo-llvm-cov` and `llvm-tools-preview`, then re-run the exact gate command above.
-- Until installed, run `cargo test` as a temporary signal only.
-
-Current coverage-oriented suites include:
-- Parser/preprocess and normalization edge-path tests in `tests/coverage_edges.rs`
-- CLI integration and exit-code contract tests in `tests/integration.rs` and `tests/coverage_contract.rs`
-- Render/layout deterministic and edge rendering tests in `tests/render_e2e.rs`
-
-Current test suites:
-- CLI integration: `tests/integration.rs`
-- Render end-to-end snapshots: `tests/render_e2e.rs`
-- Exit-code contract: `tests/coverage_contract.rs`
+- Developer flow: [`docs/codex-workflow.md`](docs/codex-workflow.md)
+- Contribution guide: [`docs/contributing.md`](docs/contributing.md)
+- Troubleshooting guide: [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- Fixture and snapshot workflow: [`docs/fixture-snapshot-workflow.md`](docs/fixture-snapshot-workflow.md)
+- Benchmark details: [`docs/benchmarks/README.md`](docs/benchmarks/README.md)
+- Parity roadmap: [`docs/parity-roadmap.md`](docs/parity-roadmap.md)
+- Release checklist: [`docs/release-checklist.md`](docs/release-checklist.md)
+- Coverage status: [`docs/coverage-status.md`](docs/coverage-status.md)
+- Decision log: [`docs/decision-log.md`](docs/decision-log.md)
 
 ## License
 
 MIT. See [LICENSE](./LICENSE).
-
-## Developer Commands
-
-For the full Codex/harness workflow, see [`docs/codex-workflow.md`](docs/codex-workflow.md).
-
-Quick gate:
-
-```console
-./scripts/check-all.sh
-```
-
-## Benchmarking
-
-Run the local no-Java benchmark suite:
-
-```console
-./scripts/bench.sh
-```
-
-Results are written to `docs/benchmarks/latest.{md,csv,json}`.

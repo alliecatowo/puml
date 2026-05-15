@@ -72,7 +72,7 @@ expression: json
     {
       "event": {
         "kind": {
-          "Delay": ""
+          "Delay": null
         },
         "span": {
           "end": 90,

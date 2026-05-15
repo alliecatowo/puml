@@ -234,22 +234,27 @@ fn split_diagrams(raw: &str) -> Vec<String> {
 
     let mut blocks = Vec::new();
 
-    if trimmed.contains("@startuml") {
+    if trimmed.to_ascii_lowercase().contains("@startuml") {
         let mut current = Vec::new();
         let mut in_block = false;
         for line in raw.lines() {
-            if line.contains("@startuml") {
+            let marker = line.trim();
+            if marker.eq_ignore_ascii_case("@startuml") {
                 in_block = true;
                 current.clear();
             }
             if in_block {
                 current.push(line);
             }
-            if in_block && line.contains("@enduml") {
+            if in_block && marker.eq_ignore_ascii_case("@enduml") {
                 blocks.push(current.join("\n").trim().to_string());
                 current.clear();
                 in_block = false;
             }
+        }
+        if in_block && !current.is_empty() {
+            // Preserve trailing unterminated block instead of silently dropping it.
+            blocks.push(current.join("\n").trim().to_string());
         }
         if !blocks.is_empty() {
             return blocks;

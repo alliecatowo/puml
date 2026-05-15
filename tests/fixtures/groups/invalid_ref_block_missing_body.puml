@@ -1,0 +1,6 @@
+@startuml
+participant A
+participant B
+ref over A, B
+end ref
+@enduml

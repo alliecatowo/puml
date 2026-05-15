@@ -84,6 +84,7 @@ pub fn normalize_with_options(
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
+    let mut group_stack: Vec<String> = Vec::new();
     let mut last_message: Option<(String, String)> = None;
 
     for stmt in document.statements {
@@ -161,11 +162,41 @@ pub fn normalize_with_options(
             }),
             StatementKind::Group(g) => {
                 if g.kind == "end" {
+                    if group_stack.pop().is_none() {
+                        return Err(Diagnostic::error(
+                            "[E_GROUP_END_UNMATCHED] `end` without an open group block",
+                        )
+                        .with_span(stmt.span));
+                    }
                     events.push(SequenceEvent {
                         span: stmt.span,
                         kind: SequenceEventKind::GroupEnd,
                     });
+                } else if g.kind == "else" {
+                    let Some(top) = group_stack.last() else {
+                        return Err(Diagnostic::error(
+                            "[E_GROUP_ELSE_UNMATCHED] `else` without an open group block",
+                        )
+                        .with_span(stmt.span));
+                    };
+                    if !matches!(top.as_str(), "alt" | "opt" | "par" | "critical" | "break") {
+                        return Err(Diagnostic::error(format!(
+                            "[E_GROUP_ELSE_KIND] `else` is not valid inside `{}`",
+                            top
+                        ))
+                        .with_span(stmt.span));
+                    }
+                    events.push(SequenceEvent {
+                        span: stmt.span,
+                        kind: SequenceEventKind::GroupStart {
+                            kind: g.kind,
+                            label: g.label,
+                        },
+                    });
                 } else {
+                    if g.kind != "ref" {
+                        group_stack.push(g.kind.clone());
+                    }
                     events.push(SequenceEvent {
                         span: stmt.span,
                         kind: SequenceEventKind::GroupStart {
@@ -326,7 +357,7 @@ pub fn normalize_with_options(
             }
             StatementKind::Return(v) => events.push(SequenceEvent {
                 span: stmt.span,
-                kind: infer_return_event(stmt.span, v, &mut activation_stack)?,
+                kind: infer_return_event(stmt.span, v, &mut activation_stack, &last_message)?,
             }),
             StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
@@ -342,6 +373,13 @@ pub fn normalize_with_options(
                 .with_span(stmt.span));
             }
         }
+    }
+
+    if let Some(open) = group_stack.pop() {
+        return Err(Diagnostic::error(format!(
+            "[E_GROUP_UNCLOSED] missing `end` for open `{}` block",
+            open
+        )));
     }
 
     if !warnings.is_empty() {
@@ -380,7 +418,17 @@ fn infer_return_event(
     span: crate::source::Span,
     label: Option<String>,
     activation_stack: &mut Vec<ActivationFrame>,
+    last_message: &Option<(String, String)>,
 ) -> Result<SequenceEventKind, Diagnostic> {
+    if activation_stack.is_empty() {
+        if let Some((from, to)) = last_message {
+            return Ok(SequenceEventKind::Return {
+                label,
+                from: Some(to.clone()),
+                to: Some(from.clone()),
+            });
+        }
+    }
     let Some(frame) = activation_stack.pop() else {
         return Err(Diagnostic::error(
             "[E_RETURN_INFER_EMPTY] cannot infer `return` sender/target without an active activation",
@@ -477,15 +525,16 @@ struct ParsedMessageArrow {
 
 fn parse_message_arrow(raw: &str) -> Option<ParsedMessageArrow> {
     let (base, left_modifier, right_modifier) = decode_arrow_modifiers(raw)?;
-    let bidirectional = matches!(base.as_str(), "<->" | "<-->" | "<<->>" | "<<-->>");
+    let canonical_base = base.replace(['/', '\\'], "");
+    let bidirectional = matches!(canonical_base.as_str(), "<->" | "<-->" | "<<->>" | "<<-->>");
     let render_arrow = if bidirectional {
-        if base.contains("--") {
+        if canonical_base.contains("--") {
             "-->".to_string()
         } else {
             "->".to_string()
         }
     } else {
-        base
+        canonical_base
     };
     Some(ParsedMessageArrow {
         render_arrow,
