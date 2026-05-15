@@ -14,11 +14,11 @@ This log records intentional contract deviations and updates adopted in the curr
 - Rationale: Prevents accidental behavioral changes for single-diagram workflows and output paths.
 - Impact: Multi-block input without `--multi` fails validation and instructs the user to rerun with `--multi`.
 
-### D-003: Directive tokens recognized, execution deferred
-- Decision: Parse `!include`, `!define`, and `!undef` tokens but reject them during normalization.
-- Rationale: Preserves forward-compatible syntax recognition while avoiding partial preprocessing semantics.
-- Impact: Inputs using these directives fail with a validation warning error rather than being silently ignored.
-- Spec/implementation contradiction and resolution: PlantUML directives typically imply preprocessing behavior; this implementation adopts fail-fast rejection until full preprocessing can be implemented safely.
+### D-003: Directive tokens recognized, execution deferred (superseded)
+- Decision: Initial policy (superseded by D-007) parsed `!include`, `!define`, and `!undef` tokens but deferred executable preprocessing behavior.
+- Rationale: Preserves historical context for the contract transition.
+- Impact: This entry is historical only; current runtime behavior is defined by D-007 and later decisions.
+- Spec/implementation contradiction and resolution: superseded.
 
 ### D-004: `skinparam` contract narrowed
 - Decision: Support deterministic sequence styling keys (`maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`, `SequenceLifeLineBorderColor`, `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor`) and keep other `skinparam` keys plus `!theme` non-fatal with deterministic warnings.
@@ -29,7 +29,7 @@ This log records intentional contract deviations and updates adopted in the curr
 ### D-005: Include-root boundary for stdin mode
 - Decision: Gate include resolution behind explicit `--include-root DIR` when reading from stdin.
 - Rationale: Stdin input has no stable file-relative base path; explicit root prevents ambiguous or unsafe path resolution.
-- Impact: Include-capable workflows from stdin must provide `--include-root`, and directive handling still follows D-003 fail-fast behavior.
+- Impact: Include-capable workflows from stdin must provide `--include-root` in `strict` mode; directive behavior follows bounded preprocessing rules defined in D-007 and later entries.
 
 ### D-006: Canonical include confinement
 - Decision: Canonicalize include root and each `!include` target, and reject targets outside the canonical root.
@@ -37,10 +37,10 @@ This log records intentional contract deviations and updates adopted in the curr
 - Impact: Include escapes now fail with explicit include diagnostics (for example `E_INCLUDE_ESCAPE`), while in-root includes continue to resolve.
 
 ### D-007: Preprocessor behavior clarified to match runtime
-- Decision: Treat `!include` as executable today (with read/cycle/root guards), while `!define`/`!undef` remain out of scope for sequence rendering semantics.
-- Rationale: Practical audit on 2026-05-15 showed current runtime performs include resolution and surfaces include diagnostics, which contradicts the earlier "recognized but rejected" framing in D-003.
-- Impact: Contract docs should describe include as active behavior with explicit safety boundaries, and keep `!define`/`!undef` documented as unsupported for normalized sequence execution.
-- Spec/implementation contradiction and resolution: PlantUML preprocessing remains broader than this implementation; we intentionally keep a narrower contract instead of implying full preprocessing parity.
+- Decision: Treat bounded preprocessing as executable today: `!include` resolution (with read/cycle/root guards) plus simple `!define`/`!undef` token substitution before normalization.
+- Rationale: Runtime audit on 2026-05-15 showed shipped behavior already performs these preprocessing steps, so docs must describe actual executable behavior.
+- Impact: Contract docs should describe include + define/undef substitution as supported within explicit safety/feature boundaries.
+- Spec/implementation contradiction and resolution: PlantUML preprocessing remains broader than this implementation; we intentionally keep a narrower bounded contract instead of implying full preprocessing parity.
 
 ### D-008: Strict include baseline for include-id and URL handling
 - Decision: Add bounded include-id extraction for `!include file!TAG` using local `!startsub TAG`/`!endsub` blocks, and hard-reject URL includes with a dedicated deterministic diagnostic.

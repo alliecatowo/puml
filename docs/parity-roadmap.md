@@ -93,7 +93,7 @@ Fixture-first plan:
   - `tests/fixtures/structure/valid_autonumber_restart_step_format.puml`
   - `tests/fixtures/structure/valid_autonumber_off_resume_edges.puml`
   - `tests/fixtures/errors/invalid_autonumber_bad_format_token.puml`
-  - `tests/fixtures/basic/valid_virtual_endpoints_directional.puml`
+  - `tests/fixtures/arrows/valid_endpoint_variants.puml`
 
 ### Stage 3: Policy and Styling Boundary Closure (P3)
 
