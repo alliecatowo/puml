@@ -144,7 +144,11 @@ fn render_for_unsupported_families_reports_specific_codes() {
             DiagramFamily::Timing,
             "E_RENDER_TIMING_UNSUPPORTED",
         ),
-        ("@startuml\nfoo bar\n@enduml\n", DiagramFamily::Unknown, "E_RENDER_FAMILY_UNSUPPORTED"),
+        (
+            "@startuml\nfoo bar\n@enduml\n",
+            DiagramFamily::Unknown,
+            "E_RENDER_FAMILY_UNSUPPORTED",
+        ),
     ];
 
     for (src, family, code) in cases {
