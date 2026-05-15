@@ -65,7 +65,11 @@ pub enum SequenceEventKind {
     Deactivate(String),
     Destroy(String),
     Create(String),
-    Return(Option<String>),
+    Return {
+        label: Option<String>,
+        from: Option<String>,
+        to: Option<String>,
+    },
     IncludePlaceholder(String),
     DefinePlaceholder {
         name: String,

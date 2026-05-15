@@ -1,0 +1,8 @@
+@startuml
+create Worker
+A -> Worker: boot
+activate Worker
+Worker --> A: ready
+deactivate Worker
+destroy Worker
+@enduml

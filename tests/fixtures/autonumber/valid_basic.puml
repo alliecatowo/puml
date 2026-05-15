@@ -1,0 +1,5 @@
+@startuml
+autonumber
+A -> B: first
+B --> A: second
+@enduml

@@ -1,3 +1,7 @@
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use crate::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl, ParticipantRole, Statement,
     StatementKind,
@@ -5,7 +9,206 @@ use crate::ast::{
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 
+const MAX_INCLUDE_DEPTH: usize = 32;
+
+#[derive(Debug, Clone, Default)]
+pub struct ParseOptions {
+    pub include_root: Option<PathBuf>,
+}
+
 pub fn parse(source: &str) -> Result<Document, Diagnostic> {
+    parse_with_options(source, &ParseOptions::default())
+}
+
+pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Document, Diagnostic> {
+    let mut defines = BTreeMap::new();
+    let mut include_stack = Vec::new();
+    let mut expanded = String::new();
+
+    preprocess_text(
+        source,
+        options,
+        &mut defines,
+        &mut include_stack,
+        0,
+        &mut expanded,
+    )?;
+
+    parse_preprocessed(&expanded)
+}
+
+fn preprocess_text(
+    source: &str,
+    options: &ParseOptions,
+    defines: &mut BTreeMap<String, String>,
+    include_stack: &mut Vec<PathBuf>,
+    depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    if depth > MAX_INCLUDE_DEPTH {
+        return Err(Diagnostic::error(format!(
+            "include depth exceeded maximum of {MAX_INCLUDE_DEPTH}"
+        )));
+    }
+
+    for raw_line in source.lines() {
+        let line = raw_line.trim();
+        let lower = line.to_ascii_lowercase();
+
+        if lower.starts_with("!define") {
+            let body = line[7..].trim();
+            let (name, value) = body.split_once(' ').unwrap_or((body, ""));
+            if !name.trim().is_empty() {
+                defines.insert(name.trim().to_string(), value.trim().to_string());
+            }
+            continue;
+        }
+
+        if lower.starts_with("!undef") {
+            let name = line[6..].trim();
+            if !name.is_empty() {
+                defines.remove(name);
+            }
+            continue;
+        }
+
+        if lower.starts_with("!include") {
+            let raw_target = line[8..].trim();
+            if raw_target.is_empty() {
+                return Err(Diagnostic::error("!include requires a relative path"));
+            }
+
+            let include_path = parse_include_target(raw_target);
+            if include_path.is_absolute() {
+                return Err(Diagnostic::error(format!(
+                    "!include only supports relative paths: {}",
+                    include_path.display()
+                )));
+            }
+
+            let base_dir = if let Some(curr) = include_stack.last() {
+                curr.parent().map(Path::to_path_buf)
+            } else {
+                options.include_root.clone()
+            };
+
+            let Some(base_dir) = base_dir else {
+                return Err(Diagnostic::error(
+                    "!include from stdin requires include_root option",
+                ));
+            };
+
+            let resolved = normalize_path(base_dir.join(include_path));
+            if include_stack.iter().any(|p| p == &resolved) {
+                let mut cycle = include_stack
+                    .iter()
+                    .map(|p| p.display().to_string())
+                    .collect::<Vec<_>>();
+                cycle.push(resolved.display().to_string());
+                return Err(Diagnostic::error(format!(
+                    "include cycle detected: {}",
+                    cycle.join(" -> ")
+                )));
+            }
+
+            let content = fs::read_to_string(&resolved).map_err(|e| {
+                Diagnostic::error(format!(
+                    "failed to read include '{}': {e}",
+                    resolved.display()
+                ))
+            })?;
+
+            include_stack.push(resolved);
+            preprocess_text(&content, options, defines, include_stack, depth + 1, out)?;
+            include_stack.pop();
+            continue;
+        }
+
+        out.push_str(&substitute_tokens(raw_line, defines));
+        out.push('\n');
+    }
+
+    Ok(())
+}
+
+fn parse_include_target(raw_target: &str) -> PathBuf {
+    let trimmed = raw_target.trim();
+    let unwrapped = trimmed
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| trimmed.strip_prefix('<').and_then(|s| s.strip_suffix('>')))
+        .unwrap_or(trimmed);
+    PathBuf::from(unwrapped)
+}
+
+fn normalize_path(path: PathBuf) -> PathBuf {
+    let mut parts = Vec::new();
+    let is_abs = path.is_absolute();
+
+    for comp in path.components() {
+        use std::path::Component;
+        match comp {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if parts
+                    .last()
+                    .is_some_and(|c: &Component<'_>| !matches!(c, Component::ParentDir))
+                {
+                    parts.pop();
+                } else if !is_abs {
+                    parts.push(comp);
+                }
+            }
+            Component::RootDir | Component::Prefix(_) | Component::Normal(_) => parts.push(comp),
+        }
+    }
+
+    let mut out = PathBuf::new();
+    for c in parts {
+        out.push(c.as_os_str());
+    }
+    out
+}
+
+fn substitute_tokens(line: &str, defines: &BTreeMap<String, String>) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut token = String::new();
+    let mut in_quotes = false;
+
+    let flush_token = |token: &mut String, out: &mut String, defines: &BTreeMap<String, String>| {
+        if token.is_empty() {
+            return;
+        }
+        if let Some(v) = defines.get(token.as_str()) {
+            out.push_str(v);
+        } else {
+            out.push_str(token);
+        }
+        token.clear();
+    };
+
+    for ch in line.chars() {
+        if ch == '"' {
+            flush_token(&mut token, &mut out, defines);
+            in_quotes = !in_quotes;
+            out.push(ch);
+            continue;
+        }
+
+        if !in_quotes && (ch.is_ascii_alphanumeric() || ch == '_') {
+            token.push(ch);
+            continue;
+        }
+
+        flush_token(&mut token, &mut out, defines);
+        out.push(ch);
+    }
+
+    flush_token(&mut token, &mut out, defines);
+    out
+}
+
+fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     let mut statements = Vec::new();
     let mut offset = 0usize;
     let mut seen_sequence = false;
@@ -365,4 +568,74 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Undef(_)
             | StatementKind::Theme(_)
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_with_options, ParseOptions};
+    use crate::ast::StatementKind;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn define_substitution_skips_quoted_strings() {
+        let doc = parse_with_options(
+            "!define NAME Alice\nparticipant NAME\nnote over NAME: \"NAME\"\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::Participant(_)
+        ));
+        match &doc.statements[1].kind {
+            StatementKind::Note(n) => {
+                assert_eq!(n.target.as_deref(), Some("Alice"));
+                assert_eq!(n.text, "\"NAME\"");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn include_resolves_relative_to_root() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("inc.puml"), "A -> B\n").unwrap();
+
+        let doc = parse_with_options(
+            "!include inc.puml",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+
+        assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn include_cycle_errors() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("a.puml"), "!include b.puml\n").unwrap();
+        fs::write(dir.path().join("b.puml"), "!include a.puml\n").unwrap();
+
+        let err = parse_with_options(
+            "!include a.puml",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("include cycle detected"));
+    }
+
+    #[test]
+    fn include_from_stdin_requires_root() {
+        let err = parse_with_options("!include x.puml", &ParseOptions::default()).unwrap_err();
+        assert!(err
+            .message
+            .contains("!include from stdin requires include_root option"));
+    }
 }

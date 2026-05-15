@@ -6,7 +6,19 @@ use crate::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
 };
 
+#[derive(Debug, Clone, Default)]
+pub struct NormalizeOptions {
+    pub include_root: Option<std::path::PathBuf>,
+}
+
 pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
+    normalize_with_options(document, &NormalizeOptions::default())
+}
+
+pub fn normalize_with_options(
+    document: Document,
+    _options: &NormalizeOptions,
+) -> Result<SequenceDocument, Diagnostic> {
     if document.kind != DiagramKind::Sequence {
         return Err(Diagnostic::error(
             "puml currently renders sequence diagrams only",
@@ -25,6 +37,9 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
     let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
+    let mut activation_stack: Vec<ActivationFrame> = Vec::new();
+    let mut last_message: Option<(String, String)> = None;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -43,6 +58,25 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
             StatementKind::Message(m) => {
                 ensure_implicit(&mut participants, &mut participant_ix, &m.from);
                 ensure_implicit(&mut participants, &mut participant_ix, &m.to);
+                let from_alive = is_alive(&alive_by_id, &m.from);
+                let to_alive = is_alive(&alive_by_id, &m.to);
+                if !from_alive {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_DESTROYED_SENDER] message sender `{}` is destroyed",
+                        m.from
+                    ))
+                    .with_span(stmt.span));
+                }
+                if !to_alive {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_DESTROYED_TARGET] message target `{}` is destroyed (recreate it before sending messages to it)",
+                        m.to
+                    ))
+                    .with_span(stmt.span));
+                }
+                alive_by_id.insert(m.from.clone(), true);
+                alive_by_id.insert(m.to.clone(), true);
+                last_message = Some((m.from.clone(), m.to.clone()));
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Message {
@@ -130,6 +164,22 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
             }),
             StatementKind::Activate(id) => {
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
+                if !is_alive(&alive_by_id, &id) {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_ACTIVATE_DESTROYED] cannot activate destroyed participant `{}`",
+                        id
+                    ))
+                    .with_span(stmt.span));
+                }
+                alive_by_id.insert(id.clone(), true);
+                let caller = match &last_message {
+                    Some((from, to)) if to == &id => Some(from.clone()),
+                    _ => activation_stack.last().map(|f| f.participant.clone()),
+                };
+                activation_stack.push(ActivationFrame {
+                    participant: id.clone(),
+                    caller,
+                });
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Activate(id),
@@ -137,6 +187,33 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
             }
             StatementKind::Deactivate(id) => {
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
+                if !is_alive(&alive_by_id, &id) {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_DEACTIVATE_DESTROYED] cannot deactivate destroyed participant `{}`",
+                        id
+                    ))
+                    .with_span(stmt.span));
+                }
+                alive_by_id.insert(id.clone(), true);
+                match activation_stack.last() {
+                    Some(frame) if frame.participant == id => {
+                        activation_stack.pop();
+                    }
+                    Some(frame) => {
+                        return Err(Diagnostic::error(format!(
+                            "[E_LIFECYCLE_DEACTIVATE_ORDER] deactivate `{}` does not match current activation `{}`",
+                            id, frame.participant
+                        ))
+                        .with_span(stmt.span));
+                    }
+                    None => {
+                        return Err(Diagnostic::error(format!(
+                            "[E_LIFECYCLE_DEACTIVATE_EMPTY] cannot deactivate `{}` without an active activation",
+                            id
+                        ))
+                        .with_span(stmt.span));
+                    }
+                }
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Deactivate(id),
@@ -144,6 +221,21 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
             }
             StatementKind::Destroy(id) => {
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
+                if !is_alive(&alive_by_id, &id) {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_DESTROY_TWICE] participant `{}` is already destroyed",
+                        id
+                    ))
+                    .with_span(stmt.span));
+                }
+                if activation_stack.iter().any(|f| f.participant == id) {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_DESTROY_ACTIVE] cannot destroy active participant `{}`",
+                        id
+                    ))
+                    .with_span(stmt.span));
+                }
+                alive_by_id.insert(id.clone(), false);
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Destroy(id),
@@ -151,6 +243,14 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
             }
             StatementKind::Create(id) => {
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
+                if alive_by_id.get(&id).copied() == Some(true) {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_CREATE_EXISTING] participant `{}` already exists; destroy before create",
+                        id
+                    ))
+                    .with_span(stmt.span));
+                }
+                alive_by_id.insert(id.clone(), true);
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Create(id),
@@ -158,37 +258,10 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
             }
             StatementKind::Return(v) => events.push(SequenceEvent {
                 span: stmt.span,
-                kind: SequenceEventKind::Return(v),
+                kind: infer_return_event(v, &mut activation_stack),
             }),
-            StatementKind::Include(path) => {
-                events.push(SequenceEvent {
-                    span: stmt.span,
-                    kind: SequenceEventKind::IncludePlaceholder(path),
-                });
-                return Err(Diagnostic::warning(
-                    "include/define/undef directives are placeholders only",
-                )
-                .with_span(stmt.span));
-            }
-            StatementKind::Define { name, value } => {
-                events.push(SequenceEvent {
-                    span: stmt.span,
-                    kind: SequenceEventKind::DefinePlaceholder { name, value },
-                });
-                return Err(Diagnostic::warning(
-                    "include/define/undef directives are placeholders only",
-                )
-                .with_span(stmt.span));
-            }
-            StatementKind::Undef(name) => {
-                events.push(SequenceEvent {
-                    span: stmt.span,
-                    kind: SequenceEventKind::UndefPlaceholder(name),
-                });
-                return Err(Diagnostic::warning(
-                    "include/define/undef directives are placeholders only",
-                )
-                .with_span(stmt.span));
+            StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
+                // Preprocessor directives should be expanded before normalization.
             }
             StatementKind::Unknown(_) => {}
         }
@@ -214,6 +287,41 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
         skinparams,
         footbox_visible,
     })
+}
+
+fn is_alive(alive_by_id: &BTreeMap<String, bool>, id: &str) -> bool {
+    alive_by_id.get(id).copied().unwrap_or(true)
+}
+
+#[derive(Debug, Clone)]
+struct ActivationFrame {
+    participant: String,
+    caller: Option<String>,
+}
+
+fn infer_return_event(
+    label: Option<String>,
+    activation_stack: &mut Vec<ActivationFrame>,
+) -> SequenceEventKind {
+    if let Some(frame) = activation_stack.pop() {
+        if let Some(caller) = frame.caller {
+            return SequenceEventKind::Return {
+                label,
+                from: Some(frame.participant),
+                to: Some(caller),
+            };
+        }
+        return SequenceEventKind::Return {
+            label,
+            from: None,
+            to: None,
+        };
+    }
+    SequenceEventKind::Return {
+        label,
+        from: None,
+        to: None,
+    }
 }
 
 fn is_supported_skinparam(key: &str) -> bool {

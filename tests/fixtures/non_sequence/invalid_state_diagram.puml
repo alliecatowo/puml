@@ -1,0 +1,4 @@
+@startuml
+[*] --> Active
+Active --> [*]
+@enduml

@@ -1,0 +1,6 @@
+@startuml
+autonumber 100
+A -> B: init
+B -> C: fanout
+C --> A: done
+@enduml

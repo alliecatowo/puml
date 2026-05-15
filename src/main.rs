@@ -10,7 +10,8 @@ use puml::model::{
     Participant, ParticipantRole as ModelParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind,
 };
-use puml::{normalize, parse, render_source_to_svg, Diagnostic};
+use puml::parser::{parse_with_options, ParseOptions};
+use puml::{normalize, render_source_to_svg, Diagnostic};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::fs;
@@ -81,6 +82,9 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<(), (u8, String)> {
     let (_input_name, raw, input_path) = read_input(cli.input.as_deref())?;
+    let include_root = input_path
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .or_else(|| std::env::current_dir().ok());
     let diagrams = split_diagrams(&raw);
 
     if diagrams.is_empty() {
@@ -96,7 +100,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
 
     if cli.check {
         for source in &diagrams {
-            let doc = parse(source).map_err(diag_err)?;
+            let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
             normalize(doc).map_err(diag_err)?;
         }
         return Ok(());
@@ -107,16 +111,16 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             .iter()
             .map(|source| match dump_kind {
                 DumpKind::Ast => {
-                    let doc = parse(source).map_err(diag_err)?;
+                    let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
                     Ok(ast_to_json(&doc))
                 }
                 DumpKind::Model => {
-                    let doc = parse(source).map_err(diag_err)?;
+                    let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
                     let model = normalize(doc).map_err(diag_err)?;
                     Ok(model_to_json(&model))
                 }
                 DumpKind::Scene => {
-                    let doc = parse(source).map_err(diag_err)?;
+                    let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
                     let model = normalize(doc).map_err(diag_err)?;
                     Ok(scene_to_json(&model))
                 }
@@ -195,6 +199,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
 
 fn diag_err(d: Diagnostic) -> (u8, String) {
     (EXIT_VALIDATION, d.message)
+}
+
+fn parse_for_cli(source: &str, include_root: Option<PathBuf>) -> Result<Document, Diagnostic> {
+    parse_with_options(source, &ParseOptions { include_root })
 }
 
 fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u8, String)> {
@@ -452,7 +460,9 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
         SequenceEventKind::Deactivate(v) => json!({"Deactivate": v}),
         SequenceEventKind::Destroy(v) => json!({"Destroy": v}),
         SequenceEventKind::Create(v) => json!({"Create": v}),
-        SequenceEventKind::Return(v) => json!({"Return": v}),
+        SequenceEventKind::Return { label, from, to } => {
+            json!({"Return": {"label": label, "from": from, "to": to}})
+        }
         SequenceEventKind::IncludePlaceholder(v) => json!({"IncludePlaceholder": v}),
         SequenceEventKind::DefinePlaceholder { name, value } => {
             json!({"DefinePlaceholder": {"name": name, "value": value}})

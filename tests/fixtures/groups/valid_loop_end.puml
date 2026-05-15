@@ -1,0 +1,6 @@
+@startuml
+A -> B: start
+loop retry until success
+B --> A: retry
+end
+@enduml

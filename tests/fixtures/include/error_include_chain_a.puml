@@ -1,0 +1,3 @@
+@startuml
+!include error_include_chain_b.puml
+@enduml

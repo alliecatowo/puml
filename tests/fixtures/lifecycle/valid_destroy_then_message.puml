@@ -1,0 +1,5 @@
+@startuml
+A -> B: create work
+destroy B
+A -> B: post-destroy ping
+@enduml

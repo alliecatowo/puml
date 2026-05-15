@@ -45,6 +45,7 @@ pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     let mut messages = Vec::new();
     let mut notes = Vec::new();
     let mut event_rows: i32 = 0;
+    let mut autonumber = AutonumberState::default();
 
     for event in &document.events {
         match &event.kind {
@@ -66,9 +67,34 @@ pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
                     x1,
                     y,
                     x2,
-                    label: label.clone(),
+                    label: autonumber.apply(label.clone()),
                 });
                 event_rows += 1;
+            }
+            SequenceEventKind::Return { label, from, to } => {
+                if let (Some(from_id), Some(to_id)) = (from.as_ref(), to.as_ref()) {
+                    let y = events_top + (event_rows * options.message_row_height);
+                    let x1 = centers_by_id
+                        .get(from_id)
+                        .copied()
+                        .unwrap_or(options.margin + options.participant_width / 2);
+                    let x2 = centers_by_id
+                        .get(to_id)
+                        .copied()
+                        .unwrap_or(options.margin + options.participant_width / 2);
+                    messages.push(MessageLine {
+                        from_id: from_id.clone(),
+                        to_id: to_id.clone(),
+                        x1,
+                        y,
+                        x2,
+                        label: autonumber.apply(label.clone()),
+                    });
+                    event_rows += 1;
+                }
+            }
+            SequenceEventKind::Autonumber(raw) => {
+                autonumber.update(raw.as_deref());
             }
             SequenceEventKind::Note {
                 target,
@@ -143,5 +169,53 @@ pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
         lifelines,
         messages,
         notes,
+    }
+}
+
+#[derive(Debug, Default)]
+struct AutonumberState {
+    enabled: bool,
+    next: u64,
+}
+
+impl AutonumberState {
+    fn update(&mut self, raw: Option<&str>) {
+        let value = raw.map(str::trim).unwrap_or("");
+        if value.eq_ignore_ascii_case("stop") {
+            self.enabled = false;
+            return;
+        }
+
+        if value.is_empty() {
+            if self.next == 0 {
+                self.next = 1;
+            }
+            self.enabled = true;
+            return;
+        }
+
+        let start = value
+            .split_whitespace()
+            .next()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(1);
+        self.next = start;
+        self.enabled = true;
+    }
+
+    fn apply(&mut self, label: Option<String>) -> Option<String> {
+        if !self.enabled {
+            return label;
+        }
+        if self.next == 0 {
+            self.next = 1;
+        }
+
+        let number = self.next;
+        self.next += 1;
+        match label {
+            Some(text) if !text.is_empty() => Some(format!("{number} {text}")),
+            _ => Some(number.to_string()),
+        }
     }
 }

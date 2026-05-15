@@ -1,0 +1,4 @@
+@startuml
+!include error_include_cycle_self.puml
+A -> B: never rendered
+@enduml

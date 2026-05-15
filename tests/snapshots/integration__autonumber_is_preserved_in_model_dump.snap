@@ -1,0 +1,87 @@
+---
+source: tests/integration.rs
+assertion_line: 377
+expression: json
+---
+{
+  "caption": null,
+  "events": [
+    {
+      "kind": {
+        "Autonumber": "100"
+      },
+      "span": {
+        "end": 24,
+        "start": 10
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "A",
+          "label": "init",
+          "to": "B"
+        }
+      },
+      "span": {
+        "end": 37,
+        "start": 25
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "B",
+          "label": "fanout",
+          "to": "C"
+        }
+      },
+      "span": {
+        "end": 52,
+        "start": 38
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "-->",
+          "from": "C",
+          "label": "done",
+          "to": "A"
+        }
+      },
+      "span": {
+        "end": 66,
+        "start": 53
+      }
+    }
+  ],
+  "footbox_visible": true,
+  "footer": null,
+  "header": null,
+  "legend": null,
+  "participants": [
+    {
+      "display": "A",
+      "explicit": false,
+      "id": "A",
+      "role": "Participant"
+    },
+    {
+      "display": "B",
+      "explicit": false,
+      "id": "B",
+      "role": "Participant"
+    },
+    {
+      "display": "C",
+      "explicit": false,
+      "id": "C",
+      "role": "Participant"
+    }
+  ],
+  "skinparams": [],
+  "title": null
+}

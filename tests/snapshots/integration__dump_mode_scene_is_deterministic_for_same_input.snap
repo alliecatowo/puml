@@ -1,0 +1,96 @@
+---
+source: tests/integration.rs
+assertion_line: 180
+expression: first_json
+---
+{
+  "lanes": [
+    {
+      "display": "A",
+      "id": "A",
+      "role": "Participant",
+      "x": 100
+    },
+    {
+      "display": "B",
+      "id": "B",
+      "role": "Participant",
+      "x": 240
+    },
+    {
+      "display": "C",
+      "id": "C",
+      "role": "Participant",
+      "x": 380
+    }
+  ],
+  "rows": [
+    {
+      "event": {
+        "kind": {
+          "Autonumber": "100"
+        },
+        "span": {
+          "end": 24,
+          "start": 10
+        }
+      },
+      "y": 120
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "init",
+            "to": "B"
+          }
+        },
+        "span": {
+          "end": 37,
+          "start": 25
+        }
+      },
+      "y": 160
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "B",
+            "label": "fanout",
+            "to": "C"
+          }
+        },
+        "span": {
+          "end": 52,
+          "start": 38
+        }
+      },
+      "y": 200
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "-->",
+            "from": "C",
+            "label": "done",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 66,
+          "start": 53
+        }
+      },
+      "y": 240
+    }
+  ],
+  "size": {
+    "height": 280,
+    "width": 620
+  }
+}

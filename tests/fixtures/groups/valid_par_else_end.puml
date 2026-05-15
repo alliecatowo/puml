@@ -1,0 +1,8 @@
+@startuml
+A -> B: begin
+par branch one
+B -> C: one
+else branch two
+B -> D: two
+end
+@enduml
