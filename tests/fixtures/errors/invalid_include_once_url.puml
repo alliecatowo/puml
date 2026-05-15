@@ -1,0 +1,3 @@
+@startuml
+!include_once https://example.com/once.puml
+@enduml

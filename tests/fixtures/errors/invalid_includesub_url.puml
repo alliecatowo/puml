@@ -1,0 +1,3 @@
+@startuml
+!includesub https://example.com/sub.puml!FLOW
+@enduml
