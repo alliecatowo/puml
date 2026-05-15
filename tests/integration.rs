@@ -210,9 +210,38 @@ end"#;
         .write_stdin(src)
         .assert()
         .code(1)
-        .stderr(predicate::str::contains(
-            "[E_MERMAID_CONSTRUCT_UNSUPPORTED]",
-        ));
+        .stderr(predicate::str::contains("[E_MERMAID_BLOCK_UNSUPPORTED]"));
+}
+
+#[test]
+fn mermaid_extended_subset_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/valid_extended_subset.mmd"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mermaid_unsupported_block_construct_uses_stable_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/invalid_unsupported_block.mmd"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_MERMAID_BLOCK_UNSUPPORTED]"));
 }
 
 #[test]

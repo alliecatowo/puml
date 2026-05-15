@@ -359,7 +359,7 @@ fn adapt_mermaid_to_plantuml(source: &str) -> Result<String, Diagnostic> {
     let mut offset = 0usize;
 
     for raw_line in source.lines() {
-        let line = raw_line.trim();
+        let line = strip_mermaid_comment(raw_line).trim();
         let span = Span::new(offset, offset + raw_line.len());
         offset += raw_line.len() + 1;
 
@@ -388,6 +388,36 @@ fn adapt_mermaid_to_plantuml(source: &str) -> Result<String, Diagnostic> {
         if let Some(converted) = adapt_mermaid_message(line) {
             out.push(converted);
             continue;
+        }
+
+        if let Some(converted) = adapt_mermaid_note(line) {
+            out.push(converted);
+            continue;
+        }
+
+        if let Some(converted) = adapt_mermaid_lifecycle(line) {
+            out.push(converted);
+            continue;
+        }
+
+        if line.eq_ignore_ascii_case("autonumber") {
+            out.push("autonumber".to_string());
+            continue;
+        }
+
+        if let Some(title) = line.strip_prefix("title ") {
+            if !title.trim().is_empty() {
+                out.push(format!("title {}", title.trim()));
+                continue;
+            }
+        }
+
+        if let Some(code) = classify_unsupported_mermaid_construct(line) {
+            return Err(Diagnostic::error_code(
+                code,
+                format!("unsupported mermaid sequence construct: `{line}`"),
+            )
+            .with_span(span));
         }
 
         return Err(Diagnostic::error_code(
@@ -440,6 +470,56 @@ fn adapt_mermaid_message(line: &str) -> Option<String> {
     ))
 }
 
+fn adapt_mermaid_note(line: &str) -> Option<String> {
+    let lower = line.to_ascii_lowercase();
+    if !lower.starts_with("note ") {
+        return None;
+    }
+    let (head, body) = line.split_once(':')?;
+    let prefix = &head["note ".len()..];
+    let body = body.trim();
+    if body.is_empty() {
+        return None;
+    }
+
+    let lower_prefix = prefix.to_ascii_lowercase();
+    if lower_prefix.starts_with("over ") {
+        let target = prefix["over ".len()..].trim();
+        if target.is_empty() {
+            return None;
+        }
+        return Some(format!("note over {target}: {body}"));
+    }
+    if lower_prefix.starts_with("left of ") {
+        let target = prefix["left of ".len()..].trim();
+        if target.is_empty() {
+            return None;
+        }
+        return Some(format!("note left of {target}: {body}"));
+    }
+    if lower_prefix.starts_with("right of ") {
+        let target = prefix["right of ".len()..].trim();
+        if target.is_empty() {
+            return None;
+        }
+        return Some(format!("note right of {target}: {body}"));
+    }
+    None
+}
+
+fn adapt_mermaid_lifecycle(line: &str) -> Option<String> {
+    let mut parts = line.split_ascii_whitespace();
+    let head = parts.next()?;
+    if !matches!(head, "activate" | "deactivate" | "destroy") {
+        return None;
+    }
+    let target = parts.collect::<Vec<_>>().join(" ");
+    if target.is_empty() {
+        return None;
+    }
+    Some(format!("{head} {target}"))
+}
+
 fn split_mermaid_message_core(core: &str) -> Option<(&str, &str, &str)> {
     for arrow in ["-->>", "->>", "-->", "->"] {
         if let Some(idx) = core.find(arrow) {
@@ -452,6 +532,21 @@ fn split_mermaid_message_core(core: &str) -> Option<(&str, &str, &str)> {
         }
     }
     None
+}
+
+fn strip_mermaid_comment(line: &str) -> &str {
+    line.split_once("%%").map_or(line, |(prefix, _)| prefix)
+}
+
+fn classify_unsupported_mermaid_construct(line: &str) -> Option<&'static str> {
+    let first = line.split_ascii_whitespace().next()?.to_ascii_lowercase();
+    match first.as_str() {
+        "alt" | "else" | "loop" | "opt" | "par" | "and" | "critical" | "option" | "break"
+        | "rect" | "box" | "end" => Some("E_MERMAID_BLOCK_UNSUPPORTED"),
+        "create" => Some("E_MERMAID_CREATE_UNSUPPORTED"),
+        "link" | "links" => Some("E_MERMAID_LINK_UNSUPPORTED"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

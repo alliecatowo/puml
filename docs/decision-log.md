@@ -131,3 +131,11 @@ This log records intentional contract deviations and updates adopted in the curr
   - `!assert` failures return deterministic error `E_PREPROC_ASSERT`.
   - Missing block terminators return deterministic errors (`E_FUNCTION_UNCLOSED`, `E_PROCEDURE_UNCLOSED`).
   - Dynamic invocation and JSON preprocessing behavior remain out of scope for this slice.
+
+### D-021: Mermaid sequence subset expansion with construct-specific unsupported diagnostics
+- Decision: Expand Mermaid frontend support beyond participants + arrows to include `Note over|left of|right of`, lifecycle directives (`activate`/`deactivate`/`destroy`), `autonumber`, `title`, and inline `%%` comments.
+- Rationale: Closes high-frequency migration gaps while preserving one shared deterministic pipeline and explicit unsupported boundaries.
+- Impact:
+  - Mermaid `sequenceDiagram` inputs using the above constructs now pass through adaptation into the PlantUML shared parser path.
+  - Unsupported Mermaid sequence block/control constructs now emit deterministic construct-class codes (`E_MERMAID_BLOCK_UNSUPPORTED`, `E_MERMAID_CREATE_UNSUPPORTED`, `E_MERMAID_LINK_UNSUPPORTED`) instead of only generic unsupported-construct diagnostics.
+  - Generic unsupported Mermaid sequence constructs still emit `E_MERMAID_CONSTRUCT_UNSUPPORTED`.

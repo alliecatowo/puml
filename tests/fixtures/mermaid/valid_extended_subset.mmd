@@ -1,0 +1,10 @@
+sequenceDiagram
+%% whole-line comment should be ignored
+participant Alice as A
+actor Bob
+A->>Bob: hello %% inline comment
+activate Bob
+deactivate Bob
+Note over A,Bob: sync complete
+title Simple handshake
+autonumber
