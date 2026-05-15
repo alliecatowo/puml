@@ -1,0 +1,7 @@
+@startuml
+participant A
+participant B
+alt branch
+  A -> B : ping
+end par
+@enduml

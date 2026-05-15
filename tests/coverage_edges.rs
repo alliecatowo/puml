@@ -192,6 +192,26 @@ fn normalize_reports_else_inside_loop_group_as_invalid_kind() {
 }
 
 #[test]
+fn normalize_reports_group_end_keyword_mismatch() {
+    let src = fs::read_to_string(fixture("errors/invalid_group_mismatched_end_keyword.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected end-kind mismatch");
+
+    assert!(err.message.contains("E_GROUP_END_KIND"));
+}
+
+#[test]
+fn normalize_reports_empty_alt_group() {
+    let src =
+        fs::read_to_string(fixture("errors/invalid_group_empty_alt.puml")).expect("fixture load");
+    let doc = parse(&src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected empty group error");
+
+    assert!(err.message.contains("E_GROUP_EMPTY"));
+}
+
+#[test]
 fn theme_classifies_sequence_skinparam_subset() {
     assert_eq!(
         classify_sequence_skinparam("maxMessageSize", "120"),

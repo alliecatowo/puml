@@ -1,0 +1,20 @@
+@startuml
+participant A
+participant B
+participant C
+
+alt happy
+  A -> B : step-1
+  par parallel
+    B -> C : branch-1
+  else parallel-alt
+    critical guarded
+      C -> A : branch-2
+    end
+  end
+else sad
+  group fallback
+    A -> C : fallback
+  end
+end
+@enduml

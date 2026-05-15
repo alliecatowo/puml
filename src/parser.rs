@@ -833,7 +833,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         ) {
             return Some(StatementKind::Group(Group {
                 kind: "end".to_string(),
-                label: None,
+                label: Some(tail.to_string()),
             }));
         }
     }
@@ -1363,6 +1363,20 @@ mod tests {
         }
         match &doc.statements[1].kind {
             StatementKind::Separator(v) => assert_eq!(v.as_deref(), Some("Processing")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_typed_group_end_keyword() {
+        let doc =
+            parse_with_options("alt branch\nA -> B\nend alt\n", &ParseOptions::default()).unwrap();
+
+        match &doc.statements[2].kind {
+            StatementKind::Group(g) => {
+                assert_eq!(g.kind, "end");
+                assert_eq!(g.label.as_deref(), Some("alt"));
+            }
             other => panic!("unexpected statement: {other:?}"),
         }
     }
