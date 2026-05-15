@@ -1,0 +1,9 @@
+## Runtime contract snapshot (Current, audited in issue #23)
+render_source_to_svgs(source)
+--dump ast|model|scene
+schema `puml.diagnostics`
+schema_version: 1
+--multi
+--dump-capabilities
+puml.applyFormat
+puml.renderSvg

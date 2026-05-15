@@ -189,7 +189,7 @@ crates/
   puml-wasm/
 ```
 
-## WASM API
+## WASM API (Target)
 
 `puml-wasm` exposes typed functions:
 
@@ -235,7 +235,7 @@ list_themes() -> ThemeCatalog
 
 The browser does not reimplement these operations.
 
-## Worker protocol
+## Worker protocol (Target)
 
 All compile/render/language operations go through a worker.
 
@@ -264,6 +264,42 @@ Rules:
 - The worker can cancel or ignore obsolete work.
 - The main thread never blocks on render.
 - WASM load failure is a first-class error state with recovery UI.
+
+## Runtime contract snapshot (Current, audited in issue #23)
+
+The sections above describe the target Studio runtime. The current contract that already exists in the Rust runtime and is safe for Studio integration today is:
+
+### Rust library surface available now
+
+- `parse(source) -> Document | Diagnostic`
+- `normalize(document) -> SequenceDocument | Diagnostic`
+- `layout::layout_pages(sequence, LayoutOptions::default()) -> Scene[]`
+- `render::render_svg(scene) -> string`
+- `render_source_to_svg(source) -> string | Diagnostic` for single-page sequence diagrams
+- `render_source_to_svgs(source) -> string[] | Diagnostic` for multi-page sequence output
+- `render_source_to_svg_for_family` / `render_source_to_svgs_for_family` currently enforce sequence-only rendering and deterministic errors for unsupported families
+- `extract_markdown_diagrams(source) -> DiagramInput[]` for fenced diagram extraction
+
+### CLI/runtime contract available now
+
+- `--dump ast|model|scene` produces deterministic JSON payloads
+- `--diagnostics json` emits schema `puml.diagnostics` with `schema_version: 1`
+- `--multi` is required for multi-output stdin rendering (multiple `@startuml` and/or `newpage` pages)
+- `--dump-capabilities` exposes the LSP capability manifest, including custom requests:
+  - `puml.applyFormat`
+  - `puml.renderSvg`
+
+### Studio binding guidance for current runtime
+
+- Treat the current Studio worker contract as a thin wrapper over these runtime surfaces:
+  - compile path = parse + normalize + layout + render
+  - structural exports = `--dump` equivalents (`ast`, `model`, `scene`)
+  - diagnostics payload = `puml.diagnostics` schema contract
+- Do not advertise editor-LSP parity features (complete/hover/definition/references/format transforms through WASM) as shipped Studio runtime until dedicated exports land in `puml-wasm`.
+- Any new Studio API in this spec must be backed by:
+  - implementation in runtime crates
+  - explicit contract tests guarding drift
+  - docs updates in this spec and release contract docs
 
 ## Core screens
 
