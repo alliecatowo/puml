@@ -1,0 +1,45 @@
+{
+  "name": "puml",
+  "scopeName": "source.puml",
+  "patterns": [
+    { "include": "#directives" },
+    { "include": "#comments" },
+    { "include": "#participantKeywords" },
+    { "include": "#arrows" }
+  ],
+  "repository": {
+    "directives": {
+      "patterns": [
+        {
+          "name": "keyword.control.puml",
+          "match": "@(?:startuml|enduml|autonumber|newpage)\\b"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.apostrophe.puml",
+          "match": "'[^\\n]*$"
+        }
+      ]
+    },
+    "participantKeywords": {
+      "patterns": [
+        {
+          "name": "storage.type.actor.puml",
+          "match": "\\b(?:participant|actor|boundary|control|entity|database|collections|queue)\\b"
+        }
+      ]
+    },
+    "arrows": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.puml",
+          "match": "(?:--?>|<--?|<-+>|<-+|->+|\\.{2,}>|<\\.{2,})"
+        }
+      ]
+    }
+  },
+  "uuid": "b96fb5a4-4bf4-4816-a5c8-fc561946eff2"
+}
