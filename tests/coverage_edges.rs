@@ -131,6 +131,14 @@ fn normalize_family_rejects_unsupported_state_family() {
 }
 
 #[test]
+fn normalize_family_rejects_unknown_family_with_deterministic_code() {
+    let src = "@startuml\nthis is not supported\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize_family(doc).expect_err("unknown family should be rejected");
+    assert!(err.message.contains("E_FAMILY_UNKNOWN"));
+}
+
+#[test]
 fn normalize_family_rejects_mixed_bootstrap_declaration_kinds() {
     let doc = puml::ast::Document {
         kind: puml::ast::DiagramKind::Class,
