@@ -38,3 +38,20 @@ Then:
 - Prefer small, targeted fixtures over one giant fixture.
 - Keep fixture names explicit (`valid_*`, `invalid_*`, behavior-oriented names).
 - Avoid accepting snapshot churn without corresponding rationale in PR notes.
+
+## SVG Bounds Audit
+
+A regression audit verifies global SVG geometric sanity against each render's `viewBox`.
+
+- Script: `scripts/svg_bounds_audit.py`
+- Test hook: `tests/svg_bounds_audit.rs` (runs as part of `cargo test`)
+- Checks include:
+  - no negative `width`/`height` on `<rect>` elements
+  - tracked `<text text-anchor=\"...\">` positions inside `viewBox` with margin
+  - key `<rect>` bounds inside `viewBox` with margin
+
+Run manually:
+
+```console
+python3 scripts/svg_bounds_audit.py
+```

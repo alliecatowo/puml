@@ -1,0 +1,26 @@
+@startuml
+participant "FrontendWithDenseHeaderLabelThatWrapsAcrossMultipleLines" as FE
+participant "GatewayWithDenseHeaderLabelThatWrapsAcrossMultipleLines" as GW
+participant "WorkerWithDenseHeaderLabelThatWrapsAcrossMultipleLines" as WK
+participant "CacheWithDenseHeaderLabelThatWrapsAcrossMultipleLines" as CA
+
+FE -> GW : begin
+alt primary_branch_with_long_label_for_overflow_guardrails
+note across FE, WK
+combo_note_line_1_with_a_very_long_unbroken_token_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+combo_note_line_2_with_spacing and mixed words to force multiline measurement behavior
+end note
+ref over GW, WK
+combo_ref_line_1_with_a_very_long_unbroken_token_DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+combo_ref_line_2_with_secondary_payload_context_to_verify_ref_body_stays_inside_bounds
+end ref
+else fallback_branch_with_long_label_for_overflow_guardrails
+note over FE, CA
+fallback_note_line_1_with_long_unbroken_token_EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+fallback_note_line_2_with_additional_context
+end note
+end
+GW -> WK : continue
+WK -> CA : write
+CA --> FE : done
+@enduml

@@ -55,6 +55,7 @@ pub struct MessageLine {
     pub x2: i32,
     pub arrow: String,
     pub label: Option<String>,
+    pub label_lines: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

@@ -1,0 +1,15 @@
+@startuml
+participant "ParticipantHeaderAlphaWithLongUnbrokenIdentifier111111111111111111111111111111111111" as A
+participant "ParticipantHeaderBetaWithLongUnbrokenIdentifier222222222222222222222222222222222222" as B
+participant "ParticipantHeaderGammaWithLongUnbrokenIdentifier333333333333333333333333333333333333" as C
+participant "ParticipantHeaderDeltaWithLongUnbrokenIdentifier444444444444444444444444444444444444" as D
+participant "ParticipantHeaderEpsilonWithLongUnbrokenIdentifier5555555555555555555555555555555555" as E
+participant "ParticipantHeaderZetaWithLongUnbrokenIdentifier666666666666666666666666666666666666" as F
+
+A -> B : one
+B -> C : two
+C -> D : three
+D -> E : four
+E -> F : five
+F --> A : six
+@enduml

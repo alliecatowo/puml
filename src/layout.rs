@@ -106,6 +106,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             } => {
                 let y = events_top + (event_rows * options.message_row_height);
                 let (x1, x2) = message_x_bounds(from, to, &centers_by_id, &options);
+                let label = autonumber.apply(label.clone());
+                let label_lines = message_label_lines(label.as_deref(), x1, x2, &options);
+                let row_units = (label_lines.len() as i32).max(1);
                 messages.push(MessageLine {
                     from_id: from.clone(),
                     to_id: to.clone(),
@@ -113,9 +116,10 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     y,
                     x2,
                     arrow: arrow.clone(),
-                    label: autonumber.apply(label.clone()),
+                    label,
+                    label_lines,
                 });
-                event_rows += 1;
+                event_rows += row_units;
             }
             SequenceEventKind::Return { label, from, to } => {
                 if let (Some(from_id), Some(to_id)) = (from.as_ref(), to.as_ref()) {
@@ -128,6 +132,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         .get(to_id)
                         .copied()
                         .unwrap_or(options.margin + options.participant_width / 2);
+                    let label = autonumber.apply(label.clone());
+                    let label_lines = message_label_lines(label.as_deref(), x1, x2, &options);
+                    let row_units = (label_lines.len() as i32).max(1);
                     messages.push(MessageLine {
                         from_id: from_id.clone(),
                         to_id: to_id.clone(),
@@ -135,9 +142,10 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         y,
                         x2,
                         arrow: "-->".to_string(),
-                        label: autonumber.apply(label.clone()),
+                        label,
+                        label_lines,
                     });
-                    event_rows += 1;
+                    event_rows += row_units;
                 }
             }
             SequenceEventKind::Autonumber(raw) => {
@@ -315,6 +323,17 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     }
     for s in &structures {
         width = width.max(s.x2 + options.margin);
+    }
+    for m in &messages {
+        if m.label_lines.is_empty() {
+            continue;
+        }
+        let tx = ((m.x1 + m.x2) / 2) + 2;
+        for line in &m.label_lines {
+            let text_width = estimate_text_px_width(line);
+            let right = tx + (text_width / 2);
+            width = width.max(right + options.margin);
+        }
     }
 
     let min_bottom = if footboxes.is_empty() {
@@ -638,6 +657,24 @@ fn message_x_bounds(
         return (from_center, from_center + side_offset);
     }
     (from_center, to_center)
+}
+
+fn message_label_lines(
+    label: Option<&str>,
+    x1: i32,
+    x2: i32,
+    options: &LayoutOptions,
+) -> Vec<String> {
+    let Some(label) = label else {
+        return Vec::new();
+    };
+    let min_span = (options.participant_spacing - 20).max(56);
+    let span_px = (x2 - x1).abs().max(min_span) - 16;
+    let tx = ((x1 + x2) / 2) + 2;
+    let max_chars_by_span = (span_px / 7).max(1) as usize;
+    let max_chars_by_left_edge = ((tx * 2) / 7).max(1) as usize;
+    let max_chars = max_chars_by_span.min(max_chars_by_left_edge);
+    normalize_label_lines(label, max_chars, options.text_overflow_policy)
 }
 
 #[derive(Debug, Default)]

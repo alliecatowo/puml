@@ -6,6 +6,8 @@ use puml::scene::LayoutOptions;
 use puml::{layout, render};
 use std::collections::HashSet;
 
+const MESSAGE_LABEL_LINE_GAP: i32 = 16;
+
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!(
         "{}/tests/fixtures/{name}",
@@ -444,4 +446,194 @@ fn overflow_svg_text_positions_stay_within_associated_rects() {
             "expected tracked overflow guardrail text in svg: {expected}"
         );
     }
+}
+
+#[test]
+fn render_svg_wraps_long_message_labels_without_viewbox_clipping() {
+    let src = fixture("overflow/overflow_message_labels.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.contains("LEFTE"));
+    assert!(svg.contains("CENTEROVERFLOWTOKEN"));
+    assert!(svg.contains("RIGHT"));
+    assert_snapshot!(
+        "render_svg_wraps_long_message_labels_without_viewbox_clipping",
+        svg
+    );
+}
+
+#[test]
+fn overflow_message_label_positions_stay_within_scene_viewbox() {
+    let src = fixture("overflow/overflow_message_labels.puml");
+    let ast = puml::parse(&src).expect("parse should succeed");
+    let doc = puml::normalize(ast).expect("normalize should succeed");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    for message in &scene.messages {
+        if message.label_lines.is_empty() {
+            continue;
+        }
+        let tx = ((message.x1 + message.x2) / 2) + 2;
+        let start_y =
+            message.y - 8 - (((message.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP);
+        for (idx, line) in message.label_lines.iter().enumerate() {
+            let width = (line.chars().count() as i32) * 7;
+            let left = tx - (width / 2);
+            let right = tx + (width / 2);
+            let y = start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP);
+
+            assert!(left >= 0, "message label left edge should be in viewBox");
+            assert!(
+                right <= scene.width,
+                "message label right edge should be in viewBox"
+            );
+            assert!(y >= 0, "message label baseline should be in viewBox");
+            assert!(
+                y <= scene.height,
+                "message label baseline should be in viewBox"
+            );
+        }
+    }
+}
+
+#[test]
+fn overflow_unbroken_tokens_stay_within_note_and_ref_rects() {
+    let src = fixture("overflow/overflow_unbroken_tokens.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+    let rects = parse_svg_rects(&svg);
+    let texts = parse_svg_texts(&svg);
+
+    let note_rects = rects
+        .iter()
+        .filter(|r| r.fill == "#fff8c4")
+        .collect::<Vec<_>>();
+    let ref_rects = rects
+        .iter()
+        .filter(|r| r.fill == "#eef6ff")
+        .collect::<Vec<_>>();
+
+    assert!(!note_rects.is_empty(), "expected note rects");
+    assert!(!ref_rects.is_empty(), "expected ref rects");
+
+    let tracked = [
+        "note_unbroken_token_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "ref_unbroken_token_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+    ];
+
+    for token in tracked {
+        let text = texts
+            .iter()
+            .find(|t| t.text == token)
+            .unwrap_or_else(|| panic!("expected token in svg: {token}"));
+        let owner = note_rects
+            .iter()
+            .copied()
+            .chain(ref_rects.iter().copied())
+            .find(|r| {
+                text.x >= r.x && text.x <= r.x + r.width && text.y > r.y && text.y <= r.y + r.height
+            });
+        assert!(
+            owner.is_some(),
+            "unbroken overflow token should stay inside note/ref bounds: {token}"
+        );
+    }
+
+    assert_snapshot!(
+        "overflow_unbroken_tokens_stay_within_note_and_ref_rects",
+        svg
+    );
+}
+
+#[test]
+fn overflow_multiline_group_ref_note_combo_stays_within_rects() {
+    let src = fixture("overflow/overflow_multiline_group_ref_note_combo.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+    let rects = parse_svg_rects(&svg);
+    let texts = parse_svg_texts(&svg);
+
+    let note_rects = rects
+        .iter()
+        .filter(|r| r.fill == "#fff8c4")
+        .collect::<Vec<_>>();
+    let group_rects = rects
+        .iter()
+        .filter(|r| r.fill == "#eef6ff" || r.fill == "#fafafa")
+        .collect::<Vec<_>>();
+
+    assert!(!note_rects.is_empty(), "expected note rects");
+    assert!(!group_rects.is_empty(), "expected group/ref rects");
+
+    let tracked = [
+        "combo_note_line_1_with_a_very_long_unbroken_token_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        "combo_ref_line_1_with_a_very_long_unbroken_token_DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+        "fallback_note_line_1_with_long_unbroken_token_EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+    ];
+
+    for line in tracked {
+        let text = texts
+            .iter()
+            .find(|t| t.text == line)
+            .unwrap_or_else(|| panic!("expected combo overflow text in svg: {line}"));
+        let owner = note_rects
+            .iter()
+            .copied()
+            .chain(group_rects.iter().copied())
+            .find(|r| {
+                text.x >= r.x && text.x <= r.x + r.width && text.y > r.y && text.y <= r.y + r.height
+            });
+        assert!(
+            owner.is_some(),
+            "combo overflow text should stay within associated rects: {line}"
+        );
+    }
+
+    assert_snapshot!(
+        "overflow_multiline_group_ref_note_combo_stays_within_rects",
+        svg
+    );
+}
+
+#[test]
+fn overflow_dense_participant_headers_keep_text_inside_header_boxes() {
+    let src = fixture("overflow/overflow_dense_participant_headers.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+    let rects = parse_svg_rects(&svg);
+    let texts = parse_svg_texts(&svg);
+
+    let participant_rects = rects
+        .iter()
+        .filter(|r| r.fill == "#f6f6f6")
+        .collect::<Vec<_>>();
+    assert!(
+        participant_rects.len() >= 6,
+        "expected participant header and footbox rects"
+    );
+
+    let tracked_prefixes = [
+        "ParticipantHeaderAlpha",
+        "ParticipantHeaderBeta",
+        "ParticipantHeaderGamma",
+        "ParticipantHeaderDelta",
+        "ParticipantHeaderEpsilon",
+        "ParticipantHeaderZeta",
+    ];
+
+    for text in texts {
+        if !tracked_prefixes.iter().any(|p| text.text.starts_with(p)) {
+            continue;
+        }
+        let owner = participant_rects.iter().copied().find(|r| {
+            text.x >= r.x && text.x <= r.x + r.width && text.y > r.y && text.y <= r.y + r.height
+        });
+        assert!(
+            owner.is_some(),
+            "dense participant header text should stay inside participant box: {}",
+            text.text
+        );
+    }
+
+    assert_snapshot!(
+        "overflow_dense_participant_headers_keep_text_inside_header_boxes",
+        svg
+    );
 }

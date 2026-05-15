@@ -1,0 +1,15 @@
+@startuml
+participant "ClientWithAnExtremelyLongUnbrokenHeaderTokenThatShouldWrapWithoutLeakingOutsideParticipantBox" as Client
+participant "ServerWithAnotherExtremelyLongUnbrokenHeaderTokenThatShouldWrapNeatlyInDenseLayouts" as Server
+participant "DBWithLongUnbrokenHeaderTokenToStressCompactParticipantColumns" as DB
+
+Client -> Server : request_with_an_extremely_long_unbroken_token_that_should_not_escape_message_area_because_wrapping_is_layout_guardrailed
+note over Client, Server
+note_unbroken_token_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+end note
+ref over Client, Server
+ref_unbroken_token_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+end ref
+Server -> DB : fetch
+DB --> Server : response
+@enduml

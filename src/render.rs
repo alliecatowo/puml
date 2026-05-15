@@ -1,6 +1,8 @@
 use crate::model::ParticipantRole;
 use crate::scene::{Scene, StructureKind};
 
+const MESSAGE_LABEL_LINE_GAP: i32 = 16;
+
 pub fn render_svg(scene: &Scene) -> String {
     let mut out = String::new();
     out.push_str(&format!(
@@ -124,7 +126,18 @@ pub fn render_svg(scene: &Scene) -> String {
             ));
         }
 
-        if let Some(label) = &m.label {
+        if !m.label_lines.is_empty() {
+            let tx = ((m.x1 + m.x2) / 2) + 2;
+            let start_y = m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP);
+            for (idx, line) in m.label_lines.iter().enumerate() {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    tx,
+                    start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
+                    escape_text(line)
+                ));
+            }
+        } else if let Some(label) = &m.label {
             let tx = ((m.x1 + m.x2) / 2) + 2;
             let ty = m.y - 8;
             out.push_str(&format!(
