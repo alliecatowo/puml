@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -31,6 +31,7 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
 pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Document, Diagnostic> {
     let mut defines = BTreeMap::new();
     let mut include_stack = Vec::new();
+    let mut include_once_seen = BTreeSet::new();
     let mut expanded = String::new();
 
     preprocess_text(
@@ -38,6 +39,7 @@ pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Docume
         options,
         &mut defines,
         &mut include_stack,
+        &mut include_once_seen,
         0,
         &mut expanded,
     )?;
@@ -58,6 +60,9 @@ enum PreprocessDirective {
     Define(String),
     Undef(String),
     Include(String),
+    IncludeOnce(String),
+    IncludeMany(String),
+    IncludeSub(String),
     If(String),
     IfDef { name: String, negated: bool },
     ElseIf(String),
@@ -80,6 +85,7 @@ fn preprocess_text(
     options: &ParseOptions,
     defines: &mut BTreeMap<String, String>,
     include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
     depth: usize,
     out: &mut String,
 ) -> Result<(), Diagnostic> {
@@ -187,7 +193,15 @@ fn preprocess_text(
                                     ),
                                 ));
                             }
-                            preprocess_text(&block, options, defines, include_stack, depth, out)?;
+                            preprocess_text(
+                                &block,
+                                options,
+                                defines,
+                                include_stack,
+                                include_once_seen,
+                                depth,
+                                out,
+                            )?;
                         }
                     }
                     i = endwhile + 1;
@@ -259,67 +273,66 @@ fn preprocess_text(
                 }
                 PreprocessDirective::Include(raw_target) => {
                     if active {
-                        if raw_target.is_empty() {
-                            return Err(Diagnostic::error_code(
-                                "E_INCLUDE_PATH_REQUIRED",
-                                "!include requires a relative path",
-                            ));
-                        }
-
-                        let include_target = parse_include_target(&raw_target);
-                        if include_target.path.is_absolute() {
-                            return Err(Diagnostic::error_code(
-                                "E_INCLUDE_ABSOLUTE_PATH",
-                                format!(
-                                    "!include only supports relative paths: {}",
-                                    include_target.path.display()
-                                ),
-                            ));
-                        }
-
-                        if is_url_include_target(&raw_target) {
-                            return Err(Diagnostic::error_code(
-                                "E_INCLUDE_URL_UNSUPPORTED",
-                                format!("!include URL targets are not supported: {raw_target}"),
-                            ));
-                        }
-
-                        let resolved =
-                            resolve_include_path(options, include_stack, &include_target.path)?;
-                        if include_stack.iter().any(|p| p == &resolved) {
-                            let mut cycle = include_stack
-                                .iter()
-                                .map(|p| p.display().to_string())
-                                .collect::<Vec<_>>();
-                            cycle.push(resolved.display().to_string());
-                            return Err(Diagnostic::error_code(
-                                "E_INCLUDE_CYCLE",
-                                format!("include cycle detected: {}", cycle.join(" -> ")),
-                            ));
-                        }
-
-                        let mut content = fs::read_to_string(&resolved).map_err(|e| {
-                            Diagnostic::error_code(
-                                "E_INCLUDE_READ",
-                                format!("failed to read include '{}': {e}", resolved.display()),
-                            )
-                        })?;
-                        if let Some(tag) = include_target.tag.as_deref() {
-                            content = extract_include_tag(&content, tag).ok_or_else(|| {
-                                Diagnostic::error_code(
-                                    "E_INCLUDE_TAG_NOT_FOUND",
-                                    format!(
-                                        "include tag '{}' was not found in '{}'",
-                                        tag,
-                                        resolved.display()
-                                    ),
-                                )
-                            })?;
-                        }
-
-                        include_stack.push(resolved);
-                        preprocess_text(&content, options, defines, include_stack, depth + 1, out)?;
-                        include_stack.pop();
+                        process_include_directive(
+                            &raw_target,
+                            "!include",
+                            false,
+                            false,
+                            options,
+                            defines,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            out,
+                        )?;
+                    }
+                }
+                PreprocessDirective::IncludeOnce(raw_target) => {
+                    if active {
+                        process_include_directive(
+                            &raw_target,
+                            "!include_once",
+                            true,
+                            false,
+                            options,
+                            defines,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            out,
+                        )?;
+                    }
+                }
+                PreprocessDirective::IncludeMany(raw_target) => {
+                    if active {
+                        process_include_directive(
+                            &raw_target,
+                            "!include_many",
+                            false,
+                            false,
+                            options,
+                            defines,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            out,
+                        )?;
+                    }
+                }
+                PreprocessDirective::IncludeSub(raw_target) => {
+                    if active {
+                        process_include_directive(
+                            &raw_target,
+                            "!includesub",
+                            false,
+                            true,
+                            options,
+                            defines,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            out,
+                        )?;
                     }
                 }
                 PreprocessDirective::Unsupported(name) => {
@@ -356,6 +369,101 @@ fn is_active(conditionals: &[ConditionalFrame]) -> bool {
     conditionals.iter().all(|f| f.current_active)
 }
 
+#[allow(clippy::too_many_arguments)]
+fn process_include_directive(
+    raw_target: &str,
+    directive_name: &str,
+    include_once: bool,
+    require_tag: bool,
+    options: &ParseOptions,
+    defines: &mut BTreeMap<String, String>,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    if raw_target.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_PATH_REQUIRED",
+            format!("{directive_name} requires a relative path"),
+        ));
+    }
+
+    if is_url_include_target(raw_target) {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_URL_UNSUPPORTED",
+            format!("{directive_name} URL targets are not supported: {raw_target}"),
+        ));
+    }
+
+    let include_target = parse_include_target(raw_target);
+    if require_tag && include_target.tag.is_none() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDESUB_TAG_REQUIRED",
+            format!("{directive_name} requires a target tag (`path!TAG`)"),
+        ));
+    }
+
+    if include_target.path.is_absolute() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_ABSOLUTE_PATH",
+            format!(
+                "{directive_name} only supports relative paths: {}",
+                include_target.path.display()
+            ),
+        ));
+    }
+
+    let resolved = resolve_include_path(options, include_stack, &include_target.path)?;
+    if include_once && !include_once_seen.insert(resolved.clone()) {
+        return Ok(());
+    }
+
+    if include_stack.iter().any(|p| p == &resolved) {
+        let mut cycle = include_stack
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>();
+        cycle.push(resolved.display().to_string());
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_CYCLE",
+            format!("include cycle detected: {}", cycle.join(" -> ")),
+        ));
+    }
+
+    let mut content = fs::read_to_string(&resolved).map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_READ",
+            format!("failed to read include '{}': {e}", resolved.display()),
+        )
+    })?;
+    if let Some(tag) = include_target.tag.as_deref() {
+        content = extract_include_tag(&content, tag).ok_or_else(|| {
+            Diagnostic::error_code(
+                "E_INCLUDE_TAG_NOT_FOUND",
+                format!(
+                    "include tag '{}' was not found in '{}'",
+                    tag,
+                    resolved.display()
+                ),
+            )
+        })?;
+    }
+
+    include_stack.push(resolved);
+    preprocess_text(
+        &content,
+        options,
+        defines,
+        include_stack,
+        include_once_seen,
+        depth + 1,
+        out,
+    )?;
+    include_stack.pop();
+    Ok(())
+}
+
 fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
     let trimmed = line.trim();
     if !trimmed.starts_with('!') {
@@ -371,6 +479,9 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "define" => Some(PreprocessDirective::Define(arg.to_string())),
         "undef" => Some(PreprocessDirective::Undef(arg.to_string())),
         "include" => Some(PreprocessDirective::Include(arg.to_string())),
+        "include_once" => Some(PreprocessDirective::IncludeOnce(arg.to_string())),
+        "include_many" => Some(PreprocessDirective::IncludeMany(arg.to_string())),
+        "includesub" => Some(PreprocessDirective::IncludeSub(arg.to_string())),
         "if" => Some(PreprocessDirective::If(arg.to_string())),
         "ifdef" => Some(PreprocessDirective::IfDef {
             name: arg.to_string(),
@@ -392,8 +503,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "assert" => Some(PreprocessDirective::Assert(arg.to_string())),
         "log" => Some(PreprocessDirective::Log),
         "dump_memory" => Some(PreprocessDirective::DumpMemory),
-        "return" | "foreach" | "endfor" | "import" | "include_once" | "include_many"
-        | "includesub" | "startsub" | "endsub" => {
+        "return" | "foreach" | "endfor" | "import" | "startsub" | "endsub" => {
             Some(PreprocessDirective::Unsupported(name.to_string()))
         }
         "theme" | "pragma" => None,
@@ -2010,6 +2120,54 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn include_once_only_expands_first_occurrence() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("inc.puml"), "A -> B : once\n").unwrap();
+
+        let doc = parse_with_options(
+            "!include_once inc.puml\n!include_once inc.puml\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 1);
+    }
+
+    #[test]
+    fn include_many_expands_each_occurrence() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("inc.puml"), "A -> B : many\n").unwrap();
+
+        let doc = parse_with_options(
+            "!include_many inc.puml\n!include_many inc.puml\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 2);
+    }
+
+    #[test]
+    fn includesub_requires_tag() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("inc.puml"), "A -> B : body\n").unwrap();
+
+        let err = parse_with_options(
+            "!includesub inc.puml\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("E_INCLUDESUB_TAG_REQUIRED"));
     }
 
     #[test]
