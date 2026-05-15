@@ -141,22 +141,67 @@ fn normalize_family_rejects_unknown_family_with_deterministic_code() {
 #[test]
 fn parser_tags_all_wave1_non_sequence_families_deterministically() {
     let cases = [
-        ("@startuml\ncomponent API\n@enduml\n", puml::ast::DiagramKind::Component),
-        ("@startuml\ninterface Gateway\n@enduml\n", puml::ast::DiagramKind::Component),
-        ("@startuml\nport Ingress\n@enduml\n", puml::ast::DiagramKind::Component),
-        ("@startuml\nnode web\n@enduml\n", puml::ast::DiagramKind::Deployment),
-        ("@startuml\nartifact app\n@enduml\n", puml::ast::DiagramKind::Deployment),
-        ("@startuml\ncloud edge\n@enduml\n", puml::ast::DiagramKind::Deployment),
-        ("@startuml\nframe rack\n@enduml\n", puml::ast::DiagramKind::Deployment),
-        ("@startuml\nstorage db\n@enduml\n", puml::ast::DiagramKind::Deployment),
-        ("@startuml\nstate Running\n@enduml\n", puml::ast::DiagramKind::State),
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\ninterface Gateway\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nport Ingress\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nnode web\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nartifact app\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\ncloud edge\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nframe rack\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nstorage db\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nstate Running\n@enduml\n",
+            puml::ast::DiagramKind::State,
+        ),
         ("@startuml\n[H]\n@enduml\n", puml::ast::DiagramKind::State),
-        ("@startuml\nstart\n@enduml\n", puml::ast::DiagramKind::Activity),
-        ("@startuml\npartition lane\n@enduml\n", puml::ast::DiagramKind::Activity),
-        ("@startuml\nfork\n@enduml\n", puml::ast::DiagramKind::Activity),
-        ("@startuml\nclock clk\n@enduml\n", puml::ast::DiagramKind::Timing),
-        ("@startuml\nbinary sig\n@enduml\n", puml::ast::DiagramKind::Timing),
-        ("@startuml\nscale 1 as 1\n@enduml\n", puml::ast::DiagramKind::Timing),
+        (
+            "@startuml\nstart\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\npartition lane\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\nfork\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\nclock clk\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+        (
+            "@startuml\nbinary sig\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+        (
+            "@startuml\nscale 1 as 1\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
     ];
 
     for (src, expected_kind) in cases {
@@ -168,11 +213,26 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
 #[test]
 fn parser_tags_additional_wave1_family_alias_tokens() {
     let cases = [
-        ("@startuml\nportin ingress\n@enduml\n", puml::ast::DiagramKind::Component),
-        ("@startuml\nportout egress\n@enduml\n", puml::ast::DiagramKind::Component),
-        ("@startuml\nswimlane laneA\n@enduml\n", puml::ast::DiagramKind::Activity),
-        ("@startuml\nconcise t\n@enduml\n", puml::ast::DiagramKind::Timing),
-        ("@startuml\nrobust t\n@enduml\n", puml::ast::DiagramKind::Timing),
+        (
+            "@startuml\nportin ingress\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nportout egress\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nswimlane laneA\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\nconcise t\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+        (
+            "@startuml\nrobust t\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
         ("@startuml\n@1\n@enduml\n", puml::ast::DiagramKind::Timing),
     ];
 

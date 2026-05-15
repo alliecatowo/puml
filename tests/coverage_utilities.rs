@@ -4,8 +4,8 @@ use puml::source::{Source, Span};
 use puml::theme::Theme;
 use puml::{
     detect_diagram_family, extract_markdown_diagrams, parse_with_pipeline_options,
-    render_source_to_svg, render_source_to_svg_for_family,
-    CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
+    render_source_to_svg, render_source_to_svg_for_family, CompatMode, DeterminismMode,
+    DiagramFamily, FrontendSelection, ParsePipelineOptions,
 };
 
 #[test]
@@ -230,7 +230,9 @@ fn picouml_pipeline_selection_fails_deterministically_in_library_api() {
     };
     let err = parse_with_pipeline_options("@startuml\nA -> B\n@enduml\n", &options)
         .expect_err("picouml should be unimplemented");
-    assert!(err.message.contains("frontend 'picouml' is not implemented yet"));
+    assert!(err
+        .message
+        .contains("frontend 'picouml' is not implemented yet"));
 }
 
 #[test]
