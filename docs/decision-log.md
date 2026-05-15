@@ -61,3 +61,11 @@ This log records intentional contract deviations and updates adopted in the curr
 - Decision: Treat PicoUML, PlantUML, and Mermaid as first-class product surfaces; position PicoUML as canonical language, PlantUML as first-class 1:1 compatibility target, and Mermaid as first-class supported frontend.
 - Rationale: Prevents hierarchy framing where one surface is presented as "extended mode" or second-class, and keeps product/docs contracts aligned with a single polymorphic engine architecture.
 - Impact: User-facing docs and CLI help should describe language surfaces as first-class and compatibility/determinism as policy controls rather than product tiering.
+
+### D-011: Batch lint/check mode contract for docs pipelines
+- Decision: Add explicit batch check inputs via `--lint-input` (repeatable paths) and `--lint-glob` (repeatable patterns), with deterministic target ordering and a mandatory lint summary report on `stdout`.
+- Rationale: Docs and CI pipelines need stable non-interactive validation across many files without shell-dependent ordering.
+- Impact:
+  - Any validation failure in the batch returns exit code `1`.
+  - Diagnostics still follow the existing stream contract (`stderr`, human/json via `--diagnostics`).
+  - Lint summary report is selectable via `--lint-report human|json` and remains on `stdout`.

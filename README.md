@@ -55,6 +55,10 @@ cat tests/fixtures/basic/hello.puml | cargo run --
 cargo run -- --check tests/fixtures/basic/hello.puml
 cat tests/fixtures/basic/hello.puml | cargo run -- --check -
 
+# batch docs/CI lint mode (repeatable inputs + globs)
+cargo run -- --check --lint-input docs/examples/basic_hello.puml --lint-input docs/examples/groups_notes.puml
+cargo run -- --check --lint-glob 'docs/**/*.md' --lint-report json
+
 # dump pipeline JSON
 cargo run -- --dump ast tests/fixtures/basic/hello.puml
 cargo run -- --dump model tests/fixtures/basic/hello.puml
@@ -128,6 +132,9 @@ Inputs:
 Modes:
 - default renders SVG
 - `--check` parses + normalizes only
+- `--lint-input INPUT` adds repeatable check/lint inputs (check mode only)
+- `--lint-glob GLOB` adds repeatable glob-expanded check/lint inputs (check mode only)
+- `--lint-report human|json` emits lint summary report format (default `human`)
 - `--dump ast|model|scene` emits JSON
 - `--multi` permits multiple diagrams
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
@@ -151,6 +158,9 @@ Outputs:
 - markdown file default outputs are deterministic snippet files:
   `<markdown-stem>_snippet_<n>.svg` (or `<markdown-stem>_snippet_<n>-<page>.svg` for multipage fences)
 - `--output PATH` writes to that path for single diagrams, and numbered paths for multi
+- lint/check batch mode always emits a lint summary report on `stdout`
+  `human`: single summary line + failed file lines
+  `json`: `{"schema":"puml.lint_report","schema_version":1,"summary":...,"files":[...]}`
 
 Exit codes:
 - `0` success
@@ -165,6 +175,7 @@ Diagnostics:
   `code`, `severity`, `message`, `span`, `line`, `column`, `snippet`, `caret`
 - stream contract:
   `--check`/render/`--dump` payload outputs remain on `stdout`; diagnostics (human or json) are emitted on `stderr`
+  lint/check batch mode keeps the same diagnostics behavior (`stderr`) and writes lint summary reports to `stdout`
 
 ## Benchmarks And Gates
 

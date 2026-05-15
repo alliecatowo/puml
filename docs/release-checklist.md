@@ -23,7 +23,7 @@
 - [ ] `docs/coverage-status.md` updated if coverage posture changed materially.
 - [ ] `docs/parity-roadmap.md` reflects current parity priorities.
 - [ ] Troubleshooting and fixture/snapshot docs still match workflow.
-- [ ] `--help` text is consistent with docs for `--check`, `--dump`, `--multi`, and `--include-root`.
+- [ ] `--help` text is consistent with docs for `--check`, `--dump`, `--multi`, `--include-root`, `--lint-input`, `--lint-glob`, and `--lint-report`.
 - [ ] Documented exit codes (`0/1/2/3`) still match observed CLI behavior for success, validation, I/O, and internal failures.
 - [ ] Warning UX still matches docs: warnings print to `stderr` and do not flip successful runs to non-zero.
 

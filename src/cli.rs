@@ -9,10 +9,14 @@ pub struct Cli {
     pub dump_capabilities: bool,
 
     /// Validate a fixture file with parser+normalizer and print diagnostics.
-    #[arg(long, value_name = "FIXTURE", conflicts_with = "input")]
+    #[arg(
+        long,
+        value_name = "FIXTURE",
+        conflicts_with_all = ["input", "lint_input", "lint_glob"]
+    )]
     pub check_fixture: Option<PathBuf>,
     /// Input file path. Use '-' or omit to read stdin.
-    #[arg(value_name = "INPUT")]
+    #[arg(value_name = "INPUT", conflicts_with_all = ["lint_input", "lint_glob"])]
     pub input: Option<PathBuf>,
 
     /// Output file path. For multi-diagram file output, numbered files are generated.
@@ -22,6 +26,18 @@ pub struct Cli {
     /// Parse and normalize only; do not render or write outputs.
     #[arg(long, action = ArgAction::SetTrue, conflicts_with = "dump")]
     pub check: bool,
+
+    /// Lint/check mode inputs (repeatable file paths).
+    #[arg(long, action = ArgAction::Append, value_name = "INPUT", requires = "check")]
+    pub lint_input: Vec<PathBuf>,
+
+    /// Lint/check mode glob patterns (repeatable).
+    #[arg(long, action = ArgAction::Append, value_name = "GLOB", requires = "check")]
+    pub lint_glob: Vec<String>,
+
+    /// Lint/check summary report format.
+    #[arg(long, value_enum, default_value_t = LintReportFormat::Human)]
+    pub lint_report: LintReportFormat,
 
     /// Dump intermediate representation.
     #[arg(long, value_enum, value_name = "KIND", conflicts_with = "check")]
@@ -67,6 +83,12 @@ pub enum DumpKind {
     Ast,
     Model,
     Scene,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum LintReportFormat {
+    Human,
+    Json,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
