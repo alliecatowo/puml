@@ -21,10 +21,10 @@ This log records intentional contract deviations and updates adopted in the curr
 - Spec/implementation contradiction and resolution: PlantUML directives typically imply preprocessing behavior; this implementation adopts fail-fast rejection until full preprocessing can be implemented safely.
 
 ### D-004: `skinparam` contract narrowed
-- Decision: Support only `skinparam maxmessagesize` semantically; keep other `skinparam` keys and `!theme` non-fatal with deterministic warnings.
-- Rationale: Only `maxmessagesize` is required for current layout behavior and has deterministic downstream effects.
+- Decision: Support deterministic sequence styling keys (`maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`, `SequenceLifeLineBorderColor`, `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor`) and keep other `skinparam` keys plus `!theme` non-fatal with deterministic warnings.
+- Rationale: These keys have clear, stable rendering effects and improve practical parity without introducing non-deterministic theming behavior.
 - Impact: Unsupported styling directives emit warning diagnostics to `stderr` in check/dump/render flows, while successful runs keep exit code `0`.
-- Spec/implementation contradiction and resolution: PlantUML accepts many `skinparam` keys; this implementation limits support to one key to avoid implying styling parity that does not exist.
+- Spec/implementation contradiction and resolution: PlantUML accepts many additional styling/theme controls; this implementation intentionally supports a bounded subset and warns on the rest to preserve deterministic output.
 
 ### D-005: Include-root boundary for stdin mode
 - Decision: Gate include resolution behind explicit `--include-root DIR` when reading from stdin.

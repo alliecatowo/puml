@@ -1,5 +1,6 @@
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
+use crate::theme::SequenceStyle;
 
 #[derive(Debug, Clone)]
 pub struct SequenceDocument {
@@ -11,6 +12,7 @@ pub struct SequenceDocument {
     pub caption: Option<String>,
     pub legend: Option<String>,
     pub skinparams: Vec<(String, String)>,
+    pub style: SequenceStyle,
     pub footbox_visible: bool,
     pub warnings: Vec<Diagnostic>,
 }
@@ -25,6 +27,7 @@ pub struct SequencePage {
     pub caption: Option<String>,
     pub legend: Option<String>,
     pub skinparams: Vec<(String, String)>,
+    pub style: SequenceStyle,
     pub footbox_visible: bool,
     pub warnings: Vec<Diagnostic>,
 }

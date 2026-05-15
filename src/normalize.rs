@@ -6,7 +6,9 @@ use crate::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
     VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
-use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue};
+use crate::theme::{
+    classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct NormalizeOptions {
@@ -50,6 +52,7 @@ fn page_from(
         caption: document.caption.clone(),
         legend: document.legend.clone(),
         skinparams: document.skinparams.clone(),
+        style: document.style.clone(),
         footbox_visible: document.footbox_visible,
         warnings: document.warnings.clone(),
     }
@@ -84,6 +87,7 @@ pub fn normalize_with_options(
     let mut legend = None;
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
+    let mut style = SequenceStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
@@ -227,6 +231,30 @@ pub fn normalize_with_options(
                     ) => {
                         footbox_visible = visible;
                     }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ArrowColor,
+                    ) => style.arrow_color = value.trim().to_string(),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineBorderColor,
+                    ) => style.lifeline_border_color = value.trim().to_string(),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantBackgroundColor,
+                    ) => style.participant_background_color = value.trim().to_string(),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantBorderColor,
+                    ) => style.participant_border_color = value.trim().to_string(),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::NoteBackgroundColor,
+                    ) => style.note_background_color = value.trim().to_string(),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::NoteBorderColor,
+                    ) => style.note_border_color = value.trim().to_string(),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupBackgroundColor,
+                    ) => style.group_background_color = value.trim().to_string(),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupBorderColor,
+                    ) => style.group_border_color = value.trim().to_string(),
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -428,6 +456,7 @@ pub fn normalize_with_options(
         caption,
         legend,
         skinparams,
+        style,
         footbox_visible,
         warnings,
     })
