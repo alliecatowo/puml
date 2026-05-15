@@ -82,9 +82,10 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<(), (u8, String)> {
     let (_input_name, raw, input_path) = read_input(cli.input.as_deref())?;
-    let include_root = input_path
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-        .or_else(|| std::env::current_dir().ok());
+    let include_root = cli
+        .include_root
+        .clone()
+        .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
     let diagrams = split_diagrams(&raw);
 
     if diagrams.is_empty() {

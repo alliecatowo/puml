@@ -412,3 +412,50 @@ fn can_read_tempfile_input() {
     let svg = fs::read_to_string(output).unwrap();
     assert!(svg.contains("<svg"));
 }
+
+#[test]
+fn stdin_include_requires_include_root_or_fails() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin("@startuml\n!include include_ok_child.puml\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "!include from stdin requires include_root option",
+        ));
+}
+
+#[test]
+fn stdin_include_with_include_root_passes() {
+    let root = format!("{}/tests/fixtures/include", env!("CARGO_MANIFEST_DIR"));
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--include-root", &root, "-"])
+        .write_stdin("@startuml\n!include include_ok_child.puml\n@enduml\n")
+        .assert()
+        .success();
+}
+
+#[test]
+fn file_multi_output_with_o_writes_numbered_files() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("multi_three.puml");
+    fs::copy(fixture("structure/multi_three.puml"), &input).unwrap();
+    let out = tmp.path().join("diagram.svg");
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            input.to_str().unwrap(),
+            "-o",
+            out.to_str().unwrap(),
+            "--multi",
+        ])
+        .assert()
+        .success();
+
+    assert!(tmp.path().join("diagram-1.svg").exists());
+    assert!(tmp.path().join("diagram-2.svg").exists());
+    assert!(tmp.path().join("diagram-3.svg").exists());
+}

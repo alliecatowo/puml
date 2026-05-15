@@ -23,6 +23,10 @@ pub struct Cli {
     /// Permit multiple diagrams.
     #[arg(long, action = ArgAction::SetTrue)]
     pub multi: bool,
+
+    /// Root directory used to resolve !include when reading from stdin.
+    #[arg(long, value_name = "DIR")]
+    pub include_root: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]

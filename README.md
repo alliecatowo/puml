@@ -26,6 +26,7 @@ Modes:
 - `--check` parses + normalizes only
 - `--dump ast|model|scene` prints JSON
 - `--multi` permits multiple diagrams from one input
+- `--include-root DIR` enables `!include` when reading from stdin
 
 Output:
 - single diagram from file writes `<input-stem>.svg`
