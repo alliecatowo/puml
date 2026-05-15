@@ -110,8 +110,10 @@ fn decision_log_captures_current_preprocessor_contract() {
 
 #[test]
 fn markdown_spec_explicitly_separates_current_runtime_from_target_state() {
-    let spec = fs::read_to_string(repo_path("docs/specs/puml_markdown_fence_renderer_spec(1).md"))
-        .expect("failed to read docs/specs/puml_markdown_fence_renderer_spec(1).md");
+    let spec = fs::read_to_string(repo_path(
+        "docs/specs/puml_markdown_fence_renderer_spec(1).md",
+    ))
+    .expect("failed to read docs/specs/puml_markdown_fence_renderer_spec(1).md");
     assert!(
         spec.contains("## Runtime contract snapshot (Current, audited in issue #24)"),
         "markdown spec should include an explicit current runtime snapshot section"
