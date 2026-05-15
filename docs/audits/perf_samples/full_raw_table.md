@@ -1,0 +1,20 @@
+| sample | scenario | mean_ms | stddev_ms | runs | tool | timestamp_utc |
+|---:|---|---:|---:|---:|---|---|
+| 1 | cold_start_help | 200.000 | 0.000 | 5 | time | 2026-05-15T20:22:50Z |
+| 1 | parser_check | 202.000 | 4.000 | 5 | time | 2026-05-15T20:22:50Z |
+| 1 | parser_dump_scene | 192.000 | 11.662 | 5 | time | 2026-05-15T20:22:50Z |
+| 1 | render_file | 206.000 | 13.565 | 5 | time | 2026-05-15T20:22:50Z |
+| 1 | render_stdin | 198.000 | 4.000 | 5 | time | 2026-05-15T20:22:50Z |
+| 1 | render_stdin_multi | 198.000 | 4.000 | 5 | time | 2026-05-15T20:22:50Z |
+| 2 | cold_start_help | 182.000 | 16.000 | 5 | time | 2026-05-15T20:22:56Z |
+| 2 | parser_check | 180.000 | 26.077 | 5 | time | 2026-05-15T20:22:56Z |
+| 2 | parser_dump_scene | 186.000 | 23.324 | 5 | time | 2026-05-15T20:22:56Z |
+| 2 | render_file | 194.000 | 4.899 | 5 | time | 2026-05-15T20:22:56Z |
+| 2 | render_stdin | 198.000 | 4.000 | 5 | time | 2026-05-15T20:22:56Z |
+| 2 | render_stdin_multi | 188.000 | 7.483 | 5 | time | 2026-05-15T20:22:56Z |
+| 3 | cold_start_help | 202.000 | 4.000 | 5 | time | 2026-05-15T20:23:03Z |
+| 3 | parser_check | 196.000 | 4.899 | 5 | time | 2026-05-15T20:23:03Z |
+| 3 | parser_dump_scene | 190.000 | 27.568 | 5 | time | 2026-05-15T20:23:03Z |
+| 3 | render_file | 190.000 | 8.944 | 5 | time | 2026-05-15T20:23:03Z |
+| 3 | render_stdin | 202.000 | 4.000 | 5 | time | 2026-05-15T20:23:03Z |
+| 3 | render_stdin_multi | 168.000 | 44.000 | 5 | time | 2026-05-15T20:23:03Z |

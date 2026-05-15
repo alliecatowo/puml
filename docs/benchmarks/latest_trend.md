@@ -1,19 +1,21 @@
 # Benchmark Trend
 
-- Timestamp (UTC): `2026-05-15T20:04:58Z`
-- Mode: `quick`
-- Baseline timestamp (UTC): `2026-05-15T20:04:55Z`
-- Binary: `1832984` bytes (limit `2500000`)
-- Regression gate: delta > `20.000%` and `>30.000ms`
+- Timestamp (UTC): `2026-05-15T20:32:57Z`
+- Mode: `full`
+- Baseline source: `/home/Allie/develop/puml-audit-perf/docs/benchmarks/.baseline.previous.json`
+- Baseline mode match: `true`
+- Baseline timestamp (UTC): `2026-05-15T20:30:48Z`
+- Binary: `1832984` bytes (limit `2000000`)
+- Regression gate: delta > `10.000%` and `>20.000ms`
 
 | Scenario | Current Mean (ms) | Previous Mean (ms) | Delta (ms) | Delta (%) |
 |---|---:|---:|---:|---:|
-| `cold_start_help` | 80.000 | 96.000 | -16.000 | -16.667 |
-| `parser_check` | 83.333 | 96.000 | -12.667 | -13.195 |
-| `parser_dump_scene` | 86.667 | 92.000 | -5.333 | -5.797 |
-| `render_file` | 86.667 | 88.000 | -1.333 | -1.515 |
-| `render_stdin` | 83.333 | 80.000 | 3.333 | 4.166 |
-| `render_stdin_multi` | 83.333 | 82.000 | 1.333 | 1.626 |
+| `cold_start_help` | 90.203 | 89.887 | 0.316 | 0.352 |
+| `parser_check` | 94.170 | 90.618 | 3.552 | 3.920 |
+| `parser_dump_scene` | 91.035 | 92.539 | -1.504 | -1.625 |
+| `render_file` | 91.008 | 92.934 | -1.926 | -2.072 |
+| `render_stdin` | 90.155 | 90.067 | 0.088 | 0.098 |
+| `render_stdin_multi` | 92.595 | 91.102 | 1.493 | 1.639 |
 
 ## PlantUML Oracle
 - Status: `todo`

@@ -1,7 +1,7 @@
 {
-  "timestamp_utc": "2026-05-15T20:32:57Z",
+  "timestamp_utc": "2026-05-15T20:30:42Z",
   "binary": "/home/Allie/develop/puml-audit-perf/target/release/puml",
-  "mode": "full",
+  "mode": "quick",
   "environment": {
     "host": "pink-allie-cat",
     "os": "Linux",
@@ -14,49 +14,49 @@
     {
       "name": "cold_start_help",
       "tool": "python-perf-counter",
-      "mean_ms": 90.203,
-      "stddev_ms": 2.048,
-      "runs": 12
+      "mean_ms": 91.734,
+      "stddev_ms": 1.334,
+      "runs": 7
     }
     ,
     {
       "name": "parser_check",
       "tool": "python-perf-counter",
-      "mean_ms": 94.170,
-      "stddev_ms": 4.679,
-      "runs": 12
+      "mean_ms": 89.760,
+      "stddev_ms": 2.372,
+      "runs": 7
     }
     ,
     {
       "name": "parser_dump_scene",
       "tool": "python-perf-counter",
-      "mean_ms": 91.035,
-      "stddev_ms": 2.677,
-      "runs": 12
+      "mean_ms": 89.052,
+      "stddev_ms": 1.625,
+      "runs": 7
     }
     ,
     {
       "name": "render_file",
       "tool": "python-perf-counter",
-      "mean_ms": 91.008,
-      "stddev_ms": 1.711,
-      "runs": 12
+      "mean_ms": 90.570,
+      "stddev_ms": 1.199,
+      "runs": 7
     }
     ,
     {
       "name": "render_stdin",
       "tool": "python-perf-counter",
-      "mean_ms": 90.155,
-      "stddev_ms": 1.323,
-      "runs": 12
+      "mean_ms": 91.756,
+      "stddev_ms": 2.724,
+      "runs": 7
     }
     ,
     {
       "name": "render_stdin_multi",
       "tool": "python-perf-counter",
-      "mean_ms": 92.595,
-      "stddev_ms": 1.780,
-      "runs": 12
+      "mean_ms": 91.993,
+      "stddev_ms": 1.438,
+      "runs": 7
     }
   ]
 }

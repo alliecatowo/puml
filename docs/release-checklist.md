@@ -15,9 +15,12 @@
 
 - [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>20ms`, binary size `<=2,000,000` bytes).
 - [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%` with delta floor `>30ms`, binary size `<=2,500,000` bytes).
+- [ ] Confirm mode baseline files exist and are reviewed: `docs/benchmarks/baseline_full.json`, `docs/benchmarks/baseline_quick.json`.
+- [ ] Confirm regression comparisons are mode-scoped (full vs full baseline, quick vs quick baseline).
 - [ ] Confirm full gate includes release binary validation via `cargo build --release`.
 - [ ] Review `docs/benchmarks/latest.{md,csv,json}` for raw measurements.
 - [ ] Review deterministic trend artifacts: `docs/benchmarks/latest_trend.{md,json}`.
+- [ ] If performance movement is intentional, refresh only the affected baseline with `./scripts/bench.sh [--quick] --update-baseline` and document rationale in PR notes.
 - [ ] Verify no-Java baseline is intact: PlantUML oracle fields are still placeholder-only (`todo`).
 
 ### Local Evidence Snapshot (Issue #30, 2026-05-15 UTC)
