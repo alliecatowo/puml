@@ -1,0 +1,7 @@
+@startuml
+participant Client
+queue Jobs as Q
+Client -> Q : enqueue
+== Processing ==
+Q -> Client : done
+@enduml

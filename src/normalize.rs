@@ -214,6 +214,10 @@ pub fn normalize_with_options(
                 span: stmt.span,
                 kind: SequenceEventKind::Divider(v),
             }),
+            StatementKind::Separator(v) => events.push(SequenceEvent {
+                span: stmt.span,
+                kind: SequenceEventKind::Separator(v),
+            }),
             StatementKind::Spacer => events.push(SequenceEvent {
                 span: stmt.span,
                 kind: SequenceEventKind::Spacer,
@@ -455,6 +459,7 @@ fn map_role(role: AstRole) -> ParticipantRole {
         AstRole::Entity => ParticipantRole::Entity,
         AstRole::Database => ParticipantRole::Database,
         AstRole::Collections => ParticipantRole::Collections,
+        AstRole::Queue => ParticipantRole::Queue,
     }
 }
 

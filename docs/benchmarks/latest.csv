@@ -1,0 +1,6 @@
+name,tool,mean_ms,stddev_ms,runs,timestamp_utc
+render_hello,time,212.000,74.135,5,2026-05-15T07:44:44Z
+check_hello,time,180.000,0.000,5,2026-05-15T07:44:44Z
+dump_model,time,176.000,4.899,5,2026-05-15T07:44:44Z
+stdin_single,time,180.000,0.000,5,2026-05-15T07:44:44Z
+stdin_multi,time,182.000,4.000,5,2026-05-15T07:44:44Z

@@ -152,6 +152,19 @@ pub fn render_svg(scene: &Scene) -> String {
         }
     }
 
+    for p in &scene.footboxes {
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#f6f6f6\" stroke=\"#111\" stroke-width=\"1\"/>",
+            p.x, p.y, p.width, p.height
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">{}</text>",
+            p.x + p.width / 2,
+            p.y + 21,
+            escape_text(&p.display)
+        ));
+    }
+
     out.push_str("</svg>");
     out
 }

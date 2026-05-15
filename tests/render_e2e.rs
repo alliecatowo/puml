@@ -162,3 +162,54 @@ fn render_svg_handles_ref_else_and_multi_target_notes() {
     assert!(svg.contains("fallback"));
     assert_snapshot!("render_svg_handles_ref_else_and_multi_target_notes", svg);
 }
+
+#[test]
+fn render_svg_hides_footbox_and_ends_lifelines_above_footer_area() {
+    let src = "@startuml\nhide footbox\nparticipant A\nparticipant B\nA -> B : hello\n@enduml\n";
+    let ast = puml::parse(src).expect("parse should succeed");
+    let doc = puml::normalize(ast).expect("normalize should succeed");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+    let svg = render::render_svg(&scene);
+
+    assert!(scene.footboxes.is_empty(), "footboxes should be omitted");
+    assert_eq!(scene.lifelines.len(), 2);
+    assert!(
+        scene.lifelines.iter().all(|l| l.y2 < scene.height - 24),
+        "lifelines should end above reserved footer/caption area"
+    );
+    assert_eq!(
+        svg.match_indices("fill=\"#f6f6f6\"").count(),
+        2,
+        "only top participant boxes should be rendered"
+    );
+    assert_snapshot!(
+        "render_svg_hides_footbox_and_ends_lifelines_above_footer_area",
+        svg
+    );
+}
+
+#[test]
+fn render_svg_shows_footbox_and_lifelines_reach_it() {
+    let src = "@startuml\nshow footbox\nparticipant A\nparticipant B\nA -> B : hello\n@enduml\n";
+    let ast = puml::parse(src).expect("parse should succeed");
+    let doc = puml::normalize(ast).expect("normalize should succeed");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+    let svg = render::render_svg(&scene);
+
+    assert_eq!(
+        scene.footboxes.len(),
+        2,
+        "bottom footboxes should be rendered"
+    );
+    assert_eq!(scene.lifelines.len(), 2);
+    for (lifeline, footbox) in scene.lifelines.iter().zip(scene.footboxes.iter()) {
+        assert_eq!(lifeline.participant_id, footbox.id);
+        assert_eq!(lifeline.y2, footbox.y);
+    }
+    assert_eq!(
+        svg.match_indices("fill=\"#f6f6f6\"").count(),
+        4,
+        "top and bottom participant boxes should be rendered"
+    );
+    assert_snapshot!("render_svg_shows_footbox_and_lifelines_reach_it", svg);
+}

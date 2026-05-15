@@ -438,6 +438,7 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
         ("entity", ParticipantRole::Entity),
         ("database", ParticipantRole::Database),
         ("collections", ParticipantRole::Collections),
+        ("queue", ParticipantRole::Queue),
     ];
 
     for (kw, role) in roles {
@@ -645,6 +646,14 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower == "||" {
         return Some(StatementKind::Delay(None));
     }
+    if line.starts_with("==") && line.ends_with("==") && line.len() >= 4 {
+        let label = line[2..line.len() - 2].trim().to_string();
+        return Some(if label.is_empty() {
+            StatementKind::Separator(None)
+        } else {
+            StatementKind::Separator(Some(label))
+        });
+    }
     if lower.starts_with("newpage") {
         return Some(StatementKind::NewPage(line[7..].trim().to_string().into()));
     }
@@ -831,6 +840,7 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Footbox(_)
             | StatementKind::Delay(_)
             | StatementKind::Divider(_)
+            | StatementKind::Separator(_)
             | StatementKind::Spacer
             | StatementKind::NewPage(_)
             | StatementKind::Autonumber(_)
@@ -966,6 +976,27 @@ mod tests {
                 assert_eq!(m.arrow, "->@R++");
                 assert_eq!(m.to, "B");
             }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_queue_participant_and_separator() {
+        let doc = parse_with_options(
+            "queue Jobs as Q\n== Processing ==\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        match &doc.statements[0].kind {
+            StatementKind::Participant(p) => {
+                assert_eq!(p.name, "Jobs");
+                assert_eq!(p.alias.as_deref(), Some("Q"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[1].kind {
+            StatementKind::Separator(v) => assert_eq!(v.as_deref(), Some("Processing")),
             other => panic!("unexpected statement: {other:?}"),
         }
     }

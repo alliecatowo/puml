@@ -131,3 +131,13 @@ Quick gate:
 ```console
 ./scripts/check-all.sh
 ```
+
+## Benchmarking
+
+Run the local no-Java benchmark suite:
+
+```console
+./scripts/bench.sh
+```
+
+Results are written to `docs/benchmarks/latest.{md,csv,json}`.

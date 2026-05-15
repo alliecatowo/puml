@@ -34,6 +34,7 @@ pub enum StatementKind {
     Footbox(bool),
     Delay(Option<String>),
     Divider(Option<String>),
+    Separator(Option<String>),
     Spacer,
     NewPage(Option<String>),
     Autonumber(Option<String>),
@@ -65,6 +66,7 @@ pub enum ParticipantRole {
     Entity,
     Database,
     Collections,
+    Queue,
 }
 
 #[derive(Debug, Clone)]

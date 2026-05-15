@@ -344,6 +344,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Footbox(v) => json!({"Footbox": v}),
         StatementKind::Delay(v) => json!({"Delay": v}),
         StatementKind::Divider(v) => json!({"Divider": v}),
+        StatementKind::Separator(v) => json!({"Separator": v}),
         StatementKind::Spacer => json!("Spacer"),
         StatementKind::NewPage(v) => json!({"NewPage": v}),
         StatementKind::Autonumber(v) => json!({"Autonumber": v}),
@@ -389,6 +390,7 @@ fn ast_role_to_str(role: AstParticipantRole) -> &'static str {
         AstParticipantRole::Entity => "Entity",
         AstParticipantRole::Database => "Database",
         AstParticipantRole::Collections => "Collections",
+        AstParticipantRole::Queue => "Queue",
     }
 }
 
@@ -424,6 +426,7 @@ fn model_role_to_str(role: ModelParticipantRole) -> &'static str {
         ModelParticipantRole::Entity => "Entity",
         ModelParticipantRole::Database => "Database",
         ModelParticipantRole::Collections => "Collections",
+        ModelParticipantRole::Queue => "Queue",
     }
 }
 
@@ -457,6 +460,7 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
         SequenceEventKind::GroupEnd => json!("GroupEnd"),
         SequenceEventKind::Delay(v) => json!({"Delay": v}),
         SequenceEventKind::Divider(v) => json!({"Divider": v}),
+        SequenceEventKind::Separator(v) => json!({"Separator": v}),
         SequenceEventKind::Spacer => json!("Spacer"),
         SequenceEventKind::NewPage(v) => json!({"NewPage": v}),
         SequenceEventKind::Autonumber(v) => json!({"Autonumber": v}),

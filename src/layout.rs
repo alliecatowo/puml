@@ -196,7 +196,27 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     };
 
     let lifeline_start = participant_top + options.participant_height;
-    let lifeline_end = events_top + events_height + options.footer_height;
+    let content_end = events_top + events_height;
+    let lifeline_end = if document.footbox_visible {
+        content_end + options.footer_height
+    } else {
+        content_end
+    };
+    let footboxes = if document.footbox_visible {
+        participants
+            .iter()
+            .map(|p| ParticipantBox {
+                id: p.id.clone(),
+                display: p.display.clone(),
+                x: p.x,
+                y: lifeline_end,
+                width: p.width,
+                height: p.height,
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     let lifelines = participants
         .iter()
         .map(|p| Lifeline {
@@ -215,14 +235,20 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         width = width.max(g.x + g.width + options.margin);
     }
 
+    let min_bottom = if footboxes.is_empty() {
+        lifeline_end + options.footer_height
+    } else {
+        lifeline_end + options.participant_height
+    };
     let height =
-        (lifeline_end + options.margin).max(participant_top + options.participant_height + 80);
+        (min_bottom + options.margin).max(participant_top + options.participant_height + 80);
 
     Scene {
         width,
         height,
         title,
         participants,
+        footboxes,
         lifelines,
         messages,
         notes,

@@ -4,6 +4,7 @@ pub struct Scene {
     pub height: i32,
     pub title: Option<Label>,
     pub participants: Vec<ParticipantBox>,
+    pub footboxes: Vec<ParticipantBox>,
     pub lifelines: Vec<Lifeline>,
     pub messages: Vec<MessageLine>,
     pub notes: Vec<NoteBox>,

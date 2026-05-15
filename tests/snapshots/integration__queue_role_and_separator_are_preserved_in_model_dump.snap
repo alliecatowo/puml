@@ -1,0 +1,67 @@
+---
+source: tests/integration.rs
+assertion_line: 516
+expression: json
+---
+{
+  "caption": null,
+  "events": [
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "Client",
+          "label": "enqueue",
+          "to": "Q"
+        }
+      },
+      "span": {
+        "end": 66,
+        "start": 45
+      }
+    },
+    {
+      "kind": {
+        "Separator": "Processing"
+      },
+      "span": {
+        "end": 83,
+        "start": 67
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "Q",
+          "label": "done",
+          "to": "Client"
+        }
+      },
+      "span": {
+        "end": 102,
+        "start": 84
+      }
+    }
+  ],
+  "footbox_visible": true,
+  "footer": null,
+  "header": null,
+  "legend": null,
+  "participants": [
+    {
+      "display": "Client",
+      "explicit": true,
+      "id": "Client",
+      "role": "Participant"
+    },
+    {
+      "display": "Jobs",
+      "explicit": true,
+      "id": "Q",
+      "role": "Queue"
+    }
+  ],
+  "skinparams": [],
+  "title": null
+}

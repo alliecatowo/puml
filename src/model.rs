@@ -43,6 +43,7 @@ pub enum ParticipantRole {
     Entity,
     Database,
     Collections,
+    Queue,
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +72,7 @@ pub enum SequenceEventKind {
     GroupEnd,
     Delay(Option<String>),
     Divider(Option<String>),
+    Separator(Option<String>),
     Spacer,
     NewPage(Option<String>),
     Autonumber(Option<String>),

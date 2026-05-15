@@ -1,0 +1,45 @@
+{
+  "timestamp_utc": "2026-05-15T07:44:44Z",
+  "binary": "/home/Allie/develop/puml/target/release/puml",
+  "scenarios": [
+    {
+      "name": "render_hello",
+      "tool": "time",
+      "mean_ms": 212.000,
+      "stddev_ms": 74.135,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "check_hello",
+      "tool": "time",
+      "mean_ms": 180.000,
+      "stddev_ms": 0.000,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "dump_model",
+      "tool": "time",
+      "mean_ms": 176.000,
+      "stddev_ms": 4.899,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "stdin_single",
+      "tool": "time",
+      "mean_ms": 180.000,
+      "stddev_ms": 0.000,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "stdin_multi",
+      "tool": "time",
+      "mean_ms": 182.000,
+      "stddev_ms": 4.000,
+      "runs": 5
+    }
+  ]
+}

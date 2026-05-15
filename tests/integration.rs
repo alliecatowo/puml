@@ -57,6 +57,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "basic/valid_start_end.puml",
         "basic/valid_arrow.txt",
         "participants/valid_aliases.puml",
+        "participants/valid_queue_separator.puml",
         "arrows/valid_directions.puml",
         "arrows/self.puml",
         "arrows/modifiers_basic.puml",
@@ -494,6 +495,25 @@ fn lifecycle_return_without_caller_context_reports_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_RETURN_INFER_CALLER"));
+}
+
+#[test]
+fn queue_role_and_separator_are_preserved_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("participants/valid_queue_separator.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!("queue_role_and_separator_are_preserved_in_model_dump", json);
 }
 
 #[test]
