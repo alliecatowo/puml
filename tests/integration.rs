@@ -1943,7 +1943,12 @@ fn multipage_file_output_failure_does_not_leave_partial_writes() {
     Command::cargo_bin("puml")
         .expect("binary")
         .env("PUML_FAIL_OUTPUT_AFTER", "1")
-        .args([input.to_str().unwrap(), "-o", output.to_str().unwrap()])
+        .args([
+            "--multi",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ])
         .assert()
         .code(2)
         .stderr(predicate::str::contains("failed to write"));
