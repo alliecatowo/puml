@@ -462,7 +462,10 @@ fn check_fixture_supports_json_diagnostics_for_warnings() {
     assert_eq!(json["diagnostics"][0]["severity"], "warning");
     assert_eq!(json["diagnostics"][0]["line"], 2);
     assert_eq!(json["diagnostics"][0]["column"], 1);
-    assert_eq!(json["diagnostics"][0]["snippet"], "skinparam sequenceFootbox maybe");
+    assert_eq!(
+        json["diagnostics"][0]["snippet"],
+        "skinparam sequenceFootbox maybe"
+    );
     assert!(json["diagnostics"][0]["message"]
         .as_str()
         .unwrap()

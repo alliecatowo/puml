@@ -1632,7 +1632,7 @@ fn clap_help_exits_successfully() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("PlantUML CLI"))
+        .stdout(predicate::str::contains("PicoUML polymorphic sequence CLI"))
         .stderr(predicate::str::is_empty());
 }
 
