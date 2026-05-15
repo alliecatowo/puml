@@ -283,6 +283,9 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "structure/valid_autonumber_format_only_and_canonical_spacing.puml",
         "structure/valid_autonumber_off_resume_edges.puml",
         "include/include_with_tag_ok.puml",
+        "preprocessor/valid_if_elseif_else.puml",
+        "preprocessor/valid_ifdef_ifndef.puml",
+        "preprocessor/valid_while_define_counter.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -350,6 +353,10 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_group_empty_alt.puml",
         "errors/invalid_group_empty_else_branch.puml",
         "errors/invalid_autonumber_bad_format_token.puml",
+        "errors/invalid_preproc_conditional_order.puml",
+        "errors/invalid_preproc_unclosed_if.puml",
+        "errors/invalid_preproc_procedure_unsupported.puml",
+        "errors/invalid_preproc_endwhile_without_while.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -1518,6 +1525,103 @@ fn include_url_is_rejected_with_deterministic_error() {
         .stderr(predicate::str::contains(
             "!include URL targets are not supported",
         ));
+}
+
+#[test]
+fn preprocessor_if_elseif_else_emits_only_selected_branch() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_if_elseif_else.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["primary"]);
+}
+
+#[test]
+fn preprocessor_while_executes_until_condition_is_false() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_while_define_counter.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["loop 2", "loop 1"]);
+}
+
+#[test]
+fn preprocessor_unsupported_procedure_reports_deterministic_error() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_preproc_procedure_unsupported.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_UNSUPPORTED"))
+        .stderr(predicate::str::contains("!procedure"));
+}
+
+#[test]
+fn preprocessor_conditional_and_while_balance_errors_are_deterministic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_preproc_conditional_order.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_COND_ORDER"));
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_preproc_unclosed_if.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_COND_UNCLOSED"));
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_preproc_endwhile_without_while.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_WHILE_UNEXPECTED"));
 }
 
 #[test]

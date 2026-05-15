@@ -1,0 +1,4 @@
+@startuml
+!endwhile
+A -> B: one
+@enduml

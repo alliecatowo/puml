@@ -1,0 +1,11 @@
+@startuml
+participant A
+participant B
+!define ENABLED 1
+!ifdef ENABLED
+A -> B: on
+!endif
+!ifndef ENABLED
+A -> B: off
+!endif
+@enduml

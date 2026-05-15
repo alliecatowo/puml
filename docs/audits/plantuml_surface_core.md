@@ -165,11 +165,11 @@ Current `puml` baseline used for parity status:
 | Feature | PlantUML surface | `puml` status | Notes | Source |
 |---|---|---|---|---|
 | Variable definition (`!$var`, `=`, `?=`) | Preprocessor variable assignment | missing | Variable language is not implemented. | https://plantuml.com/preprocessing |
-| Boolean expressions | Boolean evaluation in preprocessor | missing | Not implemented. | https://plantuml.com/preprocessing |
-| Conditional blocks | `!if` / `!elseif` / `!else` / `!endif` | missing | Not implemented. | https://plantuml.com/preprocessing |
-| Preprocessor loops | `!while` / `!endwhile` | missing | Not implemented. | https://plantuml.com/preprocessing |
-| Procedures | `!procedure` / `!endprocedure` | missing | Not implemented. | https://plantuml.com/preprocessing |
-| Functions | `!function` / `!endfunction` | missing | Not implemented. | https://plantuml.com/preprocessing |
+| Boolean expressions | Boolean evaluation in preprocessor | partial | Simple deterministic subset implemented (`defined()`, `==`, `!=`, numeric/bool literals); broader expression language is missing. | https://plantuml.com/preprocessing |
+| Conditional blocks | `!if` / `!elseif` / `!else` / `!endif` | partial | Implemented for deterministic subset with explicit balance/order diagnostics. | https://plantuml.com/preprocessing |
+| Preprocessor loops | `!while` / `!endwhile` | partial | Implemented for deterministic subset with bounded iteration guard; advanced loop semantics are missing. | https://plantuml.com/preprocessing |
+| Procedures | `!procedure` / `!endprocedure` | missing | Explicitly rejected with deterministic `E_PREPROC_UNSUPPORTED`. | https://plantuml.com/preprocessing |
+| Functions | `!function` / `!endfunction` | missing | Explicitly rejected with deterministic `E_PREPROC_UNSUPPORTED`. | https://plantuml.com/preprocessing |
 | Default args / keyword args / unquoted | Advanced proc/function argument handling | missing | Not implemented. | https://plantuml.com/preprocessing |
 | `!define` | Macro/define directives | partial | Token-substitution subset implemented. | https://plantuml.com/preprocessing |
 | `!undef` | Undefine macro variables | partial | Supported in current substitution model. | https://plantuml.com/preprocessing |
@@ -190,4 +190,3 @@ Current `puml` baseline used for parity status:
 | Theme catalog usage | Built-in theme listing/local/internet themes | missing | Runtime theme catalog/fetch not implemented. | https://plantuml.com/theme |
 | Stdlib catalog usage | Standard library include/catalog (`awslib`, `C4`, etc.) | missing | Stdlib resolution and library loading not implemented. | https://plantuml.com/stdlib |
 | Include identifiers in sources docs | Include identifier and include-definition patterns in source files | partial | Some tag extraction supported; full sources-surface parity is not. | https://plantuml.com/sources |
-

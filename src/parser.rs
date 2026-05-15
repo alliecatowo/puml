@@ -10,6 +10,7 @@ use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 
 const MAX_INCLUDE_DEPTH: usize = 32;
+const MAX_PREPROC_WHILE_ITERATIONS: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct IncludeTarget {
@@ -43,6 +44,29 @@ pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Docume
     parse_preprocessed(&expanded)
 }
 
+#[derive(Debug, Clone)]
+struct ConditionalFrame {
+    parent_active: bool,
+    branch_taken: bool,
+    current_active: bool,
+    seen_else: bool,
+}
+
+#[derive(Debug, Clone)]
+enum PreprocessDirective {
+    Define(String),
+    Undef(String),
+    Include(String),
+    If(String),
+    IfDef { name: String, negated: bool },
+    ElseIf(String),
+    Else,
+    EndIf,
+    While(String),
+    EndWhile,
+    Unsupported(String),
+}
+
 fn preprocess_text(
     source: &str,
     options: &ParseOptions,
@@ -57,97 +81,387 @@ fn preprocess_text(
         )));
     }
 
-    for raw_line in source.lines() {
+    let lines = source.lines().collect::<Vec<_>>();
+    let mut i = 0usize;
+    let mut conditionals = Vec::<ConditionalFrame>::new();
+
+    while i < lines.len() {
+        let raw_line = lines[i];
         let line = raw_line.trim();
-        let lower = line.to_ascii_lowercase();
+        let active = is_active(&conditionals);
 
-        if lower.starts_with("!define") {
-            let body = line[7..].trim();
-            let (name, value) = body.split_once(' ').unwrap_or((body, ""));
-            if !name.trim().is_empty() {
-                defines.insert(name.trim().to_string(), value.trim().to_string());
+        if let Some(directive) = parse_preprocess_directive(line) {
+            match directive {
+                PreprocessDirective::If(expr) => {
+                    let cond = if active {
+                        evaluate_preprocess_expr(&expr, defines)?
+                    } else {
+                        false
+                    };
+                    conditionals.push(ConditionalFrame {
+                        parent_active: active,
+                        branch_taken: cond && active,
+                        current_active: cond && active,
+                        seen_else: false,
+                    });
+                }
+                PreprocessDirective::IfDef { name, negated } => {
+                    let cond = if active {
+                        defines.contains_key(&name) ^ negated
+                    } else {
+                        false
+                    };
+                    conditionals.push(ConditionalFrame {
+                        parent_active: active,
+                        branch_taken: cond && active,
+                        current_active: cond && active,
+                        seen_else: false,
+                    });
+                }
+                PreprocessDirective::ElseIf(expr) => {
+                    let Some(frame) = conditionals.last_mut() else {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_COND_UNEXPECTED",
+                            "`!elseif` without open conditional block",
+                        ));
+                    };
+                    if frame.seen_else {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_COND_ORDER",
+                            "`!elseif` cannot appear after `!else`",
+                        ));
+                    }
+                    if !frame.parent_active || frame.branch_taken {
+                        frame.current_active = false;
+                    } else {
+                        let cond = evaluate_preprocess_expr(&expr, defines)?;
+                        frame.current_active = cond;
+                        frame.branch_taken |= cond;
+                    }
+                }
+                PreprocessDirective::Else => {
+                    let Some(frame) = conditionals.last_mut() else {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_COND_UNEXPECTED",
+                            "`!else` without open conditional block",
+                        ));
+                    };
+                    if frame.seen_else {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_COND_ORDER",
+                            "conditional block already has an `!else` branch",
+                        ));
+                    }
+                    frame.seen_else = true;
+                    frame.current_active = frame.parent_active && !frame.branch_taken;
+                    frame.branch_taken = true;
+                }
+                PreprocessDirective::EndIf => {
+                    if conditionals.pop().is_none() {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_COND_UNEXPECTED",
+                            "`!endif` without open conditional block",
+                        ));
+                    }
+                }
+                PreprocessDirective::While(expr) => {
+                    let endwhile = find_matching_endwhile(&lines, i)?;
+                    if active {
+                        let block = lines[i + 1..endwhile].join("\n");
+                        let mut iterations = 0usize;
+                        while evaluate_preprocess_expr(&expr, defines)? {
+                            iterations += 1;
+                            if iterations > MAX_PREPROC_WHILE_ITERATIONS {
+                                return Err(Diagnostic::error_code(
+                                    "E_PREPROC_WHILE_LIMIT",
+                                    format!(
+                                        "`!while` iteration limit exceeded ({MAX_PREPROC_WHILE_ITERATIONS})"
+                                    ),
+                                ));
+                            }
+                            preprocess_text(&block, options, defines, include_stack, depth, out)?;
+                        }
+                    }
+                    i = endwhile + 1;
+                    continue;
+                }
+                PreprocessDirective::EndWhile => {
+                    return Err(Diagnostic::error_code(
+                        "E_PREPROC_WHILE_UNEXPECTED",
+                        "`!endwhile` without matching `!while`",
+                    ));
+                }
+                PreprocessDirective::Define(body) => {
+                    if active {
+                        let (name, value) = body.split_once(' ').unwrap_or((body.as_str(), ""));
+                        let name = name.trim();
+                        if !name.is_empty() {
+                            defines.insert(name.to_string(), value.trim().to_string());
+                        }
+                    }
+                }
+                PreprocessDirective::Undef(name) => {
+                    if active {
+                        let name = name.trim();
+                        if !name.is_empty() {
+                            defines.remove(name);
+                        }
+                    }
+                }
+                PreprocessDirective::Include(raw_target) => {
+                    if active {
+                        if raw_target.is_empty() {
+                            return Err(Diagnostic::error_code(
+                                "E_INCLUDE_PATH_REQUIRED",
+                                "!include requires a relative path",
+                            ));
+                        }
+
+                        let include_target = parse_include_target(&raw_target);
+                        if include_target.path.is_absolute() {
+                            return Err(Diagnostic::error_code(
+                                "E_INCLUDE_ABSOLUTE_PATH",
+                                format!(
+                                    "!include only supports relative paths: {}",
+                                    include_target.path.display()
+                                ),
+                            ));
+                        }
+
+                        if is_url_include_target(&raw_target) {
+                            return Err(Diagnostic::error_code(
+                                "E_INCLUDE_URL_UNSUPPORTED",
+                                format!("!include URL targets are not supported: {raw_target}"),
+                            ));
+                        }
+
+                        let resolved =
+                            resolve_include_path(options, include_stack, &include_target.path)?;
+                        if include_stack.iter().any(|p| p == &resolved) {
+                            let mut cycle = include_stack
+                                .iter()
+                                .map(|p| p.display().to_string())
+                                .collect::<Vec<_>>();
+                            cycle.push(resolved.display().to_string());
+                            return Err(Diagnostic::error_code(
+                                "E_INCLUDE_CYCLE",
+                                format!("include cycle detected: {}", cycle.join(" -> ")),
+                            ));
+                        }
+
+                        let mut content = fs::read_to_string(&resolved).map_err(|e| {
+                            Diagnostic::error_code(
+                                "E_INCLUDE_READ",
+                                format!("failed to read include '{}': {e}", resolved.display()),
+                            )
+                        })?;
+                        if let Some(tag) = include_target.tag.as_deref() {
+                            content = extract_include_tag(&content, tag).ok_or_else(|| {
+                                Diagnostic::error_code(
+                                    "E_INCLUDE_TAG_NOT_FOUND",
+                                    format!(
+                                        "include tag '{}' was not found in '{}'",
+                                        tag,
+                                        resolved.display()
+                                    ),
+                                )
+                            })?;
+                        }
+
+                        include_stack.push(resolved);
+                        preprocess_text(&content, options, defines, include_stack, depth + 1, out)?;
+                        include_stack.pop();
+                    }
+                }
+                PreprocessDirective::Unsupported(name) => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_UNSUPPORTED",
+                            format!("unsupported preprocessor directive `!{name}`"),
+                        ));
+                    }
+                }
             }
+            i += 1;
             continue;
         }
 
-        if lower.starts_with("!undef") {
-            let name = line[6..].trim();
-            if !name.is_empty() {
-                defines.remove(name);
-            }
-            continue;
+        if active {
+            out.push_str(&substitute_tokens(raw_line, defines));
+            out.push('\n');
         }
+        i += 1;
+    }
 
-        if lower.starts_with("!include") {
-            let raw_target = line[8..].trim();
-            if raw_target.is_empty() {
-                return Err(Diagnostic::error_code(
-                    "E_INCLUDE_PATH_REQUIRED",
-                    "!include requires a relative path",
-                ));
-            }
-
-            let include_target = parse_include_target(raw_target);
-            if include_target.path.is_absolute() {
-                return Err(Diagnostic::error_code(
-                    "E_INCLUDE_ABSOLUTE_PATH",
-                    format!(
-                        "!include only supports relative paths: {}",
-                        include_target.path.display()
-                    ),
-                ));
-            }
-
-            if is_url_include_target(raw_target) {
-                return Err(Diagnostic::error_code(
-                    "E_INCLUDE_URL_UNSUPPORTED",
-                    format!("!include URL targets are not supported: {raw_target}"),
-                ));
-            }
-
-            let resolved = resolve_include_path(options, include_stack, &include_target.path)?;
-            if include_stack.iter().any(|p| p == &resolved) {
-                let mut cycle = include_stack
-                    .iter()
-                    .map(|p| p.display().to_string())
-                    .collect::<Vec<_>>();
-                cycle.push(resolved.display().to_string());
-                return Err(Diagnostic::error_code(
-                    "E_INCLUDE_CYCLE",
-                    format!("include cycle detected: {}", cycle.join(" -> ")),
-                ));
-            }
-
-            let mut content = fs::read_to_string(&resolved).map_err(|e| {
-                Diagnostic::error_code(
-                    "E_INCLUDE_READ",
-                    format!("failed to read include '{}': {e}", resolved.display()),
-                )
-            })?;
-            if let Some(tag) = include_target.tag.as_deref() {
-                content = extract_include_tag(&content, tag).ok_or_else(|| {
-                    Diagnostic::error_code(
-                        "E_INCLUDE_TAG_NOT_FOUND",
-                        format!(
-                            "include tag '{}' was not found in '{}'",
-                            tag,
-                            resolved.display()
-                        ),
-                    )
-                })?;
-            }
-
-            include_stack.push(resolved);
-            preprocess_text(&content, options, defines, include_stack, depth + 1, out)?;
-            include_stack.pop();
-            continue;
-        }
-
-        out.push_str(&substitute_tokens(raw_line, defines));
-        out.push('\n');
+    if !conditionals.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_COND_UNCLOSED",
+            "missing `!endif` for conditional block",
+        ));
     }
 
     Ok(())
+}
+
+fn is_active(conditionals: &[ConditionalFrame]) -> bool {
+    conditionals.iter().all(|f| f.current_active)
+}
+
+fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('!') {
+        return None;
+    }
+    let rest = trimmed[1..].trim_start();
+    let mut split = rest.splitn(2, char::is_whitespace);
+    let name = split.next().unwrap_or_default();
+    let arg = split.next().unwrap_or_default().trim();
+    let lower = name.to_ascii_lowercase();
+
+    match lower.as_str() {
+        "define" => Some(PreprocessDirective::Define(arg.to_string())),
+        "undef" => Some(PreprocessDirective::Undef(arg.to_string())),
+        "include" => Some(PreprocessDirective::Include(arg.to_string())),
+        "if" => Some(PreprocessDirective::If(arg.to_string())),
+        "ifdef" => Some(PreprocessDirective::IfDef {
+            name: arg.to_string(),
+            negated: false,
+        }),
+        "ifndef" => Some(PreprocessDirective::IfDef {
+            name: arg.to_string(),
+            negated: true,
+        }),
+        "elseif" => Some(PreprocessDirective::ElseIf(arg.to_string())),
+        "else" => Some(PreprocessDirective::Else),
+        "endif" => Some(PreprocessDirective::EndIf),
+        "while" => Some(PreprocessDirective::While(arg.to_string())),
+        "endwhile" => Some(PreprocessDirective::EndWhile),
+        "procedure" | "endprocedure" | "function" | "endfunction" | "return" | "foreach"
+        | "endfor" | "assert" | "log" | "dump_memory" | "import" | "include_once"
+        | "include_many" | "includesub" | "startsub" | "endsub" => {
+            Some(PreprocessDirective::Unsupported(name.to_string()))
+        }
+        "theme" | "pragma" => None,
+        _ if !name.is_empty() => Some(PreprocessDirective::Unsupported(name.to_string())),
+        _ => None,
+    }
+}
+
+fn evaluate_preprocess_expr(
+    expr: &str,
+    defines: &BTreeMap<String, String>,
+) -> Result<bool, Diagnostic> {
+    let raw = expr.trim();
+    if raw.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_EXPR_REQUIRED",
+            "preprocessor condition requires an expression",
+        ));
+    }
+    if raw.contains("&&") || raw.contains("||") {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_EXPR_UNSUPPORTED",
+            "only simple conditions are supported in this preprocessor slice",
+        ));
+    }
+
+    if let Some((negated, name)) = parse_defined_call(raw) {
+        let defined = defines.contains_key(name);
+        return Ok(if negated { !defined } else { defined });
+    }
+
+    let substituted = substitute_tokens(raw, defines);
+    evaluate_scalar_expr(substituted.trim())
+}
+
+fn parse_defined_call(expr: &str) -> Option<(bool, &str)> {
+    let trimmed = expr.trim();
+    let (negated, rest) = if let Some(rem) = trimmed.strip_prefix('!') {
+        (true, rem.trim_start())
+    } else {
+        (false, trimmed)
+    };
+    let lower = rest.to_ascii_lowercase();
+    if !lower.starts_with("defined") {
+        return None;
+    }
+    let rest = &rest["defined".len()..];
+    let name = rest
+        .trim_start()
+        .strip_prefix('(')?
+        .strip_suffix(')')?
+        .trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some((negated, name))
+}
+
+fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
+    let trimmed = expr.trim();
+    if trimmed.is_empty() {
+        return Ok(false);
+    }
+
+    if let Some((lhs, rhs)) = trimmed.split_once("==") {
+        return Ok(normalize_expr_value(lhs) == normalize_expr_value(rhs));
+    }
+    if let Some((lhs, rhs)) = trimmed.split_once("!=") {
+        return Ok(normalize_expr_value(lhs) != normalize_expr_value(rhs));
+    }
+    if let Some(inner) = trimmed.strip_prefix('!') {
+        return evaluate_scalar_expr(inner).map(|v| !v);
+    }
+    if trimmed.contains('(') || trimmed.contains(')') {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_EXPR_UNSUPPORTED",
+            "only simple conditions are supported in this preprocessor slice",
+        ));
+    }
+
+    let normalized = normalize_expr_value(trimmed);
+    if normalized.is_empty() {
+        return Ok(false);
+    }
+    match normalized.to_ascii_lowercase().as_str() {
+        "true" | "yes" | "on" => return Ok(true),
+        "false" | "no" | "off" => return Ok(false),
+        _ => {}
+    }
+    if let Ok(n) = normalized.parse::<i64>() {
+        return Ok(n != 0);
+    }
+    Ok(false)
+}
+
+fn normalize_expr_value(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .to_string()
+}
+
+fn find_matching_endwhile(lines: &[&str], while_idx: usize) -> Result<usize, Diagnostic> {
+    let mut depth = 0usize;
+    for (idx, raw) in lines.iter().enumerate().skip(while_idx + 1) {
+        let line = raw.trim();
+        match parse_preprocess_directive(line) {
+            Some(PreprocessDirective::While(_)) => depth += 1,
+            Some(PreprocessDirective::EndWhile) => {
+                if depth == 0 {
+                    return Ok(idx);
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    Err(Diagnostic::error_code(
+        "E_PREPROC_WHILE_UNCLOSED",
+        "missing `!endwhile` for `!while` block",
+    ))
 }
 
 fn resolve_include_path(
@@ -1387,6 +1701,101 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn conditional_if_elseif_else_selects_first_matching_branch() {
+        let doc = parse_with_options(
+            "!define FLAG 1\n!if FLAG == 1\nA -> B: first\n!elseif 1\nA -> B: second\n!else\nA -> B: third\n!endif\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 1);
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("first")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ifdef_and_ifndef_follow_define_state() {
+        let doc = parse_with_options(
+            "!define ENABLED 1\n!ifdef ENABLED\nA -> B: yes\n!endif\n!ifndef ENABLED\nA -> B: no\n!endif\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 1);
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("yes")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn while_loops_execute_with_define_updates() {
+        let doc = parse_with_options(
+            "!define COUNT 2\n!while COUNT != 0\nA -> B: loop\n!if COUNT == 2\n!define COUNT 1\n!elseif COUNT == 1\n!define COUNT 0\n!endif\n!endwhile\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 2);
+        assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+        assert!(matches!(doc.statements[1].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn unsupported_preprocessor_directive_errors_when_active() {
+        let err = parse_with_options("!procedure Build()\nA -> B\n", &ParseOptions::default())
+            .unwrap_err();
+        assert!(err.message.contains("E_PREPROC_UNSUPPORTED"));
+        assert!(err.message.contains("!procedure"));
+    }
+
+    #[test]
+    fn unsupported_preprocessor_directive_is_ignored_in_inactive_branch() {
+        let doc = parse_with_options(
+            "!ifdef NEVER_DEFINED\n!procedure Build()\n!endprocedure\n!endif\nA -> B\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 1);
+        assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn unknown_preprocessor_directive_errors_deterministically() {
+        let err = parse_with_options("!totallynew thing\nA -> B\n", &ParseOptions::default())
+            .unwrap_err();
+        assert!(err.message.contains("E_PREPROC_UNSUPPORTED"));
+        assert!(err.message.contains("!totallynew"));
+    }
+
+    #[test]
+    fn conditional_requires_balancing_and_order() {
+        let err = parse_with_options("!endif\n", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_PREPROC_COND_UNEXPECTED"));
+
+        let err = parse_with_options("!if 1\nA -> B\n", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_PREPROC_COND_UNCLOSED"));
+
+        let err = parse_with_options(
+            "!if 1\n!else\n!elseif 1\n!endif\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_PREPROC_COND_ORDER"));
+    }
+
+    #[test]
+    fn while_requires_balancing() {
+        let err = parse_with_options("!endwhile\n", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_PREPROC_WHILE_UNEXPECTED"));
+
+        let err = parse_with_options("!while 1\nA -> B\n", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_PREPROC_WHILE_UNCLOSED"));
     }
 
     #[test]
