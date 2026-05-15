@@ -16,6 +16,19 @@
 - [ ] Review deterministic trend artifacts: `docs/benchmarks/latest_trend.{md,json}`.
 - [ ] Verify no-Java baseline is intact: PlantUML oracle fields are still placeholder-only (`todo`).
 
+### Local Evidence Snapshot (Issue #17, 2026-05-15 UTC)
+
+- Full profile command: `./scripts/bench.sh`
+- Full profile timestamp: `2026-05-15T19:21:55Z`
+- Full profile result: gates pass (`abs<=250ms`, `regression<=10%`, `binary<=2,000,000B`)
+- Full profile scenario means (ms): `cold_start_help=130.000`, `parser_check=128.000`, `parser_dump_scene=122.000`, `render_file=98.000`, `render_stdin=98.000`, `render_stdin_multi=98.000`
+- Quick enforced command: `./scripts/bench.sh --quick --enforce-gates`
+- Quick profile timestamp: `2026-05-15T19:22:04Z`
+- Quick enforced result: gate fail on regression (`render_file=+25.850%`, `render_stdin=+25.850%`, limit `20%`)
+- Quick profile scenario means (ms): `cold_start_help=126.667`, `parser_check=130.000`, `parser_dump_scene=130.000`, `render_file=123.333`, `render_stdin=123.333`, `render_stdin_multi=110.000`
+- Release binary size: `1,814,264` bytes (`target/release/puml`)
+- No-Java oracle status: retained as `todo` placeholders in `docs/benchmarks/latest_trend.json` and `docs/benchmarks/parity_latest.json`
+
 ## Contract and Docs
 
 - [ ] `README.md` reflects current CLI behavior and command entry points.
