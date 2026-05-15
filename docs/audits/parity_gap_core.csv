@@ -1,0 +1,128 @@
+feature_group,feature,plantuml_support,puml_status,notes,source_url
+class,"Declarative element forms (class/interface/enum/etc)","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Relationship syntaxes (inheritance/implementation/composition/aggregation/dependency)","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Relation labels and cardinality","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Attributes and methods","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Visibility markers (+ - # ~)","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Abstract/static/interface semantics","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Notes and stereotypes","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Hide/remove members or classes","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Packages and namespaces","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+class,"Generics/association class/lollipop/style-orientation controls","Documented on class diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/class-diagram
+object,"Object declarations and aliases","Documented on object diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/object-diagram
+object,"Object relations","Documented on object diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/object-diagram
+object,"Object associations","Documented on object diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/object-diagram
+object,"Object fields","Documented on object diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/object-diagram
+object,"Map/associative-array table","Documented on object diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/object-diagram
+object,"PERT with map","Documented on object diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/object-diagram
+object,"JSON display crossover","Documented on object diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/object-diagram
+usecase,"Actor/usecase declarations","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Actor styles","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Usecase descriptions","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Packages/boundaries","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Include/extend/generalization relations","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Notes and stereotypes","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Arrow direction controls","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Split diagrams","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Left-to-right layout direction","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+usecase,"Skinparam/inline style/JSON display","Documented on use-case diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/use-case-diagram
+component,"Component declarations","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Interfaces","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Notes","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Grouping components","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Arrow direction controls","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"UML2/UML1/rectangle notation modes","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Colors/sprites/stereotypes","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Component skinparam","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Hide/remove unlinked or tagged components","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+component,"Ports and JSON display","Documented on component diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/component-diagram
+deployment,"Deployment element declarations","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Short-form deployment declarations","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Linking/arrow variants","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Bracketed arrow style","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Inline arrow color/style","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Inline element color/style","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Nestable elements and package nesting","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Alias and round-corner controls","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Specific skinparams and ports","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+deployment,"Orientation controls and JSON display","Documented on deployment diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/deployment-diagram
+state,"Basic states and transitions","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"State rendering mode changes","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Composite states","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Long names and state descriptions","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"History states [H]/[H*]","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Fork/join and concurrent states","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Choice/conditional nodes","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Entry/exit/pin/expansion points","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Arrow direction and style controls","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Notes and inline colors","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Skinparam/style controls","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+state,"Alias and JSON display","Documented on state diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/state-diagram
+activity,"New activity syntax actions","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Start/stop/end markers","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"If/then/else conditionals","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Switch/case blocks","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Repeat/while loops and break","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Goto/label processing","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Parallel/split processing","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Notes/connectors/arrow styling","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Partition and swimlanes","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Kill/detach controls","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Global style and Creole","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
+activity,"Legacy activity syntax","Documented on activity legacy page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-legacy
+timing,"Timing participant declaration","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Binary and clock signals","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Adding messages","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Relative time and anchors","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Scale and time-axis controls","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"State variants (initial/intricated/hidden/negative)","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Date/time and date format","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Constraints and highlighted periods","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Notes/text/colors/styles","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+timing,"Compact mode and analog customization","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
+sequence,"Basic messages and participants","Documented on sequence diagram page",implemented,"Implemented end-to-end",https://plantuml.com/sequence-diagram
+sequence,"Participant role keywords","Documented on sequence diagram page",implemented,"participant/actor/boundary/control/entity/database/collections/queue supported",https://plantuml.com/sequence-diagram
+sequence,"Message to self","Documented on sequence diagram page",implemented,"Self messages handled via common message path",https://plantuml.com/sequence-diagram
+sequence,"Arrow style breadth","Documented on sequence diagram page",partial,"Subset implemented; full arrow catalog not complete",https://plantuml.com/sequence-diagram
+sequence,"Arrow color/style controls","Documented on sequence diagram page",partial,"Limited support via subset and selected skinparams",https://plantuml.com/sequence-diagram
+sequence,"Autonumbering","Documented on sequence diagram page",partial,"Deterministic subset implemented",https://plantuml.com/sequence-diagram
+sequence,"Title/header/footer","Documented on sequence diagram page",implemented,"Carried into model/page output",https://plantuml.com/sequence-diagram
+sequence,"Diagram splitting (newpage)","Documented on sequence diagram page",implemented,"Core multipage events implemented",https://plantuml.com/sequence-diagram
+sequence,"Ignore newpage","Documented on sequence diagram page",implemented,"Parsed and applied in normalization",https://plantuml.com/sequence-diagram
+sequence,"Grouping blocks (alt/else/opt/loop/par/critical/break/group/end)","Documented on sequence diagram page",partial,"Supported with narrower semantics",https://plantuml.com/sequence-diagram
+sequence,"Reference blocks (ref)","Documented on sequence diagram page",partial,"Baseline ref support exists; not full-surface equivalent",https://plantuml.com/sequence-diagram
+sequence,"Notes including hnote/rnote/across","Documented on sequence diagram page",partial,"Note shape/style semantics are reduced",https://plantuml.com/sequence-diagram
+sequence,"Divider/separator/delay/space","Documented on sequence diagram page",implemented,"Implemented in parser+layout+renderer",https://plantuml.com/sequence-diagram
+sequence,"Lifeline activation/deactivation/destruction","Documented on sequence diagram page",implemented,"Explicit commands and validation implemented",https://plantuml.com/sequence-diagram
+sequence,"Return","Documented on sequence diagram page",implemented,"Return inference and explicit forms implemented",https://plantuml.com/sequence-diagram
+sequence,"Participant creation","Documented on sequence diagram page",implemented,"Create lifecycle path implemented",https://plantuml.com/sequence-diagram
+sequence,"Incoming/outgoing endpoint arrows","Documented on sequence diagram page",partial,"Endpoint surface exists with reduced fidelity semantics",https://plantuml.com/sequence-diagram
+sequence,"Sequence skinparam surface","Documented on sequence diagram page",partial,"Selected keys implemented; unsupported keys warn",https://plantuml.com/sequence-diagram
+sequence,"Theme usage via !theme","Documented on sequence diagram page",partial,"Accepted but warning-only behavior",https://plantuml.com/sequence-diagram
+sequence,"Teoz/parallel-message specific semantics","Documented on sequence diagram page",missing,"No dedicated teoz semantic support",https://plantuml.com/sequence-diagram
+preprocessor,"Variable definition (!$var, =, ?=)","Documented on preprocessing page",missing,"Preprocessor variable language absent",https://plantuml.com/preprocessing
+preprocessor,"Boolean expressions","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Conditional directives (!if/!elseif/!else/!endif)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Loop directives (!while/!endwhile)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Procedures (!procedure)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Functions (!function)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Default args/keyword args/unquoted","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Define directives (!define)","Documented on preprocessing page",partial,"Simple token-substitution subset implemented",https://plantuml.com/preprocessing
+preprocessor,"Undef directives (!undef)","Documented on preprocessing page",partial,"Implemented in current substitution model",https://plantuml.com/preprocessing
+preprocessor,"Local file include (!include)","Documented on preprocessing page",partial,"Supported with include-root and cycle safety",https://plantuml.com/preprocessing
+preprocessor,"URL include targets","Documented on preprocessing page",missing,"URL includes explicitly rejected",https://plantuml.com/preprocessing
+preprocessor,"Include multiplicity (!include_many/!include_once)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Subpart include commands (!startsub/!endsub/!includesub)","Documented on preprocessing page",partial,"Tag extraction exists via file!TAG; full command surface missing",https://plantuml.com/preprocessing
+preprocessor,"Builtin preprocessor functions (%)","Documented on preprocessing page",missing,"Builtin function surface not implemented",https://plantuml.com/preprocessing
+preprocessor,"Logging (!log)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Memory dump (!dump_memory)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Assertions (!assert)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Import for custom library (!import)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Search path behavior","Documented on preprocessing page",partial,"include_root exists; broader search-path behavior absent",https://plantuml.com/preprocessing
+preprocessor,"Argument concatenation (##)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Dynamic invocation (%invoke_procedure/%call_user_func)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"JSON preprocessing","Documented on preprocessing JSON page",missing,"Not implemented",https://plantuml.com/preprocessing-json
+preprocessor,"Theme include directive (!theme)","Documented on preprocessing page",partial,"Accepted but no theme semantic application",https://plantuml.com/preprocessing
+preprocessor,"Theme catalog/local/internet themes","Documented on theme page",missing,"No theme catalog/resolution implementation",https://plantuml.com/theme
+preprocessor,"Standard library catalog (awslib/C4/etc)","Documented on stdlib page",missing,"No stdlib include/catalog implementation",https://plantuml.com/stdlib
+preprocessor,"Source include identifiers (include/includedef forms)","Documented on sources page",partial,"Some tag extraction exists; full sources-surface parity missing",https://plantuml.com/sources
