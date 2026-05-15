@@ -2371,7 +2371,7 @@ fn stdin_ignore_newpage_with_multi_still_outputs_single_svg() {
 }
 
 #[test]
-fn file_newpage_output_requires_multi_flag() {
+fn file_newpage_output_without_multi_writes_numbered_files() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("paged.puml");
     fs::copy(fixture("structure/newpage_stdin_contract.puml"), &input).unwrap();
@@ -2380,10 +2380,10 @@ fn file_newpage_output_requires_multi_flag() {
         .expect("binary")
         .arg(input.to_str().unwrap())
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains(
-            "multiple pages detected; rerun with --multi",
-        ));
+        .success();
+
+    assert!(tmp.path().join("paged-1.svg").exists());
+    assert!(tmp.path().join("paged-2.svg").exists());
 }
 
 #[test]
