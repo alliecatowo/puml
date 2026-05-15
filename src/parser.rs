@@ -75,47 +75,41 @@ fn preprocess_text(
         if lower.starts_with("!include") {
             let raw_target = line[8..].trim();
             if raw_target.is_empty() {
-                return Err(Diagnostic::error("!include requires a relative path"));
+                return Err(Diagnostic::error_code(
+                    "E_INCLUDE_PATH_REQUIRED",
+                    "!include requires a relative path",
+                ));
             }
 
             let include_path = parse_include_target(raw_target);
             if include_path.is_absolute() {
-                return Err(Diagnostic::error(format!(
-                    "!include only supports relative paths: {}",
-                    include_path.display()
-                )));
+                return Err(Diagnostic::error_code(
+                    "E_INCLUDE_ABSOLUTE_PATH",
+                    format!(
+                        "!include only supports relative paths: {}",
+                        include_path.display()
+                    ),
+                ));
             }
 
-            let base_dir = if let Some(curr) = include_stack.last() {
-                curr.parent().map(Path::to_path_buf)
-            } else {
-                options.include_root.clone()
-            };
-
-            let Some(base_dir) = base_dir else {
-                return Err(Diagnostic::error(
-                    "!include from stdin requires include_root option",
-                ));
-            };
-
-            let resolved = normalize_path(base_dir.join(include_path));
+            let resolved = resolve_include_path(options, include_stack, &include_path)?;
             if include_stack.iter().any(|p| p == &resolved) {
                 let mut cycle = include_stack
                     .iter()
                     .map(|p| p.display().to_string())
                     .collect::<Vec<_>>();
                 cycle.push(resolved.display().to_string());
-                return Err(Diagnostic::error(format!(
-                    "include cycle detected: {}",
-                    cycle.join(" -> ")
-                )));
+                return Err(Diagnostic::error_code(
+                    "E_INCLUDE_CYCLE",
+                    format!("include cycle detected: {}", cycle.join(" -> ")),
+                ));
             }
 
             let content = fs::read_to_string(&resolved).map_err(|e| {
-                Diagnostic::error(format!(
-                    "failed to read include '{}': {e}",
-                    resolved.display()
-                ))
+                Diagnostic::error_code(
+                    "E_INCLUDE_READ",
+                    format!("failed to read include '{}': {e}", resolved.display()),
+                )
             })?;
 
             include_stack.push(resolved);
@@ -129,6 +123,60 @@ fn preprocess_text(
     }
 
     Ok(())
+}
+
+fn resolve_include_path(
+    options: &ParseOptions,
+    include_stack: &[PathBuf],
+    include_path: &Path,
+) -> Result<PathBuf, Diagnostic> {
+    let root_dir = options.include_root.clone().or_else(|| {
+        include_stack
+            .first()
+            .and_then(|p| p.parent().map(Path::to_path_buf))
+    });
+
+    let Some(root_dir) = root_dir else {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_ROOT_REQUIRED",
+            "!include from stdin requires include_root option",
+        ));
+    };
+
+    let root_canon = root_dir.canonicalize().map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_ROOT_INVALID",
+            format!(
+                "failed to access include root '{}': {e}",
+                root_dir.display()
+            ),
+        )
+    })?;
+
+    let base_dir = include_stack
+        .last()
+        .and_then(|curr| curr.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| root_canon.clone());
+    let resolved = normalize_path(base_dir.join(include_path));
+    let resolved_canon = resolved.canonicalize().map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_READ",
+            format!("failed to read include '{}': {e}", resolved.display()),
+        )
+    })?;
+
+    if !resolved_canon.starts_with(&root_canon) {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_ESCAPE",
+            format!(
+                "include path escapes include root: '{}' resolves outside '{}'",
+                include_path.display(),
+                root_canon.display()
+            ),
+        ));
+    }
+
+    Ok(resolved_canon)
 }
 
 fn parse_include_target(raw_target: &str) -> PathBuf {
@@ -219,6 +267,8 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     }
 
     let mut seen_sequence = false;
+    let mut in_block = false;
+    let mut block_start_span: Option<Span> = None;
     let mut i = 0usize;
     while i < lines.len() {
         let (raw_line, span) = lines[i];
@@ -228,7 +278,27 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
-        if line.eq_ignore_ascii_case("@startuml") || line.eq_ignore_ascii_case("@enduml") {
+        if line.eq_ignore_ascii_case("@startuml") {
+            if in_block {
+                return Err(Diagnostic::error(
+                    "unmatched @startuml/@enduml boundary: found @startuml before closing previous block",
+                )
+                .with_span(span));
+            }
+            in_block = true;
+            block_start_span = Some(span);
+            i += 1;
+            continue;
+        }
+        if line.eq_ignore_ascii_case("@enduml") {
+            if !in_block {
+                return Err(Diagnostic::error(
+                    "unmatched @startuml/@enduml boundary: found @enduml without a preceding @startuml",
+                )
+                .with_span(span));
+            }
+            in_block = false;
+            block_start_span = None;
             i += 1;
             continue;
         }
@@ -318,6 +388,13 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             kind: StatementKind::Unknown(line.to_string()),
         });
         i += 1;
+    }
+
+    if in_block {
+        return Err(Diagnostic::error(
+            "unmatched @startuml/@enduml boundary: @startuml is missing a closing @enduml",
+        )
+        .with_span(block_start_span.unwrap_or(Span::new(0, 0))));
     }
 
     Ok(Document {
@@ -938,9 +1015,51 @@ mod tests {
     #[test]
     fn include_from_stdin_requires_root() {
         let err = parse_with_options("!include x.puml", &ParseOptions::default()).unwrap_err();
-        assert!(err
-            .message
-            .contains("!include from stdin requires include_root option"));
+        assert!(err.message.contains("E_INCLUDE_ROOT_REQUIRED"));
+    }
+
+    #[test]
+    fn include_rejects_parent_escape_outside_root() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("root");
+        let outside = dir.path().join("outside.puml");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&outside, "A -> B\n").unwrap();
+
+        let err = parse_with_options(
+            "!include ../outside.puml",
+            &ParseOptions {
+                include_root: Some(root),
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("E_INCLUDE_ESCAPE"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn include_rejects_symlink_target_outside_root() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("root");
+        let outside = dir.path().join("outside.puml");
+        let link = root.join("link_outside.puml");
+
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&outside, "A -> B\n").unwrap();
+        symlink(&outside, &link).unwrap();
+
+        let err = parse_with_options(
+            "!include link_outside.puml",
+            &ParseOptions {
+                include_root: Some(root),
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("E_INCLUDE_ESCAPE"));
     }
 
     #[test]

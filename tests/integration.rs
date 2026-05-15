@@ -118,7 +118,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_include_only.puml",
         "errors/invalid_define_only.puml",
         "errors/invalid_undef_only.puml",
-        "styling/valid_skinparam_unsupported.puml",
         "non_sequence/invalid_class_diagram.puml",
         "non_sequence/invalid_state_diagram.puml",
         "include/error_include_cycle_self.puml",
@@ -143,6 +142,57 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
 }
 
 #[test]
+fn check_mode_emits_styling_warnings_but_succeeds() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_unsupported.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("W_SKINPARAM_UNSUPPORTED"));
+}
+
+#[test]
+fn dump_mode_emits_warnings_in_deterministic_order() {
+    let input = "@startuml\n!theme spacelab\nskinparam ArrowColor red\nskinparam SequenceLifeLineBorderColor blue\nA -> B\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    let stderr = String::from_utf8(out.stderr).unwrap();
+    let first = stderr.find("W_SKINPARAM_UNSUPPORTED").unwrap();
+    let second = stderr[first + 1..].find("W_SKINPARAM_UNSUPPORTED").unwrap();
+    let theme = stderr.find("W_THEME_UNSUPPORTED").unwrap();
+    assert!(first < theme);
+    assert!(first + 1 + second < theme);
+
+    let json: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(json.get("participants").is_some());
+}
+
+#[test]
+fn render_mode_emits_styling_warnings_but_succeeds() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\n!theme plain\nskinparam ArrowColor red\nA -> B\n@enduml\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("<svg"))
+        .stderr(
+            predicate::str::contains("W_SKINPARAM_UNSUPPORTED")
+                .and(predicate::str::contains("W_THEME_UNSUPPORTED")),
+        );
+}
+
+#[test]
 fn malformed_arrow_reports_diagnostic() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -150,6 +200,48 @@ fn malformed_arrow_reports_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn check_mode_reports_unmatched_enduml_boundary() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("errors/invalid_unmatched_enduml.puml")])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "unmatched @startuml/@enduml boundary",
+        ))
+        .stderr(predicate::str::contains("without a preceding @startuml"));
+}
+
+#[test]
+fn check_mode_reports_nested_startuml_boundary() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("errors/invalid_nested_startuml.puml")])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "unmatched @startuml/@enduml boundary",
+        ))
+        .stderr(predicate::str::contains("before closing previous block"));
+}
+
+#[test]
+fn check_mode_reports_unterminated_second_block_boundary() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_unterminated_second_block.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "unmatched @startuml/@enduml boundary",
+        ))
+        .stderr(predicate::str::contains("missing a closing @enduml"));
 }
 
 #[test]
@@ -309,21 +401,33 @@ fn multi_mode_splits_uppercase_start_enduml_blocks() {
 }
 
 #[test]
-fn multi_mode_does_not_drop_unterminated_trailing_startuml_block() {
+fn multi_mode_reports_unterminated_trailing_startuml_block() {
     let input = "@startuml\nAlice -> Bob: one\n@enduml\n@startuml\nBob -> Alice: two\n";
-    let out = Command::cargo_bin("puml")
+    Command::cargo_bin("puml")
         .expect("binary")
         .args(["--multi", "--dump", "ast", "-"])
         .write_stdin(input)
         .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
+        .code(1)
+        .stderr(predicate::str::contains(
+            "unmatched @startuml/@enduml boundary",
+        ))
+        .stderr(predicate::str::contains("missing a closing @enduml"));
+}
 
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let arr = json.as_array().expect("expected multi-dump array output");
-    assert_eq!(arr.len(), 2);
+#[test]
+fn multi_mode_reports_enduml_without_startuml() {
+    let input = "@enduml\n@startuml\nAlice -> Bob: one\n@enduml\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "unmatched @startuml/@enduml boundary",
+        ))
+        .stderr(predicate::str::contains("without a preceding @startuml"));
 }
 
 #[test]

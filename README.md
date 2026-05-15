@@ -87,6 +87,10 @@ Exit codes:
 - `2` I/O failure
 - `3` internal failure
 
+Warnings:
+- unsupported `skinparam` keys and `!theme` are emitted to `stderr` as deterministic non-fatal warnings in `--check`, `--dump`, and render modes
+- warnings do not change exit code when no hard validation error occurs
+
 ## Feature Matrix
 
 | Area | Status | Notes |
@@ -99,7 +103,7 @@ Exit codes:
 | Lifecycle/control statements | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber`. |
 | Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
 | `skinparam maxmessagesize` | Supported | Accepted and normalized. |
-| Other `skinparam` keys | Rejected intentionally | Return validation warning error behavior. |
+| Other `skinparam` keys | Accepted with warning | Deterministic `stderr` warning; continues execution. |
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 

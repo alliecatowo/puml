@@ -1,3 +1,4 @@
+use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 
 #[derive(Debug, Clone)]
@@ -11,6 +12,7 @@ pub struct SequenceDocument {
     pub legend: Option<String>,
     pub skinparams: Vec<(String, String)>,
     pub footbox_visible: bool,
+    pub warnings: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +26,7 @@ pub struct SequencePage {
     pub legend: Option<String>,
     pub skinparams: Vec<(String, String)>,
     pub footbox_visible: bool,
+    pub warnings: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone)]

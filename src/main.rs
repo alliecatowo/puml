@@ -6,12 +6,14 @@ use puml::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl,
     ParticipantRole as AstParticipantRole, Statement, StatementKind,
 };
+use puml::layout;
 use puml::model::{
     Participant, ParticipantRole as ModelParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind,
 };
 use puml::parser::{parse_with_options, ParseOptions};
-use puml::{normalize, render_source_to_svgs, Diagnostic};
+use puml::scene::LayoutOptions;
+use puml::{normalize, render, Diagnostic};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::fs;
@@ -86,7 +88,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         .include_root
         .clone()
         .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
-    let diagrams = split_diagrams(&raw);
+    let diagrams = split_diagrams(&raw).map_err(diag_err)?;
 
     if diagrams.is_empty() {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
@@ -103,7 +105,8 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     if cli.check {
         for source in &diagrams {
             let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
-            normalize(doc).map_err(diag_err)?;
+            let model = normalize(doc).map_err(diag_err)?;
+            emit_warnings(&model);
         }
         return Ok(());
     }
@@ -119,11 +122,13 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                 DumpKind::Model => {
                     let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
                     let model = normalize(doc).map_err(diag_err)?;
+                    emit_warnings(&model);
                     Ok(model_to_json(&model))
                 }
                 DumpKind::Scene => {
                     let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
                     let model = normalize(doc).map_err(diag_err)?;
+                    emit_warnings(&model);
                     Ok(scene_to_json(&model))
                 }
             })
@@ -150,7 +155,11 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let svgs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
-        let mut pages = render_source_to_svgs(source).map_err(diag_err)?;
+        let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
+        let model = normalize(doc).map_err(diag_err)?;
+        emit_warnings(&model);
+        let scenes = layout::layout_pages(&model, LayoutOptions::default());
+        let mut pages = scenes.iter().map(render::render_svg).collect::<Vec<_>>();
         all.append(&mut pages);
         Ok::<_, (u8, String)>(all)
     })?;
@@ -205,6 +214,12 @@ fn diag_err(d: Diagnostic) -> (u8, String) {
     (EXIT_VALIDATION, d.message)
 }
 
+fn emit_warnings(model: &SequenceDocument) {
+    for warning in &model.warnings {
+        eprintln!("{}", warning.message);
+    }
+}
+
 fn parse_for_cli(source: &str, include_root: Option<PathBuf>) -> Result<Document, Diagnostic> {
     parse_with_options(source, &ParseOptions { include_root })
 }
@@ -226,10 +241,10 @@ fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u
     }
 }
 
-fn split_diagrams(raw: &str) -> Vec<String> {
+fn split_diagrams(raw: &str) -> Result<Vec<String>, Diagnostic> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let mut blocks = Vec::new();
@@ -237,11 +252,26 @@ fn split_diagrams(raw: &str) -> Vec<String> {
     if trimmed.to_ascii_lowercase().contains("@startuml") {
         let mut current = Vec::new();
         let mut in_block = false;
-        for line in raw.lines() {
+        let mut block_start_line = 0usize;
+        for (line_idx, line) in raw.lines().enumerate() {
             let marker = line.trim();
             if marker.eq_ignore_ascii_case("@startuml") {
+                if in_block {
+                    return Err(Diagnostic::error(format!(
+                        "unmatched @startuml/@enduml boundary: found @startuml at line {} before closing previous block started at line {}",
+                        line_idx + 1,
+                        block_start_line
+                    )));
+                }
                 in_block = true;
+                block_start_line = line_idx + 1;
                 current.clear();
+            }
+            if marker.eq_ignore_ascii_case("@enduml") && !in_block {
+                return Err(Diagnostic::error(format!(
+                    "unmatched @startuml/@enduml boundary: found @enduml at line {} without a preceding @startuml",
+                    line_idx + 1
+                )));
             }
             if in_block {
                 current.push(line);
@@ -252,16 +282,18 @@ fn split_diagrams(raw: &str) -> Vec<String> {
                 in_block = false;
             }
         }
-        if in_block && !current.is_empty() {
-            // Preserve trailing unterminated block instead of silently dropping it.
-            blocks.push(current.join("\n").trim().to_string());
+        if in_block {
+            return Err(Diagnostic::error(format!(
+                "unmatched @startuml/@enduml boundary: @startuml at line {} is missing a closing @enduml",
+                block_start_line
+            )));
         }
         if !blocks.is_empty() {
-            return blocks;
+            return Ok(blocks);
         }
     }
 
-    vec![trimmed.to_string()]
+    Ok(vec![trimmed.to_string()])
 }
 
 fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {

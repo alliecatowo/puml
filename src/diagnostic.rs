@@ -22,6 +22,10 @@ impl Diagnostic {
         }
     }
 
+    pub fn error_code(code: &str, message: impl AsRef<str>) -> Self {
+        Self::error(format!("[{code}] {}", message.as_ref()))
+    }
+
     pub fn warning(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),

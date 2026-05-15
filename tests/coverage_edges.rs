@@ -52,6 +52,42 @@ fn parser_reports_include_cycle_chain() {
 }
 
 #[test]
+fn parser_blocks_include_parent_escape() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("root");
+    let outside = tmp.path().join("outside.puml");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(&outside, "A -> B\n").unwrap();
+
+    let src = "@startuml\n!include ../outside.puml\n@enduml\n";
+    let options = ParseOptions {
+        include_root: Some(root),
+    };
+    let err = parse_with_options(src, &options).expect_err("expected include escape");
+    assert!(err.message.contains("E_INCLUDE_ESCAPE"));
+}
+
+#[cfg(unix)]
+#[test]
+fn parser_blocks_symlink_include_escape() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("root");
+    let outside = tmp.path().join("outside.puml");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(&outside, "A -> B\n").unwrap();
+    symlink(&outside, root.join("linked.puml")).unwrap();
+
+    let src = "@startuml\n!include linked.puml\n@enduml\n";
+    let options = ParseOptions {
+        include_root: Some(root),
+    };
+    let err = parse_with_options(src, &options).expect_err("expected symlink include escape");
+    assert!(err.message.contains("E_INCLUDE_ESCAPE"));
+}
+
+#[test]
 fn normalize_reports_destroy_active_for_shortcut() {
     let src = "@startuml\nA -> B++\nA -> B!!\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
@@ -99,6 +135,7 @@ fn layout_handles_return_without_caller() {
         legend: None,
         skinparams: vec![],
         footbox_visible: true,
+        warnings: vec![],
     };
 
     let scene = layout::layout(&doc, LayoutOptions::default());
@@ -130,6 +167,7 @@ fn render_escapes_text_in_labels_and_titles() {
         legend: None,
         skinparams: vec![],
         footbox_visible: true,
+        warnings: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let svg = render::render_svg(&scene);
@@ -166,4 +204,20 @@ fn cli_include_root_allows_include_from_stdin() {
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn parser_reports_enduml_without_startuml() {
+    let src = "@enduml\nA -> B : hi\n";
+    let err = parse(src).expect_err("expected unmatched enduml");
+    assert!(err.message.contains("unmatched @startuml/@enduml boundary"));
+    assert!(err.message.contains("without a preceding @startuml"));
+}
+
+#[test]
+fn parser_reports_unterminated_startuml() {
+    let src = "@startuml\nA -> B : hi\n";
+    let err = parse(src).expect_err("expected unterminated startuml");
+    assert!(err.message.contains("unmatched @startuml/@enduml boundary"));
+    assert!(err.message.contains("missing a closing @enduml"));
 }

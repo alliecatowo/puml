@@ -49,6 +49,7 @@ fn page_from(
         legend: document.legend.clone(),
         skinparams: document.skinparams.clone(),
         footbox_visible: document.footbox_visible,
+        warnings: document.warnings.clone(),
     }
 }
 
@@ -382,14 +383,11 @@ pub fn normalize_with_options(
         )));
     }
 
-    if !warnings.is_empty() {
-        warnings.sort_by(|a, b| {
-            let sa = a.span.map(|s| s.start).unwrap_or_default();
-            let sb = b.span.map(|s| s.start).unwrap_or_default();
-            (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
-        });
-        return Err(warnings.remove(0));
-    }
+    warnings.sort_by(|a, b| {
+        let sa = a.span.map(|s| s.start).unwrap_or_default();
+        let sb = b.span.map(|s| s.start).unwrap_or_default();
+        (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
+    });
 
     Ok(SequenceDocument {
         participants,
@@ -401,6 +399,7 @@ pub fn normalize_with_options(
         legend,
         skinparams,
         footbox_visible,
+        warnings,
     })
 }
 

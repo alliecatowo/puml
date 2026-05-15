@@ -1,0 +1,5 @@
+@startuml
+A -> B : one
+@startuml
+B -> A : two
+@enduml

@@ -142,6 +142,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
         legend: None,
         skinparams: vec![],
         footbox_visible: true,
+        warnings: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let first = render::render_svg(&scene);
