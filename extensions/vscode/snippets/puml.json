@@ -1,0 +1,15 @@
+{
+  "Sequence Starter": {
+    "prefix": "puml-seq",
+    "body": [
+      "@startuml",
+      "participant ${1:Client}",
+      "participant ${2:Service}",
+      "",
+      "${1:Client} -> ${2:Service}: ${3:Request}",
+      "${2:Service} --> ${1:Client}: ${4:Response}",
+      "@enduml"
+    ],
+    "description": "Create a basic puml sequence diagram"
+  }
+}

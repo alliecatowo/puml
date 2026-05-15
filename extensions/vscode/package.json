@@ -1,0 +1,57 @@
+{
+  "name": "puml-vscode",
+  "displayName": "puml — Instant PlantUML Sequence Diagrams",
+  "description": "VS Code extension scaffolding for native puml sequence diagrams with live preview.",
+  "version": "0.0.1",
+  "publisher": "puml",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onLanguage:puml",
+    "onCommand:puml.preview.open"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "puml",
+        "aliases": ["puml", "PlantUML Sequence"],
+        "extensions": [".puml", ".plantuml", ".iuml"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "puml",
+        "scopeName": "source.puml",
+        "path": "./syntaxes/puml.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "puml",
+        "path": "./snippets/puml.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "puml.preview.open",
+        "title": "PUML: Open Preview"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.8.3"
+  }
+}
