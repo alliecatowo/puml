@@ -1,0 +1,16 @@
+@startuml
+skinparam SequenceParticipantBackgroundColor #f2f2fe
+skinparam SequenceParticipantBorderColor #35358a
+skinparam SequenceNoteBackgroundColor #fff3cd
+skinparam SequenceNoteBorderColor #a57800
+skinparam SequenceGroupBackgroundColor #efefef
+skinparam SequenceGroupBorderColor #555555
+skinparam SequenceLifeLineBorderColor #228822
+A -> B : hello
+note over A
+  note text
+end note
+group g
+  B -> A : world
+end
+@enduml

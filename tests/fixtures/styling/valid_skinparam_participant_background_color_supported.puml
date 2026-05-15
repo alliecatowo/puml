@@ -1,0 +1,4 @@
+@startuml
+skinparam ParticipantBackgroundColor #eef4ff
+A -> B : hello
+@enduml

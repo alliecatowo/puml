@@ -5,6 +5,7 @@ use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
 };
 use puml::normalize;
+use puml::source::Span;
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
 use puml::theme::{
@@ -134,6 +135,60 @@ fn normalize_skinparam_unsupported_key_and_value_are_deterministic() {
     assert!(unsupported_value_model.warnings[0]
         .message
         .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
+}
+
+#[test]
+fn normalize_supports_max_message_size_skinparam_without_warning() {
+    let src = fs::read_to_string(fixture("basic/valid_skinparam_maxmessagesize.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    assert!(model.warnings.is_empty());
+}
+
+#[test]
+fn normalize_emits_theme_warning_without_name_suffix_when_theme_name_is_empty() {
+    let src = "@startuml\n!theme\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    assert_eq!(model.warnings.len(), 1);
+    assert_eq!(
+        model.warnings[0].message,
+        "[W_THEME_UNSUPPORTED] !theme is not supported yet"
+    );
+}
+
+#[test]
+fn normalize_reports_invalid_arrow_when_ast_contains_malformed_arrow() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Sequence,
+        statements: vec![puml::ast::Statement {
+            span: Span { start: 0, end: 0 },
+            kind: puml::ast::StatementKind::Message(puml::ast::Message {
+                from: "A".to_string(),
+                to: "B".to_string(),
+                arrow: "bogus".to_string(),
+                label: None,
+                from_virtual: None,
+                to_virtual: None,
+            }),
+        }],
+    };
+
+    let err = normalize::normalize(doc).expect_err("expected malformed arrow error");
+    assert!(err.message.contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn normalize_reports_else_inside_loop_group_as_invalid_kind() {
+    let src = fs::read_to_string(fixture("errors/invalid_else_inside_loop_group.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected group kind error");
+
+    assert!(err.message.contains("E_GROUP_ELSE_KIND"));
 }
 
 #[test]
@@ -386,4 +441,31 @@ fn check_fixture_supports_json_diagnostics_for_errors() {
     assert_eq!(json["diagnostics"][0]["line"], 2);
     assert_eq!(json["diagnostics"][0]["column"], 1);
     assert_eq!(json["diagnostics"][0]["snippet"], "A -x B: malformed");
+}
+
+#[test]
+fn check_fixture_supports_json_diagnostics_for_warnings() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check-fixture",
+            &fixture("styling/valid_skinparam_unsupported_value.puml"),
+            "--diagnostics",
+            "json",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stderr
+        .clone();
+
+    let json: serde_json::Value = serde_json::from_slice(&out).expect("valid json diagnostics");
+    assert_eq!(json["diagnostics"][0]["severity"], "warning");
+    assert_eq!(json["diagnostics"][0]["line"], 2);
+    assert_eq!(json["diagnostics"][0]["column"], 1);
+    assert_eq!(json["diagnostics"][0]["snippet"], "skinparam sequenceFootbox maybe");
+    assert!(json["diagnostics"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
 }

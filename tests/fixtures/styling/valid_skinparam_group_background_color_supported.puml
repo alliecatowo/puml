@@ -1,0 +1,6 @@
+@startuml
+skinparam GroupBackgroundColor #f3f3f3
+group g
+  A -> B : hello
+end
+@enduml

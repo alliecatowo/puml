@@ -1,0 +1,4 @@
+@startuml
+skinparam SequenceLifeLineBorderColor #006600
+A -> B : hello
+@enduml

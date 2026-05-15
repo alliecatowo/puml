@@ -250,6 +250,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "basic/valid_separator_equals.puml",
         "basic/valid_participant_queue.puml",
         "basic/valid_arrows_extended_set.puml",
+        "basic/valid_skinparam_maxmessagesize.puml",
         "arrows/valid_directions.puml",
         "arrows/self.puml",
         "arrows/modifiers_basic.puml",
@@ -336,6 +337,7 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_arrow_slash_tokenization.puml",
         "errors/invalid_include_tag_missing.puml",
         "errors/invalid_include_url.puml",
+        "errors/invalid_else_inside_loop_group.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -343,6 +345,19 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
             .assert()
             .code(1);
     }
+}
+
+#[test]
+fn else_inside_loop_group_reports_deterministic_normalize_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_else_inside_loop_group.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_GROUP_ELSE_KIND"));
 }
 
 #[test]
@@ -402,6 +417,58 @@ fn check_mode_emits_styling_warnings_but_succeeds() {
         .success()
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::contains("W_SKINPARAM_UNSUPPORTED"));
+}
+
+#[test]
+fn check_mode_accepts_phase1_supported_skinparam_keys_without_warnings() {
+    for fixture_name in [
+        "styling/valid_skinparam_maxmessagesize_supported.puml",
+        "styling/valid_skinparam_sequence_footbox_supported.puml",
+        "styling/valid_skinparam_arrow_color_supported.puml",
+        "styling/valid_skinparam_lifeline_border_color_supported.puml",
+        "styling/valid_skinparam_participant_background_color_supported.puml",
+        "styling/valid_skinparam_participant_border_color_supported.puml",
+        "styling/valid_skinparam_note_background_color_supported.puml",
+        "styling/valid_skinparam_note_border_color_supported.puml",
+        "styling/valid_skinparam_group_background_color_supported.puml",
+        "styling/valid_skinparam_group_border_color_supported.puml",
+        "styling/valid_skinparam_sequence_alias_colors_supported.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(fixture_name)])
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
+fn check_mode_skinparam_unsupported_key_and_value_are_both_reported_deterministically() {
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_unsupported_mixed_deterministic.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(output).expect("stderr should be valid utf-8");
+    let unsupported_key = stderr
+        .find("W_SKINPARAM_UNSUPPORTED")
+        .expect("missing unsupported-key warning");
+    let unsupported_value = stderr
+        .find("W_SKINPARAM_UNSUPPORTED_VALUE")
+        .expect("missing unsupported-value warning");
+    assert!(
+        unsupported_key < unsupported_value,
+        "warnings should keep source order"
+    );
 }
 
 #[test]
@@ -1621,4 +1688,62 @@ fn check_fixture_missing_file_maps_to_io_exit_code() {
         .assert()
         .code(2)
         .stderr(predicate::str::contains("failed to read fixture"));
+}
+
+#[test]
+fn check_fixture_with_json_diagnostics_emits_warning_payload() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check-fixture",
+            &fixture("styling/valid_skinparam_unsupported.puml"),
+            "--diagnostics",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .get_output()
+        .stderr
+        .clone();
+
+    let line = String::from_utf8(out).unwrap();
+    let json: Value = serde_json::from_str(line.trim()).expect("valid json warning payload");
+    let first = &json["diagnostics"][0];
+    assert_eq!(first["severity"], "warning");
+    assert_eq!(first["line"], 2);
+    assert_eq!(first["column"], 1);
+    assert_eq!(first["snippet"], "skinparam TotallyUnknownColor red");
+    assert!(first["message"]
+        .as_str()
+        .unwrap()
+        .contains("W_SKINPARAM_UNSUPPORTED"));
+}
+
+#[test]
+fn stdin_empty_input_maps_to_validation_exit_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("no diagram content provided"));
+}
+
+#[test]
+fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let input = dir.path().join("input.mdown");
+    fs::write(
+        &input,
+        "# heading\nA -x B: malformed outside fence\n\n```puml\n@startuml\nAlice -> Bob: one\n@enduml\n```\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
 }

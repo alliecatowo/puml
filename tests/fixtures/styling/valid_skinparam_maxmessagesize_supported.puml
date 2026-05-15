@@ -1,0 +1,4 @@
+@startuml
+skinparam maxMessageSize 80
+A -> B : this should still render
+@enduml
