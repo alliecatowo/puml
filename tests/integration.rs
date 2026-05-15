@@ -59,6 +59,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "participants/valid_aliases.puml",
         "participants/valid_queue_separator.puml",
         "basic/valid_separator_equals.puml",
+        "basic/valid_participant_queue.puml",
+        "basic/valid_arrows_extended_set.puml",
         "arrows/valid_directions.puml",
         "arrows/self.puml",
         "arrows/modifiers_basic.puml",
@@ -138,6 +140,8 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "groups/invalid_else_inside_ref.puml",
         "groups/invalid_ref_block_missing_body.puml",
         "errors/invalid_separator_unbalanced_equals.puml",
+        "errors/invalid_participant_queue_alias_collision.puml",
+        "errors/invalid_arrow_variant_tokenization.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
