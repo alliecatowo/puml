@@ -1,0 +1,314 @@
+---
+source: tests/virtual_endpoint_fidelity.rs
+expression: json
+---
+{
+  "lanes": [
+    {
+      "display": "A",
+      "id": "A",
+      "role": "Participant",
+      "x": 100
+    }
+  ],
+  "rows": [
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "[",
+            "from_virtual": {
+              "kind": "plain",
+              "side": "left"
+            },
+            "label": "found-left-plain",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 34,
+          "start": 10
+        }
+      },
+      "y": 120
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "]",
+            "from_virtual": {
+              "kind": "plain",
+              "side": "right"
+            },
+            "label": "found-right-plain",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 60,
+          "start": 35
+        }
+      },
+      "y": 160
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "lost-left-plain",
+            "to": "[",
+            "to_virtual": {
+              "kind": "plain",
+              "side": "left"
+            }
+          }
+        },
+        "span": {
+          "end": 84,
+          "start": 61
+        }
+      },
+      "y": 200
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "lost-right-plain",
+            "to": "]",
+            "to_virtual": {
+              "kind": "plain",
+              "side": "right"
+            }
+          }
+        },
+        "span": {
+          "end": 109,
+          "start": 85
+        }
+      },
+      "y": 240
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "[o",
+            "from_virtual": {
+              "kind": "circle",
+              "side": "left"
+            },
+            "label": "found-left-circle",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 136,
+          "start": 110
+        }
+      },
+      "y": 280
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "o]",
+            "from_virtual": {
+              "kind": "circle",
+              "side": "right"
+            },
+            "label": "found-right-circle",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 164,
+          "start": 137
+        }
+      },
+      "y": 320
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "lost-left-circle",
+            "to": "[o",
+            "to_virtual": {
+              "kind": "circle",
+              "side": "left"
+            }
+          }
+        },
+        "span": {
+          "end": 190,
+          "start": 165
+        }
+      },
+      "y": 360
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "lost-right-circle",
+            "to": "o]",
+            "to_virtual": {
+              "kind": "circle",
+              "side": "right"
+            }
+          }
+        },
+        "span": {
+          "end": 217,
+          "start": 191
+        }
+      },
+      "y": 400
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "[x",
+            "from_virtual": {
+              "kind": "cross",
+              "side": "left"
+            },
+            "label": "found-left-cross",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 243,
+          "start": 218
+        }
+      },
+      "y": 440
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "x]",
+            "from_virtual": {
+              "kind": "cross",
+              "side": "right"
+            },
+            "label": "found-right-cross",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 270,
+          "start": 244
+        }
+      },
+      "y": 480
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "lost-left-cross",
+            "to": "[x",
+            "to_virtual": {
+              "kind": "cross",
+              "side": "left"
+            }
+          }
+        },
+        "span": {
+          "end": 295,
+          "start": 271
+        }
+      },
+      "y": 520
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "lost-right-cross",
+            "to": "x]",
+            "to_virtual": {
+              "kind": "cross",
+              "side": "right"
+            }
+          }
+        },
+        "span": {
+          "end": 321,
+          "start": 296
+        }
+      },
+      "y": 560
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "[*]",
+            "from_virtual": {
+              "kind": "filled",
+              "side": "left"
+            },
+            "label": "found-left-filled",
+            "to": "A"
+          }
+        },
+        "span": {
+          "end": 349,
+          "start": 322
+        }
+      },
+      "y": 600
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "A",
+            "label": "lost-right-filled",
+            "to": "[*]",
+            "to_virtual": {
+              "kind": "filled",
+              "side": "right"
+            }
+          }
+        },
+        "span": {
+          "end": 377,
+          "start": 350
+        }
+      },
+      "y": 640
+    }
+  ],
+  "size": {
+    "height": 680,
+    "width": 340
+  }
+}

@@ -1,10 +1,16 @@
 @startuml
-[ -> A: left-plain
-A -> ]: right-plain
-[o -> A: left-circle
-A -> o]: right-circle
-[x -> A: left-cross
-A -> x]: right-cross
-[*] -> A: left-filled
-A -> [*]: right-filled
+[ -> A: found-left-plain
+] -> A: found-right-plain
+A -> [: lost-left-plain
+A -> ]: lost-right-plain
+[o -> A: found-left-circle
+o] -> A: found-right-circle
+A -> [o: lost-left-circle
+A -> o]: lost-right-circle
+[x -> A: found-left-cross
+x] -> A: found-right-cross
+A -> [x: lost-left-cross
+A -> x]: lost-right-cross
+[*] -> A: found-left-filled
+A -> [*]: lost-right-filled
 @enduml
