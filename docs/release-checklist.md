@@ -5,6 +5,8 @@
 - [ ] Confirm target version in `Cargo.toml` is ready.
 - [ ] Run setup if this machine is fresh: `./scripts/setup.sh`.
 - [ ] Run full gate: `./scripts/check-all.sh`.
+- [ ] Confirm full gate command contract executed in order:
+  `cargo fmt --check` -> `cargo clippy --all-targets --all-features -- -D warnings` -> `cargo test` -> `cargo llvm-cov --all-features --workspace --fail-under-lines 90` -> `cargo build --release`.
 - [ ] Run quick gate once for local perf sanity: `./scripts/check-all.sh --quick`.
 - [ ] If benchmark gates fail, inspect `docs/benchmarks/latest_trend.{md,json}` and either optimize or document/approve baseline movement before rerun.
 
@@ -12,6 +14,7 @@
 
 - [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%`, binary size `<=2,000,000` bytes).
 - [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%`, binary size `<=2,500,000` bytes).
+- [ ] Confirm full gate includes release binary validation via `cargo build --release`.
 - [ ] Review `docs/benchmarks/latest.{md,csv,json}` for raw measurements.
 - [ ] Review deterministic trend artifacts: `docs/benchmarks/latest_trend.{md,json}`.
 - [ ] Verify no-Java baseline is intact: PlantUML oracle fields are still placeholder-only (`todo`).
@@ -19,6 +22,7 @@
 ## Contract and Docs
 
 - [ ] `README.md` reflects current CLI behavior and command entry points.
+- [ ] `docs/release-contract-audit.md` reflects latest audited full/quick gate command contract.
 - [ ] `docs/decision-log.md` includes new intentional contract changes.
 - [ ] `docs/coverage-status.md` updated if coverage posture changed materially.
 - [ ] `docs/parity-roadmap.md` reflects current parity priorities.
