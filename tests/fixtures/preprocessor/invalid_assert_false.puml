@@ -1,0 +1,4 @@
+@startuml
+!assert false : expected failure
+Alice -> Bob : should not parse
+@enduml

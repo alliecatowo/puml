@@ -65,6 +65,13 @@ enum PreprocessDirective {
     EndIf,
     While(String),
     EndWhile,
+    Function,
+    EndFunction,
+    Procedure,
+    EndProcedure,
+    Assert(String),
+    Log,
+    DumpMemory,
     Unsupported(String),
 }
 
@@ -191,6 +198,47 @@ fn preprocess_text(
                         "E_PREPROC_WHILE_UNEXPECTED",
                         "`!endwhile` without matching `!while`",
                     ));
+                }
+                PreprocessDirective::Function => {
+                    let end_idx = consume_preprocessor_block(
+                        &lines,
+                        i,
+                        PreprocessDirective::Function,
+                        PreprocessDirective::EndFunction,
+                        "E_FUNCTION_UNCLOSED",
+                        "!endfunction",
+                    )?;
+                    i = end_idx + 1;
+                    continue;
+                }
+                PreprocessDirective::Procedure => {
+                    let end_idx = consume_preprocessor_block(
+                        &lines,
+                        i,
+                        PreprocessDirective::Procedure,
+                        PreprocessDirective::EndProcedure,
+                        "E_PROCEDURE_UNCLOSED",
+                        "!endprocedure",
+                    )?;
+                    i = end_idx + 1;
+                    continue;
+                }
+                PreprocessDirective::Assert(body) => {
+                    if active && !evaluate_assert_expression(&body) {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_ASSERT",
+                            format!("!assert failed: {body}"),
+                        ));
+                    }
+                }
+                PreprocessDirective::Log | PreprocessDirective::DumpMemory => {}
+                PreprocessDirective::EndFunction | PreprocessDirective::EndProcedure => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_UNEXPECTED",
+                            "unexpected preprocessor block terminator",
+                        ));
+                    }
                 }
                 PreprocessDirective::Define(body) => {
                     if active {
@@ -337,9 +385,15 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "endif" => Some(PreprocessDirective::EndIf),
         "while" => Some(PreprocessDirective::While(arg.to_string())),
         "endwhile" => Some(PreprocessDirective::EndWhile),
-        "procedure" | "endprocedure" | "function" | "endfunction" | "return" | "foreach"
-        | "endfor" | "assert" | "log" | "dump_memory" | "import" | "include_once"
-        | "include_many" | "includesub" | "startsub" | "endsub" => {
+        "function" => Some(PreprocessDirective::Function),
+        "endfunction" => Some(PreprocessDirective::EndFunction),
+        "procedure" => Some(PreprocessDirective::Procedure),
+        "endprocedure" => Some(PreprocessDirective::EndProcedure),
+        "assert" => Some(PreprocessDirective::Assert(arg.to_string())),
+        "log" => Some(PreprocessDirective::Log),
+        "dump_memory" => Some(PreprocessDirective::DumpMemory),
+        "return" | "foreach" | "endfor" | "import" | "include_once" | "include_many"
+        | "includesub" | "startsub" | "endsub" => {
             Some(PreprocessDirective::Unsupported(name.to_string()))
         }
         "theme" | "pragma" => None,
@@ -463,6 +517,49 @@ fn find_matching_endwhile(lines: &[&str], while_idx: usize) -> Result<usize, Dia
         "E_PREPROC_WHILE_UNCLOSED",
         "missing `!endwhile` for `!while` block",
     ))
+}
+
+fn consume_preprocessor_block(
+    lines: &[&str],
+    start_idx: usize,
+    start_directive: PreprocessDirective,
+    end_directive: PreprocessDirective,
+    error_code: &str,
+    end_name: &str,
+) -> Result<usize, Diagnostic> {
+    let mut depth = 0usize;
+    for (idx, raw) in lines.iter().enumerate().skip(start_idx + 1) {
+        let line = raw.trim();
+        if let Some(directive) = parse_preprocess_directive(line) {
+            if std::mem::discriminant(&directive) == std::mem::discriminant(&start_directive) {
+                depth += 1;
+            } else if std::mem::discriminant(&directive) == std::mem::discriminant(&end_directive) {
+                if depth == 0 {
+                    return Ok(idx);
+                }
+                depth -= 1;
+            }
+        }
+    }
+    Err(Diagnostic::error_code(
+        error_code,
+        format!("missing `{end_name}` for preprocessor block"),
+    ))
+}
+
+fn evaluate_assert_expression(body: &str) -> bool {
+    let expression = body.split_once(':').map_or(body, |(expr, _)| expr).trim();
+    if expression.is_empty() {
+        return false;
+    }
+    if let Ok(num) = expression.parse::<i64>() {
+        return num != 0;
+    }
+    match expression.to_ascii_lowercase().as_str() {
+        "true" | "yes" | "on" => true,
+        "false" | "no" | "off" | "null" | "none" => false,
+        _ => true,
+    }
 }
 
 fn resolve_include_path(
@@ -1895,22 +1992,34 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_preprocessor_directive_errors_when_active() {
-        let err = parse_with_options("!procedure Build()\nA -> B\n", &ParseOptions::default())
-            .unwrap_err();
-        assert!(err.message.contains("E_PREPROC_UNSUPPORTED"));
-        assert!(err.message.contains("!procedure"));
-    }
-
-    #[test]
-    fn unsupported_preprocessor_directive_is_ignored_in_inactive_branch() {
+    fn preprocessor_function_and_procedure_blocks_are_accepted() {
         let doc = parse_with_options(
-            "!ifdef NEVER_DEFINED\n!procedure Build()\n!endprocedure\n!endif\nA -> B\n",
+            "@startuml\n!function Echo($x)\n!return $x\n!endfunction\n!procedure Emit($x)\n!log $x\n!endprocedure\nA -> B: hi\n@enduml\n",
             &ParseOptions::default(),
         )
         .unwrap();
         assert_eq!(doc.statements.len(), 1);
         assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn preprocessor_assert_false_is_rejected() {
+        let err = parse_with_options(
+            "@startuml\n!assert false : expected failure\nA -> B: hi\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_PREPROC_ASSERT"));
+    }
+
+    #[test]
+    fn preprocessor_unclosed_function_is_rejected() {
+        let err = parse_with_options(
+            "@startuml\n!function Echo($x)\nA -> B: hi\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_FUNCTION_UNCLOSED"));
     }
 
     #[test]

@@ -122,3 +122,12 @@ This log records intentional contract deviations and updates adopted in the curr
   - Misordered/unbalanced control directives return explicit `E_PREPROC_COND_*` / `E_PREPROC_WHILE_*` diagnostics.
   - Unsupported directives return explicit `E_PREPROC_UNSUPPORTED` instead of falling through to generic parse-unknown errors.
 - Spec/implementation contradiction and resolution: PlantUML preprocessor still has broader expression/function/procedure capabilities; this implementation deliberately ships a smaller deterministic subset and fails unsupported directives explicitly.
+
+### D-020: Minimal-compatible preprocessor macro directive behavior
+- Decision: Accept `!function`/`!procedure` block directives as non-executing preprocessor blocks, accept `!log` and `!dump_memory` as no-op directives, and enforce deterministic `!assert` pass/fail evaluation for simple literal expressions.
+- Rationale: Expands macro/preprocessor compatibility beyond basic token substitution while keeping parser behavior deterministic and avoiding partial dynamic macro execution semantics.
+- Impact:
+  - `!function`/`!procedure` blocks are consumed by preprocessing and no longer leak into parser unknown-syntax errors.
+  - `!assert` failures return deterministic error `E_PREPROC_ASSERT`.
+  - Missing block terminators return deterministic errors (`E_FUNCTION_UNCLOSED`, `E_PROCEDURE_UNCLOSED`).
+  - Dynamic invocation and JSON preprocessing behavior remain out of scope for this slice.

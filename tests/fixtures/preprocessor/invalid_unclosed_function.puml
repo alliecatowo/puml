@@ -1,0 +1,4 @@
+@startuml
+!function Echo($x)
+Alice -> Bob : should fail
+@enduml
