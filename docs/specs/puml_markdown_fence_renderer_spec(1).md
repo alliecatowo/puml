@@ -28,8 +28,12 @@ Compatibility fences:
 
 ````markdown
 ```plantuml
+```uml
+```pumlx
+```picouml
 ```puml-sequence
 ```uml-sequence
+```mermaid
 ````
 
 ## Product position
@@ -73,7 +77,7 @@ A fence can be highlighted even if rendering fails. A fence can render even if t
 - No remote render API.
 - No duplicate parser in JavaScript.
 - No duplicate layout in JavaScript.
-- No Mermaid fallback.
+- No implicit Mermaid fallback.
 - No hidden telemetry.
 - No unescaped user text in HTML or SVG.
 - No script execution from rendered diagrams.
@@ -659,7 +663,8 @@ Rules:
 
 ## Definition of done
 
-- `puml` and `plantuml` Markdown fences render inline.
+- `puml`, `plantuml`, `uml`, `pumlx`, `picouml`, `puml-sequence`, and `uml-sequence` Markdown fences render inline.
+- `mermaid` Markdown fences are supported through the explicit Mermaid frontend adapter (sequence subset only).
 - Static mode works in Node build pipelines.
 - Runtime mode works in browsers with WASM.
 - markdown-it adapter works.
@@ -674,7 +679,8 @@ Rules:
 - Inline diagnostics report fence-relative line and column.
 - Malicious source and attributes are escaped.
 - No remote render service is used.
-- No Java, Graphviz, or Mermaid path exists.
+- No Java or Graphviz path exists.
+- No undocumented or implicit Mermaid fallback path exists.
 - Every fixture snapshots static and runtime output.
 - 90% coverage passes.
 
