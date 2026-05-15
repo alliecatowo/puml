@@ -349,17 +349,17 @@ def evaluate_doc_example(row: Dict[str, Any]) -> Dict[str, Any]:
         artifact_matches = canonicalize_svg_text(disk_svg) == canonicalize_svg_text(
             render["svg"]
         )
-        source_mtime_ns = row["source_mtime_ns"] or 0
-        markdown_mtime_ns = row["markdown_mtime_ns"] or 0
-        baseline_ns = max(source_mtime_ns, markdown_mtime_ns)
-        artifact_up_to_date = (row["artifact_mtime_ns"] or 0) >= baseline_ns
+        # CI and fresh git checkouts can rewrite filesystem mtimes, so
+        # timestamp freshness is not a stable drift signal. We treat
+        # content equality as the canonical freshness contract.
+        artifact_up_to_date = artifact_matches
     else:
         notes.append("artifact missing")
 
     if artifact_exists and not artifact_matches:
         notes.append("artifact content does not match current renderer output")
     if artifact_exists and not artifact_up_to_date:
-        notes.append("artifact timestamp predates source markdown/puml")
+        notes.append("artifact content is stale vs current renderer output")
 
     status = "pass" if artifact_exists and artifact_matches and artifact_up_to_date else "fail"
     return {
