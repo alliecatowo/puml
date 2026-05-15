@@ -966,3 +966,28 @@ fn overflow_dense_participant_headers_keep_text_inside_header_boxes() {
         svg
     );
 }
+
+#[test]
+fn lifelines_start_below_wrapped_participant_headers() {
+    let src = "@startuml\nparticipant \"Participant Header With Many Wrapped Words For Height Growth\" as P\nP -> P: ping\n@enduml\n";
+    let doc = puml::parse(src).expect("parse");
+    let model = puml::normalize(doc).expect("normalize");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    let participant = scene
+        .participants
+        .iter()
+        .find(|p| p.id == "P")
+        .expect("participant");
+    let lifeline = scene
+        .lifelines
+        .iter()
+        .find(|l| l.participant_id == "P")
+        .expect("lifeline");
+
+    assert_eq!(
+        lifeline.y1,
+        participant.y + participant.height,
+        "lifeline should start at participant box bottom"
+    );
+}

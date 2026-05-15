@@ -358,7 +358,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let (raw_line, span) = lines[i];
         let line = raw_line.trim();
 
-        if line.is_empty() || line.starts_with('"') || line.eq_ignore_ascii_case("!pragma") {
+        if line.is_empty()
+            || line.starts_with('"')
+            || line
+                .get(..7)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("!pragma"))
+        {
             i += 1;
             continue;
         }
@@ -1229,6 +1234,26 @@ mod tests {
             }
             other => panic!("unexpected statement: {other:?}"),
         }
+    }
+
+    #[test]
+    fn pragma_directives_with_arguments_are_ignored() {
+        let doc = parse_with_options(
+            "!pragma teoz true\nparticipant A\nparticipant B\nA -> B: hi\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 3);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::Participant(_)
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::Participant(_)
+        ));
+        assert!(matches!(doc.statements[2].kind, StatementKind::Message(_)));
     }
 
     #[test]

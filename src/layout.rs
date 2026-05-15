@@ -311,7 +311,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         0
     };
 
-    let lifeline_start = participant_top + options.participant_height;
+    let lifeline_start = participant_top + participant_height;
     let content_end = events_top + events_height;
     let lifeline_end = if document.footbox_visible {
         content_end + options.footer_height
