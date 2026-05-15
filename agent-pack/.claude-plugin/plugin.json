@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "puml-agent-pack",
+  "version": "0.0.1",
+  "description": "Deterministic puml sequence diagram workflow via skills + MCP.",
+  "skills": [
+    "skills/puml-sequence-author",
+    "skills/puml-sequence-reviewer"
+  ],
+  "agents": [
+    "agents/puml-diagram-designer.md",
+    "agents/puml-diagram-reviewer.md"
+  ],
+  "mcp": ".mcp.json",
+  "marketplace": ".claude-plugin/marketplace.json"
+}

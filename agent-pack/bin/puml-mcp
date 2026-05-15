@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+SERVER_INFO = {"name": "puml-mcp", "version": "0.0.1"}
+
+
+def _safe_rel(path: str) -> Path:
+    p = (ROOT / path).resolve()
+    if not str(p).startswith(str(ROOT)):
+        raise ValueError("path escapes workspace root")
+    return p
+
+
+def _run_puml(args, stdin_text=None):
+    cmd = ["cargo", "run", "--quiet", "--"] + args
+    proc = subprocess.run(cmd, input=stdin_text, text=True, capture_output=True, cwd=ROOT)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def _validate_one_source(params):
+    text = params.get("text")
+    path = params.get("path")
+    if bool(text) == bool(path):
+        raise ValueError("exactly one of text or path is required")
+    return text, path
+
+
+def _diag(err: str):
+    err = (err or "").strip()
+    return [err] if err else []
+
+
+def puml_check(params):
+    text, path = _validate_one_source(params)
+    include_root = params.get("include_root")
+    args = ["--check"]
+    if include_root:
+        args += ["--include-root", include_root]
+    if path:
+        args += [str(_safe_rel(path))]
+        code, _out, err = _run_puml(args)
+    else:
+        args += ["-"]
+        code, _out, err = _run_puml(args, stdin_text=text)
+    return {"ok": code == 0, "diagnostics": _diag(err)}
+
+
+def puml_render_svg(params):
+    text, path = _validate_one_source(params)
+    include_root = params.get("include_root")
+    args = []
+    if include_root:
+        args += ["--include-root", include_root]
+    if path:
+        args += [str(_safe_rel(path))]
+        code, out, err = _run_puml(args)
+    else:
+        args += ["-"]
+        code, out, err = _run_puml(args, stdin_text=text)
+    svg = out if out.lstrip().startswith("<svg") else ""
+    width = None
+    height = None
+    if svg:
+        m = re.search(r'width="([^"]+)"', svg)
+        n = re.search(r'height="([^"]+)"', svg)
+        width = m.group(1) if m else None
+        height = n.group(1) if n else None
+    return {
+        "ok": code == 0 and bool(svg),
+        "svg": svg,
+        "width": width,
+        "height": height,
+        "diagnostics": _diag(err),
+    }
+
+
+def puml_render_file(params):
+    output_path = params.get("output_path")
+    if not output_path:
+        raise ValueError("output_path is required")
+    text, path = _validate_one_source(params)
+    include_root = params.get("include_root")
+    out_abs = _safe_rel(output_path)
+    out_abs.parent.mkdir(parents=True, exist_ok=True)
+    args = ["-o", str(out_abs)]
+    if include_root:
+        args = ["--include-root", include_root] + args
+    if path:
+        args = [str(_safe_rel(path))] + args
+        code, _out, err = _run_puml(args)
+    else:
+        args = ["-"] + args
+        code, _out, err = _run_puml(args, stdin_text=text)
+    return {
+        "ok": code == 0 and out_abs.exists(),
+        "output_path": str(out_abs.relative_to(ROOT)),
+        "diagnostics": _diag(err),
+    }
+
+
+TOOLS = {
+    "puml_check": puml_check,
+    "puml_render_svg": puml_render_svg,
+    "puml_render_file": puml_render_file,
+}
+
+TOOL_LIST = [
+    {
+        "name": "puml_check",
+        "description": "Validate puml source using `puml --check`.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "text": {"type": "string"},
+                "include_root": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "puml_render_svg",
+        "description": "Render puml source to SVG and return SVG content.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "text": {"type": "string"},
+                "include_root": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "puml_render_file",
+        "description": "Render puml source to a workspace output file.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["output_path"],
+            "properties": {
+                "path": {"type": "string"},
+                "text": {"type": "string"},
+                "output_path": {"type": "string"},
+                "include_root": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+    },
+]
+
+
+def _ok_response(req_id, result):
+    return {"jsonrpc": "2.0", "id": req_id, "result": result}
+
+
+def _err_response(req_id, code, message):
+    return {"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}
+
+
+def handle_mcp(req):
+    req_id = req.get("id")
+    method = req.get("method")
+    params = req.get("params", {})
+
+    if method == "initialize":
+        return _ok_response(req_id, {
+            "protocolVersion": "2025-06-18",
+            "serverInfo": SERVER_INFO,
+            "capabilities": {"tools": {}},
+        })
+    if method == "notifications/initialized":
+        return None
+    if method == "tools/list":
+        return _ok_response(req_id, {"tools": TOOL_LIST})
+    if method == "tools/call":
+        name = params.get("name")
+        arguments = params.get("arguments", {})
+        if name not in TOOLS:
+            return _err_response(req_id, -32601, f"unknown tool: {name}")
+        try:
+            result = TOOLS[name](arguments)
+        except Exception as exc:
+            return _err_response(req_id, -32000, str(exc))
+        return _ok_response(req_id, {"content": [{"type": "text", "text": json.dumps(result)}], "isError": not result.get("ok", False)})
+
+    return _err_response(req_id, -32601, f"unsupported method: {method}")
+
+
+def handle_legacy(req):
+    tool = req.get("tool")
+    params = req.get("params", {})
+    if tool not in TOOLS:
+        return {"ok": False, "error": f"unknown tool: {tool}"}
+    try:
+        return TOOLS[tool](params)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def main():
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+            if isinstance(req, dict) and req.get("jsonrpc") == "2.0" and "method" in req:
+                resp = handle_mcp(req)
+            else:
+                resp = handle_legacy(req)
+        except Exception as exc:
+            resp = {"ok": False, "error": str(exc)}
+        if resp is not None:
+            sys.stdout.write(json.dumps(resp) + "\n")
+            sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()

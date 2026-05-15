@@ -1,0 +1,9 @@
+{
+  "slug": "puml-diagrams",
+  "display_name": "puml Diagrams",
+  "short_description": "Author and review sequence diagrams with deterministic checks.",
+  "categories": ["developer-tools", "documentation"],
+  "tags": ["puml", "sequence-diagrams", "mcp"],
+  "publisher": "puml",
+  "visibility": "public"
+}

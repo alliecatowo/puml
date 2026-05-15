@@ -1,0 +1,48 @@
+{
+  "name": "puml-mcp",
+  "version": "0.0.1",
+  "transport": "stdio",
+  "tools": [
+    {
+      "name": "puml_check",
+      "description": "Validate puml source using `puml --check`.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "include_root": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "puml_render_svg",
+      "description": "Render puml source to SVG and return SVG content.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "include_root": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "puml_render_file",
+      "description": "Render puml source to a workspace output file.",
+      "input": {
+        "type": "object",
+        "required": ["output_path"],
+        "properties": {
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "output_path": { "type": "string" },
+          "include_root": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

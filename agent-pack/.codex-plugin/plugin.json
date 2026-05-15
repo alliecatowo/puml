@@ -1,0 +1,18 @@
+{
+  "name": "puml-agent-pack",
+  "version": "0.0.1",
+  "description": "Deterministic sequence diagram authoring for puml via skills + MCP.",
+  "skills": [
+    "skills/puml-sequence-author",
+    "skills/puml-sequence-reviewer"
+  ],
+  "mcp": ".mcp.json",
+  "prompts": [
+    "Create a sequence diagram for this flow and render it with puml.",
+    "Review this .puml diagram for correctness and clarity.",
+    "Convert this prose/API flow into a puml sequence diagram.",
+    "Add a puml diagram to this README and verify it renders.",
+    "Find sequence diagrams in this repo and render them."
+  ],
+  "marketplace": ".codex-plugin/marketplace.json"
+}

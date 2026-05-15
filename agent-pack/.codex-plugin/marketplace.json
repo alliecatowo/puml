@@ -1,0 +1,9 @@
+{
+  "slug": "puml-diagrams",
+  "display_name": "puml Diagrams",
+  "short_description": "Deterministic sequence diagrams with check-first rendering.",
+  "categories": ["developer-tools", "documentation"],
+  "tags": ["puml", "plantuml", "sequence-diagrams", "mcp"],
+  "publisher": "puml",
+  "visibility": "public"
+}
