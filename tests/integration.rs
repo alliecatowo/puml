@@ -1577,17 +1577,50 @@ fn preprocessor_while_executes_until_condition_is_false() {
 }
 
 #[test]
-fn preprocessor_unsupported_procedure_reports_deterministic_error() {
+fn preprocessor_function_procedure_assert_log_and_dump_are_minimally_compatible() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
             "--check",
-            &fixture("errors/invalid_preproc_procedure_unsupported.puml"),
+            &fixture("preprocessor/valid_function_procedure_assert_log_dump.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn preprocessor_assert_false_reports_diagnostic_snapshot() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("preprocessor/invalid_assert_false.puml"),
         ])
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("E_PREPROC_UNSUPPORTED"))
-        .stderr(predicate::str::contains("!procedure"));
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8(out.stderr).expect("utf8 stderr");
+    assert!(stderr.contains("E_PREPROC_ASSERT"));
+    assert_snapshot!("preprocessor_assert_false_reports_diagnostic", stderr);
+}
+
+#[test]
+fn preprocessor_unclosed_function_reports_diagnostic_snapshot() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("preprocessor/invalid_unclosed_function.puml"),
+        ])
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8(out.stderr).expect("utf8 stderr");
+    assert!(stderr.contains("E_FUNCTION_UNCLOSED"));
+    assert_snapshot!("preprocessor_unclosed_function_reports_diagnostic", stderr);
 }
 
 #[test]

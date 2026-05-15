@@ -1,0 +1,5 @@
+---
+source: tests/integration.rs
+expression: stderr
+---
+[E_PREPROC_ASSERT] !assert failed: false : expected failure

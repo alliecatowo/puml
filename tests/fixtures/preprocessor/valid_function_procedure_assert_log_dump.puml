@@ -1,0 +1,12 @@
+@startuml
+!function Echo($x)
+  !return $x
+!endfunction
+!procedure Emit($x)
+  !log inside procedure
+!endprocedure
+!dump_memory
+!log parser-friendly
+!assert true : should pass
+Alice -> Bob : hi
+@enduml

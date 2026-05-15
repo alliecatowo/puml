@@ -1,0 +1,5 @@
+---
+source: tests/integration.rs
+expression: stderr
+---
+[E_FUNCTION_UNCLOSED] missing `!endfunction` for preprocessor block
