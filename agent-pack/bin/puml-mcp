@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _safe_rel(path: str) -> Path:
+    p = (ROOT / path).resolve()
+    if not str(p).startswith(str(ROOT)):
+        raise ValueError("path escapes workspace root")
+    return p
+
+
+def _run_puml(args, stdin_text=None):
+    cmd = ["cargo", "run", "--quiet", "--"] + args
+    proc = subprocess.run(cmd, input=stdin_text, text=True, capture_output=True, cwd=ROOT)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def puml_check(params):
+    text = params.get("text")
+    path = params.get("path")
+    include_root = params.get("include_root")
+    if bool(text) == bool(path):
+        return {"ok": False, "error": "exactly one of text or path is required", "diagnostics": []}
+    args = ["--check"]
+    if include_root:
+        args += ["--include-root", include_root]
+    if path:
+        abs_path = _safe_rel(path)
+        args += [str(abs_path)]
+        code, _out, err = _run_puml(args)
+    else:
+        args += ["-"]
+        code, _out, err = _run_puml(args, stdin_text=text)
+    return {"ok": code == 0, "diagnostics": [err.strip()] if err.strip() else []}
+
+
+def puml_render_svg(params):
+    text = params.get("text")
+    path = params.get("path")
+    include_root = params.get("include_root")
+    if bool(text) == bool(path):
+        return {"ok": False, "error": "exactly one of text or path is required", "diagnostics": []}
+    args = []
+    if include_root:
+        args += ["--include-root", include_root]
+    if path:
+        args += [str(_safe_rel(path))]
+        code, out, err = _run_puml(args)
+    else:
+        args += ["-"]
+        code, out, err = _run_puml(args, stdin_text=text)
+    svg = out if out.lstrip().startswith("<svg") else ""
+    width = None
+    height = None
+    if svg:
+        m = re.search(r'width="([^"]+)"', svg)
+        n = re.search(r'height="([^"]+)"', svg)
+        width = m.group(1) if m else None
+        height = n.group(1) if n else None
+    return {"ok": code == 0 and bool(svg), "svg": svg, "width": width, "height": height, "diagnostics": [err.strip()] if err.strip() else []}
+
+
+def puml_render_file(params):
+    output_path = params.get("output_path")
+    if not output_path:
+        return {"ok": False, "error": "output_path is required", "diagnostics": []}
+    text = params.get("text")
+    path = params.get("path")
+    include_root = params.get("include_root")
+    if bool(text) == bool(path):
+        return {"ok": False, "error": "exactly one of text or path is required", "diagnostics": []}
+    out_abs = _safe_rel(output_path)
+    out_abs.parent.mkdir(parents=True, exist_ok=True)
+    args = ["-o", str(out_abs)]
+    if include_root:
+        args = ["--include-root", include_root] + args
+    if path:
+        args = [str(_safe_rel(path))] + args
+        code, _out, err = _run_puml(args)
+    else:
+        args = ["-"] + args
+        code, _out, err = _run_puml(args, stdin_text=text)
+    return {"ok": code == 0 and out_abs.exists(), "output_path": str(out_abs.relative_to(ROOT)), "diagnostics": [err.strip()] if err.strip() else []}
+
+
+TOOLS = {
+    "puml_check": puml_check,
+    "puml_render_svg": puml_render_svg,
+    "puml_render_file": puml_render_file,
+}
+
+
+def main():
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+            tool = req.get("tool")
+            params = req.get("params", {})
+            if tool not in TOOLS:
+                resp = {"ok": False, "error": f"unknown tool: {tool}"}
+            else:
+                resp = TOOLS[tool](params)
+        except Exception as exc:
+            resp = {"ok": False, "error": str(exc)}
+        sys.stdout.write(json.dumps(resp) + "\n")
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()

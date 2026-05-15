@@ -969,6 +969,93 @@ The exact content can vary. Validity cannot.
 - Release bundles include binaries, manifests, skills, MCP config, LSP config, assets, README, LICENSE, and checksums.
 - Agents using the pack reliably produce valid sequence diagrams instead of plausible-looking invalid syntax.
 
+## v0.0.1 implementation profile (current repo target)
+
+This repository does **not** ship `puml-lsp` yet. For `v0.0.1`, we ship a constrained plugin/MCP profile that is immediately usable for deterministic authoring and validation loops.
+
+Scope for `v0.0.1`:
+
+- Codex plugin manifest and Claude plugin manifest are included in the spec as concrete templates.
+- MCP server contract is scoped to check/render/export workflows that can run on top of the existing `puml` CLI.
+- LSP integration is explicitly deferred until `puml-lsp` exists in this repository.
+- Skills are authored to require `puml_check` and never claim success without a passing check.
+
+### Deferred in `v0.0.1`
+
+- live diagnostics and completions from LSP
+- rename/hover/code-action style editing affordances
+- LSP-backed editor integrations inside host IDE surfaces
+
+### Required plugin manifests for `v0.0.1`
+
+#### Codex manifest template
+
+```json
+{
+  "name": "puml-agent-pack",
+  "version": "0.0.1",
+  "description": "Deterministic sequence diagram authoring for puml via skills + MCP.",
+  "skills": ["skills/puml-sequence-author", "skills/puml-sequence-reviewer"],
+  "mcp": ".mcp.json",
+  "prompts": [
+    "Create a sequence diagram for this flow and render it with puml.",
+    "Review this .puml diagram for correctness and clarity.",
+    "Convert this prose/API flow into a puml sequence diagram.",
+    "Add a puml diagram to this README and verify it renders.",
+    "Find sequence diagrams in this repo and render them."
+  ]
+}
+```
+
+#### Claude plugin manifest template
+
+```json
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "puml-agent-pack",
+  "version": "0.0.1",
+  "description": "Deterministic puml sequence diagram workflow via skills + MCP.",
+  "skills": ["skills/puml-sequence-author", "skills/puml-sequence-reviewer"],
+  "agents": ["agents/puml-diagram-designer.md", "agents/puml-diagram-reviewer.md"],
+  "mcp": ".mcp.json"
+}
+```
+
+`v0.0.1` intentionally omits `.lsp.json` from required runtime wiring because the binary does not exist yet.
+
+### MCP tool contract for `v0.0.1`
+
+Minimum required tools:
+
+- `puml_check`
+  - input: diagram text or file path in workspace root
+  - output: `{ ok, diagnostics[] }`
+  - exits non-zero when `ok=false`
+- `puml_render_svg`
+  - input: diagram text or file path
+  - output: `{ ok, svg, width, height, diagnostics[] }`
+- `puml_render_file`
+  - input: diagram text or file path + output path
+  - output: `{ ok, output_path, diagnostics[] }`
+
+Optional (recommended):
+
+- `puml_dump_ast`
+- `puml_dump_model`
+- `puml_dump_scene`
+
+### Deterministic repair loop requirement (`v0.0.1`)
+
+Every authoring flow in Codex and Claude must enforce:
+
+1. draft/update `.puml`
+2. run `puml_check`
+3. repair until diagnostics are empty
+4. render SVG only after a passing check
+5. return source plus render artifact/path
+
+If check fails, the workflow cannot claim completion.
+
 ## Reference anchors
 
 - Codex plugins: https://developers.openai.com/codex/plugins
