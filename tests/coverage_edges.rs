@@ -678,3 +678,171 @@ fn check_fixture_supports_json_diagnostics_for_warnings() {
         .unwrap()
         .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
 }
+
+#[test]
+fn normalize_sequence_ignores_preprocessor_statements_in_ast() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Sequence,
+        statements: vec![
+            puml::ast::Statement {
+                span: Span::new(0, 1),
+                kind: puml::ast::StatementKind::Include("x.puml".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(1, 2),
+                kind: puml::ast::StatementKind::Define {
+                    name: "K".to_string(),
+                    value: Some("1".to_string()),
+                },
+            },
+            puml::ast::Statement {
+                span: Span::new(2, 3),
+                kind: puml::ast::StatementKind::Undef("K".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(3, 4),
+                kind: puml::ast::StatementKind::Message(puml::ast::Message {
+                    from: "A".to_string(),
+                    to: "B".to_string(),
+                    arrow: "->".to_string(),
+                    label: None,
+                    from_virtual: None,
+                    to_virtual: None,
+                }),
+            },
+        ],
+    };
+    let model = normalize::normalize(doc).expect("normalize should ignore preprocessor statements");
+    assert_eq!(model.events.len(), 1);
+}
+
+#[test]
+fn normalize_reports_group_empty_branch_before_else() {
+    let src = "@startuml\nalt one\nelse two\nA -> B\nend\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected empty-branch-before-else error");
+    assert!(err.message.contains("E_GROUP_EMPTY_BRANCH"));
+}
+
+#[test]
+fn normalize_reports_group_unclosed_error() {
+    let src = "@startuml\npar lane\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected unclosed group error");
+    assert!(err.message.contains("E_GROUP_UNCLOSED"));
+}
+
+#[test]
+fn normalize_reports_return_infer_empty_without_context() {
+    let src = "@startuml\nreturn done\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected return inference error");
+    assert!(err.message.contains("E_RETURN_INFER_EMPTY"));
+}
+
+#[test]
+fn normalize_reports_lifecycle_explicit_destroyed_and_duplicate_errors() {
+    for (src, code) in [
+        ("@startuml\ndestroy A\nactivate A\n@enduml\n", "E_LIFECYCLE_ACTIVATE_DESTROYED"),
+        ("@startuml\ndestroy A\ndeactivate A\n@enduml\n", "E_LIFECYCLE_DEACTIVATE_DESTROYED"),
+        ("@startuml\ndestroy A\ndestroy A\n@enduml\n", "E_LIFECYCLE_DESTROY_TWICE"),
+        ("@startuml\ncreate A\ncreate A\n@enduml\n", "E_LIFECYCLE_CREATE_EXISTING"),
+    ] {
+        let doc = parse(src).expect("parse should succeed");
+        let err = normalize::normalize(doc).expect_err("expected lifecycle diagnostic");
+        assert!(err.message.contains(code), "expected {code}, got {}", err.message);
+    }
+}
+
+#[test]
+fn normalize_reports_destroyed_sender_message_error() {
+    let src = "@startuml\ndestroy A\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected destroyed sender error");
+    assert!(err.message.contains("E_LIFECYCLE_DESTROYED_SENDER"));
+}
+
+#[test]
+fn normalize_rejects_family_document_with_unknown_syntax_statement() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(3, 8),
+            kind: puml::ast::StatementKind::Unknown("???".to_string()),
+        }],
+    };
+    let err = normalize_family(doc).expect_err("expected parse unknown error for family");
+    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+}
+
+#[test]
+fn normalize_family_rejects_mixed_usecase_in_object_stub() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Object,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 2),
+            kind: puml::ast::StatementKind::UseCaseDecl(puml::ast::UseCaseDecl {
+                name: "UC".to_string(),
+                alias: None,
+            }),
+        }],
+    };
+    let err = normalize_family(doc).expect_err("expected family mixed error");
+    assert!(err.message.contains("E_FAMILY_MIXED"));
+}
+
+#[test]
+fn normalize_family_preserves_metadata_and_ignores_preprocessor_placeholders() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![
+            puml::ast::Statement {
+                span: Span::new(0, 1),
+                kind: puml::ast::StatementKind::Header("Top".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(1, 2),
+                kind: puml::ast::StatementKind::Footer("Bottom".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(2, 3),
+                kind: puml::ast::StatementKind::Caption("Cap".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(3, 4),
+                kind: puml::ast::StatementKind::Legend("Leg".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(4, 5),
+                kind: puml::ast::StatementKind::Include("x".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(5, 6),
+                kind: puml::ast::StatementKind::Define {
+                    name: "K".to_string(),
+                    value: Some("1".to_string()),
+                },
+            },
+            puml::ast::Statement {
+                span: Span::new(6, 7),
+                kind: puml::ast::StatementKind::Undef("K".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(7, 8),
+                kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
+                    name: "A".to_string(),
+                    alias: None,
+                }),
+            },
+        ],
+    };
+    let out = normalize_family(doc).expect("family normalize should succeed");
+    let family = match out {
+        NormalizedDocument::Family(v) => v,
+        NormalizedDocument::Sequence(_) => panic!("expected family document"),
+    };
+    assert_eq!(family.header.as_deref(), Some("Top"));
+    assert_eq!(family.footer.as_deref(), Some("Bottom"));
+    assert_eq!(family.caption.as_deref(), Some("Cap"));
+    assert_eq!(family.legend.as_deref(), Some("Leg"));
+}
