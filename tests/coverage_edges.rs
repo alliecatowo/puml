@@ -131,6 +131,42 @@ fn normalize_family_rejects_unsupported_state_family() {
 }
 
 #[test]
+fn normalize_family_rejects_mixed_bootstrap_declaration_kinds() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![puml::ast::Statement {
+            span: Span { start: 0, end: 0 },
+            kind: puml::ast::StatementKind::ObjectDecl(puml::ast::ObjectDecl {
+                name: "Obj".to_string(),
+                alias: None,
+            }),
+        }],
+    };
+
+    let err = normalize_family(doc).expect_err("mixed family declarations should fail");
+    assert!(err.message.contains("E_FAMILY_MIXED"));
+}
+
+#[test]
+fn normalize_family_rejects_sequence_only_events_in_bootstrap_slice() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::UseCase,
+        statements: vec![puml::ast::Statement {
+            span: Span { start: 0, end: 0 },
+            kind: puml::ast::StatementKind::Participant(puml::ast::ParticipantDecl {
+                role: puml::ast::ParticipantRole::Participant,
+                name: "User".to_string(),
+                alias: None,
+                display: None,
+            }),
+        }],
+    };
+
+    let err = normalize_family(doc).expect_err("sequence-only syntax should fail in stub family");
+    assert!(err.message.contains("E_FAMILY_STUB_UNSUPPORTED"));
+}
+
+#[test]
 fn normalize_supports_sequence_footbox_skinparam_without_warning() {
     let src = fs::read_to_string(fixture(
         "styling/valid_skinparam_sequence_footbox_supported.puml",
