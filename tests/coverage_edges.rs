@@ -578,3 +578,14 @@ fn check_fixture_supports_json_diagnostics_for_warnings() {
         .unwrap()
         .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
 }
+
+#[test]
+fn unknown_family_render_route_reports_deterministic_error_code() {
+    use puml::DiagramFamily;
+
+    let src = "@startuml\nfoo bar\n@enduml\n";
+    let err = puml::render_source_to_svg_for_family(src, DiagramFamily::Unknown)
+        .expect_err("expected unsupported family diagnostic");
+    assert!(err.message.contains("E_RENDER_FAMILY_UNSUPPORTED"));
+    assert!(!err.message.trim().is_empty());
+}
