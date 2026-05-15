@@ -918,7 +918,10 @@ fn layout_pages_newpage_keeps_page_local_geometry_and_content() {
             .expect("line"),
         "Second"
     );
-    assert!(pages[0].notes.is_empty(), "page one should not include page two note");
+    assert!(
+        pages[0].notes.is_empty(),
+        "page one should not include page two note"
+    );
     assert_eq!(pages[1].notes.len(), 1, "page two should contain its note");
 }
 
