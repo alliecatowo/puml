@@ -452,6 +452,13 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_unclosed_if.puml",
         "errors/invalid_preproc_procedure_unsupported.puml",
         "errors/invalid_preproc_endwhile_without_while.puml",
+        "errors/invalid_preproc_expr_missing.puml",
+        "errors/invalid_preproc_expr_unsupported_logical.puml",
+        "errors/invalid_preproc_expr_unsupported_parens.puml",
+        "errors/invalid_preproc_unexpected_endfunction.puml",
+        "errors/invalid_preproc_while_iteration_limit.puml",
+        "errors/invalid_include_absolute_path.puml",
+        "errors/invalid_include_empty_path.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -1835,6 +1842,58 @@ fn preprocessor_conditional_and_while_balance_errors_are_deterministic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_PREPROC_WHILE_UNEXPECTED"));
+}
+
+#[test]
+fn preprocessor_expression_validation_errors_are_deterministic() {
+    let cases = [
+        (
+            "errors/invalid_preproc_expr_missing.puml",
+            "E_PREPROC_EXPR_REQUIRED",
+        ),
+        (
+            "errors/invalid_preproc_expr_unsupported_logical.puml",
+            "E_PREPROC_EXPR_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_preproc_expr_unsupported_parens.puml",
+            "E_PREPROC_EXPR_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_preproc_unexpected_endfunction.puml",
+            "E_PREPROC_UNEXPECTED",
+        ),
+        (
+            "errors/invalid_preproc_while_iteration_limit.puml",
+            "E_PREPROC_WHILE_LIMIT",
+        ),
+    ];
+
+    for (path, code) in cases {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(path)])
+            .assert()
+            .code(1)
+            .stderr(predicate::str::contains(code));
+    }
+}
+
+#[test]
+fn include_path_shape_errors_are_deterministic() {
+    let cases = [
+        ("errors/invalid_include_absolute_path.puml", "E_INCLUDE_ABSOLUTE_PATH"),
+        ("errors/invalid_include_empty_path.puml", "E_INCLUDE_PATH_REQUIRED"),
+    ];
+
+    for (path, code) in cases {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(path)])
+            .assert()
+            .code(1)
+            .stderr(predicate::str::contains(code));
+    }
 }
 
 #[test]
