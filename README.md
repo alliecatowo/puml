@@ -155,7 +155,7 @@ Modes:
 - `--lint-glob GLOB` adds repeatable glob-expanded check/lint inputs (check mode only)
 - `--lint-report human|json` emits lint summary report format (default `human`)
 - `--dump ast|model|scene` emits JSON
-- `--multi` permits multiple diagrams/pages (required whenever input expands to more than one diagram/page)
+- `--multi` permits multiple stdin diagrams/pages (required when stdin expands to more than one diagram/page)
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
   supported markdown fence langs: `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
