@@ -969,15 +969,15 @@ The exact content can vary. Validity cannot.
 - Release bundles include binaries, manifests, skills, MCP config, LSP config, assets, README, LICENSE, and checksums.
 - Agents using the pack reliably produce valid sequence diagrams instead of plausible-looking invalid syntax.
 
-## v0.0.1 implementation profile (current repo target)
+## v0.0.1 implementation profile (historical baseline)
 
-This repository does **not** ship `puml-lsp` yet. For `v0.0.1`, we ship a constrained plugin/MCP profile that is immediately usable for deterministic authoring and validation loops.
+`v0.0.1` originally shipped a constrained plugin/MCP profile that was immediately usable for deterministic authoring and validation loops before LSP support landed in-repo.
 
 Scope for `v0.0.1`:
 
 - Codex plugin manifest and Claude plugin manifest are included in the spec as concrete templates.
 - MCP server contract is scoped to check/render/export workflows that can run on top of the existing `puml` CLI.
-- LSP integration is explicitly deferred until `puml-lsp` exists in this repository.
+- LSP integration is explicitly deferred for this profile.
 - Skills are authored to require `puml_check` and never claim success without a passing check.
 
 ### Deferred in `v0.0.1`

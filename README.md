@@ -77,6 +77,9 @@ cargo run -- --from-markdown --check docs/sequence-notes.md
 # machine-readable diagnostics
 cargo run -- --check --diagnostics json tests/fixtures/invalid_single.puml
 
+# LSP server (stdio)
+cargo run --bin puml-lsp
+
 # frontend + mode controls
 cargo run -- --dialect auto --compat strict --determinism strict tests/fixtures/basic/hello.puml
 cargo run -- --dialect plantuml --check tests/fixtures/basic/hello.puml
@@ -224,6 +227,17 @@ Artifacts:
 | Other `skinparam` keys | Accepted with warning | Deterministic `W_SKINPARAM_UNSUPPORTED`/`W_SKINPARAM_UNSUPPORTED_VALUE` warning; continues execution. |
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
+
+## LSP Baseline
+
+`puml-lsp` includes a deterministic baseline for:
+- diagnostics published on `didOpen`/`didChange`/`didSave` using the same `parse -> normalize` pipeline as the CLI
+- completion for top-level sequence primitives plus arrow/lifecycle tokens
+- hover documentation for directives and arrow forms
+
+Contract notes:
+- completion and hover do not render diagrams
+- diagnostics preserve structured `code` when available from core diagnostics
 
 ## Autonomy Harness
 

@@ -11,7 +11,7 @@ Codex + Claude plugin bundle for deterministic `puml` sequence diagram authoring
 - author/reviewer skills and agent profiles
 
 ## v0.0.1 limitations
-- no LSP integration yet (no `puml-lsp` in repo)
+- no packaged editor LSP wiring yet (the repository now includes a baseline `puml-lsp` binary)
 
 ## Local smoke test
 ```bash
