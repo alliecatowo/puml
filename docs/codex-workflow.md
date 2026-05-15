@@ -1,76 +1,60 @@
 # Codex Workflow
 
-This repository is optimized for terminal-first agent and human collaboration.
+This repo supports fully autonomous engineering loops for Codex and Claude with deterministic harness checks.
 
-## One-Command DX Entry Points
-
-```console
-./scripts/setup.sh      # one-time workstation setup
-./scripts/dev.sh        # fast daily loop
-./scripts/check-all.sh  # full quality gate
-./scripts/bench.sh      # benchmark workflow
-```
-
-## What Each Command Does
-
-`./scripts/setup.sh`
-- verifies `cargo` and `rustup`
-- ensures `rustfmt`, `clippy`, and `llvm-tools-preview`
-- installs `cargo-llvm-cov` if missing
-- runs `cargo fetch` and `cargo build`
-
-`./scripts/dev.sh`
-- runs `cargo fmt`
-- runs `cargo clippy --all-targets --all-features -- -D warnings`
-- runs `cargo test`
-
-`./scripts/check-all.sh`
-- runs `cargo fmt --check`
-- runs `cargo clippy --all-targets --all-features -- -D warnings`
-- runs `cargo test`
-- runs `cargo llvm-cov --all-features --workspace --fail-under-lines 90`
-
-`./scripts/bench.sh`
-- builds `target/release/puml`
-- runs benchmark scenarios via `hyperfine` when available
-- falls back to `/usr/bin/time` when `hyperfine` is unavailable
-- writes benchmark artifacts to `docs/benchmarks/latest.{md,csv,json}`
-
-## Useful Render/Debug Commands
+## One-Command Entry Points
 
 ```console
-# show supported flags
-cargo run -- --help
-
-# file mode: writes <input-stem>.svg
-cargo run -- tests/fixtures/basic/hello.puml
-
-# explicit output path
-cargo run -- tests/fixtures/basic/hello.puml -o out.svg
-
-# stdin mode (explicit '-'): writes SVG to stdout
-cat tests/fixtures/basic/hello.puml | cargo run -- -
-
-# stdin mode (implicit input omitted): writes SVG to stdout
-cat tests/fixtures/basic/hello.puml | cargo run --
-
-# multi mode (must be explicit)
-cat tests/fixtures/structure/multi_three.puml | cargo run -- --multi -
-
-# check-only mode (parse + normalize, no render output)
-cargo run -- --check tests/fixtures/basic/hello.puml
-
-# dump intermediate representations as JSON
-cargo run -- --dump ast tests/fixtures/basic/hello.puml
-cargo run -- --dump model tests/fixtures/basic/hello.puml
-cargo run -- --dump scene tests/fixtures/basic/hello.puml
+./scripts/harness-check.sh         # agent-pack + MCP + parity harness only
+./scripts/autonomy-check.sh        # full chain: lint/test/bench/harness/smoke
+./scripts/harness-check.sh --quick # reduced parity corpus
+./scripts/autonomy-check.sh --quick
+./scripts/harness-check.sh --dry   # dry-capable harness steps
+./scripts/autonomy-check.sh --dry  # bench/harness dry checks only
 ```
 
-## Include Behavior
+## Full Autonomous Chain
 
-- File input: includes resolve relative to the input file directory.
-- Stdin input: requires `--include-root DIR`.
+`./scripts/autonomy-check.sh` runs:
+1. `cargo fmt --check`
+2. `cargo clippy --all-targets --all-features -- -D warnings`
+3. `cargo test`
+4. `./scripts/bench.sh`
+5. `./scripts/harness-check.sh`
 
-```console
-cat diagram.puml | cargo run -- --check --include-root ./tests/fixtures/include -
-```
+Expected success tail:
+- `[bench] wrote: ...`
+- `[harness] complete`
+- `[autonomy] complete`
+
+## Harness-Only Chain
+
+`./scripts/harness-check.sh` runs:
+1. `python3 ./scripts/validate_agent_pack.py`
+2. `bash ./agent-pack/tests/mcp_smoke.sh`
+3. `python3 ./scripts/parity_harness.py`
+
+Expected success tail:
+- `[agent-pack] validation complete`
+- `[mcp-smoke] complete`
+- `parity harness wrote ...`
+- `[harness] complete`
+
+## Codex and Claude Workflow Recipe
+
+1. Author diagrams and skills under `agent-pack/**`.
+2. Run `./scripts/harness-check.sh --quick` during iteration.
+3. Run `./scripts/autonomy-check.sh --quick` before broad changes.
+4. Run `./scripts/autonomy-check.sh` before handoff/PR.
+5. Include `docs/benchmarks` + parity artifacts when behavior/perf changed.
+
+## Troubleshooting
+
+- `mcp runner returned empty response`:
+  - Verify `agent-pack/bin/puml-mcp` is executable.
+- `tool name mismatch` in validator:
+  - Sync `agent-pack/.mcp.json` tools with runtime `TOOL_LIST` in `agent-pack/bin/puml-mcp`.
+- `artifact content does not match current renderer output`:
+  - Re-render docs examples and commit updated SVG artifacts.
+- Dry-run sanity:
+  - Use `./scripts/harness-check.sh --dry` and `./scripts/autonomy-check.sh --dry` to inspect planned execution.

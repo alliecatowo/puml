@@ -66,6 +66,10 @@ cargo run -- --from-markdown --check docs/sequence-notes.md
 # machine-readable diagnostics
 cargo run -- --check --diagnostics json tests/fixtures/invalid_single.puml
 
+# frontend + mode controls
+cargo run -- --dialect auto --compat strict --determinism strict tests/fixtures/basic/hello.puml
+cargo run -- --dialect plantuml --check tests/fixtures/basic/hello.puml
+
 # stdin + include support
 cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --include-root ./tests/fixtures/include -
 ```
@@ -85,6 +89,30 @@ $ cargo run -- --check hello.puml
 # exits 0 with no validation errors
 ```
 
+## Rendered Examples
+
+Canonical examples live in [`docs/examples/README.md`](docs/examples/README.md), with committed source/output pairs.
+
+Re-generate all committed examples:
+
+```bash
+for f in docs/examples/*.puml; do
+  cargo run -- "$f"
+done
+```
+
+### Basic Hello
+
+Source: [`docs/examples/basic_hello.puml`](docs/examples/basic_hello.puml)
+
+![Basic Hello](docs/examples/basic_hello.svg)
+
+### Groups And Notes
+
+Source: [`docs/examples/groups_notes.puml`](docs/examples/groups_notes.puml)
+
+![Groups And Notes](docs/examples/groups_notes.svg)
+
 ## CLI Contract
 
 Inputs:
@@ -99,6 +127,9 @@ Modes:
 - `--multi` permits multiple diagrams
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
+- `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`; currently routes to PlantUML path)
+- `--compat strict|extended` sets semantic compatibility policy (default `strict`)
+- `--determinism strict|full` sets determinism policy (default `strict`)
 - `--include-root DIR` resolves `!include` when reading stdin
 
 Outputs:
@@ -145,6 +176,26 @@ Source: `docs/benchmarks/latest.md` generated on **2026-05-15** (UTC timestamp `
 | Other `skinparam` keys | Accepted with warning | Deterministic `stderr` warning; continues execution. |
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
+
+## Autonomy Harness
+
+Codex + Claude autonomous repo engineering entrypoints:
+
+```bash
+# harness-only (fastest confidence for agent-pack + MCP + parity invariants)
+./scripts/harness-check.sh --quick
+
+# full autonomous quality chain
+./scripts/autonomy-check.sh --quick
+./scripts/autonomy-check.sh
+```
+
+Dry-run planning commands:
+
+```bash
+./scripts/harness-check.sh --dry
+./scripts/autonomy-check.sh --dry
+```
 
 ## Docs
 
