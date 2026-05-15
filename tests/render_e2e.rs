@@ -217,6 +217,26 @@ fn render_svg_applies_supported_sequence_skinparam_colors() {
 }
 
 #[test]
+fn render_svg_supports_sequence_arrow_color_alias() {
+    let src = "@startuml\nskinparam SequenceArrowColor #ab1010\nA -> B : hello\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(svg.contains("stroke=\"#ab1010\""));
+    assert_snapshot!("render_svg_supports_sequence_arrow_color_alias", svg);
+}
+
+#[test]
+fn render_svg_sequence_skinparam_maxmessagesize_is_noop_and_deterministic() {
+    let src = fixture("styling/valid_skinparam_maxmessagesize_supported.puml");
+    let first = puml::render_source_to_svg(&src).expect("first render should succeed");
+    let second = puml::render_source_to_svg(&src).expect("second render should succeed");
+    assert_eq!(first, second, "render output should be deterministic");
+    assert_snapshot!(
+        "render_svg_sequence_skinparam_maxmessagesize_is_noop_and_deterministic",
+        first
+    );
+}
+
+#[test]
 fn render_svg_handles_ref_else_and_multi_target_notes() {
     let src = fixture("groups/valid_ref_and_else_rendering.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");

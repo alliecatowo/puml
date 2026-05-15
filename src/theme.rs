@@ -82,7 +82,7 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
         "footbox" | "sequencefootbox" => parse_footbox_value(value)
             .map(SequenceSkinParamSupport::SupportedWithValue)
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
-        "arrowcolor" => parse_color_value(value)
+        "arrowcolor" | "sequencearrowcolor" => parse_color_value(value)
             .map(|_| {
                 SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor)
             })

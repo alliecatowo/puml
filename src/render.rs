@@ -286,11 +286,7 @@ fn escape_text(input: &str) -> String {
     escaped
 }
 
-fn render_participant_box(
-    out: &mut String,
-    participant: &ParticipantBox,
-    scene: &Scene,
-) {
+fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene: &Scene) {
     let x = participant.x;
     let y = participant.y;
     let width = participant.width;

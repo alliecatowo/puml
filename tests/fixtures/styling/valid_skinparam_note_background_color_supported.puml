@@ -1,0 +1,7 @@
+@startuml
+skinparam NoteBackgroundColor #fff7d1
+A -> B : hello
+note over A
+  note text
+end note
+@enduml

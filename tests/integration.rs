@@ -420,6 +420,58 @@ fn check_mode_emits_styling_warnings_but_succeeds() {
 }
 
 #[test]
+fn check_mode_accepts_phase1_supported_skinparam_keys_without_warnings() {
+    for fixture_name in [
+        "styling/valid_skinparam_maxmessagesize_supported.puml",
+        "styling/valid_skinparam_sequence_footbox_supported.puml",
+        "styling/valid_skinparam_arrow_color_supported.puml",
+        "styling/valid_skinparam_lifeline_border_color_supported.puml",
+        "styling/valid_skinparam_participant_background_color_supported.puml",
+        "styling/valid_skinparam_participant_border_color_supported.puml",
+        "styling/valid_skinparam_note_background_color_supported.puml",
+        "styling/valid_skinparam_note_border_color_supported.puml",
+        "styling/valid_skinparam_group_background_color_supported.puml",
+        "styling/valid_skinparam_group_border_color_supported.puml",
+        "styling/valid_skinparam_sequence_alias_colors_supported.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(fixture_name)])
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
+fn check_mode_skinparam_unsupported_key_and_value_are_both_reported_deterministically() {
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_unsupported_mixed_deterministic.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(output).expect("stderr should be valid utf-8");
+    let unsupported_key = stderr
+        .find("W_SKINPARAM_UNSUPPORTED")
+        .expect("missing unsupported-key warning");
+    let unsupported_value = stderr
+        .find("W_SKINPARAM_UNSUPPORTED_VALUE")
+        .expect("missing unsupported-value warning");
+    assert!(
+        unsupported_key < unsupported_value,
+        "warnings should keep source order"
+    );
+}
+
+#[test]
 fn dump_mode_emits_warnings_in_deterministic_order() {
     let input = "@startuml\n!theme spacelab\nskinparam UnknownKey red\nskinparam StillUnknown blue\nA -> B\n@enduml\n";
     let out = Command::cargo_bin("puml")

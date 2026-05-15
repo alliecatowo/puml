@@ -1,0 +1,5 @@
+@startuml
+skinparam UnknownKey red
+skinparam sequenceFootbox maybe
+A -> B : hello
+@enduml
