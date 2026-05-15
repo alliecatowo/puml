@@ -1,7 +1,3 @@
-use winnow::error::ContextError;
-use winnow::token::take_till;
-use winnow::Parser;
-
 use crate::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl, ParticipantRole, Statement,
     StatementKind,
@@ -19,7 +15,7 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
         let span = Span::new(offset, offset + raw_line.len());
         offset += raw_line.len() + 1;
 
-        if line.is_empty() || line.starts_with('"') || line.starts_with('!') && line == "!pragma" {
+        if line.is_empty() || line.starts_with('"') || line.eq_ignore_ascii_case("!pragma") {
             continue;
         }
         if line.eq_ignore_ascii_case("@startuml")
@@ -42,7 +38,9 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
         }
 
         if let Some(kind) = parse_keyword(line) {
-            seen_sequence = true;
+            if is_sequence_keyword(&kind) {
+                seen_sequence = true;
+            }
             statements.push(Statement { span, kind });
             continue;
         }
@@ -132,39 +130,26 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
 }
 
 fn parse_message(line: &str) -> Option<StatementKind> {
-    let mut input = line;
-    let from_raw: &str = take_till::<_, _, ContextError>(1.., ['-', '<'])
-        .parse_next(&mut input)
-        .ok()?;
-    let from = clean_ident(from_raw.trim());
-    let arrow_start = line.len() - input.len();
+    let (core, label) = split_message_label(line);
+    let (lhs_raw, arrow, rhs_raw) = split_arrow(core)?;
 
-    let colon_idx = line[arrow_start..]
-        .find(':')
-        .map(|i| i + arrow_start)
-        .unwrap_or(line.len());
-    let before_colon = &line[arrow_start..colon_idx];
+    let mut from = clean_ident(lhs_raw);
+    let mut to = clean_ident(rhs_raw);
 
-    let arrow_end_rel = before_colon.find(|c: char| c.is_ascii_alphanumeric() || c == '"')?;
-    let arrow_token = before_colon[..arrow_end_rel].trim();
-    if !arrow_token.contains('-') {
+    if from.is_empty() && lhs_raw.contains('[') {
+        from = "[*]".to_string();
+    }
+    if to.is_empty() && rhs_raw.contains(']') {
+        to = "[*]".to_string();
+    }
+    if from.is_empty() || to.is_empty() {
         return None;
     }
-    let to_raw = before_colon[arrow_end_rel..].trim();
-    if to_raw.is_empty() {
-        return None;
-    }
-
-    let label = if colon_idx < line.len() {
-        Some(line[colon_idx + 1..].trim().to_string()).filter(|s| !s.is_empty())
-    } else {
-        None
-    };
 
     Some(StatementKind::Message(Message {
         from,
-        to: clean_ident(to_raw),
-        arrow: arrow_token.to_string(),
+        to,
+        arrow: arrow.to_string(),
         label,
     }))
 }
@@ -192,6 +177,9 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             key: key.trim().to_string(),
             value: value.trim().to_string(),
         });
+    }
+    if lower.starts_with("!theme") {
+        return Some(StatementKind::Theme(line[6..].trim().to_string()));
     }
 
     if lower == "hide footbox" {
@@ -306,5 +294,75 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
 }
 
 fn clean_ident(s: &str) -> String {
-    s.trim().trim_matches('"').to_string()
+    let mut out = s.trim().trim_matches('"').to_string();
+    for suffix in ["++", "--", "**", "!!"] {
+        out = out
+            .strip_suffix(suffix)
+            .map(str::trim_end)
+            .unwrap_or(&out)
+            .to_string();
+    }
+    out
+}
+
+fn split_message_label(line: &str) -> (&str, Option<String>) {
+    if let Some(colon) = line.find(':') {
+        let text = line[colon + 1..].trim();
+        (
+            line[..colon].trim_end(),
+            Some(text.to_string()).filter(|s| !s.is_empty()),
+        )
+    } else {
+        (line.trim_end(), None)
+    }
+}
+
+fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
+    let arrow_start = core.find(['-', '<', '[']).unwrap_or(core.len());
+    if arrow_start >= core.len() {
+        return None;
+    }
+    let lhs = &core[..arrow_start];
+    let arrow_bytes = core.as_bytes();
+    let mut i = arrow_start;
+    while i < core.len() {
+        let c = arrow_bytes[i] as char;
+        if c == '-' || c == '<' || c == '>' || c == '[' || c == ']' || c == 'o' || c == 'x' {
+            i += 1;
+            continue;
+        }
+        break;
+    }
+    if i == arrow_start {
+        return None;
+    }
+    let arrow = core[arrow_start..i].trim();
+    if !arrow.contains('-') {
+        return None;
+    }
+    let rhs = core[i..].trim();
+    Some((lhs.trim(), arrow, rhs))
+}
+
+fn is_sequence_keyword(kind: &StatementKind) -> bool {
+    matches!(
+        kind,
+        StatementKind::Note(_)
+            | StatementKind::Group(_)
+            | StatementKind::Footbox(_)
+            | StatementKind::Delay(_)
+            | StatementKind::Divider(_)
+            | StatementKind::Spacer
+            | StatementKind::NewPage(_)
+            | StatementKind::Autonumber(_)
+            | StatementKind::Activate(_)
+            | StatementKind::Deactivate(_)
+            | StatementKind::Destroy(_)
+            | StatementKind::Create(_)
+            | StatementKind::Return(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_)
+            | StatementKind::Theme(_)
+    )
 }

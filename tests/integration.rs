@@ -3,27 +3,31 @@ use insta::{assert_json_snapshot, assert_snapshot};
 use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
-use tempfile::NamedTempFile;
+use tempfile::tempdir;
 
 fn fixture(name: &str) -> String {
     format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
 #[test]
-fn single_file_defaults_to_text_output() {
-    let out = Command::cargo_bin("puml")
+fn single_file_defaults_to_svg_file_output() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single_valid.puml");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
         .expect("binary")
-        .arg(fixture("single_valid.puml"))
+        .arg(&input)
         .assert()
         .success()
-        .get_output()
-        .stdout
-        .clone();
+        .stdout(predicate::str::is_empty());
 
-    assert_snapshot!(
-        "single_file_defaults_to_text_output",
-        String::from_utf8(out).unwrap()
-    );
+    let output = tmp.path().join("single_valid.svg");
+    assert!(output.exists());
+
+    let expected = fs::read_to_string(fixture("single_valid.svg")).unwrap();
+    let actual = fs::read_to_string(output).unwrap();
+    assert_eq!(actual, expected);
 }
 
 #[test]
@@ -33,7 +37,8 @@ fn check_mode_passes_for_valid_input() {
         .args(["--check", &fixture("single_valid.puml")])
         .assert()
         .success()
-        .stdout(predicate::str::contains("passed validation"));
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]
@@ -42,15 +47,56 @@ fn check_mode_fails_for_invalid_input() {
         .expect("binary")
         .args(["--check", &fixture("invalid_single.puml")])
         .assert()
-        .code(5)
-        .stderr(predicate::str::contains("validation failed"));
+        .code(1);
 }
 
 #[test]
-fn dump_mode_outputs_json_array() {
+fn check_mode_passes_for_additional_valid_fixtures() {
+    for case in [
+        "single_valid.puml",
+        "basic/valid_start_end.puml",
+        "basic/valid_arrow.txt",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
+fn check_mode_fails_for_additional_invalid_fixtures() {
+    for case in [
+        "invalid_single.puml",
+        "errors/invalid_plain.txt",
+        "errors/invalid_unclosed.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .code(1);
+    }
+}
+
+#[test]
+fn dump_mode_requires_kind() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("--dump")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("a value is required for '--dump <KIND>'"));
+}
+
+#[test]
+fn dump_mode_outputs_ast_json() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dump", &fixture("single_valid.puml")])
+        .args(["--dump", "ast", &fixture("single_valid.puml")])
         .assert()
         .success()
         .get_output()
@@ -58,14 +104,15 @@ fn dump_mode_outputs_json_array() {
         .clone();
 
     let json: Value = serde_json::from_slice(&out).unwrap();
-    assert_json_snapshot!("dump_mode_outputs_json_array", json);
+    assert_json_snapshot!("dump_mode_outputs_ast_json", json);
 }
 
 #[test]
 fn multi_mode_outputs_all_diagrams_as_json() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--multi", &fixture("multi_valid.puml")])
+        .args(["--multi", "-",])
+        .write_stdin(fs::read_to_string(fixture("multi_valid.puml")).unwrap())
         .assert()
         .success()
         .get_output()
@@ -77,12 +124,28 @@ fn multi_mode_outputs_all_diagrams_as_json() {
 }
 
 #[test]
+fn multi_mode_handles_three_diagrams() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "-"])
+        .write_stdin(fs::read_to_string(fixture("structure/multi_three.puml")).unwrap())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!("multi_mode_handles_three_diagrams", json);
+}
+
+#[test]
 fn multi_input_without_flag_fails() {
     Command::cargo_bin("puml")
         .expect("binary")
         .arg(fixture("multi_valid.puml"))
         .assert()
-        .code(4)
+        .code(1)
         .stderr(predicate::str::contains("rerun with --multi"));
 }
 
@@ -124,17 +187,17 @@ fn missing_file_maps_to_io_exit_code() {
         .expect("binary")
         .arg("/tmp/definitely-not-present-12345.puml")
         .assert()
-        .code(3)
+        .code(2)
         .stderr(predicate::str::contains("failed to read"));
 }
 
 #[test]
-fn empty_input_maps_to_input_exit_code() {
+fn empty_input_maps_to_validation_exit_code() {
     Command::cargo_bin("puml")
         .expect("binary")
         .arg(fixture("empty.txt"))
         .assert()
-        .code(4)
+        .code(1)
         .stderr(predicate::str::contains("no diagram content provided"));
 }
 
@@ -142,51 +205,44 @@ fn empty_input_maps_to_input_exit_code() {
 fn plain_multi_delimiter_supported_with_multi_flag() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--multi", &fixture("plain_multi.txt")])
+        .args(["--multi", "-"])
+        .write_stdin(fs::read_to_string(fixture("plain_multi.txt")).unwrap())
         .assert()
         .success()
         .get_output()
         .stdout
         .clone();
 
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    assert_json_snapshot!("plain_multi_delimiter_supported_with_multi_flag", json);
-}
-
-#[test]
-fn json_format_outputs_single_record() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args(["--format", "json", &fixture("single_valid.puml")])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    assert_json_snapshot!("json_format_outputs_single_record", json);
+    assert_snapshot!(
+        "plain_multi_delimiter_supported_with_multi_flag",
+        String::from_utf8(out).unwrap()
+    );
 }
 
 #[test]
 fn check_and_dump_are_mutually_exclusive() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--check", "--dump", &fixture("single_valid.puml")])
+        .args(["--check", "--dump", "ast", &fixture("single_valid.puml")])
         .assert()
-        .code(2)
+        .code(1)
         .stderr(predicate::str::contains("cannot be used with"));
 }
 
 #[test]
 fn can_read_tempfile_input() {
-    let tmp = NamedTempFile::new().unwrap();
-    fs::write(tmp.path(), "@startuml\nX -> Y\n@enduml\n").unwrap();
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("sample.puml");
+    fs::write(&input, "@startuml\nX -> Y\n@enduml\n").unwrap();
 
     Command::cargo_bin("puml")
         .expect("binary")
-        .arg(tmp.path())
+        .arg(&input)
         .assert()
-        .success()
-        .stdout(predicate::str::contains("X -> Y"));
+        .success();
+
+    let output = tmp.path().join("sample.svg");
+    assert!(output.exists());
+    let svg = fs::read_to_string(output).unwrap();
+    assert!(svg.contains("<svg"));
 }

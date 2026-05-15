@@ -1,0 +1,9 @@
+@startuml
+A -> B: one
+@enduml
+@startuml
+B -> C: two
+@enduml
+@startuml
+C -> A: three
+@enduml

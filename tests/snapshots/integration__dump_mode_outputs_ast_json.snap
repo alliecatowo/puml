@@ -1,0 +1,24 @@
+---
+source: tests/integration.rs
+assertion_line: 107
+expression: json
+---
+{
+  "kind": "Sequence",
+  "statements": [
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "Alice",
+          "label": "hi",
+          "to": "Bob"
+        }
+      },
+      "span": {
+        "end": 26,
+        "start": 10
+      }
+    }
+  ]
+}

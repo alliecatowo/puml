@@ -1,7 +1,0 @@
----
-source: tests/integration.rs
-expression: "String::from_utf8(out).unwrap()"
----
-@startuml
-Alice -> Bob: hi
-@enduml

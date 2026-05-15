@@ -1,22 +1,6 @@
 ---
 source: tests/integration.rs
-expression: json
+assertion_line: 216
+expression: "String::from_utf8(out).unwrap()"
 ---
-[
-  {
-    "bytes": 12,
-    "content": "Alice -> Bob",
-    "has_start_enduml": false,
-    "index": 0,
-    "lines": 1,
-    "source": "/home/Allie/develop/puml/tests/fixtures/plain_multi.txt"
-  },
-  {
-    "bytes": 12,
-    "content": "Bob -> Carol",
-    "has_start_enduml": false,
-    "index": 1,
-    "lines": 1,
-    "source": "/home/Allie/develop/puml/tests/fixtures/plain_multi.txt"
-  }
-]
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="200" viewBox="0 0 620 200"><rect width="100%" height="100%" fill="white"/><text x="16" y="28" font-family="monospace" font-size="14">puml sequence scaffold</text></svg>

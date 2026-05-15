@@ -24,6 +24,7 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
     let mut legend = None;
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
+    let mut warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -81,7 +82,31 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::SkinParam { key, value } => skinparams.push((key, value)),
+            StatementKind::SkinParam { key, value } => {
+                skinparams.push((key.clone(), value.clone()));
+                if !is_supported_skinparam(&key) {
+                    warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                            key
+                        ))
+                        .with_span(stmt.span),
+                    );
+                }
+            }
+            StatementKind::Theme(name) => {
+                warnings.push(
+                    Diagnostic::warning(format!(
+                        "[W_THEME_UNSUPPORTED] !theme is not supported yet{}",
+                        if name.is_empty() {
+                            "".to_string()
+                        } else {
+                            format!(" (`{}`)", name)
+                        }
+                    ))
+                    .with_span(stmt.span),
+                );
+            }
             StatementKind::Footbox(v) => footbox_visible = v,
             StatementKind::Delay(v) => events.push(SequenceEvent {
                 span: stmt.span,
@@ -169,6 +194,15 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
         }
     }
 
+    if !warnings.is_empty() {
+        warnings.sort_by(|a, b| {
+            let sa = a.span.map(|s| s.start).unwrap_or_default();
+            let sb = b.span.map(|s| s.start).unwrap_or_default();
+            (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
+        });
+        return Err(warnings.remove(0));
+    }
+
     Ok(SequenceDocument {
         participants,
         events,
@@ -180,6 +214,10 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
         skinparams,
         footbox_visible,
     })
+}
+
+fn is_supported_skinparam(key: &str) -> bool {
+    matches!(key.to_ascii_lowercase().as_str(), "maxmessagesize")
 }
 
 fn ensure_implicit(

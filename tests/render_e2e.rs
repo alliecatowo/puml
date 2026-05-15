@@ -1,0 +1,58 @@
+use insta::assert_snapshot;
+
+fn fixture(name: &str) -> String {
+    std::fs::read_to_string(format!(
+        "{}/tests/fixtures/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+}
+
+#[test]
+fn render_svg_is_deterministic_for_same_input() {
+    let src = fixture("e2e/deterministic_sequence.puml");
+    let first = puml::render_source_to_svg(&src).expect("first render should succeed");
+    let second = puml::render_source_to_svg(&src).expect("second render should succeed");
+
+    assert_eq!(first, second, "render output should be deterministic");
+    assert_snapshot!("render_svg_is_deterministic_for_same_input", first);
+}
+
+#[test]
+fn render_svg_contains_expected_scaffold_structure() {
+    let src = fixture("e2e/deterministic_sequence.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.starts_with("<svg "));
+    assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
+    assert!(svg.contains("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>"));
+    assert!(svg.contains("puml sequence scaffold"));
+    assert!(svg.ends_with("</svg>"));
+}
+
+#[test]
+fn render_svg_rejects_invalid_source() {
+    let src = fixture("errors/invalid_plain.txt");
+    let err = puml::render_source_to_svg(&src);
+    assert!(err.is_err(), "invalid source should fail render");
+}
+
+#[test]
+fn render_svg_output_avoids_active_content_patterns() {
+    let src = fixture("e2e/deterministic_sequence.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+    let lowered = svg.to_ascii_lowercase();
+
+    for forbidden in [
+        "<script",
+        "foreignobject",
+        "onload=",
+        "onerror=",
+        "javascript:",
+    ] {
+        assert!(
+            !lowered.contains(forbidden),
+            "svg should not contain forbidden pattern: {forbidden}"
+        );
+    }
+}

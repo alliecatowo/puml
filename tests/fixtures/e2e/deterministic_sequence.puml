@@ -1,0 +1,6 @@
+@startuml
+participant Client
+participant API
+Client -> API: request
+API --> Client: response
+@enduml

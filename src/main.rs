@@ -1,41 +1,50 @@
 mod cli;
 
 use clap::Parser;
-use cli::{Cli, OutputFormat};
+use cli::{Cli, DumpKind};
+use puml::ast::{
+    DiagramKind, Document, Group, Message, Note, ParticipantDecl,
+    ParticipantRole as AstParticipantRole, Statement, StatementKind,
+};
+use puml::model::{
+    Participant, ParticipantRole as ModelParticipantRole, SequenceDocument, SequenceEvent,
+    SequenceEventKind,
+};
+use puml::{normalize, parse, render_source_to_svg, Diagnostic};
 use serde::Serialize;
+use serde_json::{json, Value};
 use std::fs;
 use std::io::{self, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const EXIT_OK: u8 = 0;
-const EXIT_CLI: u8 = 2;
-const EXIT_IO: u8 = 3;
-const EXIT_INPUT: u8 = 4;
-const EXIT_CHECK_FAILED: u8 = 5;
+const EXIT_VALIDATION: u8 = 1;
+const EXIT_IO: u8 = 2;
+const EXIT_INTERNAL: u8 = 3;
 
 #[derive(Debug, Serialize)]
-struct DiagramRecord {
-    index: usize,
-    bytes: usize,
-    lines: usize,
-    has_start_enduml: bool,
-    source: String,
-    content: String,
+struct MultiSvgOut {
+    name: String,
+    svg: String,
 }
 
 fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(err) => {
-            let code = if err.use_stderr() { EXIT_CLI } else { EXIT_OK };
+            let code = if err.use_stderr() {
+                EXIT_VALIDATION
+            } else {
+                EXIT_OK
+            };
             let _ = err.print();
             return ExitCode::from(code);
         }
     };
 
     match run(cli) {
-        Ok(code) => ExitCode::from(code),
+        Ok(()) => ExitCode::from(EXIT_OK),
         Err((code, msg)) => {
             eprintln!("{msg}");
             ExitCode::from(code)
@@ -43,83 +52,136 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: Cli) -> Result<u8, (u8, String)> {
-    let (source_name, raw) = read_input(cli.input.as_deref())?;
+fn run(cli: Cli) -> Result<(), (u8, String)> {
+    let (_input_name, raw, input_path) = read_input(cli.input.as_deref())?;
     let diagrams = split_diagrams(&raw);
 
     if diagrams.is_empty() {
-        return Err((EXIT_INPUT, "no diagram content provided".to_string()));
+        return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
-    if !cli.multi && diagrams.len() > 1 {
+    if diagrams.len() > 1 && !cli.multi {
         return Err((
-            EXIT_INPUT,
+            EXIT_VALIDATION,
             "multiple diagrams detected; rerun with --multi".to_string(),
         ));
     }
 
-    let records: Vec<DiagramRecord> = diagrams
-        .iter()
-        .enumerate()
-        .map(|(idx, content)| DiagramRecord {
-            index: idx,
-            bytes: content.len(),
-            lines: content.lines().count().max(1),
-            has_start_enduml: content.contains("@startuml") && content.contains("@enduml"),
-            source: source_name.clone(),
-            content: content.to_string(),
-        })
-        .collect();
-
     if cli.check {
-        let failures: Vec<_> = records
+        for source in &diagrams {
+            let doc = parse(source).map_err(diag_err)?;
+            normalize(doc).map_err(diag_err)?;
+        }
+        return Ok(());
+    }
+
+    if let Some(dump_kind) = cli.dump {
+        let values = diagrams
             .iter()
-            .filter(|r| !is_valid_diagram(&r.content))
-            .map(|r| r.index)
-            .collect();
-        if failures.is_empty() {
-            println!("ok: {} diagram(s) passed validation", records.len());
-            return Ok(EXIT_OK);
+            .map(|source| match dump_kind {
+                DumpKind::Ast => {
+                    let doc = parse(source).map_err(diag_err)?;
+                    Ok(ast_to_json(&doc))
+                }
+                DumpKind::Model => {
+                    let doc = parse(source).map_err(diag_err)?;
+                    let model = normalize(doc).map_err(diag_err)?;
+                    Ok(model_to_json(&model))
+                }
+                DumpKind::Scene => Err((
+                    EXIT_INTERNAL,
+                    "scene dump requested but scene pipeline is not available".to_string(),
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if values.len() == 1 {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&values[0]).map_err(|e| (
+                    EXIT_INTERNAL,
+                    format!("failed to serialize dump output: {e}")
+                ))?
+            );
+        } else {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&values).map_err(|e| (
+                    EXIT_INTERNAL,
+                    format!("failed to serialize dump output: {e}")
+                ))?
+            );
         }
-        return Err((
-            EXIT_CHECK_FAILED,
-            format!("validation failed for diagram indexes: {failures:?}"),
-        ));
+        return Ok(());
     }
 
-    if cli.dump || cli.multi {
-        let payload = serde_json::to_string_pretty(&records)
-            .map_err(|e| (EXIT_INPUT, format!("failed to serialize dump output: {e}")))?;
-        println!("{payload}");
-        return Ok(EXIT_OK);
+    if input_path.is_none() && diagrams.len() > 1 {
+        let payload = diagrams
+            .iter()
+            .enumerate()
+            .map(|(idx, source)| {
+                let svg = render_source_to_svg(source).map_err(diag_err)?;
+                Ok(MultiSvgOut {
+                    name: format!("diagram-{}.svg", idx + 1),
+                    svg,
+                })
+            })
+            .collect::<Result<Vec<_>, (u8, String)>>()?;
+
+        let json = serde_json::to_string_pretty(&payload).map_err(|e| {
+            (
+                EXIT_INTERNAL,
+                format!("failed to serialize multi output: {e}"),
+            )
+        })?;
+        println!("{json}");
+        return Ok(());
     }
 
-    let first = &records[0];
-    match cli.format {
-        OutputFormat::Text => println!("{}", first.content),
-        OutputFormat::Json => {
-            let payload = serde_json::to_string_pretty(first)
-                .map_err(|e| (EXIT_INPUT, format!("failed to serialize json output: {e}")))?;
-            println!("{payload}");
-        }
+    let svgs = diagrams
+        .iter()
+        .map(|source| render_source_to_svg(source).map_err(diag_err))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if let Some(path) = cli.output {
+        write_output_files(&path, &svgs)?;
+        return Ok(());
     }
 
-    Ok(EXIT_OK)
+    if let Some(input) = input_path {
+        let default_base = default_output_base(input)?;
+        write_output_files(&default_base, &svgs)?;
+        return Ok(());
+    }
+
+    if svgs.len() == 1 {
+        println!("{}", svgs[0]);
+        return Ok(());
+    }
+
+    Err((
+        EXIT_INTERNAL,
+        "unexpected output mode for multi-diagram stdin input".to_string(),
+    ))
 }
 
-fn read_input(path: Option<&Path>) -> Result<(String, String), (u8, String)> {
+fn diag_err(d: Diagnostic) -> (u8, String) {
+    (EXIT_VALIDATION, d.message)
+}
+
+fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u8, String)> {
     match path {
         Some(p) if p != Path::new("-") => {
             let raw = fs::read_to_string(p)
                 .map_err(|e| (EXIT_IO, format!("failed to read '{}': {e}", p.display())))?;
-            Ok((p.display().to_string(), raw))
+            Ok((p.display().to_string(), raw, Some(p)))
         }
         _ => {
             let mut raw = String::new();
             io::stdin()
                 .read_to_string(&mut raw)
                 .map_err(|e| (EXIT_IO, format!("failed to read stdin: {e}")))?;
-            Ok(("stdin".to_string(), raw))
+            Ok(("stdin".to_string(), raw, None))
         }
     }
 }
@@ -154,16 +216,219 @@ fn split_diagrams(raw: &str) -> Vec<String> {
         }
     }
 
-    raw.split("\n---\n")
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToOwned::to_owned)
-        .collect()
+    vec![trimmed.to_string()]
 }
 
-fn is_valid_diagram(diagram: &str) -> bool {
-    let has_content = !diagram.trim().is_empty();
-    let has_start_end = diagram.contains("@startuml") && diagram.contains("@enduml");
-    let has_relation = diagram.contains("->") || diagram.contains("-->");
-    has_content && (has_start_end || has_relation)
+fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {
+    let stem = input.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
+        (
+            EXIT_IO,
+            format!(
+                "cannot derive output name from '{}': invalid stem",
+                input.display()
+            ),
+        )
+    })?;
+    Ok(input.with_file_name(format!("{stem}.svg")))
+}
+
+fn write_output_files(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> {
+    if svgs.len() == 1 {
+        fs::write(base, &svgs[0]).map_err(|e| {
+            (
+                EXIT_IO,
+                format!("failed to write '{}': {e}", base.display()),
+            )
+        })?;
+        return Ok(());
+    }
+
+    let stem = base.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
+        (
+            EXIT_IO,
+            format!(
+                "cannot derive output stem from '{}': invalid stem",
+                base.display()
+            ),
+        )
+    })?;
+    let ext = base
+        .extension()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("svg");
+    let parent = base.parent().unwrap_or_else(|| Path::new("."));
+
+    for (idx, svg) in svgs.iter().enumerate() {
+        let path = parent.join(format!("{stem}-{}.{}", idx + 1, ext));
+        fs::write(&path, svg).map_err(|e| {
+            (
+                EXIT_IO,
+                format!("failed to write '{}': {e}", path.display()),
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn ast_to_json(doc: &Document) -> Value {
+    json!({
+        "kind": match doc.kind { DiagramKind::Sequence => "Sequence", DiagramKind::Unknown => "Unknown" },
+        "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
+    })
+}
+
+fn statement_to_json(s: &Statement) -> Value {
+    json!({
+        "span": {"start": s.span.start, "end": s.span.end},
+        "kind": statement_kind_to_json(&s.kind)
+    })
+}
+
+fn statement_kind_to_json(kind: &StatementKind) -> Value {
+    match kind {
+        StatementKind::Participant(p) => json!({"Participant": participant_decl_to_json(p)}),
+        StatementKind::Message(m) => json!({"Message": message_to_json(m)}),
+        StatementKind::Note(n) => json!({"Note": note_to_json(n)}),
+        StatementKind::Group(g) => json!({"Group": group_to_json(g)}),
+        StatementKind::Title(v) => json!({"Title": v}),
+        StatementKind::Header(v) => json!({"Header": v}),
+        StatementKind::Footer(v) => json!({"Footer": v}),
+        StatementKind::Caption(v) => json!({"Caption": v}),
+        StatementKind::Legend(v) => json!({"Legend": v}),
+        StatementKind::Theme(v) => json!({"Theme": v}),
+        StatementKind::SkinParam { key, value } => {
+            json!({"SkinParam": {"key": key, "value": value}})
+        }
+        StatementKind::Footbox(v) => json!({"Footbox": v}),
+        StatementKind::Delay(v) => json!({"Delay": v}),
+        StatementKind::Divider(v) => json!({"Divider": v}),
+        StatementKind::Spacer => json!("Spacer"),
+        StatementKind::NewPage(v) => json!({"NewPage": v}),
+        StatementKind::Autonumber(v) => json!({"Autonumber": v}),
+        StatementKind::Activate(v) => json!({"Activate": v}),
+        StatementKind::Deactivate(v) => json!({"Deactivate": v}),
+        StatementKind::Destroy(v) => json!({"Destroy": v}),
+        StatementKind::Create(v) => json!({"Create": v}),
+        StatementKind::Return(v) => json!({"Return": v}),
+        StatementKind::Include(v) => json!({"Include": v}),
+        StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
+        StatementKind::Undef(v) => json!({"Undef": v}),
+        StatementKind::Unknown(v) => json!({"Unknown": v}),
+    }
+}
+
+fn participant_decl_to_json(p: &ParticipantDecl) -> Value {
+    json!({
+        "role": ast_role_to_str(p.role),
+        "name": p.name,
+        "alias": p.alias,
+        "display": p.display
+    })
+}
+
+fn message_to_json(m: &Message) -> Value {
+    json!({"from": m.from, "to": m.to, "arrow": m.arrow, "label": m.label})
+}
+
+fn note_to_json(n: &Note) -> Value {
+    json!({"position": n.position, "target": n.target, "text": n.text})
+}
+
+fn group_to_json(g: &Group) -> Value {
+    json!({"kind": g.kind, "label": g.label})
+}
+
+fn ast_role_to_str(role: AstParticipantRole) -> &'static str {
+    match role {
+        AstParticipantRole::Participant => "Participant",
+        AstParticipantRole::Actor => "Actor",
+        AstParticipantRole::Boundary => "Boundary",
+        AstParticipantRole::Control => "Control",
+        AstParticipantRole::Entity => "Entity",
+        AstParticipantRole::Database => "Database",
+        AstParticipantRole::Collections => "Collections",
+    }
+}
+
+fn model_to_json(model: &SequenceDocument) -> Value {
+    json!({
+        "participants": model.participants.iter().map(model_participant_to_json).collect::<Vec<_>>(),
+        "events": model.events.iter().map(model_event_to_json).collect::<Vec<_>>(),
+        "title": model.title,
+        "header": model.header,
+        "footer": model.footer,
+        "caption": model.caption,
+        "legend": model.legend,
+        "skinparams": model.skinparams,
+        "footbox_visible": model.footbox_visible
+    })
+}
+
+fn model_participant_to_json(p: &Participant) -> Value {
+    json!({
+        "id": p.id,
+        "display": p.display,
+        "role": model_role_to_str(p.role),
+        "explicit": p.explicit
+    })
+}
+
+fn model_role_to_str(role: ModelParticipantRole) -> &'static str {
+    match role {
+        ModelParticipantRole::Participant => "Participant",
+        ModelParticipantRole::Actor => "Actor",
+        ModelParticipantRole::Boundary => "Boundary",
+        ModelParticipantRole::Control => "Control",
+        ModelParticipantRole::Entity => "Entity",
+        ModelParticipantRole::Database => "Database",
+        ModelParticipantRole::Collections => "Collections",
+    }
+}
+
+fn model_event_to_json(e: &SequenceEvent) -> Value {
+    json!({
+        "span": {"start": e.span.start, "end": e.span.end},
+        "kind": model_event_kind_to_json(&e.kind)
+    })
+}
+
+fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
+    match kind {
+        SequenceEventKind::Message {
+            from,
+            to,
+            arrow,
+            label,
+        } => {
+            json!({"Message": {"from": from, "to": to, "arrow": arrow, "label": label}})
+        }
+        SequenceEventKind::Note {
+            position,
+            target,
+            text,
+        } => {
+            json!({"Note": {"position": position, "target": target, "text": text}})
+        }
+        SequenceEventKind::GroupStart { kind, label } => {
+            json!({"GroupStart": {"kind": kind, "label": label}})
+        }
+        SequenceEventKind::GroupEnd => json!("GroupEnd"),
+        SequenceEventKind::Delay(v) => json!({"Delay": v}),
+        SequenceEventKind::Divider(v) => json!({"Divider": v}),
+        SequenceEventKind::Spacer => json!("Spacer"),
+        SequenceEventKind::NewPage(v) => json!({"NewPage": v}),
+        SequenceEventKind::Autonumber(v) => json!({"Autonumber": v}),
+        SequenceEventKind::Activate(v) => json!({"Activate": v}),
+        SequenceEventKind::Deactivate(v) => json!({"Deactivate": v}),
+        SequenceEventKind::Destroy(v) => json!({"Destroy": v}),
+        SequenceEventKind::Create(v) => json!({"Create": v}),
+        SequenceEventKind::Return(v) => json!({"Return": v}),
+        SequenceEventKind::IncludePlaceholder(v) => json!({"IncludePlaceholder": v}),
+        SequenceEventKind::DefinePlaceholder { name, value } => {
+            json!({"DefinePlaceholder": {"name": name, "value": value}})
+        }
+        SequenceEventKind::UndefPlaceholder(v) => json!({"UndefPlaceholder": v}),
+    }
 }

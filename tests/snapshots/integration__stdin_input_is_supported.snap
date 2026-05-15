@@ -1,7 +1,6 @@
 ---
 source: tests/integration.rs
+assertion_line: 163
 expression: "String::from_utf8(out).unwrap()"
 ---
-@startuml
-A -> B
-@enduml
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160"><rect width="100%" height="100%" fill="white"/><text x="16" y="28" font-family="monospace" font-size="14">puml sequence scaffold</text></svg>

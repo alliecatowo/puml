@@ -2,35 +2,32 @@ use clap::{ArgAction, Parser, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Parser)]
-#[command(
-    name = "puml",
-    version,
-    about = "PlantUML CLI scaffold for parser/layout/render pipeline"
-)]
+#[command(name = "puml", version, about = "PlantUML CLI")]
 pub struct Cli {
     /// Input file path. Use '-' or omit to read stdin.
     #[arg(value_name = "INPUT")]
     pub input: Option<PathBuf>,
 
-    /// Validate input without rendering.
+    /// Output file path. For multi-diagram file output, numbered files are generated.
+    #[arg(short = 'o', long = "output", value_name = "OUTPUT")]
+    pub output: Option<PathBuf>,
+
+    /// Parse and normalize only; do not render or write outputs.
     #[arg(long, action = ArgAction::SetTrue, conflicts_with = "dump")]
     pub check: bool,
 
-    /// Dump intermediate diagram payload.
-    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "check")]
-    pub dump: bool,
+    /// Dump intermediate representation.
+    #[arg(long, value_enum, value_name = "KIND", conflicts_with = "check")]
+    pub dump: Option<DumpKind>,
 
-    /// Permit multiple diagrams and return JSON array output.
+    /// Permit multiple diagrams.
     #[arg(long, action = ArgAction::SetTrue)]
     pub multi: bool,
-
-    /// Output format for single-diagram mode.
-    #[arg(long, default_value = "text")]
-    pub format: OutputFormat,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
-pub enum OutputFormat {
-    Text,
-    Json,
+pub enum DumpKind {
+    Ast,
+    Model,
+    Scene,
 }
