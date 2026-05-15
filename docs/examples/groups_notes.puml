@@ -1,0 +1,15 @@
+@startuml
+participant API
+participant Worker
+
+API -> Worker: enqueue(job)
+alt success
+  Worker --> API: 202 Accepted
+else failure
+  note right of Worker
+    validation failed
+    retry later
+  end note
+  Worker --> API: 400 Bad Request
+end
+@enduml

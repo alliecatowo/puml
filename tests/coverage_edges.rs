@@ -221,6 +221,8 @@ fn render_escapes_text_in_labels_and_titles() {
                 to: "A".to_string(),
                 arrow: "->".to_string(),
                 label: Some("<&>\"'".to_string()),
+                from_virtual: None,
+                to_virtual: None,
             },
         }],
         title: Some("T<&>\"'".to_string()),
@@ -355,4 +357,27 @@ fn layout_uses_ellipsis_for_single_line_overflow_policy() {
         participant.height,
         LayoutOptions::default().participant_height
     );
+}
+
+#[test]
+fn check_fixture_supports_json_diagnostics_for_errors() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check-fixture",
+            &fixture("arrows/invalid_malformed_arrows.puml"),
+            "--diagnostics",
+            "json",
+        ])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let json: serde_json::Value = serde_json::from_slice(&out).expect("valid json diagnostics");
+    assert_eq!(json["diagnostics"][0]["severity"], "error");
+    assert_eq!(json["diagnostics"][0]["line"], 2);
+    assert_eq!(json["diagnostics"][0]["column"], 1);
+    assert_eq!(json["diagnostics"][0]["snippet"], "A -x B: malformed");
 }

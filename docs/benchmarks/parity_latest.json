@@ -1,0 +1,181 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at_utc": "2026-05-15T17:29:12Z",
+  "tool": {
+    "name": "puml",
+    "runner": "cargo run --quiet --",
+    "cwd": "/home/Allie/develop/puml",
+    "quick_mode": true
+  },
+  "oracle": {
+    "interface_version": "1",
+    "mode": "todo",
+    "enabled": false,
+    "command_template": null,
+    "notes": "Reserved for future PlantUML comparison integration."
+  },
+  "summary": {
+    "total": 4,
+    "check_passed": 4,
+    "check_failed": 0,
+    "render_passed": 4,
+    "render_failed": 0
+  },
+  "fixtures": [
+    {
+      "fixture": "basic/hello.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 1582,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "participants/valid_aliases.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 2911,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "arrows/valid_expanded_forms.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 4110,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    },
+    {
+      "fixture": "groups/valid_ref_and_else_rendering.puml",
+      "check": {
+        "passed": true,
+        "exit_code": 0,
+        "diagnostics": [],
+        "stderr": ""
+      },
+      "render": {
+        "attempted": true,
+        "passed": true,
+        "exit_code": 0,
+        "stderr": "",
+        "metadata": {
+          "svg_bytes": 2500,
+          "viewbox": null
+        }
+      },
+      "oracle": {
+        "status": "todo",
+        "comparison": null,
+        "notes": "PlantUML oracle hook not executed in baseline mode."
+      }
+    }
+  ],
+  "doc_examples": {
+    "summary": {
+      "total": 4,
+      "passed": 1,
+      "failed": 3
+    },
+    "entries": [
+      {
+        "source_markdown": "docs/examples/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/basic_hello.puml",
+        "artifact_svg": "docs/examples/basic_hello.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/groups_notes.puml",
+        "artifact_svg": "docs/examples/groups_notes.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/README.md",
+        "source_kind": "linked_file",
+        "source_ref": "docs/examples/lifecycle_autonumber.puml",
+        "artifact_svg": "docs/examples/lifecycle_autonumber.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": true,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "docs/examples/README.md",
+        "source_kind": "inline_snippet",
+        "source_ref": "docs/examples/README.md#snippet-1",
+        "artifact_svg": "docs/examples/README_snippet_1.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "status": "pass",
+        "notes": []
+      }
+    ]
+  }
+}

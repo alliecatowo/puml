@@ -1,0 +1,10 @@
+@startuml
+autonumber
+actor User
+participant Service
+
+User -> Service: create request
+activate Service
+Service --> User: accepted
+deactivate Service
+@enduml

@@ -1,4 +1,4 @@
-use crate::model::ParticipantRole;
+use crate::model::{ParticipantRole, VirtualEndpointKind};
 use crate::scene::{Scene, StructureKind};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
@@ -126,6 +126,13 @@ pub fn render_svg(scene: &Scene) -> String {
             ));
         }
 
+        if let Some(virtual_ep) = m.from_virtual {
+            render_virtual_endpoint_marker(&mut out, m.x1, m.y, virtual_ep.kind);
+        }
+        if let Some(virtual_ep) = m.to_virtual {
+            render_virtual_endpoint_marker(&mut out, m.x2, m.y, virtual_ep.kind);
+        }
+
         if !m.label_lines.is_empty() {
             let tx = ((m.x1 + m.x2) / 2) + 2;
             let start_y = m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP);
@@ -232,6 +239,45 @@ pub fn render_svg(scene: &Scene) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: VirtualEndpointKind) {
+    match kind {
+        VirtualEndpointKind::Plain => {
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#111\" stroke-width=\"1.5\"/>",
+                x, y - 6, x, y + 6
+            ));
+        }
+        VirtualEndpointKind::Circle => {
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"white\" stroke=\"#111\" stroke-width=\"1.5\"/>",
+                x, y
+            ));
+        }
+        VirtualEndpointKind::Cross => {
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#111\" stroke-width=\"1.5\"/>",
+                x - 4,
+                y - 4,
+                x + 4,
+                y + 4
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#111\" stroke-width=\"1.5\"/>",
+                x - 4,
+                y + 4,
+                x + 4,
+                y - 4
+            ));
+        }
+        VirtualEndpointKind::Filled => {
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"#111\" stroke=\"#111\" stroke-width=\"1.5\"/>",
+                x, y
+            ));
+        }
+    }
 }
 
 fn escape_text(input: &str) -> String {

@@ -108,6 +108,11 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("found".to_string()),
+                    from_virtual: Some(puml::model::VirtualEndpoint {
+                        side: puml::model::VirtualEndpointSide::Left,
+                        kind: puml::model::VirtualEndpointKind::Filled,
+                    }),
+                    to_virtual: None,
                 },
             },
             SequenceEvent {
@@ -117,6 +122,8 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("self".to_string()),
+                    from_virtual: None,
+                    to_virtual: None,
                 },
             },
             SequenceEvent {
@@ -126,6 +133,11 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "[*]".to_string(),
                     arrow: "->".to_string(),
                     label: Some("lost".to_string()),
+                    from_virtual: None,
+                    to_virtual: Some(puml::model::VirtualEndpoint {
+                        side: puml::model::VirtualEndpointSide::Right,
+                        kind: puml::model::VirtualEndpointKind::Filled,
+                    }),
                 },
             },
             SequenceEvent {
@@ -135,6 +147,8 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "B".to_string(),
                     arrow: "-->".to_string(),
                     label: Some("modifier-syntax-safe".to_string()),
+                    from_virtual: None,
+                    to_virtual: None,
                 },
             },
         ],
@@ -165,6 +179,26 @@ fn render_svg_handles_ref_else_and_multi_target_notes() {
     assert!(svg.contains("ref over A, B"));
     assert!(svg.contains("fallback"));
     assert_snapshot!("render_svg_handles_ref_else_and_multi_target_notes", svg);
+}
+
+#[test]
+fn render_svg_preserves_virtual_endpoint_fidelity() {
+    let src = fixture("arrows/virtual_endpoint_fidelity.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(
+        svg.contains("<circle") && svg.contains("fill=\"white\""),
+        "circle virtual endpoint should render"
+    );
+    assert!(
+        svg.contains("fill=\"#111\""),
+        "filled virtual endpoint should render"
+    );
+    assert!(
+        svg.contains("x1=\"") && svg.contains("stroke=\"#111\" stroke-width=\"1.5\""),
+        "line-based virtual endpoint markers should render"
+    );
+    assert_snapshot!("render_svg_preserves_virtual_endpoint_fidelity", svg);
 }
 
 #[test]

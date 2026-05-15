@@ -41,3 +41,9 @@ This log records intentional contract deviations and updates adopted in the curr
 - Rationale: Practical audit on 2026-05-15 showed current runtime performs include resolution and surfaces include diagnostics, which contradicts the earlier "recognized but rejected" framing in D-003.
 - Impact: Contract docs should describe include as active behavior with explicit safety boundaries, and keep `!define`/`!undef` documented as unsupported for normalized sequence execution.
 - Spec/implementation contradiction and resolution: PlantUML preprocessing remains broader than this implementation; we intentionally keep a narrower contract instead of implying full preprocessing parity.
+
+### D-008: Strict include baseline for include-id and URL handling
+- Decision: Add bounded include-id extraction for `!include file!TAG` using local `!startsub TAG`/`!endsub` blocks, and hard-reject URL includes with a dedicated deterministic diagnostic.
+- Rationale: This is the first strict-mode foundation slice for preprocessor parity: expand local include capabilities while keeping network behavior explicitly unsupported and deterministic.
+- Impact: Missing tags now fail with `E_INCLUDE_TAG_NOT_FOUND`; URL targets fail with `E_INCLUDE_URL_UNSUPPORTED`; missing files continue to fail with deterministic `E_INCLUDE_READ`.
+- Spec/implementation contradiction and resolution: PlantUML supports broader include variants; current behavior intentionally limits include-id extraction to local tagged sub-blocks only.

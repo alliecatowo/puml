@@ -1,7 +1,10 @@
 mod cli;
 
 use clap::Parser;
-use cli::{Cli, DiagnosticsFormat, DumpKind};
+use cli::{
+    Cli, CompatMode as CliCompatMode, DeterminismMode as CliDeterminismMode, DiagnosticsFormat,
+    Dialect as CliDialect, DumpKind,
+};
 use puml::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl,
     ParticipantRole as AstParticipantRole, Statement, StatementKind,
@@ -9,13 +12,13 @@ use puml::ast::{
 use puml::layout;
 use puml::model::{
     Participant, ParticipantRole as ModelParticipantRole, SequenceDocument, SequenceEvent,
-    SequenceEventKind,
+    SequenceEventKind, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
-use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::LayoutOptions;
 use puml::source::Span;
 use puml::{
-    extract_markdown_diagrams, normalize, render, Diagnostic, DiagnosticJson, DiagramInput,
+    extract_markdown_diagrams, normalize, render, CompatMode, DeterminismMode, Diagnostic,
+    DiagnosticJson, DiagramInput, FrontendSelection, ParsePipelineOptions,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -116,7 +119,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             )
         })?;
         let include_root = path.parent().map(|p| p.to_path_buf());
-        let doc = parse_for_cli(&src, include_root)
+        let doc = parse_for_cli(&src, include_root, cli.dialect, cli.compat, cli.determinism)
             .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
         let model = normalize(doc).map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
         emit_warnings(&model, &src, None, cli.diagnostics);
@@ -145,8 +148,14 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
 
     if cli.check {
         for source in &diagrams {
-            let doc = parse_for_cli(&source.source, include_root.clone())
-                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            let doc = parse_for_cli(
+                &source.source,
+                include_root.clone(),
+                cli.dialect,
+                cli.compat,
+                cli.determinism,
+            )
+            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
             let model = normalize(doc)
                 .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
             emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
@@ -159,15 +168,25 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             .iter()
             .map(|source| match dump_kind {
                 DumpKind::Ast => {
-                    let doc = parse_for_cli(&source.source, include_root.clone()).map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
-                    })?;
+                    let doc = parse_for_cli(
+                        &source.source,
+                        include_root.clone(),
+                        cli.dialect,
+                        cli.compat,
+                        cli.determinism,
+                    )
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     Ok(ast_to_json(&doc))
                 }
                 DumpKind::Model => {
-                    let doc = parse_for_cli(&source.source, include_root.clone()).map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
-                    })?;
+                    let doc = parse_for_cli(
+                        &source.source,
+                        include_root.clone(),
+                        cli.dialect,
+                        cli.compat,
+                        cli.determinism,
+                    )
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize(doc).map_err(|d| {
                         diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
                     })?;
@@ -175,9 +194,14 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                     Ok(model_to_json(&model))
                 }
                 DumpKind::Scene => {
-                    let doc = parse_for_cli(&source.source, include_root.clone()).map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
-                    })?;
+                    let doc = parse_for_cli(
+                        &source.source,
+                        include_root.clone(),
+                        cli.dialect,
+                        cli.compat,
+                        cli.determinism,
+                    )
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize(doc).map_err(|d| {
                         diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
                     })?;
@@ -208,8 +232,14 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let svgs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
-        let doc = parse_for_cli(&source.source, include_root.clone())
-            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+        let doc = parse_for_cli(
+            &source.source,
+            include_root.clone(),
+            cli.dialect,
+            cli.compat,
+            cli.determinism,
+        )
+        .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
         let model = normalize(doc)
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
         emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
@@ -318,8 +348,43 @@ fn emit_warnings(
     }
 }
 
-fn parse_for_cli(source: &str, include_root: Option<PathBuf>) -> Result<Document, Diagnostic> {
-    parse_with_options(source, &ParseOptions { include_root })
+fn parse_for_cli(
+    source: &str,
+    include_root: Option<PathBuf>,
+    cli_dialect: CliDialect,
+    cli_compat: CliCompatMode,
+    cli_determinism: CliDeterminismMode,
+) -> Result<Document, Diagnostic> {
+    let options = ParsePipelineOptions {
+        frontend: map_frontend(cli_dialect),
+        compat: map_compat(cli_compat),
+        determinism: map_determinism(cli_determinism),
+        include_root,
+    };
+    puml::parse_with_pipeline_options(source, &options)
+}
+
+fn map_frontend(dialect: CliDialect) -> FrontendSelection {
+    match dialect {
+        CliDialect::Auto => FrontendSelection::Auto,
+        CliDialect::Plantuml => FrontendSelection::Plantuml,
+        CliDialect::Mermaid => FrontendSelection::Mermaid,
+        CliDialect::Picouml => FrontendSelection::Picouml,
+    }
+}
+
+fn map_compat(mode: CliCompatMode) -> CompatMode {
+    match mode {
+        CliCompatMode::Strict => CompatMode::Strict,
+        CliCompatMode::Extended => CompatMode::Extended,
+    }
+}
+
+fn map_determinism(mode: CliDeterminismMode) -> DeterminismMode {
+    match mode {
+        CliDeterminismMode::Strict => DeterminismMode::Strict,
+        CliDeterminismMode::Full => DeterminismMode::Full,
+    }
 }
 
 fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u8, String)> {
@@ -339,7 +404,6 @@ fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u
     }
 }
 
-
 fn should_extract_markdown(from_markdown_flag: bool, input_path: Option<&Path>) -> bool {
     if from_markdown_flag {
         return true;
@@ -348,7 +412,12 @@ fn should_extract_markdown(from_markdown_flag: bool, input_path: Option<&Path>) 
     input_path
         .and_then(|path| path.extension())
         .and_then(|ext| ext.to_str())
-        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "md" | "markdown" | "mdown"))
+        .map(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "md" | "markdown" | "mdown"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -560,7 +629,36 @@ fn participant_decl_to_json(p: &ParticipantDecl) -> Value {
 }
 
 fn message_to_json(m: &Message) -> Value {
-    json!({"from": m.from, "to": m.to, "arrow": m.arrow, "label": m.label})
+    let mut message = json!({"from": m.from, "to": m.to, "arrow": m.arrow, "label": m.label});
+    if let Some(ep) = m.from_virtual {
+        message["from_virtual"] = json!({
+            "side": match ep.side {
+                puml::ast::VirtualEndpointSide::Left => "left",
+                puml::ast::VirtualEndpointSide::Right => "right",
+            },
+            "kind": match ep.kind {
+                puml::ast::VirtualEndpointKind::Plain => "plain",
+                puml::ast::VirtualEndpointKind::Circle => "circle",
+                puml::ast::VirtualEndpointKind::Cross => "cross",
+                puml::ast::VirtualEndpointKind::Filled => "filled",
+            }
+        });
+    }
+    if let Some(ep) = m.to_virtual {
+        message["to_virtual"] = json!({
+            "side": match ep.side {
+                puml::ast::VirtualEndpointSide::Left => "left",
+                puml::ast::VirtualEndpointSide::Right => "right",
+            },
+            "kind": match ep.kind {
+                puml::ast::VirtualEndpointKind::Plain => "plain",
+                puml::ast::VirtualEndpointKind::Circle => "circle",
+                puml::ast::VirtualEndpointKind::Cross => "cross",
+                puml::ast::VirtualEndpointKind::Filled => "filled",
+            }
+        });
+    }
+    message
 }
 
 fn note_to_json(n: &Note) -> Value {
@@ -634,8 +732,17 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
             to,
             arrow,
             label,
+            from_virtual,
+            to_virtual,
         } => {
-            json!({"Message": {"from": from, "to": to, "arrow": arrow, "label": label}})
+            let mut message = json!({"from": from, "to": to, "arrow": arrow, "label": label});
+            if let Some(ep) = from_virtual {
+                message["from_virtual"] = virtual_endpoint_to_json(*ep);
+            }
+            if let Some(ep) = to_virtual {
+                message["to_virtual"] = virtual_endpoint_to_json(*ep);
+            }
+            json!({"Message": message})
         }
         SequenceEventKind::Note {
             position,
@@ -667,6 +774,21 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
         }
         SequenceEventKind::UndefPlaceholder(v) => json!({"UndefPlaceholder": v}),
     }
+}
+
+fn virtual_endpoint_to_json(ep: VirtualEndpoint) -> Value {
+    json!({
+        "side": match ep.side {
+            VirtualEndpointSide::Left => "left",
+            VirtualEndpointSide::Right => "right",
+        },
+        "kind": match ep.kind {
+            VirtualEndpointKind::Plain => "plain",
+            VirtualEndpointKind::Circle => "circle",
+            VirtualEndpointKind::Cross => "cross",
+            VirtualEndpointKind::Filled => "filled",
+        }
+    })
 }
 
 fn scene_to_json(model: &SequenceDocument) -> Value {

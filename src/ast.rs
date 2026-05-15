@@ -76,6 +76,28 @@ pub struct Message {
     pub to: String,
     pub arrow: String,
     pub label: Option<String>,
+    pub from_virtual: Option<VirtualEndpoint>,
+    pub to_virtual: Option<VirtualEndpoint>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VirtualEndpoint {
+    pub side: VirtualEndpointSide,
+    pub kind: VirtualEndpointKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VirtualEndpointSide {
+    Left,
+    Right,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VirtualEndpointKind {
+    Plain,
+    Circle,
+    Cross,
+    Filled,
 }
 
 #[derive(Debug, Clone)]

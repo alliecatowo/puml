@@ -1,0 +1,10 @@
+@startuml
+[ -> A: left-plain
+A -> ]: right-plain
+[o -> A: left-circle
+A -> o]: right-circle
+[x -> A: left-cross
+A -> x]: right-cross
+[*] -> A: left-filled
+A -> [*]: right-filled
+@enduml

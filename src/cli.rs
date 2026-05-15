@@ -39,6 +39,18 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t = DiagnosticsFormat::Human)]
     pub diagnostics: DiagnosticsFormat,
 
+    /// Input dialect frontend.
+    #[arg(long, value_enum, default_value_t = Dialect::Auto)]
+    pub dialect: Dialect,
+
+    /// Compatibility policy for semantic interpretation.
+    #[arg(long, value_enum, default_value_t = CompatMode::Strict)]
+    pub compat: CompatMode,
+
+    /// Determinism policy for layout/output behavior.
+    #[arg(long, value_enum, default_value_t = DeterminismMode::Strict)]
+    pub determinism: DeterminismMode,
+
     /// Root directory used to resolve !include when reading from stdin.
     #[arg(long, value_name = "DIR")]
     pub include_root: Option<PathBuf>,
@@ -55,4 +67,24 @@ pub enum DumpKind {
     Ast,
     Model,
     Scene,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum Dialect {
+    Auto,
+    Plantuml,
+    Mermaid,
+    Picouml,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum CompatMode {
+    Strict,
+    Extended,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum DeterminismMode {
+    Strict,
+    Full,
 }

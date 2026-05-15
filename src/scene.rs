@@ -1,4 +1,5 @@
 use crate::model::ParticipantRole;
+use crate::model::VirtualEndpoint;
 
 #[derive(Debug, Clone)]
 pub struct Scene {
@@ -56,6 +57,8 @@ pub struct MessageLine {
     pub arrow: String,
     pub label: Option<String>,
     pub label_lines: Vec<String>,
+    pub from_virtual: Option<VirtualEndpoint>,
+    pub to_virtual: Option<VirtualEndpoint>,
 }
 
 #[derive(Debug, Clone)]

@@ -62,6 +62,8 @@ pub enum SequenceEventKind {
         to: String,
         arrow: String,
         label: Option<String>,
+        from_virtual: Option<VirtualEndpoint>,
+        to_virtual: Option<VirtualEndpoint>,
     },
     Note {
         position: String,
@@ -94,4 +96,24 @@ pub enum SequenceEventKind {
         value: Option<String>,
     },
     UndefPlaceholder(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VirtualEndpoint {
+    pub side: VirtualEndpointSide,
+    pub kind: VirtualEndpointKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VirtualEndpointSide {
+    Left,
+    Right,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VirtualEndpointKind {
+    Plain,
+    Circle,
+    Cross,
+    Filled,
 }

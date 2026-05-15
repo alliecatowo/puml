@@ -4,12 +4,18 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl, ParticipantRole, Statement,
-    StatementKind,
+    StatementKind, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 
 const MAX_INCLUDE_DEPTH: usize = 32;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct IncludeTarget {
+    path: PathBuf,
+    tag: Option<String>,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct ParseOptions {
@@ -81,18 +87,25 @@ fn preprocess_text(
                 ));
             }
 
-            let include_path = parse_include_target(raw_target);
-            if include_path.is_absolute() {
+            let include_target = parse_include_target(raw_target);
+            if include_target.path.is_absolute() {
                 return Err(Diagnostic::error_code(
                     "E_INCLUDE_ABSOLUTE_PATH",
                     format!(
                         "!include only supports relative paths: {}",
-                        include_path.display()
+                        include_target.path.display()
                     ),
                 ));
             }
 
-            let resolved = resolve_include_path(options, include_stack, &include_path)?;
+            if is_url_include_target(raw_target) {
+                return Err(Diagnostic::error_code(
+                    "E_INCLUDE_URL_UNSUPPORTED",
+                    format!("!include URL targets are not supported: {raw_target}"),
+                ));
+            }
+
+            let resolved = resolve_include_path(options, include_stack, &include_target.path)?;
             if include_stack.iter().any(|p| p == &resolved) {
                 let mut cycle = include_stack
                     .iter()
@@ -105,12 +118,24 @@ fn preprocess_text(
                 ));
             }
 
-            let content = fs::read_to_string(&resolved).map_err(|e| {
+            let mut content = fs::read_to_string(&resolved).map_err(|e| {
                 Diagnostic::error_code(
                     "E_INCLUDE_READ",
                     format!("failed to read include '{}': {e}", resolved.display()),
                 )
             })?;
+            if let Some(tag) = include_target.tag.as_deref() {
+                content = extract_include_tag(&content, tag).ok_or_else(|| {
+                    Diagnostic::error_code(
+                        "E_INCLUDE_TAG_NOT_FOUND",
+                        format!(
+                            "include tag '{}' was not found in '{}'",
+                            tag,
+                            resolved.display()
+                        ),
+                    )
+                })?;
+            }
 
             include_stack.push(resolved);
             preprocess_text(&content, options, defines, include_stack, depth + 1, out)?;
@@ -179,14 +204,73 @@ fn resolve_include_path(
     Ok(resolved_canon)
 }
 
-fn parse_include_target(raw_target: &str) -> PathBuf {
+fn parse_include_target(raw_target: &str) -> IncludeTarget {
     let trimmed = raw_target.trim();
     let unwrapped = trimmed
         .strip_prefix('"')
         .and_then(|s| s.strip_suffix('"'))
         .or_else(|| trimmed.strip_prefix('<').and_then(|s| s.strip_suffix('>')))
         .unwrap_or(trimmed);
-    PathBuf::from(unwrapped)
+    let (path, tag) = if unwrapped.contains("://") {
+        (unwrapped, None)
+    } else if let Some((path, tag)) = unwrapped.rsplit_once('!') {
+        let clean_tag = tag.trim();
+        if path.trim().is_empty() || clean_tag.is_empty() {
+            (unwrapped, None)
+        } else {
+            (path.trim(), Some(clean_tag.to_string()))
+        }
+    } else {
+        (unwrapped, None)
+    };
+
+    IncludeTarget {
+        path: PathBuf::from(path),
+        tag,
+    }
+}
+
+fn is_url_include_target(raw_target: &str) -> bool {
+    let trimmed = raw_target
+        .trim()
+        .trim_matches('"')
+        .trim_start_matches('<')
+        .trim_end_matches('>')
+        .trim();
+    let lower = trimmed.to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+fn extract_include_tag(content: &str, tag: &str) -> Option<String> {
+    let mut collecting = false;
+    let mut lines = Vec::new();
+    let tag_lower = tag.to_ascii_lowercase();
+
+    for raw_line in content.lines() {
+        let line = raw_line.trim();
+        let lower = line.to_ascii_lowercase();
+
+        if lower.starts_with("!startsub") {
+            let candidate = line[9..].trim().to_ascii_lowercase();
+            if candidate == tag_lower {
+                collecting = true;
+            }
+            continue;
+        }
+
+        if lower.starts_with("!endsub") {
+            if collecting {
+                return Some(lines.join("\n"));
+            }
+            continue;
+        }
+
+        if collecting {
+            lines.push(raw_line);
+        }
+    }
+
+    None
 }
 
 fn normalize_path(path: PathBuf) -> PathBuf {
@@ -610,12 +694,30 @@ fn parse_message(line: &str) -> Option<StatementKind> {
         arrow_encoded.push_str(modifier);
     }
 
+    let from_virtual = ast_virtual_endpoint_from_id(&from);
+    let to_virtual = ast_virtual_endpoint_from_id(&to);
     Some(StatementKind::Message(Message {
         from,
         to,
         arrow: arrow_encoded,
         label,
+        from_virtual,
+        to_virtual,
     }))
+}
+
+fn ast_virtual_endpoint_from_id(id: &str) -> Option<VirtualEndpoint> {
+    let (side, kind) = match id {
+        "[" => (VirtualEndpointSide::Left, VirtualEndpointKind::Plain),
+        "]" => (VirtualEndpointSide::Right, VirtualEndpointKind::Plain),
+        "[o" => (VirtualEndpointSide::Left, VirtualEndpointKind::Circle),
+        "o]" => (VirtualEndpointSide::Right, VirtualEndpointKind::Circle),
+        "[x" => (VirtualEndpointSide::Left, VirtualEndpointKind::Cross),
+        "x]" => (VirtualEndpointSide::Right, VirtualEndpointKind::Cross),
+        "[*]" => (VirtualEndpointSide::Left, VirtualEndpointKind::Filled),
+        _ => return None,
+    };
+    Some(VirtualEndpoint { side, kind })
 }
 
 fn parse_keyword(line: &str) -> Option<StatementKind> {
@@ -1112,6 +1214,56 @@ mod tests {
         .unwrap_err();
 
         assert!(err.message.contains("E_INCLUDE_ESCAPE"));
+    }
+
+    #[test]
+    fn include_id_extracts_startsub_block() {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join("inc.puml"),
+            "!startsub FLOW\nA -> B : one\n!endsub\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!include inc.puml!FLOW",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+
+        assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn include_id_missing_tag_errors() {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join("inc.puml"),
+            "!startsub FLOW\nA -> B : one\n!endsub\n",
+        )
+        .unwrap();
+
+        let err = parse_with_options(
+            "!include inc.puml!MISSING",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("E_INCLUDE_TAG_NOT_FOUND"));
+    }
+
+    #[test]
+    fn include_url_errors() {
+        let err = parse_with_options(
+            "!include https://example.com/a.puml",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
     }
 
     #[test]

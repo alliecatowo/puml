@@ -1,0 +1,7 @@
+!startsub AUTH_FLOW
+Alice -> Bob: included auth
+!endsub
+
+!startsub BILLING_FLOW
+Bob -> Alice: included billing
+!endsub

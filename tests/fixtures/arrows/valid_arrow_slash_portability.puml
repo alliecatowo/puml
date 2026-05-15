@@ -1,0 +1,7 @@
+@startuml
+A ->/ B: right-up-head
+B \\-> A: left-down-head
+A /<->\\ B: bidi-slanted
+A /x->o\\ B: endpoint-slanted
+B \\<<--x A: reverse-async-slanted
+@enduml

@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use insta::{assert_json_snapshot, assert_snapshot};
 use predicates::prelude::*;
+use puml::render_source_to_svg;
 use serde_json::Value;
 use std::fs;
 use tempfile::tempdir;
@@ -42,6 +43,87 @@ fn check_mode_passes_for_valid_input() {
 }
 
 #[test]
+fn default_frontend_matches_explicit_plantuml() {
+    let default = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", &fixture("single_valid.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let plantuml = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "plantuml",
+            "--dump",
+            "ast",
+            &fixture("single_valid.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    assert_eq!(default, plantuml);
+}
+
+#[test]
+fn strict_modes_parse_and_route_without_regression() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--compat",
+            "strict",
+            "--determinism",
+            "strict",
+            "--check",
+            &fixture("single_valid.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn unsupported_frontends_fail_deterministically() {
+    for frontend in ["mermaid", "picouml"] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args([
+                "--dialect",
+                frontend,
+                "--check",
+                &fixture("single_valid.puml"),
+            ])
+            .assert()
+            .code(1)
+            .stderr(predicate::str::contains(format!(
+                "frontend '{frontend}' is not implemented yet"
+            )));
+    }
+}
+
+#[test]
+fn docs_examples_svg_corpus_matches_renderer() {
+    for stem in ["basic_hello", "groups_notes", "lifecycle_autonumber"] {
+        let puml_path = format!("{}/docs/examples/{stem}.puml", env!("CARGO_MANIFEST_DIR"));
+        let svg_path = format!("{}/docs/examples/{stem}.svg", env!("CARGO_MANIFEST_DIR"));
+        let source = fs::read_to_string(&puml_path).expect("example source");
+        let expected_svg = fs::read_to_string(&svg_path).expect("example svg");
+        let actual_svg = render_source_to_svg(&source).expect("rendered svg");
+        assert_eq!(
+            actual_svg, expected_svg,
+            "docs example drift detected for {stem}"
+        );
+    }
+}
+
+#[test]
 fn check_mode_fails_for_invalid_input() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -68,6 +150,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/valid_slanted_heads.puml",
         "arrows/valid_endpoint_variants.puml",
         "arrows/valid_arrow_portability_expanded.puml",
+        "arrows/valid_arrow_slash_portability.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -84,6 +167,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "notes/valid_note_across_multi.puml",
         "structure/valid_separator_delay_divider_spacer.puml",
         "structure/ignore_newpage_single_output.puml",
+        "include/include_with_tag_ok.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -142,6 +226,9 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_separator_unbalanced_equals.puml",
         "errors/invalid_participant_queue_alias_collision.puml",
         "errors/invalid_arrow_variant_tokenization.puml",
+        "errors/invalid_arrow_slash_tokenization.puml",
+        "errors/invalid_include_tag_missing.puml",
+        "errors/invalid_include_url.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -149,6 +236,51 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
             .assert()
             .code(1);
     }
+}
+
+#[test]
+fn slash_arrow_variants_are_tokenized_into_message_arrows() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("arrows/valid_arrow_slash_portability.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arrows: Vec<&str> = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["arrow"].as_str())
+        .collect();
+
+    assert_eq!(arrows, vec!["->", "->", "<->", "->o", "<<--x"]);
+}
+
+#[test]
+fn malformed_slash_arrow_reports_deterministic_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_arrow_slash_tokenization.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(
+            predicate::str::contains("line 2, column 1")
+                .and(predicate::str::contains(
+                    "A -//-> B: malformed-double-slash\n^^^^^^^^",
+                ))
+                .and(predicate::str::contains("E_ARROW_INVALID")),
+        );
 }
 
 #[test]
@@ -774,6 +906,45 @@ fn include_cycle_chain_reports_cycle_error() {
 }
 
 #[test]
+fn include_id_tag_extracts_local_block() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("include/include_with_tag_ok.puml")])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn include_id_missing_tag_reports_deterministic_error() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_include_tag_missing.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_INCLUDE_TAG_NOT_FOUND"))
+        .stderr(predicate::str::contains(
+            "include tag 'MISSING_TAG' was not found",
+        ));
+}
+
+#[test]
+fn include_url_is_rejected_with_deterministic_error() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("errors/invalid_include_url.puml")])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_INCLUDE_URL_UNSUPPORTED"))
+        .stderr(predicate::str::contains(
+            "!include URL targets are not supported",
+        ));
+}
+
+#[test]
 fn lifecycle_after_destroy_is_rejected() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -1278,4 +1449,69 @@ fn markdown_file_diagnostics_map_to_original_markdown_lines() {
     assert_eq!(first["line"], 5);
     assert_eq!(first["column"], 1);
     assert_eq!(first["snippet"], "A -x B: bad");
+}
+
+#[test]
+fn clap_help_exits_successfully() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PlantUML CLI"))
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn clap_version_exits_successfully() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("puml"))
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn dump_capabilities_outputs_manifest_shape() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("--dump-capabilities")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(json["server"], "puml-lsp");
+    assert_eq!(json["protocol"], "3.17");
+    assert!(json["languageFeatures"].is_array());
+    assert!(json["customRequests"].is_array());
+}
+
+#[test]
+fn check_fixture_uses_fixture_loader_and_succeeds() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check-fixture", &fixture("single_valid.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn check_fixture_missing_file_maps_to_io_exit_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check-fixture",
+            "/tmp/definitely-not-present-fixture-16.puml",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("failed to read fixture"));
 }

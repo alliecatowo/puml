@@ -4,6 +4,7 @@ use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKin
 use crate::diagnostic::Diagnostic;
 use crate::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
+    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue};
 
@@ -137,10 +138,12 @@ pub fn normalize_with_options(
                     events.push(SequenceEvent {
                         span: stmt.span,
                         kind: SequenceEventKind::Message {
-                            from,
-                            to,
+                            from: from.clone(),
+                            to: to.clone(),
                             arrow: parsed_arrow.render_arrow.clone(),
                             label: m.label.clone(),
+                            from_virtual: virtual_endpoint(from.as_str(), true),
+                            to_virtual: virtual_endpoint(to.as_str(), false),
                         },
                     });
                 }
@@ -542,6 +545,27 @@ fn map_role(role: AstRole) -> ParticipantRole {
 
 fn is_virtual_endpoint(id: &str) -> bool {
     matches!(id, "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]")
+}
+
+fn virtual_endpoint(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
+    let (side, kind) = match id {
+        "[" => (VirtualEndpointSide::Left, VirtualEndpointKind::Plain),
+        "]" => (VirtualEndpointSide::Right, VirtualEndpointKind::Plain),
+        "[o" => (VirtualEndpointSide::Left, VirtualEndpointKind::Circle),
+        "o]" => (VirtualEndpointSide::Right, VirtualEndpointKind::Circle),
+        "[x" => (VirtualEndpointSide::Left, VirtualEndpointKind::Cross),
+        "x]" => (VirtualEndpointSide::Right, VirtualEndpointKind::Cross),
+        "[*]" => (
+            if is_from {
+                VirtualEndpointSide::Left
+            } else {
+                VirtualEndpointSide::Right
+            },
+            VirtualEndpointKind::Filled,
+        ),
+        _ => return None,
+    };
+    Some(VirtualEndpoint { side, kind })
 }
 
 #[derive(Debug, Clone)]

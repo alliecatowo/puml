@@ -1,0 +1,3 @@
+!startsub PRESENT_TAG
+Alice -> Bob: local include block
+!endsub

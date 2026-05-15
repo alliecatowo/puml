@@ -6,6 +6,22 @@
 ./scripts/bench.sh
 ```
 
+## Parity Harness Baseline Run
+
+```console
+# corpus parity (fixtures + docs/examples) with JSON report
+python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
+```
+
+Generated artifact:
+- `docs/benchmarks/parity_latest.json`
+
+Notes:
+- Includes `tests/fixtures` baseline check/render results.
+- Includes `docs/examples/*.md` discovered linked `.puml` files and fenced `puml` snippets.
+- Verifies example SVG artifacts exist, match current renderer output, and are newer than source markdown/input.
+- PlantUML oracle integration is intentionally placeholder-only (`todo`) in this no-Java baseline.
+
 ## What the Script Produces
 
 - `docs/benchmarks/latest.md`
