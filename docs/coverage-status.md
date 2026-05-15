@@ -10,22 +10,22 @@ cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filenam
 
 Result:
 - Gate: passed
-- Total line coverage: 91.08%
+- Total line coverage: 91.53%
 - Target: 90%
-- Margin: +1.08 points
+- Margin: +1.53 points
 
 Coverage scope excludes CLI entrypoint binaries (`src/main.rs`, `src/bin/puml-lsp.rs`) to keep the 90% gate focused on shared core library/runtime modules exercised by CLI, tests, and renderer pipelines.
 
 Top low-coverage modules from latest run:
-- `lib.rs`: 85.51% lines
 - `normalize.rs`: 86.19% lines
-- `layout.rs`: 91.21% lines
+- `layout.rs`: 91.34% lines
+- `lib.rs`: 91.67% lines
 
 ## Perf/Binary Gate Relationship
 
 - Coverage gate is enforced only in full `./scripts/check-all.sh` mode.
 - Quick `./scripts/check-all.sh --quick` skips coverage but enforces benchmark perf + binary-size gates.
-- Benchmark regressions are tracked in `docs/benchmarks/latest_trend.{md,json}` with deterministic scenario rows.
+- Benchmark regressions are tracked in `docs/benchmarks/latest_trend.{md,json}` with deterministic scenario rows and mode-scoped baselines.
 
 ## Contract Audit Notes
 

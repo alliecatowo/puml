@@ -67,6 +67,14 @@ fn release_docs_capture_release_gate_contract() {
         "bench gate should define a quick-mode regression delta floor"
     );
     assert!(
+        bench.contains("baseline_quick.json") && bench.contains("baseline_full.json"),
+        "bench gate should use mode-scoped baseline artifacts"
+    );
+    assert!(
+        bench.contains("--update-baseline"),
+        "bench gate should require explicit baseline updates"
+    );
+    assert!(
         bench_docs.contains("absolute delta floor `>20ms`"),
         "bench docs should describe full-mode regression delta floor"
     );
@@ -75,7 +83,15 @@ fn release_docs_capture_release_gate_contract() {
         "bench docs should describe quick-mode regression delta floor"
     );
     assert!(
+        bench_docs.contains("baseline_full.json") && bench_docs.contains("baseline_quick.json"),
+        "bench docs should describe mode-scoped baselines"
+    );
+    assert!(
         readme.contains("./scripts/check-all.sh --quick"),
         "README should document quick gate usage"
+    );
+    assert!(
+        readme.contains("--update-baseline"),
+        "README should document explicit baseline refresh command"
     );
 }

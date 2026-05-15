@@ -1,0 +1,36 @@
+sample,mode,scenario,mean_ms,stddev_ms,runs,tool,binary_bytes,timestamp_utc
+[sample] quick-1
+1,quick,cold_start_help,150.0,40.825,3,time,1832984,2026-05-15T20:21:53Z
+1,quick,parser_check,206.667,9.428,3,time,1832984,2026-05-15T20:21:53Z
+1,quick,parser_dump_scene,200.0,8.165,3,time,1832984,2026-05-15T20:21:53Z
+1,quick,render_file,360.0,166.733,3,time,1832984,2026-05-15T20:21:53Z
+1,quick,render_stdin,560.0,40.825,3,time,1832984,2026-05-15T20:21:53Z
+1,quick,render_stdin_multi,470.0,71.181,3,time,1832984,2026-05-15T20:21:53Z
+[sample] quick-2
+2,quick,cold_start_help,393.333,33.993,3,time,1832984,2026-05-15T20:22:26Z
+2,quick,parser_check,180.0,14.142,3,time,1832984,2026-05-15T20:22:26Z
+2,quick,parser_dump_scene,136.667,16.997,3,time,1832984,2026-05-15T20:22:26Z
+2,quick,render_file,150.0,14.142,3,time,1832984,2026-05-15T20:22:26Z
+2,quick,render_stdin,140.0,24.495,3,time,1832984,2026-05-15T20:22:26Z
+2,quick,render_stdin_multi,110.0,8.165,3,time,1832984,2026-05-15T20:22:26Z
+[sample] quick-3
+3,quick,cold_start_help,140.0,21.602,3,time,1832984,2026-05-15T20:22:30Z
+3,quick,parser_check,173.333,49.889,3,time,1832984,2026-05-15T20:22:30Z
+3,quick,parser_dump_scene,110.0,14.142,3,time,1832984,2026-05-15T20:22:30Z
+3,quick,render_file,106.667,16.997,3,time,1832984,2026-05-15T20:22:30Z
+3,quick,render_stdin,96.667,4.714,3,time,1832984,2026-05-15T20:22:30Z
+3,quick,render_stdin_multi,96.667,4.714,3,time,1832984,2026-05-15T20:22:30Z
+[sample] quick-4
+4,quick,cold_start_help,96.667,4.714,3,time,1832984,2026-05-15T20:22:33Z
+4,quick,parser_check,150.0,29.439,3,time,1832984,2026-05-15T20:22:33Z
+4,quick,parser_dump_scene,123.333,12.472,3,time,1832984,2026-05-15T20:22:33Z
+4,quick,render_file,210.0,35.59,3,time,1832984,2026-05-15T20:22:33Z
+4,quick,render_stdin,140.0,0.0,3,time,1832984,2026-05-15T20:22:33Z
+4,quick,render_stdin_multi,100.0,8.165,3,time,1832984,2026-05-15T20:22:33Z
+[sample] quick-5
+5,quick,cold_start_help,93.333,4.714,3,time,1832984,2026-05-15T20:22:35Z
+5,quick,parser_check,90.0,0.0,3,time,1832984,2026-05-15T20:22:35Z
+5,quick,parser_dump_scene,86.667,4.714,3,time,1832984,2026-05-15T20:22:35Z
+5,quick,render_file,90.0,8.165,3,time,1832984,2026-05-15T20:22:35Z
+5,quick,render_stdin,96.667,4.714,3,time,1832984,2026-05-15T20:22:35Z
+5,quick,render_stdin_multi,100.0,0.0,3,time,1832984,2026-05-15T20:22:35Z

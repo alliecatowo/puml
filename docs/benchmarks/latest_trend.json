@@ -1,68 +1,78 @@
 {
   "baseline": {
     "available": true,
-    "timestamp_utc": "2026-05-15T20:04:55Z"
+    "mode_match": true,
+    "timestamp_utc": "2026-05-15T20:30:48Z"
   },
+  "baseline_source": "/home/Allie/develop/puml-audit-perf/docs/benchmarks/.baseline.previous.json",
   "binary": {
-    "limit_bytes": 2500000,
-    "path": "/home/Allie/develop/puml-wt-30/target/release/puml",
+    "limit_bytes": 2000000,
+    "path": "/home/Allie/develop/puml-audit-perf/target/release/puml",
     "size_bytes": 1832984,
     "within_limit": true
   },
-  "gates": {
-    "absolute_mean_ms_limit": 350.0,
-    "regression_min_delta_ms": 30.0,
-    "regression_pct_limit": 20.0
+  "environment": {
+    "arch": "x86_64",
+    "host": "pink-allie-cat",
+    "kernel": "6.18.10-200.fc43.x86_64",
+    "os": "Linux",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "timing_tool": "python-perf-counter"
   },
-  "mode": "quick",
+  "gates": {
+    "absolute_mean_ms_limit": 250.0,
+    "regression_min_delta_ms": 20.0,
+    "regression_pct_limit": 10.0
+  },
+  "mode": "full",
   "plantuml_oracle": {
     "notes": "No-Java baseline keeps oracle placeholders only.",
     "status": "todo"
   },
   "scenarios": [
     {
-      "current_mean_ms": 80.0,
-      "delta_ms": -16.0,
-      "delta_pct": -16.667,
+      "current_mean_ms": 90.203,
+      "delta_ms": 0.316,
+      "delta_pct": 0.352,
       "name": "cold_start_help",
-      "previous_mean_ms": 96.0
+      "previous_mean_ms": 89.887
     },
     {
-      "current_mean_ms": 83.333,
-      "delta_ms": -12.667,
-      "delta_pct": -13.195,
+      "current_mean_ms": 94.17,
+      "delta_ms": 3.552,
+      "delta_pct": 3.92,
       "name": "parser_check",
-      "previous_mean_ms": 96.0
+      "previous_mean_ms": 90.618
     },
     {
-      "current_mean_ms": 86.667,
-      "delta_ms": -5.333,
-      "delta_pct": -5.797,
+      "current_mean_ms": 91.035,
+      "delta_ms": -1.504,
+      "delta_pct": -1.625,
       "name": "parser_dump_scene",
-      "previous_mean_ms": 92.0
+      "previous_mean_ms": 92.539
     },
     {
-      "current_mean_ms": 86.667,
-      "delta_ms": -1.333,
-      "delta_pct": -1.515,
+      "current_mean_ms": 91.008,
+      "delta_ms": -1.926,
+      "delta_pct": -2.072,
       "name": "render_file",
-      "previous_mean_ms": 88.0
+      "previous_mean_ms": 92.934
     },
     {
-      "current_mean_ms": 83.333,
-      "delta_ms": 3.333,
-      "delta_pct": 4.166,
+      "current_mean_ms": 90.155,
+      "delta_ms": 0.088,
+      "delta_pct": 0.098,
       "name": "render_stdin",
-      "previous_mean_ms": 80.0
+      "previous_mean_ms": 90.067
     },
     {
-      "current_mean_ms": 83.333,
-      "delta_ms": 1.333,
-      "delta_pct": 1.626,
+      "current_mean_ms": 92.595,
+      "delta_ms": 1.493,
+      "delta_pct": 1.639,
       "name": "render_stdin_multi",
-      "previous_mean_ms": 82.0
+      "previous_mean_ms": 91.102
     }
   ],
-  "source": "docs/benchmarks/latest.json",
-  "timestamp_utc": "2026-05-15T20:04:58Z"
+  "source": "/home/Allie/develop/puml-audit-perf/docs/benchmarks/latest.json",
+  "timestamp_utc": "2026-05-15T20:32:57Z"
 }

@@ -19,6 +19,8 @@ Quick mode contract:
 - `./scripts/check-all.sh --quick` skips coverage + release build.
 - Quick mode still enforces benchmark perf and binary-size gates.
 - Regression gate semantics are two-part: percentage (`10%` full / `20%` quick) plus absolute slowdown floors (`>20ms` full / `>30ms` quick).
+- Regression baselines are mode-scoped (`docs/benchmarks/baseline_full.json`, `docs/benchmarks/baseline_quick.json`) to prevent cross-mode noise.
+- Baselines only move with explicit `--update-baseline`.
 
 ## Contract Guards Added
 

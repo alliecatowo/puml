@@ -2,6 +2,10 @@ use puml::diagnostic::{render_caret_line, Diagnostic, Severity};
 use puml::scene::TextOverflowPolicy;
 use puml::source::{Source, Span};
 use puml::theme::Theme;
+use puml::{
+    extract_markdown_diagrams, parse_with_pipeline_options, render_source_to_svg_for_family,
+    CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
+};
 
 #[test]
 fn span_len_and_empty_handle_inverted_and_equal_bounds() {
@@ -83,4 +87,67 @@ fn theme_new_and_default_enable_footbox_and_empty_skinparams() {
         defaulted.text_overflow_policy,
         TextOverflowPolicy::WrapAndGrow
     );
+}
+
+#[test]
+fn diagram_family_as_str_covers_all_variants() {
+    assert_eq!(DiagramFamily::Sequence.as_str(), "sequence");
+    assert_eq!(DiagramFamily::Class.as_str(), "class");
+    assert_eq!(DiagramFamily::State.as_str(), "state");
+    assert_eq!(DiagramFamily::Activity.as_str(), "activity");
+    assert_eq!(DiagramFamily::Component.as_str(), "component");
+    assert_eq!(DiagramFamily::Deployment.as_str(), "deployment");
+    assert_eq!(DiagramFamily::UseCase.as_str(), "usecase");
+    assert_eq!(DiagramFamily::Object.as_str(), "object");
+    assert_eq!(DiagramFamily::Unknown.as_str(), "unknown");
+}
+
+#[test]
+fn render_for_non_sequence_family_reports_not_implemented_error() {
+    let src = "@startuml\nAlice -> Bob: hi\n@enduml\n";
+    let err = render_source_to_svg_for_family(src, DiagramFamily::Class).unwrap_err();
+    assert!(err
+        .message
+        .contains("diagram family `class` is not implemented yet"));
+}
+
+#[test]
+fn extract_markdown_diagrams_supports_tilde_fences_and_ignores_deep_indentation() {
+    let src = concat!(
+        "    ```puml\n", // 4-space indentation should be ignored as fence opener
+        "@startuml\n",
+        "A -> B: ignored\n",
+        "@enduml\n",
+        "    ```\n",
+        "~~~mermaid\n",
+        "sequenceDiagram\n",
+        "Alice->Bob: hi\n",
+        "~~~\n"
+    );
+    let diagrams = extract_markdown_diagrams(src);
+    assert_eq!(
+        diagrams.len(),
+        1,
+        "expected only the tilde fence to be ingested"
+    );
+    assert_eq!(diagrams[0].fence_frontend, FrontendSelection::Mermaid);
+    assert!(diagrams[0].source.contains("Alice->Bob: hi"));
+}
+
+#[test]
+fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+
+    let supported = "sequenceDiagram\nAlice->Bob: hello\nAlice-->Bob: world\n";
+    parse_with_pipeline_options(supported, &options)
+        .expect("short mermaid arrows should adapt successfully");
+
+    let unsupported = "sequenceDiagram\nparticipant\n";
+    let err = parse_with_pipeline_options(unsupported, &options).unwrap_err();
+    assert!(err.message.contains("E_MERMAID_CONSTRUCT_UNSUPPORTED"));
 }

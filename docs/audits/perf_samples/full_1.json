@@ -1,0 +1,54 @@
+{
+  "timestamp_utc": "2026-05-15T20:22:50Z",
+  "binary": "/home/Allie/develop/puml-audit-perf/target/release/puml",
+  "mode": "full",
+  "scenarios": [
+    {
+      "name": "cold_start_help",
+      "tool": "time",
+      "mean_ms": 200.000,
+      "stddev_ms": 0.000,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "parser_check",
+      "tool": "time",
+      "mean_ms": 202.000,
+      "stddev_ms": 4.000,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "parser_dump_scene",
+      "tool": "time",
+      "mean_ms": 192.000,
+      "stddev_ms": 11.662,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "render_file",
+      "tool": "time",
+      "mean_ms": 206.000,
+      "stddev_ms": 13.565,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "render_stdin",
+      "tool": "time",
+      "mean_ms": 198.000,
+      "stddev_ms": 4.000,
+      "runs": 5
+    }
+    ,
+    {
+      "name": "render_stdin_multi",
+      "tool": "time",
+      "mean_ms": 198.000,
+      "stddev_ms": 4.000,
+      "runs": 5
+    }
+  ]
+}

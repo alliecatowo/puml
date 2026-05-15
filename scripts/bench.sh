@@ -8,8 +8,9 @@ TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 MODE="full"
 RUNS=10
 WARMUP=2
-FALLBACK_RUNS=5
+FALLBACK_RUNS=12
 ENFORCE_GATES=0
+UPDATE_BASELINE=0
 
 BINARY_LIMIT_BYTES_FULL=2000000
 BINARY_LIMIT_BYTES_QUICK=2500000
@@ -22,12 +23,13 @@ REGRESSION_MIN_DELTA_MS_QUICK=30
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/bench.sh [--quick] [--dry] [--enforce-gates]
+Usage: ./scripts/bench.sh [--quick] [--dry] [--enforce-gates] [--update-baseline]
 
 Options:
-  --quick          fewer runs for fast local validation
-  --dry            print resolved scenarios and exit without executing
-  --enforce-gates  fail when binary/perf thresholds are exceeded
+  --quick            fewer runs for fast local validation
+  --dry              print resolved scenarios and exit without executing
+  --enforce-gates    fail when binary/perf thresholds are exceeded
+  --update-baseline  replace mode baseline after successful run
 USAGE
 }
 
@@ -35,9 +37,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --quick)
       MODE="quick"
-      RUNS=3
-      WARMUP=1
-      FALLBACK_RUNS=3
+      RUNS=5
+      WARMUP=2
+      FALLBACK_RUNS=7
       shift
       ;;
     --dry)
@@ -46,6 +48,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --enforce-gates)
       ENFORCE_GATES=1
+      shift
+      ;;
+    --update-baseline)
+      UPDATE_BASELINE=1
       shift
       ;;
     -h|--help)
@@ -67,20 +73,13 @@ if [[ "$MODE" == "quick" ]]; then
   ABS_MEAN_LIMIT_MS="$ABS_MEAN_LIMIT_MS_QUICK"
   REGRESSION_LIMIT_PCT="$REGRESSION_LIMIT_PCT_QUICK"
   REGRESSION_MIN_DELTA_MS="$REGRESSION_MIN_DELTA_MS_QUICK"
+  BASELINE_JSON="$OUT_DIR/baseline_quick.json"
 else
   BINARY_LIMIT_BYTES="$BINARY_LIMIT_BYTES_FULL"
   ABS_MEAN_LIMIT_MS="$ABS_MEAN_LIMIT_MS_FULL"
   REGRESSION_LIMIT_PCT="$REGRESSION_LIMIT_PCT_FULL"
   REGRESSION_MIN_DELTA_MS="$REGRESSION_MIN_DELTA_MS_FULL"
-fi
-
-echo "[bench] building release binary"
-cargo build --release --manifest-path "$ROOT_DIR/Cargo.toml" >/dev/null
-
-if command -v hyperfine >/dev/null 2>&1; then
-  HAVE_HYPERFINE=1
-else
-  HAVE_HYPERFINE=0
+  BASELINE_JSON="$OUT_DIR/baseline_full.json"
 fi
 
 SCENARIOS=(
@@ -96,7 +95,9 @@ if [[ "$MODE" == "dry" ]]; then
   echo "[bench] dry run (no execution)"
   echo "[bench] mode: $MODE"
   echo "[bench] binary: $BIN"
+  echo "[bench] baseline: $BASELINE_JSON"
   echo "[bench] enforce_gates: $ENFORCE_GATES"
+  echo "[bench] update_baseline: $UPDATE_BASELINE"
   echo "[bench] scenarios:"
   for entry in "${SCENARIOS[@]}"; do
     echo "  - ${entry%%::*}: ${entry#*::}"
@@ -104,15 +105,32 @@ if [[ "$MODE" == "dry" ]]; then
   exit 0
 fi
 
+echo "[bench] building release binary"
+cargo build --release --manifest-path "$ROOT_DIR/Cargo.toml" >/dev/null
+
+if command -v hyperfine >/dev/null 2>&1; then
+  HAVE_HYPERFINE=1
+  TIMING_TOOL="hyperfine"
+else
+  HAVE_HYPERFINE=0
+  TIMING_TOOL="python-perf-counter"
+fi
+
+HOST_NAME="$(hostname -s 2>/dev/null || hostname || echo unknown)"
+OS_NAME="$(uname -s)"
+KERNEL="$(uname -r)"
+ARCH="$(uname -m)"
+RUSTC_VERSION="$(rustc -V 2>/dev/null || echo unknown)"
+
 CSV="$OUT_DIR/latest.csv"
 JSON="$OUT_DIR/latest.json"
 MD="$OUT_DIR/latest.md"
 TREND_JSON="$OUT_DIR/latest_trend.json"
 TREND_MD="$OUT_DIR/latest_trend.md"
-PREV_JSON="$OUT_DIR/.latest.previous.json"
+PREV_JSON="$OUT_DIR/.baseline.previous.json"
 
-if [[ -f "$JSON" ]]; then
-  cp "$JSON" "$PREV_JSON"
+if [[ -f "$BASELINE_JSON" ]]; then
+  cp "$BASELINE_JSON" "$PREV_JSON"
 else
   rm -f "$PREV_JSON"
 fi
@@ -122,16 +140,58 @@ echo "{" > "$JSON"
 echo "  \"timestamp_utc\": \"$TS\"," >> "$JSON"
 echo "  \"binary\": \"$BIN\"," >> "$JSON"
 echo "  \"mode\": \"$MODE\"," >> "$JSON"
+echo "  \"environment\": {" >> "$JSON"
+echo "    \"host\": \"$HOST_NAME\"," >> "$JSON"
+echo "    \"os\": \"$OS_NAME\"," >> "$JSON"
+echo "    \"kernel\": \"$KERNEL\"," >> "$JSON"
+echo "    \"arch\": \"$ARCH\"," >> "$JSON"
+echo "    \"rustc\": \"$RUSTC_VERSION\"," >> "$JSON"
+echo "    \"timing_tool\": \"$TIMING_TOOL\"" >> "$JSON"
+echo "  }," >> "$JSON"
 echo "  \"scenarios\": [" >> "$JSON"
 
 printf '%s\n\n' '# Benchmark Results' > "$MD"
 printf '%s\n' "- Timestamp (UTC): \`$TS\`" >> "$MD"
 printf '%s\n' "- Binary: \`$BIN\`" >> "$MD"
 printf '%s\n' "- Mode: \`$MODE\`" >> "$MD"
+printf '%s\n' "- Baseline: \`$BASELINE_JSON\`" >> "$MD"
+printf '%s\n' "- Timing tool: \`$TIMING_TOOL\`" >> "$MD"
+printf '%s\n' "- Environment: \`$HOST_NAME\` / \`$OS_NAME\` \`$KERNEL\` / \`$ARCH\` / \`$RUSTC_VERSION\`" >> "$MD"
 printf '%s\n' "- Gate profile: abs mean <= \`${ABS_MEAN_LIMIT_MS}ms\`, regression <= \`${REGRESSION_LIMIT_PCT}%%\`, binary <= \`${BINARY_LIMIT_BYTES}\` bytes" >> "$MD"
 printf '%s\n\n' '- PlantUML comparison: TODO (no-Java environment baseline run)' >> "$MD"
 printf '%s\n' '| Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |' >> "$MD"
 printf '%s\n' '|---|---:|---:|---:|---|' >> "$MD"
+
+measure_with_python_fallback() {
+  local cmd="$1"
+  local warmup="$2"
+  local runs="$3"
+
+  python3 - "$cmd" "$warmup" "$runs" <<'PY'
+import statistics
+import subprocess
+import sys
+import time
+
+cmd = sys.argv[1]
+warmup = int(sys.argv[2])
+runs = int(sys.argv[3])
+
+for _ in range(warmup):
+    subprocess.run(["bash", "-lc", cmd], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+samples = []
+for _ in range(runs):
+    t0 = time.perf_counter_ns()
+    subprocess.run(["bash", "-lc", cmd], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t1 = time.perf_counter_ns()
+    samples.append((t1 - t0) / 1_000_000.0)
+
+mean_ms = statistics.mean(samples) if samples else 0.0
+std_ms = statistics.pstdev(samples) if len(samples) > 1 else 0.0
+print(f"{mean_ms:.3f},{std_ms:.3f},{runs}")
+PY
+}
 
 first=1
 for entry in "${SCENARIOS[@]}"; do
@@ -141,22 +201,15 @@ for entry in "${SCENARIOS[@]}"; do
   if [[ "$HAVE_HYPERFINE" -eq 1 ]]; then
     TMP_JSON="$(mktemp)"
     hyperfine --warmup "$WARMUP" --runs "$RUNS" --export-json "$TMP_JSON" "$cmd" >/dev/null
-
     mean_ms="$(awk -F': ' '/"mean"/ {gsub(/,/, "", $2); printf "%.3f", $2*1000; exit}' "$TMP_JSON")"
     std_ms="$(awk -F': ' '/"stddev"/ {gsub(/,/, "", $2); printf "%.3f", $2*1000; exit}' "$TMP_JSON")"
     runs="$RUNS"
     tool="hyperfine"
     rm -f "$TMP_JSON"
   else
-    times=()
-    for _ in $(seq 1 "$FALLBACK_RUNS"); do
-      t="$(/usr/bin/time -f '%e' bash -lc "$cmd" 2>&1 >/dev/null | tail -n1)"
-      times+=("$t")
-    done
-    mean_ms="$(printf '%s\n' "${times[@]}" | awk '{sum+=$1; n+=1} END {if (n==0) print "0.000"; else printf "%.3f", (sum/n)*1000}')"
-    std_ms="$(printf '%s\n' "${times[@]}" | awk '{x[NR]=$1; sum+=$1} END {if (NR==0) {print "0.000"; exit} m=sum/NR; for(i=1;i<=NR;i++){d=x[i]-m; ss+=d*d} printf "%.3f", sqrt(ss/NR)*1000}')"
-    runs="$FALLBACK_RUNS"
-    tool="time"
+    stats="$(measure_with_python_fallback "$cmd" "$WARMUP" "$FALLBACK_RUNS")"
+    IFS=',' read -r mean_ms std_ms runs <<< "$stats"
+    tool="python-perf-counter"
   fi
 
   echo "$name,$tool,$mean_ms,$std_ms,$runs,$TS" >> "$CSV"
@@ -166,6 +219,7 @@ for entry in "${SCENARIOS[@]}"; do
     echo "    ," >> "$JSON"
   fi
   first=0
+
   cat >> "$JSON" <<REC
     {
       "name": "$name",
@@ -182,112 +236,24 @@ echo "}" >> "$JSON"
 
 BINARY_BYTES="$(stat -c%s "$BIN")"
 
-python3 - "$JSON" "$PREV_JSON" "$TREND_JSON" "$TREND_MD" "$TS" "$MODE" "$ABS_MEAN_LIMIT_MS" "$REGRESSION_LIMIT_PCT" "$REGRESSION_MIN_DELTA_MS" "$BINARY_BYTES" "$BINARY_LIMIT_BYTES" <<'PY'
-import json
-import pathlib
-import sys
-
-json_path = pathlib.Path(sys.argv[1])
-prev_path = pathlib.Path(sys.argv[2])
-trend_json_path = pathlib.Path(sys.argv[3])
-trend_md_path = pathlib.Path(sys.argv[4])
-ts = sys.argv[5]
-mode = sys.argv[6]
-abs_limit = float(sys.argv[7])
-regression_limit_pct = float(sys.argv[8])
-regression_min_delta_ms = float(sys.argv[9])
-binary_bytes = int(sys.argv[10])
-binary_limit_bytes = int(sys.argv[11])
-
-current = json.loads(json_path.read_text())
-prev = None
-if prev_path.exists() and prev_path.stat().st_size > 0:
-    prev = json.loads(prev_path.read_text())
-
-prev_means = {}
-if prev:
-    for item in prev.get("scenarios", []):
-        prev_means[item["name"]] = float(item["mean_ms"])
-
-rows = []
-for item in current.get("scenarios", []):
-    name = item["name"]
-    curr = float(item["mean_ms"])
-    prev_val = prev_means.get(name)
-    delta_ms = None if prev_val is None else round(curr - prev_val, 3)
-    delta_pct = None
-    if prev_val not in (None, 0.0):
-        delta_pct = round(((curr - prev_val) / prev_val) * 100.0, 3)
-    rows.append(
-        {
-            "name": name,
-            "current_mean_ms": round(curr, 3),
-            "previous_mean_ms": None if prev_val is None else round(prev_val, 3),
-            "delta_ms": delta_ms,
-            "delta_pct": delta_pct,
-        }
-    )
-
-rows.sort(key=lambda r: r["name"])
-
-trend = {
-    "timestamp_utc": ts,
-    "mode": mode,
-    "source": "docs/benchmarks/latest.json",
-    "binary": {
-        "path": current.get("binary"),
-        "size_bytes": binary_bytes,
-        "limit_bytes": binary_limit_bytes,
-        "within_limit": binary_bytes <= binary_limit_bytes,
-    },
-    "gates": {
-        "absolute_mean_ms_limit": abs_limit,
-        "regression_pct_limit": regression_limit_pct,
-        "regression_min_delta_ms": regression_min_delta_ms,
-    },
-    "scenarios": rows,
-    "baseline": {
-        "timestamp_utc": None if prev is None else prev.get("timestamp_utc"),
-        "available": prev is not None,
-    },
-    "plantuml_oracle": {
-        "status": "todo",
-        "notes": "No-Java baseline keeps oracle placeholders only.",
-    },
-}
-
-trend_json_path.write_text(json.dumps(trend, indent=2, sort_keys=True) + "\n")
-
-lines = [
-    "# Benchmark Trend",
-    "",
-    f"- Timestamp (UTC): `{ts}`",
-    f"- Mode: `{mode}`",
-    f"- Baseline timestamp (UTC): `{trend['baseline']['timestamp_utc'] or 'none'}`",
-    f"- Binary: `{binary_bytes}` bytes (limit `{binary_limit_bytes}`)",
-    f"- Regression gate: delta > `{regression_limit_pct:.3f}%` and `>{regression_min_delta_ms:.3f}ms`",
-    "",
-    "| Scenario | Current Mean (ms) | Previous Mean (ms) | Delta (ms) | Delta (%) |",
-    "|---|---:|---:|---:|---:|",
-]
-for row in rows:
-    prev_mean = "n/a" if row["previous_mean_ms"] is None else f"{row['previous_mean_ms']:.3f}"
-    delta_ms = "n/a" if row["delta_ms"] is None else f"{row['delta_ms']:.3f}"
-    delta_pct = "n/a" if row["delta_pct"] is None else f"{row['delta_pct']:.3f}"
-    lines.append(
-        f"| `{row['name']}` | {row['current_mean_ms']:.3f} | {prev_mean} | {delta_ms} | {delta_pct} |"
-    )
-
-lines.extend(
-    [
-        "",
-        "## PlantUML Oracle",
-        "- Status: `todo`",
-        "- Notes: no-Java baseline keeps oracle placeholders only.",
-    ]
-)
-trend_md_path.write_text("\n".join(lines) + "\n")
-PY
+python3 "$ROOT_DIR/scripts/bench_gate.py" trend \
+  --current "$JSON" \
+  --previous "$PREV_JSON" \
+  --output-json "$TREND_JSON" \
+  --output-md "$TREND_MD" \
+  --timestamp-utc "$TS" \
+  --mode "$MODE" \
+  --abs-limit "$ABS_MEAN_LIMIT_MS" \
+  --regression-limit-pct "$REGRESSION_LIMIT_PCT" \
+  --regression-min-delta-ms "$REGRESSION_MIN_DELTA_MS" \
+  --binary-bytes "$BINARY_BYTES" \
+  --binary-limit-bytes "$BINARY_LIMIT_BYTES" \
+  --host "$HOST_NAME" \
+  --os-name "$OS_NAME" \
+  --kernel "$KERNEL" \
+  --arch "$ARCH" \
+  --rustc "$RUSTC_VERSION" \
+  --timing-tool "$TIMING_TOOL"
 
 printf '\n%s\n' '## PlantUML Comparison (TODO)' >> "$MD"
 printf '%s\n' 'Method when Java is available:' >> "$MD"
@@ -298,59 +264,19 @@ printf '%s\n' '3. Add comparison rows labeled `plantuml_*` with timestamp + comm
 GATE_FAILURES=()
 
 echo "[bench] gate profile: mode=$MODE abs_mean<=${ABS_MEAN_LIMIT_MS}ms regression<=${REGRESSION_LIMIT_PCT}%+>${REGRESSION_MIN_DELTA_MS}ms binary<=${BINARY_LIMIT_BYTES}B"
-if (( BINARY_BYTES > BINARY_LIMIT_BYTES )); then
-  GATE_FAILURES+=("binary size ${BINARY_BYTES}B exceeds ${BINARY_LIMIT_BYTES}B")
-fi
-
-if [[ -f "$PREV_JSON" ]]; then
-  while IFS= read -r failure; do
+while IFS= read -r failure; do
+  if [[ -n "$failure" ]]; then
     GATE_FAILURES+=("$failure")
-  done < <(python3 - "$JSON" "$PREV_JSON" "$ABS_MEAN_LIMIT_MS" "$REGRESSION_LIMIT_PCT" "$REGRESSION_MIN_DELTA_MS" <<'PY'
-import json
-import sys
-
-current = json.load(open(sys.argv[1]))
-previous = json.load(open(sys.argv[2]))
-abs_limit = float(sys.argv[3])
-reg_limit = float(sys.argv[4])
-reg_min_delta = float(sys.argv[5])
-
-prev_map = {item["name"]: float(item["mean_ms"]) for item in previous.get("scenarios", [])}
-
-for item in current.get("scenarios", []):
-    name = item["name"]
-    curr = float(item["mean_ms"])
-    if curr > abs_limit:
-        print(f"{name}: mean {curr:.3f}ms exceeds absolute limit {abs_limit:.3f}ms")
-    prev = prev_map.get(name)
-    if prev is not None and prev > 0:
-        delta_ms = curr - prev
-        delta_pct = ((curr - prev) / prev) * 100.0
-        if delta_pct > reg_limit and delta_ms > reg_min_delta:
-            print(
-                f"{name}: regression {delta_pct:.3f}% exceeds limit {reg_limit:.3f}% "
-                f"and delta {delta_ms:.3f}ms exceeds floor {reg_min_delta:.3f}ms "
-                f"(current {curr:.3f}ms vs previous {prev:.3f}ms)"
-            )
-PY
-)
-else
-  while IFS= read -r failure; do
-    GATE_FAILURES+=("$failure")
-  done < <(python3 - "$JSON" "$ABS_MEAN_LIMIT_MS" <<'PY'
-import json
-import sys
-
-current = json.load(open(sys.argv[1]))
-abs_limit = float(sys.argv[2])
-
-for item in current.get("scenarios", []):
-    curr = float(item["mean_ms"])
-    if curr > abs_limit:
-        print(f"{item['name']}: mean {curr:.3f}ms exceeds absolute limit {abs_limit:.3f}ms")
-PY
-)
-fi
+  fi
+done < <(python3 "$ROOT_DIR/scripts/bench_gate.py" failures \
+  --current "$JSON" \
+  --previous "$PREV_JSON" \
+  --mode "$MODE" \
+  --abs-limit "$ABS_MEAN_LIMIT_MS" \
+  --regression-limit-pct "$REGRESSION_LIMIT_PCT" \
+  --regression-min-delta-ms "$REGRESSION_MIN_DELTA_MS" \
+  --binary-bytes "$BINARY_BYTES" \
+  --binary-limit-bytes "$BINARY_LIMIT_BYTES")
 
 if [[ "$ENFORCE_GATES" -eq 1 && "${#GATE_FAILURES[@]}" -gt 0 ]]; then
   echo "[bench] gate failures:" >&2
@@ -368,6 +294,11 @@ if [[ "${#GATE_FAILURES[@]}" -gt 0 ]]; then
   done
 else
   echo "[bench] gates: pass"
+fi
+
+if [[ "$UPDATE_BASELINE" -eq 1 ]]; then
+  cp "$JSON" "$BASELINE_JSON"
+  echo "[bench] baseline updated: $BASELINE_JSON"
 fi
 
 echo "[bench] wrote:"

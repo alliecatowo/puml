@@ -105,3 +105,11 @@ This log records intentional contract deviations and updates adopted in the curr
 - Impact:
   - `scripts/bench.sh --enforce-gates` now fails regression checks only when both percentage and absolute delta thresholds are exceeded.
   - Benchmark docs and release checklist thresholds include both the percentage and absolute-delta criteria.
+
+### D-018: Mode-scoped benchmark baselines and explicit baseline movement
+- Decision: Compare regression only against mode-matching baseline artifacts (`baseline_full.json`, `baseline_quick.json`) and require explicit `--update-baseline` to move them.
+- Rationale: A shared mutable `latest.json` baseline caused cross-mode false regressions and noisy drift after transient runs.
+- Impact:
+  - `scripts/bench.sh` now keeps regression comparisons mode-scoped and skips mismatch comparisons.
+  - Baseline drift is controlled via explicit refresh commands instead of implicit every-run movement.
+  - Gate/trend logic is extracted to `scripts/bench_gate.py` and guarded by dedicated tests.

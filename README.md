@@ -202,15 +202,21 @@ Commands:
 # enforce perf + binary-size gates
 ./scripts/bench.sh --enforce-gates
 ./scripts/bench.sh --quick --enforce-gates
+
+# update mode baselines after explicit approval
+./scripts/bench.sh --update-baseline
+./scripts/bench.sh --quick --update-baseline
 ```
 
 Gate thresholds:
-- `full` (default): scenario mean `<= 250ms`, regression vs previous run `<= 10%` with absolute delta floor `> 20ms`, binary size `<= 2,000,000` bytes
-- `quick`: scenario mean `<= 350ms`, regression vs previous run `<= 20%` with absolute delta floor `> 30ms`, binary size `<= 2,500,000` bytes
+- `full` (default): scenario mean `<= 250ms`, regression vs `docs/benchmarks/baseline_full.json` `<= 10%` with absolute delta floor `> 20ms`, binary size `<= 2,000,000` bytes
+- `quick`: scenario mean `<= 350ms`, regression vs `docs/benchmarks/baseline_quick.json` `<= 20%` with absolute delta floor `> 30ms`, binary size `<= 2,500,000` bytes
+- If the baseline file for the active mode is missing, regression checks are skipped and absolute + binary gates still apply.
 
 Artifacts:
 - raw run: `docs/benchmarks/latest.{md,csv,json}`
 - deterministic trend report: `docs/benchmarks/latest_trend.{md,json}`
+- mode baselines: `docs/benchmarks/baseline_{full,quick}.json`
 - no-Java oracle placeholder baseline: `docs/benchmarks/parity_latest.json`
 
 ## Feature Matrix
