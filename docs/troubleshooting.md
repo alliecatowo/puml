@@ -54,6 +54,15 @@ Fix:
 cat diagram.puml | cargo run -- --check --include-root ./tests/fixtures/include -
 ```
 
+## Diagnostics are hard to map back to source
+
+Symptoms:
+- validation or warning messages are unclear without location context.
+
+Notes:
+- source-related diagnostics include `line`, `column`, and a caret-marked source snippet in `--check`, `--dump`, and render modes.
+- messages without source spans stay single-line by design.
+
 ## Snapshot tests fail
 
 Symptoms:

@@ -165,6 +165,15 @@ fn render_svg_handles_ref_else_and_multi_target_notes() {
 }
 
 #[test]
+fn render_svg_note_across_spans_content_width() {
+    let src = fixture("notes/valid_note_across_multi.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.contains("cluster note"));
+    assert_snapshot!("render_svg_note_across_spans_content_width", svg);
+}
+
+#[test]
 fn render_svg_hides_footbox_and_ends_lifelines_above_footer_area() {
     let src = "@startuml\nhide footbox\nparticipant A\nparticipant B\nA -> B : hello\n@enduml\n";
     let ast = puml::parse(src).expect("parse should succeed");
@@ -227,4 +236,21 @@ fn render_svg_renders_separator_delay_divider_and_spacer_distinctly() {
         "render_svg_renders_separator_delay_divider_and_spacer_distinctly",
         svg
     );
+}
+
+#[test]
+fn render_svg_renders_distinct_participant_kinds() {
+    let src = fixture("e2e/participant_kinds.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(
+        svg.contains("fill=\"#fff3e0\""),
+        "actor style should render"
+    );
+    assert!(
+        svg.contains("stroke-dasharray=\"5 3\""),
+        "boundary style should render"
+    );
+    assert!(svg.contains("<ellipse"), "database style should render");
+    assert_snapshot!("render_svg_renders_distinct_participant_kinds", svg);
 }

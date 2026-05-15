@@ -193,6 +193,46 @@ fn render_mode_emits_styling_warnings_but_succeeds() {
 }
 
 #[test]
+fn source_related_warning_uses_line_column_and_caret_in_all_modes() {
+    let input = "@startuml\nskinparam ArrowColor red\nA -> B\n@enduml\n";
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::contains("line 2, column 1").and(predicate::str::contains(
+                "skinparam ArrowColor red\n^^^^^^^^",
+            )),
+        );
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::contains("line 2, column 1").and(predicate::str::contains(
+                "skinparam ArrowColor red\n^^^^^^^^",
+            )),
+        );
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::contains("line 2, column 1").and(predicate::str::contains(
+                "skinparam ArrowColor red\n^^^^^^^^",
+            )),
+        );
+}
+
+#[test]
 fn malformed_arrow_reports_diagnostic() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -200,6 +240,44 @@ fn malformed_arrow_reports_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn source_related_error_uses_line_column_and_caret_in_all_modes() {
+    let invalid = fixture("arrows/invalid_malformed_arrows.puml");
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &invalid])
+        .assert()
+        .code(1)
+        .stderr(
+            predicate::str::contains("line 2, column 1")
+                .and(predicate::str::contains("A -x B: malformed\n^^^^^^"))
+                .and(predicate::str::contains("E_ARROW_INVALID")),
+        );
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", &invalid])
+        .assert()
+        .code(1)
+        .stderr(
+            predicate::str::contains("line 2, column 1")
+                .and(predicate::str::contains("A -x B: malformed\n^^^^^^"))
+                .and(predicate::str::contains("E_ARROW_INVALID")),
+        );
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg(&invalid)
+        .assert()
+        .code(1)
+        .stderr(
+            predicate::str::contains("line 2, column 1")
+                .and(predicate::str::contains("A -x B: malformed\n^^^^^^"))
+                .and(predicate::str::contains("E_ARROW_INVALID")),
+        );
 }
 
 #[test]
@@ -255,6 +333,28 @@ fn malformed_note_or_ref_reports_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_NOTE_INVALID"));
+}
+
+#[test]
+fn malformed_ref_block_missing_body_reports_diagnostic_snapshot() {
+    let invalid = fixture("groups/invalid_ref_block_missing_body.puml");
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &invalid])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out)
+        .unwrap()
+        .replace(&invalid, "<fixture>");
+    assert!(stderr.contains("E_REF_INVALID"));
+    assert_snapshot!(
+        "malformed_ref_block_missing_body_reports_diagnostic",
+        stderr
+    );
 }
 
 #[test]

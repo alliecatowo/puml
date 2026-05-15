@@ -489,17 +489,16 @@ fn parse_multiline_ref_block(
     }
 
     let mut body = Vec::new();
+    let mut has_non_empty_body = false;
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
         let trimmed = raw.trim();
         if trimmed.eq_ignore_ascii_case("end ref") {
-            if body.is_empty() {
+            if !has_non_empty_body {
                 return None;
             }
             let mut label = head.to_string();
-            if !body.is_empty() {
-                label.push('\n');
-                label.push_str(&body.join("\n"));
-            }
+            label.push('\n');
+            label.push_str(&body.join("\n"));
             return Some((
                 StatementKind::Group(Group {
                     kind: "ref".to_string(),
@@ -507,6 +506,9 @@ fn parse_multiline_ref_block(
                 }),
                 idx,
             ));
+        }
+        if !trimmed.is_empty() {
+            has_non_empty_body = true;
         }
         body.push(trimmed.to_string());
     }

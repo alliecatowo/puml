@@ -1,0 +1,8 @@
+---
+source: tests/integration.rs
+assertion_line: 349
+expression: stderr
+---
+[E_PARSE_UNKNOWN] unsupported syntax: `[E_REF_INVALID] malformed ref syntax: `ref over A, B`` at line 4, column 1
+ref over A, B
+^^^^^^^^^^^^^

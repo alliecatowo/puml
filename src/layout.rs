@@ -23,6 +23,7 @@ pub fn layout_pages(document: &SequenceDocument, options: LayoutOptions) -> Vec<
 fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let mut participants = Vec::with_capacity(document.participants.len());
     let mut centers_by_id = BTreeMap::new();
+    let mut bounds_by_id = BTreeMap::new();
 
     let mut max_participant_right = options.margin;
     for (idx, participant) in document.participants.iter().enumerate() {
@@ -30,10 +31,12 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         let center_x = x + options.participant_width / 2;
         max_participant_right = max_participant_right.max(x + options.participant_width);
         centers_by_id.insert(participant.id.clone(), center_x);
+        bounds_by_id.insert(participant.id.clone(), (x, x + options.participant_width));
 
         participants.push(ParticipantBox {
             id: participant.id.clone(),
             display: participant.display.clone(),
+            role: participant.role,
             x,
             y: options.margin,
             width: options.participant_width,
@@ -122,28 +125,20 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 let y = events_top + (event_rows * options.message_row_height);
                 let text_lines = text.lines().count().max(1) as i32;
                 let height = (text_lines * 16) + (options.note_padding * 2);
-
-                let x = if let Some(target_spec) = target {
-                    let centers = note_target_centers(target_spec, &centers_by_id, &options);
-                    let min_center = *centers.iter().min().unwrap_or(&default_center(&options));
-                    let max_center = *centers.iter().max().unwrap_or(&default_center(&options));
-                    let mid_center = (min_center + max_center) / 2;
-                    if position.eq_ignore_ascii_case("left") {
-                        min_center - options.note_width - 12
-                    } else if position.eq_ignore_ascii_case("right") {
-                        max_center + 12
-                    } else {
-                        mid_center - (options.note_width / 2)
-                    }
-                } else {
-                    options.margin
-                };
+                let (x, width) = note_horizontal_bounds(
+                    position,
+                    target.as_deref(),
+                    &centers_by_id,
+                    &bounds_by_id,
+                    max_participant_right,
+                    &options,
+                );
 
                 notes.push(NoteBox {
                     target_id: target.clone(),
                     x,
                     y,
-                    width: options.note_width,
+                    width,
                     height,
                     text: text.clone(),
                 });
@@ -160,7 +155,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     }
                 } else {
                     let (x, width) =
-                        group_horizontal_bounds(label.as_deref(), &centers_by_id, &options);
+                        group_horizontal_bounds(label.as_deref(), &bounds_by_id, &options);
                     groups.push(GroupBox {
                         kind: kind.clone(),
                         label: label.clone(),
@@ -257,6 +252,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             .map(|p| ParticipantBox {
                 id: p.id.clone(),
                 display: p.display.clone(),
+                role: p.role,
                 x: p.x,
                 y: lifeline_end,
                 width: p.width,
@@ -340,28 +336,107 @@ fn note_target_centers(
         .collect::<Vec<_>>()
 }
 
+fn note_target_bounds(
+    target_spec: &str,
+    bounds_by_id: &BTreeMap<String, (i32, i32)>,
+    options: &LayoutOptions,
+) -> Vec<(i32, i32)> {
+    let default_center = default_center(options);
+    let default_bounds = (
+        default_center - (options.participant_width / 2),
+        default_center + (options.participant_width / 2),
+    );
+    parse_target_ids(target_spec)
+        .into_iter()
+        .map(|id| bounds_by_id.get(&id).copied().unwrap_or(default_bounds))
+        .collect::<Vec<_>>()
+}
+
+fn note_horizontal_bounds(
+    position: &str,
+    target_spec: Option<&str>,
+    centers_by_id: &BTreeMap<String, i32>,
+    bounds_by_id: &BTreeMap<String, (i32, i32)>,
+    max_participant_right: i32,
+    options: &LayoutOptions,
+) -> (i32, i32) {
+    if position.eq_ignore_ascii_case("across") {
+        return (
+            options.margin,
+            (max_participant_right - options.margin).max(options.note_width),
+        );
+    }
+
+    let width = options.note_width;
+    let x = if let Some(target_spec) = target_spec {
+        let bounds = note_target_bounds(target_spec, bounds_by_id, options);
+        let min_left = bounds
+            .iter()
+            .map(|(left, _)| *left)
+            .min()
+            .unwrap_or(options.margin);
+        let max_right = bounds
+            .iter()
+            .map(|(_, right)| *right)
+            .max()
+            .unwrap_or(max_participant_right);
+        let centers = note_target_centers(target_spec, centers_by_id, options);
+        let min_center = *centers.iter().min().unwrap_or(&default_center(options));
+        let max_center = *centers.iter().max().unwrap_or(&default_center(options));
+        let mid_center = (min_center + max_center) / 2;
+        if position.eq_ignore_ascii_case("left") {
+            min_left - width - 12
+        } else if position.eq_ignore_ascii_case("right") {
+            max_right + 12
+        } else if bounds.len() > 1 {
+            min_left
+        } else {
+            mid_center - (width / 2)
+        }
+    } else {
+        options.margin
+    };
+
+    (x, width)
+}
+
 fn group_horizontal_bounds(
     label: Option<&str>,
-    centers_by_id: &BTreeMap<String, i32>,
+    bounds_by_id: &BTreeMap<String, (i32, i32)>,
     options: &LayoutOptions,
 ) -> (i32, i32) {
     if let Some(raw) = label {
         if let Some(target_spec) = raw.strip_prefix("over ") {
-            let centers = note_target_centers(target_spec.trim(), centers_by_id, options);
-            if !centers.is_empty() {
-                let min_center = *centers.iter().min().unwrap_or(&default_center(options));
-                let max_center = *centers.iter().max().unwrap_or(&default_center(options));
-                let x = min_center - (options.note_width / 2);
-                let width = (max_center - min_center) + options.note_width;
-                return (x, width.max(options.note_width));
+            let bounds = note_target_bounds(target_spec.trim(), bounds_by_id, options);
+            if !bounds.is_empty() {
+                let min_left = bounds
+                    .iter()
+                    .map(|(left, _)| *left)
+                    .min()
+                    .unwrap_or(options.margin);
+                let max_right = bounds
+                    .iter()
+                    .map(|(_, right)| *right)
+                    .max()
+                    .unwrap_or(options.margin + options.participant_width);
+                let target_width = (max_right - min_left).max(options.participant_width);
+                let estimated_label_width =
+                    raw.lines().map(estimate_text_px_width).max().unwrap_or(0) + 16;
+                let width = target_width.max(estimated_label_width);
+                let x = min_left - ((width - target_width) / 2);
+                return (x, width);
             }
         }
     }
     (
         options.margin,
-        (centers_by_id.len() as i32 * options.participant_spacing)
+        (bounds_by_id.len() as i32 * options.participant_spacing)
             .max(options.participant_width + 64),
     )
+}
+
+fn estimate_text_px_width(line: &str) -> i32 {
+    (line.chars().count() as i32) * 7
 }
 
 fn message_x_bounds(

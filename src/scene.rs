@@ -1,3 +1,5 @@
+use crate::model::ParticipantRole;
+
 #[derive(Debug, Clone)]
 pub struct Scene {
     pub width: i32,
@@ -23,6 +25,7 @@ pub struct Label {
 pub struct ParticipantBox {
     pub id: String,
     pub display: String,
+    pub role: ParticipantRole,
     pub x: i32,
     pub y: i32,
     pub width: i32,

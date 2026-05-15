@@ -91,6 +91,18 @@ Warnings:
 - unsupported `skinparam` keys and `!theme` are emitted to `stderr` as deterministic non-fatal warnings in `--check`, `--dump`, and render modes
 - warnings do not change exit code when no hard validation error occurs
 
+Diagnostics:
+- source-related warnings and validation errors include `line`/`column` plus a source caret snippet in `--check`, `--dump`, and render modes
+- diagnostics without source spans remain plain one-line messages
+
+Example:
+
+```text
+[E_ARROW_INVALID] malformed arrow syntax at line 2, column 1
+A -x B: malformed
+^^^^^^
+```
+
 ## Feature Matrix
 
 | Area | Status | Notes |

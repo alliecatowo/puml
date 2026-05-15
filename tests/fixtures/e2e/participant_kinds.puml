@@ -1,0 +1,18 @@
+@startuml
+participant P
+actor A
+boundary B
+control C
+entity E
+database D
+collections S
+queue Q
+
+P -> A : ping
+A -> B : ping
+B -> C : ping
+C -> E : ping
+E -> D : ping
+D -> S : ping
+S -> Q : ping
+@enduml

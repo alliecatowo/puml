@@ -88,7 +88,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         .include_root
         .clone()
         .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
-    let diagrams = split_diagrams(&raw).map_err(diag_err)?;
+    let diagrams = split_diagrams(&raw).map_err(|d| diag_err_with_source(&raw, d))?;
 
     if diagrams.is_empty() {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
@@ -104,9 +104,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
 
     if cli.check {
         for source in &diagrams {
-            let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
-            let model = normalize(doc).map_err(diag_err)?;
-            emit_warnings(&model);
+            let doc = parse_for_cli(source, include_root.clone())
+                .map_err(|d| diag_err_with_source(source, d))?;
+            let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
+            emit_warnings(&model, source);
         }
         return Ok(());
     }
@@ -116,19 +117,22 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             .iter()
             .map(|source| match dump_kind {
                 DumpKind::Ast => {
-                    let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
+                    let doc = parse_for_cli(source, include_root.clone())
+                        .map_err(|d| diag_err_with_source(source, d))?;
                     Ok(ast_to_json(&doc))
                 }
                 DumpKind::Model => {
-                    let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
-                    let model = normalize(doc).map_err(diag_err)?;
-                    emit_warnings(&model);
+                    let doc = parse_for_cli(source, include_root.clone())
+                        .map_err(|d| diag_err_with_source(source, d))?;
+                    let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
+                    emit_warnings(&model, source);
                     Ok(model_to_json(&model))
                 }
                 DumpKind::Scene => {
-                    let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
-                    let model = normalize(doc).map_err(diag_err)?;
-                    emit_warnings(&model);
+                    let doc = parse_for_cli(source, include_root.clone())
+                        .map_err(|d| diag_err_with_source(source, d))?;
+                    let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
+                    emit_warnings(&model, source);
                     Ok(scene_to_json(&model))
                 }
             })
@@ -155,9 +159,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let svgs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
-        let doc = parse_for_cli(source, include_root.clone()).map_err(diag_err)?;
-        let model = normalize(doc).map_err(diag_err)?;
-        emit_warnings(&model);
+        let doc = parse_for_cli(source, include_root.clone())
+            .map_err(|d| diag_err_with_source(source, d))?;
+        let model = normalize(doc).map_err(|d| diag_err_with_source(source, d))?;
+        emit_warnings(&model, source);
         let scenes = layout::layout_pages(&model, LayoutOptions::default());
         let mut pages = scenes.iter().map(render::render_svg).collect::<Vec<_>>();
         all.append(&mut pages);
@@ -210,13 +215,13 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     Err((EXIT_INTERNAL, "unexpected stdin output mode".to_string()))
 }
 
-fn diag_err(d: Diagnostic) -> (u8, String) {
-    (EXIT_VALIDATION, d.message)
+fn diag_err_with_source(source: &str, d: Diagnostic) -> (u8, String) {
+    (EXIT_VALIDATION, d.render_with_source(source))
 }
 
-fn emit_warnings(model: &SequenceDocument) {
+fn emit_warnings(model: &SequenceDocument, source: &str) {
     for warning in &model.warnings {
-        eprintln!("{}", warning.message);
+        eprintln!("{}", warning.render_with_source(source));
     }
 }
 
