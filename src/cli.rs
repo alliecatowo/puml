@@ -31,7 +31,7 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub multi: bool,
 
-    /// Extract diagrams from markdown fenced code blocks (```puml / ```plantuml / ```uml).
+    /// Extract diagrams from markdown fenced code blocks (puml/pumlx/picouml/plantuml/uml/puml-sequence/uml-sequence/mermaid).
     #[arg(long, action = ArgAction::SetTrue)]
     pub from_markdown: bool,
 

@@ -69,6 +69,14 @@ struct SceneRow {
 struct InputDiagram {
     source: String,
     source_span: Option<Span>,
+    frontend_hint: Option<FrontendSelection>,
+    output_name_hint: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct RenderedOutput {
+    name_hint: Option<String>,
+    svg: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -119,8 +127,15 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             )
         })?;
         let include_root = path.parent().map(|p| p.to_path_buf());
-        let doc = parse_for_cli(&src, include_root, cli.dialect, cli.compat, cli.determinism)
-            .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
+        let doc = parse_for_cli(
+            &src,
+            include_root,
+            cli.dialect,
+            cli.compat,
+            cli.determinism,
+            None,
+        )
+        .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
         let model = normalize(doc).map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
         emit_warnings(&model, &src, None, cli.diagnostics);
         return Ok(());
@@ -131,7 +146,12 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         .include_root
         .clone()
         .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
-    let diagrams = split_diagrams(&raw, should_extract_markdown(cli.from_markdown, input_path))
+    let from_markdown = should_extract_markdown(cli.from_markdown, input_path);
+    let markdown_name_prefix = input_path
+        .and_then(|path| path.file_stem())
+        .and_then(|stem| stem.to_str())
+        .map(|stem| stem.to_string());
+    let diagrams = split_diagrams(&raw, from_markdown, markdown_name_prefix.as_deref())
         .map_err(|d| diag_err_with_source(&raw, d, cli.diagnostics))?;
 
     if diagrams.is_empty() {
@@ -154,6 +174,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                 cli.dialect,
                 cli.compat,
                 cli.determinism,
+                source.frontend_hint,
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
             let model = normalize(doc)
@@ -174,6 +195,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         cli.dialect,
                         cli.compat,
                         cli.determinism,
+                        source.frontend_hint,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     Ok(ast_to_json(&doc))
@@ -185,6 +207,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         cli.dialect,
                         cli.compat,
                         cli.determinism,
+                        source.frontend_hint,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize(doc).map_err(|d| {
@@ -200,6 +223,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         cli.dialect,
                         cli.compat,
                         cli.determinism,
+                        source.frontend_hint,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize(doc).map_err(|d| {
@@ -231,38 +255,52 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         return Ok(());
     }
 
-    let svgs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
+    let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
         let doc = parse_for_cli(
             &source.source,
             include_root.clone(),
             cli.dialect,
             cli.compat,
             cli.determinism,
+            source.frontend_hint,
         )
         .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
         let model = normalize(doc)
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
         emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
         let scenes = layout::layout_pages(&model, LayoutOptions::default());
-        let mut pages = scenes.iter().map(render::render_svg).collect::<Vec<_>>();
-        all.append(&mut pages);
+        let pages = scenes.iter().map(render::render_svg).collect::<Vec<_>>();
+        let page_count = pages.len();
+        for (page_idx, svg) in pages.into_iter().enumerate() {
+            let name_hint = source.output_name_hint.as_ref().map(|base| {
+                if page_count == 1 {
+                    format!("{base}.svg")
+                } else {
+                    format!("{base}-{}.svg", page_idx + 1)
+                }
+            });
+            all.push(RenderedOutput { name_hint, svg });
+        }
         Ok::<_, (u8, String)>(all)
     })?;
 
-    if input_path.is_none() && svgs.len() > 1 && !cli.multi {
+    if input_path.is_none() && outputs.len() > 1 && !cli.multi {
         return Err((
             EXIT_VALIDATION,
             "multiple pages detected from stdin input; rerun with --multi".to_string(),
         ));
     }
 
-    if input_path.is_none() && svgs.len() > 1 {
-        let payload = svgs
+    if input_path.is_none() && outputs.len() > 1 {
+        let payload = outputs
             .iter()
             .enumerate()
-            .map(|(idx, svg)| MultiSvgOut {
-                name: format!("diagram-{}.svg", idx + 1),
-                svg: svg.clone(),
+            .map(|(idx, out)| MultiSvgOut {
+                name: out
+                    .name_hint
+                    .clone()
+                    .unwrap_or_else(|| format!("diagram-{}.svg", idx + 1)),
+                svg: out.svg.clone(),
             })
             .collect::<Vec<_>>();
 
@@ -277,18 +315,30 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     if let Some(path) = cli.output {
+        let svgs = outputs
+            .iter()
+            .map(|out| out.svg.clone())
+            .collect::<Vec<_>>();
         write_output_files(&path, &svgs)?;
         return Ok(());
     }
 
     if let Some(input) = input_path {
-        let default_base = default_output_base(input)?;
-        write_output_files(&default_base, &svgs)?;
+        if from_markdown {
+            write_markdown_output_files(input, &outputs)?;
+        } else {
+            let default_base = default_output_base(input)?;
+            let svgs = outputs
+                .iter()
+                .map(|out| out.svg.clone())
+                .collect::<Vec<_>>();
+            write_output_files(&default_base, &svgs)?;
+        }
         return Ok(());
     }
 
-    if svgs.len() == 1 {
-        println!("{}", svgs[0]);
+    if outputs.len() == 1 {
+        println!("{}", outputs[0].svg);
         return Ok(());
     }
 
@@ -354,9 +404,10 @@ fn parse_for_cli(
     cli_dialect: CliDialect,
     cli_compat: CliCompatMode,
     cli_determinism: CliDeterminismMode,
+    frontend_hint: Option<FrontendSelection>,
 ) -> Result<Document, Diagnostic> {
     let options = ParsePipelineOptions {
-        frontend: map_frontend(cli_dialect),
+        frontend: map_frontend(cli_dialect, frontend_hint),
         compat: map_compat(cli_compat),
         determinism: map_determinism(cli_determinism),
         include_root,
@@ -364,7 +415,16 @@ fn parse_for_cli(
     puml::parse_with_pipeline_options(source, &options)
 }
 
-fn map_frontend(dialect: CliDialect) -> FrontendSelection {
+fn map_frontend(
+    dialect: CliDialect,
+    frontend_hint: Option<FrontendSelection>,
+) -> FrontendSelection {
+    if matches!(dialect, CliDialect::Auto) {
+        if let Some(hint) = frontend_hint {
+            return hint;
+        }
+    }
+
     match dialect {
         CliDialect::Auto => FrontendSelection::Auto,
         CliDialect::Plantuml => FrontendSelection::Plantuml,
@@ -421,17 +481,31 @@ fn should_extract_markdown(from_markdown_flag: bool, input_path: Option<&Path>) 
         .unwrap_or(false)
 }
 
-fn split_diagrams(raw: &str, from_markdown: bool) -> Result<Vec<InputDiagram>, Diagnostic> {
+fn split_diagrams(
+    raw: &str,
+    from_markdown: bool,
+    markdown_name_prefix: Option<&str>,
+) -> Result<Vec<InputDiagram>, Diagnostic> {
     if from_markdown {
         let diagrams = extract_markdown_diagrams(raw)
             .into_iter()
+            .enumerate()
             .map(
-                |DiagramInput {
-                     source,
-                     span_in_input,
-                 }| InputDiagram {
+                |(
+                    idx,
+                    DiagramInput {
+                        source,
+                        span_in_input,
+                        fence_frontend,
+                    },
+                )| InputDiagram {
                     source,
                     source_span: Some(span_in_input),
+                    frontend_hint: Some(fence_frontend),
+                    output_name_hint: Some(match markdown_name_prefix {
+                        Some(prefix) => format!("{prefix}_snippet_{}", idx + 1),
+                        None => format!("snippet-{}", idx + 1),
+                    }),
                 },
             )
             .collect::<Vec<_>>();
@@ -476,6 +550,8 @@ fn split_diagrams(raw: &str, from_markdown: bool) -> Result<Vec<InputDiagram>, D
                 blocks.push(InputDiagram {
                     source: current.join("\n").trim().to_string(),
                     source_span: None,
+                    frontend_hint: None,
+                    output_name_hint: None,
                 });
                 current.clear();
                 in_block = false;
@@ -495,6 +571,8 @@ fn split_diagrams(raw: &str, from_markdown: bool) -> Result<Vec<InputDiagram>, D
     Ok(vec![InputDiagram {
         source: trimmed.to_string(),
         source_span: None,
+        frontend_hint: None,
+        output_name_hint: None,
     }])
 }
 
@@ -528,6 +606,29 @@ fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {
         )
     })?;
     Ok(input.with_file_name(format!("{stem}.svg")))
+}
+
+fn write_markdown_output_files(
+    input: &Path,
+    outputs: &[RenderedOutput],
+) -> Result<(), (u8, String)> {
+    let parent = input.parent().unwrap_or_else(|| Path::new("."));
+    for (idx, out) in outputs.iter().enumerate() {
+        let name = out.name_hint.as_ref().ok_or_else(|| {
+            (
+                EXIT_INTERNAL,
+                format!("missing markdown output name for diagram {}", idx + 1),
+            )
+        })?;
+        let path = parent.join(name);
+        fs::write(&path, &out.svg).map_err(|e| {
+            (
+                EXIT_IO,
+                format!("failed to write '{}': {e}", path.display()),
+            )
+        })?;
+    }
+    Ok(())
 }
 
 fn write_output_files(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> {

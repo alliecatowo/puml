@@ -1112,7 +1112,46 @@ fn from_markdown_extracts_fenced_blocks_in_source_order() {
 }
 
 #[test]
-fn from_markdown_supports_sequence_fence_aliases() {
+fn from_markdown_supports_first_class_fence_frontends_and_aliases() {
+    let input = fs::read_to_string(fixture("markdown/mixed_fences.md")).unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array");
+    let labels = arr
+        .iter()
+        .map(|doc| {
+            doc["statements"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        vec![
+            "puml-one",
+            "pumlx-two",
+            "picouml-three",
+            "plantuml-four",
+            "mermaid-five",
+        ]
+    );
+}
+
+#[test]
+fn from_markdown_supports_legacy_sequence_fence_aliases() {
     let input = "```puml-sequence
 @startuml
 Alice -> Bob: one
@@ -1177,6 +1216,39 @@ fn from_markdown_diagnostics_json_maps_to_markdown_line_column() {
         .as_str()
         .unwrap()
         .contains("E_ARROW_INVALID"));
+}
+
+#[test]
+fn stdin_markdown_multi_fences_require_multi_flag() {
+    let input = fs::read_to_string(fixture("markdown/mixed_fences.md")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "-"])
+        .write_stdin(input)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("rerun with --multi"));
+}
+
+#[test]
+fn stdin_markdown_multi_outputs_snippet_named_json() {
+    let input = fs::read_to_string(fixture("markdown/multipage_mixed.md")).unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array output");
+    assert_eq!(arr.len(), 3);
+    assert_eq!(arr[0]["name"], "snippet-1-1.svg");
+    assert_eq!(arr[1]["name"], "snippet-1-2.svg");
+    assert_eq!(arr[2]["name"], "snippet-2.svg");
 }
 
 #[test]
@@ -1792,6 +1864,26 @@ fn markdown_file_auto_extracts_fenced_diagrams_without_flag() {
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn markdown_file_default_render_output_uses_deterministic_snippet_names() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let input = dir.path().join("mixed.md");
+    fs::copy(fixture("markdown/multipage_mixed.md"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg(input.to_str().unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    assert!(dir.path().join("mixed_snippet_1-1.svg").exists());
+    assert!(dir.path().join("mixed_snippet_1-2.svg").exists());
+    assert!(dir.path().join("mixed_snippet_2.svg").exists());
+    assert!(!dir.path().join("mixed-1.svg").exists());
+    assert!(!dir.path().join("mixed-2.svg").exists());
 }
 
 #[test]

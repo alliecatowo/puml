@@ -4,7 +4,10 @@ use puml::model::{
 };
 use puml::scene::LayoutOptions;
 use puml::theme::SequenceStyle;
-use puml::{layout, render};
+use puml::{
+    extract_markdown_diagrams, layout, parse_with_pipeline_options, render, FrontendSelection,
+    ParsePipelineOptions,
+};
 use std::collections::HashSet;
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
@@ -102,6 +105,48 @@ fn render_source_to_svg_rejects_multipage_sources() {
     let src = "@startuml\nA -> B\nnewpage\nB -> A\n@enduml\n";
     let err = puml::render_source_to_svg(src).expect_err("expected multipage error");
     assert!(err.message.contains("multiple pages detected"));
+}
+
+#[test]
+fn markdown_fence_frontend_hints_route_mixed_fence_rendering_deterministically() {
+    let src = fixture("markdown/mixed_fences.md");
+    let diagrams = extract_markdown_diagrams(&src);
+    assert_eq!(diagrams.len(), 5);
+    assert_eq!(diagrams[0].fence_frontend, FrontendSelection::Auto);
+    assert_eq!(diagrams[1].fence_frontend, FrontendSelection::Auto);
+    assert_eq!(diagrams[2].fence_frontend, FrontendSelection::Auto);
+    assert_eq!(diagrams[3].fence_frontend, FrontendSelection::Auto);
+    assert_eq!(diagrams[4].fence_frontend, FrontendSelection::Mermaid);
+
+    let mut labels = Vec::new();
+    for diagram in diagrams {
+        let options = ParsePipelineOptions {
+            frontend: diagram.fence_frontend,
+            ..ParsePipelineOptions::default()
+        };
+        let document = parse_with_pipeline_options(&diagram.source, &options).expect("parse");
+        let model = puml::normalize(document).expect("normalize");
+        let message = model
+            .events
+            .iter()
+            .find_map(|event| match &event.kind {
+                SequenceEventKind::Message { label, .. } => label.clone(),
+                _ => None,
+            })
+            .expect("message label");
+        labels.push(message);
+    }
+
+    assert_eq!(
+        labels,
+        vec![
+            "puml-one",
+            "pumlx-two",
+            "picouml-three",
+            "plantuml-four",
+            "mermaid-five",
+        ]
+    );
 }
 
 #[test]

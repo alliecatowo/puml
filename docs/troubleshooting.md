@@ -70,7 +70,8 @@ Symptoms:
 - diagram-like lines in markdown are ignored.
 
 Cause:
-- `--from-markdown` only reads fenced code blocks tagged as diagram fences (for example ` ```puml `).
+- `--from-markdown` only reads fenced code blocks tagged as supported diagram fences:
+  `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`.
 - all non-fence markdown content is intentionally ignored.
 
 Fix:

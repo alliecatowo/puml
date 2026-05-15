@@ -1,0 +1,25 @@
+@startuml
+skinparam ArrowColor #aa0000
+skinparam SequenceLifeLineBorderColor #008800
+skinparam ParticipantBackgroundColor #eef6ff
+skinparam ParticipantBorderColor #225588
+skinparam NoteBackgroundColor #fff8cc
+skinparam NoteBorderColor #aa8800
+skinparam GroupBackgroundColor #f7f7f7
+skinparam GroupBorderColor #444444
+skinparam maxmessagesize 24
+
+participant API
+participant Worker
+
+API -> Worker : enqueue long payload text that wraps deterministically
+alt success
+  Worker --> API : 202 Accepted
+else failure
+  note right of Worker
+    validation failed
+    retry later
+  end note
+  Worker --> API : 400 Bad Request
+end
+@enduml

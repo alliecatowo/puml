@@ -22,3 +22,10 @@ printf '{"tool":"puml_check","params":{"text":"@startuml\\nA->B: hi\\n@enduml"}}
 ```bash
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | agent-pack/bin/puml-mcp
 ```
+
+## Codex/Claude Harness Runbook
+```bash
+./scripts/harness-check.sh --dry
+./scripts/harness-check.sh --quick
+./scripts/harness-check.sh
+```
