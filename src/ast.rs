@@ -12,6 +12,11 @@ pub enum DiagramKind {
     Class,
     Object,
     UseCase,
+    Component,
+    Deployment,
+    State,
+    Activity,
+    Timing,
     Unknown,
 }
 

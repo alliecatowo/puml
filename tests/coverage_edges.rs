@@ -127,7 +127,151 @@ fn normalize_family_rejects_unsupported_state_family() {
         .expect("fixture should load");
     let doc = parse(&src).expect("parse should succeed");
     let err = normalize_family(doc).expect_err("state family should be unsupported");
+    assert!(err.message.contains("E_FAMILY_STATE_UNSUPPORTED"));
+}
+
+#[test]
+fn normalize_family_rejects_unknown_family_with_deterministic_code() {
+    let src = "@startuml\nthis is not supported\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize_family(doc).expect_err("unknown family should be rejected");
     assert!(err.message.contains("E_FAMILY_UNKNOWN"));
+}
+
+#[test]
+fn parser_tags_all_wave1_non_sequence_families_deterministically() {
+    let cases = [
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\ninterface Gateway\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nport Ingress\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nnode web\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nartifact app\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\ncloud edge\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nframe rack\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nstorage db\n@enduml\n",
+            puml::ast::DiagramKind::Deployment,
+        ),
+        (
+            "@startuml\nstate Running\n@enduml\n",
+            puml::ast::DiagramKind::State,
+        ),
+        ("@startuml\n[H]\n@enduml\n", puml::ast::DiagramKind::State),
+        (
+            "@startuml\nstart\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\npartition lane\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\nfork\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\nclock clk\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+        (
+            "@startuml\nbinary sig\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+        (
+            "@startuml\nscale 1 as 1\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+    ];
+
+    for (src, expected_kind) in cases {
+        let doc = parse(src).expect("parse should succeed");
+        assert_eq!(doc.kind, expected_kind);
+    }
+}
+
+#[test]
+fn parser_tags_additional_wave1_family_alias_tokens() {
+    let cases = [
+        (
+            "@startuml\nportin ingress\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nportout egress\n@enduml\n",
+            puml::ast::DiagramKind::Component,
+        ),
+        (
+            "@startuml\nswimlane laneA\n@enduml\n",
+            puml::ast::DiagramKind::Activity,
+        ),
+        (
+            "@startuml\nconcise t\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+        (
+            "@startuml\nrobust t\n@enduml\n",
+            puml::ast::DiagramKind::Timing,
+        ),
+        ("@startuml\n@1\n@enduml\n", puml::ast::DiagramKind::Timing),
+    ];
+
+    for (src, expected_kind) in cases {
+        let doc = parse(src).expect("parse should succeed");
+        assert_eq!(doc.kind, expected_kind);
+    }
+}
+
+#[test]
+fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes() {
+    let cases = [
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            "E_FAMILY_COMPONENT_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nnode web\n@enduml\n",
+            "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nstate Running\n@enduml\n",
+            "E_FAMILY_STATE_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nstart\n:step;\nstop\n@enduml\n",
+            "E_FAMILY_ACTIVITY_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nclock clk\n@enduml\n",
+            "E_FAMILY_TIMING_UNSUPPORTED",
+        ),
+    ];
+
+    for (src, code) in cases {
+        let doc = parse(src).expect("parse should succeed");
+        let err = normalize_family(doc).expect_err("family should be unsupported in this slice");
+        assert!(err.message.contains(code), "missing code {code}");
+    }
 }
 
 #[test]
@@ -145,6 +289,105 @@ fn normalize_family_rejects_mixed_bootstrap_declaration_kinds() {
 
     let err = normalize_family(doc).expect_err("mixed family declarations should fail");
     assert!(err.message.contains("E_FAMILY_MIXED"));
+}
+
+#[test]
+fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Title("Family Title".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Header("Family Header".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Footer("Family Footer".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Caption("Family Caption".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Legend("Family Legend".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::SkinParam {
+                    key: "ArrowColor".to_string(),
+                    value: "red".to_string(),
+                },
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Theme("plain".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Include("shared.puml".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Define {
+                    name: "X".to_string(),
+                    value: Some("1".to_string()),
+                },
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::Undef("X".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
+                    name: "User".to_string(),
+                    alias: Some("U".to_string()),
+                }),
+            },
+            puml::ast::Statement {
+                span: Span { start: 0, end: 0 },
+                kind: puml::ast::StatementKind::FamilyRelation(puml::ast::FamilyRelation {
+                    from: "User".to_string(),
+                    to: "U".to_string(),
+                    arrow: "-->".to_string(),
+                    label: Some("owns".to_string()),
+                }),
+            },
+        ],
+    };
+
+    let normalized = normalize_family(doc).expect("stub family normalize should succeed");
+    match normalized {
+        NormalizedDocument::Family(model) => {
+            assert_eq!(model.title.as_deref(), Some("Family Title"));
+            assert_eq!(model.header.as_deref(), Some("Family Header"));
+            assert_eq!(model.footer.as_deref(), Some("Family Footer"));
+            assert_eq!(model.caption.as_deref(), Some("Family Caption"));
+            assert_eq!(model.legend.as_deref(), Some("Family Legend"));
+            assert_eq!(model.nodes.len(), 1);
+            assert_eq!(model.relations.len(), 1);
+            assert!(model.warnings.is_empty());
+        }
+        NormalizedDocument::Sequence(_) => panic!("expected family model"),
+    }
+}
+
+#[test]
+fn normalize_family_reports_parse_unknown_inside_stub_slice() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![puml::ast::Statement {
+            span: Span { start: 3, end: 9 },
+            kind: puml::ast::StatementKind::Unknown("class ???".to_string()),
+        }],
+    };
+    let err = normalize_family(doc).expect_err("unknown stub syntax should fail");
+    assert!(err.message.contains("E_PARSE_UNKNOWN"));
 }
 
 #[test]
@@ -569,4 +812,15 @@ fn check_fixture_supports_json_diagnostics_for_warnings() {
         .as_str()
         .unwrap()
         .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
+}
+
+#[test]
+fn unknown_family_render_route_reports_deterministic_error_code() {
+    use puml::DiagramFamily;
+
+    let src = "@startuml\nfoo bar\n@enduml\n";
+    let err = puml::render_source_to_svg_for_family(src, DiagramFamily::Unknown)
+        .expect_err("expected unsupported family diagnostic");
+    assert!(err.message.contains("E_RENDER_FAMILY_UNSUPPORTED"));
+    assert!(!err.message.trim().is_empty());
 }

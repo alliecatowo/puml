@@ -12,7 +12,7 @@ Legend:
 Current `puml` baseline used for parity status:
 - Sequence parsing/rendering is implemented.
 - Class/object/usecase families now have bootstrap parser + model + deterministic stub SVG routing.
-- Non-bootstrap families still return deterministic unsupported-family diagnostics.
+- Non-bootstrap families (`component`, `deployment`, `state`, `activity`, `timing`) return deterministic unsupported-family diagnostics with explicit family codes.
 - Preprocessor support currently focuses on `!include` (local path), `!define`, `!undef`, and deterministic include safety checks.
 
 ## Class Family

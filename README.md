@@ -236,7 +236,8 @@ Artifacts:
 
 | Area | Status | Notes |
 |---|---|---|
-| Sequence diagrams | Supported | Non-sequence families are rejected. |
+| Sequence diagrams | Supported | End-to-end parser/normalize/layout/render path. |
+| Non-sequence family routing (`component`, `deployment`, `state`, `activity`, `timing`) | Stubbed (deterministic) | Parser identifies family and emits family-specific deterministic unsupported diagnostics in normalize/render paths. |
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
 | Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |

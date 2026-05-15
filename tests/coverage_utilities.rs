@@ -3,8 +3,9 @@ use puml::scene::TextOverflowPolicy;
 use puml::source::{Source, Span};
 use puml::theme::Theme;
 use puml::{
-    extract_markdown_diagrams, parse_with_pipeline_options, render_source_to_svg_for_family,
-    CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
+    detect_diagram_family, extract_markdown_diagrams, parse_with_pipeline_options,
+    render_source_to_svg, render_source_to_svg_for_family, CompatMode, DeterminismMode,
+    DiagramFamily, FrontendSelection, ParsePipelineOptions,
 };
 
 #[test]
@@ -117,6 +118,47 @@ fn render_for_mismatched_family_reports_deterministic_error() {
 }
 
 #[test]
+fn render_for_unsupported_families_reports_specific_codes() {
+    let cases = [
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            DiagramFamily::Component,
+            "E_RENDER_COMPONENT_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nnode web\n@enduml\n",
+            DiagramFamily::Deployment,
+            "E_RENDER_DEPLOYMENT_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nstate Running\n@enduml\n",
+            DiagramFamily::State,
+            "E_RENDER_STATE_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nstart\n:work;\nstop\n@enduml\n",
+            DiagramFamily::Activity,
+            "E_RENDER_ACTIVITY_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nclock clk\n@enduml\n",
+            DiagramFamily::Timing,
+            "E_RENDER_TIMING_UNSUPPORTED",
+        ),
+        (
+            "@startuml\nfoo bar\n@enduml\n",
+            DiagramFamily::Unknown,
+            "E_RENDER_FAMILY_UNSUPPORTED",
+        ),
+    ];
+
+    for (src, family, code) in cases {
+        let err = render_source_to_svg_for_family(src, family).expect_err("unsupported family");
+        assert!(err.message.contains(code), "missing code {code}");
+    }
+}
+
+#[test]
 fn extract_markdown_diagrams_supports_tilde_fences_and_ignores_deep_indentation() {
     let src = concat!(
         "    ```puml\n", // 4-space indentation should be ignored as fence opener
@@ -155,4 +197,50 @@ fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
     let unsupported = "sequenceDiagram\nparticipant\n";
     let err = parse_with_pipeline_options(unsupported, &options).unwrap_err();
     assert!(err.message.contains("E_MERMAID_CONSTRUCT_UNSUPPORTED"));
+}
+
+#[test]
+fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
+    let sequence = "@startuml\nA -> B: hi\n@enduml\n";
+    let component = "@startuml\ncomponent API\n@enduml\n";
+
+    assert_eq!(
+        detect_diagram_family(sequence).expect("sequence family"),
+        DiagramFamily::Sequence
+    );
+    assert_eq!(
+        detect_diagram_family(component).expect("component family"),
+        DiagramFamily::Component
+    );
+
+    let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";
+    let err = render_source_to_svg(multipage).expect_err("single-page API should reject multipage");
+    assert!(err
+        .message
+        .contains("multiple pages detected; use render_source_to_svgs or --multi"));
+}
+
+#[test]
+fn picouml_pipeline_selection_fails_deterministically_in_library_api() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let err = parse_with_pipeline_options("@startuml\nA -> B\n@enduml\n", &options)
+        .expect_err("picouml should be unimplemented");
+    assert!(err
+        .message
+        .contains("frontend 'picouml' is not implemented yet"));
+}
+
+#[test]
+fn render_source_to_svg_for_family_rejects_multipage_sequence_input() {
+    let src = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";
+    let err = render_source_to_svg_for_family(src, DiagramFamily::Sequence)
+        .expect_err("single-page family API should reject multipage sequence");
+    assert!(err
+        .message
+        .contains("multiple pages detected; use render_source_to_svgs or --multi"));
 }
