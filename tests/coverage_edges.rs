@@ -624,9 +624,7 @@ fn normalize_rejects_autonumber_with_nontrailing_quoted_format_token() {
     let src = "@startuml\nautonumber \"<b>\" 1\nA -> B\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
     let err = normalize::normalize(doc).expect_err("expected malformed quoted-format diagnostic");
-    assert!(err
-        .message
-        .contains("malformed quoted autonumber format"));
+    assert!(err.message.contains("malformed quoted autonumber format"));
 }
 
 #[test]
