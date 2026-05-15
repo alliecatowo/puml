@@ -88,6 +88,24 @@ $ cargo run -- --check --diagnostics json tests/fixtures/arrows/invalid_malforme
 }
 ```
 
+## Batch lint mode reports no files
+
+Symptoms:
+- `--check --lint-glob ...` exits with "resolved no input files".
+
+Cause:
+- glob patterns are expanded by `puml`, so unmatched patterns yield an empty lint target set.
+
+Fix:
+
+```console
+# quote globs so puml receives the pattern directly
+cargo run -- --check --lint-glob 'docs/**/*.md'
+
+# or pass explicit repeated files
+cargo run -- --check --lint-input docs/guide.md --lint-input docs/reference.md
+```
+
 ## `--from-markdown` seems to ignore content
 
 Symptoms:
