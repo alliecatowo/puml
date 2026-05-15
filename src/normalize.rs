@@ -130,6 +130,15 @@ pub fn normalize_with_options(
                 };
 
                 for (from, to) in directions {
+                    let from_virtual = virtual_endpoint(from.as_str(), true);
+                    let to_virtual = virtual_endpoint(to.as_str(), false);
+                    validate_virtual_endpoint_combination(
+                        stmt.span,
+                        &from,
+                        &to,
+                        from_virtual,
+                        to_virtual,
+                    )?;
                     validate_and_touch_message_lifecycle(
                         stmt.span,
                         &from,
@@ -148,8 +157,8 @@ pub fn normalize_with_options(
                             to: to.clone(),
                             arrow: parsed_arrow.render_arrow.clone(),
                             label: m.label.clone(),
-                            from_virtual: virtual_endpoint(from.as_str(), true),
-                            to_virtual: virtual_endpoint(to.as_str(), false),
+                            from_virtual,
+                            to_virtual,
                         },
                     });
                 }
@@ -682,6 +691,23 @@ fn virtual_endpoint(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
         _ => return None,
     };
     Some(VirtualEndpoint { side, kind })
+}
+
+fn validate_virtual_endpoint_combination(
+    span: crate::source::Span,
+    from: &str,
+    to: &str,
+    from_virtual: Option<VirtualEndpoint>,
+    to_virtual: Option<VirtualEndpoint>,
+) -> Result<(), Diagnostic> {
+    if from_virtual.is_some() && to_virtual.is_some() {
+        return Err(Diagnostic::error(format!(
+            "[E_ENDPOINT_COMBINATION] virtual endpoint messages must include at least one concrete participant: `{}` -> `{}`",
+            from, to
+        ))
+        .with_span(span));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
