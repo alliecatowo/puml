@@ -1,0 +1,71 @@
+name: PR Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: fmt-clippy-test-coverage-quick
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      RUST_BACKTRACE: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: fmt gate
+        run: cargo fmt --check
+
+      - name: clippy gate
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: test gate
+        run: cargo test
+
+      - name: coverage gate
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp)\.rs'
+
+      - name: quick gate
+        run: ./scripts/check-all.sh --quick
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-benchmarks-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            docs/benchmarks/latest.md
+            docs/benchmarks/latest.csv
+            docs/benchmarks/latest.json
+            docs/benchmarks/latest_trend.md
+            docs/benchmarks/latest_trend.json

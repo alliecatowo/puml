@@ -11,6 +11,14 @@
 - [ ] Run quick gate once for local perf sanity: `./scripts/check-all.sh --quick`.
 - [ ] If benchmark gates fail, inspect `docs/benchmarks/latest_trend.{md,json}` and either optimize or document/approve baseline movement before rerun.
 
+## CI/CD Gates
+
+- [ ] PR gate workflow is green for the release PR: `.github/workflows/pr-gate.yml`.
+- [ ] Main gate workflow is green on the merge commit: `.github/workflows/main-gate.yml`.
+- [ ] Uploaded Actions artifacts include benchmark evidence files:
+  `latest.{md,csv,json}` and `latest_trend.{md,json}`.
+- [ ] Branch protection/ruleset requires PR gate checks before merge to `main`.
+
 ## Benchmark / Perf / Size Contract
 
 - [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>20ms`, binary size `<=2,000,000` bytes).
@@ -63,4 +71,4 @@
 
 - [ ] Changelog/release notes prepared.
 - [ ] Tag/versioning workflow confirmed.
-- [ ] Final PR merged with green gate.
+- [ ] Final PR merged with green gate (PR gate + main gate).
