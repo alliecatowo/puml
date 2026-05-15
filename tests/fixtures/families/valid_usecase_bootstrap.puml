@@ -1,0 +1,5 @@
+@startuml
+usecase Authenticate as UC1
+usecase Authorize
+UC1 --> Authorize : includes
+@enduml

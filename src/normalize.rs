@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
-    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
+    NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
+    SequenceEventKind, SequencePage, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::theme::{
     classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
@@ -17,6 +18,146 @@ pub struct NormalizeOptions {
 
 pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
     normalize_with_options(document, &NormalizeOptions::default())
+}
+
+pub fn normalize_family(document: Document) -> Result<NormalizedDocument, Diagnostic> {
+    normalize_family_with_options(document, &NormalizeOptions::default())
+}
+
+pub fn normalize_family_with_options(
+    document: Document,
+    options: &NormalizeOptions,
+) -> Result<NormalizedDocument, Diagnostic> {
+    match document.kind {
+        DiagramKind::Sequence => normalize_with_options(document, options).map(NormalizedDocument::Sequence),
+        DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
+            normalize_stub_family(document).map(NormalizedDocument::Family)
+        }
+        DiagramKind::Unknown => Err(Diagnostic::error(
+            "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase syntax",
+        )),
+    }
+}
+
+fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
+    let family_kind = document.kind;
+    let node_kind = match family_kind {
+        DiagramKind::Class => FamilyNodeKind::Class,
+        DiagramKind::Object => FamilyNodeKind::Object,
+        DiagramKind::UseCase => FamilyNodeKind::UseCase,
+        _ => {
+            return Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] invalid family for stub normalization",
+            ));
+        }
+    };
+
+    let mut nodes = Vec::new();
+    let mut relations = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::ClassDecl(decl) => {
+                if node_kind != FamilyNodeKind::Class {
+                    return Err(Diagnostic::error(format!(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported: found class declaration in {} diagram",
+                        family_kind_name(family_kind)
+                    ))
+                    .with_span(stmt.span));
+                }
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::Class,
+                    name: decl.name,
+                    alias: decl.alias,
+                });
+            }
+            StatementKind::ObjectDecl(decl) => {
+                if node_kind != FamilyNodeKind::Object {
+                    return Err(Diagnostic::error(format!(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported: found object declaration in {} diagram",
+                        family_kind_name(family_kind)
+                    ))
+                    .with_span(stmt.span));
+                }
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::Object,
+                    name: decl.name,
+                    alias: decl.alias,
+                });
+            }
+            StatementKind::UseCaseDecl(decl) => {
+                if node_kind != FamilyNodeKind::UseCase {
+                    return Err(Diagnostic::error(format!(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported: found usecase declaration in {} diagram",
+                        family_kind_name(family_kind)
+                    ))
+                    .with_span(stmt.span));
+                }
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::UseCase,
+                    name: decl.name,
+                    alias: decl.alias,
+                });
+            }
+            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
+                from: rel.from,
+                to: rel.to,
+                arrow: rel.arrow,
+                label: rel.label,
+            }),
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_) => {}
+            StatementKind::Unknown(line) => {
+                return Err(Diagnostic::error(format!(
+                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_STUB_UNSUPPORTED] unsupported {} syntax in bootstrap slice",
+                    family_kind_name(family_kind)
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    Ok(FamilyDocument {
+        kind: family_kind,
+        nodes,
+        relations,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        warnings: Vec::new(),
+    })
+}
+
+fn family_kind_name(kind: DiagramKind) -> &'static str {
+    match kind {
+        DiagramKind::Sequence => "sequence",
+        DiagramKind::Class => "class",
+        DiagramKind::Object => "object",
+        DiagramKind::UseCase => "usecase",
+        DiagramKind::Unknown => "unknown",
+    }
 }
 
 pub fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {
@@ -500,6 +641,15 @@ pub fn normalize_with_options(
             }
             StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
+            }
+            StatementKind::ClassDecl(_)
+            | StatementKind::ObjectDecl(_)
+            | StatementKind::UseCaseDecl(_)
+            | StatementKind::FamilyRelation(_) => {
+                return Err(Diagnostic::error(
+                    "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
+                )
+                .with_span(stmt.span));
             }
             StatementKind::Unknown(line) => {
                 if line.trim() == "---" {

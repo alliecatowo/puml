@@ -18,8 +18,8 @@ use puml::model::{
 use puml::scene::LayoutOptions;
 use puml::source::Span;
 use puml::{
-    extract_markdown_diagrams, normalize, render, CompatMode, DeterminismMode, Diagnostic,
-    DiagnosticJson, DiagramInput, FrontendSelection, ParsePipelineOptions,
+    extract_markdown_diagrams, normalize_family, render, CompatMode, DeterminismMode, Diagnostic,
+    DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument, ParsePipelineOptions,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -187,8 +187,9 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             None,
         )
         .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
-        let model = normalize(doc).map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
-        emit_warnings(&model, &src, None, cli.diagnostics);
+        let model =
+            normalize_family(doc).map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
+        emit_warnings_for_model(&model, &src, None, cli.diagnostics);
         return Ok(());
     }
 
@@ -239,9 +240,9 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                 source.frontend_hint,
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-            let model = normalize(doc)
+            let model = normalize_family(doc)
                 .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-            emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
+            emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
         }
         return Ok(());
     }
@@ -272,11 +273,11 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         source.frontend_hint,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-                    let model = normalize(doc).map_err(|d| {
+                    let model = normalize_family(doc).map_err(|d| {
                         diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
                     })?;
-                    emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
-                    Ok(model_to_json(&model))
+                    emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+                    Ok(normalized_model_to_json(&model))
                 }
                 DumpKind::Scene => {
                     let doc = parse_for_cli(
@@ -288,11 +289,11 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         source.frontend_hint,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-                    let model = normalize(doc).map_err(|d| {
+                    let model = normalize_family(doc).map_err(|d| {
                         diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
                     })?;
-                    emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
-                    Ok(scene_to_json(&model))
+                    emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+                    Ok(normalized_scene_to_json(&model))
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -327,11 +328,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             source.frontend_hint,
         )
         .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-        let model = normalize(doc)
+        let model = normalize_family(doc)
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-        emit_warnings(&model, &raw, source.source_span, cli.diagnostics);
-        let scenes = layout::layout_pages(&model, LayoutOptions::default());
-        let pages = scenes.iter().map(render::render_svg).collect::<Vec<_>>();
+        emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+        let pages = render_pages_from_model(&model);
         let page_count = pages.len();
         for (page_idx, svg) in pages.into_iter().enumerate() {
             let name_hint = source.output_name_hint.as_ref().map(|base| {
@@ -519,7 +519,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 }
             };
 
-            let model = match normalize(doc) {
+            let model = match normalize_family(doc) {
                 Ok(model) => model,
                 Err(d) => {
                     acc.errors += 1;
@@ -535,13 +535,13 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 }
             };
 
-            acc.warnings += model.warnings.len();
+            acc.warnings += normalized_warnings(&model).len();
             match cli.diagnostics {
                 DiagnosticsFormat::Human => {
-                    emit_warnings(&model, &raw, source.source_span, cli.diagnostics)
+                    emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics)
                 }
                 DiagnosticsFormat::Json => {
-                    for warning in &model.warnings {
+                    for warning in normalized_warnings(&model) {
                         let warning = map_diagnostic_span(warning.clone(), source.source_span);
                         let mut json = warning.to_json_with_source(&raw);
                         json.file = Some(path_display.clone());
@@ -743,13 +743,13 @@ fn diag_err_mapped(
     diag_err_with_source(raw_source, mapped, fmt)
 }
 
-fn emit_warnings(
-    model: &SequenceDocument,
+fn emit_warnings_for_model(
+    model: &NormalizedDocument,
     source: &str,
     mapping: Option<Span>,
     fmt: DiagnosticsFormat,
 ) {
-    for warning in &model.warnings {
+    for warning in normalized_warnings(model) {
         let warning = map_diagnostic_span(warning.clone(), mapping);
         match fmt {
             DiagnosticsFormat::Human => eprintln!("{}", warning.render_with_source(source)),
@@ -757,6 +757,23 @@ fn emit_warnings(
                 eprintln!("{}", diagnostics_json_payload(vec![warning], source));
             }
         }
+    }
+}
+
+fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
+    match model {
+        NormalizedDocument::Sequence(sequence) => &sequence.warnings,
+        NormalizedDocument::Family(family) => &family.warnings,
+    }
+}
+
+fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
+    match model {
+        NormalizedDocument::Sequence(sequence) => {
+            let scenes = layout::layout_pages(sequence, LayoutOptions::default());
+            scenes.iter().map(render::render_svg).collect::<Vec<_>>()
+        }
+        NormalizedDocument::Family(family) => vec![render::render_family_stub_svg(family)],
     }
 }
 
@@ -1163,7 +1180,13 @@ fn transactional_write_fail_after() -> Option<usize> {
 
 fn ast_to_json(doc: &Document) -> Value {
     json!({
-        "kind": match doc.kind { DiagramKind::Sequence => "Sequence", DiagramKind::Unknown => "Unknown" },
+        "kind": match doc.kind {
+            DiagramKind::Sequence => "Sequence",
+            DiagramKind::Class => "Class",
+            DiagramKind::Object => "Object",
+            DiagramKind::UseCase => "UseCase",
+            DiagramKind::Unknown => "Unknown",
+        },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
     })
 }
@@ -1179,6 +1202,18 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
     match kind {
         StatementKind::Participant(p) => json!({"Participant": participant_decl_to_json(p)}),
         StatementKind::Message(m) => json!({"Message": message_to_json(m)}),
+        StatementKind::ClassDecl(v) => {
+            json!({"ClassDecl": {"name": v.name, "alias": v.alias}})
+        }
+        StatementKind::ObjectDecl(v) => {
+            json!({"ObjectDecl": {"name": v.name, "alias": v.alias}})
+        }
+        StatementKind::UseCaseDecl(v) => {
+            json!({"UseCaseDecl": {"name": v.name, "alias": v.alias}})
+        }
+        StatementKind::FamilyRelation(v) => {
+            json!({"FamilyRelation": {"from": v.from, "to": v.to, "arrow": v.arrow, "label": v.label}})
+        }
         StatementKind::Note(n) => json!({"Note": note_to_json(n)}),
         StatementKind::Group(g) => json!({"Group": group_to_json(g)}),
         StatementKind::Title(v) => json!({"Title": v}),
@@ -1273,6 +1308,13 @@ fn ast_role_to_str(role: AstParticipantRole) -> &'static str {
     }
 }
 
+fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
+    match model {
+        NormalizedDocument::Sequence(sequence) => model_to_json(sequence),
+        NormalizedDocument::Family(family) => family_model_to_json(family),
+    }
+}
+
 fn model_to_json(model: &SequenceDocument) -> Value {
     json!({
         "participants": model.participants.iter().map(model_participant_to_json).collect::<Vec<_>>(),
@@ -1284,6 +1326,51 @@ fn model_to_json(model: &SequenceDocument) -> Value {
         "legend": model.legend,
         "skinparams": model.skinparams,
         "footbox_visible": model.footbox_visible
+    })
+}
+
+fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
+    json!({
+        "kind": match model.kind {
+            DiagramKind::Class => "Class",
+            DiagramKind::Object => "Object",
+            DiagramKind::UseCase => "UseCase",
+            DiagramKind::Sequence => "Sequence",
+            DiagramKind::Unknown => "Unknown",
+        },
+        "nodes": model
+            .nodes
+            .iter()
+            .map(|n| {
+                json!({
+                    "kind": match n.kind {
+                        puml::model::FamilyNodeKind::Class => "Class",
+                        puml::model::FamilyNodeKind::Object => "Object",
+                        puml::model::FamilyNodeKind::UseCase => "UseCase",
+                    },
+                    "name": n.name,
+                    "alias": n.alias
+                })
+            })
+            .collect::<Vec<_>>(),
+        "relations": model
+            .relations
+            .iter()
+            .map(|r| {
+                json!({
+                    "from": r.from,
+                    "to": r.to,
+                    "arrow": r.arrow,
+                    "label": r.label
+                })
+            })
+            .collect::<Vec<_>>(),
+        "title": model.title,
+        "header": model.header,
+        "footer": model.footer,
+        "caption": model.caption,
+        "legend": model.legend,
+        "warnings": model.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
     })
 }
 
@@ -1418,4 +1505,51 @@ fn scene_to_json(model: &SequenceDocument) -> Value {
         rows,
     };
     serde_json::to_value(scene).unwrap_or_else(|_| json!({"error": "scene serialization failed"}))
+}
+
+fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
+    match model {
+        NormalizedDocument::Sequence(sequence) => scene_to_json(sequence),
+        NormalizedDocument::Family(family) => {
+            let svg = render::render_family_stub_svg(family);
+            json!({
+                "kind": "FamilyStub",
+                "family": match family.kind {
+                    DiagramKind::Class => "Class",
+                    DiagramKind::Object => "Object",
+                    DiagramKind::UseCase => "UseCase",
+                    DiagramKind::Sequence => "Sequence",
+                    DiagramKind::Unknown => "Unknown",
+                },
+                "nodes": family
+                    .nodes
+                    .iter()
+                    .map(|n| {
+                        json!({
+                            "kind": match n.kind {
+                                puml::model::FamilyNodeKind::Class => "Class",
+                                puml::model::FamilyNodeKind::Object => "Object",
+                                puml::model::FamilyNodeKind::UseCase => "UseCase",
+                            },
+                            "name": n.name,
+                            "alias": n.alias
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+                "relations": family
+                    .relations
+                    .iter()
+                    .map(|r| {
+                        json!({
+                            "from": r.from,
+                            "to": r.to,
+                            "arrow": r.arrow,
+                            "label": r.label
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+                "svg_preview": svg
+            })
+        }
+    }
 }

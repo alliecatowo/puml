@@ -326,7 +326,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_include_only.puml",
         "errors/invalid_define_only.puml",
         "errors/invalid_undef_only.puml",
-        "non_sequence/invalid_class_diagram.puml",
         "non_sequence/invalid_state_diagram.puml",
         "include/error_include_cycle_self.puml",
         "include/error_include_chain_a.puml",
@@ -1638,21 +1637,76 @@ fn lifecycle_after_destroy_is_rejected() {
 }
 
 #[test]
-fn non_sequence_inputs_fail_validation() {
+fn unsupported_state_inputs_fail_validation() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("non_sequence/invalid_state_diagram.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_FAMILY_UNKNOWN"));
+}
+
+#[test]
+fn class_object_usecase_bootstrap_inputs_pass_check() {
     for case in [
-        "non_sequence/invalid_class_diagram.puml",
-        "non_sequence/invalid_state_diagram.puml",
+        "families/valid_class_bootstrap.puml",
+        "families/valid_object_bootstrap.puml",
+        "families/valid_usecase_bootstrap.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
             .args(["--check", &fixture(case)])
             .assert()
-            .code(1)
-            .stderr(
-                predicate::str::contains("puml currently renders sequence diagrams only").or(
-                    predicate::str::contains("[E_ARROW_INVALID] malformed sequence arrow syntax"),
-                ),
-            );
+            .success()
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
+fn class_object_usecase_bootstrap_render_stubs_are_deterministic() {
+    for (case, marker) in [
+        (
+            "families/valid_class_bootstrap.puml",
+            "Bootstrap stub for class diagrams",
+        ),
+        (
+            "families/valid_object_bootstrap.puml",
+            "Bootstrap stub for object diagrams",
+        ),
+        (
+            "families/valid_usecase_bootstrap.puml",
+            "Bootstrap stub for usecase diagrams",
+        ),
+    ] {
+        let src = fs::read_to_string(fixture(case)).unwrap();
+        let first = Command::cargo_bin("puml")
+            .expect("binary")
+            .arg("-")
+            .write_stdin(src.clone())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let second = Command::cargo_bin("puml")
+            .expect("binary")
+            .arg("-")
+            .write_stdin(src)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        assert_eq!(
+            first, second,
+            "stub output should be deterministic for {case}"
+        );
+        let svg = String::from_utf8(first).unwrap();
+        assert!(svg.contains(marker), "missing family marker for {case}");
     }
 }
 

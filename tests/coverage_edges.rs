@@ -11,7 +11,7 @@ use puml::source::Span;
 use puml::theme::{
     classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
 };
-use puml::{parse, render};
+use puml::{normalize_family, parse, render, NormalizedDocument};
 use std::fs;
 use tempfile::tempdir;
 
@@ -97,6 +97,37 @@ fn normalize_reports_destroy_active_for_shortcut() {
     let doc = parse(src).expect("parse should succeed");
     let err = normalize::normalize(doc).expect_err("expected lifecycle error");
     assert!(err.message.contains("E_LIFECYCLE_DESTROY_ACTIVE"));
+}
+
+#[test]
+fn normalize_family_routes_bootstrap_families_to_stub_model() {
+    for case in [
+        "families/valid_class_bootstrap.puml",
+        "families/valid_object_bootstrap.puml",
+        "families/valid_usecase_bootstrap.puml",
+    ] {
+        let src = fs::read_to_string(fixture(case)).expect("fixture should load");
+        let doc = parse(&src).expect("parse should succeed");
+        let normalized = normalize_family(doc).expect("family normalize should succeed");
+        match normalized {
+            NormalizedDocument::Family(model) => {
+                assert!(!model.nodes.is_empty(), "expected nodes for {case}");
+                assert!(!model.relations.is_empty(), "expected relations for {case}");
+            }
+            NormalizedDocument::Sequence(_) => {
+                panic!("expected family stub model for {case}");
+            }
+        }
+    }
+}
+
+#[test]
+fn normalize_family_rejects_unsupported_state_family() {
+    let src = fs::read_to_string(fixture("non_sequence/invalid_state_diagram.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let err = normalize_family(doc).expect_err("state family should be unsupported");
+    assert!(err.message.contains("E_FAMILY_UNKNOWN"));
 }
 
 #[test]

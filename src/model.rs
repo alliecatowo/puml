@@ -1,6 +1,48 @@
+use crate::ast::DiagramKind;
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 use crate::theme::SequenceStyle;
+
+#[derive(Debug, Clone)]
+pub enum NormalizedDocument {
+    Sequence(SequenceDocument),
+    Family(FamilyDocument),
+}
+
+#[derive(Debug, Clone)]
+pub struct FamilyDocument {
+    pub kind: DiagramKind,
+    pub nodes: Vec<FamilyNode>,
+    pub relations: Vec<FamilyRelation>,
+    pub title: Option<String>,
+    pub header: Option<String>,
+    pub footer: Option<String>,
+    pub caption: Option<String>,
+    pub legend: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FamilyNode {
+    pub kind: FamilyNodeKind,
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FamilyNodeKind {
+    Class,
+    Object,
+    UseCase,
+}
+
+#[derive(Debug, Clone)]
+pub struct FamilyRelation {
+    pub from: String,
+    pub to: String,
+    pub arrow: String,
+    pub label: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct SequenceDocument {

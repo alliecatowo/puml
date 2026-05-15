@@ -11,16 +11,17 @@ Legend:
 
 Current `puml` baseline used for parity status:
 - Sequence parsing/rendering is implemented.
-- Non-sequence family routing returns deterministic unsupported-family diagnostics.
+- Class/object/usecase families now have bootstrap parser + model + deterministic stub SVG routing.
+- Non-bootstrap families still return deterministic unsupported-family diagnostics.
 - Preprocessor support currently focuses on `!include` (local path), `!define`, `!undef`, and deterministic include safety checks.
 
 ## Class Family
 
 | Feature | PlantUML surface | `puml` status | Notes | Source |
 |---|---|---|---|---|
-| Declarative element forms | Class-like declarations (`class`, `interface`, `enum`, etc.) | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
-| Relationship syntaxes | Inheritance, implementation, composition, aggregation, dependency links | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
-| Relation labels and cardinality | Labeled links, cardinalities, directional labels | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
+| Declarative element forms | Class-like declarations (`class`, `interface`, `enum`, etc.) | partial | Bootstrap supports `class` declarations/aliases only. | https://plantuml.com/class-diagram |
+| Relationship syntaxes | Inheritance, implementation, composition, aggregation, dependency links | partial | Bootstrap captures generic arrow relations; no semantic relation typing yet. | https://plantuml.com/class-diagram |
+| Relation labels and cardinality | Labeled links, cardinalities, directional labels | partial | Simple `: label` relation text is preserved; cardinality semantics are absent. | https://plantuml.com/class-diagram |
 | Attributes/methods | Fields, methods, grouped class bodies | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
 | Visibility markers | `+ - # ~` visibility and class visibility controls | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
 | Abstract/static/interface semantics | Abstract/static members, interfaces, abstract classes | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
@@ -33,9 +34,9 @@ Current `puml` baseline used for parity status:
 
 | Feature | PlantUML surface | `puml` status | Notes | Source |
 |---|---|---|---|---|
-| Object declarations | Object instances and aliases | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
-| Object relations | Links between object instances | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
-| Object associations | Association-style object links | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
+| Object declarations | Object instances and aliases | partial | Bootstrap supports `object` declarations/aliases. | https://plantuml.com/object-diagram |
+| Object relations | Links between object instances | partial | Bootstrap captures generic object relation arrows and labels. | https://plantuml.com/object-diagram |
+| Object associations | Association-style object links | partial | Association-like arrows are captured as generic relations only. | https://plantuml.com/object-diagram |
 | Object fields | Adding attributes/fields to objects | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
 | Map/associative-array syntax | Map table support in object diagrams | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
 | PERT via map | PERT-style map usage in object surface | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
@@ -45,11 +46,11 @@ Current `puml` baseline used for parity status:
 
 | Feature | PlantUML surface | `puml` status | Notes | Source |
 |---|---|---|---|---|
-| Actor/usecase declarations | Actor and use case declarations | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
+| Actor/usecase declarations | Actor and use case declarations | partial | Bootstrap supports `usecase` declarations/aliases (actor forms still missing). | https://plantuml.com/use-case-diagram |
 | Actor styles | Actor visual style variants | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
 | Usecase descriptions | Use case text/description forms | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
 | Packaging | Use case packages/boundaries | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
-| Relation semantics | Include/extend/generalization link patterns | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
+| Relation semantics | Include/extend/generalization link patterns | partial | Bootstrap preserves generic relation arrows/labels without semantic include/extend handling. | https://plantuml.com/use-case-diagram |
 | Notes/stereotypes | Notes and stereotype styling | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
 | Arrow direction controls | Directional control of relation arrows | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
 | Split diagrams | Splitting usecase diagrams across pages | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |

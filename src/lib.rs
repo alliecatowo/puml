@@ -11,7 +11,7 @@ pub mod theme;
 
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
-pub use model::{SequenceDocument, SequencePage};
+pub use model::{FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage};
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
 use std::path::PathBuf;
@@ -135,6 +135,10 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
     normalize::normalize(document)
 }
 
+pub fn normalize_family(document: Document) -> Result<NormalizedDocument, Diagnostic> {
+    normalize::normalize_family(document)
+}
+
 pub fn detect_diagram_family(source: &str) -> Result<DiagramFamily, Diagnostic> {
     let document = parse(source)?;
     Ok(map_ast_kind_to_family(document.kind))
@@ -151,7 +155,9 @@ pub fn render_source_to_svg(source: &str) -> Result<String, Diagnostic> {
 }
 
 pub fn render_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
-    render_source_to_svgs_for_family(source, DiagramFamily::Sequence)
+    let document = parse(source)?;
+    let family = map_ast_kind_to_family(document.kind);
+    render_document_for_family(document, family)
 }
 
 pub fn render_source_to_svg_for_family(
@@ -171,25 +177,49 @@ pub fn render_source_to_svgs_for_family(
     source: &str,
     family: DiagramFamily,
 ) -> Result<Vec<String>, Diagnostic> {
+    let document = parse(source)?;
+    let detected = map_ast_kind_to_family(document.kind);
+    if family != detected {
+        return Err(Diagnostic::error(format!(
+            "[E_FAMILY_MISMATCH] requested diagram family `{}` but detected `{}`",
+            family.as_str(),
+            detected.as_str()
+        )));
+    }
+    render_document_for_family(document, family)
+}
+
+fn render_document_for_family(
+    document: Document,
+    family: DiagramFamily,
+) -> Result<Vec<String>, Diagnostic> {
     match family {
-        DiagramFamily::Sequence => render_sequence_source_to_svgs(source),
+        DiagramFamily::Sequence => {
+            let sequence = normalize(document)?;
+            let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
+            Ok(scenes.iter().map(render::render_svg).collect())
+        }
+        DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase => {
+            match normalize::normalize_family(document)? {
+                model::NormalizedDocument::Family(stub) => Ok(vec![render::render_family_stub_svg(&stub)]),
+                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family stub render",
+                )),
+            }
+        }
         other => Err(Diagnostic::error(format!(
-            "diagram family `{}` is not implemented yet; sequence is currently supported",
+            "diagram family `{}` is not implemented yet; supported families are sequence/class/object/usecase",
             other.as_str()
         ))),
     }
 }
 
-fn render_sequence_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
-    let document = parse(source)?;
-    let sequence = normalize(document)?;
-    let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
-    Ok(scenes.iter().map(render::render_svg).collect())
-}
-
 fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
     match kind {
         ast::DiagramKind::Sequence => DiagramFamily::Sequence,
+        ast::DiagramKind::Class => DiagramFamily::Class,
+        ast::DiagramKind::Object => DiagramFamily::Object,
+        ast::DiagramKind::UseCase => DiagramFamily::UseCase,
         ast::DiagramKind::Unknown => DiagramFamily::Unknown,
     }
 }
