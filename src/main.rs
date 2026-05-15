@@ -222,7 +222,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
-    if diagrams.len() > 1 && !cli.multi {
+    if input_path.is_none() && diagrams.len() > 1 && !cli.multi {
         return Err((
             EXIT_VALIDATION,
             "multiple diagrams detected; rerun with --multi".to_string(),
@@ -346,7 +346,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         Ok::<_, (u8, String)>(all)
     })?;
 
-    if outputs.len() > 1 && !cli.multi {
+    if input_path.is_none() && outputs.len() > 1 && !cli.multi {
         return Err((
             EXIT_VALIDATION,
             "multiple pages detected; rerun with --multi".to_string(),
@@ -902,7 +902,10 @@ fn split_diagrams(
 
     let mut blocks = Vec::new();
 
-    if trimmed.to_ascii_lowercase().contains("@startuml") {
+    let has_startuml_marker = raw
+        .lines()
+        .any(|line| line.trim().eq_ignore_ascii_case("@startuml"));
+    if has_startuml_marker {
         let mut current = Vec::new();
         let mut in_block = false;
         let mut block_start_line = 0usize;
