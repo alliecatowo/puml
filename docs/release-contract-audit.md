@@ -1,6 +1,6 @@
 # Release Contract Audit
 
-Audit issue: `#19`  
+Audit issue: `#30`  
 Audit date: `2026-05-15` (America/Los_Angeles)
 
 ## Full Gate Contract (Deterministic Order)
@@ -33,6 +33,14 @@ Quick mode contract:
   - [x] `README.md` now documents full + quick gate usage.
   - [x] `docs/release-checklist.md` now includes explicit full-gate command contract.
   - [x] `docs/decision-log.md` includes D-014 for release-build validation policy.
+
+## Epic #30 Closure Evidence
+
+- `./scripts/check-all.sh` passed end-to-end (fmt, clippy, tests, scoped 90% coverage gate, release build, full benchmark gates).
+- `./scripts/check-all.sh --quick` passed end-to-end (fmt, clippy, tests, quick benchmark gates).
+- `./scripts/harness-check.sh` passed (agent-pack contracts, MCP smoke checks, parity harness).
+- `tests/svg_bounds_audit.rs` now enforces docs-example parity closure with `doc_examples.summary.failed == 0`.
+- `scripts/parity_harness.py` now canonicalizes trailing SVG newlines before equality checks, removing false drift from stdin-vs-artifact newline differences.
 
 ## Remaining Known Deviations
 

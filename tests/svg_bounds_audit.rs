@@ -66,4 +66,9 @@ fn parity_harness_report_schema_is_stable() {
             .unwrap_or(false),
         "doc_examples.entries should be non-empty"
     );
+    assert_eq!(
+        json["doc_examples"]["summary"]["failed"].as_u64(),
+        Some(0),
+        "doc example SVG artifacts should match current renderer output"
+    );
 }

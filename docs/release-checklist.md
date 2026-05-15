@@ -20,18 +20,20 @@
 - [ ] Review deterministic trend artifacts: `docs/benchmarks/latest_trend.{md,json}`.
 - [ ] Verify no-Java baseline is intact: PlantUML oracle fields are still placeholder-only (`todo`).
 
-### Local Evidence Snapshot (Issue #17, 2026-05-15 UTC)
+### Local Evidence Snapshot (Issue #30, 2026-05-15 UTC)
 
-- Full profile command: `./scripts/bench.sh`
-- Full profile timestamp: `2026-05-15T19:21:55Z`
+- Full profile command: `./scripts/bench.sh --enforce-gates`
+- Full profile timestamp: `2026-05-15T20:04:55Z`
 - Full profile result: gates pass (`abs<=250ms`, `regression<=10%` with `delta>20ms`, `binary<=2,000,000B`)
-- Full profile scenario means (ms): `cold_start_help=130.000`, `parser_check=128.000`, `parser_dump_scene=122.000`, `render_file=98.000`, `render_stdin=98.000`, `render_stdin_multi=98.000`
+- Full profile scenario means (ms): `cold_start_help=96.000`, `parser_check=96.000`, `parser_dump_scene=92.000`, `render_file=88.000`, `render_stdin=80.000`, `render_stdin_multi=82.000`
 - Quick enforced command: `./scripts/bench.sh --quick --enforce-gates`
-- Quick profile timestamp: `2026-05-15T19:22:04Z`
-- Quick enforced result: gate fail on regression (`render_file=+25.850%`, `render_stdin=+25.850%`, limit `20%`)
-- Quick profile scenario means (ms): `cold_start_help=126.667`, `parser_check=130.000`, `parser_dump_scene=130.000`, `render_file=123.333`, `render_stdin=123.333`, `render_stdin_multi=110.000`
-- Release binary size: `1,814,264` bytes (`target/release/puml`)
+- Quick profile timestamp: `2026-05-15T20:04:58Z`
+- Quick enforced result: gates pass (`abs<=350ms`, `regression<=20%` with `delta>30ms`, `binary<=2,500,000B`)
+- Quick profile scenario means (ms): `cold_start_help=80.000`, `parser_check=83.333`, `parser_dump_scene=86.667`, `render_file=86.667`, `render_stdin=83.333`, `render_stdin_multi=83.333`
+- Release binary size: `1,832,984` bytes (`target/release/puml`)
 - No-Java oracle status: retained as `todo` placeholders in `docs/benchmarks/latest_trend.json` and `docs/benchmarks/parity_latest.json`
+- Parity harness timestamp: `2026-05-15T20:05:00Z` (`python3 scripts/parity_harness.py --quiet --output docs/benchmarks/parity_latest.json`)
+- Parity harness summary: fixtures `11` (`check_passed=8`, `render_passed=8`), docs examples `10/10` pass (`failed=0`)
 
 ## Contract and Docs
 

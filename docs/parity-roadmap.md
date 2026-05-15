@@ -2,6 +2,11 @@
 
 Date: 2026-05-15
 
+Closure update (Epic #30, 2026-05-15):
+- Final parity closure pass is green across `./scripts/check-all.sh`, `./scripts/check-all.sh --quick`, and `./scripts/harness-check.sh`.
+- Docs-example parity is now an enforced contract in `tests/svg_bounds_audit.rs` (`doc_examples.summary.failed == 0`).
+- `scripts/parity_harness.py` canonicalizes trailing SVG newlines to prevent false doc parity failures between stdin-rendered SVG and checked-in artifacts.
+
 This roadmap tracks high-impact sequence-diagram parity work relative to PlantUML behavior and defines execution order, measurable done criteria, and fixture-first delivery.
 
 Product language policy baseline:
