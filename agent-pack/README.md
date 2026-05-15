@@ -17,3 +17,8 @@ Codex + Claude plugin bundle for deterministic `puml` sequence diagram authoring
 ```bash
 printf '{"tool":"puml_check","params":{"text":"@startuml\\nA->B: hi\\n@enduml"}}\n' | agent-pack/bin/puml-mcp
 ```
+
+## MCP JSON-RPC example
+```bash
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | agent-pack/bin/puml-mcp
+```
