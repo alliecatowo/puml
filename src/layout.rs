@@ -767,9 +767,7 @@ impl AutonumberState {
 
         let parsed = parse_autonumber_command(value);
         if parsed.resume_only {
-            if parsed.start.is_some() {
-                self.next = parsed.start.unwrap_or(1);
-            } else if self.next == 0 {
+            if self.next == 0 {
                 self.next = 1;
             }
         } else {
@@ -839,13 +837,8 @@ fn parse_autonumber_command(raw: &str) -> ParsedAutonumber {
         .filter_map(|v| v.parse::<u64>().ok())
         .collect();
     if parsed.resume_only {
-        match nums.as_slice() {
-            [] => {}
-            [step] => parsed.step = Some(*step),
-            [start, step, ..] => {
-                parsed.start = Some(*start);
-                parsed.step = Some(*step);
-            }
+        if let Some(step) = nums.first() {
+            parsed.step = Some(*step);
         }
     } else {
         parsed.start = nums.first().copied();

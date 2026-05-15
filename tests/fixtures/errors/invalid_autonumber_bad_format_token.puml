@@ -1,0 +1,4 @@
+@startuml
+autonumber 10 2 "<b>[000]"
+A -> B : bad
+@enduml

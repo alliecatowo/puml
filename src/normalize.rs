@@ -380,6 +380,12 @@ pub fn normalize_with_options(
             }
             StatementKind::Autonumber(v) => {
                 mark_group_content(&mut group_stack);
+                if let Some(raw) = v.as_deref() {
+                    validate_autonumber_raw(raw).map_err(|reason| {
+                        Diagnostic::error(format!("[E_AUTONUMBER_FORMAT_UNSUPPORTED] {reason}"))
+                            .with_span(stmt.span)
+                    })?;
+                }
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Autonumber(
@@ -1003,4 +1009,82 @@ fn canonicalize_autonumber_raw(raw: &str) -> Option<String> {
         out.push(ch);
     }
     Some(out.trim().to_string())
+}
+
+fn validate_autonumber_raw(raw: &str) -> Result<(), String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("stop")
+        || trimmed.eq_ignore_ascii_case("off")
+        || trimmed.eq_ignore_ascii_case("resume")
+    {
+        return Ok(());
+    }
+
+    let (format, body) = if trimmed.contains('"') {
+        let Some((format, before)) = trailing_quoted_format(trimmed) else {
+            return Err("malformed quoted autonumber format; quote-delimited format must be the final token".to_string());
+        };
+        (Some(format), before.trim_end())
+    } else {
+        (None, trimmed)
+    };
+
+    let mut tokens: Vec<&str> = body.split_whitespace().collect();
+    let mut resume = false;
+    if matches!(tokens.first(), Some(token) if token.eq_ignore_ascii_case("resume")) {
+        resume = true;
+        tokens.remove(0);
+    }
+
+    let mut idx = 0usize;
+    let expected_numbers = if resume { 1 } else { 2 };
+    while idx < tokens.len() && idx < expected_numbers && tokens[idx].parse::<u64>().is_ok() {
+        idx += 1;
+    }
+
+    let unquoted_format = if idx < tokens.len() {
+        let fmt = tokens[idx];
+        idx += 1;
+        Some(fmt)
+    } else {
+        None
+    };
+
+    if idx < tokens.len() {
+        return Err(
+            "unsupported autonumber syntax; expected `autonumber [start] [increment] [format]` or `autonumber resume [increment] [format]`".to_string(),
+        );
+    }
+
+    if let Some(fmt) = format.or(unquoted_format.map(str::to_string)) {
+        validate_autonumber_format(&fmt)?;
+    }
+
+    Ok(())
+}
+
+fn trailing_quoted_format(raw: &str) -> Option<(String, &str)> {
+    let trimmed = raw.trim_end();
+    let end = trimmed.strip_suffix('"')?;
+    let start = end.rfind('"')?;
+    let format = end[start + 1..].to_string();
+    let prefix = &end[..start];
+    Some((format, prefix))
+}
+
+fn validate_autonumber_format(format: &str) -> Result<(), String> {
+    let fmt = format.trim();
+    if fmt.is_empty() {
+        return Err("autonumber format must not be empty".to_string());
+    }
+    if fmt.contains('<') || fmt.contains('>') {
+        return Err(
+            "autonumber format does not support HTML tags in this deterministic subset".to_string(),
+        );
+    }
+    if fmt.contains('"') {
+        return Err("autonumber format must not contain an embedded quote".to_string());
+    }
+    Ok(())
 }

@@ -280,6 +280,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "structure/ignore_newpage_single_output.puml",
         "structure/valid_autonumber_restart_step_format.puml",
         "structure/valid_autonumber_format_only_and_canonical_spacing.puml",
+        "structure/valid_autonumber_off_resume_edges.puml",
         "include/include_with_tag_ok.puml",
     ] {
         Command::cargo_bin("puml")
@@ -347,6 +348,7 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_group_mismatched_end_keyword.puml",
         "errors/invalid_group_empty_alt.puml",
         "errors/invalid_group_empty_else_branch.puml",
+        "errors/invalid_autonumber_bad_format_token.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -833,6 +835,28 @@ fn malformed_group_empty_alt_reports_diagnostic_snapshot() {
         .replace(&invalid, "<fixture>");
     assert!(stderr.contains("E_GROUP_EMPTY"));
     assert_snapshot!("malformed_group_empty_alt_reports_diagnostic", stderr);
+}
+
+#[test]
+fn invalid_autonumber_bad_format_token_reports_diagnostic_snapshot() {
+    let invalid = fixture("errors/invalid_autonumber_bad_format_token.puml");
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &invalid])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out)
+        .unwrap()
+        .replace(&invalid, "<fixture>");
+    assert!(stderr.contains("E_AUTONUMBER_FORMAT_UNSUPPORTED"));
+    assert_snapshot!(
+        "invalid_autonumber_bad_format_token_reports_diagnostic",
+        stderr
+    );
 }
 
 #[test]
@@ -1476,6 +1500,38 @@ fn autonumber_raw_is_canonicalized_for_deterministic_model_dump() {
         .filter_map(|event| event["kind"]["Autonumber"].as_str())
         .collect();
     assert_eq!(autonumber_raw, vec!["\"ID-000\"", "resume \"ID-000\""]);
+}
+
+#[test]
+fn autonumber_off_and_resume_edges_are_preserved_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("structure/valid_autonumber_off_resume_edges.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let events = json["events"].as_array().expect("events array");
+    let autonumber_raw: Vec<_> = events
+        .iter()
+        .filter_map(|event| event["kind"]["Autonumber"].as_str())
+        .collect();
+    assert_eq!(
+        autonumber_raw,
+        vec![
+            "7 3 \"ID-00\"",
+            "off",
+            "resume \"R-00\"",
+            "resume 5 \"R-00\""
+        ]
+    );
 }
 
 #[test]

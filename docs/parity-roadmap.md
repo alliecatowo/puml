@@ -80,11 +80,12 @@ Acceptance criteria:
 - Incoming/outgoing endpoint semantics documented and test-covered for accepted vs rejected forms.
 
 Fixture-first plan:
-- TODO fixture candidates:
+- Implemented fixture coverage:
   - `tests/fixtures/errors/invalid_group_mismatched_end_keyword.puml`
   - `tests/fixtures/errors/invalid_group_else_without_alt.puml`
-  - `tests/fixtures/basic/valid_group_nested_mixed_fragments.puml`
-  - `tests/fixtures/basic/valid_autonumber_restart_format.puml`
+  - `tests/fixtures/groups/valid_group_nested_mixed_fragments.puml`
+  - `tests/fixtures/structure/valid_autonumber_restart_step_format.puml`
+  - `tests/fixtures/structure/valid_autonumber_off_resume_edges.puml`
   - `tests/fixtures/errors/invalid_autonumber_bad_format_token.puml`
   - `tests/fixtures/basic/valid_virtual_endpoints_directional.puml`
 

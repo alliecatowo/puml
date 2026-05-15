@@ -64,6 +64,27 @@ fn render_svg_applies_autonumber_restart_step_and_format_subset() {
 }
 
 #[test]
+fn render_svg_applies_autonumber_off_and_resume_edges() {
+    let src = fixture("structure/valid_autonumber_off_resume_edges.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    for expected in [
+        "ID-07 first",
+        "gap",
+        "R-10",
+        "resumed-default-step",
+        "R-13",
+        "resumed-new-step",
+    ] {
+        assert!(
+            svg.contains(expected),
+            "expected autonumber label not found: {expected}"
+        );
+    }
+    assert!(!svg.contains("ID-10 gap"));
+}
+
+#[test]
 fn render_svg_rejects_invalid_source() {
     let src = fixture("errors/invalid_plain.txt");
     let err = puml::render_source_to_svg(&src);
