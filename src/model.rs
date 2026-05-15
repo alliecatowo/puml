@@ -4,6 +4,7 @@ use crate::source::Span;
 use crate::theme::SequenceStyle;
 
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum NormalizedDocument {
     Sequence(SequenceDocument),
     Family(FamilyDocument),
