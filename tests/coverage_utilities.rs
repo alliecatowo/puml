@@ -214,10 +214,12 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     );
 
     let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";
-    let err = render_source_to_svg(multipage).expect_err("single-page API should reject multipage");
-    assert!(err
-        .message
-        .contains("multiple pages detected; use render_source_to_svgs or --multi"));
+    let err =
+        render_source_to_svg(multipage).expect_err("single-page API should reject multipage");
+    assert!(
+        err.message
+            .contains("multiple pages detected; use render_source_to_svgs or --multi")
+    );
 }
 
 #[test]
@@ -230,9 +232,10 @@ fn picouml_pipeline_selection_fails_deterministically_in_library_api() {
     };
     let err = parse_with_pipeline_options("@startuml\nA -> B\n@enduml\n", &options)
         .expect_err("picouml should be unimplemented");
-    assert!(err
-        .message
-        .contains("frontend 'picouml' is not implemented yet"));
+    assert!(
+        err.message
+            .contains("frontend 'picouml' is not implemented yet")
+    );
 }
 
 #[test]
@@ -240,7 +243,34 @@ fn render_source_to_svg_for_family_rejects_multipage_sequence_input() {
     let src = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";
     let err = render_source_to_svg_for_family(src, DiagramFamily::Sequence)
         .expect_err("single-page family API should reject multipage sequence");
-    assert!(err
-        .message
-        .contains("multiple pages detected; use render_source_to_svgs or --multi"));
+    assert!(
+        err.message
+            .contains("multiple pages detected; use render_source_to_svgs or --multi")
+    );
+}
+
+#[test]
+fn mermaid_pipeline_supports_notes_lifecycle_and_inline_comments() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let src =
+        "sequenceDiagram\nA->>B: hi %% comment\nactivate B\nNote over A,B: synced\nautonumber\n";
+    parse_with_pipeline_options(src, &options).expect("expanded mermaid subset should adapt");
+}
+
+#[test]
+fn mermaid_pipeline_reports_specific_code_for_unsupported_blocks() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let src = "sequenceDiagram\nloop retry\nA->>B: hi\nend\n";
+    let err = parse_with_pipeline_options(src, &options).unwrap_err();
+    assert!(err.message.contains("E_MERMAID_BLOCK_UNSUPPORTED"));
 }
