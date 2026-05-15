@@ -1,0 +1,11 @@
+@startuml
+autonumber 10 5 "[000]"
+A -> B : first
+B --> A : second
+autonumber stop
+A -> B : unnumbered
+autonumber resume 2 "R-00"
+B -> A : resumed
+autonumber 3 3 "S-00"
+A -> B : restarted
+@enduml

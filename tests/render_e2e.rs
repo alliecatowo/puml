@@ -41,6 +41,26 @@ fn render_svg_contains_expected_structure() {
 }
 
 #[test]
+fn render_svg_applies_autonumber_restart_step_and_format_subset() {
+    let src = fixture("structure/valid_autonumber_restart_step_format.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    for expected in [
+        "[010] first",
+        "[015] second",
+        "unnumbered",
+        "R-20 resumed",
+        "S-03 restarted",
+    ] {
+        assert!(
+            svg.contains(expected),
+            "expected autonumber label not found: {expected}"
+        );
+    }
+    assert!(!svg.contains("20 unnumbered"));
+}
+
+#[test]
 fn render_svg_rejects_invalid_source() {
     let src = fixture("errors/invalid_plain.txt");
     let err = puml::render_source_to_svg(&src);

@@ -259,6 +259,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/valid_endpoint_variants.puml",
         "arrows/valid_arrow_portability_expanded.puml",
         "arrows/valid_arrow_slash_portability.puml",
+        "arrows/valid_arrow_variant_tokenization.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -275,6 +276,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "notes/valid_note_across_multi.puml",
         "structure/valid_separator_delay_divider_spacer.puml",
         "structure/ignore_newpage_single_output.puml",
+        "structure/valid_autonumber_restart_step_format.puml",
+        "structure/valid_autonumber_format_only_and_canonical_spacing.puml",
         "include/include_with_tag_ok.puml",
     ] {
         Command::cargo_bin("puml")
@@ -401,6 +404,52 @@ fn malformed_slash_arrow_reports_deterministic_diagnostic() {
                 .and(predicate::str::contains(
                     "A -//-> B: malformed-double-slash\n^^^^^^^^",
                 ))
+                .and(predicate::str::contains("E_ARROW_INVALID")),
+        );
+}
+
+#[test]
+fn expanded_arrow_variants_are_tokenized_into_message_arrows() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("arrows/valid_arrow_variant_tokenization.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arrows: Vec<&str> = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["arrow"].as_str())
+        .collect();
+
+    assert_eq!(
+        arrows,
+        vec!["-/->", "-\\->", "-/->>", "-\\-->>", "o-/->x", "x-\\<<--o"]
+    );
+}
+
+#[test]
+fn malformed_arrow_variant_reports_deterministic_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_arrow_variant_tokenization.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(
+            predicate::str::contains("line 4, column 1")
+                .and(predicate::str::contains("A -/--> B: malformed\n^^^^^^^^^^"))
                 .and(predicate::str::contains("E_ARROW_INVALID")),
         );
 }
@@ -1167,6 +1216,62 @@ fn autonumber_is_preserved_in_model_dump() {
 
     let json: Value = serde_json::from_slice(&out).unwrap();
     assert_json_snapshot!("autonumber_is_preserved_in_model_dump", json);
+}
+
+#[test]
+fn autonumber_restart_step_and_format_are_preserved_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("structure/valid_autonumber_restart_step_format.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let events = json["events"].as_array().expect("events array");
+    let autonumber_raw: Vec<_> = events
+        .iter()
+        .filter_map(|event| event["kind"]["Autonumber"].as_str())
+        .collect();
+    assert_eq!(
+        autonumber_raw,
+        vec![
+            "10 5 \"[000]\"",
+            "stop",
+            "resume 2 \"R-00\"",
+            "3 3 \"S-00\""
+        ]
+    );
+}
+
+#[test]
+fn autonumber_raw_is_canonicalized_for_deterministic_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("structure/valid_autonumber_format_only_and_canonical_spacing.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let events = json["events"].as_array().expect("events array");
+    let autonumber_raw: Vec<_> = events
+        .iter()
+        .filter_map(|event| event["kind"]["Autonumber"].as_str())
+        .collect();
+    assert_eq!(autonumber_raw, vec!["\"ID-000\"", "resume \"ID-000\""]);
 }
 
 #[test]

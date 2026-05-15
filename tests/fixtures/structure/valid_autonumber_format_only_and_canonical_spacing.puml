@@ -1,0 +1,6 @@
+@startuml
+autonumber    "ID-000"
+A -> B : one
+autonumber   resume   "ID-000"
+B -> A : two
+@enduml
