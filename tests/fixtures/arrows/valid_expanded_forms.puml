@@ -1,0 +1,8 @@
+@startuml
+[*] -> A: found-text
+A -> [*]: lost-text
+A <-> B: sync
+B <--> C: async
+A o-> B: circle-head
+B -->x A: cross-head
+@enduml

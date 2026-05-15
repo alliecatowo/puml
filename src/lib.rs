@@ -11,7 +11,7 @@ pub mod theme;
 
 pub use ast::Document;
 pub use diagnostic::Diagnostic;
-pub use model::SequenceDocument;
+pub use model::{SequenceDocument, SequencePage};
 pub use scene::{LayoutOptions, Scene};
 
 pub fn parse(source: &str) -> Result<Document, Diagnostic> {
@@ -23,8 +23,18 @@ pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
 }
 
 pub fn render_source_to_svg(source: &str) -> Result<String, Diagnostic> {
+    let pages = render_source_to_svgs(source)?;
+    if pages.len() > 1 {
+        return Err(Diagnostic::error(
+            "multiple pages detected; use render_source_to_svgs or --multi",
+        ));
+    }
+    Ok(pages.into_iter().next().unwrap_or_default())
+}
+
+pub fn render_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
     let document = parse(source)?;
     let sequence = normalize(document)?;
-    let scene = layout::layout(&sequence, LayoutOptions::default());
-    Ok(render::render_svg(&scene))
+    let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
+    Ok(scenes.iter().map(render::render_svg).collect())
 }

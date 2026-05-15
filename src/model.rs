@@ -14,6 +14,19 @@ pub struct SequenceDocument {
 }
 
 #[derive(Debug, Clone)]
+pub struct SequencePage {
+    pub participants: Vec<Participant>,
+    pub events: Vec<SequenceEvent>,
+    pub title: Option<String>,
+    pub header: Option<String>,
+    pub footer: Option<String>,
+    pub caption: Option<String>,
+    pub legend: Option<String>,
+    pub skinparams: Vec<(String, String)>,
+    pub footbox_visible: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct Participant {
     pub id: String,
     pub display: String,

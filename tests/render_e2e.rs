@@ -64,6 +64,23 @@ fn render_svg_output_avoids_active_content_patterns() {
 }
 
 #[test]
+fn render_source_to_svgs_supports_newpage_with_title_override() {
+    let src = "@startuml\nTitle Base\nA -> B : one\nnewpage Page Two\nB -> A : two\n@enduml\n";
+    let pages = puml::render_source_to_svgs(src).expect("render should succeed");
+
+    assert_eq!(pages.len(), 2);
+    assert!(pages[0].contains(">Base<"));
+    assert!(pages[1].contains(">Page Two<"));
+}
+
+#[test]
+fn render_source_to_svg_rejects_multipage_sources() {
+    let src = "@startuml\nA -> B\nnewpage\nB -> A\n@enduml\n";
+    let err = puml::render_source_to_svg(src).expect_err("expected multipage error");
+    assert!(err.message.contains("multiple pages detected"));
+}
+
+#[test]
 fn render_svg_handles_self_found_lost_and_modifiers() {
     let doc = SequenceDocument {
         participants: vec![

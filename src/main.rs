@@ -11,7 +11,7 @@ use puml::model::{
     SequenceEventKind,
 };
 use puml::parser::{parse_with_options, ParseOptions};
-use puml::{normalize, render_source_to_svg, Diagnostic};
+use puml::{normalize, render_source_to_svgs, Diagnostic};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::fs;
@@ -92,7 +92,8 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
-    if diagrams.len() > 1 && !cli.multi {
+    let should_require_multi = input_path.is_none();
+    if diagrams.len() > 1 && should_require_multi && !cli.multi {
         return Err((
             EXIT_VALIDATION,
             "multiple diagrams detected; rerun with --multi".to_string(),
@@ -148,18 +149,28 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         return Ok(());
     }
 
-    if input_path.is_none() && diagrams.len() > 1 {
-        let payload = diagrams
+    let svgs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
+        let mut pages = render_source_to_svgs(source).map_err(diag_err)?;
+        all.append(&mut pages);
+        Ok::<_, (u8, String)>(all)
+    })?;
+
+    if input_path.is_none() && svgs.len() > 1 && !cli.multi {
+        return Err((
+            EXIT_VALIDATION,
+            "multiple pages detected from stdin input; rerun with --multi".to_string(),
+        ));
+    }
+
+    if input_path.is_none() && svgs.len() > 1 {
+        let payload = svgs
             .iter()
             .enumerate()
-            .map(|(idx, source)| {
-                let svg = render_source_to_svg(source).map_err(diag_err)?;
-                Ok(MultiSvgOut {
-                    name: format!("diagram-{}.svg", idx + 1),
-                    svg,
-                })
+            .map(|(idx, svg)| MultiSvgOut {
+                name: format!("diagram-{}.svg", idx + 1),
+                svg: svg.clone(),
             })
-            .collect::<Result<Vec<_>, (u8, String)>>()?;
+            .collect::<Vec<_>>();
 
         let json = serde_json::to_string_pretty(&payload).map_err(|e| {
             (
@@ -170,11 +181,6 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         println!("{json}");
         return Ok(());
     }
-
-    let svgs = diagrams
-        .iter()
-        .map(|source| render_source_to_svg(source).map_err(diag_err))
-        .collect::<Result<Vec<_>, _>>()?;
 
     if let Some(path) = cli.output {
         write_output_files(&path, &svgs)?;
@@ -192,10 +198,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         return Ok(());
     }
 
-    Err((
-        EXIT_INTERNAL,
-        "unexpected output mode for multi-diagram stdin input".to_string(),
-    ))
+    Err((EXIT_INTERNAL, "unexpected stdin output mode".to_string()))
 }
 
 fn diag_err(d: Diagnostic) -> (u8, String) {

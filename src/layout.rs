@@ -1,9 +1,23 @@
 use std::collections::BTreeMap;
 
-use crate::model::{SequenceDocument, SequenceEventKind};
+use crate::model::{SequenceDocument, SequenceEventKind, SequencePage};
+use crate::normalize;
 use crate::scene::{Label, LayoutOptions, Lifeline, MessageLine, NoteBox, ParticipantBox, Scene};
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
+    let mut pages = layout_pages(document, options);
+    debug_assert!(!pages.is_empty());
+    pages.remove(0)
+}
+
+pub fn layout_pages(document: &SequenceDocument, options: LayoutOptions) -> Vec<Scene> {
+    normalize::paginate(document)
+        .into_iter()
+        .map(|page| layout_page(&page, options))
+        .collect()
+}
+
+fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let mut participants = Vec::with_capacity(document.participants.len());
     let mut centers_by_id = BTreeMap::new();
 

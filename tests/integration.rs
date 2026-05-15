@@ -60,6 +60,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/valid_directions.puml",
         "arrows/self.puml",
         "arrows/modifiers_basic.puml",
+        "arrows/valid_expanded_forms.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -68,6 +69,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "autonumber/valid_with_format.puml",
         "lifecycle/valid_activate_return.puml",
         "lifecycle/valid_create_activate_destroy.puml",
+        "lifecycle/valid_shortcuts_expansion.puml",
         "notes/valid_multiline_blocks.puml",
     ] {
         Command::cargo_bin("puml")
@@ -115,6 +117,7 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "include/error_include_cycle_self.puml",
         "include/error_include_chain_a.puml",
         "lifecycle/valid_destroy_then_message.puml",
+        "arrows/invalid_malformed_arrows.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -122,6 +125,16 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
             .assert()
             .code(1);
     }
+}
+
+#[test]
+fn malformed_arrow_reports_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("arrows/invalid_malformed_arrows.puml")])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_ARROW_INVALID"));
 }
 
 #[test]
@@ -240,7 +253,7 @@ fn multi_mode_handles_three_diagrams() {
 fn multi_input_without_flag_fails() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .arg(fixture("multi_valid.puml"))
+        .write_stdin(fs::read_to_string(fixture("multi_valid.puml")).unwrap())
         .assert()
         .code(1)
         .stderr(predicate::str::contains("rerun with --multi"));
@@ -370,9 +383,11 @@ fn non_sequence_inputs_fail_validation() {
             .args(["--check", &fixture(case)])
             .assert()
             .code(1)
-            .stderr(predicate::str::contains(
-                "puml currently renders sequence diagrams only",
-            ));
+            .stderr(
+                predicate::str::contains("puml currently renders sequence diagrams only").or(
+                    predicate::str::contains("[E_ARROW_INVALID] malformed sequence arrow syntax"),
+                ),
+            );
     }
 }
 
@@ -393,6 +408,25 @@ fn autonumber_is_preserved_in_model_dump() {
 
     let json: Value = serde_json::from_slice(&out).unwrap();
     assert_json_snapshot!("autonumber_is_preserved_in_model_dump", json);
+}
+
+#[test]
+fn lifecycle_shortcuts_are_preserved_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("lifecycle/valid_shortcuts_expansion.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!("lifecycle_shortcuts_are_preserved_in_model_dump", json);
 }
 
 #[test]
@@ -458,4 +492,53 @@ fn file_multi_output_with_o_writes_numbered_files() {
     assert!(tmp.path().join("diagram-1.svg").exists());
     assert!(tmp.path().join("diagram-2.svg").exists());
     assert!(tmp.path().join("diagram-3.svg").exists());
+}
+
+#[test]
+fn stdin_newpage_without_multi_fails() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\nA -> B : one\nnewpage Second\nB -> A : two\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("multiple pages detected"));
+}
+
+#[test]
+fn stdin_newpage_with_multi_outputs_json_array_and_stable_order() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "-"])
+        .write_stdin("@startuml\nA -> B : one\nnewpage Second\nB -> A : two\n@enduml\n")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!(
+        "stdin_newpage_with_multi_outputs_json_array_and_stable_order",
+        json
+    );
+}
+
+#[test]
+fn file_newpage_output_writes_numbered_files_without_multi_flag() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("paged.puml");
+    fs::write(
+        &input,
+        "@startuml\nA -> B : one\nnewpage Second\nB -> A : two\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg(input.to_str().unwrap())
+        .assert()
+        .success();
+
+    assert!(tmp.path().join("paged-1.svg").exists());
+    assert!(tmp.path().join("paged-2.svg").exists());
 }

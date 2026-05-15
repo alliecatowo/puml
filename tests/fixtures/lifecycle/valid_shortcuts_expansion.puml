@@ -1,0 +1,7 @@
+@startuml
+create A
+A -> B++: call
+B -> A--: done
+A -> C**: spawn
+A -> C!!: finish
+@enduml

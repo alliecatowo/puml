@@ -1,68 +1,100 @@
 # puml
 
-`puml` is a PlantUML-style sequence diagram CLI.
+`puml` is a Rust CLI for rendering a focused, validated subset of PlantUML-style sequence diagrams to SVG.
 
-## Quick Start
+![crate](https://img.shields.io/badge/crate-0.1.0-blue)
+![rust edition](https://img.shields.io/badge/rust-2021-orange)
+![license](https://img.shields.io/badge/license-MIT-green)
+![tests](https://img.shields.io/badge/tests-cargo%20test-informational)
+
+## Why puml
+
+- Purpose-built for sequence diagrams, with clear validation boundaries.
+- Deterministic rendering for stable snapshots and CI checks.
+- Practical CLI modes for rendering, validation, and JSON introspection.
+
+See the decision log for intentional contract boundaries and deviations: [docs/decision-log.md](./docs/decision-log.md).
+
+## Quickstart
 
 ```bash
+# Explore CLI options
 cargo run -- --help
+
+# Render a diagram file to <input-stem>.svg
 cargo run -- tests/fixtures/single_valid.puml
+
+# Validate from stdin without rendering
 cat tests/fixtures/single_valid.puml | cargo run -- --check -
+
+# Inspect pipeline stages
 cargo run -- --dump ast tests/fixtures/single_valid.puml
 cargo run -- --dump model tests/fixtures/single_valid.puml
 cargo run -- --dump scene tests/fixtures/single_valid.puml
+
+# Enable multi-diagram mode
 cargo run -- --multi tests/fixtures/multi_valid.puml
 ```
 
-## CLI Behavior
+## CLI Contract
 
-Input:
-- file path argument
+Inputs:
+- `INPUT` file path
 - `-` for stdin
-- omitted path reads stdin
+- omitted `INPUT` reads stdin
 
 Modes:
-- default renders SVG
+- default mode renders SVG
 - `--check` parses + normalizes only
-- `--dump ast|model|scene` prints JSON
-- `--multi` permits multiple diagrams from one input
-- `--include-root DIR` enables `!include` when reading from stdin
+- `--dump ast|model|scene` emits JSON
+- `--multi` allows multiple diagrams from one input
+- `--include-root DIR` sets `!include` resolution root when reading stdin
 
-Output:
+Outputs:
 - single diagram from file writes `<input-stem>.svg`
 - single diagram from stdin writes SVG to stdout
-- multi diagram from stdin + `--multi` writes JSON array to stdout
-- explicit `--output` writes that path for single diagrams, numbered paths for multi
-
-## What Works Today
-
-- Sequence diagrams only.
-- `@startuml` / `@enduml` blocks and plain single-diagram text input.
-- Participants: `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, including aliases.
-- Messages with common arrow forms (for example `->`, `-->`, `<-`) and optional labels.
-- Notes, groups (`alt`, `else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `end`), and separators (`...`, `||`, `newpage`).
-- Lifecycle and control statements: `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber`.
-- Document metadata statements: `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`.
-- `skinparam maxmessagesize` is accepted; other `skinparam` keys currently return a warning error.
-- `!include`, `!define`, and `!undef` are parsed but intentionally fail normalization with a placeholder warning.
-- Non-sequence diagram syntax (for example class/state diagrams) is rejected during validation.
+- multi diagram from stdin + `--multi` writes a JSON array to stdout
+- `--output PATH` writes to that path for single diagrams, and numbered paths for multi
 
 Exit codes:
 - `0` success
-- `1` validation/usage failure
+- `1` validation or usage failure
 - `2` I/O failure
 - `3` internal failure
 
-## Testing
+## Feature Matrix
+
+| Area | Status | Notes |
+|---|---|---|
+| Sequence diagrams | Supported | Non-sequence families are rejected. |
+| `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
+| Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
+| Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |
+| Notes, groups, separators | Supported | Includes `alt`, `else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `end`, plus `...`, `||`, `newpage`. |
+| Lifecycle/control statements | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber`. |
+| Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
+| `skinparam maxmessagesize` | Supported | Accepted and normalized. |
+| Other `skinparam` keys | Rejected intentionally | Return validation warning error behavior. |
+| `!include`, `!define`, `!undef` | Recognized but rejected intentionally | Parsed, then fail normalization as unsupported directives. |
+| Multi-diagram input | Guarded support | Requires explicit `--multi`. |
+
+Checklist:
+- [x] Render SVG from file or stdin
+- [x] Validate syntax/normalization via `--check`
+- [x] Dump AST/model/scene JSON for tooling
+- [x] Deterministic render behavior covered by snapshots
+- [ ] Full PlantUML compatibility (explicitly out of scope)
+
+## Development
 
 ```bash
 cargo fmt
 cargo test
 ```
 
-Test suites:
+Current test suites:
 - CLI integration: `tests/integration.rs`
-- Render e2e: `tests/render_e2e.rs`
+- Render end-to-end snapshots: `tests/render_e2e.rs`
 - Exit-code contract: `tests/coverage_contract.rs`
 
 ## License

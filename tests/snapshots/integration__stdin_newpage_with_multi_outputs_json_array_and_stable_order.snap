@@ -1,0 +1,15 @@
+---
+source: tests/integration.rs
+assertion_line: 486
+expression: json
+---
+[
+  {
+    "name": "diagram-1.svg",
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"328\" height=\"136\" viewBox=\"0 0 328 136\"><rect width=\"100%\" height=\"100%\" fill=\"white\"/><rect x=\"24\" y=\"24\" width=\"120\" height=\"32\" rx=\"4\" ry=\"4\" fill=\"#f6f6f6\" stroke=\"#111\" stroke-width=\"1\"/><text x=\"84\" y=\"45\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">A</text><rect x=\"184\" y=\"24\" width=\"120\" height=\"32\" rx=\"4\" ry=\"4\" fill=\"#f6f6f6\" stroke=\"#111\" stroke-width=\"1\"/><text x=\"244\" y=\"45\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">B</text><line x1=\"84\" y1=\"56\" x2=\"84\" y2=\"104\" stroke=\"#555\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/><line x1=\"244\" y1=\"56\" x2=\"244\" y2=\"104\" stroke=\"#555\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/><line x1=\"84\" y1=\"80\" x2=\"244\" y2=\"80\" stroke=\"#111\" stroke-width=\"1.5\"/><polygon points=\"244,80 238,76 238,84\" fill=\"#111\"/><text x=\"166\" y=\"72\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">one</text></svg>"
+  },
+  {
+    "name": "diagram-2.svg",
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"328\" height=\"164\" viewBox=\"0 0 328 164\"><rect width=\"100%\" height=\"100%\" fill=\"white\"/><text x=\"24\" y=\"24\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">Second</text><rect x=\"24\" y=\"52\" width=\"120\" height=\"32\" rx=\"4\" ry=\"4\" fill=\"#f6f6f6\" stroke=\"#111\" stroke-width=\"1\"/><text x=\"84\" y=\"73\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">A</text><rect x=\"184\" y=\"52\" width=\"120\" height=\"32\" rx=\"4\" ry=\"4\" fill=\"#f6f6f6\" stroke=\"#111\" stroke-width=\"1\"/><text x=\"244\" y=\"73\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">B</text><line x1=\"84\" y1=\"84\" x2=\"84\" y2=\"132\" stroke=\"#555\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/><line x1=\"244\" y1=\"84\" x2=\"244\" y2=\"132\" stroke=\"#555\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/><line x1=\"244\" y1=\"108\" x2=\"84\" y2=\"108\" stroke=\"#111\" stroke-width=\"1.5\"/><polygon points=\"84,108 90,104 90,112\" fill=\"#111\"/><text x=\"166\" y=\"100\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">two</text></svg>"
+  }
+]

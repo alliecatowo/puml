@@ -1,0 +1,136 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "caption": null,
+  "events": [
+    {
+      "kind": {
+        "Create": "A"
+      },
+      "span": {
+        "end": 18,
+        "start": 10
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "A",
+          "label": "call",
+          "to": "B"
+        }
+      },
+      "span": {
+        "end": 33,
+        "start": 19
+      }
+    },
+    {
+      "kind": {
+        "Activate": "B"
+      },
+      "span": {
+        "end": 33,
+        "start": 19
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "B",
+          "label": "done",
+          "to": "A"
+        }
+      },
+      "span": {
+        "end": 48,
+        "start": 34
+      }
+    },
+    {
+      "kind": {
+        "Deactivate": "B"
+      },
+      "span": {
+        "end": 48,
+        "start": 34
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "A",
+          "label": "spawn",
+          "to": "C"
+        }
+      },
+      "span": {
+        "end": 64,
+        "start": 49
+      }
+    },
+    {
+      "kind": {
+        "Create": "C"
+      },
+      "span": {
+        "end": 64,
+        "start": 49
+      }
+    },
+    {
+      "kind": {
+        "Message": {
+          "arrow": "->",
+          "from": "A",
+          "label": "finish",
+          "to": "C"
+        }
+      },
+      "span": {
+        "end": 81,
+        "start": 65
+      }
+    },
+    {
+      "kind": {
+        "Destroy": "C"
+      },
+      "span": {
+        "end": 81,
+        "start": 65
+      }
+    }
+  ],
+  "footbox_visible": true,
+  "footer": null,
+  "header": null,
+  "legend": null,
+  "participants": [
+    {
+      "display": "A",
+      "explicit": false,
+      "id": "A",
+      "role": "Participant"
+    },
+    {
+      "display": "B",
+      "explicit": false,
+      "id": "B",
+      "role": "Participant"
+    },
+    {
+      "display": "C",
+      "explicit": false,
+      "id": "C",
+      "role": "Participant"
+    }
+  ],
+  "skinparams": [],
+  "title": null
+}

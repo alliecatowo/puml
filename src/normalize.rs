@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
+    Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -13,6 +13,51 @@ pub struct NormalizeOptions {
 
 pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
     normalize_with_options(document, &NormalizeOptions::default())
+}
+
+pub fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {
+    let mut pages = Vec::new();
+    let mut page_events = Vec::new();
+    let mut current_title = document.title.clone();
+
+    for event in &document.events {
+        if let SequenceEventKind::NewPage(next_title) = &event.kind {
+            pages.push(page_from(document, &page_events, current_title.clone()));
+            page_events.clear();
+            current_title = cleaned_title(next_title).or_else(|| document.title.clone());
+            continue;
+        }
+        page_events.push(event.clone());
+    }
+
+    pages.push(page_from(document, &page_events, current_title));
+    pages
+}
+
+fn page_from(
+    document: &SequenceDocument,
+    events: &[SequenceEvent],
+    title: Option<String>,
+) -> SequencePage {
+    SequencePage {
+        participants: document.participants.clone(),
+        events: events.to_vec(),
+        title,
+        header: document.header.clone(),
+        footer: document.footer.clone(),
+        caption: document.caption.clone(),
+        legend: document.legend.clone(),
+        skinparams: document.skinparams.clone(),
+        footbox_visible: document.footbox_visible,
+    }
+}
+
+fn cleaned_title(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 pub fn normalize_with_options(
@@ -56,46 +101,55 @@ pub fn normalize_with_options(
                 );
             }
             StatementKind::Message(m) => {
-                let from_virtual = is_virtual_endpoint(&m.from);
-                let to_virtual = is_virtual_endpoint(&m.to);
-                if !from_virtual {
-                    ensure_implicit(&mut participants, &mut participant_ix, &m.from);
-                }
-                if !to_virtual {
-                    ensure_implicit(&mut participants, &mut participant_ix, &m.to);
-                }
-                if !from_virtual && !is_alive(&alive_by_id, &m.from) {
-                    return Err(Diagnostic::error(format!(
-                        "[E_LIFECYCLE_DESTROYED_SENDER] message sender `{}` is destroyed",
-                        m.from
+                let parsed_arrow = parse_message_arrow(&m.arrow).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "[E_ARROW_INVALID] malformed sequence arrow syntax: `{}`",
+                        m.arrow
                     ))
-                    .with_span(stmt.span));
+                    .with_span(stmt.span)
+                })?;
+                let directions = if parsed_arrow.bidirectional {
+                    vec![
+                        (m.from.clone(), m.to.clone()),
+                        (m.to.clone(), m.from.clone()),
+                    ]
+                } else {
+                    vec![(m.from.clone(), m.to.clone())]
+                };
+
+                for (from, to) in directions {
+                    validate_and_touch_message_lifecycle(
+                        stmt.span,
+                        &from,
+                        &to,
+                        &mut participants,
+                        &mut participant_ix,
+                        &mut alive_by_id,
+                    )?;
+                    if !is_virtual_endpoint(&from) && !is_virtual_endpoint(&to) {
+                        last_message = Some((from.clone(), to.clone()));
+                    }
+                    events.push(SequenceEvent {
+                        span: stmt.span,
+                        kind: SequenceEventKind::Message {
+                            from,
+                            to,
+                            arrow: parsed_arrow.render_arrow.clone(),
+                            label: m.label.clone(),
+                        },
+                    });
                 }
-                if !to_virtual && !is_alive(&alive_by_id, &m.to) {
-                    return Err(Diagnostic::error(format!(
-                        "[E_LIFECYCLE_DESTROYED_TARGET] message target `{}` is destroyed (recreate it before sending messages to it)",
-                        m.to
-                    ))
-                    .with_span(stmt.span));
-                }
-                if !from_virtual {
-                    alive_by_id.insert(m.from.clone(), true);
-                }
-                if !to_virtual {
-                    alive_by_id.insert(m.to.clone(), true);
-                }
-                if !from_virtual && !to_virtual {
-                    last_message = Some((m.from.clone(), m.to.clone()));
-                }
-                events.push(SequenceEvent {
-                    span: stmt.span,
-                    kind: SequenceEventKind::Message {
-                        from: m.from,
-                        to: m.to,
-                        arrow: m.arrow,
-                        label: m.label,
-                    },
-                });
+                apply_lifecycle_shortcuts(
+                    stmt.span,
+                    &m.from,
+                    &m.to,
+                    &parsed_arrow,
+                    &mut participants,
+                    &mut participant_ix,
+                    &mut alive_by_id,
+                    &mut activation_stack,
+                    &mut events,
+                )?;
             }
             StatementKind::Note(n) => events.push(SequenceEvent {
                 span: stmt.span,
@@ -273,7 +327,16 @@ pub fn normalize_with_options(
             StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
             }
-            StatementKind::Unknown(_) => {}
+            StatementKind::Unknown(line) => {
+                if line.trim() == "---" {
+                    continue;
+                }
+                return Err(Diagnostic::error(format!(
+                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
         }
     }
 
@@ -395,4 +458,241 @@ fn map_role(role: AstRole) -> ParticipantRole {
 
 fn is_virtual_endpoint(id: &str) -> bool {
     id == "[*]"
+}
+
+#[derive(Debug, Clone)]
+struct ParsedMessageArrow {
+    render_arrow: String,
+    bidirectional: bool,
+    left_modifier: Option<String>,
+    right_modifier: Option<String>,
+}
+
+fn parse_message_arrow(raw: &str) -> Option<ParsedMessageArrow> {
+    let (base, left_modifier, right_modifier) = decode_arrow_modifiers(raw)?;
+    let bidirectional = matches!(base.as_str(), "<->" | "<-->" | "<<->>" | "<<-->>");
+    let render_arrow = if bidirectional {
+        if base.contains("--") {
+            "-->".to_string()
+        } else {
+            "->".to_string()
+        }
+    } else {
+        base
+    };
+    Some(ParsedMessageArrow {
+        render_arrow,
+        bidirectional,
+        left_modifier,
+        right_modifier,
+    })
+}
+
+fn decode_arrow_modifiers(raw: &str) -> Option<(String, Option<String>, Option<String>)> {
+    let mut rest = raw;
+    let mut left_modifier = None;
+    let mut right_modifier = None;
+    while let Some(ix) = rest.find("@L").or_else(|| rest.find("@R")) {
+        let side = &rest[ix..ix + 2];
+        let token = rest.get(ix + 2..ix + 4)?;
+        if !matches!(token, "++" | "--" | "**" | "!!") {
+            return None;
+        }
+        if side == "@L" {
+            left_modifier = Some(token.to_string());
+        } else {
+            right_modifier = Some(token.to_string());
+        }
+        rest = &rest[..ix];
+    }
+    Some((rest.to_string(), left_modifier, right_modifier))
+}
+
+fn validate_and_touch_message_lifecycle(
+    span: crate::source::Span,
+    from: &str,
+    to: &str,
+    participants: &mut Vec<Participant>,
+    participant_ix: &mut BTreeMap<String, usize>,
+    alive_by_id: &mut BTreeMap<String, bool>,
+) -> Result<(), Diagnostic> {
+    let from_virtual = is_virtual_endpoint(from);
+    let to_virtual = is_virtual_endpoint(to);
+    if !from_virtual {
+        ensure_implicit(participants, participant_ix, from);
+    }
+    if !to_virtual {
+        ensure_implicit(participants, participant_ix, to);
+    }
+    if !from_virtual && !is_alive(alive_by_id, from) {
+        return Err(Diagnostic::error(format!(
+            "[E_LIFECYCLE_DESTROYED_SENDER] message sender `{}` is destroyed",
+            from
+        ))
+        .with_span(span));
+    }
+    if !to_virtual && !is_alive(alive_by_id, to) {
+        return Err(Diagnostic::error(format!(
+            "[E_LIFECYCLE_DESTROYED_TARGET] message target `{}` is destroyed (recreate it before sending messages to it)",
+            to
+        ))
+        .with_span(span));
+    }
+    if !from_virtual {
+        alive_by_id.insert(from.to_string(), true);
+    }
+    if !to_virtual {
+        alive_by_id.insert(to.to_string(), true);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_lifecycle_shortcuts(
+    span: crate::source::Span,
+    from: &str,
+    to: &str,
+    parsed_arrow: &ParsedMessageArrow,
+    participants: &mut Vec<Participant>,
+    participant_ix: &mut BTreeMap<String, usize>,
+    alive_by_id: &mut BTreeMap<String, bool>,
+    activation_stack: &mut Vec<ActivationFrame>,
+    events: &mut Vec<SequenceEvent>,
+) -> Result<(), Diagnostic> {
+    if let Some(token) = &parsed_arrow.left_modifier {
+        apply_one_lifecycle_shortcut(
+            span,
+            from,
+            token,
+            participants,
+            participant_ix,
+            alive_by_id,
+            activation_stack,
+            events,
+        )?;
+    }
+    if let Some(token) = &parsed_arrow.right_modifier {
+        let id = if token == "--" { from } else { to };
+        apply_one_lifecycle_shortcut(
+            span,
+            id,
+            token,
+            participants,
+            participant_ix,
+            alive_by_id,
+            activation_stack,
+            events,
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_one_lifecycle_shortcut(
+    span: crate::source::Span,
+    id: &str,
+    token: &str,
+    participants: &mut Vec<Participant>,
+    participant_ix: &mut BTreeMap<String, usize>,
+    alive_by_id: &mut BTreeMap<String, bool>,
+    activation_stack: &mut Vec<ActivationFrame>,
+    events: &mut Vec<SequenceEvent>,
+) -> Result<(), Diagnostic> {
+    if is_virtual_endpoint(id) {
+        return Err(Diagnostic::error(format!(
+            "[E_LIFECYCLE_SHORTCUT_VIRTUAL] cannot apply lifecycle shortcut `{}` to virtual endpoint",
+            token
+        ))
+        .with_span(span));
+    }
+    ensure_implicit(participants, participant_ix, id);
+    match token {
+        "++" => {
+            if !is_alive(alive_by_id, id) {
+                return Err(Diagnostic::error(format!(
+                    "[E_LIFECYCLE_ACTIVATE_DESTROYED] cannot activate destroyed participant `{}`",
+                    id
+                ))
+                .with_span(span));
+            }
+            alive_by_id.insert(id.to_string(), true);
+            activation_stack.push(ActivationFrame {
+                participant: id.to_string(),
+                caller: None,
+            });
+            events.push(SequenceEvent {
+                span,
+                kind: SequenceEventKind::Activate(id.to_string()),
+            });
+        }
+        "--" => {
+            if !is_alive(alive_by_id, id) {
+                return Err(Diagnostic::error(format!(
+                    "[E_LIFECYCLE_DEACTIVATE_DESTROYED] cannot deactivate destroyed participant `{}`",
+                    id
+                ))
+                .with_span(span));
+            }
+            alive_by_id.insert(id.to_string(), true);
+            match activation_stack.last() {
+                Some(frame) if frame.participant == id => {
+                    activation_stack.pop();
+                }
+                Some(frame) => {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_DEACTIVATE_ORDER] deactivate `{}` does not match current activation `{}`",
+                        id, frame.participant
+                    ))
+                    .with_span(span));
+                }
+                None => {
+                    return Err(Diagnostic::error(format!(
+                        "[E_LIFECYCLE_DEACTIVATE_EMPTY] cannot deactivate `{}` without an active activation",
+                        id
+                    ))
+                    .with_span(span));
+                }
+            }
+            events.push(SequenceEvent {
+                span,
+                kind: SequenceEventKind::Deactivate(id.to_string()),
+            });
+        }
+        "**" => {
+            alive_by_id.insert(id.to_string(), true);
+            events.push(SequenceEvent {
+                span,
+                kind: SequenceEventKind::Create(id.to_string()),
+            });
+        }
+        "!!" => {
+            if !is_alive(alive_by_id, id) {
+                return Err(Diagnostic::error(format!(
+                    "[E_LIFECYCLE_DESTROY_TWICE] participant `{}` is already destroyed",
+                    id
+                ))
+                .with_span(span));
+            }
+            if activation_stack.iter().any(|f| f.participant == id) {
+                return Err(Diagnostic::error(format!(
+                    "[E_LIFECYCLE_DESTROY_ACTIVE] cannot destroy active participant `{}`",
+                    id
+                ))
+                .with_span(span));
+            }
+            alive_by_id.insert(id.to_string(), false);
+            events.push(SequenceEvent {
+                span,
+                kind: SequenceEventKind::Destroy(id.to_string()),
+            });
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "[E_LIFECYCLE_SHORTCUT_INVALID] unknown lifecycle shortcut `{}`",
+                token
+            ))
+            .with_span(span));
+        }
+    }
+    Ok(())
 }

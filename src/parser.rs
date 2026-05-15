@@ -264,12 +264,25 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
+        if looks_like_state_transition(line) {
+            return Ok(Document {
+                kind: DiagramKind::Unknown,
+                statements,
+            });
+        }
 
         if let Some(kind) = parse_message(line) {
             seen_sequence = true;
             statements.push(Statement { span, kind });
             i += 1;
             continue;
+        }
+        if looks_like_arrow_syntax(line) {
+            return Err(Diagnostic::error(format!(
+                "[E_ARROW_INVALID] malformed sequence arrow syntax: `{}`",
+                line
+            ))
+            .with_span(span));
         }
 
         if let Some(kind) = parse_keyword(line) {
@@ -430,24 +443,31 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
 fn parse_message(line: &str) -> Option<StatementKind> {
     let (core, label) = split_message_label(line);
     let (lhs_raw, arrow, rhs_raw) = split_arrow(core)?;
+    let parsed_arrow = parse_arrow(arrow)?;
+    let (from_id_raw, from_modifier) = split_lifecycle_modifier(lhs_raw);
+    let (to_id_raw, to_modifier) = split_lifecycle_modifier(rhs_raw);
 
-    let mut from = clean_ident(lhs_raw);
-    let mut to = clean_ident(rhs_raw);
+    let from = normalize_virtual_endpoint(from_id_raw).unwrap_or_else(|| clean_ident(from_id_raw));
+    let to = normalize_virtual_endpoint(to_id_raw).unwrap_or_else(|| clean_ident(to_id_raw));
 
-    if from.is_empty() && lhs_raw.contains('[') {
-        from = "[*]".to_string();
-    }
-    if to.is_empty() && rhs_raw.contains(']') {
-        to = "[*]".to_string();
-    }
     if from.is_empty() || to.is_empty() {
         return None;
+    }
+
+    let mut arrow_encoded = parsed_arrow.to_string();
+    if let Some(modifier) = from_modifier {
+        arrow_encoded.push_str("@L");
+        arrow_encoded.push_str(modifier);
+    }
+    if let Some(modifier) = to_modifier {
+        arrow_encoded.push_str("@R");
+        arrow_encoded.push_str(modifier);
     }
 
     Some(StatementKind::Message(Message {
         from,
         to,
-        arrow: arrow.to_string(),
+        arrow: arrow_encoded,
         label,
     }))
 }
@@ -635,7 +655,7 @@ fn split_message_label(line: &str) -> (&str, Option<String>) {
 }
 
 fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
-    let arrow_start = core.find(['-', '<', '[']).unwrap_or(core.len());
+    let arrow_start = core.find(['-', '<']).unwrap_or(core.len());
     if arrow_start >= core.len() {
         return None;
     }
@@ -659,6 +679,58 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     }
     let rhs = core[i..].trim();
     Some((lhs.trim(), arrow, rhs))
+}
+
+fn parse_arrow(arrow: &str) -> Option<&str> {
+    const VALID_ARROWS: &[&str] = &[
+        "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
+        "o->", "o-->", "x->", "x-->", "->o", "-->o", "->x", "-->x", "o<->o", "x<->x",
+    ];
+    VALID_ARROWS.contains(&arrow).then_some(arrow)
+}
+
+fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
+    for suffix in ["++", "--", "**", "!!"] {
+        if let Some(base) = endpoint.trim_end().strip_suffix(suffix) {
+            return (base.trim_end(), Some(suffix));
+        }
+    }
+    (endpoint, None)
+}
+
+fn normalize_virtual_endpoint(raw: &str) -> Option<String> {
+    let t = raw.trim().trim_matches('"');
+    let lower = t.to_ascii_lowercase();
+    let is_virtual = matches!(
+        lower.as_str(),
+        "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]" | "o[" | "]o" | "x[" | "]x"
+    );
+    is_virtual.then(|| "[*]".to_string())
+}
+
+fn looks_like_arrow_syntax(line: &str) -> bool {
+    if line.starts_with('!') || line.starts_with('@') {
+        return false;
+    }
+    line.contains("->")
+        || line.contains("-->")
+        || line.contains("<-")
+        || line.contains("<--")
+        || line.contains("<->")
+        || line.contains("<-->")
+        || line.contains("->>")
+        || line.contains("-->>")
+        || line.contains("-x")
+        || line.contains("x-")
+        || line.contains("-o")
+        || line.contains("o-")
+}
+
+fn looks_like_state_transition(line: &str) -> bool {
+    let trimmed = line.trim();
+    (trimmed.starts_with("[*]") || trimmed.ends_with("[*]"))
+        && (trimmed.contains("-->") || trimmed.contains("->"))
+        && !trimmed.contains(':')
 }
 
 fn is_sequence_keyword(kind: &StatementKind) -> bool {
@@ -785,6 +857,24 @@ mod tests {
                 assert_eq!(n.position, "right");
                 assert_eq!(n.target.as_deref(), Some("B"));
                 assert_eq!(n.text, "line 1\nline 2");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_arrow_syntax() {
+        let err = parse_with_options("A -x B", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_ARROW_INVALID"));
+    }
+
+    #[test]
+    fn parses_lifecycle_shortcut_suffixes() {
+        let doc = parse_with_options("A -> B++: inc", &ParseOptions::default()).unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.arrow, "->@R++");
+                assert_eq!(m.to, "B");
             }
             other => panic!("unexpected statement: {other:?}"),
         }
