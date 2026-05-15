@@ -210,8 +210,7 @@ pub fn extract_markdown_diagrams(source: &str) -> Vec<DiagramInput> {
         let line_start = cursor;
         cursor += line.len();
 
-        let trimmed = line.trim_start();
-        let (marker, marker_count, rest) = parse_fence_line(trimmed);
+        let (marker, marker_count, rest) = parse_fence_line(line);
 
         if !in_fence {
             if marker_count >= 3 {
@@ -239,10 +238,30 @@ pub fn extract_markdown_diagrams(source: &str) -> Vec<DiagramInput> {
         }
     }
 
+    if in_fence {
+        let span = Span::new(content_start, source.len());
+        out.push(DiagramInput {
+            source: source[span.start.min(source.len())..span.end.min(source.len())].to_string(),
+            span_in_input: span,
+            fence_frontend,
+        });
+    }
+
     out
 }
 
-fn parse_fence_line(trimmed_line: &str) -> (char, usize, &str) {
+fn parse_fence_line(line: &str) -> (char, usize, &str) {
+    let without_newline = line.trim_end_matches(['\n', '\r']);
+    let leading_spaces = without_newline
+        .as_bytes()
+        .iter()
+        .take_while(|&&b| b == b' ')
+        .count();
+    if leading_spaces > 3 {
+        return ('\0', 0, without_newline);
+    }
+
+    let trimmed_line = &without_newline[leading_spaces..];
     let mut chars = trimmed_line.chars();
     let marker = match chars.next() {
         Some('`') => '`',

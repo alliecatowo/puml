@@ -1313,6 +1313,87 @@ fn diagnostics_default_mode_remains_human_readable() {
 }
 
 #[test]
+fn from_markdown_ingests_mixed_fence_edge_cases_deterministically() {
+    let input = fs::read_to_string(fixture("markdown/edge_cases.md")).unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array");
+    let labels = arr
+        .iter()
+        .map(|doc| {
+            doc["statements"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        vec!["tilde-puml", "uppercase-mermaid", "three-space-indent"]
+    );
+}
+
+#[test]
+fn stdin_markdown_edge_cases_multi_outputs_name_supported_fences_only() {
+    let input = fs::read_to_string(fixture("markdown/edge_cases.md")).unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--multi", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array output");
+    assert_eq!(arr.len(), 3);
+    assert_eq!(arr[0]["name"], "snippet-1.svg");
+    assert_eq!(arr[1]["name"], "snippet-2.svg");
+    assert_eq!(arr[2]["name"], "snippet-3.svg");
+}
+
+#[test]
+fn from_markdown_unclosed_supported_fence_ingests_through_eof() {
+    let input = fs::read_to_string(fixture("markdown/unclosed_fence_eof.md")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--check", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn from_markdown_without_supported_fences_reports_actionable_error() {
+    let input = "# heading\n```rust\nfn main() {}\n```\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--check", "-"])
+        .write_stdin(input)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "no supported markdown diagram fences found",
+        ))
+        .stderr(predicate::str::contains("mermaid"));
+}
+
+#[test]
 fn include_cycle_input_reports_cycle_error() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -1997,7 +2078,7 @@ fn markdown_multi_output_failure_does_not_leave_partial_writes() {
     Command::cargo_bin("puml")
         .expect("binary")
         .env("PUML_FAIL_OUTPUT_AFTER", "1")
-        .arg(input.to_str().unwrap())
+        .args(["--multi", input.to_str().unwrap()])
         .assert()
         .code(2)
         .stderr(predicate::str::contains("failed to write"));
