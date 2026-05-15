@@ -1,0 +1,8 @@
+@startuml
+participant A
+participant B
+alt branch
+  A -> B : first
+else empty-branch
+end
+@enduml

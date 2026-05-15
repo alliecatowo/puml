@@ -1,0 +1,6 @@
+@startuml
+participant A
+group marker
+end
+A -> A : done
+@enduml

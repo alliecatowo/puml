@@ -265,6 +265,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "groups/valid_loop_end.puml",
         "groups/valid_par_else_end.puml",
         "groups/valid_ref_and_else_rendering.puml",
+        "groups/valid_group_nested_mixed_fragments.puml",
+        "groups/valid_group_empty_group_block.puml",
         "autonumber/valid_basic.puml",
         "autonumber/valid_with_format.puml",
         "lifecycle/valid_activate_return.puml",
@@ -341,6 +343,10 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_include_tag_missing.puml",
         "errors/invalid_include_url.puml",
         "errors/invalid_else_inside_loop_group.puml",
+        "errors/invalid_group_else_without_alt.puml",
+        "errors/invalid_group_mismatched_end_keyword.puml",
+        "errors/invalid_group_empty_alt.puml",
+        "errors/invalid_group_empty_else_branch.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -361,6 +367,49 @@ fn else_inside_loop_group_reports_deterministic_normalize_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_GROUP_ELSE_KIND"));
+}
+
+#[test]
+fn strict_group_semantics_accepts_nested_alt_par_critical_and_group() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("groups/valid_group_nested_mixed_fragments.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn strict_group_semantics_allows_empty_group_block() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("groups/valid_group_empty_group_block.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn strict_group_semantics_rejects_empty_alt_and_else_branches() {
+    for case in [
+        "errors/invalid_group_empty_alt.puml",
+        "errors/invalid_group_empty_else_branch.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .code(1)
+            .stderr(predicate::str::contains("E_GROUP_EMPTY"));
+    }
 }
 
 #[test]
@@ -743,6 +792,47 @@ fn malformed_group_structure_reports_diagnostic() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_GROUP_ELSE_UNMATCHED"));
+}
+
+#[test]
+fn malformed_group_mismatched_end_keyword_reports_diagnostic_snapshot() {
+    let invalid = fixture("errors/invalid_group_mismatched_end_keyword.puml");
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &invalid])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out)
+        .unwrap()
+        .replace(&invalid, "<fixture>");
+    assert!(stderr.contains("E_GROUP_END_KIND"));
+    assert_snapshot!(
+        "malformed_group_mismatched_end_keyword_reports_diagnostic",
+        stderr
+    );
+}
+
+#[test]
+fn malformed_group_empty_alt_reports_diagnostic_snapshot() {
+    let invalid = fixture("errors/invalid_group_empty_alt.puml");
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &invalid])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8(out)
+        .unwrap()
+        .replace(&invalid, "<fixture>");
+    assert!(stderr.contains("E_GROUP_EMPTY"));
+    assert_snapshot!("malformed_group_empty_alt_reports_diagnostic", stderr);
 }
 
 #[test]

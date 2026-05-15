@@ -1,0 +1,6 @@
+@startuml
+participant A
+alt empty
+end
+A -> A : done
+@enduml

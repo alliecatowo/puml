@@ -91,13 +91,14 @@ pub fn normalize_with_options(
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
-    let mut group_stack: Vec<String> = Vec::new();
+    let mut group_stack: Vec<GroupFrame> = Vec::new();
     let mut last_message: Option<(String, String)> = None;
     let mut ignore_newpage = false;
 
     for stmt in document.statements {
         match stmt.kind {
             StatementKind::Participant(p) => {
+                mark_group_content(&mut group_stack);
                 let id = p.alias.unwrap_or_else(|| p.name.clone());
                 let display = p.display.unwrap_or_else(|| p.name.clone());
                 upsert_participant(
@@ -111,6 +112,7 @@ pub fn normalize_with_options(
                 .map_err(|e| Diagnostic::error(e).with_span(stmt.span))?;
             }
             StatementKind::Message(m) => {
+                mark_group_content(&mut group_stack);
                 let parsed_arrow = parse_message_arrow(&m.arrow).ok_or_else(|| {
                     Diagnostic::error(format!(
                         "[E_ARROW_INVALID] malformed sequence arrow syntax: `{}`",
@@ -163,20 +165,39 @@ pub fn normalize_with_options(
                     &mut events,
                 )?;
             }
-            StatementKind::Note(n) => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: SequenceEventKind::Note {
-                    position: n.position,
-                    target: n.target,
-                    text: n.text,
-                },
-            }),
+            StatementKind::Note(n) => {
+                mark_group_content(&mut group_stack);
+                events.push(SequenceEvent {
+                    span: stmt.span,
+                    kind: SequenceEventKind::Note {
+                        position: n.position,
+                        target: n.target,
+                        text: n.text,
+                    },
+                });
+            }
             StatementKind::Group(g) => {
                 if g.kind == "end" {
-                    if group_stack.pop().is_none() {
+                    let Some(open) = group_stack.pop() else {
                         return Err(Diagnostic::error(
                             "[E_GROUP_END_UNMATCHED] `end` without an open group block",
                         )
+                        .with_span(stmt.span));
+                    };
+                    if let Some(expected) = g.label.as_deref() {
+                        if expected != open.kind {
+                            return Err(Diagnostic::error(format!(
+                                "[E_GROUP_END_KIND] `end {}` does not match open `{}` block",
+                                expected, open.kind
+                            ))
+                            .with_span(stmt.span));
+                        }
+                    }
+                    if rejects_empty_group(open.kind.as_str()) && !open.branch_has_content {
+                        return Err(Diagnostic::error(format!(
+                            "[E_GROUP_EMPTY] `{}` block must not be empty",
+                            open.kind
+                        ))
                         .with_span(stmt.span));
                     }
                     events.push(SequenceEvent {
@@ -184,19 +205,27 @@ pub fn normalize_with_options(
                         kind: SequenceEventKind::GroupEnd,
                     });
                 } else if g.kind == "else" {
-                    let Some(top) = group_stack.last() else {
+                    let Some(top) = group_stack.last_mut() else {
                         return Err(Diagnostic::error(
                             "[E_GROUP_ELSE_UNMATCHED] `else` without an open group block",
                         )
                         .with_span(stmt.span));
                     };
-                    if !matches!(top.as_str(), "alt" | "opt" | "par" | "critical" | "break") {
+                    if !allows_else(top.kind.as_str()) {
                         return Err(Diagnostic::error(format!(
                             "[E_GROUP_ELSE_KIND] `else` is not valid inside `{}`",
-                            top
+                            top.kind
                         ))
                         .with_span(stmt.span));
                     }
+                    if rejects_empty_group(top.kind.as_str()) && !top.branch_has_content {
+                        return Err(Diagnostic::error(format!(
+                            "[E_GROUP_EMPTY_BRANCH] `{}` block contains an empty branch before `else`",
+                            top.kind
+                        ))
+                        .with_span(stmt.span));
+                    }
+                    top.branch_has_content = false;
                     events.push(SequenceEvent {
                         span: stmt.span,
                         kind: SequenceEventKind::GroupStart {
@@ -205,8 +234,13 @@ pub fn normalize_with_options(
                         },
                     });
                 } else {
+                    mark_group_content(&mut group_stack);
                     if g.kind != "ref" {
-                        group_stack.push(g.kind.clone());
+                        group_stack.push(GroupFrame {
+                            kind: g.kind.clone(),
+                            span: stmt.span,
+                            branch_has_content: false,
+                        });
                     }
                     events.push(SequenceEvent {
                         span: stmt.span,
@@ -223,6 +257,7 @@ pub fn normalize_with_options(
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
             StatementKind::SkinParam { key, value } => {
+                mark_group_content(&mut group_stack);
                 skinparams.push((key.clone(), value.clone()));
                 match classify_sequence_skinparam(&key, &value) {
                     SequenceSkinParamSupport::SupportedNoop => {}
@@ -276,6 +311,7 @@ pub fn normalize_with_options(
                 }
             }
             StatementKind::Theme(name) => {
+                mark_group_content(&mut group_stack);
                 warnings.push(
                     Diagnostic::warning(format!(
                         "[W_THEME_UNSUPPORTED] !theme is not supported yet{}",
@@ -288,24 +324,40 @@ pub fn normalize_with_options(
                     .with_span(stmt.span),
                 );
             }
-            StatementKind::Footbox(v) => footbox_visible = v,
-            StatementKind::Delay(v) => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: SequenceEventKind::Delay(v),
-            }),
-            StatementKind::Divider(v) => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: SequenceEventKind::Divider(v),
-            }),
-            StatementKind::Separator(v) => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: SequenceEventKind::Separator(v),
-            }),
-            StatementKind::Spacer => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: SequenceEventKind::Spacer,
-            }),
+            StatementKind::Footbox(v) => {
+                mark_group_content(&mut group_stack);
+                footbox_visible = v
+            }
+            StatementKind::Delay(v) => {
+                mark_group_content(&mut group_stack);
+                events.push(SequenceEvent {
+                    span: stmt.span,
+                    kind: SequenceEventKind::Delay(v),
+                })
+            }
+            StatementKind::Divider(v) => {
+                mark_group_content(&mut group_stack);
+                events.push(SequenceEvent {
+                    span: stmt.span,
+                    kind: SequenceEventKind::Divider(v),
+                })
+            }
+            StatementKind::Separator(v) => {
+                mark_group_content(&mut group_stack);
+                events.push(SequenceEvent {
+                    span: stmt.span,
+                    kind: SequenceEventKind::Separator(v),
+                })
+            }
+            StatementKind::Spacer => {
+                mark_group_content(&mut group_stack);
+                events.push(SequenceEvent {
+                    span: stmt.span,
+                    kind: SequenceEventKind::Spacer,
+                })
+            }
             StatementKind::NewPage(v) => {
+                mark_group_content(&mut group_stack);
                 if !ignore_newpage {
                     events.push(SequenceEvent {
                         span: stmt.span,
@@ -314,15 +366,20 @@ pub fn normalize_with_options(
                 }
             }
             StatementKind::IgnoreNewPage => {
+                mark_group_content(&mut group_stack);
                 ignore_newpage = true;
             }
-            StatementKind::Autonumber(v) => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: SequenceEventKind::Autonumber(
-                    v.as_deref().and_then(canonicalize_autonumber_raw),
-                ),
-            }),
+            StatementKind::Autonumber(v) => {
+                mark_group_content(&mut group_stack);
+                events.push(SequenceEvent {
+                    span: stmt.span,
+                    kind: SequenceEventKind::Autonumber(
+                        v.as_deref().and_then(canonicalize_autonumber_raw),
+                    ),
+                })
+            }
             StatementKind::Activate(id) => {
+                mark_group_content(&mut group_stack);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if !is_alive(&alive_by_id, &id) {
                     return Err(Diagnostic::error(format!(
@@ -346,6 +403,7 @@ pub fn normalize_with_options(
                 });
             }
             StatementKind::Deactivate(id) => {
+                mark_group_content(&mut group_stack);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if !is_alive(&alive_by_id, &id) {
                     return Err(Diagnostic::error(format!(
@@ -380,6 +438,7 @@ pub fn normalize_with_options(
                 });
             }
             StatementKind::Destroy(id) => {
+                mark_group_content(&mut group_stack);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if !is_alive(&alive_by_id, &id) {
                     return Err(Diagnostic::error(format!(
@@ -402,6 +461,7 @@ pub fn normalize_with_options(
                 });
             }
             StatementKind::Create(id) => {
+                mark_group_content(&mut group_stack);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if alive_by_id.get(&id).copied() == Some(true) {
                     return Err(Diagnostic::error(format!(
@@ -416,10 +476,13 @@ pub fn normalize_with_options(
                     kind: SequenceEventKind::Create(id),
                 });
             }
-            StatementKind::Return(v) => events.push(SequenceEvent {
-                span: stmt.span,
-                kind: infer_return_event(stmt.span, v, &mut activation_stack, &last_message)?,
-            }),
+            StatementKind::Return(v) => {
+                mark_group_content(&mut group_stack);
+                events.push(SequenceEvent {
+                    span: stmt.span,
+                    kind: infer_return_event(stmt.span, v, &mut activation_stack, &last_message)?,
+                })
+            }
             StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
             }
@@ -439,8 +502,9 @@ pub fn normalize_with_options(
     if let Some(open) = group_stack.pop() {
         return Err(Diagnostic::error(format!(
             "[E_GROUP_UNCLOSED] missing `end` for open `{}` block",
-            open
-        )));
+            open.kind
+        ))
+        .with_span(open.span));
     }
 
     warnings.sort_by(|a, b| {
@@ -472,6 +536,27 @@ fn is_alive(alive_by_id: &BTreeMap<String, bool>, id: &str) -> bool {
 struct ActivationFrame {
     participant: String,
     caller: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct GroupFrame {
+    kind: String,
+    span: crate::source::Span,
+    branch_has_content: bool,
+}
+
+fn mark_group_content(group_stack: &mut [GroupFrame]) {
+    for frame in group_stack {
+        frame.branch_has_content = true;
+    }
+}
+
+fn allows_else(kind: &str) -> bool {
+    matches!(kind, "alt" | "par" | "critical")
+}
+
+fn rejects_empty_group(kind: &str) -> bool {
+    matches!(kind, "alt" | "par" | "critical")
 }
 
 fn infer_return_event(
