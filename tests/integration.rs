@@ -1882,8 +1882,14 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
 #[test]
 fn include_path_shape_errors_are_deterministic() {
     let cases = [
-        ("errors/invalid_include_absolute_path.puml", "E_INCLUDE_ABSOLUTE_PATH"),
-        ("errors/invalid_include_empty_path.puml", "E_INCLUDE_PATH_REQUIRED"),
+        (
+            "errors/invalid_include_absolute_path.puml",
+            "E_INCLUDE_ABSOLUTE_PATH",
+        ),
+        (
+            "errors/invalid_include_empty_path.puml",
+            "E_INCLUDE_PATH_REQUIRED",
+        ),
     ];
 
     for (path, code) in cases {
