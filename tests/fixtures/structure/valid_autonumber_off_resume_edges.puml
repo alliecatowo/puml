@@ -1,0 +1,10 @@
+@startuml
+autonumber 7 3 "ID-00"
+A -> B : first
+autonumber off
+B -> A : gap
+autonumber resume "R-00"
+A -> B : resumed-default-step
+autonumber resume 5 "R-00"
+B -> A : resumed-new-step
+@enduml

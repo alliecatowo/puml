@@ -1,0 +1,7 @@
+---
+source: tests/integration.rs
+expression: stderr
+---
+[E_AUTONUMBER_FORMAT_UNSUPPORTED] autonumber format does not support HTML tags in this deterministic subset at line 2, column 1
+autonumber 10 2 "<b>[000]"
+^^^^^^^^^^^^^^^^^^^^^^^^^^
