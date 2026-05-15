@@ -163,11 +163,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
-    let should_require_multi = input_path.is_none();
-    if diagrams.len() > 1 && should_require_multi && !cli.multi {
+    if diagrams.len() > 1 && !cli.multi {
         return Err((
             EXIT_VALIDATION,
-            "multiple diagrams detected from stdin input; rerun with --multi".to_string(),
+            "multiple diagrams detected; rerun with --multi".to_string(),
         ));
     }
 
@@ -289,10 +288,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         Ok::<_, (u8, String)>(all)
     })?;
 
-    if input_path.is_none() && outputs.len() > 1 && !cli.multi {
+    if outputs.len() > 1 && !cli.multi {
         return Err((
             EXIT_VALIDATION,
-            "multiple pages detected from stdin input; rerun with --multi".to_string(),
+            "multiple pages detected; rerun with --multi".to_string(),
         ));
     }
 

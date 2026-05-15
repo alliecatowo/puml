@@ -129,7 +129,7 @@ Modes:
 - default renders SVG
 - `--check` parses + normalizes only
 - `--dump ast|model|scene` emits JSON
-- `--multi` permits multiple diagrams
+- `--multi` permits multiple diagrams/pages (required whenever input expands to more than one diagram/page)
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
   supported markdown fence langs: `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
@@ -148,7 +148,7 @@ Outputs:
 - single diagram from stdin writes SVG to stdout
 - multi diagram from stdin + `--multi` writes JSON array to stdout
   markdown stdin naming is deterministic: `snippet-<n>.svg` (or `snippet-<n>-<page>.svg` for multipage fences)
-- markdown file default outputs are deterministic snippet files:
+- markdown file outputs with `--multi` are deterministic snippet files:
   `<markdown-stem>_snippet_<n>.svg` (or `<markdown-stem>_snippet_<n>-<page>.svg` for multipage fences)
 - `--output PATH` writes to that path for single diagrams, and numbered paths for multi
 
