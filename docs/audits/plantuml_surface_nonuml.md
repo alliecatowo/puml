@@ -2,7 +2,7 @@
 
 Date: 2026-05-15
 Scope: official PlantUML non-UML families + special diagrams for parity planning.
-Runtime baseline in this repo: `puml` is sequence-only today and emits `"puml currently renders sequence diagrams only"` for non-sequence inputs (see `README.md` feature matrix and check-mode diagnostics behavior).
+Runtime baseline in this repo: `puml` fully supports sequence, plus bootstrap parser/model/stub-render routing for class/object/usecase families; other families remain unsupported with deterministic diagnostics.
 
 ## Gantt
 Official source: https://plantuml.com/gantt-diagram

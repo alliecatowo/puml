@@ -103,12 +103,17 @@ fn diagram_family_as_str_covers_all_variants() {
 }
 
 #[test]
-fn render_for_non_sequence_family_reports_not_implemented_error() {
-    let src = "@startuml\nAlice -> Bob: hi\n@enduml\n";
-    let err = render_source_to_svg_for_family(src, DiagramFamily::Class).unwrap_err();
-    assert!(err
-        .message
-        .contains("diagram family `class` is not implemented yet"));
+fn render_for_class_family_returns_stub_svg() {
+    let src = "@startuml\nclass User\n@enduml\n";
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Class).unwrap();
+    assert!(svg.contains("Bootstrap stub for class diagrams"));
+}
+
+#[test]
+fn render_for_mismatched_family_reports_deterministic_error() {
+    let src = "@startuml\nclass User\n@enduml\n";
+    let err = render_source_to_svg_for_family(src, DiagramFamily::Sequence).unwrap_err();
+    assert!(err.message.contains("E_FAMILY_MISMATCH"));
 }
 
 #[test]

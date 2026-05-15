@@ -4,15 +4,15 @@ Fast, deterministic sequence-diagram rendering to SVG with a first-class polymor
 
 ![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)
 ![rust](https://img.shields.io/badge/rust-2021-f97316)
-![scope](https://img.shields.io/badge/scope-sequence--only-14b8a6)
+![scope](https://img.shields.io/badge/scope-sequence--first%20%2B%20uml--bootstrap-14b8a6)
 ![license](https://img.shields.io/badge/license-MIT-22c55e)
 ![docs parity](https://img.shields.io/badge/docs--as--tests-enabled-16a34a)
 ![determinism](https://img.shields.io/badge/svg-deterministic-0f766e)
 ![agent harness](https://img.shields.io/badge/codex%2Fclaude-harness--ready-f59e0b)
 
-## Why Sequence-Only
+## Why Sequence-First
 
-`puml` intentionally supports sequence diagrams only. Non-sequence families (state/class/etc.) are rejected so the parser, validator, layout, and SVG output stay predictable and testable.
+`puml` is intentionally sequence-first. Class/object/usecase now have a bootstrap parser->model->stub-render path, while deeper semantics and additional families remain out of scope so parser, validator, layout, and SVG contracts stay predictable and testable.
 
 Language and compatibility statement:
 - PicoUML is a first-class canonical language surface for this engine.

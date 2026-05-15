@@ -9,6 +9,9 @@ pub struct Document {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagramKind {
     Sequence,
+    Class,
+    Object,
+    UseCase,
     Unknown,
 }
 
@@ -22,6 +25,10 @@ pub struct Statement {
 pub enum StatementKind {
     Participant(ParticipantDecl),
     Message(Message),
+    ClassDecl(ClassDecl),
+    ObjectDecl(ObjectDecl),
+    UseCaseDecl(UseCaseDecl),
+    FamilyRelation(FamilyRelation),
     Note(Note),
     Group(Group),
     Title(String),
@@ -48,6 +55,32 @@ pub enum StatementKind {
     Define { name: String, value: Option<String> },
     Undef(String),
     Unknown(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct ClassDecl {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectDecl {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UseCaseDecl {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FamilyRelation {
+    pub from: String,
+    pub to: String,
+    pub arrow: String,
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone)]

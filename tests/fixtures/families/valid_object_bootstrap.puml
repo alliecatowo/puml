@@ -1,0 +1,5 @@
+@startuml
+object Order
+object Customer as C
+Order --> C : placedBy
+@enduml

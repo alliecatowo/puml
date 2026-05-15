@@ -46,21 +46,24 @@ fn family_routing_stub_is_deterministic_for_sequence() {
 }
 
 #[test]
-fn family_routing_stub_rejects_non_sequence_for_now() {
+fn family_routing_stub_renders_class_deterministically() {
     let src = "@startuml\nclass A\n@enduml\n";
     let first = render_source_to_svgs_for_family(src, DiagramFamily::Class)
-        .expect_err("class routing should be rejected");
+        .expect("class routing should render via stub");
     let second = render_source_to_svgs_for_family(src, DiagramFamily::Class)
-        .expect_err("class routing should be rejected");
+        .expect("class routing should render via stub");
 
-    assert_eq!(
-        first.message, second.message,
-        "rejection should be deterministic"
-    );
+    assert_eq!(first, second, "stub output should be deterministic");
     assert!(
-        first
-            .message
-            .contains("diagram family `class` is not implemented yet"),
-        "rejection should mention unsupported family"
+        first[0].contains("Bootstrap stub for class diagrams"),
+        "stub render should include family marker"
     );
+}
+
+#[test]
+fn family_routing_rejects_mismatched_requested_family() {
+    let src = "@startuml\nclass A\n@enduml\n";
+    let err = render_source_to_svgs_for_family(src, DiagramFamily::Sequence)
+        .expect_err("mismatched family should fail deterministically");
+    assert!(err.message.contains("E_FAMILY_MISMATCH"));
 }

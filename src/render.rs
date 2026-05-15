@@ -1,4 +1,5 @@
-use crate::model::{ParticipantRole, VirtualEndpointKind};
+use crate::ast::DiagramKind;
+use crate::model::{FamilyDocument, FamilyNodeKind, ParticipantRole, VirtualEndpointKind};
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
@@ -230,6 +231,124 @@ pub fn render_svg(scene: &Scene) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
+    let width = 760;
+    let mut y = 28;
+    let title_lines = document
+        .title
+        .as_deref()
+        .map(|v| v.lines().count() as i32)
+        .unwrap_or(0);
+    let body_rows = document.nodes.len().max(1) as i32;
+    let relation_rows = document.relations.len() as i32;
+    let height = 140 + (body_rows * 42) + (relation_rows * 20) + (title_lines * 24);
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    if let Some(title) = &document.title {
+        for line in title.lines() {
+            out.push_str(&format!(
+                "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+                y,
+                escape_text(line)
+            ));
+            y += 24;
+        }
+    }
+
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" fill=\"#333\">Bootstrap stub for {} diagrams</text>",
+        y,
+        family_kind_label(document.kind)
+    ));
+    y += 16;
+
+    out.push_str(&format!(
+        "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#f8fafc\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+        y,
+        32 + (body_rows * 42)
+    ));
+    y += 24;
+
+    if document.nodes.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">No declarations parsed.</text>",
+            y
+        ));
+        y += 30;
+    } else {
+        for node in &document.nodes {
+            out.push_str(&format!(
+                "<rect x=\"40\" y=\"{}\" width=\"680\" height=\"30\" rx=\"4\" ry=\"4\" fill=\"white\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+                y - 14
+            ));
+            let alias = node
+                .alias
+                .as_deref()
+                .map(|v| format!(" as {v}"))
+                .unwrap_or_default();
+            out.push_str(&format!(
+                "<text x=\"52\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{} {}{}</text>",
+                y + 6,
+                family_node_label(node.kind),
+                escape_text(&node.name),
+                escape_text(&alias)
+            ));
+            y += 42;
+        }
+    }
+
+    if !document.relations.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#334155\">Relations</text>",
+            y + 6
+        ));
+        y += 24;
+        for relation in &document.relations {
+            let label = relation
+                .label
+                .as_deref()
+                .map(|v| format!(" : {v}"))
+                .unwrap_or_default();
+            out.push_str(&format!(
+                "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} {} {}{}</text>",
+                y,
+                escape_text(&relation.from),
+                escape_text(&relation.arrow),
+                escape_text(&relation.to),
+                escape_text(&label)
+            ));
+            y += 20;
+        }
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+fn family_kind_label(kind: DiagramKind) -> &'static str {
+    match kind {
+        DiagramKind::Class => "class",
+        DiagramKind::Object => "object",
+        DiagramKind::UseCase => "usecase",
+        DiagramKind::Sequence => "sequence",
+        DiagramKind::Unknown => "unknown",
+    }
+}
+
+fn family_node_label(kind: FamilyNodeKind) -> &'static str {
+    match kind {
+        FamilyNodeKind::Class => "class",
+        FamilyNodeKind::Object => "object",
+        FamilyNodeKind::UseCase => "usecase",
+    }
 }
 
 fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: VirtualEndpointKind) {

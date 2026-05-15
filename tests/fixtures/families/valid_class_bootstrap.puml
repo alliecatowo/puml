@@ -1,0 +1,6 @@
+@startuml
+title Core Domain
+class User
+class Account as Acct
+User --> Acct : owns
+@enduml

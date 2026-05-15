@@ -3,8 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ast::{
-    DiagramKind, Document, Group, Message, Note, ParticipantDecl, ParticipantRole, Statement,
-    StatementKind, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    ClassDecl, DiagramKind, Document, FamilyRelation, Group, Message, Note, ObjectDecl,
+    ParticipantDecl, ParticipantRole, Statement, StatementKind, UseCaseDecl, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
@@ -664,7 +665,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         offset += raw_line.len() + 1;
     }
 
-    let mut seen_sequence = false;
+    let mut detected_kind: Option<DiagramKind> = None;
     let mut in_block = false;
     let mut block_start_span: Option<Span> = None;
     let mut i = 0usize;
@@ -706,51 +707,102 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
-            seen_sequence = true;
-            let block_span = Span::new(span.start, lines[end_idx].1.end);
-            statements.push(Statement {
-                span: block_span,
-                kind,
-            });
-            i = end_idx + 1;
-            continue;
-        }
-
-        if let Some((kind, end_idx)) = parse_multiline_note_block(&lines, i, line) {
-            seen_sequence = true;
-            let block_span = Span::new(span.start, lines[end_idx].1.end);
-            statements.push(Statement {
-                span: block_span,
-                kind,
-            });
-            i = end_idx + 1;
-            continue;
-        }
-        if let Some((kind, end_idx)) = parse_multiline_ref_block(&lines, i, line) {
-            seen_sequence = true;
-            let block_span = Span::new(span.start, lines[end_idx].1.end);
-            statements.push(Statement {
-                span: block_span,
-                kind,
-            });
-            i = end_idx + 1;
-            continue;
-        }
-
-        if let Some(kind) = parse_participant(line) {
-            seen_sequence = true;
+        if let Some(kind) = parse_family_declaration(line) {
+            let family = family_for_declaration(&kind);
+            detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
             statements.push(Statement { span, kind });
             i += 1;
             continue;
         }
-        if let Some(kind) = parse_message(line) {
-            seen_sequence = true;
+
+        if let Some(kind) = parse_family_relation(line, detected_kind) {
             statements.push(Statement { span, kind });
             i += 1;
             continue;
         }
-        if looks_like_arrow_syntax(line) {
+
+        if detected_kind.is_none() && looks_like_unsupported_family_syntax(line) {
+            detected_kind = Some(DiagramKind::Unknown);
+        }
+
+        let allow_sequence_parse =
+            detected_kind.is_none() || matches!(detected_kind, Some(DiagramKind::Sequence));
+
+        if allow_sequence_parse {
+            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+        }
+
+        if allow_sequence_parse {
+            if let Some((kind, end_idx)) = parse_multiline_note_block(&lines, i, line) {
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+        }
+        if allow_sequence_parse {
+            if let Some((kind, end_idx)) = parse_multiline_ref_block(&lines, i, line) {
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+        }
+
+        if allow_sequence_parse {
+            if let Some(kind) = parse_participant(line) {
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+        if allow_sequence_parse {
+            if let Some(kind) = parse_message(line) {
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+        if allow_sequence_parse && looks_like_arrow_syntax(line) {
             return Err(Diagnostic::error(format!(
                 "[E_ARROW_INVALID] malformed sequence arrow syntax: `{}`",
                 line
@@ -760,23 +812,15 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         if let Some(kind) = parse_keyword(line) {
             if is_sequence_keyword(&kind) {
-                seen_sequence = true;
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
             }
             statements.push(Statement { span, kind });
             i += 1;
             continue;
-        }
-
-        if line.starts_with("class ")
-            || line.starts_with("usecase ")
-            || line.starts_with("component ")
-            || line.starts_with("state ")
-            || line.starts_with("[*]")
-        {
-            return Ok(Document {
-                kind: DiagramKind::Unknown,
-                statements,
-            });
         }
 
         statements.push(Statement {
@@ -794,13 +838,121 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     }
 
     Ok(Document {
-        kind: if seen_sequence {
-            DiagramKind::Sequence
-        } else {
-            DiagramKind::Unknown
-        },
+        kind: detected_kind.unwrap_or(DiagramKind::Unknown),
         statements,
     })
+}
+
+fn select_diagram_kind(
+    current: Option<DiagramKind>,
+    candidate: DiagramKind,
+    span: Span,
+) -> Result<DiagramKind, Diagnostic> {
+    let Some(current) = current else {
+        return Ok(candidate);
+    };
+    if current == candidate {
+        return Ok(current);
+    }
+    if current == DiagramKind::Unknown || candidate == DiagramKind::Unknown {
+        return Ok(DiagramKind::Unknown);
+    }
+    Err(Diagnostic::error(format!(
+        "[E_FAMILY_MIXED] mixed diagram families are not supported: found `{}` syntax in `{}` diagram",
+        diagram_kind_name(candidate),
+        diagram_kind_name(current)
+    ))
+    .with_span(span))
+}
+
+fn looks_like_unsupported_family_syntax(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.starts_with("state ")
+        || lower.starts_with("component ")
+        || lower.starts_with("activity ")
+        || lower.starts_with("deployment ")
+        || lower.starts_with("node ")
+}
+
+fn diagram_kind_name(kind: DiagramKind) -> &'static str {
+    match kind {
+        DiagramKind::Sequence => "sequence",
+        DiagramKind::Class => "class",
+        DiagramKind::Object => "object",
+        DiagramKind::UseCase => "usecase",
+        DiagramKind::Unknown => "unknown",
+    }
+}
+
+fn family_for_declaration(kind: &StatementKind) -> DiagramKind {
+    match kind {
+        StatementKind::ClassDecl(_) => DiagramKind::Class,
+        StatementKind::ObjectDecl(_) => DiagramKind::Object,
+        StatementKind::UseCaseDecl(_) => DiagramKind::UseCase,
+        _ => DiagramKind::Unknown,
+    }
+}
+
+fn parse_family_declaration(line: &str) -> Option<StatementKind> {
+    if let Some((name, alias)) = parse_named_family_decl(line, "class") {
+        return Some(StatementKind::ClassDecl(ClassDecl { name, alias }));
+    }
+    if let Some((name, alias)) = parse_named_family_decl(line, "object") {
+        return Some(StatementKind::ObjectDecl(ObjectDecl { name, alias }));
+    }
+    if let Some((name, alias)) = parse_named_family_decl(line, "usecase") {
+        return Some(StatementKind::UseCaseDecl(UseCaseDecl { name, alias }));
+    }
+    None
+}
+
+fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<String>)> {
+    if !line.starts_with(keyword) {
+        return None;
+    }
+    let rest = line[keyword.len()..].trim();
+    if rest.is_empty() {
+        return None;
+    }
+
+    let mut trimmed = rest.trim_end_matches('{').trim();
+    if trimmed.is_empty() {
+        trimmed = rest;
+    }
+
+    let (name_raw, alias_raw) = if let Some((lhs, rhs)) = trimmed.split_once(" as ") {
+        (lhs.trim(), Some(rhs.trim()))
+    } else {
+        (trimmed, None)
+    };
+
+    let name = clean_ident(name_raw);
+    if name.is_empty() {
+        return None;
+    }
+    let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
+    Some((name, alias))
+}
+
+fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
+    match family {
+        Some(DiagramKind::Class) | Some(DiagramKind::Object) | Some(DiagramKind::UseCase) => {}
+        _ => return None,
+    }
+
+    let (core, label) = split_message_label(line);
+    let (lhs, arrow, rhs) = split_arrow(core)?;
+    let from = clean_ident(lhs);
+    let to = clean_ident(rhs);
+    if from.is_empty() || to.is_empty() {
+        return None;
+    }
+    Some(StatementKind::FamilyRelation(FamilyRelation {
+        from,
+        to,
+        arrow: arrow.to_string(),
+        label,
+    }))
 }
 
 fn parse_multiline_keyword_block(
@@ -1515,17 +1667,13 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Destroy(_)
             | StatementKind::Create(_)
             | StatementKind::Return(_)
-            | StatementKind::Include(_)
-            | StatementKind::Define { .. }
-            | StatementKind::Undef(_)
-            | StatementKind::Theme(_)
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::{parse_with_options, ParseOptions};
-    use crate::ast::StatementKind;
+    use crate::ast::{DiagramKind, StatementKind};
     use std::fs;
     use tempfile::tempdir;
 
@@ -1996,5 +2144,86 @@ mod tests {
             }
             other => panic!("unexpected statement: {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_class_bootstrap_declarations_and_relations() {
+        let doc = parse_with_options(
+            "class User\nclass Account as Acct\nUser --> Acct : owns\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::ClassDecl(_)
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::ClassDecl(_)
+        ));
+        match &doc.statements[2].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "User");
+                assert_eq!(rel.to, "Acct");
+                assert_eq!(rel.arrow, "-->");
+                assert_eq!(rel.label.as_deref(), Some("owns"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_object_and_usecase_bootstrap_kinds() {
+        let object_doc =
+            parse_with_options("object Order\nobject Customer\n", &ParseOptions::default())
+                .unwrap();
+        assert_eq!(object_doc.kind, DiagramKind::Object);
+
+        let usecase_doc = parse_with_options(
+            "usecase Authenticate\nusecase Authorize\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(usecase_doc.kind, DiagramKind::UseCase);
+    }
+
+    #[test]
+    fn parses_usecase_relations_with_alias_and_label() {
+        let doc = parse_with_options(
+            "usecase Authenticate as Auth\nusecase User\nAuth --> User : validates\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::UseCase);
+        match &doc.statements[2].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "Auth");
+                assert_eq!(rel.to, "User");
+                assert_eq!(rel.arrow, "-->");
+                assert_eq!(rel.label.as_deref(), Some("validates"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_family_relation_is_preserved_as_unknown_statement() {
+        let doc = parse_with_options("class User\nUser -->\n", &ParseOptions::default()).unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(doc.statements[1].kind, StatementKind::Unknown(_)));
+    }
+
+    #[test]
+    fn unsupported_family_keyword_is_preserved_for_later_validation() {
+        let doc = parse_with_options("state Running\n", &ParseOptions::default()).unwrap();
+        assert_eq!(doc.kind, DiagramKind::Unknown);
+        assert!(matches!(doc.statements[0].kind, StatementKind::Unknown(_)));
+    }
+
+    #[test]
+    fn mixed_family_input_reports_deterministic_error() {
+        let err = parse_with_options("class A\nnewpage\n", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_FAMILY_MIXED"));
     }
 }
