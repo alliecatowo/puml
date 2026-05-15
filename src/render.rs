@@ -284,11 +284,46 @@ fn render_participant_box(
                 x + 12,
                 y + 22
             ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
+                x + 8,
+                y + 18,
+                x + 16,
+                y + 18
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
+                x + 12,
+                y + 22,
+                x + 8,
+                y + 28
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
+                x + 12,
+                y + 22,
+                x + 16,
+                y + 28
+            ));
         }
         ParticipantRole::Boundary => {
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#eef8ff\" stroke=\"#1b5e8a\" stroke-width=\"1\" stroke-dasharray=\"5 3\"/>",
                 x, y, width, height
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
+                x + 6,
+                y + 4,
+                x + 6,
+                y + height - 4
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
+                x + width - 6,
+                y + 4,
+                x + width - 6,
+                y + height - 4
             ));
         }
         ParticipantRole::Control => {
@@ -307,6 +342,13 @@ fn render_participant_box(
                 x,
                 y + height / 2
             ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#2d6a2d\" stroke-width=\"1\"/>",
+                x + 10,
+                y + height / 2,
+                x + width - 10,
+                y + height / 2
+            ));
         }
         ParticipantRole::Entity => {
             out.push_str(&format!(
@@ -319,6 +361,13 @@ fn render_participant_box(
                 y + 4,
                 width - 8,
                 height - 8
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#4e3a8f\" stroke-width=\"1\"/>",
+                x + 6,
+                y + 12,
+                x + width - 6,
+                y + 12
             ));
         }
         ParticipantRole::Database => {
@@ -350,6 +399,10 @@ fn render_participant_box(
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"#fff9e8\" stroke=\"#8a6d1b\" stroke-width=\"1\"/>",
                 x + 8, y, 24, 8
+            ));
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"#fff9e8\" stroke=\"#8a6d1b\" stroke-width=\"1\"/>",
+                x + 14, y + 2, 24, 8
             ));
         }
         ParticipantRole::Queue => {

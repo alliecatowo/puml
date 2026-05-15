@@ -1,64 +1,82 @@
 # puml
 
-`puml` is a Rust CLI for rendering a focused, validated subset of PlantUML-style sequence diagrams to SVG.
+Fast, deterministic sequence-diagram rendering from PlantUML-style text to SVG, with strict validation and scriptable CLI modes.
 
-![crate](https://img.shields.io/badge/crate-0.1.0-blue)
-![rust edition](https://img.shields.io/badge/rust-2021-orange)
-![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-cargo%20test-informational)
+![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)
+![rust](https://img.shields.io/badge/rust-2021-f97316)
+![scope](https://img.shields.io/badge/scope-sequence--only-14b8a6)
+![license](https://img.shields.io/badge/license-MIT-22c55e)
 
-## Developer Experience Quickstart
+## Why Sequence-Only
 
-One-command setup:
+`puml` intentionally supports sequence diagrams only. Non-sequence families (state/class/etc.) are rejected so the parser, validator, layout, and SVG output stay predictable and testable.
+
+Compatibility statement:
+- Supports a focused subset of PlantUML-style **sequence** syntax (see feature matrix below).
+- Does not claim full PlantUML language compatibility.
+
+## Install And Dev
 
 ```bash
+# clone + enter
+git clone <your-fork-or-repo-url>
+cd puml
+
+# one-time dev setup
 ./scripts/setup.sh
-```
 
-One-command full quality gate:
+# fast local loop (fmt + clippy + test)
+./scripts/dev.sh
 
-```bash
+# full quality gate
 ./scripts/check-all.sh
 ```
 
-One-command benchmark workflow:
+## CLI Usage (Explicit Modes)
 
 ```bash
-./scripts/bench.sh
-```
-
-Outputs:
-- `docs/benchmarks/latest.md`
-- `docs/benchmarks/latest.csv`
-- `docs/benchmarks/latest.json`
-
-## Daily Development Commands
-
-Fast local loop:
-
-```bash
-./scripts/dev.sh
-```
-
-CLI quick checks:
-
-```bash
-# Explore CLI options
+# help
 cargo run -- --help
 
-# Render a diagram file to <input-stem>.svg
-cargo run -- tests/fixtures/single_valid.puml
+# 1) FILE INPUT -> renders <input-stem>.svg
+cargo run -- tests/fixtures/basic/hello.puml
 
-# Validate from stdin without rendering
-cat tests/fixtures/single_valid.puml | cargo run -- --check -
+# 2) STDIN INPUT (explicit '-') -> render SVG to stdout
+cat tests/fixtures/basic/hello.puml | cargo run -- -
 
-# Inspect pipeline stages
-cargo run -- --dump ast tests/fixtures/single_valid.puml
-cargo run -- --dump model tests/fixtures/single_valid.puml
-cargo run -- --dump scene tests/fixtures/single_valid.puml
+# 3) STDIN INPUT (implicit, no INPUT arg) -> render SVG to stdout
+cat tests/fixtures/basic/hello.puml | cargo run --
 
-# Enable multi-diagram mode
-cargo run -- --multi tests/fixtures/multi_valid.puml
+# check-only mode (parse + normalize, no render output)
+cargo run -- --check tests/fixtures/basic/hello.puml
+cat tests/fixtures/basic/hello.puml | cargo run -- --check -
+
+# dump pipeline JSON
+cargo run -- --dump ast tests/fixtures/basic/hello.puml
+cargo run -- --dump model tests/fixtures/basic/hello.puml
+cargo run -- --dump scene tests/fixtures/basic/hello.puml
+
+# multi-diagram mode (must be explicit)
+cargo run -- --multi tests/fixtures/structure/multi_three.puml
+cat tests/fixtures/structure/multi_three.puml | cargo run -- --multi -
+
+# stdin + include support
+cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --include-root ./tests/fixtures/include -
+```
+
+## Asciicast-Style Example
+
+```console
+$ cat > hello.puml <<'PUML'
+@startuml
+Alice -> Bob: hello
+@enduml
+PUML
+$ cargo run -- hello.puml
+$ ls hello.svg
+hello.svg
+$ cargo run -- --check hello.puml
+# exits 0 with no validation errors
 ```
 
 ## CLI Contract
@@ -69,16 +87,16 @@ Inputs:
 - omitted `INPUT` reads stdin
 
 Modes:
-- default mode renders SVG
+- default renders SVG
 - `--check` parses + normalizes only
 - `--dump ast|model|scene` emits JSON
-- `--multi` allows multiple diagrams from one input
-- `--include-root DIR` sets `!include` resolution root when reading stdin
+- `--multi` permits multiple diagrams
+- `--include-root DIR` resolves `!include` when reading stdin
 
 Outputs:
 - single diagram from file writes `<input-stem>.svg`
 - single diagram from stdin writes SVG to stdout
-- multi diagram from stdin + `--multi` writes a JSON array to stdout
+- multi diagram from stdin + `--multi` writes JSON array to stdout
 - `--output PATH` writes to that path for single diagrams, and numbered paths for multi
 
 Exit codes:
@@ -87,21 +105,21 @@ Exit codes:
 - `2` I/O failure
 - `3` internal failure
 
-Warnings:
-- unsupported `skinparam` keys and `!theme` are emitted to `stderr` as deterministic non-fatal warnings in `--check`, `--dump`, and render modes
-- warnings do not change exit code when no hard validation error occurs
-
 Diagnostics:
-- source-related warnings and validation errors include `line`/`column` plus a source caret snippet in `--check`, `--dump`, and render modes
-- diagnostics without source spans remain plain one-line messages
+- source warnings/errors include `line`/`column` and caret snippets when source spans exist
+- unsupported `skinparam` keys and `!theme` emit deterministic non-fatal warnings on `stderr`
 
-Example:
+## Benchmarks (Latest Recorded)
 
-```text
-[E_ARROW_INVALID] malformed arrow syntax at line 2, column 1
-A -x B: malformed
-^^^^^^
-```
+Source: `docs/benchmarks/latest.md` generated on **2026-05-15** (UTC timestamp `2026-05-15T07:44:44Z`).
+
+| Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |
+|---|---:|---:|---:|---|
+| `render_hello` | 212.000 | 74.135 | 5 | `time` |
+| `check_hello` | 180.000 | 0.000 | 5 | `time` |
+| `dump_model` | 176.000 | 4.899 | 5 | `time` |
+| `stdin_single` | 180.000 | 0.000 | 5 | `time` |
+| `stdin_multi` | 182.000 | 4.000 | 5 | `time` |
 
 ## Feature Matrix
 
@@ -119,24 +137,12 @@ A -x B: malformed
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 
-## Text Overflow Policy
-
-`LayoutOptions` supports two participant/title label overflow behaviors:
-
-- `TextOverflowPolicy::WrapAndGrow` (default): wraps long labels and grows label containers vertically.
-- `TextOverflowPolicy::EllipsisSingleLine`: keeps single-line labels and truncates overflow with `…`.
-
-## Docs Map
+## Docs
 
 - Developer flow: [`docs/codex-workflow.md`](docs/codex-workflow.md)
+- Benchmark workflow: [`docs/benchmarks/README.md`](docs/benchmarks/README.md)
 - Contribution guide: [`docs/contributing.md`](docs/contributing.md)
 - Troubleshooting guide: [`docs/troubleshooting.md`](docs/troubleshooting.md)
-- Fixture and snapshot workflow: [`docs/fixture-snapshot-workflow.md`](docs/fixture-snapshot-workflow.md)
-- Benchmark details: [`docs/benchmarks/README.md`](docs/benchmarks/README.md)
-- Parity roadmap: [`docs/parity-roadmap.md`](docs/parity-roadmap.md)
-- Release checklist: [`docs/release-checklist.md`](docs/release-checklist.md)
-- Coverage status: [`docs/coverage-status.md`](docs/coverage-status.md)
-- Decision log: [`docs/decision-log.md`](docs/decision-log.md)
 
 ## License
 

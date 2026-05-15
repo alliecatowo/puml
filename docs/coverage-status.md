@@ -21,3 +21,10 @@ Top low-coverage modules from latest run:
 High-confidence next lift areas:
 - `main.rs`: hard-to-hit CLI and output error branches.
 - `normalize.rs`: lifecycle edge/error paths and rare directive/style branches.
+
+## Contract Audit Notes
+
+Audit date: 2026-05-15
+
+- Preprocessor/runtime documentation needs alignment: practical checks show `!include` executes with guardrails (not parse-only rejection), while unsupported directive/style paths still produce explicit diagnostics.
+- Release validation should keep command UX and docs in lockstep by re-checking `--help`, exit codes, and warning behavior on each release pass.

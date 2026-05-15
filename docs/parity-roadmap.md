@@ -34,3 +34,13 @@ This roadmap tracks high-impact sequence-diagram parity work relative to PlantUM
 - stable snapshots for rendering-affecting changes
 - CLI/docs contract updated in `README.md` and `docs/**`
 - decision log updated for intentional boundary choices
+
+## Benchmark Parity Tracking (No-Java Environment)
+
+- Current baseline (available now): benchmark `puml` only for cold-start, parser, and render paths via `./scripts/bench.sh`.
+- Environment constraint: Java is not required for baseline runs in this repo.
+- PlantUML comparison rows: remain `TODO` until Java + PlantUML jar are available in the benchmark environment.
+- Comparison method (documented now, execute later):
+  1. Run identical fixture corpus through `puml` and PlantUML.
+  2. Capture parse success, render success, and elapsed time per fixture.
+  3. Append comparison rows to benchmark markdown with clear tool labels and timestamp.

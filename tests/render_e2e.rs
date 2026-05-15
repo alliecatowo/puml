@@ -260,15 +260,102 @@ fn render_svg_renders_distinct_participant_kinds() {
     let src = fixture("e2e/participant_kinds.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");
 
-    assert!(
-        svg.contains("fill=\"#fff3e0\""),
-        "actor style should render"
+    let assert_count = |pattern: &str, expected: usize, label: &str| {
+        assert_eq!(
+            svg.match_indices(pattern).count(),
+            expected,
+            "{label} signature count mismatch for pattern: {pattern}"
+        );
+    };
+
+    // Each role appears twice (header + footbox), so signatures should appear twice.
+    assert_count(
+        "fill=\"#fff0f0\" stroke=\"#8a3030\" stroke-width=\"1\"",
+        2,
+        "queue",
     );
-    assert!(
-        svg.contains("stroke-dasharray=\"5 3\""),
-        "boundary style should render"
+    assert_count(
+        "x1=\"1152\" y1=\"32\" x2=\"1256\" y2=\"32\"",
+        1,
+        "queue top stripe",
     );
-    assert!(svg.contains("<ellipse"), "database style should render");
+    assert_count(
+        "x1=\"1152\" y1=\"352\" x2=\"1256\" y2=\"352\"",
+        1,
+        "queue footbox stripe",
+    );
+    assert_count(
+        "x=\"992\" y=\"24\" width=\"24\" height=\"8\"",
+        1,
+        "collections top tab",
+    );
+    assert_count(
+        "x=\"998\" y=\"26\" width=\"24\" height=\"8\"",
+        1,
+        "collections stacked tab",
+    );
+    assert_count(
+        "fill=\"#e9f5ff\" stroke=\"#1b5e8a\" stroke-width=\"1\"",
+        6,
+        "database cylinder parts",
+    );
+    assert_count(
+        "fill=\"#edf7ed\" stroke=\"#2d6a2d\" stroke-width=\"1\"",
+        2,
+        "control polygon",
+    );
+    assert_count(
+        "x1=\"514\" y1=\"40\" x2=\"614\" y2=\"40\"",
+        1,
+        "control top midline",
+    );
+    assert_count(
+        "x1=\"514\" y1=\"360\" x2=\"614\" y2=\"360\"",
+        1,
+        "control footbox midline",
+    );
+    assert_count(
+        "fill=\"#f4f0ff\" stroke=\"#4e3a8f\" stroke-width=\"1\"",
+        2,
+        "entity base box",
+    );
+    assert_count(
+        "x1=\"670\" y1=\"36\" x2=\"778\" y2=\"36\"",
+        1,
+        "entity top divider",
+    );
+    assert_count(
+        "x1=\"670\" y1=\"356\" x2=\"778\" y2=\"356\"",
+        1,
+        "entity footbox divider",
+    );
+    assert_count("stroke-dasharray=\"5 3\"", 2, "boundary dashed box");
+    assert_count(
+        "x1=\"350\" y1=\"28\" x2=\"350\" y2=\"52\"",
+        1,
+        "boundary left rail",
+    );
+    assert_count(
+        "x1=\"458\" y1=\"28\" x2=\"458\" y2=\"52\"",
+        1,
+        "boundary right rail",
+    );
+    assert_count(
+        "fill=\"#fff3e0\" stroke=\"#8a5a00\" stroke-width=\"1\"",
+        2,
+        "actor box",
+    );
+    assert_count(
+        "<circle cx=\"196\" cy=\"34\" r=\"4\" fill=\"none\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
+        1,
+        "actor head",
+    );
+    assert_count(
+        "x1=\"196\" y1=\"366\" x2=\"200\" y2=\"372\"",
+        1,
+        "actor footbox leg",
+    );
+
     assert_snapshot!("render_svg_renders_distinct_participant_kinds", svg);
 }
 

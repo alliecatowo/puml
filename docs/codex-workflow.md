@@ -39,12 +39,28 @@ This repository is optimized for terminal-first agent and human collaboration.
 ## Useful Render/Debug Commands
 
 ```console
+# show supported flags
+cargo run -- --help
+
+# file mode: writes <input-stem>.svg
 cargo run -- tests/fixtures/basic/hello.puml
+
+# explicit output path
 cargo run -- tests/fixtures/basic/hello.puml -o out.svg
+
+# stdin mode (explicit '-'): writes SVG to stdout
 cat tests/fixtures/basic/hello.puml | cargo run -- -
+
+# stdin mode (implicit input omitted): writes SVG to stdout
+cat tests/fixtures/basic/hello.puml | cargo run --
+
+# multi mode (must be explicit)
 cat tests/fixtures/structure/multi_three.puml | cargo run -- --multi -
 
+# check-only mode (parse + normalize, no render output)
 cargo run -- --check tests/fixtures/basic/hello.puml
+
+# dump intermediate representations as JSON
 cargo run -- --dump ast tests/fixtures/basic/hello.puml
 cargo run -- --dump model tests/fixtures/basic/hello.puml
 cargo run -- --dump scene tests/fixtures/basic/hello.puml

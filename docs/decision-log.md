@@ -35,3 +35,9 @@ This log records intentional contract deviations and updates adopted in the curr
 - Decision: Canonicalize include root and each `!include` target, and reject targets outside the canonical root.
 - Rationale: Blocks both lexical `../` traversal escapes and symlink-based escapes that bypass path normalization.
 - Impact: Include escapes now fail with explicit include diagnostics (for example `E_INCLUDE_ESCAPE`), while in-root includes continue to resolve.
+
+### D-007: Preprocessor behavior clarified to match runtime
+- Decision: Treat `!include` as executable today (with read/cycle/root guards), while `!define`/`!undef` remain out of scope for sequence rendering semantics.
+- Rationale: Practical audit on 2026-05-15 showed current runtime performs include resolution and surfaces include diagnostics, which contradicts the earlier "recognized but rejected" framing in D-003.
+- Impact: Contract docs should describe include as active behavior with explicit safety boundaries, and keep `!define`/`!undef` documented as unsupported for normalized sequence execution.
+- Spec/implementation contradiction and resolution: PlantUML preprocessing remains broader than this implementation; we intentionally keep a narrower contract instead of implying full preprocessing parity.
