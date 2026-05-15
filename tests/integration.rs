@@ -1207,7 +1207,11 @@ fn from_markdown_diagnostics_json_maps_to_markdown_line_column() {
         .clone();
 
     let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_json_snapshot!("diagnostics_json_error_contract_shape", json);
     let first = &json["diagnostics"][0];
+    assert_eq!(json["schema"], "puml.diagnostics");
+    assert_eq!(json["schema_version"], 1);
+    assert_eq!(first["code"], "E_ARROW_INVALID");
     assert_eq!(first["severity"], "error");
     assert_eq!(first["line"], 4);
     assert_eq!(first["column"], 1);
@@ -1996,7 +2000,11 @@ fn check_fixture_with_json_diagnostics_emits_warning_payload() {
 
     let line = String::from_utf8(out).unwrap();
     let json: Value = serde_json::from_str(line.trim()).expect("valid json warning payload");
+    assert_json_snapshot!("diagnostics_json_warning_contract_shape", json);
     let first = &json["diagnostics"][0];
+    assert_eq!(json["schema"], "puml.diagnostics");
+    assert_eq!(json["schema_version"], 1);
+    assert_eq!(first["code"], "W_SKINPARAM_UNSUPPORTED");
     assert_eq!(first["severity"], "warning");
     assert_eq!(first["line"], 2);
     assert_eq!(first["column"], 1);
@@ -2005,6 +2013,22 @@ fn check_fixture_with_json_diagnostics_emits_warning_payload() {
         .as_str()
         .unwrap()
         .contains("W_SKINPARAM_UNSUPPORTED"));
+}
+
+#[test]
+fn diagnostics_json_writes_only_to_stderr_and_not_stdout() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--diagnostics",
+            "json",
+            &fixture("invalid_single.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::starts_with("{\n  \"schema\": \"puml.diagnostics\""));
 }
 
 #[test]

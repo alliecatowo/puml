@@ -81,8 +81,13 @@ struct RenderedOutput {
 
 #[derive(Debug, Serialize)]
 struct DiagnosticsPayload {
+    schema: &'static str,
+    schema_version: u32,
     diagnostics: Vec<DiagnosticJson>,
 }
+
+const DIAGNOSTICS_SCHEMA: &str = "puml.diagnostics";
+const DIAGNOSTICS_SCHEMA_VERSION: u32 = 1;
 
 fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
@@ -585,13 +590,15 @@ fn map_diagnostic_span(mut d: Diagnostic, mapping: Option<Span>) -> Diagnostic {
 
 fn diagnostics_json_payload(diags: Vec<Diagnostic>, source: &str) -> String {
     let payload = DiagnosticsPayload {
+        schema: DIAGNOSTICS_SCHEMA,
+        schema_version: DIAGNOSTICS_SCHEMA_VERSION,
         diagnostics: diags
             .iter()
             .map(|d| d.to_json_with_source(source))
             .collect::<Vec<_>>(),
     };
     serde_json::to_string_pretty(&payload).unwrap_or_else(|_| {
-        "{\"diagnostics\":[{\"severity\":\"error\",\"message\":\"failed to serialize diagnostics\",\"span\":null,\"line\":null,\"column\":null,\"snippet\":null,\"caret\":null}]}".to_string()
+        "{\"schema\":\"puml.diagnostics\",\"schema_version\":1,\"diagnostics\":[{\"code\":null,\"severity\":\"error\",\"message\":\"failed to serialize diagnostics\",\"span\":null,\"line\":null,\"column\":null,\"snippet\":null,\"caret\":null}]}".to_string()
     })
 }
 

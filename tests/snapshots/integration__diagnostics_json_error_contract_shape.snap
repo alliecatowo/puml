@@ -1,0 +1,23 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "diagnostics": [
+    {
+      "caret": "^^^^^^^^^^^",
+      "code": "E_ARROW_INVALID",
+      "column": 1,
+      "line": 4,
+      "message": "[E_ARROW_INVALID] malformed sequence arrow syntax: `A -x B: bad`",
+      "severity": "error",
+      "snippet": "A -x B: bad",
+      "span": {
+        "end": 38,
+        "start": 27
+      }
+    }
+  ],
+  "schema": "puml.diagnostics",
+  "schema_version": 1
+}

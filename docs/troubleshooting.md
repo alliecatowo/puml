@@ -63,6 +63,30 @@ Notes:
 - source-related diagnostics include `line`, `column`, and a caret-marked source snippet in `--check`, `--dump`, and render modes.
 - messages without source spans stay single-line by design.
 - use `--diagnostics json` for machine-readable diagnostics payloads in CI/tooling.
+- JSON contract is versioned as `schema: "puml.diagnostics"` + `schema_version: 1`.
+- diagnostics are always emitted to `stderr`; mode outputs (SVG / dump JSON) stay on `stdout`.
+
+Example:
+
+```console
+$ cargo run -- --check --diagnostics json tests/fixtures/arrows/invalid_malformed_arrows.puml
+{
+  "schema": "puml.diagnostics",
+  "schema_version": 1,
+  "diagnostics": [
+    {
+      "code": "E_ARROW_INVALID",
+      "severity": "error",
+      "message": "[E_ARROW_INVALID] malformed sequence arrow syntax: `A -x B: malformed`",
+      "span": {"start": 10, "end": 27},
+      "line": 2,
+      "column": 1,
+      "snippet": "A -x B: malformed",
+      "caret": "^^^^^^^^^^^^^^^^^"
+    }
+  ]
+}
+```
 
 ## `--from-markdown` seems to ignore content
 
