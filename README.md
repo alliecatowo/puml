@@ -233,7 +233,14 @@ Codex + Claude autonomous repo engineering entrypoints:
 # harness-only (fastest confidence for agent-pack + MCP + parity invariants)
 ./scripts/harness-check.sh --quick
 
+# harness-only (fastest confidence for agent-pack + MCP + parity invariants)
+./scripts/harness-check.sh --quick
+
+# VS Code scaffold smoke (LSP contract + extension build)
+./scripts/vscode-smoke.sh
+
 # full autonomous quality chain
+
 ./scripts/autonomy-check.sh --quick
 ./scripts/autonomy-check.sh
 ```
@@ -251,6 +258,7 @@ Dry-run planning commands:
 - Benchmark workflow: [`docs/benchmarks/README.md`](docs/benchmarks/README.md)
 - Contribution guide: [`docs/contributing.md`](docs/contributing.md)
 - Troubleshooting guide: [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- VS Code extension scaffold: [`extensions/vscode/README.md`](extensions/vscode/README.md)
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "name": "puml-vscode",
   "displayName": "puml — Instant PlantUML Sequence Diagrams",
-  "description": "VS Code extension scaffolding for native puml sequence diagrams with live preview.",
+  "description": "VS Code extension scaffolding for native puml sequence diagrams with LSP-backed preview.",
   "version": "0.0.1",
   "publisher": "puml",
   "license": "MIT",
@@ -14,7 +14,8 @@
   ],
   "activationEvents": [
     "onLanguage:puml",
-    "onCommand:puml.preview.open"
+    "onCommand:puml.preview.open",
+    "onCommand:puml.lsp.restart"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -43,15 +44,43 @@
       {
         "command": "puml.preview.open",
         "title": "PUML: Open Preview"
+      },
+      {
+        "command": "puml.lsp.restart",
+        "title": "PUML: Restart Language Server"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "PUML",
+      "properties": {
+        "puml.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start puml-lsp automatically when the extension activates."
+        },
+        "puml.lsp.path": {
+          "type": "string",
+          "default": "",
+          "description": "Optional absolute path to puml-lsp binary. Empty uses extension bundled binary path."
+        },
+        "puml.lsp.trace": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace level for puml-lsp language client logs."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "tsc -p ./",
-    "watch": "tsc -w -p ./"
+    "watch": "tsc -w -p ./",
+    "smoke": "npm run build && node ./scripts/smoke.js"
   },
   "devDependencies": {
+    "@types/node": "^22.15.31",
     "@types/vscode": "^1.95.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vscode-languageclient": "^9.0.1"
   }
 }
