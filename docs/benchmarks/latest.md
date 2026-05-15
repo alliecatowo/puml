@@ -1,19 +1,19 @@
 # Benchmark Results
 
-- Timestamp (UTC): `2026-05-15T19:58:55Z`
-- Binary: `/home/Allie/develop/puml-wt-19/target/release/puml`
-- Mode: `full`
-- Gate profile: abs mean <= `250ms`, regression <= `10%%`, binary <= `2000000` bytes
+- Timestamp (UTC): `2026-05-15T20:04:58Z`
+- Binary: `/home/Allie/develop/puml-wt-30/target/release/puml`
+- Mode: `quick`
+- Gate profile: abs mean <= `350ms`, regression <= `20%%`, binary <= `2500000` bytes
 - PlantUML comparison: TODO (no-Java environment baseline run)
 
 | Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |
 |---|---:|---:|---:|---|
-| `cold_start_help` | 96.000 | 8.000 | 5 | `time` |
-| `parser_check` | 92.000 | 4.000 | 5 | `time` |
-| `parser_dump_scene` | 100.000 | 0.000 | 5 | `time` |
-| `render_file` | 98.000 | 4.000 | 5 | `time` |
-| `render_stdin` | 100.000 | 0.000 | 5 | `time` |
-| `render_stdin_multi` | 96.000 | 4.899 | 5 | `time` |
+| `cold_start_help` | 80.000 | 0.000 | 3 | `time` |
+| `parser_check` | 83.333 | 4.714 | 3 | `time` |
+| `parser_dump_scene` | 86.667 | 4.714 | 3 | `time` |
+| `render_file` | 86.667 | 4.714 | 3 | `time` |
+| `render_stdin` | 83.333 | 4.714 | 3 | `time` |
+| `render_stdin_multi` | 83.333 | 4.714 | 3 | `time` |
 
 ## PlantUML Comparison (TODO)
 Method when Java is available:

@@ -247,6 +247,11 @@ def render_source_text(src: str) -> Dict[str, Any]:
     return {"ok": True, "exit_code": 0, "stderr": "", "svg": normalized_svg}
 
 
+def canonicalize_svg_text(svg: str) -> str:
+    # CLI stdout may include a trailing newline while checked-in SVG artifacts do not.
+    return svg.rstrip("\r\n")
+
+
 def discover_doc_examples() -> List[Dict[str, Any]]:
     docs_examples = ROOT / "docs" / "examples"
     if not docs_examples.exists():
@@ -336,7 +341,9 @@ def evaluate_doc_example(row: Dict[str, Any]) -> Dict[str, Any]:
     artifact_up_to_date = False
     if artifact_exists:
         disk_svg = artifact_path.read_text(encoding="utf-8")
-        artifact_matches = disk_svg == render["svg"]
+        artifact_matches = canonicalize_svg_text(disk_svg) == canonicalize_svg_text(
+            render["svg"]
+        )
         source_mtime_ns = row["source_mtime_ns"] or 0
         markdown_mtime_ns = row["markdown_mtime_ns"] or 0
         baseline_ns = max(source_mtime_ns, markdown_mtime_ns)
