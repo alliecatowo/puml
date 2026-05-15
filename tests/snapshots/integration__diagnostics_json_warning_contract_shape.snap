@@ -1,0 +1,23 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "diagnostics": [
+    {
+      "caret": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+      "code": "W_SKINPARAM_UNSUPPORTED",
+      "column": 1,
+      "line": 2,
+      "message": "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `TotallyUnknownColor`",
+      "severity": "warning",
+      "snippet": "skinparam TotallyUnknownColor red",
+      "span": {
+        "end": 43,
+        "start": 10
+      }
+    }
+  ],
+  "schema": "puml.diagnostics",
+  "schema_version": 1
+}

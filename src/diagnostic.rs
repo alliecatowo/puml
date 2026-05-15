@@ -16,6 +16,7 @@ pub struct Diagnostic {
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct DiagnosticJson {
+    pub code: Option<String>,
     pub severity: &'static str,
     pub message: String,
     pub span: Option<DiagnosticSpanJson>,
@@ -76,6 +77,7 @@ impl Diagnostic {
     }
 
     pub fn to_json_with_source(&self, source: &str) -> DiagnosticJson {
+        let code = split_diagnostic_code(&self.message);
         let (line, column) = self
             .span
             .map(|span| offset_to_line_col(source, span.start))
@@ -96,6 +98,7 @@ impl Diagnostic {
         };
 
         DiagnosticJson {
+            code,
             severity: match self.severity {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
@@ -111,6 +114,17 @@ impl Diagnostic {
             caret,
         }
     }
+}
+
+fn split_diagnostic_code(message: &str) -> Option<String> {
+    if let Some(rest) = message.strip_prefix('[') {
+        if let Some((code, _message_tail)) = rest.split_once("] ") {
+            if !code.is_empty() {
+                return Some(code.to_string());
+            }
+        }
+    }
+    None
 }
 
 pub fn render_caret_line(source: &str, span: Span) -> String {

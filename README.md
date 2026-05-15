@@ -161,7 +161,10 @@ Exit codes:
 Diagnostics:
 - source warnings/errors include `line`/`column` and caret snippets when source spans exist
 - unsupported `skinparam` keys and `!theme` emit deterministic non-fatal warnings on `stderr`
-- `--diagnostics json` emits `{"diagnostics":[...]}` with stable fields: `severity`, `message`, `span`, `line`, `column`, `snippet`, `caret`
+- `--diagnostics json` emits `{"schema":"puml.diagnostics","schema_version":1,"diagnostics":[...]}` with stable fields:
+  `code`, `severity`, `message`, `span`, `line`, `column`, `snippet`, `caret`
+- stream contract:
+  `--check`/render/`--dump` payload outputs remain on `stdout`; diagnostics (human or json) are emitted on `stderr`
 
 ## Benchmarks And Gates
 
