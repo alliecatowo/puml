@@ -1717,7 +1717,7 @@ fn stdin_ignore_newpage_with_multi_still_outputs_single_svg() {
 }
 
 #[test]
-fn file_newpage_output_writes_numbered_files_without_multi_flag() {
+fn file_newpage_output_requires_multi_flag() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("paged.puml");
     fs::write(
@@ -1729,6 +1729,24 @@ fn file_newpage_output_writes_numbered_files_without_multi_flag() {
     Command::cargo_bin("puml")
         .expect("binary")
         .arg(input.to_str().unwrap())
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("multiple pages detected; rerun with --multi"));
+}
+
+#[test]
+fn file_newpage_output_writes_numbered_files_with_multi_flag() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("paged.puml");
+    fs::write(
+        &input,
+        "@startuml\nA -> B : one\nnewpage Second\nB -> A : two\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", input.to_str().unwrap()])
         .assert()
         .success();
 
@@ -1788,9 +1806,7 @@ fn stdin_multi_blocks_with_ignore_newpage_requires_multi() {
         )
         .assert()
         .code(1)
-        .stderr(predicate::str::contains(
-            "multiple diagrams detected from stdin input; rerun with --multi",
-        ));
+        .stderr(predicate::str::contains("multiple diagrams detected; rerun with --multi"));
 }
 
 #[test]
@@ -1867,7 +1883,7 @@ fn multi_page_output_with_root_path_reports_invalid_output_stem() {
 
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([input.to_str().unwrap(), "--output", "/"])
+        .args(["--multi", input.to_str().unwrap(), "--output", "/"])
         .assert()
         .code(2)
         .stderr(predicate::str::contains("cannot derive output stem"));
@@ -1916,7 +1932,7 @@ fn markdown_file_default_render_output_uses_deterministic_snippet_names() {
 
     Command::cargo_bin("puml")
         .expect("binary")
-        .arg(input.to_str().unwrap())
+        .args(["--multi", input.to_str().unwrap()])
         .assert()
         .success()
         .stdout(predicate::str::is_empty());
@@ -1974,6 +1990,27 @@ fn clap_version_exits_successfully() {
         .success()
         .stdout(predicate::str::contains("puml"))
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn exit_code_matrix_is_stable_for_success_validation_and_io() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("--help")
+        .assert()
+        .code(0);
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("--definitely-invalid-flag")
+        .assert()
+        .code(1);
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("/tmp/definitely-not-present-input-12.puml")
+        .assert()
+        .code(2);
 }
 
 #[test]
