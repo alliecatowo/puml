@@ -1,0 +1,128 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "lanes": [
+    {
+      "display": "Frontend",
+      "id": "FE",
+      "role": "Participant",
+      "x": 100
+    },
+    {
+      "display": "Gateway",
+      "id": "GW",
+      "role": "Participant",
+      "x": 240
+    },
+    {
+      "display": "Worker",
+      "id": "WK",
+      "role": "Participant",
+      "x": 380
+    }
+  ],
+  "rows": [
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "FE",
+            "label": "begin",
+            "to": "GW"
+          }
+        },
+        "span": {
+          "end": 104,
+          "start": 89
+        }
+      },
+      "y": 120
+    },
+    {
+      "event": {
+        "kind": {
+          "Note": {
+            "position": "across",
+            "target": null,
+            "text": "advanced_across_line_one_with_long_payload_context_for_layout_guardrails\nadvanced_across_line_two_with_long_payload_context_for_layout_guardrails"
+          }
+        },
+        "span": {
+          "end": 272,
+          "start": 106
+        }
+      },
+      "y": 160
+    },
+    {
+      "event": {
+        "kind": {
+          "GroupStart": {
+            "kind": "ref",
+            "label": "over FE, WK\nadvanced_ref_inline_header_with_long_payload_context_for_layout_guardrails\nadvanced_ref_body_line_one_with_long_payload_context_for_layout_guardrails\nadvanced_ref_body_line_two_with_long_payload_context_for_layout_guardrails"
+          }
+        },
+        "span": {
+          "end": 523,
+          "start": 274
+        }
+      },
+      "y": 200
+    },
+    {
+      "event": {
+        "kind": {
+          "Note": {
+            "position": "over",
+            "target": "GW, WK",
+            "text": "alias_note_line_one_with_long_payload_context_for_layout_guardrails\nalias_note_line_two_with_long_payload_context_for_layout_guardrails"
+          }
+        },
+        "span": {
+          "end": 687,
+          "start": 525
+        }
+      },
+      "y": 240
+    },
+    {
+      "event": {
+        "kind": {
+          "GroupStart": {
+            "kind": "ref",
+            "label": "over GW\nsingle_lane_ref_line_one_with_long_payload_context_for_layout_guardrails\nsingle_lane_ref_line_two_with_long_payload_context_for_layout_guardrails"
+          }
+        },
+        "span": {
+          "end": 854,
+          "start": 689
+        }
+      },
+      "y": 280
+    },
+    {
+      "event": {
+        "kind": {
+          "Message": {
+            "arrow": "->",
+            "from": "GW",
+            "label": "done",
+            "to": "WK"
+          }
+        },
+        "span": {
+          "end": 870,
+          "start": 856
+        }
+      },
+      "y": 320
+    }
+  ],
+  "size": {
+    "height": 360,
+    "width": 620
+  }
+}

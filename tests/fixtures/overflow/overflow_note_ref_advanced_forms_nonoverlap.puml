@@ -1,0 +1,29 @@
+@startuml
+participant Frontend as FE
+participant Gateway as GW
+participant Worker as WK
+
+FE -> GW: begin
+
+note across
+advanced_across_line_one_with_long_payload_context_for_layout_guardrails
+advanced_across_line_two_with_long_payload_context_for_layout_guardrails
+end note
+
+ref over FE, WK: advanced_ref_inline_header_with_long_payload_context_for_layout_guardrails
+advanced_ref_body_line_one_with_long_payload_context_for_layout_guardrails
+advanced_ref_body_line_two_with_long_payload_context_for_layout_guardrails
+end ref
+
+hnote over GW, WK
+alias_note_line_one_with_long_payload_context_for_layout_guardrails
+alias_note_line_two_with_long_payload_context_for_layout_guardrails
+end note
+
+ref over GW
+single_lane_ref_line_one_with_long_payload_context_for_layout_guardrails
+single_lane_ref_line_two_with_long_payload_context_for_layout_guardrails
+end ref
+
+GW -> WK: done
+@enduml

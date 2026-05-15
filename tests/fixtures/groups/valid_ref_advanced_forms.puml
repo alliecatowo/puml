@@ -1,0 +1,14 @@
+@startuml
+participant A
+participant B
+participant C
+A -> B: open
+ref over A, C: inline_ref_header
+ref_body_line_one
+ref_body_line_two
+end ref
+B -> C: continue
+ref over B
+single_target_ref_body
+end ref
+@enduml
