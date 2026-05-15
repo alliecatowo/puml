@@ -1,0 +1,5 @@
+@startuml
+queue Jobs as Q
+participant QueueShadow as Q
+Q -> Q: collision
+@enduml

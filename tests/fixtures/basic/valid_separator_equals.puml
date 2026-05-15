@@ -1,0 +1,6 @@
+@startuml
+queue Jobs as Q
+== Processing ==
+Q -> Q: dequeue
+== Done ==
+@enduml

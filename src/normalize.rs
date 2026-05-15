@@ -102,7 +102,8 @@ pub fn normalize_with_options(
                     display,
                     map_role(p.role),
                     true,
-                );
+                )
+                .map_err(|e| Diagnostic::error(e).with_span(stmt.span))?;
             }
             StatementKind::Message(m) => {
                 let parsed_arrow = parse_message_arrow(&m.arrow).ok_or_else(|| {
@@ -501,12 +502,18 @@ fn upsert_participant(
     display: String,
     role: ParticipantRole,
     explicit: bool,
-) {
+) -> Result<(), String> {
     if let Some(ix) = index.get(&id).copied() {
+        if explicit && participants[ix].explicit {
+            return Err(format!(
+                "[E_PARTICIPANT_DUPLICATE] duplicate participant id/alias `{}`",
+                id
+            ));
+        }
         participants[ix].display = display;
         participants[ix].role = role;
         participants[ix].explicit = explicit;
-        return;
+        return Ok(());
     }
 
     let pos = participants.len();
@@ -517,6 +524,7 @@ fn upsert_participant(
         explicit,
     });
     index.insert(id, pos);
+    Ok(())
 }
 
 fn map_role(role: AstRole) -> ParticipantRole {

@@ -1,0 +1,6 @@
+@startuml
+queue Jobs as Q
+participant Worker as W
+Q -> W: dequeue
+W --> Q: ack
+@enduml

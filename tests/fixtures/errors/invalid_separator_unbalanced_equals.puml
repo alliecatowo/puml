@@ -1,0 +1,5 @@
+@startuml
+participant A
+== Broken separator =
+A -> A: noop
+@enduml
