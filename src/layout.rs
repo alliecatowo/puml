@@ -719,12 +719,14 @@ fn message_label_lines(
 struct AutonumberState {
     enabled: bool,
     next: u64,
+    step: u64,
+    format: Option<String>,
 }
 
 impl AutonumberState {
     fn update(&mut self, raw: Option<&str>) {
         let value = raw.map(str::trim).unwrap_or("");
-        if value.eq_ignore_ascii_case("stop") {
+        if value.eq_ignore_ascii_case("stop") || value.eq_ignore_ascii_case("off") {
             self.enabled = false;
             return;
         }
@@ -733,16 +735,31 @@ impl AutonumberState {
             if self.next == 0 {
                 self.next = 1;
             }
+            if self.step == 0 {
+                self.step = 1;
+            }
             self.enabled = true;
             return;
         }
 
-        let start = value
-            .split_whitespace()
-            .next()
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(1);
-        self.next = start;
+        let parsed = parse_autonumber_command(value);
+        if parsed.resume_only {
+            if parsed.start.is_some() {
+                self.next = parsed.start.unwrap_or(1);
+            } else if self.next == 0 {
+                self.next = 1;
+            }
+        } else {
+            self.next = parsed.start.unwrap_or(1);
+        }
+        if let Some(step) = parsed.step {
+            self.step = step.max(1);
+        } else if self.step == 0 {
+            self.step = 1;
+        }
+        if let Some(fmt) = parsed.format {
+            self.format = Some(fmt);
+        }
         self.enabled = true;
     }
 
@@ -753,12 +770,126 @@ impl AutonumberState {
         if self.next == 0 {
             self.next = 1;
         }
+        if self.step == 0 {
+            self.step = 1;
+        }
 
         let number = self.next;
-        self.next += 1;
+        self.next = self.next.saturating_add(self.step);
+        let number = format_autonumber(number, self.format.as_deref());
         match label {
             Some(text) if !text.is_empty() => Some(format!("{number} {text}")),
             _ => Some(number.to_string()),
         }
     }
+}
+
+#[derive(Debug, Default)]
+struct ParsedAutonumber {
+    resume_only: bool,
+    start: Option<u64>,
+    step: Option<u64>,
+    format: Option<String>,
+}
+
+fn parse_autonumber_command(raw: &str) -> ParsedAutonumber {
+    let mut parsed = ParsedAutonumber::default();
+    let mut rest = raw.trim();
+
+    if rest.eq_ignore_ascii_case("resume") {
+        parsed.resume_only = true;
+        return parsed;
+    }
+
+    if let Some(tail) = rest.strip_prefix("resume ") {
+        parsed.resume_only = true;
+        rest = tail.trim_start();
+    }
+
+    if let Some((format, before)) = trailing_quoted_format(rest) {
+        parsed.format = Some(format);
+        rest = before.trim_end();
+    }
+
+    let nums: Vec<u64> = rest
+        .split_whitespace()
+        .filter_map(|v| v.parse::<u64>().ok())
+        .collect();
+    if parsed.resume_only {
+        match nums.as_slice() {
+            [] => {}
+            [step] => parsed.step = Some(*step),
+            [start, step, ..] => {
+                parsed.start = Some(*start);
+                parsed.step = Some(*step);
+            }
+        }
+    } else {
+        parsed.start = nums.first().copied();
+        parsed.step = nums.get(1).copied();
+    }
+
+    if parsed.format.is_none() {
+        parsed.format = rest.split_whitespace().find_map(|part| {
+            if part.parse::<u64>().is_ok() {
+                None
+            } else {
+                Some(part.to_string())
+            }
+        });
+    }
+
+    parsed
+}
+
+fn trailing_quoted_format(raw: &str) -> Option<(String, &str)> {
+    let trimmed = raw.trim_end();
+    let end = trimmed.strip_suffix('"')?;
+    let start = end.rfind('"')?;
+    let format = end[start + 1..].to_string();
+    let prefix = &end[..start];
+    Some((format, prefix))
+}
+
+fn format_autonumber(value: u64, format: Option<&str>) -> String {
+    let Some(format) = format else {
+        return value.to_string();
+    };
+    let fmt = format.trim();
+    if fmt.is_empty() {
+        return value.to_string();
+    }
+
+    if fmt.contains('#') {
+        return fmt.replace('#', &value.to_string());
+    }
+
+    let mut longest_zero_run = 0usize;
+    let mut run_start = 0usize;
+    let bytes = fmt.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] == b'0' {
+            let start = i;
+            while i < bytes.len() && bytes[i] == b'0' {
+                i += 1;
+            }
+            let len = i - start;
+            if len > longest_zero_run {
+                longest_zero_run = len;
+                run_start = start;
+            }
+            continue;
+        }
+        i += 1;
+    }
+
+    if longest_zero_run == 0 {
+        return format!("{fmt}{value}");
+    }
+
+    let padded = format!("{:0width$}", value, width = longest_zero_run);
+    let prefix = &fmt[..run_start];
+    let suffix = &fmt[run_start + longest_zero_run..];
+    format!("{prefix}{padded}{suffix}")
 }

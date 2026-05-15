@@ -318,7 +318,9 @@ pub fn normalize_with_options(
             }
             StatementKind::Autonumber(v) => events.push(SequenceEvent {
                 span: stmt.span,
-                kind: SequenceEventKind::Autonumber(v),
+                kind: SequenceEventKind::Autonumber(
+                    v.as_deref().and_then(canonicalize_autonumber_raw),
+                ),
             }),
             StatementKind::Activate(id) => {
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
@@ -861,4 +863,33 @@ fn shortcut_caller(active: &str, other: &str) -> Option<String> {
     } else {
         Some(other.to_string())
     }
+}
+
+fn canonicalize_autonumber_raw(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut out = String::with_capacity(trimmed.len());
+    let mut in_quotes = false;
+    let mut prev_space = false;
+    for ch in trimmed.chars() {
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            prev_space = false;
+            out.push(ch);
+            continue;
+        }
+        if ch.is_whitespace() && !in_quotes {
+            if !prev_space {
+                out.push(' ');
+            }
+            prev_space = true;
+            continue;
+        }
+        prev_space = false;
+        out.push(ch);
+    }
+    Some(out.trim().to_string())
 }
