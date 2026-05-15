@@ -47,3 +47,12 @@ This log records intentional contract deviations and updates adopted in the curr
 - Rationale: This is the first strict-mode foundation slice for preprocessor parity: expand local include capabilities while keeping network behavior explicitly unsupported and deterministic.
 - Impact: Missing tags now fail with `E_INCLUDE_TAG_NOT_FOUND`; URL targets fail with `E_INCLUDE_URL_UNSUPPORTED`; missing files continue to fail with deterministic `E_INCLUDE_READ`.
 - Spec/implementation contradiction and resolution: PlantUML supports broader include variants; current behavior intentionally limits include-id extraction to local tagged sub-blocks only.
+
+### D-009: Compat contract interpretation at parse boundary
+- Decision: Interpret `compat` and `determinism` at one explicit parse-pipeline contract boundary; keep strict and extended on a single parser path.
+- Rationale: Avoid split-brain routing where mode behavior drifts across CLI entry points, while creating explicit extension hooks for future parity work.
+- Impact:
+  - `compat=strict` keeps deterministic include behavior: stdin `!include` requires explicit `--include-root`.
+  - `compat=extended` enables a minimal, real hook: stdin `!include` falls back to current working directory when `--include-root` is omitted.
+  - `determinism` interpretation is explicit even though both modes currently execute the same deterministic runtime behavior.
+- Spec/implementation contradiction and resolution: PlantUML offers broader preprocessing convenience; this implementation keeps strict mode conservative and deterministic while exposing limited opt-in convenience in extended mode.

@@ -129,6 +129,8 @@ Modes:
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`; currently routes to PlantUML path)
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
+  `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
+  `extended`: when `--include-root` is omitted, stdin `!include` falls back to current working directory
 - `--determinism strict|full` sets determinism policy (default `strict`)
 - `--include-root DIR` resolves `!include` when reading stdin
 
