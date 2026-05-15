@@ -39,6 +39,17 @@ cd puml
 ./scripts/check-all.sh --quick
 ```
 
+## CI/CD
+
+GitHub Actions enforces gate scripts from this repo directly:
+
+- PR gate workflow: `.github/workflows/pr-gate.yml`
+  runs `fmt` -> `clippy` -> `test` -> coverage gate -> `./scripts/check-all.sh --quick`
+  uploads quick benchmark artifacts (`latest*`, `latest_trend*`)
+- Main gate workflow: `.github/workflows/main-gate.yml`
+  runs `./scripts/check-all.sh` (full gate)
+  publishes benchmark evidence artifacts (`latest*`, `latest_trend*`, baselines, `parity_latest.json`)
+
 ## CLI Usage (Explicit Modes)
 
 ```bash
