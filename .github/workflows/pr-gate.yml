@@ -54,7 +54,7 @@ jobs:
         run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp)\.rs'
 
       - name: quick gate
-        run: ./scripts/check-all.sh --quick
+        run: ./scripts/check-all.sh --quick --skip-bench
 
       - name: Upload benchmark artifacts
         if: always()

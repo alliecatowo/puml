@@ -3,13 +3,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="full"
+SKIP_BENCH=0
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/check-all.sh [--quick]
+Usage: ./scripts/check-all.sh [--quick] [--skip-bench]
 
 Options:
-  --quick  run fast quality gate (skips coverage/release build, enforces quick perf/binary gates)
+  --quick       run fast quality gate (skips coverage/release build, enforces quick perf/binary gates)
+  --skip-bench  skip benchmark gate execution (for deterministic CI validation runs)
 USAGE
 }
 
@@ -17,6 +19,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --quick)
       MODE="quick"
+      shift
+      ;;
+    --skip-bench)
+      SKIP_BENCH=1
       shift
       ;;
     -h|--help)
@@ -67,11 +73,19 @@ if [[ "$MODE" == "full" ]]; then
   echo "[gate] cargo build --release"
   cargo build --release
 
-  echo "[gate] benchmark full profile with enforced gates"
-  ./scripts/bench.sh --enforce-gates
+  if [[ "$SKIP_BENCH" -eq 0 ]]; then
+    echo "[gate] benchmark full profile with enforced gates"
+    ./scripts/bench.sh --enforce-gates
+  else
+    echo "[gate] benchmark full profile skipped (--skip-bench)"
+  fi
 else
-  echo "[gate] benchmark quick profile with enforced gates"
-  ./scripts/bench.sh --quick --enforce-gates
+  if [[ "$SKIP_BENCH" -eq 0 ]]; then
+    echo "[gate] benchmark quick profile with enforced gates"
+    ./scripts/bench.sh --quick --enforce-gates
+  else
+    echo "[gate] benchmark quick profile skipped (--skip-bench)"
+  fi
 fi
 
 echo "[gate] complete"

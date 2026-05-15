@@ -49,6 +49,8 @@ GitHub Actions enforces gate scripts from this repo directly:
 - Main gate workflow: `.github/workflows/main-gate.yml`
   runs `./scripts/check-all.sh` (full gate)
   publishes benchmark evidence artifacts (`latest*`, `latest_trend*`, baselines, `parity_latest.json`)
+- Branch protection/ruleset contract: [`docs/branch-protection.md`](docs/branch-protection.md)
+  validation command: `./scripts/branch-protection.sh verify`
 
 ## CLI Usage (Explicit Modes)
 
