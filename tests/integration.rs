@@ -210,9 +210,38 @@ end"#;
         .write_stdin(src)
         .assert()
         .code(1)
-        .stderr(predicate::str::contains(
-            "[E_MERMAID_CONSTRUCT_UNSUPPORTED]",
-        ));
+        .stderr(predicate::str::contains("[E_MERMAID_BLOCK_UNSUPPORTED]"));
+}
+
+#[test]
+fn mermaid_extended_subset_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/valid_extended_subset.mmd"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mermaid_unsupported_block_construct_uses_stable_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/invalid_unsupported_block.mmd"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_MERMAID_BLOCK_UNSUPPORTED]"));
 }
 
 #[test]
@@ -283,6 +312,9 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "structure/valid_autonumber_format_only_and_canonical_spacing.puml",
         "structure/valid_autonumber_off_resume_edges.puml",
         "include/include_with_tag_ok.puml",
+        "include/include_many_ok.puml",
+        "include/include_once_ok.puml",
+        "include/includesub_ok.puml",
         "preprocessor/valid_if_elseif_else.puml",
         "preprocessor/valid_ifdef_ifndef.puml",
         "preprocessor/valid_while_define_counter.puml",
@@ -346,6 +378,9 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_arrow_slash_tokenization.puml",
         "errors/invalid_include_tag_missing.puml",
         "errors/invalid_include_url.puml",
+        "errors/invalid_include_once_url.puml",
+        "errors/invalid_includesub_url.puml",
+        "errors/invalid_includesub_missing_tag.puml",
         "errors/invalid_else_inside_loop_group.puml",
         "errors/invalid_group_else_without_alt.puml",
         "errors/invalid_group_mismatched_end_keyword.puml",

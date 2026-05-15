@@ -155,13 +155,13 @@ Modes:
 - `--lint-glob GLOB` adds repeatable glob-expanded check/lint inputs (check mode only)
 - `--lint-report human|json` emits lint summary report format (default `human`)
 - `--dump ast|model|scene` emits JSON
-- `--multi` permits multiple diagrams/pages (required whenever input expands to more than one diagram/page)
+- `--multi` permits multiple stdin diagrams/pages (required when stdin expands to more than one diagram/page)
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
   supported markdown fence langs: `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
   `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
-  `mermaid`: supports a first-class `sequenceDiagram` subset (participants + message arrows), with deterministic compatibility diagnostics for unsupported constructs
+  `mermaid`: supports a first-class `sequenceDiagram` subset (participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, and `%%` comments), with deterministic compatibility diagnostics for unsupported constructs
   `picouml`: canonical first-class language surface; explicit frontend selection is currently not implemented and returns a deterministic diagnostic
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`

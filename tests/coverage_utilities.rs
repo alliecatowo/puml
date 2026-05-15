@@ -156,3 +156,29 @@ fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
     let err = parse_with_pipeline_options(unsupported, &options).unwrap_err();
     assert!(err.message.contains("E_MERMAID_CONSTRUCT_UNSUPPORTED"));
 }
+
+#[test]
+fn mermaid_pipeline_supports_notes_lifecycle_and_inline_comments() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let src =
+        "sequenceDiagram\nA->>B: hi %% comment\nactivate B\nNote over A,B: synced\nautonumber\n";
+    parse_with_pipeline_options(src, &options).expect("expanded mermaid subset should adapt");
+}
+
+#[test]
+fn mermaid_pipeline_reports_specific_code_for_unsupported_blocks() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let src = "sequenceDiagram\nloop retry\nA->>B: hi\nend\n";
+    let err = parse_with_pipeline_options(src, &options).unwrap_err();
+    assert!(err.message.contains("E_MERMAID_BLOCK_UNSUPPORTED"));
+}
