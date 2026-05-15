@@ -311,6 +311,25 @@ fn render_svg_supports_sequence_arrow_color_alias() {
 }
 
 #[test]
+fn render_svg_skinparam_color_values_are_canonicalized_and_hardened() {
+    let src = "@startuml\nskinparam ArrowColor #AaBbCc\nskinparam NoteBorderColor #112233\"/><script>\nA -> B : hi\nnote over A, B: note\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+
+    assert!(
+        svg.contains("stroke=\"#aabbcc\""),
+        "supported color should be lowercased and applied"
+    );
+    assert!(
+        svg.contains("stroke=\"#111\""),
+        "invalid note border color should keep deterministic default"
+    );
+    assert!(
+        !svg.to_ascii_lowercase().contains("<script"),
+        "unsafe skinparam token must not be emitted"
+    );
+}
+
+#[test]
 fn render_svg_sequence_skinparam_maxmessagesize_is_noop_and_deterministic() {
     let src = fixture("styling/valid_skinparam_maxmessagesize_supported.puml");
     let first = puml::render_source_to_svg(&src).expect("first render should succeed");

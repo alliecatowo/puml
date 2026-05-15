@@ -572,6 +572,24 @@ fn check_mode_skinparam_unsupported_key_and_value_are_both_reported_deterministi
 }
 
 #[test]
+fn check_mode_skinparam_unsafe_color_value_warns_deterministically() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(
+            "@startuml\nskinparam ArrowColor #aabbcc\nskinparam ArrowColor #ff0000\"/><script>\nA -> B\n@enduml\n",
+        )
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(
+            predicate::str::contains("W_SKINPARAM_UNSUPPORTED_VALUE")
+                .and(predicate::str::contains("ArrowColor"))
+                .and(predicate::str::contains("line 3, column 1")),
+        );
+}
+
+#[test]
 fn dump_mode_emits_warnings_in_deterministic_order() {
     let input = "@startuml\n!theme spacelab\nskinparam UnknownKey red\nskinparam StillUnknown blue\nA -> B\n@enduml\n";
     let out = Command::cargo_bin("puml")

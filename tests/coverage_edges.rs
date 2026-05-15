@@ -231,7 +231,19 @@ fn theme_classifies_sequence_skinparam_subset() {
     );
     assert_eq!(
         classify_sequence_skinparam("ArrowColor", "red"),
-        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor)
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(
+            "red".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_sequence_skinparam("ArrowColor", "#AaBbCC"),
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(
+            "#aabbcc".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_sequence_skinparam("ArrowColor", "\"/><script"),
+        SequenceSkinParamSupport::UnsupportedValue
     );
 }
 
