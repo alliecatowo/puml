@@ -4,11 +4,11 @@
     "mode_match": true,
     "timestamp_utc": "2026-05-15T20:30:48Z"
   },
-  "baseline_source": "/home/Allie/develop/puml-audit-perf/docs/benchmarks/.baseline.previous.json",
+  "baseline_source": "/home/Allie/develop/puml/docs/benchmarks/.baseline.previous.json",
   "binary": {
     "limit_bytes": 2000000,
-    "path": "/home/Allie/develop/puml-audit-perf/target/release/puml",
-    "size_bytes": 1832984,
+    "path": "/home/Allie/develop/puml/target/release/puml",
+    "size_bytes": 1835328,
     "within_limit": true
   },
   "environment": {
@@ -31,48 +31,48 @@
   },
   "scenarios": [
     {
-      "current_mean_ms": 90.203,
-      "delta_ms": 0.316,
-      "delta_pct": 0.352,
+      "current_mean_ms": 92.6,
+      "delta_ms": 2.713,
+      "delta_pct": 3.018,
       "name": "cold_start_help",
       "previous_mean_ms": 89.887
     },
     {
-      "current_mean_ms": 94.17,
-      "delta_ms": 3.552,
-      "delta_pct": 3.92,
+      "current_mean_ms": 91.876,
+      "delta_ms": 1.258,
+      "delta_pct": 1.388,
       "name": "parser_check",
       "previous_mean_ms": 90.618
     },
     {
-      "current_mean_ms": 91.035,
-      "delta_ms": -1.504,
-      "delta_pct": -1.625,
+      "current_mean_ms": 92.135,
+      "delta_ms": -0.404,
+      "delta_pct": -0.437,
       "name": "parser_dump_scene",
       "previous_mean_ms": 92.539
     },
     {
-      "current_mean_ms": 91.008,
-      "delta_ms": -1.926,
-      "delta_pct": -2.072,
+      "current_mean_ms": 92.788,
+      "delta_ms": -0.146,
+      "delta_pct": -0.157,
       "name": "render_file",
       "previous_mean_ms": 92.934
     },
     {
-      "current_mean_ms": 90.155,
-      "delta_ms": 0.088,
-      "delta_pct": 0.098,
+      "current_mean_ms": 91.366,
+      "delta_ms": 1.299,
+      "delta_pct": 1.442,
       "name": "render_stdin",
       "previous_mean_ms": 90.067
     },
     {
-      "current_mean_ms": 92.595,
-      "delta_ms": 1.493,
-      "delta_pct": 1.639,
+      "current_mean_ms": 89.507,
+      "delta_ms": -1.595,
+      "delta_pct": -1.751,
       "name": "render_stdin_multi",
       "previous_mean_ms": 91.102
     }
   ],
-  "source": "/home/Allie/develop/puml-audit-perf/docs/benchmarks/latest.json",
-  "timestamp_utc": "2026-05-15T20:32:57Z"
+  "source": "/home/Allie/develop/puml/docs/benchmarks/latest.json",
+  "timestamp_utc": "2026-05-15T20:38:14Z"
 }
