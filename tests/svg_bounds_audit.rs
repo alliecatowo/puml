@@ -26,9 +26,9 @@ fn repo_path(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
 
-fn markdown_files_under(root: &PathBuf) -> Vec<PathBuf> {
+fn markdown_files_under(root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    let mut stack = vec![root.clone()];
+    let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         if let Ok(entries) = fs::read_dir(&dir) {
             for entry in entries.flatten() {
