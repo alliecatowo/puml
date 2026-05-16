@@ -324,16 +324,37 @@ fn non_sequence_state_reports_deterministic_family_code() {
 }
 
 #[test]
-fn non_sequence_activity_reports_deterministic_family_code() {
+fn non_sequence_activity_oldstyle_baseline_passes_check() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
             "--check",
-            &fixture("non_sequence/invalid_activity_diagram.puml"),
+            &fixture("non_sequence/valid_activity_oldstyle_baseline.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_ACTIVITY_UNSUPPORTED]"));
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn non_sequence_activity_oldstyle_baseline_renders_with_activity_timeline_labels() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "svg",
+            &fixture("non_sequence/valid_activity_oldstyle_baseline.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let svg = String::from_utf8(out).unwrap();
+    assert!(svg.contains("ACTIVITY timeline entries"));
+    assert!(svg.contains("action[#gold]:"));
+    assert!(svg.contains("lane: Build"));
+    assert!(svg.contains("constraint: (implicit) arrow[next] right of"));
 }
 
 #[test]
@@ -2327,7 +2348,7 @@ fn non_sequence_inputs_fail_validation() {
         ),
         (
             "non_sequence/invalid_activity_diagram.puml",
-            "E_FAMILY_ACTIVITY_UNSUPPORTED",
+            "E_ACTIVITY_UNSUPPORTED",
         ),
         (
             "non_sequence/invalid_timing_diagram.puml",

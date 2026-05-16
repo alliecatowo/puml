@@ -226,7 +226,7 @@ fn render_document_for_family(
                 )),
             }
         }
-        DiagramFamily::Gantt | DiagramFamily::Chronology => {
+        DiagramFamily::Gantt | DiagramFamily::Chronology | DiagramFamily::Activity => {
             match normalize::normalize_family(document)? {
                 model::NormalizedDocument::Timeline(timeline) => {
                     Ok(vec![render::render_timeline_svg(&timeline)])
@@ -242,7 +242,6 @@ fn render_document_for_family(
         DiagramFamily::Component
         | DiagramFamily::Deployment
         | DiagramFamily::State
-        | DiagramFamily::Activity
         | DiagramFamily::Timing
         | DiagramFamily::MindMap
         | DiagramFamily::Wbs

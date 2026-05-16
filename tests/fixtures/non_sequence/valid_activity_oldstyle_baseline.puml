@@ -1,0 +1,9 @@
+@startuml
+|Build|
+(*) --> "Init"
+#gold:Compile;
+-->[next] right of "Test"
+"Test" --> (*)
+detach
+note right: baseline note
+@enduml

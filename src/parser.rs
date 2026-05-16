@@ -1815,6 +1815,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind.is_none() || matches!(detected_kind, Some(DiagramKind::Sequence));
         let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
         let allow_chronology_parse = matches!(detected_kind, Some(DiagramKind::Chronology));
+        let allow_activity_parse = matches!(detected_kind, Some(DiagramKind::Activity));
 
         if allow_sequence_parse {
             if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
@@ -1889,6 +1890,37 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 span,
                 kind: StatementKind::Unknown(format!(
                     "[E_CHRONOLOGY_UNSUPPORTED] unsupported chronology baseline syntax: `{line}`"
+                )),
+            });
+            i += 1;
+            continue;
+        }
+
+        if allow_activity_parse {
+            if let Some(kind) = parse_activity_baseline_statement(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_keyword(line) {
+                if is_timeline_metadata_statement(&kind) {
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
+            }
+            statements.push(Statement {
+                span,
+                kind: StatementKind::Unknown(format!(
+                    "[E_ACTIVITY_UNSUPPORTED] unsupported activity baseline syntax: `{line}`"
                 )),
             });
             i += 1;
@@ -2326,6 +2358,7 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
     if line.starts_with("start")
         || line.starts_with("stop")
         || line.starts_with(':')
+        || line.starts_with("(*)")
         || line.starts_with("if ")
         || line.starts_with("elseif ")
         || line == "else"
@@ -2335,6 +2368,8 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("fork")
         || line.starts_with("partition ")
         || line.starts_with("swimlane ")
+        || line.starts_with('|')
+        || line.starts_with("detach")
     {
         return Some(DiagramKind::Activity);
     }
@@ -2407,6 +2442,101 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
         return None;
     }
     Some(StatementKind::ChronologyHappensOn { subject, when })
+}
+
+fn parse_activity_baseline_statement(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.eq_ignore_ascii_case("detach") {
+        return Some(StatementKind::GanttMilestoneDecl {
+            name: "detach".to_string(),
+        });
+    }
+    if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() >= 3 {
+        let lane = trimmed[1..trimmed.len() - 1].trim();
+        if !lane.is_empty() {
+            return Some(StatementKind::GanttMilestoneDecl {
+                name: format!("lane: {lane}"),
+            });
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix('#') {
+        if let Some((color, action_raw)) = rest.split_once(':') {
+            let action = action_raw.trim().trim_end_matches(';').trim();
+            if !action.is_empty() {
+                return Some(StatementKind::GanttTaskDecl {
+                    name: format!("action[{color}]: {}", clean_ident(action)),
+                });
+            }
+        }
+    }
+    if trimmed.starts_with(':') && trimmed.ends_with(';') && trimmed.len() >= 3 {
+        let action = trimmed[1..trimmed.len() - 1].trim();
+        if !action.is_empty() {
+            return Some(StatementKind::GanttTaskDecl {
+                name: format!("action: {}", clean_ident(action)),
+            });
+        }
+    }
+    if trimmed == "(*)" {
+        return Some(StatementKind::GanttTaskDecl {
+            name: "terminal: (*)".to_string(),
+        });
+    }
+    if let Some((lhs_raw, rhs_raw)) = trimmed.split_once("-->") {
+        let from = clean_ident(lhs_raw.trim());
+        let mut rhs = rhs_raw.trim();
+        let mut label = None::<String>;
+        if rhs.starts_with('[') {
+            if let Some(end) = rhs.find(']') {
+                let value = rhs[1..end].trim();
+                if !value.is_empty() {
+                    label = Some(value.to_string());
+                }
+                rhs = rhs[end + 1..].trim();
+            }
+        }
+        let mut direction = None::<String>;
+        for dir in ["right of", "left of", "up of", "down of"] {
+            if rhs.to_ascii_lowercase().starts_with(dir) {
+                direction = Some(dir.to_string());
+                rhs = rhs[dir.len()..].trim();
+                break;
+            }
+        }
+        let target = if rhs.is_empty() {
+            "(implicit)".to_string()
+        } else {
+            clean_ident(rhs.trim().trim_end_matches(';'))
+        };
+        let subject = if from.is_empty() {
+            "(implicit)".to_string()
+        } else {
+            from
+        };
+        let mut kind = "arrow".to_string();
+        if let Some(v) = label {
+            kind.push_str(&format!("[{v}]"));
+        }
+        if let Some(v) = direction {
+            kind.push_str(&format!(" {v}"));
+        }
+        return Some(StatementKind::GanttConstraint {
+            subject,
+            kind,
+            target,
+        });
+    }
+    if trimmed.to_ascii_lowercase().starts_with("note ") {
+        return Some(StatementKind::GanttConstraint {
+            subject: "note".to_string(),
+            kind: "note".to_string(),
+            target: trimmed[5..].trim().to_string(),
+        });
+    }
+    None
 }
 
 fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
@@ -4122,6 +4252,28 @@ mod tests {
         )
         .unwrap();
         assert_eq!(chronology.kind, DiagramKind::Chronology);
+    }
+
+    #[test]
+    fn parses_activity_oldstyle_baseline_statements() {
+        let doc = parse_with_options(
+            "@startuml\n|Build|\n(*) --> \"Init\"\n#gold:Compile;\n-->[next] right of \"Test\"\n\"Test\" --> (*)\ndetach\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Activity);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::GanttMilestoneDecl { .. }
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttConstraint { .. }
+        ));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::GanttTaskDecl { .. }
+        ));
     }
 
     #[test]
