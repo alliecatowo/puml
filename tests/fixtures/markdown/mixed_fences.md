@@ -13,9 +13,9 @@ Bob -> Carol: pumlx-two
 ```
 
 ```picouml
-@startuml
+@startpicouml
 Carol -> Dave: picouml-three
-@enduml
+@endpicouml
 ```
 
 ```plantuml

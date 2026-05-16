@@ -152,20 +152,34 @@ fn extended_stdin_include_uses_current_directory_when_include_root_is_missing() 
 }
 
 #[test]
-fn picouml_frontend_fails_deterministically() {
+fn picouml_frontend_routes_canonical_surface_to_shared_model() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
             "--dialect",
             "picouml",
             "--check",
-            &fixture("single_valid.puml"),
+            &fixture("picouml/valid_canonical.picouml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn picouml_frontend_rejects_mixed_marker_forms_deterministically() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "picouml",
+            "--check",
+            &fixture("picouml/invalid_mixed_markers.picouml"),
         ])
         .assert()
         .code(1)
-        .stderr(predicate::str::contains(
-            "frontend 'picouml' is not implemented yet",
-        ));
+        .stderr(predicate::str::contains("E_PICOUML_MARKER_MIXED"));
 }
 
 #[test]

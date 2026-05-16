@@ -147,7 +147,7 @@ fn markdown_fence_frontend_hints_route_mixed_fence_rendering_deterministically()
     assert_eq!(diagrams.len(), 5);
     assert_eq!(diagrams[0].fence_frontend, FrontendSelection::Auto);
     assert_eq!(diagrams[1].fence_frontend, FrontendSelection::Auto);
-    assert_eq!(diagrams[2].fence_frontend, FrontendSelection::Auto);
+    assert_eq!(diagrams[2].fence_frontend, FrontendSelection::Picouml);
     assert_eq!(diagrams[3].fence_frontend, FrontendSelection::Auto);
     assert_eq!(diagrams[4].fence_frontend, FrontendSelection::Mermaid);
 
