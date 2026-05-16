@@ -1979,6 +1979,22 @@ fn dispatch_builtin(
 
     let result: Option<String> = match name {
         "strlen" | "size" => Some(arg(0).chars().count().to_string()),
+        "splitstr" => {
+            // %splitstr(s, sep) → returns the comma-joined fields after
+            // splitting `s` on `sep`. PlantUML returns a deterministic
+            // representation usable as the right-hand side of !foreach.
+            let s = arg(0);
+            let sep = arg(1);
+            if sep.is_empty() {
+                Some(s)
+            } else {
+                Some(
+                    s.split(sep.as_str())
+                        .collect::<Vec<&str>>()
+                        .join(","),
+                )
+            }
+        }
         "strpos" => {
             let s = arg(0);
             let sub = arg(1);
