@@ -1,0 +1,5 @@
+@startuml
+A -> A++ : self-call
+A -> B : cross message
+A -> A-- : self-deactivate
+@enduml

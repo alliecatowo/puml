@@ -661,8 +661,37 @@ fn group_content_min_size(kind: &str, label: Option<&str>) -> (i32, i32) {
     (max_width + (GROUP_TEXT_INSET_X * 2), height)
 }
 
+/// Strip PlantUML/creole inline markup tags to compute the visible character count.
+/// Handles `<color:X>...</color>`, `<b>`, `<i>`, `<u>`, `<s>`, `<back:X>` etc.
+fn visible_chars(text: &str) -> usize {
+    let mut count = 0;
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '<' {
+            // Collect until '>' — could be a markup tag
+            let mut tag_buf = String::new();
+            let mut closed = false;
+            for inner in chars.by_ref() {
+                if inner == '>' {
+                    closed = true;
+                    break;
+                }
+                tag_buf.push(inner);
+            }
+            if !closed {
+                // Not a valid tag — count '<' and tag_buf chars as visible
+                count += 1 + tag_buf.chars().count();
+            }
+            // If it was a closed tag (any <...>) we skip it (zero visible chars).
+        } else {
+            count += 1;
+        }
+    }
+    count
+}
+
 fn estimate_text_px_width(line: &str) -> i32 {
-    (line.chars().count() as i32) * 7
+    (visible_chars(line) as i32) * 7
 }
 
 fn message_x_bounds(
@@ -730,6 +759,14 @@ fn message_label_lines(
     let tx = ((x1 + x2) / 2) + 2;
     let max_chars_by_span = (span_px / 7).max(1) as usize;
     let max_chars_by_left_edge = ((tx * 2) / 7).max(1) as usize;
+    // Use visible_chars (markup-stripped) to compute actual display width for wrapping
+    let visible = visible_chars(label);
+    let raw_len = label.chars().count();
+    // Adjust max_chars upward by the overhead introduced by markup tags so wrapping
+    // is based on visible width rather than raw byte length.
+    let overhead = raw_len.saturating_sub(visible);
+    let max_chars_by_span = max_chars_by_span.saturating_add(overhead);
+    let max_chars_by_left_edge = max_chars_by_left_edge.saturating_add(overhead);
     let max_chars = max_chars_by_span.min(max_chars_by_left_edge);
     normalize_label_lines(label, max_chars, options.text_overflow_policy)
 }

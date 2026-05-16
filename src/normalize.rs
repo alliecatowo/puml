@@ -755,6 +755,36 @@ pub fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::GroupBorderColor(color),
                     ) => style.group_border_color = color,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantPadding(n),
+                    ) => style.participant_padding = Some(n),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::BoxPadding(n),
+                    ) => style.box_padding = Some(n),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageAlign(align),
+                    ) => style.message_align = Some(align),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ResponseMessageBelowArrow(b),
+                    ) => style.response_message_below_arrow = Some(b),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineThickness(n),
+                    ) => style.lifeline_thickness = Some(n),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageLineColor(color),
+                    ) => style.message_line_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBackgroundColor(color),
+                    ) => style.reference_background_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBorderColor(color),
+                    ) => style.reference_border_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontColor(color),
+                    ) => style.group_header_font_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontStyle(style_val),
+                    ) => style.group_header_font_style = Some(style_val),
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(

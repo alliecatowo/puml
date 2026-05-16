@@ -1,0 +1,5 @@
+@startuml
+A -> B : <color:red>red text</color>
+B -> A : <b>bold reply</b>
+A -> B : plain label
+@enduml

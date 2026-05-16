@@ -1622,6 +1622,266 @@ fn layout_pages_newpage_keeps_page_local_geometry_and_content() {
     assert_eq!(pages[1].notes.len(), 1, "page two should contain its note");
 }
 
+// ── Item 1: Creole-aware width estimation ───────────────────────────────────
+
+#[test]
+fn layout_creole_markup_label_fits_in_span_without_markup_overhead() {
+    // "<color:red>red text</color>" has 8 visible chars ("red text"),
+    // same as the plain label "red text".  Both should produce the same
+    // (single-line) label_lines when the span is wide enough.
+    let plain_src = "@startuml\nA -> B : red text\n@enduml\n";
+    let markup_src = "@startuml\nA -> B : <color:red>red text</color>\n@enduml\n";
+
+    let plain_doc = parse(plain_src).expect("parse plain");
+    let plain_model = normalize::normalize(plain_doc).expect("normalize plain");
+    let markup_doc = parse(markup_src).expect("parse markup");
+    let markup_model = normalize::normalize(markup_doc).expect("normalize markup");
+
+    let options = LayoutOptions::default();
+    let plain_scene = layout::layout(&plain_model, options);
+    let markup_scene = layout::layout(&markup_model, options);
+
+    assert_eq!(
+        plain_scene.messages[0].label_lines.len(),
+        markup_scene.messages[0].label_lines.len(),
+        "markup label should wrap the same as equivalent plain label"
+    );
+}
+
+// ── Item 2: hide/show footbox toggle ───────────────────────────────────────
+
+#[test]
+fn footbox_show_toggles_on_after_hide() {
+    // "show footbox" appears AFTER "hide footbox" — the last command wins
+    let src = "@startuml\nhide footbox\nA -> B : one\nshow footbox\nB -> A : two\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert!(
+        model.footbox_visible,
+        "show footbox after hide footbox should re-enable footboxes"
+    );
+    let scene = layout::layout(&model, LayoutOptions::default());
+    assert_eq!(
+        scene.footboxes.len(),
+        2,
+        "footboxes should appear when show footbox is last"
+    );
+}
+
+#[test]
+fn footbox_hide_after_messages_does_not_panic_or_regress() {
+    // hide footbox placed after messages still applies globally
+    let src = "@startuml\nA -> B : one\nB -> A : two\nhide footbox\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert!(
+        !model.footbox_visible,
+        "hide footbox after messages should disable footboxes"
+    );
+    let scene = layout::layout(&model, LayoutOptions::default());
+    assert!(
+        scene.footboxes.is_empty(),
+        "no footboxes when hidden after messages"
+    );
+}
+
+// ── Item 3: Extended skinparams ─────────────────────────────────────────────
+
+#[test]
+fn skinparam_participant_padding_is_recognised_and_stored() {
+    use puml::theme::SequenceSkinParamValue;
+    let result = classify_sequence_skinparam("ParticipantPadding", "12");
+    assert!(
+        matches!(
+            result,
+            SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ParticipantPadding(12))
+        ),
+        "ParticipantPadding 12 should be supported"
+    );
+}
+
+#[test]
+fn skinparam_box_padding_is_recognised() {
+    use puml::theme::SequenceSkinParamValue;
+    let result = classify_sequence_skinparam("BoxPadding", "6");
+    assert!(
+        matches!(
+            result,
+            SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::BoxPadding(6))
+        ),
+        "BoxPadding 6 should be supported"
+    );
+}
+
+#[test]
+fn skinparam_message_align_variants_are_recognised() {
+    use puml::theme::SequenceSkinParamValue;
+    for align in &["left", "right", "center"] {
+        let result = classify_sequence_skinparam("MessageAlign", align);
+        assert!(
+            matches!(
+                result,
+                SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::MessageAlign(_))
+            ),
+            "MessageAlign {align} should be supported"
+        );
+    }
+    let bad = classify_sequence_skinparam("MessageAlign", "justify");
+    assert!(
+        matches!(bad, SequenceSkinParamSupport::UnsupportedValue),
+        "MessageAlign justify should be unsupported value"
+    );
+}
+
+#[test]
+fn skinparam_response_message_below_arrow_bool_is_recognised() {
+    use puml::theme::SequenceSkinParamValue;
+    let t = classify_sequence_skinparam("ResponseMessageBelowArrow", "true");
+    assert!(
+        matches!(
+            t,
+            SequenceSkinParamSupport::SupportedWithValue(
+                SequenceSkinParamValue::ResponseMessageBelowArrow(true)
+            )
+        ),
+        "ResponseMessageBelowArrow true should be supported"
+    );
+    let f = classify_sequence_skinparam("ResponseMessageBelowArrow", "false");
+    assert!(
+        matches!(
+            f,
+            SequenceSkinParamSupport::SupportedWithValue(
+                SequenceSkinParamValue::ResponseMessageBelowArrow(false)
+            )
+        ),
+        "ResponseMessageBelowArrow false should be supported"
+    );
+}
+
+#[test]
+fn skinparam_lifeline_thickness_is_recognised_and_applied_to_svg() {
+    let src = "@startuml\nskinparam SequenceLifeLineThickness 3\nA -> B : hello\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("stroke-width=\"3\""),
+        "lifeline should use thickness 3 from skinparam"
+    );
+}
+
+#[test]
+fn skinparam_message_line_color_overrides_arrow_line_color_in_svg() {
+    let src = "@startuml\nskinparam SequenceMessageLineColor #336699\nA -> B : hello\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("stroke=\"#336699\""),
+        "message lines should use SequenceMessageLineColor"
+    );
+}
+
+#[test]
+fn skinparam_reference_background_color_applied_to_ref_group() {
+    let src = "@startuml\nskinparam SequenceReferenceBackgroundColor #ffeecc\nref over A : see doc\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("#ffeecc"),
+        "ref group should use SequenceReferenceBackgroundColor"
+    );
+}
+
+#[test]
+fn skinparam_group_header_font_color_applied_to_group_text() {
+    let src = "@startuml\nskinparam SequenceGroupHeaderFontColor #cc0000\nalt condition\nA -> B : one\nend\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("fill=\"#cc0000\""),
+        "group header text should use SequenceGroupHeaderFontColor"
+    );
+}
+
+#[test]
+fn skinparam_group_header_font_style_italic_applied() {
+    let src = "@startuml\nskinparam SequenceGroupHeaderFontStyle italic\nalt condition\nA -> B : one\nend\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "group header text should use font-style italic"
+    );
+}
+
+#[test]
+fn skinparam_message_align_left_applied_to_label_text_anchor() {
+    let src = "@startuml\nskinparam MessageAlign left\nA -> B : hello\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("text-anchor=\"start\""),
+        "message label should use text-anchor start for MessageAlign left"
+    );
+}
+
+// ── Item 4: Self-message with activate ─────────────────────────────────────
+
+#[test]
+fn self_message_with_activate_shortcut_renders_correctly() {
+    let src = "@startuml\nA -> A++ : self-call\nA -> B : cross message\nA -> A-- : done\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    // Self-message: x1 and x2 should both be on A's lifeline (x2 > x1 for loop right)
+    let self_msg = &scene.messages[0];
+    assert_eq!(self_msg.from_id, "A");
+    assert_eq!(self_msg.to_id, "A");
+    assert!(
+        self_msg.x2 > self_msg.x1,
+        "self-message arrow should loop rightward"
+    );
+}
+
+#[test]
+fn nested_self_activates_parse_and_normalize_without_error() {
+    let src = "@startuml\nA -> A++ : outer\nA -> A++ : inner\nA -> A-- : inner done\nA -> A-- : outer done\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let _model = normalize::normalize(doc).expect("normalize should succeed");
+}
+
+#[test]
+fn mixed_self_and_cross_messages_lay_out_without_panic() {
+    // A is activated by self-call, then deactivated separately via deactivate
+    let src = "@startuml\nA -> A++ : self-call\nA -> B : cross\ndeactivate A\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let scene = layout::layout(&model, LayoutOptions::default());
+    assert!(scene.messages.len() >= 2, "expected messages in scene");
+}
+
+// ── Item 5: Multi-line note via `end note` ─────────────────────────────────
+
+#[test]
+fn multiline_note_over_parses_and_lays_out_with_multi_line_text() {
+    let src = "@startuml\nparticipant A\nparticipant B\nnote over A\nmultiple\nlines\nof text\nend note\nA -> B : after note\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    assert!(!scene.notes.is_empty(), "expected a note in the scene");
+    let note = &scene.notes[0];
+    let line_count = note.text.lines().count();
+    assert_eq!(line_count, 3, "note should contain 3 lines of text");
+    assert!(
+        note.height > 40,
+        "note height should accommodate multiple lines"
+    );
+}
+
+#[test]
+fn multiline_note_svg_renders_all_lines() {
+    let src = "@startuml\nnote over A\nfoo\nbar\nbaz\nend note\nA -> B : msg\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(svg.contains("foo"), "note line 1 should appear in SVG");
+    assert!(svg.contains("bar"), "note line 2 should appear in SVG");
+    assert!(svg.contains("baz"), "note line 3 should appear in SVG");
+}
+
 #[test]
 fn unknown_family_render_route_reports_deterministic_error_code() {
     use puml::DiagramFamily;

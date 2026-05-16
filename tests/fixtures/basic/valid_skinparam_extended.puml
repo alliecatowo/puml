@@ -1,0 +1,14 @@
+@startuml
+skinparam ParticipantPadding 8
+skinparam BoxPadding 4
+skinparam MessageAlign center
+skinparam ResponseMessageBelowArrow false
+skinparam SequenceLifeLineThickness 2
+skinparam SequenceMessageLineColor #336699
+skinparam SequenceReferenceBackgroundColor #f0f8ff
+skinparam SequenceReferenceBorderColor #336699
+skinparam SequenceGroupHeaderFontColor #222222
+skinparam SequenceGroupHeaderFontStyle bold
+A -> B : message one
+B -> A : message two
+@enduml
