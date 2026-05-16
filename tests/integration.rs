@@ -311,7 +311,7 @@ fn non_sequence_deployment_reports_deterministic_family_code() {
 }
 
 #[test]
-fn non_sequence_state_reports_deterministic_family_code() {
+fn state_diagram_basic_check_succeeds() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -319,8 +319,7 @@ fn non_sequence_state_reports_deterministic_family_code() {
             &fixture("non_sequence/invalid_state_diagram.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_STATE_UNSUPPORTED]"));
+        .code(0);
 }
 
 #[test]
@@ -558,7 +557,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_include_only.puml",
         "errors/invalid_define_only.puml",
         "errors/invalid_undef_only.puml",
-        "non_sequence/invalid_state_diagram.puml",
         "include/error_include_cycle_self.puml",
         "include/error_include_chain_a.puml",
         "lifecycle/valid_destroy_then_message.puml",
@@ -2332,10 +2330,6 @@ fn non_sequence_inputs_fail_validation() {
             "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
         ),
         (
-            "non_sequence/invalid_state_diagram.puml",
-            "E_FAMILY_STATE_UNSUPPORTED",
-        ),
-        (
             "non_sequence/invalid_activity_diagram.puml",
             "E_ACTIVITY_UNSUPPORTED",
         ),
@@ -3609,4 +3603,116 @@ fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
+}
+
+// ─── State diagram advanced feature tests ────────────────────────────────────
+
+#[test]
+fn state_concurrent_regions_renders_svg_with_dashed_divider() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_state_concurrent.puml"),
+        ])
+        .assert()
+        .code(0);
+
+    let src = fs::read_to_string(fixture("families/valid_state_concurrent.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render state concurrent SVG");
+    assert!(svg.contains("<svg"), "expected SVG output");
+    assert!(
+        svg.contains("stroke-dasharray"),
+        "expected dashed divider in concurrent state SVG"
+    );
+}
+
+#[test]
+fn state_history_shallow_renders_h_circle() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_state_history.puml"),
+        ])
+        .assert()
+        .code(0);
+
+    let src = fs::read_to_string(fixture("families/valid_state_history.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render history state SVG");
+    assert!(
+        svg.contains(">H<"),
+        "expected 'H' label in shallow history node"
+    );
+}
+
+#[test]
+fn state_history_deep_renders_hstar_circle() {
+    let src = fs::read_to_string(fixture("families/valid_state_history.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render history state SVG");
+    assert!(
+        svg.contains(">H*<"),
+        "expected 'H*' label in deep history node"
+    );
+}
+
+#[test]
+fn state_entry_exit_renders_italic_action_text() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_state_entry_exit.puml"),
+        ])
+        .assert()
+        .code(0);
+
+    let src = fs::read_to_string(fixture("families/valid_state_entry_exit.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render entry/exit state SVG");
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "expected italic text for entry/exit actions"
+    );
+    assert!(
+        svg.contains("entry"),
+        "expected entry action label in SVG"
+    );
+}
+
+#[test]
+fn state_fork_join_choice_end_renders_stereotyped_shapes() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_state_fork_join.puml"),
+        ])
+        .assert()
+        .code(0);
+
+    let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render fork/join/choice/end SVG");
+    assert!(svg.contains("<rect"), "expected rect element for fork/join bar");
+    assert!(svg.contains("<polygon"), "expected polygon for choice diamond");
+    let circle_count = svg.matches("<circle").count();
+    assert!(
+        circle_count >= 2,
+        "expected at least 2 circle elements, got {circle_count}"
+    );
+}
+
+#[test]
+fn state_transition_labels_appear_in_svg() {
+    let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render SVG");
+    assert!(svg.contains("done"), "expected 'done' transition label in SVG");
+    assert!(svg.contains("retry"), "expected 'retry' transition label in SVG");
+}
+
+#[test]
+fn state_basic_render_produces_valid_svg() {
+    let src = "@startuml\nstate Active\n[*] --> Active\nActive --> [*]\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("basic state should render");
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    assert!(svg.contains("Active"), "expected state name in SVG");
 }

@@ -3,12 +3,70 @@ use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 use crate::theme::SequenceStyle;
 
+// ─── State diagram model ──────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct StateDocument {
+    pub kind: DiagramKind,
+    pub nodes: Vec<StateNode>,
+    pub transitions: Vec<StateTransition>,
+    pub title: Option<String>,
+    pub header: Option<String>,
+    pub footer: Option<String>,
+    pub caption: Option<String>,
+    pub legend: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StateNode {
+    pub name: String,
+    pub display: Option<String>,
+    pub kind: StateNodeKind,
+    pub internal_actions: Vec<StateInternalAction>,
+    /// For composite states: children per region (concurrent → multiple vecs)
+    pub regions: Vec<Vec<StateNode>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StateNodeKind {
+    /// A regular named state (rounded rectangle)
+    Normal,
+    /// `[*]` initial / final pseudo-state
+    StartEnd,
+    /// `[H]` shallow history
+    HistoryShallow,
+    /// `[H*]` deep history
+    HistoryDeep,
+    /// `<<fork>>` / `<<join>>` stereotype — thick horizontal bar
+    Fork,
+    Join,
+    /// `<<choice>>` stereotype — diamond
+    Choice,
+    /// `<<end>>` stereotype — filled circle
+    End,
+}
+
+#[derive(Debug, Clone)]
+pub struct StateInternalAction {
+    pub kind: String,   // "entry", "exit", or event name
+    pub action: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct StateTransition {
+    pub from: String,
+    pub to: String,
+    pub label: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum NormalizedDocument {
     Sequence(SequenceDocument),
     Family(FamilyDocument),
     Timeline(TimelineDocument),
+    State(StateDocument),
 }
 
 #[derive(Debug, Clone)]
