@@ -970,12 +970,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let (raw_line, span) = lines[i];
         let line = raw_line.trim();
 
-        if line.is_empty()
-            || line.starts_with('"')
-            || line
-                .get(..7)
-                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("!pragma"))
-        {
+        if line.is_empty() || line.starts_with('"') {
             i += 1;
             continue;
         }
@@ -1595,6 +1590,15 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower.starts_with("!theme") {
         return Some(StatementKind::Theme(line[6..].trim().to_string()));
     }
+    if lower.starts_with("!pragma") {
+        let body = line[7..].trim();
+        if body.is_empty() {
+            return Some(StatementKind::Unknown(
+                "[E_PRAGMA_INVALID] malformed pragma syntax: missing pragma body".to_string(),
+            ));
+        }
+        return Some(StatementKind::Pragma(body.to_string()));
+    }
 
     if lower == "hide footbox" {
         return Some(StatementKind::Footbox(false));
@@ -2060,23 +2064,24 @@ mod tests {
     }
 
     #[test]
-    fn pragma_directives_with_arguments_are_ignored() {
+    fn pragma_directives_with_arguments_are_preserved_as_statements() {
         let doc = parse_with_options(
             "!pragma teoz true\nparticipant A\nparticipant B\nA -> B: hi\n",
             &ParseOptions::default(),
         )
         .unwrap();
 
-        assert_eq!(doc.statements.len(), 3);
-        assert!(matches!(
-            doc.statements[0].kind,
-            StatementKind::Participant(_)
-        ));
+        assert_eq!(doc.statements.len(), 4);
+        assert!(matches!(doc.statements[0].kind, StatementKind::Pragma(_)));
         assert!(matches!(
             doc.statements[1].kind,
             StatementKind::Participant(_)
         ));
-        assert!(matches!(doc.statements[2].kind, StatementKind::Message(_)));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::Participant(_)
+        ));
+        assert!(matches!(doc.statements[3].kind, StatementKind::Message(_)));
     }
 
     #[test]
