@@ -1,0 +1,13 @@
+@startuml
+title Relation Arrow Types in Class Diagrams
+class A
+class B
+class C
+class D
+class E
+class F
+A <|-- B : inheritance (B extends A)
+C *-- D : composition (D is part of C)
+E o-- F : aggregation (F belongs to E)
+A --> B : association
+@enduml

@@ -479,6 +479,22 @@ pub enum FamilyNodeKind {
     TimingClock,
     TimingBinary,
     TimingEvent,
+    // C4 family
+    C4Person,
+    C4PersonExt,
+    C4System,
+    C4SystemExt,
+    C4SystemDb,
+    C4SystemQueue,
+    C4Container,
+    C4ContainerExt,
+    C4ContainerDb,
+    C4ContainerQueue,
+    C4Component,
+    C4ComponentExt,
+    C4ComponentDb,
+    C4ComponentQueue,
+    C4Boundary,
 }
 
 #[derive(Debug, Clone)]

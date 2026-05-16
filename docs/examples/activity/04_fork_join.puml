@@ -1,0 +1,15 @@
+@startuml
+title Fork and Join
+start
+:Start Task;
+fork
+  :Subtask A;
+  :Subtask A2;
+fork again
+  :Subtask B;
+fork again
+  :Subtask C;
+end fork
+:Merge Results;
+stop
+@enduml

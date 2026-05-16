@@ -1,0 +1,24 @@
+@startuml
+title Status and Priority Classes
+class Status {
+  PENDING
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+class Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+class Task {
+  -id: Long
+  -title: String
+  -status: Status
+  -priority: Priority
+  +execute(): void
+}
+Task --> Status
+Task --> Priority
+@enduml

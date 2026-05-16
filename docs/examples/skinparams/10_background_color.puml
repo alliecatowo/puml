@@ -1,0 +1,8 @@
+@startuml
+skinparam backgroundColor #f0f8ff
+skinparam participantBackgroundColor #ffffff
+skinparam arrowColor #336699
+title Background Color
+Alice -> Bob: on aliceblue bg
+Bob --> Alice: response
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+!theme sunlust
+Alice -> Bob: Yellow orange sun
+Bob --> Alice: Sunlust response
+@enduml

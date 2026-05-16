@@ -1,0 +1,13 @@
+@startuml
+!include <C4/C4_Context>
+title System Context - Banking App
+!Person(customer, "Customer")
+!Person_Ext(support, "Support")
+!System(app, "Banking Application")
+!System_Ext(sms, "SMS Gateway")
+!System_Ext(bank, "Core Banking")
+!Rel(customer, app, "Uses")
+!Rel(support, app, "Manages")
+!Rel(app, sms, "Sends notifications")
+!Rel(app, bank, "Transfers funds")
+@enduml

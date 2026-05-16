@@ -1,0 +1,13 @@
+@startuml
+!theme sketchy-outline
+title sketchy outline Theme Showcase
+Alice -> Bob: hello
+Bob -> Charlie: forward
+Charlie --> Bob: ack
+Bob --> Alice: done
+alt success
+  Alice -> Alice: log success
+else error
+  Alice -> Alice: log error
+end
+@enduml

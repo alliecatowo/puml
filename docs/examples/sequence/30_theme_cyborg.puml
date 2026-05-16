@@ -1,0 +1,8 @@
+@startuml
+!theme cyborg
+title Cyborg Theme
+System -> AI: analyze
+AI -> ML: inference
+ML --> AI: prediction
+AI --> System: result
+@enduml

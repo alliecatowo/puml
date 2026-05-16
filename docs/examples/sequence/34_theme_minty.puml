@@ -1,0 +1,8 @@
+@startuml
+!theme minty
+title Minty Theme
+Browser -> CDN: assets
+CDN --> Browser: cached
+Browser -> API: data
+API --> Browser: json
+@enduml

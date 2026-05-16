@@ -1,0 +1,30 @@
+@startuml
+title Authentication Flow
+start
+:Enter Credentials;
+if (Username valid?) then (yes)
+  :Hash Password;
+  if (Password match?) then (yes)
+    if (MFA enabled?) then (yes)
+      :Send OTP;
+      if (OTP valid?) then (yes)
+        :Grant Access;
+      else (no)
+        :Deny + Log;
+      endif
+    else (no)
+      :Grant Access;
+    endif
+  else (no)
+    :Increment Attempts;
+    if (Max attempts?) then (yes)
+      :Lock Account;
+    else (no)
+      :Retry;
+    endif
+  endif
+else (no)
+  :Return 401;
+endif
+stop
+@enduml

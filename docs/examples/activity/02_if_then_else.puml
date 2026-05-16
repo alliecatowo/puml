@@ -1,0 +1,12 @@
+@startuml
+title If-Then-Else Decision
+start
+:Receive Request;
+if (authenticated?) then (yes)
+  :Process;
+  :Return 200;
+else (no)
+  :Return 401;
+endif
+stop
+@enduml

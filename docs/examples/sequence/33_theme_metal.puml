@@ -1,0 +1,8 @@
+@startuml
+!theme metal
+title Metal Theme
+Client -> Server: request
+Server -> Database: query
+Database --> Server: result
+Server --> Client: response
+@enduml

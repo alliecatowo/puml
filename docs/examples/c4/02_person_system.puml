@@ -1,0 +1,15 @@
+@startuml
+!include <C4/C4_Context>
+title Multi-System Context
+!Person(dev, "Developer")
+!Person(ops, "Operator")
+!Person_Ext(vendor, "Vendor")
+!System(platform, "Platform")
+!System_Ext(ci, "CI/CD")
+!System_Ext(cloud, "Cloud Provider")
+!Rel(dev, platform, "Develops on")
+!Rel(ops, platform, "Operates")
+!Rel(vendor, platform, "Integrates")
+!Rel(platform, ci, "Triggers")
+!Rel(platform, cloud, "Runs on")
+@enduml

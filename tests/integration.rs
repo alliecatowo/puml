@@ -1194,7 +1194,7 @@ fn theme_sketchy_produces_hand_drawn_style_colors_in_model_dump() {
 #[test]
 fn theme_catalog_covers_all_22_presets() {
     use puml::theme::{resolve_sequence_theme_preset, LOCAL_SEQUENCE_THEME_CATALOG};
-    assert_eq!(LOCAL_SEQUENCE_THEME_CATALOG.len(), 22);
+    assert_eq!(LOCAL_SEQUENCE_THEME_CATALOG.len(), 41);
     for name in LOCAL_SEQUENCE_THEME_CATALOG {
         let result = resolve_sequence_theme_preset(name);
         assert!(
@@ -1219,6 +1219,22 @@ fn all_22_theme_fixtures_pass_check_mode() {
         "styling/valid_theme_cerulean.puml",
         "styling/valid_theme_hacker.puml",
         "styling/valid_theme_sketchy.puml",
+        "styling/valid_theme_amiga.puml",
+        "styling/valid_theme_bluegray.puml",
+        "styling/valid_theme_carbon_gray.puml",
+        "styling/valid_theme_materia_outline.puml",
+        "styling/valid_theme_mono.puml",
+        "styling/valid_theme_nautilus.puml",
+        "styling/valid_theme_not_so_funny.puml",
+        "styling/valid_theme_reddress_darkgreen.puml",
+        "styling/valid_theme_sandstone.puml",
+        "styling/valid_theme_silver.puml",
+        "styling/valid_theme_spacelab_white.puml",
+        "styling/valid_theme_sunlust.puml",
+        "styling/valid_theme_toy.puml",
+        "styling/valid_theme_united.puml",
+        "styling/valid_theme_vibrant.puml",
+        "styling/valid_theme_none.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")

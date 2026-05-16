@@ -1,0 +1,11 @@
+@startuml
+!include <C4/C4_Component>
+title Component Diagram - API Service
+!Component(ctrl, "OrderController", "FastAPI", "REST endpoints")
+!Component(svc, "OrderService", "Python", "Business logic")
+!Component(repo, "OrderRepository", "SQLAlchemy", "Data access")
+!Component(cache, "CacheLayer", "Redis", "Caching")
+!Rel(ctrl, svc, "Uses")
+!Rel(svc, repo, "Queries")
+!Rel(svc, cache, "Caches via")
+@enduml

@@ -1,0 +1,13 @@
+@startuml
+!include <C4/C4_Context>
+title Actors in the System
+!Person(admin, "Administrator")
+!Person(editor, "Content Editor")
+!Person(viewer, "Viewer")
+!Person_Ext(api_user, "API Consumer")
+!System(cms, "CMS Platform")
+!Rel(admin, cms, "Configures")
+!Rel(editor, cms, "Creates content")
+!Rel(viewer, cms, "Reads content")
+!Rel(api_user, cms, "Reads via API")
+@enduml

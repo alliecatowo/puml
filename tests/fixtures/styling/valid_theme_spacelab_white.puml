@@ -1,0 +1,5 @@
+@startuml
+!theme spacelab-white
+Alice -> Bob: Spacelab white variant
+Bob --> Alice: Response
+@enduml

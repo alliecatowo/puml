@@ -1,0 +1,19 @@
+@startuml
+title Microservices Architecture
+class Gateway {
+  +route(req): Response
+  +authenticate(token): boolean
+}
+class UserController
+class UserService
+class UserRepository
+class OrderController
+class OrderService
+class OrderRepository
+Gateway --> UserController
+Gateway --> OrderController
+UserController --> UserService
+UserService --> UserRepository
+OrderController --> OrderService
+OrderService --> OrderRepository
+@enduml

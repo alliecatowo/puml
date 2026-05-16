@@ -1,0 +1,11 @@
+@startuml
+title Repeat Until
+start
+:Connect;
+repeat
+  :Send Heartbeat;
+  :Wait 30s;
+repeat while (server alive?) is (yes)
+:Reconnect;
+stop
+@enduml

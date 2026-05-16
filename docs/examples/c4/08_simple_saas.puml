@@ -1,0 +1,13 @@
+@startuml
+!include <C4/C4_Context>
+title SaaS Product Context
+!Person(customer, "Customer")
+!Person(admin, "Admin")
+!System(saas, "SaaS Platform")
+!System_Ext(billing, "Stripe")
+!System_Ext(email, "SendGrid")
+!Rel(customer, saas, "Uses")
+!Rel(admin, saas, "Manages")
+!Rel(saas, billing, "Bills via")
+!Rel(saas, email, "Notifies via")
+@enduml

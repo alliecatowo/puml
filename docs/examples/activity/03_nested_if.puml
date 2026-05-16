@@ -1,0 +1,15 @@
+@startuml
+title Nested Conditionals
+start
+:Check Input;
+if (valid?) then (yes)
+  if (authorized?) then (yes)
+    :Execute;
+  else (no)
+    :Return 403;
+  endif
+else (no)
+  :Return 400;
+endif
+stop
+@enduml

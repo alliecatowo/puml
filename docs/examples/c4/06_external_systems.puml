@@ -1,0 +1,13 @@
+@startuml
+!include <C4/C4_Context>
+title External System Integrations
+!System(core, "Core System")
+!System_Ext(auth, "Auth Provider")
+!System_Ext(payment, "Payment Gateway")
+!System_Ext(analytics, "Analytics")
+!System_Ext(storage, "Object Storage")
+!Rel(core, auth, "Authenticates via")
+!Rel(core, payment, "Processes via")
+!Rel(core, analytics, "Sends events to")
+!Rel(core, storage, "Stores files in")
+@enduml

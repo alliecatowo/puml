@@ -1,0 +1,5 @@
+@startuml
+!theme amiga
+Alice -> Bob: Retro orange and blue
+Bob --> Alice: Amiga style
+@enduml

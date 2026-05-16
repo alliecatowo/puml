@@ -1,0 +1,17 @@
+@startuml
+title Activation Bar Stacking
+activate A
+A -> B: call 1
+activate B
+B -> C: nested call
+activate C
+C --> B: return
+deactivate C
+B -> B: self call
+activate B
+B --> B: done
+deactivate B
+B --> A: return 1
+deactivate B
+deactivate A
+@enduml

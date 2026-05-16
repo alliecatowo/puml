@@ -1,0 +1,22 @@
+@startuml
+title Repository Pattern
+class Repository {
+  +findById(id)
+  +findAll(): List
+  +save(entity): void
+}
+class UserRepository {
+  -db: Database
+  +findById(id: Long)
+  +findAll(): List
+  +findByEmail(email: String)
+  +save(user: User): User
+}
+class User {
+  -id: Long
+  -name: String
+  -email: String
+}
+UserRepository <|-- Repository
+UserRepository --> User
+@enduml

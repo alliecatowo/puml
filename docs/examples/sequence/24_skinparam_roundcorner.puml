@@ -1,0 +1,8 @@
+@startuml
+skinparam roundCorner 20
+skinparam participantBackgroundColor #ddeeff
+skinparam arrowColor #2244aa
+title Round Corners
+Alice -> Bob: Hello
+Bob --> Alice: Hi
+@enduml
