@@ -1,0 +1,9 @@
+@startuml
+title Session Lifecycle
+state Idle
+state Active
+state Closed
+Idle --> Active : open
+Active --> Closed : disconnect
+Active --> Idle : timeout
+@enduml

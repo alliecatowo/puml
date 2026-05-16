@@ -68,6 +68,7 @@ pub struct FamilyNode {
     pub name: String,
     pub alias: Option<String>,
     pub members: Vec<String>,
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +76,43 @@ pub enum FamilyNodeKind {
     Class,
     Object,
     UseCase,
+    // Component-family
+    Component,
+    Interface,
+    Port,
+    // Deployment-family
+    Node,
+    Artifact,
+    Cloud,
+    Frame,
+    Storage,
+    Database,
+    Package,
+    Rectangle,
+    Folder,
+    File,
+    Card,
+    Actor,
+    // State family
+    State,
+    StateInitial,
+    StateFinal,
+    StateHistory,
+    // Activity family
+    ActivityStart,
+    ActivityStop,
+    ActivityAction,
+    ActivityDecision,
+    ActivityFork,
+    ActivityForkEnd,
+    ActivityMerge,
+    ActivityPartition,
+    // Timing family
+    TimingConcise,
+    TimingRobust,
+    TimingClock,
+    TimingBinary,
+    TimingEvent,
 }
 
 #[derive(Debug, Clone)]

@@ -53,6 +53,29 @@ pub enum StatementKind {
         subject: String,
         when: String,
     },
+    ComponentDecl {
+        kind: ComponentNodeKind,
+        name: String,
+        alias: Option<String>,
+        label: Option<String>,
+    },
+    StateDecl {
+        name: String,
+        alias: Option<String>,
+        label: Option<String>,
+    },
+    ActivityStep(ActivityStep),
+    TimingDecl {
+        kind: TimingDeclKind,
+        name: String,
+        label: Option<String>,
+    },
+    TimingEvent {
+        time: String,
+        signal: Option<String>,
+        state: Option<String>,
+        note: Option<String>,
+    },
     Note(Note),
     Group(Group),
     Title(String),
@@ -107,6 +130,59 @@ pub struct UseCaseDecl {
     pub name: String,
     pub alias: Option<String>,
     pub members: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComponentNodeKind {
+    Component,
+    Interface,
+    Port,
+    Node,
+    Artifact,
+    Cloud,
+    Frame,
+    Storage,
+    Database,
+    Package,
+    Rectangle,
+    Folder,
+    File,
+    Card,
+    Actor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimingDeclKind {
+    Concise,
+    Robust,
+    Clock,
+    Binary,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActivityStep {
+    pub kind: ActivityStepKind,
+    pub label: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActivityStepKind {
+    Start,
+    Stop,
+    End,
+    Action,
+    IfStart,
+    Else,
+    EndIf,
+    RepeatStart,
+    RepeatWhile,
+    WhileStart,
+    EndWhile,
+    Fork,
+    ForkAgain,
+    EndFork,
+    PartitionStart,
+    PartitionEnd,
 }
 
 #[derive(Debug, Clone)]

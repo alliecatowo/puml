@@ -125,31 +125,6 @@ fn render_for_mismatched_family_reports_deterministic_error() {
 fn render_for_unsupported_families_reports_specific_codes() {
     let cases = [
         (
-            "@startuml\ncomponent API\n@enduml\n",
-            DiagramFamily::Component,
-            "E_RENDER_COMPONENT_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nnode web\n@enduml\n",
-            DiagramFamily::Deployment,
-            "E_RENDER_DEPLOYMENT_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nstate Running\n@enduml\n",
-            DiagramFamily::State,
-            "E_RENDER_STATE_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nstart\n:work;\nstop\n@enduml\n",
-            DiagramFamily::Activity,
-            "E_RENDER_ACTIVITY_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nclock clk\n@enduml\n",
-            DiagramFamily::Timing,
-            "E_RENDER_TIMING_UNSUPPORTED",
-        ),
-        (
             "@startmindmap\n* Root\n@endmindmap\n",
             DiagramFamily::MindMap,
             "E_RENDER_MINDMAP_UNSUPPORTED",
@@ -169,6 +144,30 @@ fn render_for_unsupported_families_reports_specific_codes() {
     for (src, family, code) in cases {
         let err = render_source_to_svg_for_family(src, family).expect_err("unsupported family");
         assert!(err.message.contains(code), "missing code {code}");
+    }
+}
+
+#[test]
+fn render_for_implemented_families_produces_svg() {
+    let cases = [
+        ("@startuml\ncomponent API\n@enduml\n", DiagramFamily::Component),
+        ("@startuml\nnode web\n@enduml\n", DiagramFamily::Deployment),
+        ("@startuml\nstate Running\n@enduml\n", DiagramFamily::State),
+        (
+            "@startuml\nstart\n:work;\nstop\n@enduml\n",
+            DiagramFamily::Activity,
+        ),
+        ("@startuml\nclock clk\n@enduml\n", DiagramFamily::Timing),
+    ];
+
+    for (src, family) in cases {
+        let svg = render_source_to_svg_for_family(src, family)
+            .unwrap_or_else(|e| panic!("render failed for {}: {}", family.as_str(), e.message));
+        assert!(
+            svg.contains("<svg") && svg.contains("</svg>"),
+            "expected svg envelope for {}",
+            family.as_str()
+        );
     }
 }
 

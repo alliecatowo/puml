@@ -3,9 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ast::{
-    ClassDecl, DiagramKind, Document, FamilyRelation, Group, Message, Note, ObjectDecl,
-    ParticipantDecl, ParticipantRole, Statement, StatementKind, UseCaseDecl, VirtualEndpoint,
-    VirtualEndpointKind, VirtualEndpointSide,
+    ActivityStep, ActivityStepKind, ClassDecl, ComponentNodeKind, DiagramKind, Document,
+    FamilyRelation, Group, Message, Note, ObjectDecl, ParticipantDecl, ParticipantRole, Statement,
+    StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
+    VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
@@ -1781,6 +1782,58 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
+        // Family-specific inline parsing for the newly-implemented families.
+        if matches!(
+            detected_kind,
+            Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
+        ) {
+            if let Some(kind) = parse_component_decl(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            // Try a relation again now that detection settled.
+            if let Some(kind) = parse_family_relation(line, detected_kind) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
+        if matches!(detected_kind, Some(DiagramKind::State)) {
+            if let Some(kind) = parse_state_decl(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            if let Some(kind) = parse_family_relation(line, detected_kind) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
+        if matches!(detected_kind, Some(DiagramKind::Activity)) {
+            if let Some(kind) = parse_activity_step(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
+        if matches!(detected_kind, Some(DiagramKind::Timing)) {
+            if let Some(kind) = parse_timing_decl(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            if let Some(kind) = parse_timing_event(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
         let allow_sequence_parse =
             detected_kind.is_none() || matches!(detected_kind, Some(DiagramKind::Sequence));
         let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
@@ -2209,14 +2262,19 @@ fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
 
 fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
     match family {
-        Some(DiagramKind::Class) | Some(DiagramKind::Object) | Some(DiagramKind::UseCase) => {}
+        Some(DiagramKind::Class)
+        | Some(DiagramKind::Object)
+        | Some(DiagramKind::UseCase)
+        | Some(DiagramKind::Component)
+        | Some(DiagramKind::Deployment)
+        | Some(DiagramKind::State) => {}
         _ => return None,
     }
 
     let (core, label) = split_message_label(line);
     let (lhs, arrow, rhs) = split_arrow(core)?;
-    let from = clean_ident(lhs);
-    let to = clean_ident(rhs);
+    let from = clean_bracketed_ident(lhs);
+    let to = clean_bracketed_ident(rhs);
     if from.is_empty() || to.is_empty() {
         return None;
     }
@@ -2226,6 +2284,25 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         arrow: arrow.to_string(),
         label,
     }))
+}
+
+fn clean_bracketed_ident(s: &str) -> String {
+    let trimmed = s.trim();
+    // Preserve special state markers like [*] verbatim.
+    if trimmed == "[*]" || trimmed == "[H]" || trimmed == "[H*]" {
+        return trimmed.to_string();
+    }
+    // Allow `[Name]` shorthand: strip the surrounding brackets if balanced and no interior bracket.
+    if let Some(inner) = trimmed.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
+        if !inner.contains('[') && !inner.contains(']') && !inner.is_empty() {
+            return clean_ident(inner);
+        }
+    }
+    // Strip `()` interface-style prefix `() Name`.
+    if let Some(rest) = trimmed.strip_prefix("()") {
+        return clean_ident(rest.trim());
+    }
+    clean_ident(trimmed)
 }
 
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
@@ -2312,6 +2389,369 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
         }
     }
     None
+}
+
+fn parse_component_decl(line: &str) -> Option<StatementKind> {
+    use crate::ast::ComponentNodeKind as K;
+    let keywords: &[(&str, K)] = &[
+        ("component", K::Component),
+        ("interface", K::Interface),
+        ("portin", K::Port),
+        ("portout", K::Port),
+        ("port", K::Port),
+        ("node", K::Node),
+        ("database", K::Database),
+        ("cloud", K::Cloud),
+        ("frame", K::Frame),
+        ("storage", K::Storage),
+        ("package", K::Package),
+        ("rectangle", K::Rectangle),
+        ("folder", K::Folder),
+        ("file", K::File),
+        ("card", K::Card),
+        ("artifact", K::Artifact),
+        ("actor", K::Actor),
+    ];
+    for (kw, kind) in keywords.iter().copied() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with(kw) {
+            continue;
+        }
+        let rest_raw = trimmed[kw.len()..].trim();
+        if rest_raw.is_empty() {
+            return None;
+        }
+        // Must be followed by whitespace OR the rest is a non-identifier prefix; require space.
+        if !line.as_bytes().get(kw.len()).copied().map_or(false, |b| b == b' ' || b == b'\t') {
+            // For the very first char after kw, ensure it's whitespace.
+            // (line is already trimmed by caller; recompute on trimmed)
+            let bytes = trimmed.as_bytes();
+            if let Some(&b) = bytes.get(kw.len()) {
+                if !(b == b' ' || b == b'\t') {
+                    continue;
+                }
+            }
+        }
+        let rest = rest_raw.trim_end_matches('{').trim();
+        let (label, rest_after_label) = if rest.starts_with('"') {
+            let stripped = &rest[1..];
+            let end = stripped.find('"')?;
+            (Some(stripped[..end].to_string()), stripped[end + 1..].trim())
+        } else {
+            (None, rest)
+        };
+        let (name_raw, alias_raw) = if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
+            (lhs.trim(), Some(rhs.trim()))
+        } else {
+            (rest_after_label, None)
+        };
+        let name = clean_bracketed_ident(name_raw);
+        if name.is_empty() {
+            return None;
+        }
+        let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
+        return Some(StatementKind::ComponentDecl {
+            kind,
+            name,
+            alias,
+            label,
+        });
+    }
+    // Anonymous shorthand: `[Name]` declares a component, `() Name` declares an interface.
+    let trimmed = line.trim();
+    if let Some(inner) = trimmed.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
+        if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
+            return Some(StatementKind::ComponentDecl {
+                kind: ComponentNodeKind::Component,
+                name: clean_ident(inner),
+                alias: None,
+                label: None,
+            });
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("()") {
+        let rest = rest.trim();
+        if !rest.is_empty() {
+            return Some(StatementKind::ComponentDecl {
+                kind: ComponentNodeKind::Interface,
+                name: clean_ident(rest),
+                alias: None,
+                label: None,
+            });
+        }
+    }
+    None
+}
+
+fn parse_state_decl(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("state ") {
+        return None;
+    }
+    let rest = trimmed["state ".len()..].trim().trim_end_matches('{').trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let (label, rest_after_label) = if rest.starts_with('"') {
+        let stripped = &rest[1..];
+        let end = stripped.find('"')?;
+        (Some(stripped[..end].to_string()), stripped[end + 1..].trim())
+    } else {
+        (None, rest)
+    };
+    let (name_raw, alias_raw) = if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
+        (lhs.trim(), Some(rhs.trim()))
+    } else {
+        (rest_after_label, None)
+    };
+    let name = clean_ident(name_raw);
+    if name.is_empty() {
+        return None;
+    }
+    let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
+    Some(StatementKind::StateDecl {
+        name,
+        alias,
+        label,
+    })
+}
+
+fn parse_activity_step(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    // `:action;` or `:action` form
+    if let Some(rest) = trimmed.strip_prefix(':') {
+        let body = rest.trim_end_matches(';').trim();
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: if body.is_empty() {
+                None
+            } else {
+                Some(body.to_string())
+            },
+        }));
+    }
+    if trimmed == "start" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Start,
+            label: None,
+        }));
+    }
+    if trimmed == "stop" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Stop,
+            label: None,
+        }));
+    }
+    if trimmed == "end" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::End,
+            label: None,
+        }));
+    }
+    if trimmed == "else" || trimmed.starts_with("else ") || trimmed.starts_with("else(") {
+        let label = if trimmed == "else" {
+            None
+        } else {
+            extract_paren_label(trimmed.trim_start_matches("else").trim())
+        };
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Else,
+            label,
+        }));
+    }
+    if trimmed == "endif" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndIf,
+            label: None,
+        }));
+    }
+    if trimmed == "fork" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Fork,
+            label: None,
+        }));
+    }
+    if trimmed == "fork again" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::ForkAgain,
+            label: None,
+        }));
+    }
+    if trimmed == "end fork" || trimmed == "endfork" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndFork,
+            label: None,
+        }));
+    }
+    if trimmed == "endwhile" || trimmed == "end while" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndWhile,
+            label: None,
+        }));
+    }
+    if trimmed == "repeat" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::RepeatStart,
+            label: None,
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("if ") {
+        let body = rest.trim_end_matches("then").trim();
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::IfStart,
+            label: Some(extract_paren_label(body).unwrap_or_else(|| body.to_string())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("while ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::WhileStart,
+            label: Some(extract_paren_label(rest.trim()).unwrap_or_else(|| rest.trim().to_string())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("repeat while") {
+        let r = rest.trim();
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::RepeatWhile,
+            label: extract_paren_label(r).or_else(|| {
+                if r.is_empty() {
+                    None
+                } else {
+                    Some(r.to_string())
+                }
+            }),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("partition ") {
+        let label = rest.trim().trim_end_matches('{').trim();
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::PartitionStart,
+            label: Some(label.to_string()),
+        }));
+    }
+    if trimmed == "}" {
+        // Treat lone `}` inside activity as partition close.
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::PartitionEnd,
+            label: None,
+        }));
+    }
+    None
+}
+
+fn extract_paren_label(input: &str) -> Option<String> {
+    let s = input.trim();
+    let open = s.find('(')?;
+    let close = s.rfind(')')?;
+    if close <= open {
+        return None;
+    }
+    Some(s[open + 1..close].trim().to_string())
+}
+
+fn parse_timing_decl(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    let kinds: &[(&str, TimingDeclKind)] = &[
+        ("concise", TimingDeclKind::Concise),
+        ("robust", TimingDeclKind::Robust),
+        ("clock", TimingDeclKind::Clock),
+        ("binary", TimingDeclKind::Binary),
+    ];
+    for (kw, kind) in kinds.iter().copied() {
+        if let Some(rest) = trimmed.strip_prefix(kw) {
+            if !rest.starts_with(char::is_whitespace) {
+                continue;
+            }
+            let rest = rest.trim();
+            if rest.is_empty() {
+                return None;
+            }
+            let (label, name_raw) = if rest.starts_with('"') {
+                let stripped = &rest[1..];
+                let end = stripped.find('"')?;
+                let rem = stripped[end + 1..].trim();
+                let name = rem
+                    .strip_prefix("as ")
+                    .map(str::trim)
+                    .unwrap_or(rem)
+                    .trim();
+                (Some(stripped[..end].to_string()), name)
+            } else if let Some((lhs, rhs)) = rest.split_once(" as ") {
+                (Some(lhs.trim().to_string()), rhs.trim())
+            } else {
+                (None, rest)
+            };
+            let name = clean_ident(name_raw);
+            if name.is_empty() {
+                return None;
+            }
+            return Some(StatementKind::TimingDecl { kind, name, label });
+        }
+    }
+    None
+}
+
+fn parse_timing_event(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    // `@<time>` standalone, or `<signal> is <state>` or `@<time> <signal> is <state>`
+    if let Some(rest) = trimmed.strip_prefix('@') {
+        let rest = rest.trim();
+        if rest.is_empty() {
+            return Some(StatementKind::TimingEvent {
+                time: String::new(),
+                signal: None,
+                state: None,
+                note: None,
+            });
+        }
+        // split at first whitespace
+        let (time, after) = rest
+            .split_once(char::is_whitespace)
+            .map(|(a, b)| (a.trim().to_string(), b.trim()))
+            .unwrap_or_else(|| (rest.to_string(), ""));
+        if after.is_empty() {
+            return Some(StatementKind::TimingEvent {
+                time,
+                signal: None,
+                state: None,
+                note: None,
+            });
+        }
+        // after may contain "signal is state"
+        if let Some((sig, state)) = split_is(after) {
+            return Some(StatementKind::TimingEvent {
+                time,
+                signal: Some(sig),
+                state: Some(state),
+                note: None,
+            });
+        }
+        return Some(StatementKind::TimingEvent {
+            time,
+            signal: None,
+            state: None,
+            note: Some(after.to_string()),
+        });
+    }
+    if let Some((sig, state)) = split_is(trimmed) {
+        return Some(StatementKind::TimingEvent {
+            time: String::new(),
+            signal: Some(sig),
+            state: Some(state),
+            note: None,
+        });
+    }
+    None
+}
+
+fn split_is(s: &str) -> Option<(String, String)> {
+    let needle = " is ";
+    let idx = s.find(needle)?;
+    let lhs = s[..idx].trim();
+    let rhs = s[idx + needle.len()..].trim().trim_matches('"');
+    if lhs.is_empty() || rhs.is_empty() {
+        return None;
+    }
+    Some((lhs.to_string(), rhs.to_string()))
 }
 
 fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
@@ -3907,7 +4347,10 @@ mod tests {
     fn unsupported_family_keyword_is_tagged_for_family_routing() {
         let doc = parse_with_options("state Running\n", &ParseOptions::default()).unwrap();
         assert_eq!(doc.kind, DiagramKind::State);
-        assert!(matches!(doc.statements[0].kind, StatementKind::Unknown(_)));
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::StateDecl { .. }
+        ));
     }
 
     #[test]

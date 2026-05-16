@@ -237,7 +237,11 @@ Artifacts:
 | Area | Status | Notes |
 |---|---|---|
 | Sequence diagrams | Supported | End-to-end parser/normalize/layout/render path. |
-| Non-sequence family routing (`component`, `deployment`, `state`, `activity`, `timing`) | Stubbed (deterministic) | Parser identifies family and emits family-specific deterministic unsupported diagnostics in normalize/render paths. |
+| Component diagrams | Supported (baseline) | End-to-end parser/normalize/render path for `component`/`interface`/`port` declarations and relations. |
+| Deployment diagrams | Supported (baseline) | End-to-end path for `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations and relations. |
+| State diagrams | Supported (baseline) | End-to-end path for `state` declarations, `[*]` initial/final markers, and transitions with guards. |
+| Activity diagrams (new style) | Supported (baseline) | End-to-end path for `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `partition` constructs. |
+| Timing diagrams | Supported (baseline) | End-to-end path for `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>` instants, and `signal is state` transitions. |
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
 | Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |

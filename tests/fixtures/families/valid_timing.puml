@@ -1,0 +1,11 @@
+@startuml
+title Signal Trace
+clock clk
+binary sig
+@0
+clk is high
+sig is low
+@5
+clk is low
+sig is high
+@enduml

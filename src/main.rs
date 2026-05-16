@@ -1299,6 +1299,40 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
+        StatementKind::ComponentDecl {
+            kind,
+            name,
+            alias,
+            label,
+        } => json!({
+            "ComponentDecl": {
+                "kind": format!("{:?}", kind),
+                "name": name,
+                "alias": alias,
+                "label": label,
+            }
+        }),
+        StatementKind::StateDecl {
+            name,
+            alias,
+            label,
+        } => json!({
+            "StateDecl": {"name": name, "alias": alias, "label": label}
+        }),
+        StatementKind::ActivityStep(step) => json!({
+            "ActivityStep": {"kind": format!("{:?}", step.kind), "label": step.label}
+        }),
+        StatementKind::TimingDecl { kind, name, label } => json!({
+            "TimingDecl": {"kind": format!("{:?}", kind), "name": name, "label": label}
+        }),
+        StatementKind::TimingEvent {
+            time,
+            signal,
+            state,
+            note,
+        } => json!({
+            "TimingEvent": {"time": time, "signal": signal, "state": state, "note": note}
+        }),
     }
 }
 
@@ -1410,11 +1444,7 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             .iter()
             .map(|n| {
                 json!({
-                    "kind": match n.kind {
-                        puml::model::FamilyNodeKind::Class => "Class",
-                        puml::model::FamilyNodeKind::Object => "Object",
-                        puml::model::FamilyNodeKind::UseCase => "UseCase",
-                    },
+                    "kind": format!("{:?}", n.kind),
                     "name": n.name,
                     "alias": n.alias
                 })
@@ -1633,11 +1663,7 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     .iter()
                     .map(|n| {
                         json!({
-                            "kind": match n.kind {
-                                puml::model::FamilyNodeKind::Class => "Class",
-                                puml::model::FamilyNodeKind::Object => "Object",
-                                puml::model::FamilyNodeKind::UseCase => "UseCase",
-                            },
+                            "kind": format!("{:?}", n.kind),
                             "name": n.name,
                             "alias": n.alias
                         })
