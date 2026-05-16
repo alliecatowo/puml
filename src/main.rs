@@ -206,7 +206,10 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<(), (u8, String)> {
-    if !cli.charset.is_empty() && !cli.charset.eq_ignore_ascii_case("UTF-8") && !cli.charset.eq_ignore_ascii_case("utf8") {
+    if !cli.charset.is_empty()
+        && !cli.charset.eq_ignore_ascii_case("UTF-8")
+        && !cli.charset.eq_ignore_ascii_case("utf8")
+    {
         return Err((
             EXIT_VALIDATION,
             format!(
@@ -1469,7 +1472,11 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::RawBody(v) => json!({"RawBody": v}),
         StatementKind::Scale(v) => json!({"Scale": v}),
         StatementKind::LegendPos(v) => json!({"LegendPos": v}),
-        StatementKind::ClassGroup { kind, label, members } => {
+        StatementKind::ClassGroup {
+            kind,
+            label,
+            members,
+        } => {
             json!({"ClassGroup": {"kind": kind, "label": label, "members": members}})
         }
         StatementKind::SetOption { key, value } => {

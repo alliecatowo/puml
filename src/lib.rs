@@ -236,21 +236,22 @@ fn render_document_for_family(
             let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
             Ok(scenes.iter().map(render::render_svg).collect())
         }
-        DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase | DiagramFamily::Salt => {
-            match normalize::normalize_family(document)? {
-                model::NormalizedDocument::Family(family_doc) => {
-                    Ok(vec![render::render_class_svg(&family_doc)])
-                }
-                model::NormalizedDocument::Sequence(_)
-                | model::NormalizedDocument::Timeline(_)
-                | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
-                )),
-                _ => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
-                )),
+        DiagramFamily::Class
+        | DiagramFamily::Object
+        | DiagramFamily::UseCase
+        | DiagramFamily::Salt => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Family(family_doc) => {
+                Ok(vec![render::render_class_svg(&family_doc)])
             }
-        }
+            model::NormalizedDocument::Sequence(_)
+            | model::NormalizedDocument::Timeline(_)
+            | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
+            )),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
+            )),
+        },
         DiagramFamily::Gantt | DiagramFamily::Chronology => {
             match normalize::normalize_family(document)? {
                 model::NormalizedDocument::Timeline(timeline) => {
@@ -261,16 +262,14 @@ fn render_document_for_family(
                 )),
             }
         }
-        DiagramFamily::State => {
-            match normalize::normalize_family(document)? {
-                model::NormalizedDocument::State(state_doc) => {
-                    Ok(vec![render::render_state_svg(&state_doc)])
-                }
-                _ => Err(Diagnostic::error(
-                    "[E_STATE_INTERNAL] unexpected model variant during state render",
-                )),
+        DiagramFamily::State => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::State(state_doc) => {
+                Ok(vec![render::render_state_svg(&state_doc)])
             }
-        }
+            _ => Err(Diagnostic::error(
+                "[E_STATE_INTERNAL] unexpected model variant during state render",
+            )),
+        },
         DiagramFamily::Component => render_family_with(document, render::render_component_svg),
         DiagramFamily::Deployment => render_family_with(document, render::render_deployment_svg),
         DiagramFamily::Activity => render_family_with(document, render::render_activity_svg),
@@ -337,9 +336,9 @@ fn render_document_for_family(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during chart render",
             )),
         },
-        DiagramFamily::MindMap
-        | DiagramFamily::Wbs
-        | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
+        DiagramFamily::MindMap | DiagramFamily::Wbs | DiagramFamily::Unknown => {
+            Err(unsupported_render_family_diagnostic(family))
+        }
     }
 }
 

@@ -79,7 +79,10 @@ pub fn render_creole_line_to_tspans(
             text_decorations.push("line-through");
         }
         if !text_decorations.is_empty() {
-            style_parts.push(format!("text-decoration=\"{}\"", text_decorations.join(" ")));
+            style_parts.push(format!(
+                "text-decoration=\"{}\"",
+                text_decorations.join(" ")
+            ));
         }
 
         let color = if span.link.is_some() {
@@ -157,7 +160,11 @@ fn normalize_line_breaks(text: &str) -> String {
         if bytes[i] == b'<' {
             // Try to match <br>, <br/>, <br />
             let rest = &text[i..];
-            let rest_lower: String = rest.chars().take(7).collect::<String>().to_ascii_lowercase();
+            let rest_lower: String = rest
+                .chars()
+                .take(7)
+                .collect::<String>()
+                .to_ascii_lowercase();
             if rest_lower.starts_with("<br>") {
                 s.push('\n');
                 i += 4;

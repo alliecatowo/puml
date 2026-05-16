@@ -909,7 +909,11 @@ fn check_mode_rejects_theme_unknown_name_with_catalog_message() {
 fn theme_plain_produces_default_style_colors_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dump", "model", &fixture("styling/valid_theme_plain.puml")])
+        .args([
+            "--dump",
+            "model",
+            &fixture("styling/valid_theme_plain.puml"),
+        ])
         .assert()
         .success()
         .get_output()
@@ -926,7 +930,11 @@ fn theme_plain_produces_default_style_colors_in_model_dump() {
 fn theme_aws_orange_produces_orange_style_colors_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dump", "model", &fixture("styling/valid_theme_aws_orange.puml")])
+        .args([
+            "--dump",
+            "model",
+            &fixture("styling/valid_theme_aws_orange.puml"),
+        ])
         .assert()
         .success()
         .get_output()
@@ -943,7 +951,11 @@ fn theme_aws_orange_produces_orange_style_colors_in_model_dump() {
 fn theme_blueprint_produces_dark_blue_style_colors_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dump", "model", &fixture("styling/valid_theme_blueprint.puml")])
+        .args([
+            "--dump",
+            "model",
+            &fixture("styling/valid_theme_blueprint.puml"),
+        ])
         .assert()
         .success()
         .get_output()
@@ -960,7 +972,11 @@ fn theme_blueprint_produces_dark_blue_style_colors_in_model_dump() {
 fn theme_cerulean_produces_blue_style_colors_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dump", "model", &fixture("styling/valid_theme_cerulean.puml")])
+        .args([
+            "--dump",
+            "model",
+            &fixture("styling/valid_theme_cerulean.puml"),
+        ])
         .assert()
         .success()
         .get_output()
@@ -976,7 +992,11 @@ fn theme_cerulean_produces_blue_style_colors_in_model_dump() {
 fn theme_hacker_produces_green_on_black_style_colors_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dump", "model", &fixture("styling/valid_theme_hacker.puml")])
+        .args([
+            "--dump",
+            "model",
+            &fixture("styling/valid_theme_hacker.puml"),
+        ])
         .assert()
         .success()
         .get_output()
@@ -993,7 +1013,11 @@ fn theme_hacker_produces_green_on_black_style_colors_in_model_dump() {
 fn theme_sketchy_produces_hand_drawn_style_colors_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dump", "model", &fixture("styling/valid_theme_sketchy.puml")])
+        .args([
+            "--dump",
+            "model",
+            &fixture("styling/valid_theme_sketchy.puml"),
+        ])
         .assert()
         .success()
         .get_output()
@@ -1007,11 +1031,15 @@ fn theme_sketchy_produces_hand_drawn_style_colors_in_model_dump() {
 
 #[test]
 fn theme_catalog_covers_all_22_presets() {
-    use puml::theme::{LOCAL_SEQUENCE_THEME_CATALOG, resolve_sequence_theme_preset};
+    use puml::theme::{resolve_sequence_theme_preset, LOCAL_SEQUENCE_THEME_CATALOG};
     assert_eq!(LOCAL_SEQUENCE_THEME_CATALOG.len(), 22);
     for name in LOCAL_SEQUENCE_THEME_CATALOG {
         let result = resolve_sequence_theme_preset(name);
-        assert!(result.is_ok(), "preset `{name}` failed to resolve: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "preset `{name}` failed to resolve: {:?}",
+            result
+        );
         let preset = result.unwrap();
         assert_eq!(preset.name, *name);
         // All color strings must start with '#' or be a named color
@@ -2445,7 +2473,10 @@ fn lifecycle_after_destroy_is_rejected() {
 #[test]
 fn non_sequence_inputs_fail_validation() {
     for (case, code) in [
-        ("errors/invalid_salt_block_mismatch.puml", "E_BLOCK_MISMATCH"),
+        (
+            "errors/invalid_salt_block_mismatch.puml",
+            "E_BLOCK_MISMATCH",
+        ),
         (
             "non_sequence/invalid_mindmap_diagram.puml",
             "E_FAMILY_MINDMAP_UNSUPPORTED",
@@ -2621,7 +2652,10 @@ fn extended_families_render_to_deterministic_svg() {
     let cases = [
         ("non_sequence/valid_regex.puml", "Railroad diagram (regex)"),
         ("non_sequence/valid_ebnf.puml", "EBNF railroad diagrams"),
-        ("non_sequence/valid_math.puml", "math (LaTeX-like, deterministic stub)"),
+        (
+            "non_sequence/valid_math.puml",
+            "math (LaTeX-like, deterministic stub)",
+        ),
         ("non_sequence/valid_sdl.puml", "SDL state machine"),
         ("non_sequence/valid_ditaa.puml", "ditaa (ASCII art frame"),
         ("non_sequence/valid_chart_bar.puml", "bar chart"),
@@ -4249,8 +4283,7 @@ fn object_diagram_renders_underlined_header_and_rects() {
 
 #[test]
 fn creole_note_link_svg_contains_hyperlink() {
-    let src =
-        fs::read_to_string(fixture("conformance/valid_creole_note_link.puml")).unwrap();
+    let src = fs::read_to_string(fixture("conformance/valid_creole_note_link.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("render");
     assert!(
         svg.contains("xlink:href=\"https://example.com\""),
@@ -4292,7 +4325,10 @@ fn class_package_namespace_passes_check_and_svg_contains_scope_labels() {
     let src = fs::read_to_string(fixture("families/valid_class_package_namespace.puml")).unwrap();
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--check", &fixture("families/valid_class_package_namespace.puml")])
+        .args([
+            "--check",
+            &fixture("families/valid_class_package_namespace.puml"),
+        ])
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -4307,8 +4343,14 @@ fn class_package_namespace_passes_check_and_svg_contains_scope_labels() {
         svg.contains("namespace"),
         "SVG should contain 'namespace' label"
     );
-    assert!(svg.contains("com.example"), "SVG should contain package label");
-    assert!(svg.contains("net.api"), "SVG should contain namespace label");
+    assert!(
+        svg.contains("com.example"),
+        "SVG should contain package label"
+    );
+    assert!(
+        svg.contains("net.api"),
+        "SVG should contain namespace label"
+    );
 }
 
 #[test]
@@ -4316,7 +4358,10 @@ fn class_hide_options_suppress_circle_and_stereotype() {
     let src = fs::read_to_string(fixture("families/valid_class_hide_options.puml")).unwrap();
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--check", &fixture("families/valid_class_hide_options.puml")])
+        .args([
+            "--check",
+            &fixture("families/valid_class_hide_options.puml"),
+        ])
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -4329,7 +4374,10 @@ fn class_hide_options_suppress_circle_and_stereotype() {
     );
     // When hide stereotype is active, the 'class' keyword label should not appear before node names
     // The node names themselves should still appear
-    assert!(svg.contains("Visible"), "SVG should contain node name 'Visible'");
+    assert!(
+        svg.contains("Visible"),
+        "SVG should contain node name 'Visible'"
+    );
 }
 
 #[test]
@@ -4355,7 +4403,8 @@ fn class_visibility_markers_render_colored_symbols() {
     );
     assert!(
         svg.contains("text-decoration=\"underline\""),
-        "SVG should contain underline style for {{static}} modifier"    );
+        "SVG should contain underline style for {{static}} modifier"
+    );
 }
 
 #[test]
@@ -4434,10 +4483,14 @@ fn timeline_render_is_deterministic_across_runs() {
 
 #[test]
 fn class_hide_empty_members_collapses_empty_compartment() {
-    let src = "@startuml\nhide empty members\nclass Full {\n  +name: String\n}\nclass Empty\n@enduml\n";
+    let src =
+        "@startuml\nhide empty members\nclass Full {\n  +name: String\n}\nclass Empty\n@enduml\n";
     let svg = render_source_to_svg(src).expect("rendered svg");
     // Full class should show its member; Empty class box should be shorter (no extra member rows)
-    assert!(svg.contains("name: String"), "SVG should contain member text");
+    assert!(
+        svg.contains("name: String"),
+        "SVG should contain member text"
+    );
     // Both class names should appear
     assert!(svg.contains("Full"), "SVG should contain Full class");
     assert!(svg.contains("Empty"), "SVG should contain Empty class");
@@ -4458,7 +4511,8 @@ fn class_set_namespace_separator_is_recorded_in_model() {
     assert_eq!(
         family.namespace_separator.as_deref(),
         Some("::"),
-        "namespace_separator should be recorded as ::"    );
+        "namespace_separator should be recorded as ::"
+    );
 }
 
 #[test]
@@ -4498,32 +4552,46 @@ fn stdlib_c4_context_check_passes_and_ast_has_object_declarations() {
     let ast: Value = serde_json::from_slice(&stdout).expect("valid JSON AST");
 
     // Diagram must be Object kind (C4 stubs emit `object` declarations).
-    assert_eq!(ast["kind"], "Object", "C4 context fixture must produce Object diagram");
+    assert_eq!(
+        ast["kind"], "Object",
+        "C4 context fixture must produce Object diagram"
+    );
 
     let stmts = ast["statements"].as_array().expect("statements array");
 
     // Person(u, "User") -> ObjectDecl { name: "User", alias: "u <<person>>" }
-    let user_decl = stmts.iter().find(|s| {
-        s["kind"]["ObjectDecl"]["name"] == "User"
-    }).expect("User ObjectDecl from Person() macro");
+    let user_decl = stmts
+        .iter()
+        .find(|s| s["kind"]["ObjectDecl"]["name"] == "User")
+        .expect("User ObjectDecl from Person() macro");
     assert!(
-        user_decl["kind"]["ObjectDecl"]["alias"].as_str().unwrap_or("").contains("<<person>>"),
+        user_decl["kind"]["ObjectDecl"]["alias"]
+            .as_str()
+            .unwrap_or("")
+            .contains("<<person>>"),
         "Person macro alias must contain <<person>> stereotype"
     );
 
     // System(s, "Software System") -> ObjectDecl { name: "Software System", alias: "s <<system>>" }
-    let sys_decl = stmts.iter().find(|s| {
-        s["kind"]["ObjectDecl"]["name"] == "Software System"
-    }).expect("Software System ObjectDecl from System() macro");
+    let sys_decl = stmts
+        .iter()
+        .find(|s| s["kind"]["ObjectDecl"]["name"] == "Software System")
+        .expect("Software System ObjectDecl from System() macro");
     assert!(
-        sys_decl["kind"]["ObjectDecl"]["alias"].as_str().unwrap_or("").contains("<<system>>"),
+        sys_decl["kind"]["ObjectDecl"]["alias"]
+            .as_str()
+            .unwrap_or("")
+            .contains("<<system>>"),
         "System macro alias must contain <<system>> stereotype"
     );
 
     // Rel(u, s, "Uses") -> FamilyRelation { from: "u", to: "s" }
-    let rel = stmts.iter().find(|s| {
-        s["kind"]["FamilyRelation"]["from"] == "u" && s["kind"]["FamilyRelation"]["to"] == "s"
-    }).expect("Rel(u, s) FamilyRelation");
+    let rel = stmts
+        .iter()
+        .find(|s| {
+            s["kind"]["FamilyRelation"]["from"] == "u" && s["kind"]["FamilyRelation"]["to"] == "s"
+        })
+        .expect("Rel(u, s) FamilyRelation");
     assert_eq!(rel["kind"]["FamilyRelation"]["arrow"], "-->");
 }
 
@@ -4548,23 +4616,31 @@ fn stdlib_awslib_ec2_check_passes_and_ast_has_object_declarations() {
 
     let ast: Value = serde_json::from_slice(&stdout).expect("valid JSON AST");
 
-    assert_eq!(ast["kind"], "Object", "AWS EC2 fixture must produce Object diagram");
+    assert_eq!(
+        ast["kind"], "Object",
+        "AWS EC2 fixture must produce Object diagram"
+    );
 
     let stmts = ast["statements"].as_array().expect("statements array");
 
     // EC2(server, "App Server") -> ObjectDecl { name: "App Server", alias: "server <<aws-ec2>>" }
-    let server_decl = stmts.iter().find(|s| {
-        s["kind"]["ObjectDecl"]["name"] == "App Server"
-    }).expect("App Server ObjectDecl from EC2() macro");
+    let server_decl = stmts
+        .iter()
+        .find(|s| s["kind"]["ObjectDecl"]["name"] == "App Server")
+        .expect("App Server ObjectDecl from EC2() macro");
     assert!(
-        server_decl["kind"]["ObjectDecl"]["alias"].as_str().unwrap_or("").contains("<<aws-ec2>>"),
+        server_decl["kind"]["ObjectDecl"]["alias"]
+            .as_str()
+            .unwrap_or("")
+            .contains("<<aws-ec2>>"),
         "EC2 macro alias must contain <<aws-ec2>> stereotype"
     );
 
     // Rel(server, cache, "reads from") -> FamilyRelation
-    let rel = stmts.iter().find(|s| {
-        s["kind"]["FamilyRelation"]["from"] == "server"
-    }).expect("Rel(server, cache) FamilyRelation");
+    let rel = stmts
+        .iter()
+        .find(|s| s["kind"]["FamilyRelation"]["from"] == "server")
+        .expect("Rel(server, cache) FamilyRelation");
     assert_eq!(rel["kind"]["FamilyRelation"]["to"], "cache");
 }
 
@@ -4614,8 +4690,7 @@ fn creole_color_size_fixture_checks_cleanly() {
 
 #[test]
 fn creole_color_size_svg_contains_color_and_size_attributes() {
-    let src =
-        fs::read_to_string(fixture("conformance/valid_creole_color_size.puml")).unwrap();
+    let src = fs::read_to_string(fixture("conformance/valid_creole_color_size.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("render");
     assert!(
         svg.contains("fill=\"red\""),
@@ -4692,10 +4767,7 @@ fn creole_inline_bold_produces_tspan_in_message_label() {
         svg.contains("font-weight=\"bold\""),
         "expected bold tspan for **hello**"
     );
-    assert!(
-        svg.contains(">hello<"),
-        "expected label text in tspan"
-    );
+    assert!(svg.contains(">hello<"), "expected label text in tspan");
 }
 
 #[test]
@@ -4769,10 +4841,7 @@ fn state_entry_exit_renders_italic_action_text() {
         svg.contains("font-style=\"italic\""),
         "expected italic text for entry/exit actions"
     );
-    assert!(
-        svg.contains("entry"),
-        "expected entry action label in SVG"
-    );
+    assert!(svg.contains("entry"), "expected entry action label in SVG");
 }
 
 #[test]
@@ -4815,8 +4884,14 @@ fn class_hide_options_are_recorded_in_model() {
 fn state_fork_join_choice_end_renders_stereotyped_shapes() {
     let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("should render fork/join/choice/end SVG");
-    assert!(svg.contains("<rect"), "expected rect element for fork/join bar");
-    assert!(svg.contains("<polygon"), "expected polygon for choice diamond");
+    assert!(
+        svg.contains("<rect"),
+        "expected rect element for fork/join bar"
+    );
+    assert!(
+        svg.contains("<polygon"),
+        "expected polygon for choice diamond"
+    );
     let circle_count = svg.matches("<circle").count();
     assert!(
         circle_count >= 2,
@@ -4828,8 +4903,14 @@ fn state_fork_join_choice_end_renders_stereotyped_shapes() {
 fn state_transition_labels_appear_in_svg() {
     let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("should render SVG");
-    assert!(svg.contains("done"), "expected 'done' transition label in SVG");
-    assert!(svg.contains("retry"), "expected 'retry' transition label in SVG");
+    assert!(
+        svg.contains("done"),
+        "expected 'done' transition label in SVG"
+    );
+    assert!(
+        svg.contains("retry"),
+        "expected 'retry' transition label in SVG"
+    );
 }
 
 #[test]

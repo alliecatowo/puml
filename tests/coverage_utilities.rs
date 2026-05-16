@@ -180,7 +180,10 @@ fn render_for_unsupported_families_reports_specific_codes() {
 #[test]
 fn render_for_implemented_families_produces_svg() {
     let cases = [
-        ("@startuml\ncomponent API\n@enduml\n", DiagramFamily::Component),
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            DiagramFamily::Component,
+        ),
         ("@startuml\nnode web\n@enduml\n", DiagramFamily::Deployment),
         ("@startuml\nstate Running\n@enduml\n", DiagramFamily::State),
         (

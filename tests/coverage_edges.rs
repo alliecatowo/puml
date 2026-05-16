@@ -1,5 +1,6 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use puml::ast::DiagramKind;
 use puml::layout;
 use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
@@ -12,7 +13,6 @@ use puml::source::Span;
 use puml::theme::{
     classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
 };
-use puml::ast::DiagramKind;
 use puml::{normalize_family, parse, render, NormalizedDocument};
 use std::fs;
 use tempfile::tempdir;
@@ -285,7 +285,10 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
             puml::ast::DiagramKind::MindMap,
         ),
         ("@startwbs\n* Scope\n@endwbs\n", puml::ast::DiagramKind::Wbs),
-        ("@startsalt\nwidget\nauto\n@endsalt\n", puml::ast::DiagramKind::Salt),
+        (
+            "@startsalt\nwidget\nauto\n@endsalt\n",
+            puml::ast::DiagramKind::Salt,
+        ),
     ];
 
     for (src, expected_kind) in cases {
@@ -362,7 +365,10 @@ fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
 #[test]
 fn normalize_family_accepts_wave1_implemented_families() {
     let cases = [
-        ("@startuml\ncomponent API\n@enduml\n", DiagramKind::Component),
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            DiagramKind::Component,
+        ),
         ("@startuml\nnode web\n@enduml\n", DiagramKind::Deployment),
         (
             "@startuml\nstart\n:step;\nstop\n@enduml\n",
@@ -1425,7 +1431,13 @@ fn scale_directive_fixed_size_is_parsed() {
     let model = normalize::normalize(doc).expect("normalize should succeed");
 
     use puml::model::ScaleSpec;
-    assert_eq!(model.scale, Some(ScaleSpec::Fixed { width: 800, height: 600 }));
+    assert_eq!(
+        model.scale,
+        Some(ScaleSpec::Fixed {
+            width: 800,
+            height: 600
+        })
+    );
 }
 
 #[test]
@@ -1468,7 +1480,10 @@ fn legend_positioning_top_left_is_stored_in_model() {
 fn legend_text_appears_in_rendered_svg() {
     let src = "@startuml\nlegend right\nLegend Box\nend legend\nAlice -> Bob\n@enduml\n";
     let svg = puml::render_source_to_svg(src).expect("render should succeed");
-    assert!(svg.contains("Legend Box"), "legend text should appear in SVG");
+    assert!(
+        svg.contains("Legend Box"),
+        "legend text should appear in SVG"
+    );
 }
 
 #[test]

@@ -161,7 +161,7 @@ pub struct StateTransition {
 #[derive(Debug, Clone)]
 pub struct StateInternalAction {
     pub state: String,
-    pub kind: String,   // "entry", "exit", or event name
+    pub kind: String, // "entry", "exit", or event name
     pub action: String,
 }
 

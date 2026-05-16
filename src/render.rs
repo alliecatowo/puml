@@ -39,12 +39,11 @@ pub fn render_svg(scene: &Scene) -> String {
         );
     }
 
-    let bg_fill = scene
-        .style
-        .background_color
-        .as_deref()
-        .unwrap_or("white");
-    out.push_str(&format!("<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>", escape_text(bg_fill)));
+    let bg_fill = scene.style.background_color.as_deref().unwrap_or("white");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(bg_fill)
+    ));
 
     // Determine font family and size from style.
     let font_family = scene
@@ -537,21 +536,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
     // Render relations first so node rectangles cover endpoints
     for relation in &document.relations {
-        let (from_name, to_name, normalized_arrow) = normalize_relation_endpoints(
-            &relation.from,
-            &relation.to,
-            &relation.arrow,
-        );
+        let (from_name, to_name, normalized_arrow) =
+            normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
         let from = node_boxes.get(&from_name);
         let to = node_boxes.get(&to_name);
         let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
         let style = arrow_style(&normalized_arrow);
-        let (x1, y1, x2, y2) = compute_edge_anchors_tuple(
-            (from.x, from.y, from.w, from.h),
-            (to.x, to.y, to.w, to.h),
-        );
+        let (x1, y1, x2, y2) =
+            compute_edge_anchors_tuple((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h));
         let stroke_dash = if style.dashed {
             " stroke-dasharray=\"5 3\""
         } else {
@@ -666,17 +660,18 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
 
     let mut layouts = Vec::with_capacity(document.nodes.len());
     for node in &document.nodes {
-        let raw_label = node
-            .alias
-            .as_ref()
-            .map_or_else(|| node.name.clone(), |alias| format!("{} as {}", node.name, alias));
+        let raw_label = node.alias.as_ref().map_or_else(
+            || node.name.clone(),
+            |alias| format!("{} as {}", node.name, alias),
+        );
         let lines = wrap_text(raw_label, MAX_LINE_CHARS, document.text_overflow_policy);
         let width_chars = lines
             .iter()
             .map(|line| line.chars().count() as i32)
             .max()
             .unwrap_or(1);
-        let width = (width_chars * CHAR_WIDTH + (NODE_PADDING_X * 2)).clamp(NODE_MIN_WIDTH, NODE_MAX_WIDTH);
+        let width =
+            (width_chars * CHAR_WIDTH + (NODE_PADDING_X * 2)).clamp(NODE_MIN_WIDTH, NODE_MAX_WIDTH);
         let member_count = if hide_empty_members && node.members.is_empty() {
             0
         } else {
@@ -862,7 +857,8 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
         // Render members with visibility markers
         let show_members = !hide_empty_members || !node.members.is_empty();
         if show_members {
-            let member_y_base = layout.y + NODE_PADDING_Y + (layout.label_lines.len() as i32 * 18) + 4;
+            let member_y_base =
+                layout.y + NODE_PADDING_Y + (layout.label_lines.len() as i32 * 18) + 4;
             for (midx, member) in node.members.iter().enumerate() {
                 let my = member_y_base + (midx as i32 * 16);
                 let (symbol, color, member_text) = parse_visibility_member(member);
@@ -996,9 +992,15 @@ fn parse_visibility_member(member: &str) -> (Option<&'static str>, &'static str,
 fn parse_member_modifiers(text: &str) -> (&'static str, &str) {
     let t = text.trim();
     if t.starts_with("{abstract}") {
-        (" font-style=\"italic\"", t["{abstract}".len()..].trim_start())
+        (
+            " font-style=\"italic\"",
+            t["{abstract}".len()..].trim_start(),
+        )
     } else if t.starts_with("{static}") {
-        (" text-decoration=\"underline\"", t["{static}".len()..].trim_start())
+        (
+            " text-decoration=\"underline\"",
+            t["{static}".len()..].trim_start(),
+        )
     } else {
         ("", t)
     }
@@ -1215,13 +1217,16 @@ fn split_trailing_marker(s: &str) -> (String, &'static str) {
             // Require space between name and marker to avoid clobbering names
             // that legitimately end with these characters.
             if stripped.ends_with(' ') {
-                return (stripped.trim_end().to_string(), match m {
-                    "*" => "*",
-                    "o" => "o",
-                    "<" => "<",
-                    "+" => "+",
-                    _ => "",
-                });
+                return (
+                    stripped.trim_end().to_string(),
+                    match m {
+                        "*" => "*",
+                        "o" => "o",
+                        "<" => "<",
+                        "+" => "+",
+                        _ => "",
+                    },
+                );
             }
         }
     }
@@ -1236,13 +1241,16 @@ fn split_leading_marker(s: &str) -> (String, &'static str) {
     for m in ["*", "o", ">", "+"] {
         if let Some(stripped) = trimmed.strip_prefix(m) {
             if stripped.starts_with(' ') {
-                return (stripped.trim_start().to_string(), match m {
-                    "*" => "*",
-                    "o" => "o",
-                    ">" => ">",
-                    "+" => "+",
-                    _ => "",
-                });
+                return (
+                    stripped.trim_start().to_string(),
+                    match m {
+                        "*" => "*",
+                        "o" => "o",
+                        ">" => ">",
+                        "+" => "+",
+                        _ => "",
+                    },
+                );
             }
         }
     }
@@ -1334,7 +1342,6 @@ fn anchor_on_rect(x: i32, y: i32, w: i32, h: i32, tx: i32, ty: i32) -> (i32, i32
         (cx + ((half_h / abs_dy) * (dx as f64)) as i32, y)
     }
 }
-
 
 /// Backwards-compatible alias; delegates to the real timeline renderer.
 pub fn render_timeline_stub_svg(document: &TimelineDocument) -> String {
@@ -1767,7 +1774,11 @@ struct NodeLayout {
     y: i32,
 }
 
-fn wrap_text(text: String, max_chars: usize, policy: crate::scene::TextOverflowPolicy) -> Vec<String> {
+fn wrap_text(
+    text: String,
+    max_chars: usize,
+    policy: crate::scene::TextOverflowPolicy,
+) -> Vec<String> {
     match policy {
         crate::scene::TextOverflowPolicy::EllipsisSingleLine => {
             let one_line = text.replace('\n', " ");
@@ -1989,10 +2000,7 @@ fn arrowhead_svg(_x1: i32, _y1: i32, x2: i32, y2: i32, color: &str) -> String {
 fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32, w: i32, h: i32) {
     let cx = x + w / 2;
     let cy = y + h / 2;
-    let display = node
-        .label
-        .clone()
-        .unwrap_or_else(|| node.name.clone());
+    let display = node.label.clone().unwrap_or_else(|| node.name.clone());
     let kind_label = family_node_label(node.kind);
 
     match node.kind {
@@ -2443,8 +2451,14 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         // Transitions for this signal
         let mut last_x: Option<i32> = None;
         let mut last_state: Option<String> = None;
-        for ev in events.iter().filter(|e| e.alias.as_deref() == Some(signal.name.as_str())) {
-            let t_idx = times.iter().position(|t| *t == ev.name.as_str()).unwrap_or(0);
+        for ev in events
+            .iter()
+            .filter(|e| e.alias.as_deref() == Some(signal.name.as_str()))
+        {
+            let t_idx = times
+                .iter()
+                .position(|t| *t == ev.name.as_str())
+                .unwrap_or(0);
             let x = left_pad + (t_idx as i32) * col_w;
             let state = ev.members.first().cloned().unwrap_or_default();
             // vertical transition
@@ -2539,7 +2553,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     let transitions = &document.transitions;
 
     // Assign coordinates to each node
-    let mut node_coords: std::collections::BTreeMap<String, (i32, i32)> = std::collections::BTreeMap::new();
+    let mut node_coords: std::collections::BTreeMap<String, (i32, i32)> =
+        std::collections::BTreeMap::new();
     let cols = 2i32;
     for (idx, node) in nodes.iter().enumerate() {
         let col = (idx as i32) % cols;
@@ -2722,7 +2737,13 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
 
 pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
     let width = 760;
-    let layers = ["strategy", "business", "application", "technology", "motivation"];
+    let layers = [
+        "strategy",
+        "business",
+        "application",
+        "technology",
+        "motivation",
+    ];
     let lane_height = 80;
     let height = 80 + (layers.len() as i32) * lane_height + (document.relations.len() as i32) * 18;
     let mut out = String::new();
@@ -3260,9 +3281,12 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             plot_right,
             plot_bottom,
         ),
-        ChartSubtype::Pie => {
-            render_chart_pie(&mut out, &document.data, width / 2, (plot_top + plot_bottom) / 2)
-        }
+        ChartSubtype::Pie => render_chart_pie(
+            &mut out,
+            &document.data,
+            width / 2,
+            (plot_top + plot_bottom) / 2,
+        ),
     }
     out.push_str("</svg>");
     out
@@ -3448,8 +3472,10 @@ fn format_chart_value(v: f64) -> String {
 
 /// Compute start and end points for a transition arrow between two nodes.
 fn transition_endpoints(
-    fx: i32, fy: i32,
-    tx: i32, ty: i32,
+    fx: i32,
+    fy: i32,
+    tx: i32,
+    ty: i32,
     _nodes: &[StateNode],
 ) -> (i32, i32, i32, i32) {
     let fh = STATE_NODE_H / 2;
@@ -3517,9 +3543,15 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
             // Thick horizontal bar
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"#1e293b\"/>",
-                x, y + base_h / 2 - 4, w
+                x,
+                y + base_h / 2 - 4,
+                w
             ));
-            let label = if node.kind == StateNodeKind::Fork { "fork" } else { "join" };
+            let label = if node.kind == StateNodeKind::Fork {
+                "fork"
+            } else {
+                "join"
+            };
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\" text-anchor=\"middle\">{}</text>",
                 x + w / 2, y + base_h / 2 + 18, escape_text(label)
@@ -3674,13 +3706,7 @@ fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: Virtua
 ///
 /// If the text has a single line and no Creole markup, this is equivalent to
 /// the old `escape_text` path. Multi-line content uses `<tspan dy="1.2em">`.
-fn creole_text(
-    x: i32,
-    y: i32,
-    extra_attrs: &str,
-    label: &str,
-    base_color: &str,
-) -> String {
+fn creole_text(x: i32, y: i32, extra_attrs: &str, label: &str, base_color: &str) -> String {
     let lines = tokenize_creole(label);
     let has_markup = label.contains("**")
         || label.contains("//")
@@ -3753,7 +3779,11 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
     match participant.role {
         ParticipantRole::Participant => {
             let rx = scene.style.round_corner;
-            let shadow_attr = if scene.style.shadowing { " filter=\"url(#shadow)\"" } else { "" };
+            let shadow_attr = if scene.style.shadowing {
+                " filter=\"url(#shadow)\""
+            } else {
+                ""
+            };
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"{shadow_attr}/>",
                 x,

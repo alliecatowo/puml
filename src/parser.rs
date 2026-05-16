@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::{
     ActivityStep, ActivityStepKind, ClassDecl, ComponentNodeKind, DiagramKind, Document,
-    FamilyRelation, Group, Message, Note, ObjectDecl, ParticipantDecl, ParticipantRole, Statement,
-    StatementKind, StateDecl, StateInternalAction, StateTransition, TimingDeclKind, UseCaseDecl,
+    FamilyRelation, Group, Message, Note, ObjectDecl, ParticipantDecl, ParticipantRole, StateDecl,
+    StateInternalAction, StateTransition, Statement, StatementKind, TimingDeclKind, UseCaseDecl,
     VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
@@ -387,8 +387,7 @@ fn preprocess_text(
                 } => {
                     if active {
                         let trimmed = value.trim_start();
-                        let is_json_literal =
-                            trimmed.starts_with('{') || trimmed.starts_with('[');
+                        let is_json_literal = trimmed.starts_with('{') || trimmed.starts_with('[');
                         if !conditional || !state.vars.contains_key(&name) {
                             if is_json_literal {
                                 // Preserve JSON literal verbatim (no
@@ -944,7 +943,10 @@ fn process_stdlib_angle_include(
     let content = fs::read_to_string(&resolved).map_err(|e| {
         Diagnostic::error_code(
             "E_INCLUDE_READ",
-            format!("failed to read stdlib include '{}': {e}", resolved.display()),
+            format!(
+                "failed to read stdlib include '{}': {e}",
+                resolved.display()
+            ),
         )
     })?;
 
@@ -962,7 +964,6 @@ fn process_stdlib_angle_include(
     include_stack.pop();
     Ok(())
 }
-
 
 #[allow(clippy::too_many_arguments)]
 fn process_import_directive(
@@ -1086,9 +1087,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
         _ if name.starts_with('$') => parse_variable_assignment(name, arg, trimmed),
-        "return" | "foreach" | "endfor" => {
-            Some(PreprocessDirective::Unsupported(name.to_string()))
-        }
+        "return" | "foreach" | "endfor" => Some(PreprocessDirective::Unsupported(name.to_string())),
         // `!startsub` / `!endsub` are markers used by `!includesub`. When a
         // file containing them is included directly, we silently elide the
         // marker lines and pass the body lines through.
@@ -1735,16 +1734,13 @@ fn expand_function_invocations(
                             ),
                         ));
                     }
-                    let ret =
-                        execute_function_call(&call_name, &args_raw, state, call_depth + 1)?;
+                    let ret = execute_function_call(&call_name, &args_raw, state, call_depth + 1)?;
                     out.push_str(&ret);
                     i = next_idx;
                     continue;
                 }
                 // 2) Builtin dispatch.
-                if let Some(ret) =
-                    dispatch_builtin(&call_name, &args_raw, state, call_depth)?
-                {
+                if let Some(ret) = dispatch_builtin(&call_name, &args_raw, state, call_depth)? {
                     out.push_str(&ret);
                     i = next_idx;
                     continue;
@@ -2084,7 +2080,9 @@ fn read_json_value(bytes: &[u8], idx: &mut usize) -> Option<String> {
             if *idx < bytes.len() {
                 *idx += 1; // closing "
             }
-            std::str::from_utf8(&bytes[start..end]).ok().map(str::to_string)
+            std::str::from_utf8(&bytes[start..end])
+                .ok()
+                .map(str::to_string)
         }
         b'{' | b'[' => {
             let open = bytes[*idx];
@@ -2473,14 +2471,12 @@ fn invoke_dynamic_procedure(
         ));
     };
     let body = &trimmed[prefix.len()..];
-    let body = body
-        .strip_suffix(')')
-        .ok_or_else(|| {
-            Diagnostic::error_code(
-                "E_PREPROC_CALL_SYNTAX",
-                format!("malformed dynamic procedure invocation `{raw}`"),
-            )
-        })?;
+    let body = body.strip_suffix(')').ok_or_else(|| {
+        Diagnostic::error_code(
+            "E_PREPROC_CALL_SYNTAX",
+            format!("malformed dynamic procedure invocation `{raw}`"),
+        )
+    })?;
     let parts = split_args(body)?;
     let mut iter = parts.into_iter();
     let name_raw = iter.next().ok_or_else(|| {
@@ -2622,7 +2618,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         if matches!(detected_kind, None | Some(DiagramKind::Class)) {
             if let Some((kind, end_idx)) = parse_class_scoping_block(&lines, i, line)? {
-                detected_kind = Some(select_diagram_kind(detected_kind, DiagramKind::Class, span)?);
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Class,
+                    span,
+                )?);
                 let block_span = Span::new(span.start, lines[end_idx].1.end);
                 statements.push(Statement {
                     span: block_span,
@@ -2742,7 +2742,10 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 } else {
                     span
                 };
-                statements.push(Statement { span: block_span, kind });
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
                 i = end_idx + 1;
                 continue;
             }
@@ -3531,7 +3534,12 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             return None;
         }
         // Must be followed by whitespace OR the rest is a non-identifier prefix; require space.
-        if !line.as_bytes().get(kw.len()).copied().map_or(false, |b| b == b' ' || b == b'\t') {
+        if !line
+            .as_bytes()
+            .get(kw.len())
+            .copied()
+            .map_or(false, |b| b == b' ' || b == b'\t')
+        {
             // For the very first char after kw, ensure it's whitespace.
             // (line is already trimmed by caller; recompute on trimmed)
             let bytes = trimmed.as_bytes();
@@ -3545,7 +3553,10 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         let (label, rest_after_label) = if rest.starts_with('"') {
             let stripped = &rest[1..];
             let end = stripped.find('"')?;
-            (Some(stripped[..end].to_string()), stripped[end + 1..].trim())
+            (
+                Some(stripped[..end].to_string()),
+                stripped[end + 1..].trim(),
+            )
         } else {
             (None, rest)
         };
@@ -3681,7 +3692,9 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
     if let Some(rest) = trimmed.strip_prefix("while ") {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::WhileStart,
-            label: Some(extract_paren_label(rest.trim()).unwrap_or_else(|| rest.trim().to_string())),
+            label: Some(
+                extract_paren_label(rest.trim()).unwrap_or_else(|| rest.trim().to_string()),
+            ),
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("repeat while") {
@@ -3745,11 +3758,7 @@ fn parse_timing_decl(line: &str) -> Option<StatementKind> {
                 let stripped = &rest[1..];
                 let end = stripped.find('"')?;
                 let rem = stripped[end + 1..].trim();
-                let name = rem
-                    .strip_prefix("as ")
-                    .map(str::trim)
-                    .unwrap_or(rem)
-                    .trim();
+                let name = rem.strip_prefix("as ").map(str::trim).unwrap_or(rem).trim();
                 (Some(stripped[..end].to_string()), name)
             } else if let Some((lhs, rhs)) = rest.split_once(" as ") {
                 (Some(lhs.trim().to_string()), rhs.trim())
@@ -3979,22 +3988,34 @@ fn parse_state_block(
                 continue;
             }
             if inner == "[H]" {
-                children.push(Statement { span, kind: StatementKind::StateHistory { deep: false } });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateHistory { deep: false },
+                });
                 j += 1;
                 continue;
             }
             if inner == "[H*]" {
-                children.push(Statement { span, kind: StatementKind::StateHistory { deep: true } });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateHistory { deep: true },
+                });
                 j += 1;
                 continue;
             }
             if let Some(transition) = parse_state_transition(inner) {
-                children.push(Statement { span, kind: StatementKind::StateTransition(transition) });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateTransition(transition),
+                });
                 j += 1;
                 continue;
             }
             if let Some(action) = parse_state_internal_action(inner) {
-                children.push(Statement { span, kind: StatementKind::StateInternalAction(action) });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateInternalAction(action),
+                });
                 j += 1;
                 continue;
             }
@@ -4005,7 +4026,10 @@ fn parse_state_block(
                     } else {
                         span
                     };
-                    children.push(Statement { span: block_span, kind });
+                    children.push(Statement {
+                        span: block_span,
+                        kind,
+                    });
                     j = end_idx + 1;
                     continue;
                 }
@@ -4445,7 +4469,6 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::Scale(body.to_string()));
     }
 
-
     // Class-diagram hide options (parsed here so they work before any class decl sets detected_kind)
     if lower.starts_with("hide ") {
         let rest = lower["hide ".len()..].trim();
@@ -4521,7 +4544,9 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         }));
     }
 
-    for g in ["alt", "opt", "loop", "par", "critical", "break", "group", "box"] {
+    for g in [
+        "alt", "opt", "loop", "par", "critical", "break", "group", "box",
+    ] {
         if lower == g || lower.starts_with(&(g.to_string() + " ")) {
             let label = line[g.len()..].trim();
             return Some(StatementKind::Group(Group {
@@ -4680,7 +4705,14 @@ fn clean_ident(s: &str) -> String {
 fn extract_class_member_name(s: &str) -> String {
     let t = s.trim();
     let lower = t.to_ascii_lowercase();
-    for kw in &["abstract class ", "annotation ", "interface ", "abstract ", "enum ", "class "] {
+    for kw in &[
+        "abstract class ",
+        "annotation ",
+        "interface ",
+        "abstract ",
+        "enum ",
+        "class ",
+    ] {
         if lower.starts_with(kw) {
             // Extract the first identifier token from the original (case-preserved) text
             let name_part = t[kw.len()..].trim();
@@ -5805,7 +5837,10 @@ mod tests {
     fn state_keyword_is_parsed_as_state_decl() {
         let doc = parse_with_options("state Running\n", &ParseOptions::default()).unwrap();
         assert_eq!(doc.kind, DiagramKind::State);
-        assert!(matches!(doc.statements[0].kind, StatementKind::StateDecl(_)));
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::StateDecl(_)
+        ));
     }
 
     #[test]

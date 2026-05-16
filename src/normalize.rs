@@ -6,13 +6,13 @@ use crate::ast::{
 };
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartDocument, ChartPoint, ChartSubtype,
-    DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode,
-    FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument,
-    JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, NormalizedDocument, NwdiagDocument,
-    NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument, RegexPattern,
-    RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind, SdlTransition,
-    SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage, StateDocument,
+    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartDocument, ChartPoint,
+    ChartSubtype, DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup,
+    FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation,
+    JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, NormalizedDocument,
+    NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument,
+    RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind,
+    SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage, StateDocument,
     StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineConstraint,
     TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind,
@@ -322,11 +322,7 @@ fn normalize_ebnf(document: Document) -> Result<EbnfDocument, Diagnostic> {
         let name = name.trim().to_string();
         let body = body.trim().to_string();
         let tokens = parse_ebnf_tokens(&body, &mut warnings);
-        rules.push(EbnfRule {
-            name,
-            body,
-            tokens,
-        });
+        rules.push(EbnfRule { name, body, tokens });
     }
     Ok(EbnfDocument {
         title,
@@ -727,9 +723,7 @@ fn collect_raw_block(document: &Document) -> (String, Option<String>) {
     let mut title: Option<String> = None;
     for stmt in &document.statements {
         match &stmt.kind {
-            StatementKind::RawBlockContent(s) | StatementKind::RawBody(s) => {
-                lines.push(s.clone())
-            }
+            StatementKind::RawBlockContent(s) | StatementKind::RawBody(s) => lines.push(s.clone()),
             StatementKind::Title(v) => title = Some(v.clone()),
             _ => {}
         }
@@ -770,7 +764,9 @@ fn flatten_json_value(
     use serde_json::Value;
     match value {
         Value::Object(map) => {
-            let header = label.map(|l| format!("{l}: {{...}}")).unwrap_or_else(|| "{...}".to_string());
+            let header = label
+                .map(|l| format!("{l}: {{...}}"))
+                .unwrap_or_else(|| "{...}".to_string());
             out.push(JsonTreeNode {
                 depth,
                 label: header,
@@ -780,7 +776,9 @@ fn flatten_json_value(
             }
         }
         Value::Array(items) => {
-            let header = label.map(|l| format!("{l}: [...]")).unwrap_or_else(|| "[...]".to_string());
+            let header = label
+                .map(|l| format!("{l}: [...]"))
+                .unwrap_or_else(|| "[...]".to_string());
             out.push(JsonTreeNode {
                 depth,
                 label: header,
@@ -876,7 +874,11 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
         if let Some(net) = current.as_mut() {
             // address = "..."
             if let Some(rest) = trimmed.strip_prefix("address") {
-                let value = rest.trim_start_matches([' ', '=']).trim().trim_matches('"').to_string();
+                let value = rest
+                    .trim_start_matches([' ', '='])
+                    .trim()
+                    .trim_matches('"')
+                    .to_string();
                 net.address = Some(value);
                 continue;
             }
@@ -1136,13 +1138,16 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 arrow: rel.arrow,
                 label: rel.label,
             }),
-            StatementKind::ClassGroup { kind, label, members } => {
+            StatementKind::ClassGroup {
+                kind,
+                label,
+                members,
+            } => {
                 // Auto-create nodes for members declared inside a package/namespace block
                 // if they haven't already been declared as top-level statements.
                 for member_id in &members {
                     let already_exists = nodes.iter().any(|n: &FamilyNode| {
-                        n.name == *member_id
-                            || n.alias.as_deref() == Some(member_id.as_str())
+                        n.name == *member_id || n.alias.as_deref() == Some(member_id.as_str())
                     });
                     if !already_exists {
                         let nk = match node_kind {
@@ -1234,7 +1239,6 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     })
 }
 
-
 fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
     let mut nodes: Vec<StateNode> = Vec::new();
     let mut transitions: Vec<ModelStateTransition> = Vec::new();
@@ -1271,14 +1275,29 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
                 }
             }
             StatementKind::StateHistory { deep } => {
-                let kind = if *deep { StateNodeKind::HistoryDeep } else { StateNodeKind::HistoryShallow };
-                upsert_state_node(&mut nodes, StateNode {
-                    name: if *deep { "[H*]".to_string() } else { "[H]".to_string() },
-                    display: Some(if *deep { "H*".to_string() } else { "H".to_string() }),
-                    kind,
-                    internal_actions: Vec::new(),
-                    regions: Vec::new(),
-                });
+                let kind = if *deep {
+                    StateNodeKind::HistoryDeep
+                } else {
+                    StateNodeKind::HistoryShallow
+                };
+                upsert_state_node(
+                    &mut nodes,
+                    StateNode {
+                        name: if *deep {
+                            "[H*]".to_string()
+                        } else {
+                            "[H]".to_string()
+                        },
+                        display: Some(if *deep {
+                            "H*".to_string()
+                        } else {
+                            "H".to_string()
+                        }),
+                        kind,
+                        internal_actions: Vec::new(),
+                        regions: Vec::new(),
+                    },
+                );
             }
             StatementKind::Title(v) => title = Some(v.clone()),
             StatementKind::Header(v) => header = Some(v.clone()),
@@ -1347,9 +1366,21 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
             }
             StatementKind::StateHistory { deep } => {
                 current_region.push(StateNode {
-                    name: if *deep { "[H*]".to_string() } else { "[H]".to_string() },
-                    display: Some(if *deep { "H*".to_string() } else { "H".to_string() }),
-                    kind: if *deep { StateNodeKind::HistoryDeep } else { StateNodeKind::HistoryShallow },
+                    name: if *deep {
+                        "[H*]".to_string()
+                    } else {
+                        "[H]".to_string()
+                    },
+                    display: Some(if *deep {
+                        "H*".to_string()
+                    } else {
+                        "H".to_string()
+                    }),
+                    kind: if *deep {
+                        StateNodeKind::HistoryDeep
+                    } else {
+                        StateNodeKind::HistoryShallow
+                    },
                     internal_actions: Vec::new(),
                     regions: Vec::new(),
                 });
@@ -1468,7 +1499,9 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::FootboxVisible(_),
                     ) => {}
-                    SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(color)) => {
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ArrowColor(color),
+                    ) => {
                         style.arrow_color = color;
                     }
                     SequenceSkinParamSupport::SupportedWithValue(
@@ -1652,10 +1685,7 @@ fn normalize_family_tree_warnings(warnings: &mut Vec<Diagnostic>) {
     });
 }
 
-fn build_family_tree_relations(
-    nodes: &mut [FamilyNode],
-    relations: &mut Vec<ModelFamilyRelation>,
-) {
+fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<ModelFamilyRelation>) {
     let mut parents: Vec<usize> = Vec::new();
     for idx in 0..nodes.len() {
         let depth = nodes[idx].depth;
@@ -2644,7 +2674,10 @@ fn parse_scale_spec(body: &str) -> Option<ScaleSpec> {
     if let Some(idx) = trimmed.find('*') {
         let w: u32 = trimmed[..idx].trim().parse().ok()?;
         let h: u32 = trimmed[idx + 1..].trim().parse().ok()?;
-        return Some(ScaleSpec::Fixed { width: w, height: h });
+        return Some(ScaleSpec::Fixed {
+            width: w,
+            height: h,
+        });
     }
     let f: f64 = trimmed.parse().ok()?;
     if f > 0.0 {

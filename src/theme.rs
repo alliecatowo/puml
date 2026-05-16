@@ -697,18 +697,16 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
                 "false" | "no" | "off" => false,
                 _ => return SequenceSkinParamSupport::UnsupportedValue,
             };
-            SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::Shadowing(
-                enabled,
-            ))
+            SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::Shadowing(enabled))
         }
         "defaultfontname" => {
             let name = value.trim();
             if name.is_empty() {
                 SequenceSkinParamSupport::UnsupportedValue
             } else {
-                SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::DefaultFontName(
-                    name.to_string(),
-                ))
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::DefaultFontName(name.to_string()),
+                )
             }
         }
         "defaultfontsize" => {

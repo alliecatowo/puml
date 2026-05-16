@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 
 use crate::ast::DiagramKind;
 use crate::diagnostic::Diagnostic;
+use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
 use crate::theme::SequenceStyle;
-use crate::scene::TextOverflowPolicy;
 
 /// How to scale (or fix the size of) the output SVG.
 #[derive(Debug, Clone, PartialEq)]
@@ -81,7 +81,7 @@ pub enum StateNodeKind {
 
 #[derive(Debug, Clone)]
 pub struct StateInternalAction {
-    pub kind: String,   // "entry", "exit", or event name
+    pub kind: String, // "entry", "exit", or event name
     pub action: String,
 }
 
