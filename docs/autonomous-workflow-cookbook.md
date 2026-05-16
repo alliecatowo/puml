@@ -5,9 +5,10 @@ Codex/Claude command cookbook for repeatable branch-to-PR execution.
 ## Setup And Branching
 
 ```console
-# optional isolated worktree flow
-git worktree add ../puml-wave6 -b wave6-docs-harness
-cd ../puml-wave6
+# isolated worktree flow (recommended)
+git fetch origin
+git worktree add ../puml-issue-131 -b feat/issue-131-docs-harness origin/main
+cd ../puml-issue-131
 
 # confirm branch state
 git rev-parse --abbrev-ref HEAD
@@ -29,6 +30,7 @@ python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
 ```console
 # source-file examples
 for f in docs/examples/*.puml; do cargo run -- "$f"; done
+for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
 
 # markdown fenced snippet artifacts
 cargo run -- --from-markdown docs/examples/README.md --output docs/examples/README_snippet_1.svg
@@ -49,6 +51,6 @@ python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
 
 ```console
 git add -A
-git commit -m "docs+harness: canonical examples and drift audit gates"
-git push -u origin wave6-docs-harness
+git commit -m "docs(harness): upgrade codex+claude runbook and gallery audit plumbing"
+git push -u origin feat/issue-131-docs-harness
 ```

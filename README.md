@@ -271,8 +271,8 @@ Codex + Claude autonomous repo engineering entrypoints:
 # harness-only (fastest confidence for agent-pack + MCP + parity invariants)
 ./scripts/harness-check.sh --quick
 
-# harness-only (fastest confidence for agent-pack + MCP + parity invariants)
-./scripts/harness-check.sh --quick
+# full harness lane (includes docs gallery drift fail-on-drift checks)
+./scripts/harness-check.sh
 
 # VS Code scaffold smoke (LSP contract + extension build)
 ./scripts/vscode-smoke.sh
@@ -282,7 +282,6 @@ Codex + Claude autonomous repo engineering entrypoints:
 ./scripts/ecosystem-rollout-check.sh
 
 # full autonomous quality chain
-
 ./scripts/autonomy-check.sh --quick
 ./scripts/autonomy-check.sh
 ```
@@ -292,6 +291,16 @@ Dry-run planning commands:
 ```bash
 ./scripts/harness-check.sh --dry
 ./scripts/autonomy-check.sh --dry
+```
+
+Docs gallery refresh commands (source-linked `.puml` + fenced snippets):
+
+```bash
+for f in docs/examples/*.puml; do cargo run -- "$f"; done
+for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
+cargo run -- --from-markdown docs/examples/README.md --output docs/examples/README_snippet_1.svg
+cargo run -- --from-markdown --multi docs/examples/sequence/README.md
+python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
 ```
 
 ## Docs
