@@ -3,6 +3,7 @@ use predicates::prelude::*;
 use puml::layout;
 use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
+    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use puml::normalize;
 use puml::parser::{parse_with_options, ParseOptions};
@@ -866,6 +867,208 @@ fn layout_uses_ellipsis_for_single_line_overflow_policy() {
         participant.height,
         LayoutOptions::default().participant_height
     );
+}
+
+#[test]
+fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
+    let model = SequenceDocument {
+        participants: vec![
+            Participant {
+                id: "A".to_string(),
+                display: "A".to_string(),
+                role: ParticipantRole::Participant,
+                explicit: true,
+            },
+            Participant {
+                id: "B".to_string(),
+                display: "B".to_string(),
+                role: ParticipantRole::Participant,
+                explicit: true,
+            },
+        ],
+        events: vec![
+            SequenceEvent {
+                span: Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "A".to_string(),
+                    to: "B".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some(
+                        "one two three four five six seven eight nine ten eleven twelve"
+                            .to_string(),
+                    ),
+                    from_virtual: None,
+                    to_virtual: None,
+                },
+            },
+            SequenceEvent {
+                span: Span { start: 0, end: 0 },
+                kind: SequenceEventKind::GroupStart {
+                    kind: "group".to_string(),
+                    label: Some("over   ".to_string()),
+                },
+            },
+            SequenceEvent {
+                span: Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "B".to_string(),
+                    to: "A".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("short".to_string()),
+                    from_virtual: None,
+                    to_virtual: None,
+                },
+            },
+        ],
+        title: None,
+        header: None,
+        footer: None,
+        caption: None,
+        legend: None,
+        skinparams: vec![],
+        style: SequenceStyle::default(),
+        footbox_visible: true,
+        warnings: vec![],
+    };
+    let options = LayoutOptions::default();
+    let scene = layout::layout(&model, options);
+
+    assert_eq!(scene.messages.len(), 2);
+    let first = &scene.messages[0];
+    let second = &scene.messages[1];
+    assert!(
+        first.label_lines.len() > 1,
+        "expected wrapped first label to consume multiple rows"
+    );
+    assert!(
+        second.y - first.y > options.message_row_height,
+        "wrapped row should push following message downward"
+    );
+    assert_eq!(
+        scene.groups.len(),
+        1,
+        "open group should be finalized at end"
+    );
+    assert!(
+        scene.groups[0].height >= options.message_row_height,
+        "finalized open group should have non-zero height"
+    );
+}
+
+#[test]
+fn layout_offsets_virtual_endpoints_for_overlap_cases() {
+    let doc = SequenceDocument {
+        participants: vec![Participant {
+            id: "A".to_string(),
+            display: "A".to_string(),
+            role: ParticipantRole::Participant,
+            explicit: true,
+        }],
+        events: vec![
+            SequenceEvent {
+                span: Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "ghost-left".to_string(),
+                    to: "ghost-right".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("both virtual".to_string()),
+                    from_virtual: Some(VirtualEndpoint {
+                        side: VirtualEndpointSide::Left,
+                        kind: VirtualEndpointKind::Filled,
+                    }),
+                    to_virtual: Some(VirtualEndpoint {
+                        side: VirtualEndpointSide::Right,
+                        kind: VirtualEndpointKind::Filled,
+                    }),
+                },
+            },
+            SequenceEvent {
+                span: Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "ghost-right".to_string(),
+                    to: "A".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("from virtual".to_string()),
+                    from_virtual: Some(VirtualEndpoint {
+                        side: VirtualEndpointSide::Right,
+                        kind: VirtualEndpointKind::Circle,
+                    }),
+                    to_virtual: None,
+                },
+            },
+            SequenceEvent {
+                span: Span { start: 0, end: 0 },
+                kind: SequenceEventKind::Message {
+                    from: "A".to_string(),
+                    to: "ghost-left".to_string(),
+                    arrow: "->".to_string(),
+                    label: Some("to virtual".to_string()),
+                    from_virtual: None,
+                    to_virtual: Some(VirtualEndpoint {
+                        side: VirtualEndpointSide::Left,
+                        kind: VirtualEndpointKind::Cross,
+                    }),
+                },
+            },
+        ],
+        title: None,
+        header: None,
+        footer: None,
+        caption: None,
+        legend: None,
+        skinparams: vec![],
+        style: SequenceStyle::default(),
+        footbox_visible: true,
+        warnings: vec![],
+    };
+    let scene = layout::layout(&doc, LayoutOptions::default());
+    let center = scene.participants[0].x + (scene.participants[0].width / 2);
+
+    assert_eq!(scene.messages[0].x1, center - 56);
+    assert_eq!(scene.messages[0].x2, center + 56);
+    assert_eq!(scene.messages[1].x1, center + 56);
+    assert_eq!(scene.messages[1].x2, center);
+    assert_eq!(scene.messages[2].x1, center);
+    assert_eq!(scene.messages[2].x2, center - 56);
+}
+
+#[test]
+fn layout_pages_preserve_page_titles_and_footer_reserve_without_footboxes() {
+    let src = "@startuml\ntitle Base Title\nfooter Shared Footer\nhide footbox\nA -> B : one\nnewpage Page Two\nB -> A : two\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let options = LayoutOptions::default();
+    let pages = layout::layout_pages(&model, options);
+
+    assert_eq!(pages.len(), 2);
+    assert_eq!(
+        pages[0]
+            .title
+            .as_ref()
+            .map(|t| t.lines.join(" "))
+            .as_deref(),
+        Some("Base Title")
+    );
+    assert_eq!(
+        pages[1]
+            .title
+            .as_ref()
+            .map(|t| t.lines.join(" "))
+            .as_deref(),
+        Some("Page Two")
+    );
+    for scene in &pages {
+        assert!(
+            scene.footboxes.is_empty(),
+            "hide footbox should remove footboxes"
+        );
+        for lifeline in &scene.lifelines {
+            assert!(
+                scene.height - lifeline.y2 >= options.footer_height + options.margin,
+                "footer reserve should still remain when footboxes are hidden"
+            );
+        }
+    }
 }
 
 #[test]
