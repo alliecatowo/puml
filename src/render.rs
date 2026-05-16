@@ -529,6 +529,7 @@ pub fn render_timeline_stub_svg(document: &TimelineDocument) -> String {
         match document.kind {
             DiagramKind::Gantt => "gantt",
             DiagramKind::Chronology => "chronology",
+            DiagramKind::Activity => "activity",
             _ => "timeline",
         }
     ));

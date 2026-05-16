@@ -65,11 +65,11 @@ activity,"Switch/case blocks","Documented on activity beta page",missing,"Sequen
 activity,"Repeat/while loops and break","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
 activity,"Goto/label processing","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
 activity,"Parallel/split processing","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
-activity,"Notes/connectors/arrow styling","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
-activity,"Partition and swimlanes","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
-activity,"Kill/detach controls","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
-activity,"Global style and Creole","Documented on activity beta page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-beta
-activity,"Legacy activity syntax","Documented on activity legacy page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/activity-diagram-legacy
+activity,"Notes/connectors/arrow styling","Documented on activity beta page",partial,"Issue #171 baseline adds old-style `-->` arrow parsing with labels/direction hints and note passthrough rows",https://plantuml.com/activity-diagram-beta
+activity,"Partition and swimlanes","Documented on activity beta page",partial,"Issue #171 baseline parses lane bars (`|Lane|`) into deterministic activity model rows",https://plantuml.com/activity-diagram-beta
+activity,"Kill/detach controls","Documented on activity beta page",partial,"Issue #171 baseline supports `detach` as a deterministic activity milestone row",https://plantuml.com/activity-diagram-beta
+activity,"Global style and Creole","Documented on activity beta page",missing,"Only `#color:Action;` shorthand is mapped in issue #171; full style/Creole remains open",https://plantuml.com/activity-diagram-beta
+activity,"Legacy activity syntax","Documented on activity legacy page",partial,"Issue #171 baseline supports `(*)` terminals plus old-style flow arrows",https://plantuml.com/activity-diagram-legacy
 timing,"Timing participant declaration","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
 timing,"Binary and clock signals","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram
 timing,"Adding messages","Documented on timing diagram page",missing,"Sequence-only engine; non-sequence families rejected",https://plantuml.com/timing-diagram

@@ -37,7 +37,7 @@ pub fn normalize_family_with_options(
         DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
-        DiagramKind::Gantt | DiagramKind::Chronology => {
+        DiagramKind::Gantt | DiagramKind::Chronology | DiagramKind::Activity => {
             normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
         }
         DiagramKind::MindMap
@@ -45,7 +45,6 @@ pub fn normalize_family_with_options(
         | DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::State
-        | DiagramKind::Activity
         | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
         DiagramKind::Unknown => Err(Diagnostic::error(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",

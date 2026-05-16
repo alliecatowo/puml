@@ -335,7 +335,7 @@ fn parser_tags_additional_wave1_family_alias_tokens() {
 }
 
 #[test]
-fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes() {
+fn normalize_family_routes_activity_to_timeline_and_rejects_other_wave1_families() {
     let cases = [
         (
             "@startuml\ncomponent API\n@enduml\n",
@@ -348,10 +348,6 @@ fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes(
         (
             "@startuml\nstate Running\n@enduml\n",
             "E_FAMILY_STATE_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nstart\n:step;\nstop\n@enduml\n",
-            "E_FAMILY_ACTIVITY_UNSUPPORTED",
         ),
         (
             "@startuml\nclock clk\n@enduml\n",
@@ -368,6 +364,17 @@ fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes(
         let doc = parse(src).expect("parse should succeed");
         let err = normalize_family(doc).expect_err("family should be unsupported in this slice");
         assert!(err.message.contains(code), "missing code {code}");
+    }
+
+    let activity_doc = parse("@startuml\n|Lane|\n(*) --> \"A\"\n\"A\" --> (*)\n@enduml\n")
+        .expect("activity parse should succeed");
+    let normalized = normalize_family(activity_doc).expect("activity should normalize");
+    match normalized {
+        NormalizedDocument::Timeline(timeline) => {
+            assert_eq!(timeline.kind, puml::ast::DiagramKind::Activity);
+            assert!(!timeline.tasks.is_empty() || !timeline.constraints.is_empty());
+        }
+        other => panic!("expected timeline model for activity, got {other:?}"),
     }
 }
 
