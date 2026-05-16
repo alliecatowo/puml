@@ -2371,34 +2371,13 @@ fn class_object_usecase_bootstrap_inputs_pass_check() {
 #[test]
 fn class_object_usecase_bootstrap_render_stubs_are_deterministic() {
     for (case, marker) in [
-        (
-            "families/valid_class_bootstrap.puml",
-            "Bootstrap stub for class diagrams",
-        ),
-        (
-            "families/valid_object_bootstrap.puml",
-            "Bootstrap stub for object diagrams",
-        ),
-        (
-            "families/valid_usecase_bootstrap.puml",
-            "Bootstrap stub for usecase diagrams",
-        ),
-        (
-            "families/valid_salt_bootstrap.puml",
-            "Bootstrap stub for salt diagrams",
-        ),
-        (
-            "families/valid_class_members_block.puml",
-            "Bootstrap stub for class diagrams",
-        ),
-        (
-            "families/valid_object_members_block.puml",
-            "Bootstrap stub for object diagrams",
-        ),
-        (
-            "families/valid_usecase_members_block.puml",
-            "Bootstrap stub for usecase diagrams",
-        ),
+        ("families/valid_class_bootstrap.puml", "User"),
+        ("families/valid_object_bootstrap.puml", "Order"),
+        ("families/valid_usecase_bootstrap.puml", "Authenticate"),
+        ("families/valid_salt_bootstrap.puml", "submit_button"),
+        ("families/valid_class_members_block.puml", "+id: UUID"),
+        ("families/valid_object_members_block.puml", "token = abc123"),
+        ("families/valid_usecase_members_block.puml", "Authenticate"),
     ] {
         let src = fs::read_to_string(fixture(case)).unwrap();
         let first = Command::cargo_bin("puml")
@@ -3862,4 +3841,125 @@ fn preprocessor_includeurl_directive_rejects_with_deterministic_code() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_INCLUDE_URL_UNSUPPORTED"));
+}
+
+#[test]
+fn class_diagram_with_relations_renders_real_svg() {
+    let src = fs::read_to_string(fixture("families/valid_class_with_relations.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("class svg should render");
+    // Real SVG primitives must appear.
+    assert!(svg.starts_with("<svg"), "svg should start with <svg tag");
+    assert!(svg.contains("<rect"), "should contain rect for boxes");
+    assert!(
+        svg.contains("<line"),
+        "should contain lines for relations: {svg}"
+    );
+    // Class names should be present.
+    for name in ["Animal", "Dog", "Cat", "Collar"] {
+        assert!(svg.contains(name), "missing class name {name}");
+    }
+    // Inheritance arrow uses the triangle marker.
+    assert!(
+        svg.contains("arrow-triangle"),
+        "inheritance arrow marker missing"
+    );
+    // Composition uses the filled-diamond marker.
+    assert!(
+        svg.contains("arrow-diamond-filled"),
+        "composition diamond marker missing"
+    );
+    // Aggregation uses the open-diamond marker.
+    assert!(
+        svg.contains("arrow-diamond-open"),
+        "aggregation diamond marker missing"
+    );
+    // Label rendering.
+    assert!(svg.contains("has"), "composition label missing");
+    assert!(svg.contains("wears"), "aggregation label missing");
+}
+
+#[test]
+fn class_diagram_with_relations_render_is_deterministic() {
+    let src = fs::read_to_string(fixture("families/valid_class_with_relations.puml")).unwrap();
+    let first = render_source_to_svg(&src).unwrap();
+    let second = render_source_to_svg(&src).unwrap();
+    assert_eq!(first, second);
+}
+
+#[test]
+fn object_diagram_renders_underlined_header_and_rects() {
+    let src = fs::read_to_string(fixture("families/valid_object_members_block.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("object svg should render");
+    assert!(svg.starts_with("<svg"));
+    assert!(svg.contains("<rect"));
+    assert!(svg.contains("Session"));
+    assert!(svg.contains("UserRef"));
+    // Objects use underline text-decoration for their name.
+    assert!(
+        svg.contains("text-decoration=\"underline\""),
+        "object header should be underlined"
+    );
+}
+
+#[test]
+fn usecase_diagram_renders_ellipse_nodes() {
+    let src = fs::read_to_string(fixture("families/valid_usecase_bootstrap.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("usecase svg should render");
+    assert!(svg.starts_with("<svg"));
+    assert!(svg.contains("<ellipse"), "use cases should be ellipses");
+    assert!(svg.contains("Authenticate"));
+    assert!(svg.contains("Authorize"));
+}
+
+#[test]
+fn gantt_render_emits_horizontal_bars_and_milestone_diamond() {
+    let src = fs::read_to_string(fixture("timeline/valid_gantt_render.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("gantt svg should render");
+    assert!(svg.starts_with("<svg"));
+    // Task labels.
+    for name in ["Design", "Build", "Test", "Kickoff"] {
+        assert!(svg.contains(name), "missing task/milestone name {name}");
+    }
+    // Bars are <rect> elements; milestone uses <polygon>.
+    assert!(svg.contains("<rect"), "should contain task bars");
+    assert!(svg.contains("<polygon"), "milestone diamond missing");
+    // Constraint arrow (requires) is rendered as a dashed line + marker.
+    assert!(
+        svg.contains("gantt-arrow"),
+        "constraint arrow marker missing"
+    );
+    assert!(
+        svg.contains("stroke-dasharray"),
+        "dashed constraint arrow missing"
+    );
+}
+
+#[test]
+fn chronology_render_emits_vertical_timeline_with_event_bullets() {
+    let src = fs::read_to_string(fixture("timeline/valid_chronology_render.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("chronology svg should render");
+    assert!(svg.starts_with("<svg"));
+    // Events appear as labels.
+    for name in ["Discovery", "Alpha", "Beta", "GA"] {
+        assert!(svg.contains(name), "missing event {name}");
+    }
+    // Dates rendered.
+    assert!(svg.contains("2026-05-01"));
+    // Vertical timeline line + bullet circles.
+    assert!(svg.contains("<line"), "timeline line missing");
+    assert!(svg.contains("<circle"), "event bullet missing");
+}
+
+#[test]
+fn timeline_render_is_deterministic_across_runs() {
+    let gantt = fs::read_to_string(fixture("timeline/valid_gantt_render.puml")).unwrap();
+    let chrono = fs::read_to_string(fixture("timeline/valid_chronology_render.puml")).unwrap();
+    assert_eq!(
+        render_source_to_svg(&gantt).unwrap(),
+        render_source_to_svg(&gantt).unwrap()
+    );
+    assert_eq!(
+        render_source_to_svg(&chrono).unwrap(),
+        render_source_to_svg(&chrono).unwrap()
+    );
 }

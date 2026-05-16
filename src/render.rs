@@ -236,115 +236,230 @@ pub fn render_svg(scene: &Scene) -> String {
     out
 }
 
+/// Backwards-compatible alias for the family stub renderer. Now delegates to
+/// the real renderer.
 pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
-    let width = 760;
-    let mut y = 28;
-    let title_lines = document
+    render_class_svg(document)
+}
+
+/// Render Class/Object/UseCase documents as a real SVG with boxed nodes
+/// (header + member compartment) laid out in a simple grid, plus arrows
+/// for the document's relations.
+pub fn render_class_svg(document: &FamilyDocument) -> String {
+    // Layout constants
+    let margin_x: i32 = 32;
+    let margin_top: i32 = 32;
+    let col_count: i32 = 3;
+    let node_width: i32 = 200;
+    let col_gap: i32 = 48;
+    let row_gap: i32 = 64;
+    let header_height: i32 = 30;
+    let member_line_height: i32 = 16;
+    let member_padding: i32 = 8;
+    let empty_member_pad: i32 = 8;
+
+    // Compute heights per node
+    struct NodeBox {
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        header_h: i32,
+    }
+    let mut node_boxes: std::collections::BTreeMap<String, NodeBox> =
+        std::collections::BTreeMap::new();
+    // Stable iteration: keep declaration order
+    let mut ordered_keys: Vec<String> = Vec::new();
+
+    let title_block_height = document
         .title
         .as_deref()
-        .map(|v| v.lines().count() as i32)
+        .map(|t| 12 + (t.lines().count() as i32) * 22)
         .unwrap_or(0);
-    let body_rows = document.nodes.len().max(1) as i32;
-    let member_rows = document
-        .nodes
+
+    let total_nodes = document.nodes.len() as i32;
+    let row_count = if total_nodes == 0 {
+        0
+    } else {
+        (total_nodes + col_count - 1) / col_count
+    };
+
+    // First pass: compute heights
+    let mut row_heights: Vec<i32> = vec![0; row_count.max(0) as usize];
+    for (idx, node) in document.nodes.iter().enumerate() {
+        let col = (idx as i32) % col_count;
+        let row = (idx as i32) / col_count;
+        let body_h = if node.members.is_empty() {
+            empty_member_pad
+        } else {
+            (node.members.len() as i32) * member_line_height + 2 * member_padding
+        };
+        let h = header_height + body_h;
+        let _ = col;
+        if (row as usize) < row_heights.len() && h > row_heights[row as usize] {
+            row_heights[row as usize] = h;
+        }
+    }
+
+    // Second pass: assign coordinates
+    let mut row_y_offsets: Vec<i32> = vec![0; row_heights.len()];
+    {
+        let mut y = margin_top + title_block_height;
+        for (i, h) in row_heights.iter().enumerate() {
+            row_y_offsets[i] = y;
+            y += h + row_gap;
+        }
+    }
+
+    for (idx, node) in document.nodes.iter().enumerate() {
+        let col = (idx as i32) % col_count;
+        let row = (idx as i32) / col_count;
+        let body_h = if node.members.is_empty() {
+            empty_member_pad
+        } else {
+            (node.members.len() as i32) * member_line_height + 2 * member_padding
+        };
+        let h = header_height + body_h;
+        let x = margin_x + col * (node_width + col_gap);
+        let y = row_y_offsets[row as usize];
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        ordered_keys.push(key.clone());
+        node_boxes.insert(
+            key,
+            NodeBox {
+                x,
+                y,
+                w: node_width,
+                h,
+                header_h: header_height,
+            },
+        );
+        // Also accept name as a key if alias was used (for relations referring by name)
+        if let Some(_alias) = &node.alias {
+            node_boxes.insert(
+                node.name.clone(),
+                NodeBox {
+                    x,
+                    y,
+                    w: node_width,
+                    h,
+                    header_h: header_height,
+                },
+            );
+        }
+    }
+
+    let nodes_bottom = row_y_offsets
         .iter()
-        .map(|n| n.members.len() as i32)
-        .sum::<i32>();
-    let relation_rows = document.relations.len() as i32;
-    let height =
-        140 + (body_rows * 42) + (member_rows * 16) + (relation_rows * 20) + (title_lines * 24);
+        .zip(row_heights.iter())
+        .map(|(y, h)| y + h)
+        .max()
+        .unwrap_or(margin_top + title_block_height);
+
+    // Compute width / height of the SVG
+    let svg_width = margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap;
+    let svg_height = nodes_bottom + 40;
 
     let mut out = String::new();
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        width, height, width, height
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = svg_width,
+        h = svg_height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
+    // Arrowhead/diamond marker defs
+    out.push_str("<defs>");
+    out.push_str(
+        "<marker id=\"arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
+         markerWidth=\"10\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"#1e293b\" stroke-width=\"1.5\"/>\
+         </marker>",
+    );
+    out.push_str(
+        "<marker id=\"arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"#1e293b\" stroke-width=\"1.5\"/>\
+         </marker>",
+    );
+    out.push_str(
+        "<marker id=\"arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
+         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#1e293b\" stroke=\"#1e293b\" stroke-width=\"1\"/>\
+         </marker>",
+    );
+    out.push_str(
+        "<marker id=\"arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
+         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"#1e293b\" stroke-width=\"1\"/>\
+         </marker>",
+    );
+    out.push_str("</defs>");
+
+    // Title
     if let Some(title) = &document.title {
+        let mut ty = margin_top;
         for line in title.lines() {
             out.push_str(&format!(
-                "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
-                y,
-                escape_text(line)
+                "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">{txt}</text>",
+                x = margin_x,
+                y = ty,
+                txt = escape_text(line)
             ));
-            y += 24;
+            ty += 22;
         }
     }
 
-    out.push_str(&format!(
-        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" fill=\"#333\">Bootstrap stub for {} diagrams</text>",
-        y,
-        family_kind_label(document.kind)
-    ));
-    y += 16;
-
-    out.push_str(&format!(
-        "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#f8fafc\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
-        y,
-        32 + (body_rows * 42) + (member_rows * 16)
-    ));
-    y += 24;
-
-    if document.nodes.is_empty() {
+    // Render relations first so node rectangles cover endpoints
+    for relation in &document.relations {
+        let (from_name, to_name, normalized_arrow) = normalize_relation_endpoints(
+            &relation.from,
+            &relation.to,
+            &relation.arrow,
+        );
+        let from = node_boxes.get(&from_name);
+        let to = node_boxes.get(&to_name);
+        let (Some(from), Some(to)) = (from, to) else {
+            continue;
+        };
+        let style = arrow_style(&normalized_arrow);
+        let (x1, y1, x2, y2) = compute_edge_anchors_tuple(
+            (from.x, from.y, from.w, from.h),
+            (to.x, to.y, to.w, to.h),
+        );
+        let stroke_dash = if style.dashed {
+            " stroke-dasharray=\"5 3\""
+        } else {
+            ""
+        };
+        let mut markers = String::new();
+        if let Some(end) = style.end_marker {
+            markers.push_str(&format!(" marker-end=\"url(#{end})\""));
+        }
+        if let Some(start) = style.start_marker {
+            markers.push_str(&format!(" marker-start=\"url(#{start})\""));
+        }
         out.push_str(&format!(
-            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">No declarations parsed.</text>",
-            y
+            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#1e293b\" stroke-width=\"1.5\"{dash}{markers}/>",
+            dash = stroke_dash
         ));
-        y += 30;
-    } else {
-        for node in &document.nodes {
+        if let Some(label) = &relation.label {
+            let lx = (x1 + x2) / 2;
+            let ly = (y1 + y2) / 2 - 4;
             out.push_str(&format!(
-                "<rect x=\"40\" y=\"{}\" width=\"680\" height=\"30\" rx=\"4\" ry=\"4\" fill=\"white\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
-                y - 14
+                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{txt}</text>",
+                txt = escape_text(label)
             ));
-            let alias = node
-                .alias
-                .as_deref()
-                .map(|v| format!(" as {v}"))
-                .unwrap_or_default();
-            out.push_str(&format!(
-                "<text x=\"52\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{} {}{}</text>",
-                y + 6,
-                family_node_label(node.kind),
-                escape_text(&node.name),
-                escape_text(&alias)
-            ));
-            y += 22;
-            for member in &node.members {
-                out.push_str(&format!(
-                    "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
-                    y + 6,
-                    escape_text(member)
-                ));
-                y += 16;
-            }
-            y += 20;
         }
     }
 
-    if !document.relations.is_empty() {
-        out.push_str(&format!(
-            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#334155\">Relations</text>",
-            y + 6
-        ));
-        y += 24;
-        for relation in &document.relations {
-            let label = relation
-                .label
-                .as_deref()
-                .map(|v| format!(" : {v}"))
-                .unwrap_or_default();
-            out.push_str(&format!(
-                "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} {} {}{}</text>",
-                y,
-                escape_text(&relation.from),
-                escape_text(&relation.arrow),
-                escape_text(&relation.to),
-                escape_text(&label)
-            ));
-            y += 20;
-        }
+    // Render nodes
+    for node in &document.nodes {
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        let Some(bx) = node_boxes.get(&key) else {
+            continue;
+        };
+        render_class_node(&mut out, node, bx.x, bx.y, bx.w, bx.h, bx.header_h);
     }
 
     out.push_str("</svg>");
@@ -656,69 +771,564 @@ fn family_node_label(kind: FamilyNodeKind) -> &'static str {
     }
 }
 
+fn render_class_node(
+    out: &mut String,
+    node: &crate::model::FamilyNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    header_h: i32,
+) {
+    let (fill, stroke, header_fill) = match node.kind {
+        FamilyNodeKind::Class => ("#ffffff", "#1e293b", "#dbeafe"),
+        FamilyNodeKind::Object => ("#ffffff", "#1e293b", "#fef3c7"),
+        FamilyNodeKind::UseCase => ("#ffffff", "#1e293b", "#dcfce7"),
+        FamilyNodeKind::Salt | FamilyNodeKind::MindMap | FamilyNodeKind::Wbs => {
+            ("#ffffff", "#1e293b", "#f1f5f9")
+        }
+    };
+
+    if matches!(node.kind, FamilyNodeKind::UseCase) {
+        // Ellipse rendering for use cases
+        let cx = x + w / 2;
+        let cy = y + h / 2;
+        let rx = w / 2;
+        let ry = h / 2;
+        out.push_str(&format!(
+            "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        ));
+        // Name centered
+        out.push_str(&format!(
+            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#0f172a\">{name}</text>",
+            ty = cy + 4,
+            name = escape_text(&node.name)
+        ));
+        if let Some(alias) = &node.alias {
+            out.push_str(&format!(
+                "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">as {alias}</text>",
+                ty = cy + 20,
+                alias = escape_text(alias)
+            ));
+        }
+        // Members rendered below the ellipse (rare for usecases)
+        let mut my = y + h + 14;
+        for member in &node.members {
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{m}</text>",
+                tx = x + w / 2,
+                m = escape_text(member)
+            ));
+            my += 14;
+        }
+        return;
+    }
+
+    // Outer rect
+    out.push_str(&format!(
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+    ));
+    // Header band
+    out.push_str(&format!(
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        hh = header_h
+    ));
+    // Header separator line
+    out.push_str(&format!(
+        "<line x1=\"{x}\" y1=\"{ly}\" x2=\"{x2}\" y2=\"{ly}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+        ly = y + header_h,
+        x2 = x + w
+    ));
+
+    // Header text: for Object render "name : Class" style if present; for now just name
+    let kind_prefix = match node.kind {
+        FamilyNodeKind::Class => "",
+        FamilyNodeKind::Object => "",
+        FamilyNodeKind::UseCase => "",
+        FamilyNodeKind::Salt | FamilyNodeKind::MindMap | FamilyNodeKind::Wbs => "",
+    };
+    let header_text = if let Some(alias) = &node.alias {
+        format!("{kind_prefix}{} (as {})", node.name, alias)
+    } else {
+        format!("{kind_prefix}{}", node.name)
+    };
+    // Underline for objects (PlantUML convention)
+    let text_decoration = if matches!(node.kind, FamilyNodeKind::Object) {
+        " text-decoration=\"underline\""
+    } else {
+        ""
+    };
+    out.push_str(&format!(
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#0f172a\"{td}>{txt}</text>",
+        tx = x + w / 2,
+        ty = y + header_h - 9,
+        td = text_decoration,
+        txt = escape_text(&header_text)
+    ));
+
+    // Members
+    let mut my = y + header_h + 16;
+    for member in &node.members {
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{my}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{m}</text>",
+            tx = x + 10,
+            m = escape_text(member)
+        ));
+        my += 16;
+    }
+}
+
+/// Normalize relation endpoints when the parser stuffs arrow-head markers
+/// (e.g. `<|`, `*`, `o`) into the trailing chars of `from` or the leading
+/// chars of `to`. Returns (clean_from, clean_to, normalized_arrow).
+fn normalize_relation_endpoints(from: &str, to: &str, arrow: &str) -> (String, String, String) {
+    let (clean_from, head_marker) = split_trailing_marker(from);
+    let (clean_to, tail_marker) = split_leading_marker(to);
+    let mut a = String::new();
+    a.push_str(head_marker);
+    a.push_str(arrow);
+    a.push_str(tail_marker);
+    (clean_from, clean_to, a)
+}
+
+fn split_trailing_marker(s: &str) -> (String, &'static str) {
+    let trimmed = s.trim_end();
+    if let Some(stripped) = trimmed.strip_suffix("<|") {
+        return (stripped.trim_end().to_string(), "<|");
+    }
+    for m in ["*", "o", "<", "+"] {
+        if let Some(stripped) = trimmed.strip_suffix(m) {
+            // Require space between name and marker to avoid clobbering names
+            // that legitimately end with these characters.
+            if stripped.ends_with(' ') {
+                return (stripped.trim_end().to_string(), match m {
+                    "*" => "*",
+                    "o" => "o",
+                    "<" => "<",
+                    "+" => "+",
+                    _ => "",
+                });
+            }
+        }
+    }
+    (trimmed.to_string(), "")
+}
+
+fn split_leading_marker(s: &str) -> (String, &'static str) {
+    let trimmed = s.trim_start();
+    if let Some(stripped) = trimmed.strip_prefix("|>") {
+        return (stripped.trim_start().to_string(), "|>");
+    }
+    for m in ["*", "o", ">", "+"] {
+        if let Some(stripped) = trimmed.strip_prefix(m) {
+            if stripped.starts_with(' ') {
+                return (stripped.trim_start().to_string(), match m {
+                    "*" => "*",
+                    "o" => "o",
+                    ">" => ">",
+                    "+" => "+",
+                    _ => "",
+                });
+            }
+        }
+    }
+    (trimmed.to_string(), "")
+}
+
+struct ArrowStyle {
+    end_marker: Option<&'static str>,
+    start_marker: Option<&'static str>,
+    dashed: bool,
+}
+
+fn arrow_style(arrow: &str) -> ArrowStyle {
+    let trimmed = arrow.trim();
+    let dashed = trimmed.contains("..");
+    // Detect markers at each end
+    let head = trimmed.chars().next().unwrap_or(' ');
+    let tail = trimmed.chars().last().unwrap_or(' ');
+    let start_marker = match head {
+        '<' => {
+            // inheritance reversed if starts with "<|"
+            if trimmed.starts_with("<|") {
+                Some("arrow-triangle")
+            } else {
+                Some("arrow-open")
+            }
+        }
+        '*' => Some("arrow-diamond-filled"),
+        'o' => Some("arrow-diamond-open"),
+        _ => None,
+    };
+    let end_marker = match tail {
+        '>' => {
+            if trimmed.ends_with("|>") {
+                Some("arrow-triangle")
+            } else {
+                Some("arrow-open")
+            }
+        }
+        '*' => Some("arrow-diamond-filled"),
+        'o' => Some("arrow-diamond-open"),
+        _ => None,
+    };
+    ArrowStyle {
+        end_marker,
+        start_marker,
+        dashed,
+    }
+}
+
+fn compute_edge_anchors_tuple(
+    from: (i32, i32, i32, i32),
+    to: (i32, i32, i32, i32),
+) -> (i32, i32, i32, i32) {
+    let (fx, fy, fw, fh) = from;
+    let (tx, ty, tw, th) = to;
+    let fcx = fx + fw / 2;
+    let fcy = fy + fh / 2;
+    let tcx = tx + tw / 2;
+    let tcy = ty + th / 2;
+    let (x1, y1) = anchor_on_rect(fx, fy, fw, fh, tcx, tcy);
+    let (x2, y2) = anchor_on_rect(tx, ty, tw, th, fcx, fcy);
+    (x1, y1, x2, y2)
+}
+
+fn anchor_on_rect(x: i32, y: i32, w: i32, h: i32, tx: i32, ty: i32) -> (i32, i32) {
+    let cx = x + w / 2;
+    let cy = y + h / 2;
+    let dx = tx - cx;
+    let dy = ty - cy;
+    if dx == 0 && dy == 0 {
+        return (cx, cy);
+    }
+    // Determine which side to exit
+    let half_w = (w as f64) / 2.0;
+    let half_h = (h as f64) / 2.0;
+    let abs_dx = (dx as f64).abs();
+    let abs_dy = (dy as f64).abs();
+    if abs_dx * half_h > abs_dy * half_w {
+        // Exit via left or right edge
+        if dx > 0 {
+            (x + w, cy + ((half_w / abs_dx) * (dy as f64)) as i32)
+        } else {
+            (x, cy + ((half_w / abs_dx) * (dy as f64)) as i32)
+        }
+    } else if dy > 0 {
+        (cx + ((half_h / abs_dy) * (dx as f64)) as i32, y + h)
+    } else {
+        (cx + ((half_h / abs_dy) * (dx as f64)) as i32, y)
+    }
+}
+
+
+/// Backwards-compatible alias; delegates to the real timeline renderer.
 pub fn render_timeline_stub_svg(document: &TimelineDocument) -> String {
-    let width = 760;
-    let event_rows =
-        (document.tasks.len() + document.milestones.len() + document.constraints.len()) as i32;
-    let chronology_rows = document.chronology_events.len() as i32;
-    let height = 180 + (event_rows * 20) + (chronology_rows * 20);
-    let mut y = 32;
+    render_timeline_svg(document)
+}
+
+/// Render Gantt/Chronology timelines as real SVGs:
+///   - Gantt: horizontal task bars on a date axis, milestone diamonds,
+///     dashed arrows for `requires`/start/etc. constraints between bars.
+///   - Chronology: vertical timeline with event bullets along a date axis.
+pub fn render_timeline_svg(document: &TimelineDocument) -> String {
+    match document.kind {
+        DiagramKind::Chronology => render_chronology_svg(document),
+        _ => render_gantt_svg(document),
+    }
+}
+
+fn render_gantt_svg(document: &TimelineDocument) -> String {
+    let width: i32 = 800;
+    let margin_x: i32 = 32;
+    let label_col_w: i32 = 160;
+    let bar_height: i32 = 20;
+    let row_gap: i32 = 14;
+    let header_h: i32 = 28;
+    let chart_left: i32 = margin_x + label_col_w + 12;
+    let chart_right: i32 = width - margin_x;
+    let chart_w: i32 = chart_right - chart_left;
+
+    let title_h = document
+        .title
+        .as_deref()
+        .map(|t| 8 + (t.lines().count() as i32) * 22)
+        .unwrap_or(0);
+
+    let row_count = (document.tasks.len() + document.milestones.len()) as i32;
+    let chart_top = 40 + title_h + header_h;
+    let chart_h = (row_count.max(1)) * (bar_height + row_gap) + 20;
+    let total_h = chart_top + chart_h + 40;
+
     let mut out = String::new();
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        width, height, width, height
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = total_h
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
-    out.push_str(&format!(
-        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">Baseline {} model</text>",
-        y,
-        match document.kind {
-            DiagramKind::Gantt => "gantt",
-            DiagramKind::Chronology => "chronology",
-            _ => "timeline",
+
+    // Title
+    if let Some(title) = &document.title {
+        let mut ty = 28;
+        for line in title.lines() {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">{txt}</text>",
+                x = margin_x,
+                y = ty,
+                txt = escape_text(line)
+            ));
+            ty += 22;
         }
-    ));
-    y += 26;
-    out.push_str(&format!(
-        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#334155\">Render parity for this family is out-of-scope in this slice.</text>",
-        y
-    ));
-    y += 28;
+    } else {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"28\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">Gantt</text>",
+            x = margin_x
+        ));
+    }
+
+    // Build column index for tasks + milestones
+    let mut row_index: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
+    let mut row_counter: i32 = 0;
     for task in &document.tasks {
-        out.push_str(&format!(
-            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">task: {}</text>",
-            y,
-            escape_text(&task.name)
-        ));
-        y += 20;
+        row_index.insert(task.name.clone(), row_counter);
+        row_counter += 1;
     }
+    let task_count = document.tasks.len() as i32;
     for milestone in &document.milestones {
-        out.push_str(&format!(
-            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">milestone: {}</text>",
-            y,
-            escape_text(&milestone.name)
-        ));
-        y += 20;
+        row_index.insert(milestone.name.clone(), row_counter);
+        row_counter += 1;
     }
+
+    // Time axis: use slot indices since baseline data has no explicit durations.
+    // Allocate equal-width slots: max(rows, 4)
+    let slot_count = (row_count).max(4);
+    let slot_w = chart_w / slot_count;
+
+    // Axis header bar
+    out.push_str(&format!(
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#f1f5f9\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+        x = chart_left,
+        y = chart_top - header_h,
+        w = chart_w,
+        h = header_h
+    ));
+    for i in 0..slot_count {
+        let x = chart_left + i * slot_w;
+        out.push_str(&format!(
+            "<line x1=\"{x}\" y1=\"{y1}\" x2=\"{x}\" y2=\"{y2}\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>",
+            y1 = chart_top - header_h,
+            y2 = chart_top + chart_h
+        ));
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">T{n}</text>",
+            tx = x + 6,
+            ty = chart_top - 10,
+            n = i + 1
+        ));
+    }
+
+    // Helper to compute bar geometry from name (slot = row_index)
+    let bar_geom = |name: &str| -> (i32, i32, i32) {
+        let idx = *row_index.get(name).unwrap_or(&0);
+        let bx = chart_left + idx * slot_w;
+        let bw = slot_w.max(40);
+        (bx, bw, idx)
+    };
+
+    // Render tasks as horizontal bars
+    for (i, task) in document.tasks.iter().enumerate() {
+        let row = i as i32;
+        let y = chart_top + row * (bar_height + row_gap) + row_gap / 2;
+        // Label
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{txt}</text>",
+            x = margin_x,
+            ty = y + bar_height - 6,
+            txt = escape_text(&task.name)
+        ));
+        let (bx, bw, _) = bar_geom(&task.name);
+        out.push_str(&format!(
+            "<rect x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1\"/>",
+            bh = bar_height
+        ));
+    }
+
+    // Render milestones as diamonds
+    for (i, milestone) in document.milestones.iter().enumerate() {
+        let row = task_count + i as i32;
+        let y = chart_top + row * (bar_height + row_gap) + row_gap / 2;
+        let cy = y + bar_height / 2;
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{txt}</text>",
+            x = margin_x,
+            ty = y + bar_height - 6,
+            txt = escape_text(&milestone.name)
+        ));
+        let (bx, _bw, _) = bar_geom(&milestone.name);
+        let cx = bx + slot_w / 2;
+        let r = (bar_height / 2) - 2;
+        out.push_str(&format!(
+            "<polygon points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"#facc15\" stroke=\"#854d0e\" stroke-width=\"1.5\"/>",
+            x1 = cx,
+            y1 = cy - r,
+            x2 = cx + r,
+            y2 = cy,
+            x3 = cx,
+            y3 = cy + r,
+            x4 = cx - r,
+            y4 = cy
+        ));
+    }
+
+    // Render constraints as arrows between rows
     for constraint in &document.constraints {
-        out.push_str(&format!(
-            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">constraint: {} {} {}</text>",
-            y,
-            escape_text(&constraint.subject),
-            escape_text(&constraint.kind),
-            escape_text(&constraint.target)
-        ));
-        y += 20;
+        // Only draw if both endpoints exist
+        let Some(&from_row) = row_index.get(&constraint.subject) else {
+            // Render textual annotation when target row is missing
+            continue;
+        };
+        // Some constraints are "starts <date>" with target being a date string, not a row.
+        // We render row-to-row arrows for `requires`-style constraints.
+        // The parser includes the keyword in `target` (e.g. "requires [Design]");
+        // try to extract a bracketed target name.
+        let normalized_target = extract_bracketed_name(&constraint.target)
+            .unwrap_or_else(|| constraint.target.trim().to_string());
+        let to_row = row_index.get(&normalized_target).copied();
+        if let Some(to_row) = to_row {
+            let from_y = chart_top + from_row * (bar_height + row_gap) + row_gap / 2 + bar_height;
+            let to_y = chart_top + to_row * (bar_height + row_gap) + row_gap / 2;
+            let (fx, fw, _) = bar_geom(&constraint.subject);
+            let (tx, _tw, _) = bar_geom(&normalized_target);
+            let x1 = fx + fw / 2;
+            let x2 = tx + slot_w / 2;
+            let y1 = from_y;
+            let y2 = to_y;
+            out.push_str(&format!(
+                "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#64748b\" stroke-width=\"1.25\" stroke-dasharray=\"4 3\" marker-end=\"url(#gantt-arrow)\"/>",
+            ));
+        }
     }
-    for evt in &document.chronology_events {
+
+    // Constraint arrow marker def
+    out.push_str("<defs>");
+    out.push_str(
+        "<marker id=\"gantt-arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
+         markerWidth=\"8\" markerHeight=\"8\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,0 L10,5 L0,10 z\" fill=\"#64748b\"/>\
+         </marker>",
+    );
+    out.push_str("</defs>");
+
+    // Render textual constraint annotations beneath chart (start/requires with date strings)
+    let mut note_y = chart_top + chart_h + 10;
+    for constraint in &document.constraints {
+        if row_index.contains_key(&constraint.target) {
+            continue;
+        }
         out.push_str(&format!(
-            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">event: {} happens on {}</text>",
-            y,
-            escape_text(&evt.subject),
-            escape_text(&evt.when)
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{s} {k} {t}</text>",
+            x = margin_x,
+            y = note_y,
+            s = escape_text(&constraint.subject),
+            k = escape_text(&constraint.kind),
+            t = escape_text(&constraint.target)
         ));
-        y += 20;
+        note_y += 14;
     }
+
+    out.push_str("</svg>");
+    out
+}
+
+fn extract_bracketed_name(target: &str) -> Option<String> {
+    let start = target.find('[')?;
+    let end = target.rfind(']')?;
+    if end <= start + 1 {
+        return None;
+    }
+    Some(target[start + 1..end].trim().to_string())
+}
+
+fn render_chronology_svg(document: &TimelineDocument) -> String {
+    let width: i32 = 760;
+    let margin_x: i32 = 32;
+    let line_x: i32 = margin_x + 60;
+    let event_gap: i32 = 56;
+    let top_pad: i32 = 60;
+
+    let title_h = document
+        .title
+        .as_deref()
+        .map(|t| 8 + (t.lines().count() as i32) * 22)
+        .unwrap_or(0);
+
+    let total_events = document.chronology_events.len() as i32;
+    let total_h = top_pad + title_h + total_events.max(1) * event_gap + 60;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = total_h
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    // Title
+    let mut header_bottom = 28 + title_h;
+    if let Some(title) = &document.title {
+        let mut ty = 28;
+        for line in title.lines() {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">{txt}</text>",
+                x = margin_x,
+                y = ty,
+                txt = escape_text(line)
+            ));
+            ty += 22;
+        }
+    } else {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"28\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">Chronology</text>",
+            x = margin_x
+        ));
+        header_bottom = 36;
+    }
+
+    // Vertical line
+    let line_top = header_bottom + 20;
+    let line_bottom = line_top + total_events.max(1) * event_gap;
+    out.push_str(&format!(
+        "<line x1=\"{x}\" y1=\"{y1}\" x2=\"{x}\" y2=\"{y2}\" stroke=\"#94a3b8\" stroke-width=\"2\"/>",
+        x = line_x,
+        y1 = line_top,
+        y2 = line_bottom
+    ));
+
+    // Events
+    for (i, event) in document.chronology_events.iter().enumerate() {
+        let cy = line_top + (i as i32) * event_gap + event_gap / 2;
+        // Bullet circle
+        out.push_str(&format!(
+            "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"6\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1.5\"/>",
+            cx = line_x
+        ));
+        // Date on left
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{txt}</text>",
+            x = line_x - 14,
+            y = cy + 4,
+            txt = escape_text(&event.when)
+        ));
+        // Subject on right
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"13\" fill=\"#0f172a\">{txt}</text>",
+            x = line_x + 14,
+            y = cy + 4,
+            txt = escape_text(&event.subject)
+        ));
+    }
+
     out.push_str("</svg>");
     out
 }

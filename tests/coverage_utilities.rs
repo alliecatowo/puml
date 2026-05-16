@@ -112,7 +112,9 @@ fn diagram_family_as_str_covers_all_variants() {
 fn render_for_class_family_returns_stub_svg() {
     let src = "@startuml\nclass User\n@enduml\n";
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Class).unwrap();
-    assert!(svg.contains("Bootstrap stub for class diagrams"));
+    assert!(svg.starts_with("<svg"));
+    assert!(svg.contains("User"));
+    assert!(svg.contains("<rect"));
 }
 
 #[test]

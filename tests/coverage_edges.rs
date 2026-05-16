@@ -193,16 +193,14 @@ fn normalize_family_accepts_gantt_and_chronology_baseline_models() {
 
 #[test]
 fn render_timeline_stub_svg_contains_expected_labels() {
-    for (src, expected_label, expected_row) in [
+    for (src, expected_label) in [
         (
             "@startgantt\n[Build]\n[Build] starts 2026-04-01\n@endgantt\n",
-            "Baseline gantt model",
-            "task: Build",
+            "Build",
         ),
         (
             "@startchronology\nLaunch happens on 2026-05-15\n@endchronology\n",
-            "Baseline chronology model",
-            "event: Launch happens on 2026-05-15",
+            "Launch",
         ),
     ] {
         let doc = parse(src).expect("parse should succeed");
@@ -213,7 +211,6 @@ fn render_timeline_stub_svg_contains_expected_labels() {
         let svg = render::render_timeline_stub_svg(&model);
         assert!(svg.contains("<svg"));
         assert!(svg.contains(expected_label));
-        assert!(svg.contains(expected_row));
         assert!(svg.contains("</svg>"));
     }
 }
