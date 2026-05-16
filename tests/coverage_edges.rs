@@ -1632,3 +1632,121 @@ fn unknown_family_render_route_reports_deterministic_error_code() {
     assert!(err.message.contains("E_RENDER_FAMILY_UNSUPPORTED"));
     assert!(!err.message.trim().is_empty());
 }
+
+// ─── Specialized family tests: @startmath ─────────────────────────────────────
+
+#[test]
+fn startmath_renders_valid_svg() {
+    let svg =
+        puml::render_source_to_svg("@startmath\n\\sum_{i=0}^{n} \\frac{x^i}{i!} = e^x\n@endmath\n")
+            .expect("math render should succeed");
+    assert!(svg.contains("<svg"), "output should be SVG");
+    assert!(svg.contains("</svg>"), "output should close SVG");
+    assert!(
+        svg.contains("font-family=\"serif\""),
+        "math SVG should use serif font"
+    );
+}
+
+#[test]
+fn startmath_complex_fixture_renders_svg() {
+    let src = fs::read_to_string(fixture("families/valid_math_complex.puml"))
+        .expect("fixture should exist");
+    let svg = puml::render_source_to_svg(&src).expect("math complex fixture should render");
+    assert!(svg.contains("<svg"));
+    assert!(
+        svg.contains("∑") || svg.contains("&#x2211;") || svg.contains("font-family"),
+        "SVG should contain math content"
+    );
+}
+
+#[test]
+fn startmath_empty_body_returns_error() {
+    let err =
+        puml::render_source_to_svg("@startmath\n@endmath\n").expect_err("empty math should error");
+    assert!(
+        err.message.contains("E_MATH_EMPTY"),
+        "error should be E_MATH_EMPTY, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn startmath_greek_letters_rendered() {
+    let svg = puml::render_source_to_svg("@startmath\n\\alpha + \\beta = \\gamma\n@endmath\n")
+        .expect("greek math should succeed");
+    assert!(svg.contains("α") || svg.contains("&#x3B1;") || svg.contains("font-family=\"serif\""));
+}
+
+#[test]
+fn startmath_sqrt_rendered() {
+    let svg = puml::render_source_to_svg("@startmath\n\\sqrt{x^2 + y^2}\n@endmath\n")
+        .expect("sqrt should succeed");
+    assert!(svg.contains("<path"), "sqrt should emit a path element");
+}
+
+#[test]
+fn startmath_frac_rendered() {
+    let svg = puml::render_source_to_svg("@startmath\n\\frac{a}{b}\n@endmath\n")
+        .expect("frac should succeed");
+    assert!(svg.contains("<line"), "frac should emit a fraction line");
+}
+
+// ─── Specialized family tests: @startditaa ───────────────────────────────────
+
+#[test]
+fn startditaa_renders_valid_svg() {
+    let svg = puml::render_source_to_svg(
+        "@startditaa\n+----+   +----+\n| A  |-->| B  |\n+----+   +----+\n@endditaa\n",
+    )
+    .expect("ditaa render should succeed");
+    assert!(svg.contains("<svg"), "output should be SVG");
+    assert!(svg.contains("</svg>"), "output should close SVG");
+    assert!(svg.contains("<rect"), "ditaa SVG should contain rectangles");
+}
+
+#[test]
+fn startditaa_complex_fixture_renders_svg() {
+    let src = fs::read_to_string(fixture("families/valid_ditaa_complex.puml"))
+        .expect("fixture should exist");
+    let svg = puml::render_source_to_svg(&src).expect("ditaa complex fixture should render");
+    assert!(svg.contains("<svg"));
+    assert!(svg.contains("<rect"), "SVG should contain shape rectangles");
+}
+
+#[test]
+fn startditaa_empty_body_returns_error() {
+    let err = puml::render_source_to_svg("@startditaa\n@endditaa\n")
+        .expect_err("empty ditaa should error");
+    assert!(
+        err.message.contains("E_DITAA_EMPTY"),
+        "error should be E_DITAA_EMPTY, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn startditaa_color_hints_detected() {
+    let src = "@startditaa\n+----------+\n| cBLU     |\n+----------+\n@endditaa\n";
+    let svg = puml::render_source_to_svg(src).expect("color hint ditaa should succeed");
+    assert!(
+        svg.contains("#aad4f5"),
+        "blue color hint should set fill color"
+    );
+}
+
+#[test]
+fn startditaa_arrows_rendered() {
+    let src = "@startditaa\n+--+  +--+\n|A +->+B |\n+--+  +--+\n@endditaa\n";
+    let svg = puml::render_source_to_svg(src).expect("ditaa arrow should succeed");
+    assert!(svg.contains("<line"), "arrows should emit line elements");
+}
+
+#[test]
+fn specialized_dispatch_returns_none_for_uml() {
+    let result = puml::specialized::try_render_specialized("@startuml\nA -> B\n@enduml\n");
+    assert!(
+        result.is_none(),
+        "UML source should not be dispatched as specialized"
+    );
+}

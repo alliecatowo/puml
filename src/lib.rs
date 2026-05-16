@@ -7,6 +7,7 @@ pub mod parser;
 pub mod render;
 pub mod scene;
 pub mod source;
+pub mod specialized;
 pub mod theme;
 
 pub use ast::Document;
@@ -170,6 +171,10 @@ pub fn render_source_to_svg(source: &str) -> Result<String, Diagnostic> {
 }
 
 pub fn render_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
+    // Try specialized families first (math, ditaa, etc.)
+    if let Some(result) = specialized::try_render_specialized(source) {
+        return result.map(|svg| vec![svg]);
+    }
     let document = parse(source)?;
     let family = map_ast_kind_to_family(document.kind);
     render_document_for_family(document, family)
