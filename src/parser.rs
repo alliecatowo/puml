@@ -63,6 +63,7 @@ enum PreprocessDirective {
     IncludeOnce(String),
     IncludeMany(String),
     IncludeSub(String),
+    IncludeUrl(String),
     If(String),
     IfDef { name: String, negated: bool },
     ElseIf(String),
@@ -368,6 +369,14 @@ fn preprocess_text(
                         )?;
                     }
                 }
+                PreprocessDirective::IncludeUrl(raw_target) => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_INCLUDE_URL_UNSUPPORTED",
+                            format!("!includeurl URL targets are not supported: {raw_target}"),
+                        ));
+                    }
+                }
                 PreprocessDirective::Unsupported(name) => {
                     if active {
                         return Err(Diagnostic::error_code(
@@ -522,6 +531,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "include_once" => Some(PreprocessDirective::IncludeOnce(arg.to_string())),
         "include_many" => Some(PreprocessDirective::IncludeMany(arg.to_string())),
         "includesub" => Some(PreprocessDirective::IncludeSub(arg.to_string())),
+        "includeurl" => Some(PreprocessDirective::IncludeUrl(arg.to_string())),
         "if" => Some(PreprocessDirective::If(arg.to_string())),
         "ifdef" => Some(PreprocessDirective::IfDef {
             name: arg.to_string(),
@@ -2235,6 +2245,23 @@ mod tests {
     }
 
     #[test]
+    fn include_once_deduplicates_canonical_path_aliases() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("nested")).unwrap();
+        fs::write(dir.path().join("inc.puml"), "A -> B : once\n").unwrap();
+
+        let doc = parse_with_options(
+            "!include_once ./inc.puml\n!include_once nested/../inc.puml\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 1);
+    }
+
+    #[test]
     fn includesub_requires_tag() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("inc.puml"), "A -> B : body\n").unwrap();
@@ -2248,6 +2275,29 @@ mod tests {
         .unwrap_err();
 
         assert!(err.message.contains("E_INCLUDESUB_TAG_REQUIRED"));
+    }
+
+    #[test]
+    fn include_many_url_errors() {
+        let err = parse_with_options(
+            "!include_many https://example.com/a.puml",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn include_url_directive_errors_deterministically() {
+        let err = parse_with_options(
+            "!includeurl https://example.com/a.puml",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+        assert!(err
+            .message
+            .contains("!includeurl URL targets are not supported"));
     }
 
     #[test]
