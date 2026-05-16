@@ -1,0 +1,4 @@
+@startuml
+!theme plain from https://example.com/themes
+A -> B
+@enduml

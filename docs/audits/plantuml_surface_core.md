@@ -158,7 +158,7 @@ Current `puml` baseline used for parity status:
 | Participant creation | `create` and lifecycle creation flows | implemented | Implemented in normalize lifecycle rules. | https://plantuml.com/sequence-diagram |
 | Incoming/outgoing endpoints | Short endpoint arrows and endpoint variants | partial | Endpoint forms supported with reduced fidelity semantics. | https://plantuml.com/sequence-diagram |
 | Skinparam for sequence | Sequence skinparam surface | partial | Selected keys implemented; unsupported keys warn deterministically. | https://plantuml.com/sequence-diagram |
-| `!theme` usage in sequence | Theme inclusion in sequence diagrams | partial | Parsed, currently warning-only (no theme semantics). | https://plantuml.com/sequence-diagram |
+| `!theme` usage in sequence | Theme inclusion in sequence diagrams | partial | Local built-in catalog subset (`plain`, `spacelab`) is applied; unsupported/remote forms reject deterministically. | https://plantuml.com/sequence-diagram |
 | Teoz/parallel-message layout options | Teoz-specific behaviors | missing | `!pragma` lines are ignored; no dedicated teoz semantics. | https://plantuml.com/sequence-diagram |
 
 ## Preprocessor / Includes / Import / Theme / Stdlib
@@ -187,7 +187,7 @@ Current `puml` baseline used for parity status:
 | Argument concatenation `##` | Macro argument concatenation | missing | Not implemented. | https://plantuml.com/preprocessing |
 | Dynamic invocation | `%invoke_procedure`, `%call_user_func` | missing | Not implemented. | https://plantuml.com/preprocessing |
 | JSON preprocessing | JSON variable/object preprocessing surface | missing | Not implemented. | https://plantuml.com/preprocessing-json |
-| `!theme` include | Theme include command | partial | Accepted but no theme application semantics. | https://plantuml.com/preprocessing |
-| Theme catalog usage | Built-in theme listing/local/internet themes | missing | Runtime theme catalog/fetch not implemented. | https://plantuml.com/theme |
+| `!theme` include | Theme include command | partial | Deterministic local-catalog semantics implemented for sequence (`plain`, `spacelab`); remote/source forms are rejected. | https://plantuml.com/preprocessing |
+| Theme catalog usage | Built-in theme listing/local/internet themes | partial | Local built-in catalog subset only; broader catalog/listing/fetch remains unimplemented. | https://plantuml.com/theme |
 | Stdlib catalog usage | Standard library include/catalog (`awslib`, `C4`, etc.) | missing | Stdlib resolution and library loading not implemented. | https://plantuml.com/stdlib |
 | Include identifiers in sources docs | Include identifier and include-definition patterns in source files | partial | Some tag extraction supported; full sources-surface parity is not. | https://plantuml.com/sources |
