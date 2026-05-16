@@ -1809,6 +1809,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i += 1;
                 continue;
             }
+            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_keyword(line) {
+                if is_timeline_metadata_statement(&kind) {
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
+            }
             statements.push(Statement {
                 span,
                 kind: StatementKind::Unknown(format!(
@@ -1824,6 +1839,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 statements.push(Statement { span, kind });
                 i += 1;
                 continue;
+            }
+            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_keyword(line) {
+                if is_timeline_metadata_statement(&kind) {
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
             }
             statements.push(Statement {
                 span,
@@ -2289,6 +2319,14 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         return Some(DiagramKind::Timing);
     }
 
+    if line.starts_with("gantt ") {
+        return Some(DiagramKind::Gantt);
+    }
+
+    if line.starts_with("chronology ") {
+        return Some(DiagramKind::Chronology);
+    }
+
     None
 }
 
@@ -2297,6 +2335,12 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     let (subject, rest) = parse_bracket_subject(trimmed)?;
     if rest.is_empty() {
         return Some(StatementKind::GanttTaskDecl { name: subject });
+    }
+    let rest = rest.trim();
+    if let Some(rest) = rest.strip_prefix(':') {
+        return Some(StatementKind::GanttTaskDecl {
+            name: rest.trim().to_string(),
+        });
     }
     let lower = rest.to_ascii_lowercase();
     if lower.starts_with("happens") {
@@ -2315,6 +2359,15 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
 }
 
 fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    if let Some((subject, when)) = trimmed.split_once(':') {
+        if !when.trim().is_empty() && !subject.trim().is_empty() {
+            return Some(StatementKind::ChronologyHappensOn {
+                subject: subject.trim().trim_matches('"').to_string(),
+                when: when.trim().to_string(),
+            });
+        }
+    }
     let lower = line.to_ascii_lowercase();
     let marker = " happens on ";
     let idx = lower.find(marker)?;
@@ -2324,6 +2377,20 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
         return None;
     }
     Some(StatementKind::ChronologyHappensOn { subject, when })
+}
+
+fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
+    matches!(
+        kind,
+        StatementKind::Title(_)
+            | StatementKind::Header(_)
+            | StatementKind::Footer(_)
+            | StatementKind::Caption(_)
+            | StatementKind::Legend(_)
+            | StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
+    )
 }
 
 fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {
@@ -3936,6 +4003,23 @@ mod tests {
     }
 
     #[test]
+    fn start_end_timeline_markers_accept_optional_block_suffixes() {
+        let gantt = parse_with_options(
+            "@startgantt \"Gantt\"\n[2026-01] : one\n@endgantt anything\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(gantt.kind, DiagramKind::Gantt);
+
+        let chronology = parse_with_options(
+            "@startchronology\nEvent\n@endchronology now\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(chronology.kind, DiagramKind::Chronology);
+    }
+
+    #[test]
     fn startmindmap_and_startwbs_markers_set_family_kind() {
         let mindmap = parse_with_options(
             "@startmindmap\n* Root\n** Child\n@endmindmap\n",
@@ -3947,6 +4031,20 @@ mod tests {
         let wbs =
             parse_with_options("@startwbs\n* Scope\n@endwbs\n", &ParseOptions::default()).unwrap();
         assert_eq!(wbs.kind, DiagramKind::Wbs);
+
+        let gantt = parse_with_options(
+            "@startgantt\n[2026-01-01] : Kickoff\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(gantt.kind, DiagramKind::Gantt);
+
+        let chronology = parse_with_options(
+            "@startchronology\n2026-01-01 : Event\n@endchronology\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(chronology.kind, DiagramKind::Chronology);
     }
 
     #[test]

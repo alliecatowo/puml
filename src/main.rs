@@ -775,7 +775,7 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
             scenes.iter().map(render::render_svg).collect::<Vec<_>>()
         }
         NormalizedDocument::Family(family) => vec![render::render_family_stub_svg(family)],
-        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_stub_svg(timeline)],
+        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
     }
 }
 
@@ -1393,10 +1393,10 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             DiagramKind::Class => "Class",
             DiagramKind::Object => "Object",
             DiagramKind::UseCase => "UseCase",
-            DiagramKind::MindMap => "MindMap",
-            DiagramKind::Wbs => "Wbs",
             DiagramKind::Gantt => "Gantt",
             DiagramKind::Chronology => "Chronology",
+            DiagramKind::MindMap => "MindMap",
+            DiagramKind::Wbs => "Wbs",
             DiagramKind::Component => "Component",
             DiagramKind::Deployment => "Deployment",
             DiagramKind::State => "State",
@@ -1446,23 +1446,20 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
         "kind": match model.kind {
             DiagramKind::Gantt => "Gantt",
             DiagramKind::Chronology => "Chronology",
-            DiagramKind::Sequence => "Sequence",
-            DiagramKind::Class => "Class",
-            DiagramKind::Object => "Object",
-            DiagramKind::UseCase => "UseCase",
-            DiagramKind::MindMap => "MindMap",
-            DiagramKind::Wbs => "Wbs",
-            DiagramKind::Component => "Component",
-            DiagramKind::Deployment => "Deployment",
-            DiagramKind::State => "State",
-            DiagramKind::Activity => "Activity",
-            DiagramKind::Timing => "Timing",
-            DiagramKind::Unknown => "Unknown",
+            _ => "Timeline",
         },
         "tasks": model.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
         "milestones": model.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
-        "constraints": model.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
-        "chronology_events": model.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+        "constraints": model
+            .constraints
+            .iter()
+            .map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target}))
+            .collect::<Vec<_>>(),
+        "chronology_events": model
+            .chronology_events
+            .iter()
+            .map(|e| json!({"subject": e.subject, "when": e.when}))
+            .collect::<Vec<_>>(),
         "title": model.title,
         "header": model.header,
         "footer": model.footer,
@@ -1660,27 +1657,23 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
         }
         NormalizedDocument::Timeline(timeline) => {
             json!({
-                "kind": "TimelineBaseline",
+                "kind": "TimelineScene",
                 "family": match timeline.kind {
                     DiagramKind::Gantt => "Gantt",
                     DiagramKind::Chronology => "Chronology",
-                    DiagramKind::Sequence => "Sequence",
-                    DiagramKind::Class => "Class",
-                    DiagramKind::Object => "Object",
-                    DiagramKind::UseCase => "UseCase",
-                    DiagramKind::MindMap => "MindMap",
-                    DiagramKind::Wbs => "Wbs",
-                    DiagramKind::Component => "Component",
-                    DiagramKind::Deployment => "Deployment",
-                    DiagramKind::State => "State",
-                    DiagramKind::Activity => "Activity",
-                    DiagramKind::Timing => "Timing",
-                    DiagramKind::Unknown => "Unknown",
+                    _ => "Timeline",
                 },
                 "tasks": timeline.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+                "title": timeline.title,
+                "header": timeline.header,
+                "footer": timeline.footer,
+                "caption": timeline.caption,
+                "legend": timeline.legend,
+                "svg_preview": render::render_timeline_svg(timeline),
+                "warnings": timeline.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
             })
         }
     }

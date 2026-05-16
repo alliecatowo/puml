@@ -350,6 +350,139 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
     out
 }
 
+pub fn render_timeline_svg(document: &TimelineDocument) -> String {
+    let width = 760;
+    let title_lines = document
+        .title
+        .as_deref()
+        .map(|v| v.lines().count() as i32)
+        .unwrap_or(0);
+    let entry_rows_content = document
+        .tasks
+        .iter()
+        .map(|t| format!("task: {}", t.name))
+        .chain(
+            document
+                .milestones
+                .iter()
+                .map(|m| format!("milestone: {}", m.name)),
+        )
+        .chain(
+            document
+                .constraints
+                .iter()
+                .map(|c| format!("constraint: {} {} {}", c.subject, c.kind.as_str(), c.target)),
+        )
+        .chain(
+            document
+                .chronology_events
+                .iter()
+                .map(|e| format!("chronology: {} {}", e.subject, e.when)),
+        )
+        .collect::<Vec<_>>();
+    let entry_rows = entry_rows_content.len().max(1) as i32;
+    let metadata_rows = usize::from(document.header.is_some())
+        + usize::from(document.footer.is_some())
+        + usize::from(document.caption.is_some())
+        + usize::from(document.legend.is_some());
+    let body_rows = 1 + entry_rows + metadata_rows as i32;
+    let height = 180 + title_lines * 24 + body_rows * 30;
+
+    let mut y = 28;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"#fbfdff\"/>");
+    out.push_str(
+        "<line x1=\"36\" y1=\"56\" x2=\"724\" y2=\"56\" stroke=\"#64748b\" stroke-width=\"2\"/>",
+    );
+
+    if let Some(title) = &document.title {
+        for line in title.lines() {
+            out.push_str(&format!(
+                "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+                y,
+                escape_text(line)
+            ));
+            y += 24;
+        }
+    }
+
+    out.push_str(&format!(
+        "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" fill=\"#334155\">{} timeline entries</text>",
+        y,
+        family_kind_label(document.kind).to_ascii_uppercase()
+    ));
+    y += 30;
+
+    out.push_str("<rect x=\"36\" y=\"60\" width=\"688\" height=\"1\" fill=\"none\"/>");
+
+    let mut row = 0i32;
+    for entry in &entry_rows_content {
+        let row_y = y + (row * 30);
+        out.push_str(&format!(
+            "<rect x=\"40\" y=\"{}\" width=\"688\" height=\"22\" fill=\"#ffffff\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+            row_y
+        ));
+        out.push_str(&format!(
+            "<circle cx=\"52\" cy=\"{}\" r=\"5\" fill=\"#1f2937\"/>",
+            row_y + 11
+        ));
+        out.push_str(&format!(
+            "<text x=\"70\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+            row_y + 16,
+            escape_text(entry)
+        ));
+        row += 1;
+    }
+
+    if entry_rows_content.is_empty() {
+        let row_y = y;
+        out.push_str(&format!(
+            "<text x=\"52\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#64748b\">No entries parsed.</text>",
+            row_y + 16
+        ));
+    }
+
+    let mut metadata_y = y + (row + 1) * 30;
+    if let Some(header) = &document.header {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Header: {}</text>",
+            metadata_y,
+            escape_text(header)
+        ));
+        metadata_y += 24;
+    }
+    if let Some(footer) = &document.footer {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Footer: {}</text>",
+            metadata_y,
+            escape_text(footer)
+        ));
+        metadata_y += 24;
+    }
+    if let Some(caption) = &document.caption {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Caption: {}</text>",
+            metadata_y,
+            escape_text(caption)
+        ));
+        metadata_y += 24;
+    }
+    if let Some(legend) = &document.legend {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Legend: {}</text>",
+            metadata_y,
+            escape_text(legend)
+        ));
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
 fn family_kind_label(kind: DiagramKind) -> &'static str {
     match kind {
         DiagramKind::Class => "class",
