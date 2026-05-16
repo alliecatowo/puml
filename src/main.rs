@@ -902,16 +902,17 @@ fn split_diagrams(
 
     let mut blocks = Vec::new();
 
-    let has_startuml_marker = raw
-        .lines()
-        .any(|line| line.trim().eq_ignore_ascii_case("@startuml"));
+    let has_startuml_marker = raw.lines().any(|line| {
+        let marker = strip_inline_plantuml_comment(line).trim();
+        matches_uml_marker(marker, "@startuml")
+    });
     if has_startuml_marker {
         let mut current = Vec::new();
         let mut in_block = false;
         let mut block_start_line = 0usize;
         for (line_idx, line) in raw.lines().enumerate() {
-            let marker = line.trim();
-            if marker.eq_ignore_ascii_case("@startuml") {
+            let marker = strip_inline_plantuml_comment(line).trim();
+            if matches_uml_marker(marker, "@startuml") {
                 if in_block {
                     return Err(Diagnostic::error(format!(
                         "unmatched @startuml/@enduml boundary: found @startuml at line {} before closing previous block started at line {}",
@@ -923,7 +924,7 @@ fn split_diagrams(
                 block_start_line = line_idx + 1;
                 current.clear();
             }
-            if marker.eq_ignore_ascii_case("@enduml") && !in_block {
+            if matches_uml_marker(marker, "@enduml") && !in_block {
                 return Err(Diagnostic::error(format!(
                     "unmatched @startuml/@enduml boundary: found @enduml at line {} without a preceding @startuml",
                     line_idx + 1
@@ -932,7 +933,7 @@ fn split_diagrams(
             if in_block {
                 current.push(line);
             }
-            if in_block && marker.eq_ignore_ascii_case("@enduml") {
+            if in_block && matches_uml_marker(marker, "@enduml") {
                 blocks.push(InputDiagram {
                     source: current.join("\n").trim().to_string(),
                     source_span: None,
@@ -960,6 +961,29 @@ fn split_diagrams(
         frontend_hint: None,
         output_name_hint: None,
     }])
+}
+
+fn strip_inline_plantuml_comment(line: &str) -> &str {
+    let mut in_quotes = false;
+    for (idx, ch) in line.char_indices() {
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            continue;
+        }
+        if ch == '\'' && !in_quotes {
+            return &line[..idx];
+        }
+    }
+    line
+}
+
+fn matches_uml_marker(line: &str, marker: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    if !lower.starts_with(marker) {
+        return false;
+    }
+    let rest = &line[marker.len()..];
+    rest.is_empty() || rest.starts_with(char::is_whitespace)
 }
 
 fn map_diagnostic_span(mut d: Diagnostic, mapping: Option<Span>) -> Diagnostic {

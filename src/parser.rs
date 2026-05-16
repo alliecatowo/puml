@@ -968,13 +968,13 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     let mut i = 0usize;
     while i < lines.len() {
         let (raw_line, span) = lines[i];
-        let line = raw_line.trim();
+        let line = strip_inline_plantuml_comment(raw_line).trim();
 
         if line.is_empty() || line.starts_with('"') {
             i += 1;
             continue;
         }
-        if line.eq_ignore_ascii_case("@startuml") {
+        if matches_startuml_marker(line) {
             if in_block {
                 return Err(Diagnostic::error(
                     "unmatched @startuml/@enduml boundary: found @startuml before closing previous block",
@@ -986,7 +986,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
-        if line.eq_ignore_ascii_case("@enduml") {
+        if matches_enduml_marker(line) {
             if !in_block {
                 return Err(Diagnostic::error(
                     "unmatched @startuml/@enduml boundary: found @enduml without a preceding @startuml",
@@ -1141,6 +1141,38 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         kind: detected_kind.unwrap_or(DiagramKind::Unknown),
         statements,
     })
+}
+
+fn strip_inline_plantuml_comment(line: &str) -> &str {
+    let mut in_quotes = false;
+    for (idx, ch) in line.char_indices() {
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            continue;
+        }
+        if ch == '\'' && !in_quotes {
+            return &line[..idx];
+        }
+    }
+    line
+}
+
+fn matches_startuml_marker(line: &str) -> bool {
+    matches_prefixed_uml_marker(line, "@startuml")
+}
+
+fn matches_enduml_marker(line: &str) -> bool {
+    matches_prefixed_uml_marker(line, "@enduml")
+}
+
+fn matches_prefixed_uml_marker(line: &str, marker: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    let marker_len = marker.len();
+    if !lower.starts_with(marker) {
+        return false;
+    }
+    let rest = &line[marker_len..];
+    rest.is_empty() || rest.starts_with(char::is_whitespace)
 }
 
 fn select_diagram_kind(
@@ -2850,5 +2882,41 @@ mod tests {
     fn mixed_family_input_reports_deterministic_error() {
         let err = parse_with_options("class A\nnewpage\n", &ParseOptions::default()).unwrap_err();
         assert!(err.message.contains("E_FAMILY_MIXED"));
+    }
+
+    #[test]
+    fn start_enduml_markers_accept_optional_block_suffixes() {
+        let doc = parse_with_options(
+            "@startuml \"Primary\"\nA -> B: one\n@enduml anything\n@startuml Second\nB -> A: two\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Sequence);
+        let labels = doc
+            .statements
+            .iter()
+            .filter_map(|s| match &s.kind {
+                StatementKind::Message(m) => m.label.as_deref(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(labels, vec!["one", "two"]);
+    }
+
+    #[test]
+    fn apostrophe_comments_are_ignored_but_preserved_inside_quotes() {
+        let doc = parse_with_options(
+            "@startuml\n' full line comment\nA -> B: \"don't split\" ' trailing comment\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Sequence);
+        assert_eq!(doc.statements.len(), 1);
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.label.as_deref(), Some("\"don't split\""));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
     }
 }
