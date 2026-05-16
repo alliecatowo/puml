@@ -152,6 +152,9 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
             NormalizedDocument::Timeline(_) => {
                 panic!("expected family stub model for {case}");
             }
+            NormalizedDocument::Activity(_) => {
+                panic!("expected family stub model for {case}");
+            }
         }
     }
 }
@@ -467,6 +470,7 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
         }
         NormalizedDocument::Sequence(_) => panic!("expected family model"),
         NormalizedDocument::Timeline(_) => panic!("expected family model"),
+        NormalizedDocument::Activity(_) => panic!("expected family model"),
     }
 }
 

@@ -9,6 +9,7 @@ pub enum NormalizedDocument {
     Sequence(SequenceDocument),
     Family(FamilyDocument),
     Timeline(TimelineDocument),
+    Activity(ActivityDocument),
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +83,44 @@ pub struct FamilyRelation {
     pub from: String,
     pub to: String,
     pub arrow: String,
+    pub label: Option<String>,
+}
+
+/// Document model for old-style activity diagrams.
+#[derive(Debug, Clone)]
+pub struct ActivityDocument {
+    pub title: Option<String>,
+    pub header: Option<String>,
+    pub footer: Option<String>,
+    pub caption: Option<String>,
+    pub legend: Option<String>,
+    pub swimlanes: Vec<ActivitySwimlane>,
+    pub steps: Vec<ActivityStep>,
+    pub edges: Vec<ActivityEdge>,
+    pub warnings: Vec<crate::diagnostic::Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActivitySwimlane {
+    pub name: String,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActivityStep {
+    pub id: String,
+    pub label: String,
+    pub color: Option<String>,
+    pub swimlane: Option<String>,
+    pub is_start: bool,
+    pub is_final: bool,
+    pub detach: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActivityEdge {
+    pub from: String,
+    pub to: String,
     pub label: Option<String>,
 }
 

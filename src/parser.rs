@@ -1713,9 +1713,22 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let (raw_line, span) = lines[i];
         let line = strip_inline_plantuml_comment(raw_line).trim();
 
-        if line.is_empty() || line.starts_with('"') {
+        // Skip blank lines.
+        // Skip bare quoted lines UNLESS they are old-style activity syntax:
+        //   `"Step1" --> "Step2"` or bare `"StepName"` inside an activity block.
+        if line.is_empty() {
             i += 1;
             continue;
+        }
+        if line.starts_with('"') {
+            // Allow through if it contains --> (activity edge) or if we're already
+            // in an activity context and it's a quoted label declaration.
+            let is_activity_syntax = line.contains("-->")
+                || matches!(detected_kind, Some(DiagramKind::Activity));
+            if !is_activity_syntax {
+                i += 1;
+                continue;
+            }
         }
         if let Some(start_kind) = parse_start_block_kind(line) {
             if in_block {
@@ -1785,6 +1798,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind.is_none() || matches!(detected_kind, Some(DiagramKind::Sequence));
         let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
         let allow_chronology_parse = matches!(detected_kind, Some(DiagramKind::Chronology));
+        let allow_activity_old_parse = matches!(detected_kind, Some(DiagramKind::Activity));
 
         if allow_sequence_parse {
             if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
@@ -1833,6 +1847,16 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             });
             i += 1;
             continue;
+        }
+
+        if allow_activity_old_parse {
+            if let Some(kind) = parse_activity_old_style_statement(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            // Fall through to keyword / unknown handling for activity diagrams
+            // (title, skinparam, etc. are still valid inside activity diagrams)
         }
 
         if allow_sequence_parse {
@@ -2275,6 +2299,12 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("fork")
         || line.starts_with("partition ")
         || line.starts_with("swimlane ")
+        || line == "(*)"
+        || line.starts_with("(*) -->")
+        || line.starts_with("(*) -")
+        || (line.starts_with('"') && line.contains("-->"))
+        || (line.starts_with('|') && line.ends_with('|'))
+        || (line.starts_with("#") && line.contains(':') && line.ends_with(';'))
     {
         return Some(DiagramKind::Activity);
     }
@@ -2324,6 +2354,155 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
         return None;
     }
     Some(StatementKind::ChronologyHappensOn { subject, when })
+}
+
+/// Parse old-style activity diagram statements:
+///   `(*)`                         → ActivityOldStart or ActivityOldFinal (depending on context)
+///   `(*) --> "Step"`              → edge from start to step
+///   `"Step1" --> "Step2"`         → edge between steps
+///   `"Step" --> (*)`              → edge from step to final
+///   `-->[label]`                  → ActivityOldEdge (unlabeled source/target, label in brackets)
+///   `|Lane|` or `|#color|Lane|`   → ActivitySwimlane
+///   `#color:Label;`               → ActivityColoredStep
+///   `detach`                      → ActivityDetach
+fn parse_activity_old_style_statement(line: &str) -> Option<StatementKind> {
+    // detach
+    if line.eq_ignore_ascii_case("detach") {
+        return Some(StatementKind::ActivityDetach);
+    }
+
+    // swimlane: |Lane| or |#color|Lane|
+    if line.starts_with('|') && line.ends_with('|') && line.len() >= 3 {
+        let inner = &line[1..line.len() - 1];
+        // Check for |#color|Lane| form: inner has another '|'
+        if let Some(pipe_pos) = inner.find('|') {
+            let color_part = &inner[..pipe_pos];
+            let name_part = inner[pipe_pos + 1..].trim().to_string();
+            if color_part.starts_with('#') && !name_part.is_empty() {
+                return Some(StatementKind::ActivitySwimlane {
+                    color: Some(color_part.to_string()),
+                    name: name_part,
+                });
+            }
+        }
+        // Simple |Lane| form
+        let name = inner.trim().to_string();
+        if !name.is_empty() {
+            return Some(StatementKind::ActivitySwimlane {
+                color: None,
+                name,
+            });
+        }
+    }
+
+    // colored step: #color:Label;
+    if line.starts_with('#') && line.contains(':') && line.ends_with(';') {
+        if let Some(colon_pos) = line.find(':') {
+            let color = line[..colon_pos].trim().to_string();
+            let label = line[colon_pos + 1..line.len() - 1].trim().to_string();
+            if !color.is_empty() && !label.is_empty() {
+                return Some(StatementKind::ActivityColoredStep { color, label });
+            }
+        }
+    }
+
+    // Helper: strip surrounding quotes from a string
+    fn unquote(s: &str) -> Option<String> {
+        let t = s.trim();
+        if t.starts_with('"') && t.ends_with('"') && t.len() >= 2 {
+            Some(t[1..t.len() - 1].to_string())
+        } else {
+            None
+        }
+    }
+
+    // (*) --> "Step" or (*) --> (*)
+    if line.starts_with("(*) -->") || line.starts_with("(*) -") {
+        // Find -->
+        if let Some(arrow_pos) = line.find("-->") {
+            let rhs = line[arrow_pos + 3..].trim();
+            // Extract label from -->[label]
+            let (arrow_label, target_raw) = if let Some(close) = rhs.strip_prefix('[') {
+                if let Some(end) = close.find(']') {
+                    let lbl = close[..end].trim().to_string();
+                    let rest = close[end + 1..].trim();
+                    (if lbl.is_empty() { None } else { Some(lbl) }, rest)
+                } else {
+                    (None, rhs)
+                }
+            } else {
+                (None, rhs)
+            };
+
+            if target_raw.trim() == "(*)" {
+                // (*) --> (*) — start to final
+                return Some(StatementKind::ActivityOldEdge {
+                    from: "(*start*)".to_string(),
+                    to: "(*final*)".to_string(),
+                    arrow_label,
+                });
+            }
+            if let Some(to_label) = unquote(target_raw) {
+                return Some(StatementKind::ActivityOldEdge {
+                    from: "(*start*)".to_string(),
+                    to: to_label,
+                    arrow_label,
+                });
+            }
+        }
+        return None;
+    }
+
+    // "Step1" --> "Step2" or "Step1" --> (*)
+    if line.starts_with('"') {
+        if let Some(arrow_pos) = line.find("-->") {
+            let lhs_raw = line[..arrow_pos].trim();
+            let rhs_raw = line[arrow_pos + 3..].trim();
+
+            // Extract label from -->[label] between --> and target
+            let (arrow_label, target_raw) = if let Some(rest) = rhs_raw.strip_prefix('[') {
+                if let Some(end) = rest.find(']') {
+                    let lbl = rest[..end].trim().to_string();
+                    let t = rest[end + 1..].trim();
+                    (if lbl.is_empty() { None } else { Some(lbl) }, t)
+                } else {
+                    (None, rhs_raw)
+                }
+            } else {
+                (None, rhs_raw)
+            };
+
+            if let Some(from_label) = unquote(lhs_raw) {
+                if target_raw.trim() == "(*)" {
+                    return Some(StatementKind::ActivityOldEdge {
+                        from: from_label,
+                        to: "(*final*)".to_string(),
+                        arrow_label,
+                    });
+                }
+                if let Some(to_label) = unquote(target_raw) {
+                    return Some(StatementKind::ActivityOldEdge {
+                        from: from_label,
+                        to: to_label,
+                        arrow_label,
+                    });
+                }
+            }
+        }
+        // Bare quoted step declaration: "StepName"
+        if let Some(label) = unquote(line) {
+            if !label.is_empty() {
+                return Some(StatementKind::ActivityOldStep { label });
+            }
+        }
+    }
+
+    // (*) alone — start node declaration
+    if line == "(*)" {
+        return Some(StatementKind::ActivityOldStart);
+    }
+
+    None
 }
 
 fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {

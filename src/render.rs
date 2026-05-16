@@ -1,6 +1,7 @@
 use crate::ast::DiagramKind;
 use crate::model::{
-    FamilyDocument, FamilyNodeKind, ParticipantRole, TimelineDocument, VirtualEndpointKind,
+    ActivityDocument, FamilyDocument, FamilyNodeKind, ParticipantRole, TimelineDocument,
+    VirtualEndpointKind,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
@@ -681,4 +682,230 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
             escape_text(line)
         ));
     }
+}
+
+/// Render an old-style activity diagram SVG.
+///
+/// Layout rules:
+/// - If swimlanes are present: draw vertical lane columns (label at top),
+///   place steps inside their lane column.
+/// - Steps are arranged top-to-bottom; edges are drawn as arrows between them.
+/// - Colored steps use their color as rect fill.
+/// - Start (`(*start*)`) is rendered as a filled circle.
+/// - Final (`(*final*)`) is rendered as a circle with inner dot.
+pub fn render_activity_svg(document: &ActivityDocument) -> String {
+    const STEP_W: i32 = 180;
+    const STEP_H: i32 = 36;
+    const STEP_GAP: i32 = 24;
+    const LANE_HEADER: i32 = 32;
+    const MARGIN_X: i32 = 20;
+    const MARGIN_Y: i32 = 20;
+    const LANE_MIN_W: i32 = 220;
+
+    let has_swimlanes = !document.swimlanes.is_empty();
+    let lane_names: Vec<&str> = document.swimlanes.iter().map(|s| s.name.as_str()).collect();
+    let lane_count = lane_names.len().max(1) as i32;
+
+    // Compute lane width
+    let lane_w = LANE_MIN_W.max(STEP_W + MARGIN_X * 2);
+    let total_w = if has_swimlanes {
+        lane_w * lane_count + MARGIN_X * 2
+    } else {
+        STEP_W + MARGIN_X * 4
+    };
+
+    // Assign steps their vertical position (y) and horizontal center (cx)
+    // Group steps by swimlane (column), then assign y within each column.
+    // For simplicity: place all steps top-to-bottom in document order,
+    // but offset cx by their swimlane column.
+
+    struct PlacedStep<'a> {
+        step: &'a crate::model::ActivityStep,
+        cx: i32,
+        cy: i32,
+        #[allow(dead_code)]
+        lane_idx: i32,
+    }
+
+    let title_h = if document.title.is_some() { 30 } else { 0 };
+    let base_y = MARGIN_Y + title_h + if has_swimlanes { LANE_HEADER } else { 0 };
+
+    // Assign each step a position
+    let mut placed: Vec<PlacedStep> = Vec::new();
+    // track max y per lane for stacking
+    let mut lane_y: Vec<i32> = vec![base_y + STEP_GAP; lane_count as usize];
+
+    // (step_by_id reserved for future edge lookup by index)
+
+    for step in &document.steps {
+        let lane_idx = if has_swimlanes {
+            step.swimlane
+                .as_deref()
+                .and_then(|name| lane_names.iter().position(|&n| n == name))
+                .unwrap_or(0) as i32
+        } else {
+            0
+        };
+
+        let col_start_x = if has_swimlanes {
+            MARGIN_X + lane_idx * lane_w
+        } else {
+            MARGIN_X
+        };
+        let cx = col_start_x + lane_w / 2;
+        let cy = lane_y[lane_idx as usize];
+        lane_y[lane_idx as usize] += STEP_H + STEP_GAP;
+
+        placed.push(PlacedStep {
+            step,
+            cx,
+            cy,
+            lane_idx,
+        });
+    }
+
+    let max_y = lane_y.iter().copied().max().unwrap_or(base_y + STEP_H + STEP_GAP);
+    let total_h = max_y + MARGIN_Y;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        total_w, total_h, total_w, total_h
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    // Title
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" text-anchor=\"middle\">{}</text>",
+            total_w / 2,
+            MARGIN_Y + 16,
+            escape_text(title)
+        ));
+    }
+
+    // Swimlane columns
+    if has_swimlanes {
+        for (idx, lane) in document.swimlanes.iter().enumerate() {
+            let lx = MARGIN_X + idx as i32 * lane_w;
+            let fill = lane
+                .color
+                .as_deref()
+                .map(|c| c.strip_prefix('#').map(|_| c).unwrap_or(c))
+                .unwrap_or("#e2e8f0");
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+                lx,
+                MARGIN_Y + title_h,
+                lane_w,
+                LANE_HEADER,
+                fill
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\">{}</text>",
+                lx + lane_w / 2,
+                MARGIN_Y + title_h + 20,
+                escape_text(&lane.name)
+            ));
+            // Lane body background
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+                lx,
+                MARGIN_Y + title_h + LANE_HEADER,
+                lane_w,
+                total_h - (MARGIN_Y + title_h + LANE_HEADER) - MARGIN_Y
+            ));
+        }
+    }
+
+    // Draw edges
+    // Build a map from step id to placed position
+    let pos_by_id: std::collections::BTreeMap<&str, (i32, i32)> = placed
+        .iter()
+        .map(|p| (p.step.id.as_str(), (p.cx, p.cy)))
+        .collect();
+
+    for edge in &document.edges {
+        let from_pos = pos_by_id.get(edge.from.as_str()).copied();
+        let to_pos = pos_by_id.get(edge.to.as_str()).copied();
+        if let (Some((fx, fy)), Some((tx, ty))) = (from_pos, to_pos) {
+            // from bottom of from-step to top of to-step
+            let from_y = if edge.from == "(*start*)" {
+                fy + 8 // radius of start circle
+            } else if edge.from == "(*final*)" {
+                fy + 10
+            } else {
+                fy + STEP_H / 2
+            };
+            let to_y = if edge.to == "(*start*)" {
+                ty - 8
+            } else if edge.to == "(*final*)" {
+                ty - 10
+            } else {
+                ty - STEP_H / 2
+            };
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#334155\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
+                fx, from_y, tx, to_y
+            ));
+            if let Some(label) = &edge.label {
+                let mx = (fx + tx) / 2 + 4;
+                let my = (from_y + to_y) / 2 - 4;
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
+                    mx, my, escape_text(label)
+                ));
+            }
+        }
+    }
+
+    // Arrowhead marker definition
+    out.push_str(
+        "<defs><marker id=\"arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"6\" refY=\"3\" orient=\"auto\"><path d=\"M0,0 L0,6 L8,3 z\" fill=\"#334155\"/></marker></defs>",
+    );
+
+    // Draw steps
+    for p in &placed {
+        let step = p.step;
+        if step.is_start {
+            // Filled circle for start
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"8\" fill=\"#1e293b\"/>",
+                p.cx, p.cy
+            ));
+        } else if step.is_final {
+            // Circle with inner dot for final
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"10\" fill=\"none\" stroke=\"#1e293b\" stroke-width=\"2\"/>",
+                p.cx, p.cy
+            ));
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"#1e293b\"/>",
+                p.cx, p.cy
+            ));
+        } else {
+            let fill = step.color.as_deref().unwrap_or("#dbeafe");
+            let rx = p.cx - STEP_W / 2;
+            let ry = p.cy - STEP_H / 2;
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"#3b82f6\" stroke-width=\"1.5\"/>",
+                rx, ry, STEP_W, STEP_H, fill
+            ));
+            // Detach indicator (no outgoing arrow — mark with ×)
+            if step.detach {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#ef4444\" text-anchor=\"end\">[detach]</text>",
+                    rx + STEP_W - 4,
+                    ry + 12
+                ));
+            }
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>",
+                p.cx, p.cy, escape_text(&step.label)
+            ));
+        }
+    }
+
+    out.push_str("</svg>");
+    out
 }

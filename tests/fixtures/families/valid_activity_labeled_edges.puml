@@ -1,0 +1,5 @@
+@startuml
+(*) -->[init] "Step1"
+"Step1" -->[ok] "Step2"
+"Step2" -->[done] (*)
+@enduml

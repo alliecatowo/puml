@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
+    ActivityDocument, ActivityEdge, ActivityStep, ActivitySwimlane as ModelActivitySwimlane,
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
@@ -40,12 +41,14 @@ pub fn normalize_family_with_options(
         DiagramKind::Gantt | DiagramKind::Chronology => {
             normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
         }
+        DiagramKind::Activity => {
+            normalize_activity_old_style(document).map(NormalizedDocument::Activity)
+        }
         DiagramKind::MindMap
         | DiagramKind::Wbs
         | DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::State
-        | DiagramKind::Activity
         | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
         DiagramKind::Unknown => Err(Diagnostic::error(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
@@ -230,6 +233,211 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         caption,
         legend,
         warnings: Vec::new(),
+    })
+}
+
+fn normalize_activity_old_style(document: Document) -> Result<ActivityDocument, Diagnostic> {
+    use crate::ast::StatementKind;
+
+    // Check whether any old-style activity statements are present.
+    // If only Unknown/new-style statements are present, reject as unsupported.
+    let has_old_style = document.statements.iter().any(|s| {
+        matches!(
+            s.kind,
+            StatementKind::ActivityOldStart
+                | StatementKind::ActivityOldFinal
+                | StatementKind::ActivityOldStep { .. }
+                | StatementKind::ActivityOldEdge { .. }
+                | StatementKind::ActivitySwimlane { .. }
+                | StatementKind::ActivityColoredStep { .. }
+                | StatementKind::ActivityDetach
+        )
+    });
+    if !has_old_style {
+        return Err(unsupported_family_diagnostic_activity());
+    }
+
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+    let mut swimlanes: Vec<ModelActivitySwimlane> = Vec::new();
+    let mut steps: Vec<ActivityStep> = Vec::new();
+    let mut edges: Vec<ActivityEdge> = Vec::new();
+    let mut warnings: Vec<crate::diagnostic::Diagnostic> = Vec::new();
+
+    // Track current swimlane
+    let mut current_swimlane: Option<String> = None;
+    // Track last node for implicit sequencing
+    let mut last_node: Option<String> = None;
+    // Known step ids for dedup
+    let mut step_ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    // pending detach on next step
+    let mut pending_detach = false;
+
+    // Helper to generate a unique step id from a label
+    fn step_id(label: &str) -> String {
+        label.chars().filter(|c| c.is_alphanumeric() || *c == '_').collect::<String>()
+    }
+
+    // Ensure a node exists (start or final or step)
+    macro_rules! ensure_step {
+        ($id:expr, $label:expr, $is_start:expr, $is_final:expr, $color:expr) => {{
+            let id: String = $id;
+            let label: String = $label;
+            if !step_ids.contains(&id) {
+                step_ids.insert(id.clone());
+                steps.push(ActivityStep {
+                    id: id.clone(),
+                    label,
+                    color: $color,
+                    swimlane: current_swimlane.clone(),
+                    is_start: $is_start,
+                    is_final: $is_final,
+                    detach: false,
+                });
+            }
+            id
+        }};
+    }
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_) => {}
+            StatementKind::ActivitySwimlane { color, name } => {
+                current_swimlane = Some(name.clone());
+                if !swimlanes.iter().any(|s| s.name == name) {
+                    swimlanes.push(ModelActivitySwimlane {
+                        name: name.clone(),
+                        color,
+                    });
+                }
+                last_node = None;
+            }
+            StatementKind::ActivityOldStart => {
+                ensure_step!("(*start*)".to_string(), "start".to_string(), true, false, None);
+                last_node = Some("(*start*)".to_string());
+            }
+            StatementKind::ActivityOldFinal => {
+                ensure_step!("(*final*)".to_string(), "final".to_string(), false, true, None);
+                last_node = Some("(*final*)".to_string());
+            }
+            StatementKind::ActivityOldStep { label } => {
+                let id = step_id(&label);
+                let id = if id.is_empty() { format!("step_{}", steps.len()) } else { id };
+                let detach = pending_detach;
+                pending_detach = false;
+                if !step_ids.contains(&id) {
+                    step_ids.insert(id.clone());
+                    steps.push(ActivityStep {
+                        id: id.clone(),
+                        label,
+                        color: None,
+                        swimlane: current_swimlane.clone(),
+                        is_start: false,
+                        is_final: false,
+                        detach,
+                    });
+                }
+                last_node = Some(id);
+            }
+            StatementKind::ActivityColoredStep { color, label } => {
+                let id = step_id(&label);
+                let id = if id.is_empty() { format!("step_{}", steps.len()) } else { id };
+                let detach = pending_detach;
+                pending_detach = false;
+                if !step_ids.contains(&id) {
+                    step_ids.insert(id.clone());
+                    steps.push(ActivityStep {
+                        id: id.clone(),
+                        label,
+                        color: Some(color),
+                        swimlane: current_swimlane.clone(),
+                        is_start: false,
+                        is_final: false,
+                        detach,
+                    });
+                }
+                last_node = Some(id);
+            }
+            StatementKind::ActivityOldEdge { from, to, arrow_label } => {
+                // Ensure both endpoints exist
+                if from == "(*start*)" {
+                    ensure_step!("(*start*)".to_string(), "start".to_string(), true, false, None);
+                } else if !step_ids.contains(&from) {
+                    ensure_step!(from.clone(), from.clone(), false, false, None);
+                }
+                if to == "(*final*)" {
+                    ensure_step!("(*final*)".to_string(), "final".to_string(), false, true, None);
+                } else if !step_ids.contains(&to) {
+                    let id = step_id(&to);
+                    let id = if id.is_empty() { to.clone() } else { id };
+                    ensure_step!(id.clone(), to.clone(), false, false, None);
+                }
+                // Resolve `to` step id
+                let to_id = if to == "(*final*)" {
+                    "(*final*)".to_string()
+                } else {
+                    let id = step_id(&to);
+                    if id.is_empty() { to } else { id }
+                };
+                edges.push(ActivityEdge {
+                    from,
+                    to: to_id.clone(),
+                    label: arrow_label,
+                });
+                last_node = Some(to_id);
+            }
+            StatementKind::ActivityDetach => {
+                pending_detach = true;
+                // Mark last step as detach
+                if let Some(ref id) = last_node.clone() {
+                    if let Some(step) = steps.iter_mut().find(|s| &s.id == id) {
+                        step.detach = true;
+                    }
+                }
+            }
+            StatementKind::Unknown(line) => {
+                warnings.push(
+                    crate::diagnostic::Diagnostic::warning(format!(
+                        "[W_ACTIVITY_UNKNOWN] unrecognized activity syntax: `{}`",
+                        line
+                    ))
+                    .with_span(stmt.span),
+                );
+            }
+            _ => {
+                warnings.push(
+                    crate::diagnostic::Diagnostic::warning(format!(
+                        "[W_ACTIVITY_UNSUPPORTED] unsupported statement in activity diagram"
+                    ))
+                    .with_span(stmt.span),
+                );
+            }
+        }
+    }
+
+    Ok(ActivityDocument {
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        swimlanes,
+        steps,
+        edges,
+        warnings,
     })
 }
 
@@ -753,7 +961,14 @@ pub fn normalize_with_options(
             | StatementKind::GanttTaskDecl { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
-            | StatementKind::ChronologyHappensOn { .. } => {
+            | StatementKind::ChronologyHappensOn { .. }
+            | StatementKind::ActivityOldStart
+            | StatementKind::ActivityOldFinal
+            | StatementKind::ActivityOldStep { .. }
+            | StatementKind::ActivityOldEdge { .. }
+            | StatementKind::ActivitySwimlane { .. }
+            | StatementKind::ActivityColoredStep { .. }
+            | StatementKind::ActivityDetach => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )
@@ -801,12 +1016,18 @@ pub fn normalize_with_options(
     })
 }
 
+fn unsupported_family_diagnostic_activity() -> Diagnostic {
+    Diagnostic::error_code(
+        "E_FAMILY_ACTIVITY_UNSUPPORTED",
+        "activity diagram new-style syntax (start/stop/:action;) is not yet implemented; use old-style `(*) --> \"Step\"` syntax",
+    )
+}
+
 fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
     let (code, family) = match kind {
         DiagramKind::Component => ("E_FAMILY_COMPONENT_UNSUPPORTED", "component"),
         DiagramKind::Deployment => ("E_FAMILY_DEPLOYMENT_UNSUPPORTED", "deployment"),
         DiagramKind::State => ("E_FAMILY_STATE_UNSUPPORTED", "state"),
-        DiagramKind::Activity => ("E_FAMILY_ACTIVITY_UNSUPPORTED", "activity"),
         DiagramKind::Timing => ("E_FAMILY_TIMING_UNSUPPORTED", "timing"),
         DiagramKind::MindMap => ("E_FAMILY_MINDMAP_UNSUPPORTED", "mindmap"),
         DiagramKind::Wbs => ("E_FAMILY_WBS_UNSUPPORTED", "wbs"),

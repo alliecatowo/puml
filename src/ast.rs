@@ -85,6 +85,26 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    // Activity (old-style) statements
+    ActivityOldStart,
+    ActivityOldFinal,
+    ActivityOldStep {
+        label: String,
+    },
+    ActivityOldEdge {
+        from: String,
+        to: String,
+        arrow_label: Option<String>,
+    },
+    ActivitySwimlane {
+        color: Option<String>,
+        name: String,
+    },
+    ActivityColoredStep {
+        color: String,
+        label: String,
+    },
+    ActivityDetach,
     Unknown(String),
 }
 

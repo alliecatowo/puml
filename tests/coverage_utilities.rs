@@ -142,7 +142,7 @@ fn render_for_unsupported_families_reports_specific_codes() {
         (
             "@startuml\nstart\n:work;\nstop\n@enduml\n",
             DiagramFamily::Activity,
-            "E_RENDER_ACTIVITY_UNSUPPORTED",
+            "E_FAMILY_ACTIVITY_UNSUPPORTED",
         ),
         (
             "@startuml\nclock clk\n@enduml\n",

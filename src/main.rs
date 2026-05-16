@@ -765,6 +765,7 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Sequence(sequence) => &sequence.warnings,
         NormalizedDocument::Family(family) => &family.warnings,
         NormalizedDocument::Timeline(timeline) => &timeline.warnings,
+        NormalizedDocument::Activity(activity) => &activity.warnings,
     }
 }
 
@@ -776,6 +777,7 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         }
         NormalizedDocument::Family(family) => vec![render::render_family_stub_svg(family)],
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_stub_svg(timeline)],
+        NormalizedDocument::Activity(activity) => vec![render::render_activity_svg(activity)],
     }
 }
 
@@ -1299,6 +1301,19 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
+        StatementKind::ActivityOldStart => json!("ActivityOldStart"),
+        StatementKind::ActivityOldFinal => json!("ActivityOldFinal"),
+        StatementKind::ActivityOldStep { label } => json!({"ActivityOldStep": {"label": label}}),
+        StatementKind::ActivityOldEdge { from, to, arrow_label } => {
+            json!({"ActivityOldEdge": {"from": from, "to": to, "arrow_label": arrow_label}})
+        }
+        StatementKind::ActivitySwimlane { color, name } => {
+            json!({"ActivitySwimlane": {"color": color, "name": name}})
+        }
+        StatementKind::ActivityColoredStep { color, label } => {
+            json!({"ActivityColoredStep": {"color": color, "label": label}})
+        }
+        StatementKind::ActivityDetach => json!("ActivityDetach"),
     }
 }
 
@@ -1370,7 +1385,25 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Sequence(sequence) => model_to_json(sequence),
         NormalizedDocument::Family(family) => family_model_to_json(family),
         NormalizedDocument::Timeline(timeline) => timeline_model_to_json(timeline),
+        NormalizedDocument::Activity(activity) => activity_model_to_json(activity),
     }
+}
+
+fn activity_model_to_json(model: &puml::ActivityDocument) -> Value {
+    json!({
+        "title": model.title,
+        "swimlanes": model.swimlanes.iter().map(|s| json!({"name": s.name, "color": s.color})).collect::<Vec<_>>(),
+        "steps": model.steps.iter().map(|s| json!({
+            "id": s.id,
+            "label": s.label,
+            "color": s.color,
+            "swimlane": s.swimlane,
+            "is_start": s.is_start,
+            "is_final": s.is_final,
+            "detach": s.detach
+        })).collect::<Vec<_>>(),
+        "edges": model.edges.iter().map(|e| json!({"from": e.from, "to": e.to, "label": e.label})).collect::<Vec<_>>()
+    })
 }
 
 fn model_to_json(model: &SequenceDocument) -> Value {
@@ -1681,6 +1714,16 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+            })
+        }
+        NormalizedDocument::Activity(activity) => {
+            let svg = render::render_activity_svg(activity);
+            json!({
+                "kind": "ActivityOldStyle",
+                "steps": activity.steps.len(),
+                "edges": activity.edges.len(),
+                "swimlanes": activity.swimlanes.len(),
+                "svg_preview": svg
             })
         }
     }

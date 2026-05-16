@@ -3598,3 +3598,144 @@ fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
         .success()
         .stderr(predicate::str::is_empty());
 }
+
+// ── Activity old-style + swimlanes + colored steps (issue #171) ───────────────
+
+#[test]
+fn activity_old_style_check_passes_for_valid_inputs() {
+    for case in [
+        "families/valid_activity_old_style.puml",
+        "families/valid_activity_swimlanes.puml",
+        "families/valid_activity_colored.puml",
+        "families/valid_activity_labeled_edges.puml",
+        "families/valid_activity_colored_lane.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .success()
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
+fn activity_old_style_renders_svg_with_steps_and_edges() {
+    let src = fs::read_to_string(fixture("families/valid_activity_old_style.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render should succeed");
+
+    // Should be a valid SVG
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    // Should contain step labels
+    assert!(svg.contains("Step1"), "expected Step1 in SVG");
+    assert!(svg.contains("Step2"), "expected Step2 in SVG");
+    // Should contain start/final circles
+    assert!(
+        svg.contains("fill=\"#1e293b\""),
+        "expected start/final circle fill"
+    );
+}
+
+#[test]
+fn activity_swimlanes_render_svg_with_lane_headers() {
+    let src = fs::read_to_string(fixture("families/valid_activity_swimlanes.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    assert!(svg.contains("Lane A"), "expected Lane A in SVG");
+    assert!(svg.contains("Lane B"), "expected Lane B in SVG");
+}
+
+#[test]
+fn activity_colored_steps_render_svg_with_fill_colors() {
+    let src = fs::read_to_string(fixture("families/valid_activity_colored.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    // Colored steps should use the specified color as fill
+    assert!(
+        svg.contains("#red") || svg.contains("fill=\"red\""),
+        "expected red fill in SVG"
+    );
+    assert!(
+        svg.contains("#green") || svg.contains("fill=\"green\""),
+        "expected green fill in SVG"
+    );
+}
+
+#[test]
+fn activity_labeled_edges_render_svg_with_edge_labels() {
+    let src = fs::read_to_string(fixture("families/valid_activity_labeled_edges.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    assert!(svg.contains("init"), "expected edge label 'init'");
+    assert!(svg.contains("done"), "expected edge label 'done'");
+}
+
+#[test]
+fn activity_colored_lane_renders_with_lane_color() {
+    let src = fs::read_to_string(fixture("families/valid_activity_colored_lane.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render should succeed");
+
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    assert!(svg.contains("Client"), "expected Client lane in SVG");
+    assert!(svg.contains("Server"), "expected Server lane in SVG");
+    assert!(
+        svg.contains("lightblue") || svg.contains("#lightblue"),
+        "expected lightblue lane color"
+    );
+}
+
+#[test]
+fn activity_new_style_still_reports_unsupported() {
+    // New-style (start/stop/:action;) activity syntax should still be rejected
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("non_sequence/invalid_activity_diagram.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_FAMILY_ACTIVITY_UNSUPPORTED]"));
+}
+
+#[test]
+fn activity_old_style_svg_is_deterministic() {
+    let src = fs::read_to_string(fixture("families/valid_activity_old_style.puml")).unwrap();
+    let first = render_source_to_svg(&src).expect("render should succeed");
+    let second = render_source_to_svg(&src).expect("render should succeed");
+    assert_eq!(first, second, "activity SVG render must be deterministic");
+}
+
+#[test]
+fn activity_old_style_dump_ast_shows_activity_old_edge_statements() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("families/valid_activity_old_style.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let stmts = json["statements"].as_array().expect("statements array");
+    // Each statement is {"kind": {"ActivityOldEdge": {...}}, "span": {...}}
+    // Extract the inner kind key from the "kind" object.
+    let inner_kinds: Vec<String> = stmts
+        .iter()
+        .filter_map(|s| s["kind"].as_object())
+        .flat_map(|o| o.keys().cloned())
+        .collect();
+    assert!(
+        inner_kinds.iter().any(|k| k == "ActivityOldEdge"),
+        "expected ActivityOldEdge in AST dump, got: {:?}",
+        inner_kinds
+    );
+}
