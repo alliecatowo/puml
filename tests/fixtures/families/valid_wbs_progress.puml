@@ -1,0 +1,8 @@
+@startwbs
+* Project
+** Phase 1 [%75]
+*** Task A [x]
+*** Task B [ ]
+** Phase 2 [%25]
+*** Task C [x]
+@endwbs

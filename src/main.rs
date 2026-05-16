@@ -1497,9 +1497,6 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
                 "label": label,
             }
         }),
-        StatementKind::StateDecl(decl) => json!({
-            "StateDecl": {"name": decl.name, "alias": decl.alias, "stereotype": decl.stereotype}
-        }),
         StatementKind::ActivityStep(step) => json!({
             "ActivityStep": {"kind": format!("{:?}", step.kind), "label": step.label}
         }),

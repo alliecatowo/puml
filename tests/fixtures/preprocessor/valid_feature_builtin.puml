@@ -1,0 +1,7 @@
+@startuml
+!if %feature("unknown_feature") == "false"
+A -> B : feature is false
+!else
+A -> B : feature is true
+!endif
+@enduml
