@@ -458,6 +458,7 @@ fn non_sequence_wbs_reports_deterministic_family_code() {
 fn gantt_and_chronology_baseline_inputs_pass_check() {
     for case in [
         "timeline/valid_gantt_baseline.puml",
+        "timeline/valid_gantt_dates_proportional.puml",
         "timeline/valid_chronology_baseline.puml",
     ] {
         Command::cargo_bin("puml")
@@ -467,6 +468,32 @@ fn gantt_and_chronology_baseline_inputs_pass_check() {
             .success()
             .stderr(predicate::str::is_empty());
     }
+}
+
+#[test]
+fn gantt_dump_model_includes_computed_start_day_and_duration_days() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("timeline/valid_gantt_dates_proportional.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let tasks = json["tasks"].as_array().expect("tasks array");
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0]["name"], "Build");
+    assert_eq!(tasks[0]["duration_days"], 5);
+    assert_eq!(tasks[1]["name"], "Test");
+    assert_eq!(tasks[1]["duration_days"], 3);
+    let start_a = tasks[0]["start_day"].as_u64().unwrap();
+    let start_b = tasks[1]["start_day"].as_u64().unwrap();
+    assert!(start_b > start_a);
 }
 
 #[test]

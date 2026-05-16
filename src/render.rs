@@ -355,6 +355,10 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
 }
 
 pub fn render_timeline_svg(document: &TimelineDocument) -> String {
+    if document.kind == DiagramKind::Gantt && !document.tasks.is_empty() {
+        return render_gantt_svg(document);
+    }
+
     let width = 760;
     let title_lines = document
         .title
@@ -453,6 +457,151 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
     }
 
     let mut metadata_y = y + (row + 1) * 30;
+    if let Some(header) = &document.header {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Header: {}</text>",
+            metadata_y,
+            escape_text(header)
+        ));
+        metadata_y += 24;
+    }
+    if let Some(footer) = &document.footer {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Footer: {}</text>",
+            metadata_y,
+            escape_text(footer)
+        ));
+        metadata_y += 24;
+    }
+    if let Some(caption) = &document.caption {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Caption: {}</text>",
+            metadata_y,
+            escape_text(caption)
+        ));
+        metadata_y += 24;
+    }
+    if let Some(legend) = &document.legend {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Legend: {}</text>",
+            metadata_y,
+            escape_text(legend)
+        ));
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+fn render_gantt_svg(document: &TimelineDocument) -> String {
+    let width = 860;
+    let task_count = document.tasks.len() as i32;
+    let title_lines = document
+        .title
+        .as_deref()
+        .map(|v| v.lines().count() as i32)
+        .unwrap_or(0);
+    let header_rows = usize::from(document.header.is_some())
+        + usize::from(document.footer.is_some())
+        + usize::from(document.caption.is_some())
+        + usize::from(document.legend.is_some());
+    let height = 180 + title_lines * 24 + task_count * 34 + (header_rows as i32 * 24);
+
+    let min_day = document
+        .tasks
+        .iter()
+        .map(|t| t.start_day)
+        .min()
+        .unwrap_or(0);
+    let max_day_exclusive = document
+        .tasks
+        .iter()
+        .map(|t| t.start_day.saturating_add(t.duration_days.max(1)))
+        .max()
+        .unwrap_or(min_day.saturating_add(1));
+    let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
+
+    let left = 190i32;
+    let right = 820i32;
+    let axis_width = (right - left).max(1);
+    let mut y = 30i32;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"#fbfdff\"/>");
+
+    if let Some(title) = &document.title {
+        for line in title.lines() {
+            out.push_str(&format!(
+                "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+                y,
+                escape_text(line)
+            ));
+            y += 24;
+        }
+    }
+
+    out.push_str(&format!(
+        "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" fill=\"#334155\">GANTT timeline entries</text>",
+        y
+    ));
+    y += 24;
+
+    let axis_y = y + 14;
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#64748b\" stroke-width=\"2\"/>",
+        left, axis_y, right, axis_y
+    ));
+
+    let day_tick = total_days.min(14);
+    for i in 0..=day_tick {
+        let day_offset = i.saturating_mul(total_days) / day_tick.max(1);
+        let x = left + ((axis_width as u32 * day_offset) / total_days) as i32;
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+            x,
+            axis_y - 4,
+            x,
+            axis_y + 6
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">D+{}</text>",
+            x - 10,
+            axis_y - 8,
+            day_offset
+        ));
+    }
+    y += 30;
+
+    for (idx, task) in document.tasks.iter().enumerate() {
+        let row_y = y + (idx as i32 * 34);
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{}</text>",
+            row_y + 15,
+            escape_text(&task.name)
+        ));
+
+        let start_offset = task.start_day.saturating_sub(min_day);
+        let bar_x = left + ((axis_width as u32 * start_offset) / total_days) as i32;
+        let duration = task.duration_days.max(1);
+        let bar_w = (((axis_width as u32) * duration) / total_days).max(8) as i32;
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"18\" rx=\"3\" ry=\"3\" fill=\"#60a5fa\" stroke=\"#2563eb\" stroke-width=\"1\"/>",
+            bar_x,
+            row_y,
+            bar_w
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}d</text>",
+            bar_x + 4,
+            row_y + 13,
+            duration
+        ));
+    }
+
+    let mut metadata_y = y + (task_count * 34) + 22;
     if let Some(header) = &document.header {
         out.push_str(&format!(
             "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">Header: {}</text>",

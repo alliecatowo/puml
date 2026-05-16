@@ -1,5 +1,6 @@
 ---
 source: tests/integration.rs
+assertion_line: 456
 expression: json
 ---
 {
@@ -28,10 +29,14 @@ expression: json
   ],
   "tasks": [
     {
-      "name": "Design"
+      "duration_days": 1,
+      "name": "Design",
+      "start_day": 0
     },
     {
-      "name": "Build"
+      "duration_days": 1,
+      "name": "Build",
+      "start_day": 1
     }
   ],
   "title": null,

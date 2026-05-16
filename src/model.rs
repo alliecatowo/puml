@@ -89,6 +89,8 @@ pub struct TimelineDocument {
 #[derive(Debug, Clone)]
 pub struct TimelineTask {
     pub name: String,
+    pub start_day: u32,
+    pub duration_days: u32,
 }
 
 #[derive(Debug, Clone)]

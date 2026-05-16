@@ -1356,7 +1356,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         }
         StatementKind::StateRegionDivider => json!("StateRegionDivider"),
         StatementKind::StateHistory { deep } => json!({"StateHistory": {"deep": deep}}),
-        StatementKind::GanttTaskDecl { name } => json!({"GanttTaskDecl": {"name": name}}),
+        StatementKind::GanttTaskDecl { name, .. } => json!({"GanttTaskDecl": {"name": name}}),
         StatementKind::GanttMilestoneDecl { name } => {
             json!({"GanttMilestoneDecl": {"name": name}})
         }
@@ -1580,7 +1580,11 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             DiagramKind::Chronology => "Chronology",
             _ => "Timeline",
         },
-        "tasks": model.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
+        "tasks": model
+            .tasks
+            .iter()
+            .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days}))
+            .collect::<Vec<_>>(),
         "milestones": model.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
         "constraints": model
             .constraints
@@ -1795,7 +1799,11 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::Chronology => "Chronology",
                     _ => "Timeline",
                 },
-                "tasks": timeline.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
+                "tasks": timeline
+                    .tasks
+                    .iter()
+                    .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days}))
+                    .collect::<Vec<_>>(),
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),

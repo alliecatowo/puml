@@ -408,6 +408,21 @@ fn render_timeline_stub_svg_contains_expected_labels() {
 }
 
 #[test]
+fn render_gantt_svg_uses_proportional_duration_bars() {
+    let src = "@startgantt\nProject starts 2024-01-01\n[Build] lasts 5 days\n[Test] starts 2024-01-06 and lasts 3 days\n@endgantt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("timeline baseline should normalize");
+    let NormalizedDocument::Timeline(model) = normalized else {
+        panic!("expected timeline model");
+    };
+    let svg = render::render_timeline_svg(&model);
+    assert!(svg.contains("GANTT timeline entries"));
+    assert!(svg.contains(">5d</text>"));
+    assert!(svg.contains(">3d</text>"));
+    assert!(svg.contains("D+0"));
+}
+
+#[test]
 fn parser_tags_all_wave1_non_sequence_families_deterministically() {
     let cases = [
         (
