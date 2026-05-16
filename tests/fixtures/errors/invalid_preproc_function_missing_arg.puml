@@ -1,0 +1,6 @@
+@startuml
+!function Need($a, $b)
+!return $a + $b
+!endfunction
+A -> B: %Need("x")
+@enduml

@@ -1,0 +1,7 @@
+@startuml
+!function Label($lhs, $rhs="B")
+!return $lhs + "->" + $rhs
+!endfunction
+A -> B: %Label("A")
+A -> B: %Label($rhs="D", $lhs="C")
+@enduml

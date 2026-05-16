@@ -1,0 +1,6 @@
+@startuml
+!procedure Bad($x)
+!return $x
+!endprocedure
+!Bad("A")
+@enduml

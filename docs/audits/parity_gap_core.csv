@@ -100,13 +100,13 @@ sequence,"Incoming/outgoing endpoint arrows","Documented on sequence diagram pag
 sequence,"Sequence skinparam surface","Documented on sequence diagram page",partial,"Selected keys implemented; unsupported keys warn",https://plantuml.com/sequence-diagram
 sequence,"Theme usage via !theme","Documented on sequence diagram page",partial,"Local built-in subset (`plain`,`spacelab`) applies; unsupported and remote forms reject deterministically",https://plantuml.com/sequence-diagram
 sequence,"Teoz/parallel-message specific semantics","Documented on sequence diagram page",missing,"No dedicated teoz semantic support",https://plantuml.com/sequence-diagram
-preprocessor,"Variable definition (!$var, =, ?=)","Documented on preprocessing page",missing,"Preprocessor variable language absent",https://plantuml.com/preprocessing
+preprocessor,"Variable definition (!$var, =, ?=)","Documented on preprocessing page",partial,"Deterministic assignment/reference subset (`=` and `?=`) implemented",https://plantuml.com/preprocessing
 preprocessor,"Boolean expressions","Documented on preprocessing page",partial,"Simple deterministic subset implemented (defined(), ==, !=, numeric/bool literals); broader expression language missing",https://plantuml.com/preprocessing
 preprocessor,"Conditional directives (!if/!elseif/!else/!endif)","Documented on preprocessing page",partial,"Implemented for deterministic subset with explicit order/balance diagnostics",https://plantuml.com/preprocessing
 preprocessor,"Loop directives (!while/!endwhile)","Documented on preprocessing page",partial,"Implemented for deterministic subset with bounded iteration limit",https://plantuml.com/preprocessing
-preprocessor,"Procedures (!procedure)","Documented on preprocessing page",missing,"Explicit deterministic rejection (E_PREPROC_UNSUPPORTED)",https://plantuml.com/preprocessing
-preprocessor,"Functions (!function)","Documented on preprocessing page",missing,"Explicit deterministic rejection (E_PREPROC_UNSUPPORTED)",https://plantuml.com/preprocessing
-preprocessor,"Default args/keyword args/unquoted","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Procedures (!procedure)","Documented on preprocessing page",partial,"Definitions and deterministic call subset implemented with stable diagnostics for unsupported forms",https://plantuml.com/preprocessing
+preprocessor,"Functions (!function)","Documented on preprocessing page",partial,"Definitions and deterministic `%name(...)` call subset implemented with stable diagnostics",https://plantuml.com/preprocessing
+preprocessor,"Default args/keyword args/unquoted","Documented on preprocessing page",partial,"Deterministic positional/default/keyword subset implemented; arg mismatches rejected",https://plantuml.com/preprocessing
 preprocessor,"Define directives (!define)","Documented on preprocessing page",partial,"Simple token-substitution subset implemented",https://plantuml.com/preprocessing
 preprocessor,"Undef directives (!undef)","Documented on preprocessing page",partial,"Implemented in current substitution model",https://plantuml.com/preprocessing
 preprocessor,"Local file include (!include)","Documented on preprocessing page",partial,"Supported with include-root and cycle safety",https://plantuml.com/preprocessing
@@ -119,7 +119,7 @@ preprocessor,"Memory dump (!dump_memory)","Documented on preprocessing page",mis
 preprocessor,"Assertions (!assert)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
 preprocessor,"Import for custom library (!import)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
 preprocessor,"Search path behavior","Documented on preprocessing page",partial,"include_root exists; broader search-path behavior absent",https://plantuml.com/preprocessing
-preprocessor,"Argument concatenation (##)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
+preprocessor,"Argument concatenation (##)","Documented on preprocessing page",partial,"Explicit deterministic rejection implemented (E_PREPROC_CONCAT_UNSUPPORTED)",https://plantuml.com/preprocessing
 preprocessor,"Dynamic invocation (%invoke_procedure/%call_user_func)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
 preprocessor,"JSON preprocessing","Documented on preprocessing JSON page",missing,"Not implemented",https://plantuml.com/preprocessing-json
 preprocessor,"Theme include directive (!theme)","Documented on preprocessing page",partial,"Deterministic local-catalog semantics for sequence; source forms rejected",https://plantuml.com/preprocessing

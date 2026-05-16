@@ -12,6 +12,7 @@ use crate::source::Span;
 
 const MAX_INCLUDE_DEPTH: usize = 32;
 const MAX_PREPROC_WHILE_ITERATIONS: usize = 256;
+const MAX_PREPROC_CALL_DEPTH: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct IncludeTarget {
@@ -29,7 +30,7 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
 }
 
 pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Document, Diagnostic> {
-    let mut defines = BTreeMap::new();
+    let mut state = PreprocState::default();
     let mut include_stack = Vec::new();
     let mut include_once_seen = BTreeSet::new();
     let mut expanded = String::new();
@@ -37,9 +38,10 @@ pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Docume
     preprocess_text(
         source,
         options,
-        &mut defines,
+        &mut state,
         &mut include_stack,
         &mut include_once_seen,
+        0,
         0,
         &mut expanded,
     )?;
@@ -66,7 +68,10 @@ enum PreprocessDirective {
     IncludeUrl(String),
     Import(String),
     If(String),
-    IfDef { name: String, negated: bool },
+    IfDef {
+        name: String,
+        negated: bool,
+    },
     ElseIf(String),
     Else,
     EndIf,
@@ -82,15 +87,52 @@ enum PreprocessDirective {
     DynamicInvocation(String),
     JsonPreproc(String),
     Unsupported(String),
+    ProcedureCall {
+        name: String,
+        args: String,
+    },
+    VariableAssign {
+        name: String,
+        value: String,
+        conditional: bool,
+    },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PreprocCallableKind {
+    Function,
+    Procedure,
+}
+
+#[derive(Debug, Clone)]
+struct PreprocParam {
+    name: String,
+    default: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct PreprocCallable {
+    kind: PreprocCallableKind,
+    params: Vec<PreprocParam>,
+    body: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct PreprocState {
+    defines: BTreeMap<String, String>,
+    vars: BTreeMap<String, String>,
+    callables: BTreeMap<String, PreprocCallable>,
+}
+
+#[allow(clippy::too_many_arguments)]
 fn preprocess_text(
     source: &str,
     options: &ParseOptions,
-    defines: &mut BTreeMap<String, String>,
+    state: &mut PreprocState,
     include_stack: &mut Vec<PathBuf>,
     include_once_seen: &mut BTreeSet<PathBuf>,
     depth: usize,
+    call_depth: usize,
     out: &mut String,
 ) -> Result<(), Diagnostic> {
     if depth > MAX_INCLUDE_DEPTH {
@@ -112,7 +154,7 @@ fn preprocess_text(
             match directive {
                 PreprocessDirective::If(expr) => {
                     let cond = if active {
-                        evaluate_preprocess_expr(&expr, defines)?
+                        evaluate_preprocess_expr(&expr, state)?
                     } else {
                         false
                     };
@@ -125,7 +167,7 @@ fn preprocess_text(
                 }
                 PreprocessDirective::IfDef { name, negated } => {
                     let cond = if active {
-                        defines.contains_key(&name) ^ negated
+                        state.defines.contains_key(&name) ^ negated
                     } else {
                         false
                     };
@@ -152,7 +194,7 @@ fn preprocess_text(
                     if !frame.parent_active || frame.branch_taken {
                         frame.current_active = false;
                     } else {
-                        let cond = evaluate_preprocess_expr(&expr, defines)?;
+                        let cond = evaluate_preprocess_expr(&expr, state)?;
                         frame.current_active = cond;
                         frame.branch_taken |= cond;
                     }
@@ -187,7 +229,7 @@ fn preprocess_text(
                     if active {
                         let block = lines[i + 1..endwhile].join("\n");
                         let mut iterations = 0usize;
-                        while evaluate_preprocess_expr(&expr, defines)? {
+                        while evaluate_preprocess_expr(&expr, state)? {
                             iterations += 1;
                             if iterations > MAX_PREPROC_WHILE_ITERATIONS {
                                 return Err(Diagnostic::error_code(
@@ -200,10 +242,11 @@ fn preprocess_text(
                             preprocess_text(
                                 &block,
                                 options,
-                                defines,
+                                state,
                                 include_stack,
                                 include_once_seen,
                                 depth,
+                                call_depth,
                                 out,
                             )?;
                         }
@@ -226,6 +269,13 @@ fn preprocess_text(
                         "E_FUNCTION_UNCLOSED",
                         "!endfunction",
                     )?;
+                    let header = lines[i].trim();
+                    let callable = parse_callable_definition(
+                        header,
+                        &lines[i + 1..end_idx],
+                        PreprocCallableKind::Function,
+                    )?;
+                    state.callables.insert(callable.0, callable.1);
                     i = end_idx + 1;
                     continue;
                 }
@@ -238,11 +288,18 @@ fn preprocess_text(
                         "E_PROCEDURE_UNCLOSED",
                         "!endprocedure",
                     )?;
+                    let header = lines[i].trim();
+                    let callable = parse_callable_definition(
+                        header,
+                        &lines[i + 1..end_idx],
+                        PreprocCallableKind::Procedure,
+                    )?;
+                    state.callables.insert(callable.0, callable.1);
                     i = end_idx + 1;
                     continue;
                 }
                 PreprocessDirective::Assert(body) => {
-                    if active && !evaluate_assert_expression(&body, defines)? {
+                    if active && !evaluate_assert_expression(&body, state)? {
                         return Err(Diagnostic::error_code(
                             "E_PREPROC_ASSERT",
                             format!("!assert failed: {body}"),
@@ -294,7 +351,9 @@ fn preprocess_text(
                         let (name, value) = body.split_once(' ').unwrap_or((body.as_str(), ""));
                         let name = name.trim();
                         if !name.is_empty() {
-                            defines.insert(name.to_string(), value.trim().to_string());
+                            state
+                                .defines
+                                .insert(name.to_string(), value.trim().to_string());
                         }
                     }
                 }
@@ -302,7 +361,29 @@ fn preprocess_text(
                     if active {
                         let name = name.trim();
                         if !name.is_empty() {
-                            defines.remove(name);
+                            state.defines.remove(name);
+                        }
+                    }
+                }
+                PreprocessDirective::VariableAssign {
+                    name,
+                    value,
+                    conditional,
+                } => {
+                    if active {
+                        let trimmed = value.trim_start();
+                        if trimmed.starts_with('{') || trimmed.starts_with('[') {
+                            return Err(Diagnostic::error_code(
+                                "E_PREPROC_JSON_UNSUPPORTED",
+                                format!(
+                                    "JSON preprocessing is not supported in this deterministic subset: `!${} = {}`",
+                                    name, value
+                                ),
+                            ));
+                        }
+                        if !conditional || !state.vars.contains_key(&name) {
+                            let rendered = substitute_tokens_and_vars(&value, state);
+                            state.vars.insert(name, rendered.trim().to_string());
                         }
                     }
                 }
@@ -314,10 +395,11 @@ fn preprocess_text(
                             false,
                             false,
                             options,
-                            defines,
+                            state,
                             include_stack,
                             include_once_seen,
                             depth,
+                            call_depth,
                             out,
                         )?;
                     }
@@ -330,10 +412,11 @@ fn preprocess_text(
                             true,
                             false,
                             options,
-                            defines,
+                            state,
                             include_stack,
                             include_once_seen,
                             depth,
+                            call_depth,
                             out,
                         )?;
                     }
@@ -346,10 +429,11 @@ fn preprocess_text(
                             false,
                             false,
                             options,
-                            defines,
+                            state,
                             include_stack,
                             include_once_seen,
                             depth,
+                            call_depth,
                             out,
                         )?;
                     }
@@ -362,10 +446,11 @@ fn preprocess_text(
                             false,
                             true,
                             options,
-                            defines,
+                            state,
                             include_stack,
                             include_once_seen,
                             depth,
+                            call_depth,
                             out,
                         )?;
                     }
@@ -383,10 +468,26 @@ fn preprocess_text(
                         process_import_directive(
                             &raw_target,
                             options,
-                            defines,
+                            state,
                             include_stack,
                             include_once_seen,
                             depth,
+                            call_depth,
+                            out,
+                        )?;
+                    }
+                }
+                PreprocessDirective::ProcedureCall { name, args } => {
+                    if active {
+                        execute_procedure_call(
+                            &name,
+                            &args,
+                            state,
+                            options,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            call_depth,
                             out,
                         )?;
                     }
@@ -405,7 +506,8 @@ fn preprocess_text(
         }
 
         if active {
-            out.push_str(&substitute_tokens(raw_line, defines));
+            let expanded_line = expand_preprocessor_text(raw_line, state, call_depth)?;
+            out.push_str(&expanded_line);
             out.push('\n');
         }
         i += 1;
@@ -432,10 +534,11 @@ fn process_include_directive(
     include_once: bool,
     require_tag: bool,
     options: &ParseOptions,
-    defines: &mut BTreeMap<String, String>,
+    state: &mut PreprocState,
     include_stack: &mut Vec<PathBuf>,
     include_once_seen: &mut BTreeSet<PathBuf>,
     depth: usize,
+    call_depth: usize,
     out: &mut String,
 ) -> Result<(), Diagnostic> {
     if raw_target.is_empty() {
@@ -510,10 +613,11 @@ fn process_include_directive(
     preprocess_text(
         &content,
         options,
-        defines,
+        state,
         include_stack,
         include_once_seen,
         depth + 1,
+        call_depth,
         out,
     )?;
     include_stack.pop();
@@ -524,10 +628,11 @@ fn process_include_directive(
 fn process_import_directive(
     raw_target: &str,
     options: &ParseOptions,
-    defines: &mut BTreeMap<String, String>,
+    state: &mut PreprocState,
     include_stack: &mut Vec<PathBuf>,
     include_once_seen: &mut BTreeSet<PathBuf>,
     depth: usize,
+    call_depth: usize,
     out: &mut String,
 ) -> Result<(), Diagnostic> {
     if raw_target.trim().is_empty() {
@@ -581,10 +686,11 @@ fn process_import_directive(
     preprocess_text(
         &content,
         options,
-        defines,
+        state,
         include_stack,
         include_once_seen,
         depth + 1,
+        call_depth,
         out,
     )?;
     include_stack.pop();
@@ -639,20 +745,23 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "assert" => Some(PreprocessDirective::Assert(arg.to_string())),
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
-        _ if name.starts_with('$') => Some(PreprocessDirective::JsonPreproc(trimmed.to_string())),
+        _ if name.starts_with('$') => parse_variable_assignment(name, arg, trimmed),
         "return" | "foreach" | "endfor" | "startsub" | "endsub" => {
             Some(PreprocessDirective::Unsupported(name.to_string()))
         }
         "theme" | "pragma" => None,
+        _ if let Some((call_name, call_args)) = parse_named_call(rest) => {
+            Some(PreprocessDirective::ProcedureCall {
+                name: call_name,
+                args: call_args,
+            })
+        }
         _ if !name.is_empty() => Some(PreprocessDirective::Unsupported(name.to_string())),
         _ => None,
     }
 }
 
-fn evaluate_preprocess_expr(
-    expr: &str,
-    defines: &BTreeMap<String, String>,
-) -> Result<bool, Diagnostic> {
+fn evaluate_preprocess_expr(expr: &str, state: &PreprocState) -> Result<bool, Diagnostic> {
     let raw = expr.trim();
     if raw.is_empty() {
         return Err(Diagnostic::error_code(
@@ -668,11 +777,11 @@ fn evaluate_preprocess_expr(
     }
 
     if let Some((negated, name)) = parse_defined_call(raw) {
-        let defined = defines.contains_key(name);
+        let defined = state.defines.contains_key(name) || state.vars.contains_key(name);
         return Ok(if negated { !defined } else { defined });
     }
 
-    let substituted = substitute_tokens(raw, defines);
+    let substituted = expand_preprocessor_text(raw, state, 0)?;
     evaluate_scalar_expr(substituted.trim())
 }
 
@@ -794,10 +903,7 @@ fn consume_preprocessor_block(
     ))
 }
 
-fn evaluate_assert_expression(
-    body: &str,
-    defines: &BTreeMap<String, String>,
-) -> Result<bool, Diagnostic> {
+fn evaluate_assert_expression(body: &str, state: &PreprocState) -> Result<bool, Diagnostic> {
     let expression = body.split_once(':').map_or(body, |(expr, _)| expr).trim();
     if expression.is_empty() {
         return Err(Diagnostic::error_code(
@@ -811,7 +917,7 @@ fn evaluate_assert_expression(
             "preprocessor builtin functions (`%...`) are not supported in this deterministic subset",
         ));
     }
-    evaluate_preprocess_expr(expression, defines)
+    evaluate_preprocess_expr(expression, state)
 }
 
 fn ensure_no_unsupported_builtin_payload(payload: &str) -> Result<(), Diagnostic> {
@@ -1132,6 +1238,455 @@ fn substitute_tokens(line: &str, defines: &BTreeMap<String, String>) -> String {
 
     flush_token(&mut token, &mut out, defines);
     out
+}
+
+fn substitute_vars(line: &str, vars: &BTreeMap<String, String>) -> String {
+    let mut out = String::with_capacity(line.len());
+    let chars: Vec<char> = line.chars().collect();
+    let mut i = 0usize;
+    let mut in_quotes = false;
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+        if !in_quotes
+            && ch == '$'
+            && i + 1 < chars.len()
+            && (chars[i + 1].is_ascii_alphanumeric() || chars[i + 1] == '_')
+        {
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            let name: String = chars[i + 1..j].iter().collect();
+            if let Some(value) = vars.get(&name) {
+                out.push_str(value);
+            } else {
+                out.push('$');
+                out.push_str(&name);
+            }
+            i = j;
+            continue;
+        }
+        out.push(ch);
+        i += 1;
+    }
+    out
+}
+
+fn substitute_tokens_and_vars(line: &str, state: &PreprocState) -> String {
+    let with_tokens = substitute_tokens(line, &state.defines);
+    substitute_vars(&with_tokens, &state.vars)
+}
+
+fn parse_variable_assignment(name: &str, arg: &str, raw: &str) -> Option<PreprocessDirective> {
+    let var = name.strip_prefix('$')?.trim().to_string();
+    if var.is_empty() {
+        return Some(PreprocessDirective::JsonPreproc(raw.to_string()));
+    }
+    if let Some(value) = arg.strip_prefix("?=") {
+        return Some(PreprocessDirective::VariableAssign {
+            name: var,
+            value: value.trim().to_string(),
+            conditional: true,
+        });
+    }
+    if let Some(value) = arg.strip_prefix('=') {
+        return Some(PreprocessDirective::VariableAssign {
+            name: var,
+            value: value.trim().to_string(),
+            conditional: false,
+        });
+    }
+    Some(PreprocessDirective::JsonPreproc(raw.to_string()))
+}
+
+fn parse_named_call(rest: &str) -> Option<(String, String)> {
+    let open = rest.find('(')?;
+    let close = rest.rfind(')')?;
+    if close <= open || close != rest.len() - 1 {
+        return None;
+    }
+    let name = rest[..open].trim();
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return None;
+    }
+    let args = rest[open + 1..close].trim().to_string();
+    Some((name.to_string(), args))
+}
+
+fn expand_preprocessor_text(
+    raw_line: &str,
+    state: &PreprocState,
+    call_depth: usize,
+) -> Result<String, Diagnostic> {
+    let substituted = substitute_tokens_and_vars(raw_line, state);
+    expand_function_invocations(&substituted, state, call_depth)
+}
+
+fn expand_function_invocations(
+    line: &str,
+    state: &PreprocState,
+    call_depth: usize,
+) -> Result<String, Diagnostic> {
+    if call_depth > MAX_PREPROC_CALL_DEPTH {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_CALL_DEPTH",
+            format!("preprocessor call depth exceeded maximum of {MAX_PREPROC_CALL_DEPTH}"),
+        ));
+    }
+
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars[i] == '%'
+            && i + 1 < chars.len()
+            && (chars[i + 1].is_ascii_alphabetic() || chars[i + 1] == '_')
+        {
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            if j < chars.len() && chars[j] == '(' {
+                let call_name: String = chars[i + 1..j].iter().collect();
+                let (args_raw, next_idx) = extract_parenthesized_args(&chars, j)?;
+                let callable = state.callables.get(&call_name).ok_or_else(|| {
+                    Diagnostic::error_code(
+                        "E_PREPROC_BUILTIN_UNSUPPORTED",
+                        format!(
+                            "preprocessor builtin or unknown function `%{}(...)` is not supported in this deterministic subset",
+                            call_name
+                        ),
+                    )
+                })?;
+                if callable.kind != PreprocCallableKind::Function {
+                    return Err(Diagnostic::error_code(
+                        "E_PREPROC_CALL_KIND",
+                        format!(
+                            "`{}` is a procedure and cannot be called as `%...` function",
+                            call_name
+                        ),
+                    ));
+                }
+                let ret = execute_function_call(&call_name, &args_raw, state, call_depth + 1)?;
+                out.push_str(&ret);
+                i = next_idx;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    Ok(out)
+}
+
+fn extract_parenthesized_args(
+    chars: &[char],
+    open_idx: usize,
+) -> Result<(String, usize), Diagnostic> {
+    let mut depth = 0usize;
+    let mut i = open_idx;
+    let mut in_quotes = false;
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '"' {
+            in_quotes = !in_quotes;
+        } else if !in_quotes {
+            if ch == '(' {
+                depth += 1;
+            } else if ch == ')' {
+                depth -= 1;
+                if depth == 0 {
+                    let args: String = chars[open_idx + 1..i].iter().collect();
+                    return Ok((args, i + 1));
+                }
+            }
+        }
+        i += 1;
+    }
+    Err(Diagnostic::error_code(
+        "E_PREPROC_CALL_SYNTAX",
+        "malformed preprocessor call: missing closing `)`",
+    ))
+}
+
+fn parse_callable_definition(
+    header: &str,
+    body: &[&str],
+    kind: PreprocCallableKind,
+) -> Result<(String, PreprocCallable), Diagnostic> {
+    let sig = header
+        .trim_start_matches('!')
+        .split_once(char::is_whitespace)
+        .map(|(_, r)| r.trim())
+        .unwrap_or_default();
+    let open = sig.find('(').ok_or_else(|| {
+        Diagnostic::error_code(
+            "E_PREPROC_SIGNATURE",
+            "callable signature requires `(…)` parameter list",
+        )
+    })?;
+    let close = sig.rfind(')').ok_or_else(|| {
+        Diagnostic::error_code(
+            "E_PREPROC_SIGNATURE",
+            "callable signature requires closing `)`",
+        )
+    })?;
+    if close < open {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_SIGNATURE",
+            "invalid callable signature",
+        ));
+    }
+    let name = sig[..open].trim().to_string();
+    if name.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_SIGNATURE",
+            "callable name is required",
+        ));
+    }
+    let params_raw = &sig[open + 1..close];
+    if params_raw.contains("##") {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_CONCAT_UNSUPPORTED",
+            "macro argument concatenation (`##`) is not supported in this deterministic subset",
+        ));
+    }
+    let params = parse_params(params_raw)?;
+    let callable = PreprocCallable {
+        kind,
+        params,
+        body: body.iter().map(|s| (*s).to_string()).collect(),
+    };
+    Ok((name, callable))
+}
+
+fn parse_params(raw: &str) -> Result<Vec<PreprocParam>, Diagnostic> {
+    let mut params = Vec::new();
+    for piece in split_args(raw)? {
+        let trimmed = piece.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let (name_part, default) = if let Some((n, d)) = trimmed.split_once('=') {
+            (n.trim(), Some(d.trim().to_string()))
+        } else {
+            (trimmed, None)
+        };
+        let name = name_part.trim_start_matches('$').trim().to_string();
+        if name.is_empty() {
+            return Err(Diagnostic::error_code(
+                "E_PREPROC_SIGNATURE",
+                "parameter name cannot be empty",
+            ));
+        }
+        params.push(PreprocParam { name, default });
+    }
+    Ok(params)
+}
+
+fn split_args(raw: &str) -> Result<Vec<String>, Diagnostic> {
+    let mut out = Vec::new();
+    let mut curr = String::new();
+    let mut depth = 0usize;
+    let mut in_quotes = false;
+    for ch in raw.chars() {
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            curr.push(ch);
+            continue;
+        }
+        if !in_quotes {
+            if ch == '(' {
+                depth += 1;
+            } else if ch == ')' {
+                if depth == 0 {
+                    return Err(Diagnostic::error_code(
+                        "E_PREPROC_CALL_SYNTAX",
+                        "unbalanced `)` in argument list",
+                    ));
+                }
+                depth -= 1;
+            } else if ch == ',' && depth == 0 {
+                out.push(curr.trim().to_string());
+                curr.clear();
+                continue;
+            }
+        }
+        curr.push(ch);
+    }
+    if in_quotes || depth != 0 {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_CALL_SYNTAX",
+            "malformed argument list",
+        ));
+    }
+    if !curr.trim().is_empty() {
+        out.push(curr.trim().to_string());
+    }
+    Ok(out)
+}
+
+fn bind_callable_args(
+    callable: &PreprocCallable,
+    args_raw: &str,
+    state: &PreprocState,
+    call_depth: usize,
+) -> Result<BTreeMap<String, String>, Diagnostic> {
+    if args_raw.contains("##") {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_CONCAT_UNSUPPORTED",
+            "macro argument concatenation (`##`) is not supported in this deterministic subset",
+        ));
+    }
+    let mut bound = BTreeMap::new();
+    let mut positional = Vec::new();
+    let mut keyword = BTreeMap::new();
+    for arg in split_args(args_raw)? {
+        if let Some((k, v)) = arg.split_once('=') {
+            keyword.insert(
+                k.trim().trim_start_matches('$').to_string(),
+                expand_preprocessor_text(v.trim(), state, call_depth)?,
+            );
+        } else if !arg.trim().is_empty() {
+            positional.push(expand_preprocessor_text(arg.trim(), state, call_depth)?);
+        }
+    }
+
+    let mut pos_idx = 0usize;
+    for param in &callable.params {
+        if let Some(v) = keyword.remove(&param.name) {
+            bound.insert(param.name.clone(), v);
+            continue;
+        }
+        if pos_idx < positional.len() {
+            bound.insert(param.name.clone(), positional[pos_idx].clone());
+            pos_idx += 1;
+            continue;
+        }
+        if let Some(default) = &param.default {
+            bound.insert(
+                param.name.clone(),
+                expand_preprocessor_text(default, state, call_depth)?,
+            );
+            continue;
+        }
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_ARG_REQUIRED",
+            format!("missing required argument `{}`", param.name),
+        ));
+    }
+    if pos_idx < positional.len() || !keyword.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_ARG_MISMATCH",
+            "argument list does not match callable signature",
+        ));
+    }
+    Ok(bound)
+}
+
+fn execute_function_call(
+    name: &str,
+    args_raw: &str,
+    state: &PreprocState,
+    call_depth: usize,
+) -> Result<String, Diagnostic> {
+    let callable = state.callables.get(name).ok_or_else(|| {
+        Diagnostic::error_code(
+            "E_PREPROC_CALL_UNKNOWN",
+            format!("unknown callable `{name}`"),
+        )
+    })?;
+    if callable.kind != PreprocCallableKind::Function {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_CALL_KIND",
+            format!("`{name}` is not a function"),
+        ));
+    }
+    let bindings = bind_callable_args(callable, args_raw, state, call_depth)?;
+    for raw in &callable.body {
+        let line = raw.trim();
+        if !line.to_ascii_lowercase().starts_with("!return") {
+            continue;
+        }
+        let expr = raw[7..].trim();
+        let mut local_state = state.clone();
+        for (k, v) in &bindings {
+            local_state.vars.insert(k.clone(), v.clone());
+        }
+        return expand_preprocessor_text(expr, &local_state, call_depth + 1);
+    }
+    Err(Diagnostic::error_code(
+        "E_PREPROC_RETURN_REQUIRED",
+        format!("function `{name}` must contain `!return`"),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_procedure_call(
+    name: &str,
+    args_raw: &str,
+    state: &mut PreprocState,
+    options: &ParseOptions,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    call_depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    if call_depth > MAX_PREPROC_CALL_DEPTH {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_CALL_DEPTH",
+            format!("preprocessor call depth exceeded maximum of {MAX_PREPROC_CALL_DEPTH}"),
+        ));
+    }
+    let callable = state.callables.get(name).cloned().ok_or_else(|| {
+        Diagnostic::error_code(
+            "E_PREPROC_CALL_UNKNOWN",
+            format!("unknown callable `{name}`"),
+        )
+    })?;
+    if callable.kind != PreprocCallableKind::Procedure {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_CALL_KIND",
+            format!("`{name}` is not a procedure"),
+        ));
+    }
+    let bindings = bind_callable_args(&callable, args_raw, state, call_depth)?;
+    let mut local = String::new();
+    for raw in &callable.body {
+        if raw.trim().to_ascii_lowercase().starts_with("!return") {
+            return Err(Diagnostic::error_code(
+                "E_PREPROC_RETURN_UNEXPECTED",
+                format!("procedure `{name}` cannot contain `!return`"),
+            ));
+        }
+        let mut local_state = state.clone();
+        for (k, v) in &bindings {
+            local_state.vars.insert(k.clone(), v.clone());
+        }
+        local.push_str(&expand_preprocessor_text(
+            raw,
+            &local_state,
+            call_depth + 1,
+        )?);
+        local.push('\n');
+    }
+    preprocess_text(
+        &local,
+        options,
+        state,
+        include_stack,
+        include_once_seen,
+        depth,
+        call_depth + 1,
+        out,
+    )
 }
 
 fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
@@ -2794,6 +3349,35 @@ mod tests {
         .unwrap();
         assert_eq!(doc.statements.len(), 1);
         assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn preprocessor_variables_and_callable_args_are_applied() {
+        let doc = parse_with_options(
+            "@startuml\n!$from = Alice\n!$to ?= Bob\n!function F($x,$y=\"B\")\n!return $x + $y\n!endfunction\n!procedure P($a,$b=\"B\")\n$a -> $b: via-proc\n!endprocedure\n!P($from,$to)\n$from -> $to: %F(\"A\")\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 2);
+        assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+        assert!(matches!(doc.statements[1].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn preprocessor_concat_and_arg_errors_are_deterministic() {
+        let concat = parse_with_options(
+            "@startuml\n!function Join($a##$b)\n!return $a\n!endfunction\nA -> B\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(concat.message.contains("E_PREPROC_CONCAT_UNSUPPORTED"));
+
+        let missing = parse_with_options(
+            "@startuml\n!function Need($a,$b)\n!return $a\n!endfunction\nA -> B: %Need(\"x\")\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(missing.message.contains("E_PREPROC_ARG_REQUIRED"));
     }
 
     #[test]

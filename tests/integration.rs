@@ -418,6 +418,9 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_if_elseif_else.puml",
         "preprocessor/valid_ifdef_ifndef.puml",
         "preprocessor/valid_while_define_counter.puml",
+        "preprocessor/valid_variable_assignment_reference.puml",
+        "preprocessor/valid_function_call_args_defaults_keywords.puml",
+        "preprocessor/valid_procedure_call_args.puml",
         "preprocessor/valid_import_stdlib_core.puml",
         "preprocessor/valid_import_stdlib_nested_no_ext.puml",
     ] {
@@ -524,6 +527,9 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_builtin_in_log.puml",
         "errors/invalid_preproc_dynamic_invoke.puml",
         "errors/invalid_preproc_json_assignment.puml",
+        "errors/invalid_preproc_concat_unsupported.puml",
+        "errors/invalid_preproc_function_missing_arg.puml",
+        "errors/invalid_preproc_procedure_return.puml",
         "errors/invalid_import_empty_path.puml",
         "errors/invalid_import_url.puml",
         "errors/invalid_import_absolute_path.puml",
@@ -1929,6 +1935,81 @@ fn preprocessor_while_executes_until_condition_is_false() {
 }
 
 #[test]
+fn preprocessor_variable_assignment_and_reference_semantics_are_applied() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_variable_assignment_reference.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let participants = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Participant"]["name"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(participants, vec!["Alice", "Bob"]);
+}
+
+#[test]
+fn preprocessor_function_and_procedure_args_expand_deterministically() {
+    let fn_out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_function_call_args_defaults_keywords.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let fn_json: Value = serde_json::from_slice(&fn_out).unwrap();
+    let fn_labels = fn_json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        fn_labels,
+        vec!["\"A\" + \"->\" + \"B\"", "\"C\" + \"->\" + \"D\""]
+    );
+
+    let proc_out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_procedure_call_args.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let proc_json: Value = serde_json::from_slice(&proc_out).unwrap();
+    let proc_labels = proc_json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(proc_labels, vec!["\"ok\"", "go"]);
+}
+
+#[test]
 fn preprocessor_function_procedure_assert_log_and_dump_are_minimally_compatible() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -2060,6 +2141,18 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
         (
             "errors/invalid_preproc_json_assignment.puml",
             "E_PREPROC_JSON_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_preproc_concat_unsupported.puml",
+            "E_PREPROC_CONCAT_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_preproc_function_missing_arg.puml",
+            "E_PREPROC_ARG_REQUIRED",
+        ),
+        (
+            "errors/invalid_preproc_procedure_return.puml",
+            "E_PREPROC_RETURN_UNEXPECTED",
         ),
         (
             "errors/invalid_import_empty_path.puml",

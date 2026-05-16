@@ -1,5 +1,7 @@
 @startuml
-!procedure Build()
-A -> B: one
+!procedure Build($x)
+!return $x
 !endprocedure
+!Build("a")
+A -> B: one
 @enduml

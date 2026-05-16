@@ -165,13 +165,13 @@ Current `puml` baseline used for parity status:
 
 | Feature | PlantUML surface | `puml` status | Notes | Source |
 |---|---|---|---|---|
-| Variable definition (`!$var`, `=`, `?=`) | Preprocessor variable assignment | missing | Variable language is not implemented. | https://plantuml.com/preprocessing |
+| Variable definition (`!$var`, `=`, `?=`) | Preprocessor variable assignment | partial | Deterministic assignment/reference subset implemented (`=` and `?=`) with scoped text expansion. | https://plantuml.com/preprocessing |
 | Boolean expressions | Boolean evaluation in preprocessor | partial | Simple deterministic subset implemented (`defined()`, `==`, `!=`, numeric/bool literals); broader expression language is missing. | https://plantuml.com/preprocessing |
 | Conditional blocks | `!if` / `!elseif` / `!else` / `!endif` | partial | Implemented for deterministic subset with explicit balance/order diagnostics. | https://plantuml.com/preprocessing |
 | Preprocessor loops | `!while` / `!endwhile` | partial | Implemented for deterministic subset with bounded iteration guard; advanced loop semantics are missing. | https://plantuml.com/preprocessing |
-| Procedures | `!procedure` / `!endprocedure` | missing | Explicitly rejected with deterministic `E_PREPROC_UNSUPPORTED`. | https://plantuml.com/preprocessing |
-| Functions | `!function` / `!endfunction` | missing | Explicitly rejected with deterministic `E_PREPROC_UNSUPPORTED`. | https://plantuml.com/preprocessing |
-| Default args / keyword args / unquoted | Advanced proc/function argument handling | missing | Not implemented. | https://plantuml.com/preprocessing |
+| Procedures | `!procedure` / `!endprocedure` | partial | Definitions plus deterministic call/argument subset implemented; unsupported forms fail with stable diagnostics. | https://plantuml.com/preprocessing |
+| Functions | `!function` / `!endfunction` | partial | Definitions plus `%name(...)` call/`!return` subset implemented with deterministic boundary diagnostics. | https://plantuml.com/preprocessing |
+| Default args / keyword args / unquoted | Advanced proc/function argument handling | partial | Deterministic positional/default/keyword subset implemented; mismatches rejected with stable diagnostics. | https://plantuml.com/preprocessing |
 | `!define` | Macro/define directives | partial | Token-substitution subset implemented. | https://plantuml.com/preprocessing |
 | `!undef` | Undefine macro variables | partial | Supported in current substitution model. | https://plantuml.com/preprocessing |
 | Local file include | `!include` file includes | partial | Local include works with include-root safety model. | https://plantuml.com/preprocessing |
@@ -184,7 +184,7 @@ Current `puml` baseline used for parity status:
 | `!assert` | Assertion directive | missing | Not implemented. | https://plantuml.com/preprocessing |
 | `!import` library building | Import/build custom library | missing | Not implemented. | https://plantuml.com/preprocessing |
 | Search path behavior | Preprocessor search path semantics | partial | `include_root` exists but broader search-path surface is absent. | https://plantuml.com/preprocessing |
-| Argument concatenation `##` | Macro argument concatenation | missing | Not implemented. | https://plantuml.com/preprocessing |
+| Argument concatenation `##` | Macro argument concatenation | partial | Explicit deterministic rejection implemented (`E_PREPROC_CONCAT_UNSUPPORTED`) in callable signatures/call args. | https://plantuml.com/preprocessing |
 | Dynamic invocation | `%invoke_procedure`, `%call_user_func` | missing | Not implemented. | https://plantuml.com/preprocessing |
 | JSON preprocessing | JSON variable/object preprocessing surface | missing | Not implemented. | https://plantuml.com/preprocessing-json |
 | `!theme` include | Theme include command | partial | Deterministic local-catalog semantics implemented for sequence (`plain`, `spacelab`); remote/source forms are rejected. | https://plantuml.com/preprocessing |

@@ -1,0 +1,8 @@
+@startuml
+!$sender = Alice
+!$target ?= Bob
+!$target ?= Carol
+participant $sender
+participant $target
+$sender -> $target: hi
+@enduml
