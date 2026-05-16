@@ -338,19 +338,9 @@ fn non_sequence_activity_oldstyle_baseline_passes_check() {
 
 #[test]
 fn non_sequence_activity_oldstyle_baseline_renders_with_activity_timeline_labels() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "svg",
-            &fixture("non_sequence/valid_activity_oldstyle_baseline.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let svg = String::from_utf8(out).unwrap();
+    let src = fs::read_to_string(fixture("non_sequence/valid_activity_oldstyle_baseline.puml"))
+        .expect("fixture");
+    let svg = render_source_to_svg(&src).expect("should render activity baseline SVG");
     assert!(svg.contains("ACTIVITY timeline entries"));
     assert!(svg.contains("action[#gold]:"));
     assert!(svg.contains("lane: Build"));
