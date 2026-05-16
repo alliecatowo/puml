@@ -1,0 +1,4 @@
+@startuml
+!assert
+Alice -> Bob: unreachable
+@enduml
