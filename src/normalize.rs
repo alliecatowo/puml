@@ -1206,13 +1206,48 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
+            StatementKind::SaltGridRow { cells } => {
+                if family_kind != DiagramKind::Salt {
+                    return Err(Diagnostic::error(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
+                    )
+                    .with_span(stmt.span));
+                }
+                // Encode the cells into the name field using a special separator
+                // so the renderer can reconstruct the grid row.
+                use crate::ast::SaltCell as SC;
+                let cell_strs: Vec<String> = cells
+                    .into_iter()
+                    .map(|c| match c {
+                        SC::Label(t) => format!("L:{t}"),
+                        SC::Input(t) => format!("I:{t}"),
+                        SC::Button(t) => format!("B:{t}"),
+                        SC::Combo(t) => format!("C:{t}"),
+                        SC::CheckboxChecked(t) => format!("CX:{t}"),
+                        SC::CheckboxUnchecked(t) => format!("CU:{t}"),
+                        SC::RadioOn(t) => format!("RO:{t}"),
+                        SC::RadioOff(t) => format!("RF:{t}"),
+                    })
+                    .collect();
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::Salt,
+                    name: format!("SALT_ROW\x1f{}", cell_strs.join("\x1e")),
+                    alias: None,
+                    members: Vec::new(),
+                    depth: 0,
+                    label: None,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
+                });
+            }
             StatementKind::Unknown(line) if family_kind == DiagramKind::Salt => {
                 if line.trim() == "---" {
                     continue;
                 }
+                // Treat non-row unknown lines as plain label rows
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::Salt,
-                    name: line,
+                    name: format!("SALT_ROW\x1fL:{line}"),
                     alias: None,
                     members: Vec::new(),
                     depth: 0,
@@ -1589,6 +1624,56 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
                         SequenceSkinParamValue::DefaultTextAlignment(align),
                     ) => {
                         style.text_alignment = align;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantPadding(n),
+                    ) => {
+                        style.participant_padding = Some(n);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::BoxPadding(n),
+                    ) => {
+                        style.box_padding = Some(n);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageAlign(a),
+                    ) => {
+                        style.message_align = a;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ResponseMessageBelowArrow(b),
+                    ) => {
+                        style.response_message_below_arrow = b;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineThickness(n),
+                    ) => {
+                        style.lifeline_thickness = Some(n);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageLineColor(c),
+                    ) => {
+                        style.message_line_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBackgroundColor(c),
+                    ) => {
+                        style.reference_background_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBorderColor(c),
+                    ) => {
+                        style.reference_border_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontColor(c),
+                    ) => {
+                        style.group_header_font_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontStyle(s),
+                    ) => {
+                        style.group_header_font_style = s;
                     }
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
@@ -2166,6 +2251,8 @@ fn page_from(
         legend_halign: document.legend_halign,
         legend_valign: document.legend_valign,
         warnings: document.warnings.clone(),
+        hide_unlinked: document.hide_unlinked,
+        hidden_participants: document.hidden_participants.clone(),
     }
 }
 
@@ -2206,9 +2293,13 @@ pub fn normalize_with_options(
     let mut group_stack: Vec<GroupFrame> = Vec::new();
     let mut last_message: Option<(String, String)> = None;
     let mut ignore_newpage = false;
+    let mut hide_unlinked = false;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::HideUnlinked => {
+                hide_unlinked = true;
+            }
             StatementKind::Participant(p) => {
                 mark_group_content(&mut group_stack);
                 let id = p.alias.unwrap_or_else(|| p.name.clone());
@@ -2465,6 +2556,36 @@ pub fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::DefaultTextAlignment(align),
                     ) => style.text_alignment = align,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantPadding(n),
+                    ) => style.participant_padding = Some(n),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::BoxPadding(n),
+                    ) => style.box_padding = Some(n),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageAlign(align),
+                    ) => style.message_align = align,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ResponseMessageBelowArrow(enabled),
+                    ) => style.response_message_below_arrow = enabled,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineThickness(n),
+                    ) => style.lifeline_thickness = Some(n),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageLineColor(color),
+                    ) => style.message_line_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBackgroundColor(color),
+                    ) => style.reference_background_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBorderColor(color),
+                    ) => style.reference_border_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontColor(color),
+                    ) => style.group_header_font_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontStyle(fs),
+                    ) => style.group_header_font_style = fs,
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -2722,7 +2843,8 @@ pub fn normalize_with_options(
             | StatementKind::TimingEvent { .. }
             | StatementKind::RawBody(_)
             | StatementKind::ClassGroup { .. }
-            | StatementKind::JsonProjection { .. } => {
+            | StatementKind::JsonProjection { .. }
+            | StatementKind::SaltGridRow { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )
@@ -2751,6 +2873,63 @@ pub fn normalize_with_options(
         .with_span(open.span));
     }
 
+    // Apply `hide unlinked` filter: collect all participant IDs that appear in
+    // events, then drop explicit participant declarations that are never referenced.
+    if hide_unlinked {
+        let mut referenced: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for ev in &events {
+            match &ev.kind {
+                SequenceEventKind::Message { from, to, .. } => {
+                    // Only count real (non-virtual) endpoints.
+                    if !from.starts_with('[') && from != "]" {
+                        referenced.insert(from.clone());
+                    }
+                    if !to.starts_with('[') && to != "]" {
+                        referenced.insert(to.clone());
+                    }
+                }
+                SequenceEventKind::Note {
+                    target: Some(t), ..
+                } => {
+                    // target may be comma-separated for `note over A,B`
+                    for part in t.split(',') {
+                        referenced.insert(part.trim().to_string());
+                    }
+                }
+                SequenceEventKind::Note { target: None, .. } => {}
+                SequenceEventKind::Activate(id)
+                | SequenceEventKind::Deactivate(id)
+                | SequenceEventKind::Destroy(id)
+                | SequenceEventKind::Create(id) => {
+                    referenced.insert(id.clone());
+                }
+                SequenceEventKind::Return { from, to, .. } => {
+                    if let Some(f) = from {
+                        referenced.insert(f.clone());
+                    }
+                    if let Some(t) = to {
+                        referenced.insert(t.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        let before_len = participants.len();
+        participants.retain(|p| !p.explicit || referenced.contains(&p.id));
+        let hidden_count = before_len - participants.len();
+        if hidden_count > 0 {
+            warnings.push(Diagnostic::warning(format!(
+                "[I_HIDE_UNLINKED_FILTERED] hide unlinked: removed {} unreferenced participant(s)",
+                hidden_count
+            )));
+            // Rebuild the participant index map.
+            participant_ix.clear();
+            for (idx, p) in participants.iter().enumerate() {
+                participant_ix.insert(p.id.clone(), idx);
+            }
+        }
+    }
+
     warnings.sort_by(|a, b| {
         let sa = a.span.map(|s| s.start).unwrap_or_default();
         let sb = b.span.map(|s| s.start).unwrap_or_default();
@@ -2772,6 +2951,8 @@ pub fn normalize_with_options(
         legend_halign,
         legend_valign,
         warnings,
+        hide_unlinked,
+        hidden_participants: Vec::new(),
     })
 }
 

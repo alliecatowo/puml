@@ -521,6 +521,10 @@ pub struct SequenceDocument {
     pub legend_halign: LegendHAlign,
     pub legend_valign: LegendVAlign,
     pub warnings: Vec<Diagnostic>,
+    /// Whether `hide unlinked` was active for this document.
+    pub hide_unlinked: bool,
+    /// IDs of participants that were removed by the `hide unlinked` filter.
+    pub hidden_participants: Vec<String>,
 }
 
 impl Default for SequenceDocument {
@@ -540,6 +544,8 @@ impl Default for SequenceDocument {
             legend_halign: LegendHAlign::default(),
             legend_valign: LegendVAlign::default(),
             warnings: Vec::new(),
+            hide_unlinked: false,
+            hidden_participants: Vec::new(),
         }
     }
 }
@@ -560,6 +566,10 @@ pub struct SequencePage {
     pub legend_halign: LegendHAlign,
     pub legend_valign: LegendVAlign,
     pub warnings: Vec<Diagnostic>,
+    /// Whether `hide unlinked` was active for this page.
+    pub hide_unlinked: bool,
+    /// IDs of participants that were removed by the `hide unlinked` filter.
+    pub hidden_participants: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

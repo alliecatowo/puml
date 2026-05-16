@@ -135,13 +135,39 @@ pub enum StatementKind {
         value: String,
     },
     HideOption(String),
+    HideUnlinked,
     /// `json $alias { ... }` inline block inside a `@startuml`/`@enduml` block.
     /// The body is the raw JSON text (everything between the outer braces).
     JsonProjection {
         alias: String,
         body: String,
     },
+    /// A row of cells in a `@startsalt` wireframe grid.
+    SaltGridRow {
+        cells: Vec<SaltCell>,
+    },
     Unknown(String),
+}
+
+/// A single cell in a `@startsalt` wireframe grid row.
+#[derive(Debug, Clone)]
+pub enum SaltCell {
+    /// Plain text label.
+    Label(String),
+    /// `"text"` — input field with placeholder text.
+    Input(String),
+    /// `[text]` — button.
+    Button(String),
+    /// `^text^` — combo box / dropdown.
+    Combo(String),
+    /// `[X] text` — checked checkbox.
+    CheckboxChecked(String),
+    /// `[ ] text` — unchecked checkbox.
+    CheckboxUnchecked(String),
+    /// `(X) text` — selected radio button.
+    RadioOn(String),
+    /// `( ) text` — unselected radio button.
+    RadioOff(String),
 }
 
 /// A state declaration: `state Name` or `state Name { ... }` or `state Name <<stereotype>>`

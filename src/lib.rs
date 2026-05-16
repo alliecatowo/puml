@@ -243,8 +243,7 @@ fn render_document_for_family(
         }
         DiagramFamily::Class
         | DiagramFamily::Object
-        | DiagramFamily::UseCase
-        | DiagramFamily::Salt => match normalize::normalize_family(document)? {
+        | DiagramFamily::UseCase => match normalize::normalize_family(document)? {
             model::NormalizedDocument::Family(family_doc) => {
                 Ok(vec![render::render_class_svg(&family_doc)])
             }
@@ -255,6 +254,14 @@ fn render_document_for_family(
             )),
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
+            )),
+        },
+        DiagramFamily::Salt => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Family(family_doc) => {
+                Ok(vec![render::render_salt_svg(&family_doc)])
+            }
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during salt render",
             )),
         },
         DiagramFamily::Gantt | DiagramFamily::Chronology => {

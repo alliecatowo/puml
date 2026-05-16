@@ -347,13 +347,24 @@ fn parser_rejects_salt_marker_mismatch_fixture() {
 
 #[test]
 fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
+    // Plain (non-pipe) lines in a @startsalt block are encoded as SALT_ROW label nodes.
     let src = "@startsalt\nwidget title\n@endsalt\n";
     let doc = parse(src).expect("parse should succeed");
     let normalized = normalize_family(doc).expect("salt normalize should succeed");
     match normalized {
         NormalizedDocument::Family(model) => {
             assert_eq!(model.nodes.len(), 1, "expected one widget node");
-            assert_eq!(model.nodes[0].name, "widget title");
+            // Salt lines are now encoded as "SALT_ROW\x1fL:<text>" for the wireframe renderer.
+            assert!(
+                model.nodes[0].name.starts_with("SALT_ROW\x1f"),
+                "expected salt row encoding, got: {}",
+                model.nodes[0].name
+            );
+            assert!(
+                model.nodes[0].name.contains("widget title"),
+                "expected label text, got: {}",
+                model.nodes[0].name
+            );
             assert_eq!(model.relations.len(), 0, "no relations expected");
         }
         NormalizedDocument::Sequence(_) => panic!("expected salt family model"),

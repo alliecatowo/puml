@@ -1,0 +1,7 @@
+@startuml
+hide unlinked
+participant Alice
+participant Bob
+participant Unused
+Alice -> Bob: hello
+@enduml

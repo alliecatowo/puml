@@ -739,7 +739,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_procedure_unsupported.puml",
         "errors/invalid_preproc_endwhile_without_while.puml",
         "errors/invalid_preproc_expr_missing.puml",
-        "errors/invalid_preproc_expr_unsupported_logical.puml",
         "errors/invalid_preproc_expr_unsupported_parens.puml",
         "errors/invalid_preproc_unexpected_endfunction.puml",
         "errors/invalid_preproc_while_iteration_limit.puml",
@@ -2531,10 +2530,6 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
             "E_PREPROC_EXPR_REQUIRED",
         ),
         (
-            "errors/invalid_preproc_expr_unsupported_logical.puml",
-            "E_PREPROC_EXPR_UNSUPPORTED",
-        ),
-        (
             "errors/invalid_preproc_expr_unsupported_parens.puml",
             "E_PREPROC_EXPR_UNSUPPORTED",
         ),
@@ -4268,7 +4263,7 @@ fn quiet_flag_suppresses_warnings_on_stderr() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--quiet", "--check", "-"])
-        .write_stdin("@startuml\nhide unlinked\nA -> B\n@enduml\n")
+        .write_stdin("@startuml\nskinparam unknownKey foo\nA -> B\n@enduml\n")
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -4279,7 +4274,7 @@ fn fail_on_warn_flag_exits_one_when_warnings_emitted() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--fail-on-warn", "--check", "-"])
-        .write_stdin("@startuml\nhide unlinked\nA -> B\n@enduml\n")
+        .write_stdin("@startuml\nskinparam UnknownXyzKey value\nA -> B\n@enduml\n")
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_WARNINGS_PRESENT"));
@@ -5464,4 +5459,48 @@ fn mindmap_caption_and_legend_render_in_svg() {
         "@startmindmap\ntitle My Map\ncaption A test diagram\nlegend\nsome legend\nend legend\n* Root\n** Child\n@endmindmap\n";
     let svg = render_source_to_svg(src).expect("mindmap with caption/legend should render");
     assert!(svg.contains("A test diagram"), "expected caption text");
+}
+
+#[test]
+fn hide_unlinked_removes_unreferenced_participant_from_svg() {
+    let src = "@startuml\nhide unlinked\nparticipant Alice\nparticipant Bob\nparticipant Unused\nAlice -> Bob: hello\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("hide unlinked diagram should render");
+    assert!(svg.contains("Alice"), "expected Alice in rendered SVG");
+    assert!(svg.contains("Bob"), "expected Bob in rendered SVG");
+    assert!(!svg.contains("Unused"), "Unused should be filtered by hide unlinked");
+}
+
+#[test]
+fn hide_unlinked_fixture_validates_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("styling/valid_hide_unlinked.puml")])
+        .assert()
+        .success();
+}
+
+#[test]
+fn extended_skinparams_fixture_validates_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("styling/valid_skinparam_extended.puml")])
+        .assert()
+        .success();
+}
+
+#[test]
+fn salt_login_form_fixture_renders_svg() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_salt_login_form.puml")])
+        .assert()
+        .success();
+}
+
+#[test]
+fn salt_wireframe_grid_renders_button_and_input() {
+    let src = "@startsalt\n{\n| Name | \"Enter name\" |\n| [OK] | [Cancel]    |\n}\n@endsalt\n";
+    let svg = render_source_to_svg(src).expect("salt grid should render");
+    assert!(svg.contains("Enter name"), "expected input placeholder in SVG");
+    assert!(svg.contains("OK"), "expected button label in SVG");
 }

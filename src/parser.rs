@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 use crate::ast::{
     ActivityStep, ActivityStepKind, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind,
     Document, FamilyRelation, Group, MemberModifier, Message, Note, ObjectDecl, ParticipantDecl,
-    ParticipantRole, StateDecl, StateInternalAction, StateTransition, Statement, StatementKind,
-    TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition, Statement,
+    StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
+    VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
@@ -1120,11 +1121,12 @@ fn evaluate_preprocess_expr(expr: &str, state: &PreprocState) -> Result<bool, Di
             "preprocessor condition requires an expression",
         ));
     }
-    if raw.contains("&&") || raw.contains("||") {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_EXPR_UNSUPPORTED",
-            "only simple conditions are supported in this preprocessor slice",
-        ));
+    // Compound boolean: split top-level || then && and recurse on each half
+    if let Some((lhs, rhs)) = split_top_level(raw, "||") {
+        return Ok(evaluate_preprocess_expr(&lhs, state)? || evaluate_preprocess_expr(&rhs, state)?);
+    }
+    if let Some((lhs, rhs)) = split_top_level(raw, "&&") {
+        return Ok(evaluate_preprocess_expr(&lhs, state)? && evaluate_preprocess_expr(&rhs, state)?);
     }
 
     if let Some((negated, name)) = parse_defined_call(raw) {
@@ -1163,6 +1165,14 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return Ok(false);
+    }
+
+    // Compound boolean: try top-level || then && (split outside quotes/parens)
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "||") {
+        return Ok(evaluate_scalar_expr(&lhs)? || evaluate_scalar_expr(&rhs)?);
+    }
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "&&") {
+        return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
     }
 
     if let Some((lhs, rhs)) = trimmed.split_once("==") {
@@ -1215,6 +1225,41 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
         return Ok(n != 0);
     }
     Ok(false)
+}
+
+/// Split `expr` on the first top-level occurrence of `sep`, respecting
+/// parentheses depth and double-quoted strings. Returns None if `sep`
+/// is absent at depth zero (which keeps short-circuit chains correct).
+fn split_top_level(expr: &str, sep: &str) -> Option<(String, String)> {
+    let bytes = expr.as_bytes();
+    let sep_bytes = sep.as_bytes();
+    let mut depth: i32 = 0;
+    let mut in_str = false;
+    let mut i = 0;
+    while i + sep_bytes.len() <= bytes.len() {
+        let b = bytes[i];
+        if in_str {
+            if b == b'"' {
+                in_str = false;
+            }
+        } else {
+            match b {
+                b'"' => in_str = true,
+                b'(' => depth += 1,
+                b')' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+            if depth == 0 && bytes[i..].starts_with(sep_bytes) {
+                let lhs = expr[..i].trim().to_string();
+                let rhs = expr[i + sep_bytes.len()..].trim().to_string();
+                if !lhs.is_empty() && !rhs.is_empty() {
+                    return Some((lhs, rhs));
+                }
+            }
+        }
+        i += 1;
+    }
+    None
 }
 
 fn normalize_expr_value(value: &str) -> String {
@@ -3042,6 +3087,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        // Salt wireframe grid row parsing: `|cell|cell|cell|`
+        if matches!(detected_kind, Some(DiagramKind::Salt)) {
+            if let Some(kind) = parse_salt_grid_row(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            // Skip `{`, `}`, `{+`, `{-`, `---` markers inside salt blocks
+            let trimmed = line.trim();
+            if matches!(trimmed, "{" | "}" | "{+" | "{-" | "---") || trimmed.is_empty() {
+                i += 1;
+                continue;
+            }
+        }
+
         statements.push(Statement {
             span,
             kind: StatementKind::Unknown(line.to_string()),
@@ -4785,13 +4845,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::Footbox(true));
     }
     if lower == "hide unlinked" {
-        // Treat `hide unlinked` as a skinparam-style flag; the normalizer
-        // pipeline records it as a pragma so the layout layer can later
-        // filter out participants that never appear on a message.
-        return Some(StatementKind::SkinParam {
-            key: "hideUnlinked".to_string(),
-            value: "true".to_string(),
-        });
+        return Some(StatementKind::HideUnlinked);
     }
 
     // scale directive: "scale <factor>", "scale <w>*<h>", "scale max <n>"
@@ -5394,6 +5448,69 @@ fn parse_json_projection_block(
         alias
     ))
     .with_span(lines[start].1))
+}
+
+/// Parse a single salt wireframe row line into a `SaltGridRow` statement.
+/// A row is a `|`-delimited sequence of cell tokens.
+/// Returns `None` if the line does not start with `|`.
+fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('|') {
+        return None;
+    }
+    // Split on `|` and parse each cell token.
+    let parts: Vec<&str> = trimmed.split('|').collect();
+    // The first element before the first `|` is always empty; skip it.
+    // The last element after the last `|` may also be empty; skip it.
+    let mut cells = Vec::new();
+    for part in parts.iter().skip(1) {
+        let cell_text = part.trim();
+        if cell_text.is_empty() {
+            continue;
+        }
+        cells.push(parse_salt_cell(cell_text));
+    }
+    if cells.is_empty() {
+        return None;
+    }
+    Some(StatementKind::SaltGridRow { cells })
+}
+
+/// Parse a single salt cell token into a `SaltCell` variant.
+fn parse_salt_cell(text: &str) -> SaltCell {
+    // `"placeholder"` → Input
+    if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
+        let inner = &text[1..text.len() - 1];
+        return SaltCell::Input(inner.to_string());
+    }
+    // `[X] label` or `[ ] label` → Checkbox
+    if text.starts_with("[X]") || text.starts_with("[x]") {
+        let label = text[3..].trim().to_string();
+        return SaltCell::CheckboxChecked(label);
+    }
+    if let Some(rest) = text.strip_prefix("[ ]") {
+        return SaltCell::CheckboxUnchecked(rest.trim().to_string());
+    }
+    // `(X) label` or `( ) label` → Radio
+    if text.starts_with("(X)") || text.starts_with("(x)") {
+        let label = text[3..].trim().to_string();
+        return SaltCell::RadioOn(label);
+    }
+    if let Some(rest) = text.strip_prefix("( )") {
+        return SaltCell::RadioOff(rest.trim().to_string());
+    }
+    // `[button text]` → Button
+    if text.starts_with('[') && text.ends_with(']') && text.len() >= 2 {
+        let inner = &text[1..text.len() - 1];
+        return SaltCell::Button(inner.to_string());
+    }
+    // `^combo text^` → Combo
+    if text.starts_with('^') && text.ends_with('^') && text.len() >= 2 {
+        let inner = &text[1..text.len() - 1];
+        return SaltCell::Combo(inner.to_string());
+    }
+    // Plain text → Label
+    SaltCell::Label(text.to_string())
 }
 
 #[cfg(test)]

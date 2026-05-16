@@ -70,15 +70,35 @@ pub fn render_svg(scene: &Scene) -> String {
         render_participant_box(&mut out, p, scene);
     }
 
+    let lifeline_stroke_width = scene.style.lifeline_thickness.unwrap_or(1);
     for l in &scene.lifelines {
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/>",
-            l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"6 4\"/>",
+            l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color, lifeline_stroke_width
         ));
     }
 
     for g in &scene.groups {
         let grx = (scene.style.round_corner / 2).max(2);
+        let is_ref = g.kind.eq_ignore_ascii_case("ref");
+        let group_fill = if is_ref {
+            scene
+                .style
+                .reference_background_color
+                .as_deref()
+                .unwrap_or("#eef6ff")
+        } else {
+            scene.style.group_background_color.as_str()
+        };
+        let group_border = if is_ref {
+            scene
+                .style
+                .reference_border_color
+                .as_deref()
+                .unwrap_or(scene.style.group_border_color.as_str())
+        } else {
+            scene.style.group_border_color.as_str()
+        };
         out.push_str(&format!(
             "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
             g.x,
@@ -87,24 +107,36 @@ pub fn render_svg(scene: &Scene) -> String {
             g.height,
             grx,
             grx,
-            if g.kind.eq_ignore_ascii_case("ref") {
-                "#eef6ff"
-            } else {
-                scene.style.group_background_color.as_str()
-            },
-            scene.style.group_border_color
+            group_fill,
+            group_border
         ));
 
         if let Some(label) = &g.label {
             let header = label.lines().next().unwrap_or("");
             let header_full = format!("{} {}", g.kind, header);
             let header_trimmed = header_full.trim();
+            let header_font_color = scene
+                .style
+                .group_header_font_color
+                .as_deref()
+                .unwrap_or("black");
+            use crate::theme::GroupHeaderFontStyle;
+            let header_font_weight = match scene.style.group_header_font_style {
+                GroupHeaderFontStyle::Bold => "font-weight=\"bold\"",
+                _ => "font-weight=\"600\"",
+            };
+            let header_font_style_attr = match scene.style.group_header_font_style {
+                GroupHeaderFontStyle::Italic => " font-style=\"italic\"",
+                _ => "",
+            };
             out.push_str(&creole_text(
                 g.x + 8,
                 g.y + 16,
-                "font-family=\"monospace\" font-size=\"12\" font-weight=\"600\"",
+                &format!(
+                    "font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}"
+                ),
                 header_trimmed,
-                "black",
+                header_font_color,
             ));
             if g.kind.eq_ignore_ascii_case("ref") {
                 let mut y = g.y + 32;
@@ -142,6 +174,11 @@ pub fn render_svg(scene: &Scene) -> String {
         }
     }
 
+    let message_line_color = scene
+        .style
+        .message_line_color
+        .as_deref()
+        .unwrap_or(scene.style.arrow_color.as_str());
     for m in &scene.messages {
         let stroke_dash = if m.arrow.contains("--") {
             " stroke-dasharray=\"6 4\""
@@ -150,7 +187,7 @@ pub fn render_svg(scene: &Scene) -> String {
         };
         out.push_str(&format!(
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
-            m.x1, m.y, m.x2, m.y, scene.style.arrow_color, stroke_dash
+            m.x1, m.y, m.x2, m.y, message_line_color, stroke_dash
         ));
         let arrow_size = 6;
         if m.x2 >= m.x1 {
@@ -1102,6 +1139,332 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+/// Render a `@startsalt` wireframe grid as an SVG.
+/// Nodes in the FamilyDocument whose `name` starts with `"SALT_ROW\x1f"` are
+/// decoded back into cell lists and drawn as a proper wireframe table.
+pub fn render_salt_svg(document: &FamilyDocument) -> String {
+    const CELL_H: i32 = 28;
+    const CELL_PAD_X: i32 = 10;
+    const MARGIN: i32 = 24;
+    const MIN_CELL_W: i32 = 80;
+
+    // Parse rows from the encoded node names.
+    let mut rows: Vec<Vec<SaltCellRender>> = Vec::new();
+    for node in &document.nodes {
+        if let Some(rest) = node.name.strip_prefix("SALT_ROW\x1f") {
+            let cells: Vec<SaltCellRender> = rest.split('\x1e').map(decode_salt_cell).collect();
+            rows.push(cells);
+        }
+    }
+
+    if rows.is_empty() {
+        // Fallback: render a minimal empty wireframe
+        return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"60\"><rect width=\"120\" height=\"60\" fill=\"white\"/><text x=\"10\" y=\"30\" font-family=\"monospace\" font-size=\"11\" fill=\"#666\">[salt]</text></svg>".to_string();
+    }
+
+    // Compute number of columns from the max row width.
+    let col_count = rows.iter().map(|r| r.len()).max().unwrap_or(1);
+
+    // First pass: compute per-column minimum widths based on text content.
+    let mut col_widths: Vec<i32> = vec![MIN_CELL_W; col_count];
+    for row in &rows {
+        for (col_idx, cell) in row.iter().enumerate() {
+            let text_w = estimate_text_width(cell.text()) + CELL_PAD_X * 2 + 20;
+            if text_w > col_widths[col_idx] {
+                col_widths[col_idx] = text_w;
+            }
+        }
+    }
+
+    let total_w = col_widths.iter().sum::<i32>() + MARGIN * 2;
+    let total_h = (rows.len() as i32) * CELL_H + MARGIN * 2;
+
+    // Title height
+    let title_h = document.title.as_deref().map(|_| 28i32).unwrap_or(0);
+    let svg_h = total_h + title_h;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\">",
+        total_w, svg_h
+    ));
+    out.push_str(&format!(
+        "<rect width=\"{}\" height=\"{}\" fill=\"#f5f5f5\"/>",
+        total_w, svg_h
+    ));
+
+    // Outer border
+    out.push_str(&format!(
+        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" stroke=\"#555\" stroke-width=\"1.5\"/>",
+        MARGIN,
+        MARGIN + title_h,
+        total_w - MARGIN * 2,
+        total_h - MARGIN * 2
+    ));
+
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#222\">{}</text>",
+            MARGIN,
+            MARGIN - 6,
+            escape_text(title)
+        ));
+    }
+
+    // Draw rows and cells.
+    for (row_idx, cells) in rows.iter().enumerate() {
+        let row_y = MARGIN + title_h + (row_idx as i32) * CELL_H;
+        let mut col_x = MARGIN;
+
+        for (col_idx, cell) in cells.iter().enumerate() {
+            let cell_w = col_widths.get(col_idx).copied().unwrap_or(MIN_CELL_W);
+            render_salt_cell_svg(&mut out, cell, col_x, row_y, cell_w, CELL_H);
+            col_x += cell_w;
+        }
+
+        // Row separator line (skip the last row)
+        if row_idx + 1 < rows.len() {
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#ccc\" stroke-width=\"0.5\"/>",
+                MARGIN,
+                row_y + CELL_H,
+                total_w - MARGIN,
+                row_y + CELL_H
+            ));
+        }
+    }
+
+    // Column separator lines
+    {
+        let mut col_x = MARGIN;
+        for (col_idx, w) in col_widths.iter().enumerate() {
+            col_x += w;
+            if col_idx + 1 < col_count {
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#ccc\" stroke-width=\"0.5\"/>",
+                    col_x,
+                    MARGIN + title_h,
+                    col_x,
+                    MARGIN + title_h + total_h - MARGIN * 2
+                ));
+            }
+        }
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+/// A decoded salt cell ready for rendering.
+enum SaltCellRender {
+    Label(String),
+    Input(String),
+    Button(String),
+    Combo(String),
+    CheckboxChecked(String),
+    CheckboxUnchecked(String),
+    RadioOn(String),
+    RadioOff(String),
+}
+
+impl SaltCellRender {
+    fn text(&self) -> &str {
+        match self {
+            Self::Label(t)
+            | Self::Input(t)
+            | Self::Button(t)
+            | Self::Combo(t)
+            | Self::CheckboxChecked(t)
+            | Self::CheckboxUnchecked(t)
+            | Self::RadioOn(t)
+            | Self::RadioOff(t) => t,
+        }
+    }
+}
+
+/// Decode a salt cell from the encoded string `"X:text"`.
+fn decode_salt_cell(s: &str) -> SaltCellRender {
+    if let Some(rest) = s.strip_prefix("I:") {
+        SaltCellRender::Input(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("B:") {
+        SaltCellRender::Button(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("C:") {
+        SaltCellRender::Combo(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("CX:") {
+        SaltCellRender::CheckboxChecked(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("CU:") {
+        SaltCellRender::CheckboxUnchecked(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("RO:") {
+        SaltCellRender::RadioOn(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("RF:") {
+        SaltCellRender::RadioOff(rest.to_string())
+    } else if let Some(rest) = s.strip_prefix("L:") {
+        SaltCellRender::Label(rest.to_string())
+    } else {
+        SaltCellRender::Label(s.to_string())
+    }
+}
+
+/// Estimate text width in monospace pixels (approx 7px per char at 12px font).
+fn estimate_text_width(text: &str) -> i32 {
+    (text.chars().count() as i32) * 7
+}
+
+/// Render a single salt cell into SVG, appending to `out`.
+fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32, w: i32, h: i32) {
+    let pad = 8;
+    let text_y = y + h / 2 + 4;
+    match cell {
+        SaltCellRender::Label(text) => {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                x + pad,
+                text_y,
+                escape_text(text)
+            ));
+        }
+        SaltCellRender::Input(placeholder) => {
+            // Bordered rectangle with gray placeholder text
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" stroke=\"#888\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
+                x + pad,
+                y + 4,
+                w - pad * 2,
+                h - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#aaa\">{}</text>",
+                x + pad + 4,
+                text_y,
+                escape_text(placeholder)
+            ));
+        }
+        SaltCellRender::Button(label) => {
+            // Rounded rectangle with bold text
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#e8e8e8\" stroke=\"#555\" stroke-width=\"1\" rx=\"4\" ry=\"4\"/>",
+                x + pad,
+                y + 4,
+                w - pad * 2,
+                h - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" font-weight=\"bold\" fill=\"#111\">{}</text>",
+                x + w / 2,
+                text_y,
+                escape_text(label)
+            ));
+        }
+        SaltCellRender::Combo(label) => {
+            // Rectangle with down-arrow indicator
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" stroke=\"#888\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
+                x + pad,
+                y + 4,
+                w - pad * 2,
+                h - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#222\">{}</text>",
+                x + pad + 4,
+                text_y,
+                escape_text(label)
+            ));
+            // Down arrow triangle
+            let ax = x + w - pad - 10;
+            let ay = y + h / 2;
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#555\"/>",
+                ax,
+                ay - 3,
+                ax + 8,
+                ay - 3,
+                ax + 4,
+                ay + 3
+            ));
+        }
+        SaltCellRender::CheckboxChecked(label) => {
+            let bx = x + pad;
+            let by = y + h / 2 - 6;
+            // Box
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
+                bx, by
+            ));
+            // Checkmark (×)
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#222\" stroke-width=\"1.5\"/>",
+                bx + 2, by + 2, bx + 10, by + 10
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#222\" stroke-width=\"1.5\"/>",
+                bx + 10, by + 2, bx + 2, by + 10
+            ));
+            if !label.is_empty() {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    bx + 16,
+                    text_y,
+                    escape_text(label)
+                ));
+            }
+        }
+        SaltCellRender::CheckboxUnchecked(label) => {
+            let bx = x + pad;
+            let by = y + h / 2 - 6;
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
+                bx, by
+            ));
+            if !label.is_empty() {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    bx + 16,
+                    text_y,
+                    escape_text(label)
+                ));
+            }
+        }
+        SaltCellRender::RadioOn(label) => {
+            let cx = x + pad + 6;
+            let cy = y + h / 2;
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
+                cx, cy
+            ));
+            // Filled dot
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"#333\"/>",
+                cx, cy
+            ));
+            if !label.is_empty() {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    cx + 10,
+                    text_y,
+                    escape_text(label)
+                ));
+            }
+        }
+        SaltCellRender::RadioOff(label) => {
+            let cx = x + pad + 6;
+            let cy = y + h / 2;
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
+                cx, cy
+            ));
+            if !label.is_empty() {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    cx + 10,
+                    text_y,
+                    escape_text(label)
+                ));
+            }
+        }
+    }
 }
 
 /// Parse visibility prefix from member line.
