@@ -1383,7 +1383,17 @@ fn model_to_json(model: &SequenceDocument) -> Value {
         "caption": model.caption,
         "legend": model.legend,
         "skinparams": model.skinparams,
-        "footbox_visible": model.footbox_visible
+        "footbox_visible": model.footbox_visible,
+        "style": {
+            "arrow_color": model.style.arrow_color,
+            "lifeline_border_color": model.style.lifeline_border_color,
+            "participant_background_color": model.style.participant_background_color,
+            "participant_border_color": model.style.participant_border_color,
+            "note_background_color": model.style.note_background_color,
+            "note_border_color": model.style.note_border_color,
+            "group_background_color": model.style.group_background_color,
+            "group_border_color": model.style.group_border_color
+        }
     })
 }
 

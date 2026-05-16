@@ -1,6 +1,5 @@
 ---
 source: tests/integration.rs
-assertion_line: 516
 expression: json
 ---
 {
@@ -63,5 +62,15 @@ expression: json
     }
   ],
   "skinparams": [],
+  "style": {
+    "arrow_color": "#111",
+    "group_background_color": "#fafafa",
+    "group_border_color": "#666",
+    "lifeline_border_color": "#555",
+    "note_background_color": "#fff8c4",
+    "note_border_color": "#111",
+    "participant_background_color": "#f6f6f6",
+    "participant_border_color": "#111"
+  },
   "title": null
 }
