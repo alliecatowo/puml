@@ -238,6 +238,11 @@ Artifacts:
 |---|---|---|
 | Sequence diagrams | Supported | End-to-end parser/normalize/layout/render path. |
 | Non-sequence family routing (`component`, `deployment`, `state`, `timing`) | Stubbed (deterministic) | Parser identifies family and emits family-specific deterministic unsupported diagnostics in normalize/render paths. |
+| `@startsalt` wireframe diagrams | Supported | Full pipeline: grid row parser, cell type classification (Label, Input, Button, Combo, Checkbox, Radio), SVG wireframe renderer. |
+| `@startnwdiag` network diagrams | Supported | Full pipeline: network/node parser, multi-homed node detection, horizontal swimlane SVG renderer with bus lines. |
+| `@startarchimate` ArchiMate diagrams | Supported | Full pipeline: element/stereotype parser, layer classification (Motivation/Strategy/Business/Application/Technology/Physical), relation parser, layered SVG renderer. |
+| `@startjson` JSON tree diagrams | Supported | Full pipeline: `serde_json` tree flattening, depth/key/type model, color-coded tree-view SVG renderer. |
+| `@startyaml` YAML tree diagrams | Supported | Full pipeline: indent-based depth parser, key/value type classification, color-coded tree-view SVG renderer. |
 | Activity old-style baseline (`(*)`, `-->[label]`, direction hints, `#color:Action;`, swimlane lane bars) | Baseline implemented | Parsed into deterministic baseline activity timeline model/render path; broader activity semantics remain tracked in parity gaps. |
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |

@@ -767,6 +767,11 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Family(family) => &family.warnings,
         NormalizedDocument::Timeline(timeline) => &timeline.warnings,
         NormalizedDocument::State(state) => &state.warnings,
+        NormalizedDocument::Salt(salt) => &salt.warnings,
+        NormalizedDocument::Json(json) => &json.warnings,
+        NormalizedDocument::Yaml(yaml) => &yaml.warnings,
+        NormalizedDocument::Nwdiag(nwdiag) => &nwdiag.warnings,
+        NormalizedDocument::Archimate(archimate) => &archimate.warnings,
     }
 }
 
@@ -779,6 +784,11 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Family(family) => vec![render::render_family_stub_svg(family)],
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
         NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
+        NormalizedDocument::Salt(salt) => vec![render::render_salt_svg(salt)],
+        NormalizedDocument::Json(json) => vec![render::render_json_svg(json)],
+        NormalizedDocument::Yaml(yaml) => vec![render::render_yaml_svg(yaml)],
+        NormalizedDocument::Nwdiag(nwdiag) => vec![render::render_nwdiag_svg(nwdiag)],
+        NormalizedDocument::Archimate(archimate) => vec![render::render_archimate_svg(archimate)],
     }
 }
 
@@ -1230,6 +1240,11 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
+            DiagramKind::Salt => "Salt",
+            DiagramKind::Json => "Json",
+            DiagramKind::Yaml => "Yaml",
+            DiagramKind::Nwdiag => "Nwdiag",
+            DiagramKind::Archimate => "Archimate",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
@@ -1313,6 +1328,8 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
+        StatementKind::RawBody(v) => json!({"RawBody": v}),
+        StatementKind::SaltGridRow { cells } => json!({"SaltGridRow": {"cells": cells.len()}}),
     }
 }
 
@@ -1385,6 +1402,21 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Family(family) => family_model_to_json(family),
         NormalizedDocument::Timeline(timeline) => timeline_model_to_json(timeline),
         NormalizedDocument::State(state) => state_model_to_json(state),
+        NormalizedDocument::Salt(salt) => {
+            json!({"kind": "Salt", "rows": salt.rows.len(), "title": salt.title, "warnings": salt.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()})
+        }
+        NormalizedDocument::Json(json_doc) => {
+            json!({"kind": "Json", "nodes": json_doc.nodes.len(), "title": json_doc.title, "warnings": json_doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()})
+        }
+        NormalizedDocument::Yaml(yaml) => {
+            json!({"kind": "Yaml", "nodes": yaml.nodes.len(), "title": yaml.title, "warnings": yaml.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()})
+        }
+        NormalizedDocument::Nwdiag(nwdiag) => {
+            json!({"kind": "Nwdiag", "networks": nwdiag.networks.len(), "title": nwdiag.title, "warnings": nwdiag.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()})
+        }
+        NormalizedDocument::Archimate(archimate) => {
+            json!({"kind": "Archimate", "elements": archimate.elements.len(), "relations": archimate.relations.len(), "title": archimate.title, "warnings": archimate.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()})
+        }
     }
 }
 
@@ -1449,6 +1481,11 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
             DiagramKind::Sequence => "Sequence",
+            DiagramKind::Salt => "Salt",
+            DiagramKind::Json => "Json",
+            DiagramKind::Yaml => "Yaml",
+            DiagramKind::Nwdiag => "Nwdiag",
+            DiagramKind::Archimate => "Archimate",
             DiagramKind::Unknown => "Unknown",
         },
         "nodes": model
@@ -1669,6 +1706,11 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::Activity => "Activity",
                     DiagramKind::Timing => "Timing",
                     DiagramKind::Sequence => "Sequence",
+                    DiagramKind::Salt => "Salt",
+                    DiagramKind::Json => "Json",
+                    DiagramKind::Yaml => "Yaml",
+                    DiagramKind::Nwdiag => "Nwdiag",
+                    DiagramKind::Archimate => "Archimate",
                     DiagramKind::Unknown => "Unknown",
                 },
                 "nodes": family
@@ -1729,6 +1771,47 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "nodes": state.nodes.len(),
                 "transitions": state.transitions.len(),
                 "svg_preview": svg
+            })
+        }
+        NormalizedDocument::Salt(salt) => {
+            json!({
+                "kind": "Salt",
+                "rows": salt.rows.len(),
+                "title": salt.title,
+                "svg_preview": render::render_salt_svg(salt)
+            })
+        }
+        NormalizedDocument::Json(json_doc) => {
+            json!({
+                "kind": "Json",
+                "nodes": json_doc.nodes.len(),
+                "title": json_doc.title,
+                "svg_preview": render::render_json_svg(json_doc)
+            })
+        }
+        NormalizedDocument::Yaml(yaml) => {
+            json!({
+                "kind": "Yaml",
+                "nodes": yaml.nodes.len(),
+                "title": yaml.title,
+                "svg_preview": render::render_yaml_svg(yaml)
+            })
+        }
+        NormalizedDocument::Nwdiag(nwdiag) => {
+            json!({
+                "kind": "Nwdiag",
+                "networks": nwdiag.networks.len(),
+                "title": nwdiag.title,
+                "svg_preview": render::render_nwdiag_svg(nwdiag)
+            })
+        }
+        NormalizedDocument::Archimate(archimate) => {
+            json!({
+                "kind": "Archimate",
+                "elements": archimate.elements.len(),
+                "relations": archimate.relations.len(),
+                "title": archimate.title,
+                "svg_preview": render::render_archimate_svg(archimate)
             })
         }
     }

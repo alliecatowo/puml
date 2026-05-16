@@ -12,8 +12,8 @@ pub mod theme;
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
 pub use model::{
-    FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, StateDocument,
-    TimelineDocument,
+    ArchimateDocument, FamilyDocument, JsonDocument, NormalizedDocument, NwdiagDocument,
+    SaltDocument, SequenceDocument, SequencePage, StateDocument, TimelineDocument, YamlDocument,
 };
 
 pub use scene::{LayoutOptions, Scene};
@@ -31,10 +31,15 @@ pub enum DiagramFamily {
     Deployment,
     UseCase,
     Object,
+    Salt,
     MindMap,
     Wbs,
     Gantt,
     Chronology,
+    Json,
+    Yaml,
+    Nwdiag,
+    Archimate,
     Unknown,
 }
 
@@ -52,8 +57,13 @@ impl DiagramFamily {
             Self::Deployment => "deployment",
             Self::UseCase => "usecase",
             Self::Object => "object",
+            Self::Salt => "salt",
             Self::MindMap => "mindmap",
             Self::Wbs => "wbs",
+            Self::Json => "json",
+            Self::Yaml => "yaml",
+            Self::Nwdiag => "nwdiag",
+            Self::Archimate => "archimate",
             Self::Unknown => "unknown",
         }
     }
@@ -219,9 +229,7 @@ fn render_document_for_family(
                 model::NormalizedDocument::Family(stub) => {
                     Ok(vec![render::render_family_stub_svg(&stub)])
                 }
-                model::NormalizedDocument::Sequence(_)
-                | model::NormalizedDocument::Timeline(_)
-                | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
+                _ => Err(Diagnostic::error(
                     "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
                 )),
             }
@@ -239,17 +247,43 @@ fn render_document_for_family(
                 model::NormalizedDocument::Timeline(timeline) => {
                     Ok(vec![render::render_timeline_svg(&timeline)])
                 }
-                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during timeline render",
-                )),
-                model::NormalizedDocument::Family(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected family model during timeline render",
-                )),
-                model::NormalizedDocument::State(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected state model during timeline render",
+                _ => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected model during timeline render",
                 )),
             }
         }
+        DiagramFamily::Salt => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Salt(doc) => Ok(vec![render::render_salt_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_SALT_INTERNAL] unexpected model variant during salt render",
+            )),
+        },
+        DiagramFamily::Json => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Json(doc) => Ok(vec![render::render_json_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_JSON_INTERNAL] unexpected model variant during json render",
+            )),
+        },
+        DiagramFamily::Yaml => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Yaml(doc) => Ok(vec![render::render_yaml_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_YAML_INTERNAL] unexpected model variant during yaml render",
+            )),
+        },
+        DiagramFamily::Nwdiag => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Nwdiag(doc) => Ok(vec![render::render_nwdiag_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_NWDIAG_INTERNAL] unexpected model variant during nwdiag render",
+            )),
+        },
+        DiagramFamily::Archimate => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Archimate(doc) => {
+                Ok(vec![render::render_archimate_svg(&doc)])
+            }
+            _ => Err(Diagnostic::error(
+                "[E_ARCHIMATE_INTERNAL] unexpected model variant during archimate render",
+            )),
+        },
         DiagramFamily::Component
         | DiagramFamily::Deployment
         | DiagramFamily::Activity
@@ -287,6 +321,7 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::Class => DiagramFamily::Class,
         ast::DiagramKind::Object => DiagramFamily::Object,
         ast::DiagramKind::UseCase => DiagramFamily::UseCase,
+        ast::DiagramKind::Salt => DiagramFamily::Salt,
         ast::DiagramKind::MindMap => DiagramFamily::MindMap,
         ast::DiagramKind::Wbs => DiagramFamily::Wbs,
         ast::DiagramKind::Gantt => DiagramFamily::Gantt,
@@ -296,6 +331,10 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::State => DiagramFamily::State,
         ast::DiagramKind::Activity => DiagramFamily::Activity,
         ast::DiagramKind::Timing => DiagramFamily::Timing,
+        ast::DiagramKind::Json => DiagramFamily::Json,
+        ast::DiagramKind::Yaml => DiagramFamily::Yaml,
+        ast::DiagramKind::Nwdiag => DiagramFamily::Nwdiag,
+        ast::DiagramKind::Archimate => DiagramFamily::Archimate,
         ast::DiagramKind::Unknown => DiagramFamily::Unknown,
     }
 }

@@ -1816,6 +1816,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
         let allow_chronology_parse = matches!(detected_kind, Some(DiagramKind::Chronology));
         let allow_state_parse = matches!(detected_kind, Some(DiagramKind::State));
+        let allow_salt_parse = matches!(detected_kind, Some(DiagramKind::Salt));
+        let allow_raw_body_parse = matches!(
+            detected_kind,
+            Some(DiagramKind::Json)
+                | Some(DiagramKind::Yaml)
+                | Some(DiagramKind::Nwdiag)
+                | Some(DiagramKind::Archimate)
+        );
 
         if allow_sequence_parse {
             if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
@@ -1915,6 +1923,50 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             statements.push(Statement {
                 span,
                 kind: StatementKind::Unknown(line.to_string()),
+            });
+            i += 1;
+            continue;
+        }
+
+        // Salt: parse each non-empty, non-bracket line as a grid row.
+        if allow_salt_parse {
+            let trimmed = line.trim();
+            // Skip pure bracket lines (the outer `{` `}` delimiters and separators).
+            if trimmed == "{"
+                || trimmed == "}"
+                || trimmed == "{+"
+                || trimmed == "{-"
+                || trimmed == "{#"
+                || trimmed == "{!"
+                || trimmed == "{^"
+                || trimmed == "---"
+                || trimmed.is_empty()
+            {
+                i += 1;
+                continue;
+            }
+            let cells = parse_salt_row(trimmed);
+            statements.push(Statement {
+                span,
+                kind: StatementKind::SaltGridRow { cells },
+            });
+            i += 1;
+            continue;
+        }
+
+        // Raw-body families: collect each line verbatim.
+        if allow_raw_body_parse {
+            // Allow title metadata to be extracted later.
+            if let Some(kind) = parse_keyword(line) {
+                if matches!(kind, StatementKind::Title(_)) {
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
+            }
+            statements.push(Statement {
+                span,
+                kind: StatementKind::RawBody(raw_line.to_string()),
             });
             i += 1;
             continue;
@@ -2039,6 +2091,11 @@ enum BlockKind {
     Wbs,
     Gantt,
     Chronology,
+    Salt,
+    Json,
+    Yaml,
+    Nwdiag,
+    Archimate,
 }
 
 fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
@@ -2051,28 +2108,38 @@ fn parse_end_block_kind(line: &str) -> Option<BlockKind> {
 
 fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     let lower = line.to_ascii_lowercase();
-    let markers = if start {
-        [
+    let markers: &[(&str, BlockKind)] = if start {
+        &[
             ("@startuml", BlockKind::Uml),
             ("@startmindmap", BlockKind::MindMap),
             ("@startwbs", BlockKind::Wbs),
             ("@startgantt", BlockKind::Gantt),
             ("@startchronology", BlockKind::Chronology),
+            ("@startsalt", BlockKind::Salt),
+            ("@startjson", BlockKind::Json),
+            ("@startyaml", BlockKind::Yaml),
+            ("@startnwdiag", BlockKind::Nwdiag),
+            ("@startarchimate", BlockKind::Archimate),
         ]
     } else {
-        [
+        &[
             ("@enduml", BlockKind::Uml),
             ("@endmindmap", BlockKind::MindMap),
             ("@endwbs", BlockKind::Wbs),
             ("@endgantt", BlockKind::Gantt),
             ("@endchronology", BlockKind::Chronology),
+            ("@endsalt", BlockKind::Salt),
+            ("@endjson", BlockKind::Json),
+            ("@endyaml", BlockKind::Yaml),
+            ("@endnwdiag", BlockKind::Nwdiag),
+            ("@endarchimate", BlockKind::Archimate),
         ]
     };
     for (marker, kind) in markers {
         if lower.starts_with(marker) {
             let rest = &line[marker.len()..];
             if rest.is_empty() || rest.starts_with(char::is_whitespace) {
-                return Some(kind);
+                return Some(*kind);
             }
         }
     }
@@ -2086,6 +2153,11 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Wbs => Some(DiagramKind::Wbs),
         BlockKind::Gantt => Some(DiagramKind::Gantt),
         BlockKind::Chronology => Some(DiagramKind::Chronology),
+        BlockKind::Salt => Some(DiagramKind::Salt),
+        BlockKind::Json => Some(DiagramKind::Json),
+        BlockKind::Yaml => Some(DiagramKind::Yaml),
+        BlockKind::Nwdiag => Some(DiagramKind::Nwdiag),
+        BlockKind::Archimate => Some(DiagramKind::Archimate),
     }
 }
 
@@ -2096,6 +2168,11 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Wbs => "wbs",
         BlockKind::Gantt => "gantt",
         BlockKind::Chronology => "chronology",
+        BlockKind::Salt => "salt",
+        BlockKind::Json => "json",
+        BlockKind::Yaml => "yaml",
+        BlockKind::Nwdiag => "nwdiag",
+        BlockKind::Archimate => "archimate",
     }
 }
 
@@ -2143,6 +2220,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Salt => "salt",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
@@ -2152,6 +2230,10 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::State => "state",
         DiagramKind::Activity => "activity",
         DiagramKind::Timing => "timing",
+        DiagramKind::Json => "json",
+        DiagramKind::Yaml => "yaml",
+        DiagramKind::Nwdiag => "nwdiag",
+        DiagramKind::Archimate => "archimate",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -3451,6 +3533,41 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Create(_)
             | StatementKind::Return(_)
     )
+}
+
+/// Parse a Salt wireframe row: split on `|` separators and classify each cell.
+fn parse_salt_row(line: &str) -> Vec<crate::ast::SaltCell> {
+    use crate::ast::SaltCell;
+    // Split on `|` — cells may be separated by `|`
+    let raw_cells: Vec<&str> = line.split('|').collect();
+    let mut cells = Vec::new();
+    for raw in raw_cells {
+        let cell = raw.trim();
+        if cell.is_empty() {
+            continue;
+        }
+        if let Some(inner) = cell.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+            cells.push(SaltCell::Input(inner.to_string()));
+        } else if let Some(inner) = cell.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+            let inner = inner.trim();
+            if let Some(rest) = inner.strip_prefix('X').map(|s| s.trim()) {
+                cells.push(SaltCell::CheckboxChecked(rest.to_string()));
+            } else if let Some(rest) = inner.strip_prefix(' ').map(|s| s.trim()) {
+                cells.push(SaltCell::CheckboxUnchecked(rest.to_string()));
+            } else {
+                cells.push(SaltCell::Button(inner.trim().to_string()));
+            }
+        } else if let Some(inner) = cell.strip_prefix('^').and_then(|s| s.strip_suffix('^')) {
+            cells.push(SaltCell::Combo(inner.trim().to_string()));
+        } else if let Some(rest) = cell.strip_prefix("(X)") {
+            cells.push(SaltCell::RadioSelected(rest.trim().to_string()));
+        } else if let Some(rest) = cell.strip_prefix("( )") {
+            cells.push(SaltCell::RadioUnselected(rest.trim().to_string()));
+        } else {
+            cells.push(SaltCell::Label(cell.to_string()));
+        }
+    }
+    cells
 }
 
 #[cfg(test)]

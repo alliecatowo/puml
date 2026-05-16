@@ -1,0 +1,10 @@
+@startarchimate
+title Archimate Example
+
+archimate "Customer" as customer <<business>>
+archimate "Order Service" as orderSvc <<application>>
+archimate "Database" as db <<technology>>
+
+Rel_Association(customer, orderSvc, "places order")
+Rel_Association(orderSvc, db, "stores data")
+@endarchimate

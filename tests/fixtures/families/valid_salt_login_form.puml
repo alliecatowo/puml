@@ -1,0 +1,9 @@
+@startsalt
+{
+  Login Form
+  ---
+  | Username | "admin     " |
+  | Password | "****      " |
+  | [  OK  ] | [ Cancel ] |
+}
+@endsalt

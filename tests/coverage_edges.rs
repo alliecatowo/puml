@@ -148,7 +148,12 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
             }
             NormalizedDocument::Sequence(_)
             | NormalizedDocument::Timeline(_)
-            | NormalizedDocument::State(_) => {
+            | NormalizedDocument::State(_)
+            | NormalizedDocument::Salt(_)
+            | NormalizedDocument::Json(_)
+            | NormalizedDocument::Yaml(_)
+            | NormalizedDocument::Nwdiag(_)
+            | NormalizedDocument::Archimate(_) => {
                 panic!("expected family stub model for {case}");
             }
         }
@@ -702,7 +707,12 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
         }
         NormalizedDocument::Sequence(_)
         | NormalizedDocument::Timeline(_)
-        | NormalizedDocument::State(_) => panic!("expected family model"),
+        | NormalizedDocument::State(_)
+        | NormalizedDocument::Salt(_)
+        | NormalizedDocument::Json(_)
+        | NormalizedDocument::Yaml(_)
+        | NormalizedDocument::Nwdiag(_)
+        | NormalizedDocument::Archimate(_) => panic!("expected family model"),
     }
 }
 

@@ -12,6 +12,7 @@ pub enum DiagramKind {
     Class,
     Object,
     UseCase,
+    Salt,
     Gantt,
     Chronology,
     MindMap,
@@ -21,6 +22,10 @@ pub enum DiagramKind {
     State,
     Activity,
     Timing,
+    Json,
+    Yaml,
+    Nwdiag,
+    Archimate,
     Unknown,
 }
 
@@ -92,7 +97,34 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    /// Raw body line emitted verbatim from @startjson / @startyaml / @startnwdiag / @startarchimate.
+    RawBody(String),
+    /// A single row of a Salt wireframe grid.
+    SaltGridRow {
+        cells: Vec<SaltCell>,
+    },
     Unknown(String),
+}
+
+/// A single cell within a Salt wireframe `{ ... }` grid.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SaltCell {
+    /// Bare text label.
+    Label(String),
+    /// `"text"` — an input field with placeholder text.
+    Input(String),
+    /// `[text]` — a button.
+    Button(String),
+    /// `^text^` — a combo-box / drop-down.
+    Combo(String),
+    /// `[X] text` — a checked checkbox.
+    CheckboxChecked(String),
+    /// `[ ] text` — an unchecked checkbox.
+    CheckboxUnchecked(String),
+    /// `(X) text` — a selected radio button.
+    RadioSelected(String),
+    /// `( ) text` — an unselected radio button.
+    RadioUnselected(String),
 }
 
 /// A state declaration: `state Name` or `state Name { ... }` or `state Name <<stereotype>>`

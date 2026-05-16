@@ -67,6 +67,224 @@ pub enum NormalizedDocument {
     Family(FamilyDocument),
     Timeline(TimelineDocument),
     State(StateDocument),
+    Salt(SaltDocument),
+    Json(JsonDocument),
+    Yaml(YamlDocument),
+    Nwdiag(NwdiagDocument),
+    Archimate(ArchimateDocument),
+}
+
+// ─── Salt wireframe model ─────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct SaltDocument {
+    pub rows: Vec<SaltRow>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SaltRow {
+    pub cells: Vec<SaltCell>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SaltCell {
+    Label(String),
+    Input(String),
+    Button(String),
+    Combo(String),
+    CheckboxChecked(String),
+    CheckboxUnchecked(String),
+    RadioSelected(String),
+    RadioUnselected(String),
+}
+
+// ─── JSON tree model ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct JsonDocument {
+    pub nodes: Vec<JsonNode>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct JsonNode {
+    pub depth: usize,
+    pub key: Option<String>,
+    pub value_type: JsonValueType,
+    pub display: String,
+    pub has_children: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JsonValueType {
+    String,
+    Number,
+    Bool,
+    Null,
+    Object,
+    Array,
+}
+
+// ─── YAML tree model ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct YamlDocument {
+    pub nodes: Vec<YamlNode>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct YamlNode {
+    pub depth: usize,
+    pub label: String,
+    pub value_type: YamlValueType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum YamlValueType {
+    Key,
+    StringValue,
+    NumberValue,
+    BoolValue,
+    NullValue,
+    Unknown,
+}
+
+// ─── nwdiag model ────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct NwdiagDocument {
+    pub networks: Vec<NwdiagNetwork>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NwdiagNetwork {
+    pub name: String,
+    pub address: Option<String>,
+    pub nodes: Vec<NwdiagNode>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NwdiagNode {
+    pub name: String,
+    pub address: Option<String>,
+}
+
+// ─── Archimate model ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct ArchimateDocument {
+    pub elements: Vec<ArchimateElement>,
+    pub relations: Vec<ArchimateRelation>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArchimateElement {
+    pub name: String,
+    pub alias: Option<String>,
+    pub layer: ArchimateLayer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchimateLayer {
+    Motivation,
+    Strategy,
+    Business,
+    Application,
+    Technology,
+    Physical,
+    Unknown,
+}
+
+impl ArchimateLayer {
+    pub fn parse_layer(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "motivation" => Self::Motivation,
+            "strategy" => Self::Strategy,
+            "business"
+            | "business-actor"
+            | "business-role"
+            | "business-process"
+            | "business-function"
+            | "business-service"
+            | "business-object"
+            | "business-interface"
+            | "business-event"
+            | "business-interaction"
+            | "business-collaboration" => Self::Business,
+            "application"
+            | "application-component"
+            | "application-service"
+            | "application-function"
+            | "application-interface"
+            | "application-process"
+            | "application-interaction"
+            | "application-event"
+            | "application-collaboration"
+            | "application-data-object" => Self::Application,
+            "technology"
+            | "technology-service"
+            | "technology-function"
+            | "technology-interface"
+            | "technology-process"
+            | "technology-interaction"
+            | "technology-event"
+            | "technology-collaboration"
+            | "node"
+            | "device"
+            | "system-software"
+            | "network"
+            | "communication-path"
+            | "path"
+            | "artifact" => Self::Technology,
+            "physical"
+            | "physical-equipment"
+            | "physical-facility"
+            | "physical-distribution-network"
+            | "material" => Self::Physical,
+            _ => Self::Business, // default to business layer for unknown stereotypes
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Motivation => "Motivation",
+            Self::Strategy => "Strategy",
+            Self::Business => "Business",
+            Self::Application => "Application",
+            Self::Technology => "Technology",
+            Self::Physical => "Physical",
+            Self::Unknown => "Unknown",
+        }
+    }
+
+    pub fn bg_color(self) -> &'static str {
+        match self {
+            Self::Motivation => "#ede9fe",
+            Self::Strategy => "#fee2e2",
+            Self::Business => "#fef3c7",
+            Self::Application => "#dbeafe",
+            Self::Technology => "#dcfce7",
+            Self::Physical => "#fce7f3",
+            Self::Unknown => "#f1f5f9",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ArchimateRelation {
+    pub from: String,
+    pub to: String,
+    pub kind: String,
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone)]

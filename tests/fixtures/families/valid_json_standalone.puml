@@ -1,0 +1,12 @@
+@startjson
+{
+  "name": "Alice",
+  "age": 30,
+  "active": true,
+  "address": {
+    "city": "Wonderland",
+    "zip": null
+  },
+  "tags": ["admin", "user"]
+}
+@endjson

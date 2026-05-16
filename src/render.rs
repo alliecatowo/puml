@@ -1,7 +1,9 @@
 use crate::ast::DiagramKind;
 use crate::model::{
-    FamilyDocument, FamilyNodeKind, ParticipantRole, StateDocument, StateNode, StateNodeKind,
-    TimelineDocument, VirtualEndpointKind,
+    ArchimateDocument, ArchimateElement, ArchimateLayer, FamilyDocument, FamilyNodeKind,
+    JsonDocument, JsonValueType, NwdiagDocument, ParticipantRole, SaltCell, SaltDocument,
+    StateDocument, StateNode, StateNodeKind, TimelineDocument, VirtualEndpointKind, YamlDocument,
+    YamlValueType,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
@@ -489,6 +491,7 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Salt => "salt",
         DiagramKind::Gantt => "gantt",
         DiagramKind::Chronology => "chronology",
         DiagramKind::Component => "component",
@@ -498,6 +501,10 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Timing => "timing",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
+        DiagramKind::Json => "json",
+        DiagramKind::Yaml => "yaml",
+        DiagramKind::Nwdiag => "nwdiag",
+        DiagramKind::Archimate => "archimate",
         DiagramKind::Sequence => "sequence",
         DiagramKind::Unknown => "unknown",
     }
@@ -1091,5 +1098,784 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
             y + 21 + (idx as i32 * 16),
             escape_text(line)
         ));
+    }
+}
+
+// ─── Salt wireframe renderer ──────────────────────────────────────────────────
+
+/// Render a Salt wireframe as a proper grid of UI widgets.
+pub fn render_salt_svg(document: &SaltDocument) -> String {
+    const CELL_H: i32 = 28;
+    const CELL_PAD_X: i32 = 10;
+    const MARGIN: i32 = 20;
+    const MIN_CELL_W: i32 = 90;
+    const CHAR_W: i32 = 7;
+
+    // Compute column widths: find max cells per row, then max label width per column.
+    let col_count = document
+        .rows
+        .iter()
+        .map(|r| r.cells.len())
+        .max()
+        .unwrap_or(1);
+    let mut col_widths: Vec<i32> = vec![MIN_CELL_W; col_count];
+    for row in &document.rows {
+        for (ci, cell) in row.cells.iter().enumerate() {
+            let label = salt_cell_label(cell);
+            let w = (label.len() as i32) * CHAR_W + CELL_PAD_X * 2 + 20;
+            if w > col_widths[ci] {
+                col_widths[ci] = w;
+            }
+        }
+    }
+
+    let total_w: i32 = col_widths.iter().sum::<i32>() + MARGIN * 2;
+    let row_count = document.rows.len() as i32;
+    let title_h = if document.title.is_some() { 28 } else { 0 };
+    let total_h = MARGIN * 2 + title_h + row_count * CELL_H + 16;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = total_w, h = total_h
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"#f8fafc\"/>");
+
+    // Outer border
+    out.push_str(&format!(
+        "<rect x=\"{m}\" y=\"{m}\" width=\"{w}\" height=\"{h}\" fill=\"white\" stroke=\"#334155\" stroke-width=\"1.5\"/>",
+        m = MARGIN,
+        w = total_w - MARGIN * 2,
+        h = total_h - MARGIN * 2
+    ));
+
+    let mut y = MARGIN;
+
+    // Title bar
+    if let Some(title) = &document.title {
+        let title_bar_h = 24;
+        out.push_str(&format!(
+            "<rect x=\"{m}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#1e3a5f\" stroke=\"none\"/>",
+            m = MARGIN,
+            w = total_w - MARGIN * 2,
+            h = title_bar_h
+        ));
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"12\" fill=\"white\">{t}</text>",
+            x = total_w / 2,
+            ty = y + 16,
+            t = escape_text(title)
+        ));
+        y += title_bar_h;
+    }
+
+    y += 8; // top padding inside box
+
+    for row in &document.rows {
+        let mut x = MARGIN;
+        for (ci, cell) in row.cells.iter().enumerate() {
+            let cw = col_widths.get(ci).copied().unwrap_or(MIN_CELL_W);
+            render_salt_cell(&mut out, cell, x, y, cw, CELL_H);
+            x += cw;
+        }
+        y += CELL_H;
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+fn salt_cell_label(cell: &SaltCell) -> &str {
+    match cell {
+        SaltCell::Label(s) => s.as_str(),
+        SaltCell::Input(s) => s.as_str(),
+        SaltCell::Button(s) => s.as_str(),
+        SaltCell::Combo(s) => s.as_str(),
+        SaltCell::CheckboxChecked(s) => s.as_str(),
+        SaltCell::CheckboxUnchecked(s) => s.as_str(),
+        SaltCell::RadioSelected(s) => s.as_str(),
+        SaltCell::RadioUnselected(s) => s.as_str(),
+    }
+}
+
+fn render_salt_cell(out: &mut String, cell: &SaltCell, x: i32, y: i32, w: i32, h: i32) {
+    let cx = x + 6;
+    let cy = y + h / 2;
+    let text_y = cy + 5;
+    match cell {
+        SaltCell::Input(placeholder) => {
+            // Bordered rect, placeholder in gray
+            out.push_str(&format!(
+                "<rect x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"{rh}\" fill=\"white\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+                ry = y + 4, rh = h - 8, w = w - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{cx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#94a3b8\">{p}</text>",
+                ty = text_y,
+                p = escape_text(placeholder)
+            ));
+        }
+        SaltCell::Button(label) => {
+            // Rounded rect button
+            out.push_str(&format!(
+                "<rect x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"{rh}\" rx=\"4\" ry=\"4\" fill=\"#e2e8f0\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+                ry = y + 4, rh = h - 8, w = w - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"12\" font-weight=\"600\" fill=\"#0f172a\">{l}</text>",
+                tx = x + (w - 8) / 2,
+                ty = text_y,
+                l = escape_text(label)
+            ));
+        }
+        SaltCell::Combo(label) => {
+            // Drop-down style
+            out.push_str(&format!(
+                "<rect x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"{rh}\" fill=\"white\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+                ry = y + 4, rh = h - 8, w = w - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{cx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{l}</text>",
+                ty = text_y, l = escape_text(label)
+            ));
+            // Down-arrow triangle on right
+            let ax = x + w - 20;
+            let ay = cy;
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#64748b\"/>",
+                ax,
+                ay - 4,
+                ax + 8,
+                ay - 4,
+                ax + 4,
+                ay + 3
+            ));
+        }
+        SaltCell::CheckboxChecked(label) => {
+            // 12×12 square with X
+            let bx = cx;
+            let by = cy - 6;
+            out.push_str(&format!(
+                "<rect x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" fill=\"white\" stroke=\"#334155\" stroke-width=\"1\"/>"
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#0f172a\" stroke-width=\"1.5\"/>",
+                x1 = bx + 2, y1 = by + 2, x2 = bx + 10, y2 = by + 10
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#0f172a\" stroke-width=\"1.5\"/>",
+                x1 = bx + 10, y1 = by + 2, x2 = bx + 2, y2 = by + 10
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"sans-serif\" font-size=\"12\" fill=\"#0f172a\">{l}</text>",
+                tx = bx + 16, ty = text_y, l = escape_text(label)
+            ));
+        }
+        SaltCell::CheckboxUnchecked(label) => {
+            let bx = cx;
+            let by = cy - 6;
+            out.push_str(&format!(
+                "<rect x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" fill=\"white\" stroke=\"#94a3b8\" stroke-width=\"1\"/>"
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"sans-serif\" font-size=\"12\" fill=\"#0f172a\">{l}</text>",
+                tx = bx + 16, ty = text_y, l = escape_text(label)
+            ));
+        }
+        SaltCell::RadioSelected(label) => {
+            let rcx = cx + 6;
+            let rcy = cy;
+            out.push_str(&format!(
+                "<circle cx=\"{rcx}\" cy=\"{rcy}\" r=\"6\" fill=\"white\" stroke=\"#334155\" stroke-width=\"1\"/>"
+            ));
+            out.push_str(&format!(
+                "<circle cx=\"{rcx}\" cy=\"{rcy}\" r=\"3\" fill=\"#0f172a\"/>"
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"sans-serif\" font-size=\"12\" fill=\"#0f172a\">{l}</text>",
+                tx = rcx + 10, ty = text_y, l = escape_text(label)
+            ));
+        }
+        SaltCell::RadioUnselected(label) => {
+            let rcx = cx + 6;
+            let rcy = cy;
+            out.push_str(&format!(
+                "<circle cx=\"{rcx}\" cy=\"{rcy}\" r=\"6\" fill=\"white\" stroke=\"#94a3b8\" stroke-width=\"1\"/>"
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"sans-serif\" font-size=\"12\" fill=\"#0f172a\">{l}</text>",
+                tx = rcx + 10, ty = text_y, l = escape_text(label)
+            ));
+        }
+        SaltCell::Label(text) => {
+            out.push_str(&format!(
+                "<text x=\"{cx}\" y=\"{ty}\" font-family=\"sans-serif\" font-size=\"12\" fill=\"#0f172a\">{t}</text>",
+                ty = text_y, t = escape_text(text)
+            ));
+        }
+    }
+}
+
+// ─── JSON tree renderer ───────────────────────────────────────────────────────
+
+pub fn render_json_svg(document: &JsonDocument) -> String {
+    const MARGIN: i32 = 24;
+    const ROW_H: i32 = 22;
+    const INDENT: i32 = 16;
+    const CHAR_W: i32 = 7;
+
+    let max_depth = document.nodes.iter().map(|n| n.depth).max().unwrap_or(0);
+    let max_label_len = document
+        .nodes
+        .iter()
+        .map(|n| n.display.len() + n.depth * 2)
+        .max()
+        .unwrap_or(20);
+
+    let title_h = if document.title.is_some() { 32 } else { 0 };
+    let width =
+        (MARGIN * 2 + (max_label_len as i32) * CHAR_W + (max_depth as i32) * INDENT + 60).max(400);
+    let height = MARGIN * 2 + title_h + (document.nodes.len().max(1) as i32) * ROW_H + 20;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width, h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    // Title
+    let mut y = MARGIN;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" fill=\"#0f172a\">{t}</text>",
+            x = MARGIN, t = escape_text(title)
+        ));
+        y += title_h;
+    }
+
+    if document.nodes.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#94a3b8\">(empty)</text>",
+            x = MARGIN
+        ));
+    } else {
+        for node in &document.nodes {
+            let x = MARGIN + (node.depth as i32) * INDENT;
+            // Row background for alternating rows
+            let (fill_color, text_color) = json_value_colors(node.value_type);
+            // Connector line for tree indentation
+            if node.depth > 0 {
+                let lx = x - INDENT / 2;
+                out.push_str(&format!(
+                    "<line x1=\"{lx}\" y1=\"{y1}\" x2=\"{lx}\" y2=\"{y2}\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>",
+                    y1 = y - ROW_H / 2, y2 = y + 4
+                ));
+                out.push_str(&format!(
+                    "<line x1=\"{lx}\" y1=\"{ty}\" x2=\"{x2}\" y2=\"{ty}\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>",
+                    ty = y + 4, x2 = x
+                ));
+            }
+            // Value type indicator dot
+            out.push_str(&format!(
+                "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"4\" fill=\"{fill}\"/>",
+                cx = x + 4,
+                cy = y + ROW_H / 2,
+                fill = fill_color
+            ));
+            // Label text
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"{color}\">{label}</text>",
+                tx = x + 14,
+                ty = y + ROW_H / 2 + 5,
+                color = text_color,
+                label = escape_text(&node.display)
+            ));
+            y += ROW_H;
+        }
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+fn json_value_colors(vtype: JsonValueType) -> (&'static str, &'static str) {
+    match vtype {
+        JsonValueType::String => ("#16a34a", "#15803d"), // green
+        JsonValueType::Number => ("#2563eb", "#1d4ed8"), // blue
+        JsonValueType::Bool => ("#7c3aed", "#6d28d9"),   // purple
+        JsonValueType::Null => ("#94a3b8", "#64748b"),   // gray
+        JsonValueType::Object => ("#0f172a", "#334155"), // dark
+        JsonValueType::Array => ("#0369a1", "#075985"),  // teal/blue
+    }
+}
+
+// ─── YAML tree renderer ───────────────────────────────────────────────────────
+
+pub fn render_yaml_svg(document: &YamlDocument) -> String {
+    const MARGIN: i32 = 24;
+    const ROW_H: i32 = 22;
+    const INDENT: i32 = 16;
+    const CHAR_W: i32 = 7;
+
+    let max_depth = document.nodes.iter().map(|n| n.depth).max().unwrap_or(0);
+    let max_label_len = document
+        .nodes
+        .iter()
+        .map(|n| n.label.len() + n.depth * 2)
+        .max()
+        .unwrap_or(20);
+
+    let title_h = if document.title.is_some() { 32 } else { 0 };
+    let width =
+        (MARGIN * 2 + (max_label_len as i32) * CHAR_W + (max_depth as i32) * INDENT + 60).max(400);
+    let height = MARGIN * 2 + title_h + (document.nodes.len().max(1) as i32) * ROW_H + 20;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width, h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    let mut y = MARGIN;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" fill=\"#0f172a\">{t}</text>",
+            x = MARGIN, t = escape_text(title)
+        ));
+        y += title_h;
+    }
+
+    if document.nodes.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#94a3b8\">(empty)</text>",
+            x = MARGIN
+        ));
+    } else {
+        for node in &document.nodes {
+            let x = MARGIN + (node.depth as i32) * INDENT;
+            let (dot_color, text_color) = yaml_value_colors(node.value_type);
+            if node.depth > 0 {
+                let lx = x - INDENT / 2;
+                out.push_str(&format!(
+                    "<line x1=\"{lx}\" y1=\"{y1}\" x2=\"{lx}\" y2=\"{y2}\" stroke=\"#fde68a\" stroke-width=\"1\"/>",
+                    y1 = y - ROW_H / 2, y2 = y + 4
+                ));
+                out.push_str(&format!(
+                    "<line x1=\"{lx}\" y1=\"{ty}\" x2=\"{x2}\" y2=\"{ty}\" stroke=\"#fde68a\" stroke-width=\"1\"/>",
+                    ty = y + 4, x2 = x
+                ));
+            }
+            out.push_str(&format!(
+                "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"4\" fill=\"{fill}\"/>",
+                cx = x + 4,
+                cy = y + ROW_H / 2,
+                fill = dot_color
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"{color}\">{label}</text>",
+                tx = x + 14,
+                ty = y + ROW_H / 2 + 5,
+                color = text_color,
+                label = escape_text(&node.label)
+            ));
+            y += ROW_H;
+        }
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+fn yaml_value_colors(vtype: YamlValueType) -> (&'static str, &'static str) {
+    match vtype {
+        YamlValueType::Key => ("#0f172a", "#1e293b"),
+        YamlValueType::StringValue => ("#16a34a", "#15803d"),
+        YamlValueType::NumberValue => ("#2563eb", "#1d4ed8"),
+        YamlValueType::BoolValue => ("#7c3aed", "#6d28d9"),
+        YamlValueType::NullValue => ("#94a3b8", "#64748b"),
+        YamlValueType::Unknown => ("#475569", "#334155"),
+    }
+}
+
+// ─── nwdiag swimlane renderer ─────────────────────────────────────────────────
+
+pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
+    // Layout constants
+    const MARGIN: i32 = 24;
+    const LANE_LABEL_W: i32 = 120; // width of the network label column
+    const NODE_W: i32 = 130;
+    const NODE_H: i32 = 36;
+    const LANE_H: i32 = 70;
+    const LANE_GAP: i32 = 8;
+    const NODE_GAP: i32 = 16;
+
+    // Collect all unique node names (in order they first appear).
+    let mut all_nodes: Vec<String> = Vec::new();
+    for net in &document.networks {
+        for node in &net.nodes {
+            if !all_nodes.contains(&node.name) {
+                all_nodes.push(node.name.clone());
+            }
+        }
+    }
+
+    let node_count = all_nodes.len().max(1) as i32;
+    let content_w = node_count * (NODE_W + NODE_GAP) - NODE_GAP;
+    let svg_w = MARGIN * 2 + LANE_LABEL_W + content_w + 20;
+    let lane_count = document.networks.len().max(1) as i32;
+    let title_h = if document.title.is_some() { 30 } else { 0 };
+    let svg_h = MARGIN * 2 + title_h + lane_count * (LANE_H + LANE_GAP) + 20;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = svg_w, h = svg_h
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    let mut y = MARGIN;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" fill=\"#0f172a\">{t}</text>",
+            x = MARGIN, t = escape_text(title)
+        ));
+        y += title_h;
+    }
+
+    // For each network: draw a horizontal swimlane
+    let lane_start_x = MARGIN + LANE_LABEL_W;
+    for net in &document.networks {
+        // Lane background
+        out.push_str(&format!(
+            "<rect x=\"{m}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#e0f2fe\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+            m = MARGIN,
+            w = svg_w - MARGIN * 2,
+            h = LANE_H
+        ));
+        // Network label (left column)
+        let net_label = match &net.address {
+            Some(a) => format!("{}\n{}", net.name, a),
+            None => net.name.clone(),
+        };
+        let label_lines: Vec<&str> = net_label.split('\n').collect();
+        for (li, lline) in label_lines.iter().enumerate() {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#0c4a6e\">{t}</text>",
+                x = MARGIN + 6,
+                ty = y + 20 + (li as i32) * 14,
+                t = escape_text(lline)
+            ));
+        }
+        // Horizontal bus line
+        let bus_y = y + LANE_H / 2;
+        out.push_str(&format!(
+            "<line x1=\"{x1}\" y1=\"{by}\" x2=\"{x2}\" y2=\"{by}\" stroke=\"#0284c7\" stroke-width=\"2\"/>",
+            x1 = lane_start_x, by = bus_y, x2 = svg_w - MARGIN
+        ));
+
+        // Place nodes on the lane
+        for node in &net.nodes {
+            let col = all_nodes.iter().position(|n| n == &node.name).unwrap_or(0) as i32;
+            let nx = lane_start_x + col * (NODE_W + NODE_GAP);
+            let node_y = bus_y - NODE_H / 2;
+
+            // Vertical connector from bus to box
+            out.push_str(&format!(
+                "<line x1=\"{cx}\" y1=\"{by}\" x2=\"{cx}\" y2=\"{ny}\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+                cx = nx + NODE_W / 2, by = bus_y, ny = node_y + NODE_H
+            ));
+
+            // Node box (white, bordered)
+            out.push_str(&format!(
+                "<rect x=\"{nx}\" y=\"{node_y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"white\" stroke=\"#0369a1\" stroke-width=\"1.5\"/>",
+                w = NODE_W, h = NODE_H
+            ));
+            let node_label = match &node.address {
+                Some(a) => format!("{} ({})", node.name, a),
+                None => node.name.clone(),
+            };
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{l}</text>",
+                tx = nx + NODE_W / 2,
+                ty = node_y + NODE_H / 2 + 5,
+                l = escape_text(&node_label)
+            ));
+        }
+
+        y += LANE_H + LANE_GAP;
+    }
+
+    // Draw multi-homed connector lines: for nodes appearing in multiple networks,
+    // draw a vertical line linking them across lanes.
+    let net_count = document.networks.len() as i32;
+    for (ni, net) in document.networks.iter().enumerate() {
+        for node in &net.nodes {
+            // Check if this node appears in later networks
+            for later_ni in (ni + 1)..document.networks.len() {
+                if document.networks[later_ni]
+                    .nodes
+                    .iter()
+                    .any(|n| n.name == node.name)
+                {
+                    let col = all_nodes.iter().position(|n| n == &node.name).unwrap_or(0) as i32;
+                    let nx = lane_start_x + col * (NODE_W + NODE_GAP) + NODE_W / 2;
+                    let lane_y_top = MARGIN + title_h + (ni as i32) * (LANE_H + LANE_GAP);
+                    let lane_y_bot =
+                        MARGIN + title_h + (later_ni as i32) * (LANE_H + LANE_GAP) + LANE_H / 2;
+                    let _ = net_count;
+                    out.push_str(&format!(
+                        "<line x1=\"{nx}\" y1=\"{y1}\" x2=\"{nx}\" y2=\"{y2}\" stroke=\"#dc2626\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>",
+                        y1 = lane_y_top + LANE_H / 2, y2 = lane_y_bot
+                    ));
+                }
+            }
+        }
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+// ─── Archimate layered renderer ───────────────────────────────────────────────
+
+pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
+    const MARGIN: i32 = 24;
+    const LAYER_LABEL_W: i32 = 90;
+    const ELEM_W: i32 = 160;
+    const ELEM_H: i32 = 44;
+    const ELEM_GAP_X: i32 = 16;
+    const LANE_GAP: i32 = 8;
+    const ELEMS_PER_ROW: usize = 4;
+
+    // Layer order (top to bottom as per ArchiMate spec)
+    let layer_order = [
+        ArchimateLayer::Motivation,
+        ArchimateLayer::Strategy,
+        ArchimateLayer::Business,
+        ArchimateLayer::Application,
+        ArchimateLayer::Technology,
+        ArchimateLayer::Physical,
+    ];
+
+    // Group elements by layer, preserving order
+    let mut layer_elements: Vec<(ArchimateLayer, Vec<&ArchimateElement>)> = layer_order
+        .iter()
+        .filter_map(|&layer| {
+            let elems: Vec<&ArchimateElement> = document
+                .elements
+                .iter()
+                .filter(|e| e.layer == layer)
+                .collect();
+            if elems.is_empty() {
+                None
+            } else {
+                Some((layer, elems))
+            }
+        })
+        .collect();
+
+    // Also include elements with Unknown layer (should not normally occur)
+    let unknown_elems: Vec<&ArchimateElement> = document
+        .elements
+        .iter()
+        .filter(|e| e.layer == ArchimateLayer::Unknown)
+        .collect();
+    if !unknown_elems.is_empty() {
+        layer_elements.push((ArchimateLayer::Unknown, unknown_elems));
+    }
+
+    // Build an alias→element map for relation rendering
+    let mut alias_map: std::collections::BTreeMap<&str, &ArchimateElement> =
+        std::collections::BTreeMap::new();
+    let mut name_map: std::collections::BTreeMap<&str, &ArchimateElement> =
+        std::collections::BTreeMap::new();
+    for elem in &document.elements {
+        name_map.insert(elem.name.as_str(), elem);
+        if let Some(alias) = &elem.alias {
+            alias_map.insert(alias.as_str(), elem);
+        }
+    }
+
+    // Assign coordinates to each element
+    let mut elem_coords: std::collections::BTreeMap<String, (i32, i32)> =
+        std::collections::BTreeMap::new();
+
+    let title_h = if document.title.is_some() { 32 } else { 0 };
+    let max_elems_per_lane = layer_elements
+        .iter()
+        .map(|(_, elems)| elems.len())
+        .max()
+        .unwrap_or(1);
+
+    // Compute per-lane height (may need multiple rows)
+    let get_lane_h = |elems_count: usize| -> i32 {
+        let rows = elems_count.div_ceil(ELEMS_PER_ROW).max(1) as i32;
+        rows * (ELEM_H + 10) + 20
+    };
+
+    let total_elems_across = max_elems_per_lane.min(ELEMS_PER_ROW);
+    let content_w =
+        (total_elems_across as i32) * (ELEM_W + ELEM_GAP_X) - ELEM_GAP_X + LAYER_LABEL_W;
+    let svg_w = (MARGIN * 2 + content_w).max(600);
+
+    let total_lane_h: i32 = layer_elements
+        .iter()
+        .map(|(_, elems)| get_lane_h(elems.len()) + LANE_GAP)
+        .sum();
+
+    let rel_section_h = if document.relations.is_empty() {
+        0
+    } else {
+        32 + (document.relations.len() as i32) * 20
+    };
+    let svg_h = MARGIN * 2 + title_h + total_lane_h + rel_section_h + 20;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = svg_w, h = svg_h
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    // Arrow marker defs
+    out.push_str("<defs>");
+    out.push_str(
+        "<marker id=\"archi-arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
+         markerWidth=\"8\" markerHeight=\"8\" orient=\"auto\">\
+         <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"#334155\" stroke-width=\"1.5\"/>\
+         </marker>",
+    );
+    out.push_str("</defs>");
+
+    let mut y = MARGIN;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" fill=\"#0f172a\">{t}</text>",
+            x = MARGIN, t = escape_text(title)
+        ));
+        y += title_h;
+    }
+
+    let elem_start_x = MARGIN + LAYER_LABEL_W;
+
+    for (layer, elems) in &layer_elements {
+        let lh = get_lane_h(elems.len());
+        let bg = layer.bg_color();
+
+        // Lane background
+        out.push_str(&format!(
+            "<rect x=\"{m}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{bg}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+            m = MARGIN, w = svg_w - MARGIN * 2, h = lh
+        ));
+        // Layer label (rotated text or horizontal)
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"10\" font-weight=\"600\" fill=\"#475569\">{l}</text>",
+            x = MARGIN + 4,
+            ty = y + 16,
+            l = escape_text(layer.label())
+        ));
+
+        // Elements
+        for (ei, elem) in elems.iter().enumerate() {
+            let row = (ei / ELEMS_PER_ROW) as i32;
+            let col = (ei % ELEMS_PER_ROW) as i32;
+            let ex = elem_start_x + col * (ELEM_W + ELEM_GAP_X);
+            let ey = y + 12 + row * (ELEM_H + 10);
+
+            // Store coordinates keyed by name and alias
+            elem_coords.insert(elem.name.clone(), (ex, ey));
+            if let Some(alias) = &elem.alias {
+                elem_coords.insert(alias.clone(), (ex, ey));
+            }
+
+            render_archimate_element(&mut out, elem, *layer, ex, ey);
+        }
+
+        y += lh + LANE_GAP;
+    }
+
+    // Relations: draw arrows between elements
+    for rel in &document.relations {
+        let from_coord = elem_coords.get(&rel.from).or_else(|| {
+            // try alias lookup
+            alias_map
+                .get(rel.from.as_str())
+                .and_then(|e| elem_coords.get(&e.name))
+        });
+        let to_coord = elem_coords.get(&rel.to).or_else(|| {
+            alias_map
+                .get(rel.to.as_str())
+                .and_then(|e| elem_coords.get(&e.name))
+        });
+
+        if let (Some(&(fx, fy)), Some(&(tx, ty))) = (from_coord, to_coord) {
+            let (stroke, dash) = archimate_rel_style(&rel.kind);
+            let x1 = fx + ELEM_W / 2;
+            let y1 = fy + ELEM_H;
+            let x2 = tx + ELEM_W / 2;
+            let y2 = ty;
+            let dash_attr = if dash {
+                " stroke-dasharray=\"5 3\""
+            } else {
+                ""
+            };
+            out.push_str(&format!(
+                "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{stroke}\" stroke-width=\"1.5\"{dash} marker-end=\"url(#archi-arrow)\"/>",
+                dash = dash_attr
+            ));
+            if let Some(label) = &rel.label {
+                let mx = (x1 + x2) / 2;
+                let my = (y1 + y2) / 2 - 4;
+                out.push_str(&format!(
+                    "<text x=\"{mx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{l}</text>",
+                    l = escape_text(label)
+                ));
+            }
+        }
+    }
+
+    out.push_str("</svg>");
+    out
+}
+
+fn render_archimate_element(
+    out: &mut String,
+    elem: &crate::model::ArchimateElement,
+    _layer: ArchimateLayer,
+    x: i32,
+    y: i32,
+) {
+    let (fill, stroke) = ("#ffffff", "#334155");
+    out.push_str(&format!(
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        w = 160, h = 44
+    ));
+    let display = match &elem.alias {
+        Some(alias) => format!("{} ({})", elem.name, alias),
+        None => elem.name.clone(),
+    };
+    out.push_str(&format!(
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"12\" fill=\"#0f172a\">{n}</text>",
+        tx = x + 80, ty = y + 28, n = escape_text(&display)
+    ));
+    // Layer stereotype badge (top-right corner)
+    out.push_str(&format!(
+        "<rect x=\"{bx}\" y=\"{by}\" width=\"14\" height=\"14\" rx=\"2\" ry=\"2\" fill=\"#e2e8f0\"/>",
+        bx = x + 143, by = y + 2
+    ));
+}
+
+fn archimate_rel_style(kind: &str) -> (&'static str, bool) {
+    match kind {
+        "realization" => ("#1d4ed8", true),
+        "serving" | "used_by" => ("#0369a1", false),
+        "composition" => ("#7c3aed", false),
+        "aggregation" => ("#6d28d9", true),
+        "flow" => ("#16a34a", true),
+        "influence" => ("#ca8a04", true),
+        "triggering" => ("#dc2626", false),
+        _ => ("#334155", false),
     }
 }
