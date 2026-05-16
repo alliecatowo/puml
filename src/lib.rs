@@ -13,8 +13,8 @@ pub mod theme;
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
 pub use model::{
-    FamilyDocument, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec, SequenceDocument,
-    SequencePage, TimelineDocument,
+    FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
+    SequenceDocument, SequencePage, TimelineDocument,
 };
 pub use scene::{LayoutOptions, Scene};
 use source::Span;

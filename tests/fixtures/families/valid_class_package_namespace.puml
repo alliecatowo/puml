@@ -1,0 +1,17 @@
+@startuml
+title Package and Namespace
+set namespaceSeparator ::
+
+package "com.example" {
+  class Service
+  class Repository
+}
+
+namespace net.api {
+  class Controller
+  class Handler
+}
+
+Service --> Repository : uses
+Controller --> Handler : delegates
+@enduml

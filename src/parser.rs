@@ -2620,6 +2620,19 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        if matches!(detected_kind, None | Some(DiagramKind::Class)) {
+            if let Some((kind, end_idx)) = parse_class_scoping_block(&lines, i, line)? {
+                detected_kind = Some(select_diagram_kind(detected_kind, DiagramKind::Class, span)?);
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+        }
+
         if detected_kind.is_none() {
             if let Some(kind) = detect_non_sequence_family(line) {
                 detected_kind = Some(kind);
@@ -3238,6 +3251,135 @@ fn clean_bracketed_ident(s: &str) -> String {
         return clean_ident(rest.trim());
     }
     clean_ident(trimmed)
+}
+
+/// Parse `together { ... }`, `package "name" { ... }`, `namespace ns { ... }` blocks.
+/// Returns (StatementKind, end_line_index) where end_line_index points to the closing `}`.
+fn parse_class_scoping_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    let lower = line.to_ascii_lowercase();
+
+    // together { ... }
+    if lower == "together {" || lower.starts_with("together {") {
+        let end_idx = find_family_decl_end(lines, start);
+        if end_idx == start {
+            return Err(Diagnostic::error(
+                "[E_CLASS_TOGETHER_UNCLOSED] unclosed `together` block: missing `}`",
+            )
+            .with_span(lines[start].1));
+        }
+        let members: Vec<String> = lines[start + 1..end_idx]
+            .iter()
+            .map(|(raw, _)| raw.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| clean_ident(s))
+            .filter(|s| !s.is_empty())
+            .collect();
+        return Ok(Some((
+            StatementKind::ClassGroup {
+                kind: "together".to_string(),
+                label: None,
+                members,
+            },
+            end_idx,
+        )));
+    }
+
+    // package "label" { ... } or package label { ... }
+    if lower.starts_with("package ") && line.trim_end().ends_with('{') {
+        let rest = line["package ".len()..].trim();
+        let label_raw = rest.trim_end_matches('{').trim();
+        let label = clean_ident(label_raw.trim_matches('"'));
+        let end_idx = find_family_decl_end(lines, start);
+        if end_idx == start {
+            return Err(Diagnostic::error(
+                "[E_CLASS_PACKAGE_UNCLOSED] unclosed `package` block: missing `}`",
+            )
+            .with_span(lines[start].1));
+        }
+        let members: Vec<String> = lines[start + 1..end_idx]
+            .iter()
+            .map(|(raw, _)| raw.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| extract_class_member_name(s))
+            .filter(|s| !s.is_empty())
+            .collect();
+        return Ok(Some((
+            StatementKind::ClassGroup {
+                kind: "package".to_string(),
+                label: if label.is_empty() { None } else { Some(label) },
+                members,
+            },
+            end_idx,
+        )));
+    }
+
+    // namespace ns { ... }
+    if lower.starts_with("namespace ") && line.trim_end().ends_with('{') {
+        let rest = line["namespace ".len()..].trim();
+        let label_raw = rest.trim_end_matches('{').trim();
+        let label = clean_ident(label_raw.trim_matches('"'));
+        let end_idx = find_family_decl_end(lines, start);
+        if end_idx == start {
+            return Err(Diagnostic::error(
+                "[E_CLASS_NAMESPACE_UNCLOSED] unclosed `namespace` block: missing `}`",
+            )
+            .with_span(lines[start].1));
+        }
+        let members: Vec<String> = lines[start + 1..end_idx]
+            .iter()
+            .map(|(raw, _)| raw.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| extract_class_member_name(s))
+            .filter(|s| !s.is_empty())
+            .collect();
+        return Ok(Some((
+            StatementKind::ClassGroup {
+                kind: "namespace".to_string(),
+                label: if label.is_empty() { None } else { Some(label) },
+                members,
+            },
+            end_idx,
+        )));
+    }
+
+    Ok(None)
+}
+
+/// Parse single-line class options: `set namespaceSeparator`, `hide circle`, etc.
+fn parse_class_option_statement(line: &str) -> Option<StatementKind> {
+    let lower = line.to_ascii_lowercase();
+
+    // set namespaceSeparator <sep>
+    if lower.starts_with("set namespaceseparator") {
+        let rest = line["set namespaceSeparator".len()..].trim();
+        return Some(StatementKind::SetOption {
+            key: "namespaceSeparator".to_string(),
+            value: rest.to_string(),
+        });
+    }
+
+    // hide options: hide circle, hide stereotype, hide empty members, hide empty methods, hide empty fields
+    if lower.starts_with("hide ") {
+        let rest = lower["hide ".len()..].trim();
+        let known = [
+            "circle",
+            "stereotype",
+            "empty members",
+            "empty methods",
+            "empty fields",
+        ];
+        for opt in known {
+            if rest == opt {
+                return Some(StatementKind::HideOption(rest.to_string()));
+            }
+        }
+    }
+
+    None
 }
 
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
@@ -4073,6 +4215,32 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     }
 
 
+    // Class-diagram hide options (parsed here so they work before any class decl sets detected_kind)
+    if lower.starts_with("hide ") {
+        let rest = lower["hide ".len()..].trim();
+        let class_hide_opts = [
+            "circle",
+            "stereotype",
+            "empty members",
+            "empty methods",
+            "empty fields",
+        ];
+        for opt in class_hide_opts {
+            if rest == opt {
+                return Some(StatementKind::HideOption(rest.to_string()));
+            }
+        }
+    }
+
+    // set namespaceSeparator <sep>
+    if lower.starts_with("set namespaceseparator") {
+        let rest = line["set namespaceSeparator".len()..].trim();
+        return Some(StatementKind::SetOption {
+            key: "namespaceSeparator".to_string(),
+            value: rest.to_string(),
+        });
+    }
+
     let note_kw = if lower.starts_with("note ") {
         Some("note")
     } else if lower.starts_with("hnote ") {
@@ -4274,6 +4442,27 @@ fn clean_ident(s: &str) -> String {
             .to_string();
     }
     out
+}
+
+/// Extract the class/interface/enum name from a member line inside a package/namespace block.
+/// E.g. "class Service" → "Service", "interface IRepo" → "IRepo", "MyClass" → "MyClass".
+fn extract_class_member_name(s: &str) -> String {
+    let t = s.trim();
+    let lower = t.to_ascii_lowercase();
+    for kw in &["abstract class ", "annotation ", "interface ", "abstract ", "enum ", "class "] {
+        if lower.starts_with(kw) {
+            // Extract the first identifier token from the original (case-preserved) text
+            let name_part = t[kw.len()..].trim();
+            let name = name_part
+                .split(|c: char| c.is_whitespace() || c == '{')
+                .next()
+                .unwrap_or("")
+                .trim_matches('"');
+            return clean_ident(name);
+        }
+    }
+    // Plain identifier (like in a together block)
+    clean_ident(t)
 }
 
 fn split_message_label(line: &str) -> (&str, Option<String>) {

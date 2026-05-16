@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::ast::DiagramKind;
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
@@ -293,6 +295,9 @@ pub struct FamilyDocument {
     pub kind: DiagramKind,
     pub nodes: Vec<FamilyNode>,
     pub relations: Vec<FamilyRelation>,
+    pub groups: Vec<FamilyGroup>,
+    pub hide_options: BTreeSet<String>,
+    pub namespace_separator: Option<String>,
     pub title: Option<String>,
     pub header: Option<String>,
     pub footer: Option<String>,
@@ -321,6 +326,13 @@ impl FamilyOrientation {
             Self::RightToLeft => "RightToLeft",
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct FamilyGroup {
+    pub kind: String,
+    pub label: Option<String>,
+    pub member_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

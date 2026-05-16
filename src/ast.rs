@@ -123,6 +123,16 @@ pub enum StatementKind {
     RawBody(String),
     Scale(String),
     LegendPos(String),
+    ClassGroup {
+        kind: String,
+        label: Option<String>,
+        members: Vec<String>,
+    },
+    SetOption {
+        key: String,
+        value: String,
+    },
+    HideOption(String),
     Unknown(String),
 }
 

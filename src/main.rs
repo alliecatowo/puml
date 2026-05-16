@@ -1456,6 +1456,13 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::RawBody(v) => json!({"RawBody": v}),
         StatementKind::Scale(v) => json!({"Scale": v}),
         StatementKind::LegendPos(v) => json!({"LegendPos": v}),
+        StatementKind::ClassGroup { kind, label, members } => {
+            json!({"ClassGroup": {"kind": kind, "label": label, "members": members}})
+        }
+        StatementKind::SetOption { key, value } => {
+            json!({"SetOption": {"key": key, "value": value}})
+        }
+        StatementKind::HideOption(v) => json!({"HideOption": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
         StatementKind::ComponentDecl {
             kind,

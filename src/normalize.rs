@@ -7,14 +7,14 @@ use crate::ast::{
 use crate::diagnostic::Diagnostic;
 use crate::model::{
     ArchimateDocument, ArchimateElement, ArchimateRelation, ChartDocument, ChartPoint, ChartSubtype,
-    DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyNode, FamilyNodeKind,
-    FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode,
-    LegendHAlign, LegendVAlign, MathDocument, NormalizedDocument, NwdiagDocument, NwdiagNetwork,
-    NwdiagNode, Participant, ParticipantRole, RegexDocument, RegexPattern, RegexToken, RepeatKind,
-    ScaleSpec, SdlDocument, SdlState, SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent,
-    SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
-    TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
-    YamlDocument, YamlTreeNode,
+    DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode,
+    FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument,
+    JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, NormalizedDocument, NwdiagDocument,
+    NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument, RegexPattern,
+    RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind, SdlTransition,
+    SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage, TimelineChronologyEvent,
+    TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide, YamlDocument, YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
@@ -689,7 +689,9 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Scale(_)
-            | StatementKind::LegendPos(_) => {}
+            | StatementKind::LegendPos(_)
+            | StatementKind::SetOption { .. }
+            | StatementKind::HideOption(_) => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }
@@ -1064,6 +1066,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
 
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
+    let mut groups = Vec::new();
+    let mut hide_options = std::collections::BTreeSet::new();
+    let mut namespace_separator: Option<String> = None;
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -1129,6 +1134,44 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 arrow: rel.arrow,
                 label: rel.label,
             }),
+            StatementKind::ClassGroup { kind, label, members } => {
+                // Auto-create nodes for members declared inside a package/namespace block
+                // if they haven't already been declared as top-level statements.
+                for member_id in &members {
+                    let already_exists = nodes.iter().any(|n: &FamilyNode| {
+                        n.name == *member_id
+                            || n.alias.as_deref() == Some(member_id.as_str())
+                    });
+                    if !already_exists {
+                        let nk = match node_kind {
+                            FamilyNodeKind::Object => FamilyNodeKind::Object,
+                            FamilyNodeKind::UseCase => FamilyNodeKind::UseCase,
+                            _ => FamilyNodeKind::Class,
+                        };
+                        nodes.push(FamilyNode {
+                            kind: nk,
+                            name: member_id.clone(),
+                            alias: None,
+                            members: Vec::new(),
+                            depth: 0,
+                            label: None,
+                        });
+                    }
+                }
+                groups.push(FamilyGroup {
+                    kind,
+                    label,
+                    member_ids: members,
+                });
+            }
+            StatementKind::SetOption { key, value } => {
+                if key.eq_ignore_ascii_case("namespaceSeparator") {
+                    namespace_separator = Some(value);
+                }
+            }
+            StatementKind::HideOption(opt) => {
+                hide_options.insert(opt.to_ascii_lowercase());
+            }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -1174,6 +1217,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         kind: family_kind,
         nodes,
         relations,
+        groups,
+        hide_options,
+        namespace_separator,
         title,
         header,
         footer,
@@ -1394,6 +1440,9 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
         style,
         text_overflow_policy,
         warnings,
+        groups: Vec::new(),
+        hide_options: std::collections::BTreeSet::new(),
+        namespace_separator: None,
     })
 }
 
@@ -1636,6 +1685,9 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         style: SequenceStyle::default(),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings: Vec::new(),
+        groups: Vec::new(),
+        hide_options: std::collections::BTreeSet::new(),
+        namespace_separator: None,
     })
 }
 
@@ -2308,12 +2360,15 @@ pub fn normalize_with_options(
             | StatementKind::TimingDecl { .. }
             | StatementKind::TimingEvent { .. }
             | StatementKind::RawBlockContent(_)
-            | StatementKind::RawBody(_) => {
+            | StatementKind::RawBody(_)
+            | StatementKind::ClassGroup { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )
                 .with_span(stmt.span));
             }
+            // Class-family-only options: silently ignored in sequence context
+            StatementKind::SetOption { .. } | StatementKind::HideOption(_) => {}
             StatementKind::Unknown(line) => {
                 if line.trim() == "---" {
                     continue;
