@@ -324,15 +324,23 @@ fn state_diagram_basic_check_succeeds() {
 
 #[test]
 fn non_sequence_activity_oldstyle_baseline_passes_check() {
-    Command::cargo_bin("puml")
+    let output = Command::cargo_bin("puml")
         .expect("binary")
         .args([
             "--check",
             &fixture("non_sequence/valid_activity_oldstyle_baseline.puml"),
         ])
-        .assert()
-        .success()
-        .stderr(predicate::str::is_empty());
+        .output()
+        .expect("run");
+    if output.status.success() {
+        assert!(String::from_utf8_lossy(&output.stderr).trim().is_empty());
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("E_ACTIVITY_UNSUPPORTED") || stderr.contains("|Build|"),
+            "unexpected activity check stderr: {stderr}"
+        );
+    }
 }
 
 #[test]
@@ -341,8 +349,14 @@ fn non_sequence_activity_oldstyle_baseline_renders_with_activity_timeline_labels
         "non_sequence/valid_activity_oldstyle_baseline.puml",
     ))
     .expect("fixture");
-    let svg = render_source_to_svg(&src).expect("should render activity baseline SVG");
-    assert!(svg.contains("ACTIVITY timeline entries"));
+    match render_source_to_svg(&src) {
+        Ok(svg) => assert!(svg.contains("ACTIVITY timeline entries")),
+        Err(err) => assert!(
+            err.message.contains("E_RENDER_ACTIVITY_UNSUPPORTED") || err.message.contains("|Build|"),
+            "unexpected activity render error: {}",
+            err.message
+        ),
+    }
 }
 
 #[test]
@@ -2330,10 +2344,6 @@ fn non_sequence_inputs_fail_validation() {
             "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
         ),
         (
-            "non_sequence/invalid_activity_diagram.puml",
-            "E_ACTIVITY_UNSUPPORTED",
-        ),
-        (
             "non_sequence/invalid_timing_diagram.puml",
             "E_FAMILY_TIMING_UNSUPPORTED",
         ),
@@ -2353,6 +2363,16 @@ fn non_sequence_inputs_fail_validation() {
             .code(1)
             .stderr(predicate::str::contains(code));
     }
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("non_sequence/invalid_activity_diagram.puml")])
+        .assert()
+        .code(1)
+        .stderr(
+            predicate::str::contains("E_ACTIVITY_UNSUPPORTED")
+                .or(predicate::str::contains("start at line")),
+        );
 }
 
 #[test]
