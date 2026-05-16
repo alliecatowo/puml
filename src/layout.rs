@@ -907,7 +907,9 @@ fn format_autonumber(value: u64, format: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind};
+    use crate::model::{
+        Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
+    };
     use crate::source::Span;
     use crate::theme::SequenceStyle;
 
@@ -947,7 +949,10 @@ mod tests {
     fn text_helpers_cover_empty_whitespace_and_extreme_limits() {
         assert_eq!(wrap_line("", 8), vec![String::new()]);
         assert_eq!(wrap_line("   ", 8), vec![String::new()]);
-        assert_eq!(wrap_line("seed abcdefghijklmnop", 4), vec!["seed", "abcd", "efgh", "ijkl", "mnop"]);
+        assert_eq!(
+            wrap_line("seed abcdefghijklmnop", 4),
+            vec!["seed", "abcd", "efgh", "ijkl", "mnop"]
+        );
         assert_eq!(chunk_text("abc", 0), vec!["abc".to_string()]);
         assert_eq!(chunk_text("", 3), vec![String::new()]);
         assert_eq!(ellipsize("abc", 8), "abc");
@@ -961,7 +966,10 @@ mod tests {
         let mut centers = BTreeMap::new();
         let mut bounds = BTreeMap::new();
         let center = options.margin + options.participant_width / 2;
-        bounds.insert("A".to_string(), (options.margin, options.margin + options.participant_width));
+        bounds.insert(
+            "A".to_string(),
+            (options.margin, options.margin + options.participant_width),
+        );
         centers.insert("A".to_string(), center);
 
         let (x, _) = note_horizontal_bounds("right", None, &centers, &bounds, 300, 120, &options);

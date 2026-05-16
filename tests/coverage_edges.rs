@@ -944,7 +944,11 @@ fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
         second.y - first.y > options.message_row_height,
         "wrapped row should push following message downward"
     );
-    assert_eq!(scene.groups.len(), 1, "open group should be finalized at end");
+    assert_eq!(
+        scene.groups.len(),
+        1,
+        "open group should be finalized at end"
+    );
     assert!(
         scene.groups[0].height >= options.message_row_height,
         "finalized open group should have non-zero height"
@@ -1037,10 +1041,27 @@ fn layout_pages_preserve_page_titles_and_footer_reserve_without_footboxes() {
     let pages = layout::layout_pages(&model, options);
 
     assert_eq!(pages.len(), 2);
-    assert_eq!(pages[0].title.as_ref().map(|t| t.lines.join(" ")).as_deref(), Some("Base Title"));
-    assert_eq!(pages[1].title.as_ref().map(|t| t.lines.join(" ")).as_deref(), Some("Page Two"));
+    assert_eq!(
+        pages[0]
+            .title
+            .as_ref()
+            .map(|t| t.lines.join(" "))
+            .as_deref(),
+        Some("Base Title")
+    );
+    assert_eq!(
+        pages[1]
+            .title
+            .as_ref()
+            .map(|t| t.lines.join(" "))
+            .as_deref(),
+        Some("Page Two")
+    );
     for scene in &pages {
-        assert!(scene.footboxes.is_empty(), "hide footbox should remove footboxes");
+        assert!(
+            scene.footboxes.is_empty(),
+            "hide footbox should remove footboxes"
+        );
         for lifeline in &scene.lifelines {
             assert!(
                 scene.height - lifeline.y2 >= options.footer_height + options.margin,
