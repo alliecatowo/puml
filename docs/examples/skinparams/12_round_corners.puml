@@ -1,0 +1,10 @@
+@startuml
+skinparam roundCorner 15
+skinparam participantBackgroundColor #e8f4f8
+skinparam groupBackgroundColor #fafafa
+title Round Corners = 15
+Alice -> Bob: request
+alt success
+  Bob --> Alice: ok
+end
+@enduml

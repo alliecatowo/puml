@@ -1,0 +1,24 @@
+@startuml
+title Decorator Pattern
+class TextProcessor {
+  +process(text: String): String
+}
+class PlainProcessor {
+  +process(text: String): String
+}
+class TextDecorator {
+  -wrapped: TextProcessor
+  +process(text: String): String
+}
+class UppercaseDecorator {
+  +process(text: String): String
+}
+class TrimDecorator {
+  +process(text: String): String
+}
+PlainProcessor <|-- TextProcessor
+TextDecorator <|-- TextProcessor
+TextDecorator <|-- UppercaseDecorator
+TextDecorator <|-- TrimDecorator
+TextDecorator o-- TextProcessor
+@enduml

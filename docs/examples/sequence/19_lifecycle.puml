@@ -1,0 +1,11 @@
+@startuml
+title Participant Lifecycle
+Alice -> Alice: start process
+create Worker
+Alice -> Worker: spawn
+activate Worker
+Worker -> Worker: processing
+Worker --> Alice: done
+deactivate Worker
+destroy Worker
+@enduml

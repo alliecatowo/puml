@@ -1,6 +1,6 @@
 # PicoUML Example Gallery
 
-This gallery contains 148 canonical example diagrams across all supported (and planned)
+This gallery contains **253** canonical example diagrams across all supported (and planned)
 diagram families. Families that produce SVG are linked with full markdown image/file
 references. Families that are parse-only or not yet supported are listed as plain text.
 
@@ -10,7 +10,7 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for families that do not yet pr
 
 ---
 
-## Sequence Diagrams — 15 examples — full SVG render
+## Sequence Diagrams — 45 examples — full SVG render
 
 | # | File | Description |
 |---|---|---|
@@ -29,6 +29,36 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for families that do not yet pr
 | 13 | [13_arrows.puml](sequence/13_arrows.puml) | Arrow variants: ->, ->>, -->, ->>x, ->o, <-> |
 | 14 | [14_separator.puml](sequence/14_separator.puml) | Page separators with == text == |
 | 15 | [15_large_diagram.puml](sequence/15_large_diagram.puml) | E-Commerce order flow (large diagram) |
+| 16 | [16_arrow_variants.puml](sequence/16_arrow_variants.puml) | All arrow types: sync/async/dashed/circle/cross/bidir |
+| 17 | [17_all_groups.puml](sequence/17_all_groups.puml) | All group types: alt/opt/loop/par/critical/break/group |
+| 18 | [18_activation_stack.puml](sequence/18_activation_stack.puml) | Activation bar stacking depth |
+| 19 | [19_lifecycle.puml](sequence/19_lifecycle.puml) | Create and destroy lifecycle |
+| 20 | [20_autonumber_format.puml](sequence/20_autonumber_format.puml) | Autonumber stop/resume |
+| 21 | [21_return.puml](sequence/21_return.puml) | Return shorthand keyword |
+| 22 | [22_ref_over.puml](sequence/22_ref_over.puml) | Ref over multiple participants |
+| 23 | [23_dividers.puml](sequence/23_dividers.puml) | Divider styles with == == |
+| 24 | [24_skinparam_roundcorner.puml](sequence/24_skinparam_roundcorner.puml) | Round corners skinparam |
+| 25 | [25_skinparam_shadow.puml](sequence/25_skinparam_shadow.puml) | Shadowing effect skinparam |
+| 26 | [26_theme_aws.puml](sequence/26_theme_aws.puml) | aws-orange theme |
+| 27 | [27_theme_blueprint.puml](sequence/27_theme_blueprint.puml) | blueprint theme |
+| 28 | [28_theme_hacker.puml](sequence/28_theme_hacker.puml) | hacker theme |
+| 29 | [29_theme_materia.puml](sequence/29_theme_materia.puml) | materia theme |
+| 30 | [30_theme_cyborg.puml](sequence/30_theme_cyborg.puml) | cyborg theme |
+| 31 | [31_theme_crt_green.puml](sequence/31_theme_crt_green.puml) | crt-green theme |
+| 32 | [32_theme_mars.puml](sequence/32_theme_mars.puml) | mars theme |
+| 33 | [33_theme_metal.puml](sequence/33_theme_metal.puml) | metal theme |
+| 34 | [34_theme_minty.puml](sequence/34_theme_minty.puml) | minty theme |
+| 35 | [35_theme_sandstone.puml](sequence/35_theme_sandstone.puml) | sandstone theme |
+| 36 | [36_theme_silver.puml](sequence/36_theme_silver.puml) | silver theme |
+| 37 | [37_theme_sketchy.puml](sequence/37_theme_sketchy.puml) | sketchy theme |
+| 38 | [38_theme_united.puml](sequence/38_theme_united.puml) | united theme |
+| 39 | [39_theme_superhero.puml](sequence/39_theme_superhero.puml) | superhero theme |
+| 40 | [40_theme_amiga.puml](sequence/40_theme_amiga.puml) | amiga theme (retro orange+blue) |
+| 41 | [41_theme_vibrant.puml](sequence/41_theme_vibrant.puml) | vibrant theme (saturated rainbow) |
+| 42 | [42_theme_nautilus.puml](sequence/42_theme_nautilus.puml) | nautilus theme (deep blue+teal) |
+| 43 | [43_theme_toy.puml](sequence/43_theme_toy.puml) | toy theme (bright primary colors) |
+| 44 | [44_theme_mono.puml](sequence/44_theme_mono.puml) | mono theme (grayscale only) |
+| 45 | [45_theme_carbon_gray.puml](sequence/45_theme_carbon_gray.puml) | carbon-gray theme (dark) |
 
 ### Rendered Samples
 
@@ -40,10 +70,14 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for families that do not yet pr
 ![11_activation](sequence/11_activation.svg)
 ![13_arrows](sequence/13_arrows.svg)
 ![15_large_diagram](sequence/15_large_diagram.svg)
+![17_all_groups](sequence/17_all_groups.svg)
+![26_theme_aws](sequence/26_theme_aws.svg)
+![40_theme_amiga](sequence/40_theme_amiga.svg)
+![41_theme_vibrant](sequence/41_theme_vibrant.svg)
 
 ---
 
-## Class Diagrams — 10 examples — stub SVG render
+## Class Diagrams — 30 examples — full SVG render
 
 | # | File | Description |
 |---|---|---|
@@ -57,6 +91,26 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for families that do not yet pr
 | 08 | [08_packages.puml](class/08_packages.puml) | Domain model (flat) |
 | 09 | [09_static_modifiers.puml](class/09_static_modifiers.puml) | Static ({static}) members |
 | 10 | [10_full_domain.puml](class/10_full_domain.puml) | Full e-commerce domain model |
+| 11 | [11_generics.puml](class/11_generics.puml) | Generic classes Container/Stack/Map |
+| 12 | [12_all_relations.puml](class/12_all_relations.puml) | All supported relation arrows |
+| 13 | [13_abstract_interface.puml](class/13_abstract_interface.puml) | Abstract base and interface pattern |
+| 14 | [14_nested_packages.puml](class/14_nested_packages.puml) | Nested package structure |
+| 15 | [15_enum_annotation.puml](class/15_enum_annotation.puml) | Status/Priority enum classes |
+| 16 | [16_interface_hierarchy.puml](class/16_interface_hierarchy.puml) | Collection interface hierarchy |
+| 17 | [17_pattern_observer.puml](class/17_pattern_observer.puml) | Observer design pattern |
+| 18 | [18_pattern_factory.puml](class/18_pattern_factory.puml) | Factory design pattern |
+| 19 | [19_repository_pattern.puml](class/19_repository_pattern.puml) | Repository pattern |
+| 20 | [20_visibility_modifiers.puml](class/20_visibility_modifiers.puml) | All visibility and modifier combos |
+| 21 | [21_microservices.puml](class/21_microservices.puml) | Microservices class architecture |
+| 22 | [22_ddd.puml](class/22_ddd.puml) | Domain-Driven Design aggregate |
+| 23 | [23_event_sourcing.puml](class/23_event_sourcing.puml) | Event sourcing pattern |
+| 24 | [24_cqrs.puml](class/24_cqrs.puml) | CQRS pattern |
+| 25 | [25_builder_pattern.puml](class/25_builder_pattern.puml) | Builder pattern |
+| 26 | [26_strategy_pattern.puml](class/26_strategy_pattern.puml) | Strategy pattern |
+| 27 | [27_chain_of_responsibility.puml](class/27_chain_of_responsibility.puml) | Chain of Responsibility |
+| 28 | [28_composite_pattern.puml](class/28_composite_pattern.puml) | Composite pattern |
+| 29 | [29_decorator_pattern.puml](class/29_decorator_pattern.puml) | Decorator pattern |
+| 30 | [30_command_pattern.puml](class/30_command_pattern.puml) | Command pattern |
 
 ### Rendered Samples
 
@@ -64,6 +118,61 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for families that do not yet pr
 ![02_inheritance](class/02_inheritance.svg)
 ![05_visibility](class/05_visibility.svg)
 ![10_full_domain](class/10_full_domain.svg)
+![17_pattern_observer](class/17_pattern_observer.svg)
+![22_ddd](class/22_ddd.svg)
+
+---
+
+## Activity Diagrams — 15 examples — full SVG render
+
+| # | File | Description |
+|---|---|---|
+| 01 | [01_simple_flow.puml](activity/01_simple_flow.puml) | Simple linear flow |
+| 02 | [02_if_then_else.puml](activity/02_if_then_else.puml) | If-then-else decision |
+| 03 | [03_nested_if.puml](activity/03_nested_if.puml) | Nested conditionals |
+| 04 | [04_fork_join.puml](activity/04_fork_join.puml) | Fork and join parallel flows |
+| 05 | [05_while_loop.puml](activity/05_while_loop.puml) | While loop |
+| 06 | [06_repeat_until.puml](activity/06_repeat_until.puml) | Repeat-until loop |
+| 07 | [07_partition.puml](activity/07_partition.puml) | Partitioned activity flow |
+| 08 | [08_order_processing.puml](activity/08_order_processing.puml) | Order processing with fork+if |
+| 09 | [09_error_handling.puml](activity/09_error_handling.puml) | Error handling with retry |
+| 10 | [10_authentication.puml](activity/10_authentication.puml) | Authentication flow |
+| 11 | [11_data_pipeline.puml](activity/11_data_pipeline.puml) | Data pipeline |
+| 12 | [12_deployment.puml](activity/12_deployment.puml) | Deployment pipeline |
+| 13 | [13_user_registration.puml](activity/13_user_registration.puml) | User registration |
+| 14 | [14_purchase_flow.puml](activity/14_purchase_flow.puml) | Purchase flow |
+| 15 | [15_report_generation.puml](activity/15_report_generation.puml) | Report generation |
+
+### Rendered Samples
+
+![01_simple_flow](activity/01_simple_flow.svg)
+![02_if_then_else](activity/02_if_then_else.svg)
+![04_fork_join](activity/04_fork_join.svg)
+![08_order_processing](activity/08_order_processing.svg)
+![10_authentication](activity/10_authentication.svg)
+
+---
+
+## C4 Architecture Diagrams — 10 examples — full SVG render
+
+| # | File | Description |
+|---|---|---|
+| 01 | [01_context.puml](c4/01_context.puml) | System context — Banking app |
+| 02 | [02_person_system.puml](c4/02_person_system.puml) | Multi-system context with persons |
+| 03 | [03_containers.puml](c4/03_containers.puml) | Container diagram — Web app |
+| 04 | [04_components.puml](c4/04_components.puml) | Component diagram — API service |
+| 05 | [05_persons_only.puml](c4/05_persons_only.puml) | All actor types |
+| 06 | [06_external_systems.puml](c4/06_external_systems.puml) | External system integrations |
+| 07 | [07_microservices.puml](c4/07_microservices.puml) | Microservices architecture |
+| 08 | [08_simple_saas.puml](c4/08_simple_saas.puml) | Simple SaaS product context |
+| 09 | [09_data_platform.puml](c4/09_data_platform.puml) | Data platform containers |
+| 10 | [10_security_zones.puml](c4/10_security_zones.puml) | Security zone model |
+
+### Rendered Samples
+
+![01_context](c4/01_context.svg)
+![03_containers](c4/03_containers.svg)
+![07_microservices](c4/07_microservices.svg)
 
 ---
 
@@ -157,9 +266,11 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for families that do not yet pr
 
 ---
 
-## Themes — 10 examples — full SVG render
+## Themes — 30 examples — full SVG render
 
-Only `plain` and `spacelab` themes are built-in. Examples demonstrate both.
+Includes original 10 examples plus 20 theme showcase examples covering all 41 built-in themes.
+
+### Original Theme Examples — 10 examples
 
 | # | File | Description |
 |---|---|---|
@@ -174,16 +285,47 @@ Only `plain` and `spacelab` themes are built-in. Examples demonstrate both.
 | 09 | [09_plain_notes.puml](themes/09_plain_notes.puml) | Plain theme with notes |
 | 10 | [10_spacelab_box.puml](themes/10_spacelab_box.puml) | Spacelab with multiple participants |
 
+### Theme Showcase — 20 new themes
+
+| File | Theme |
+|---|---|
+| [theme_amiga.puml](themes/theme_amiga.puml) | amiga (retro orange+blue) |
+| [theme_bluegray.puml](themes/theme_bluegray.puml) | bluegray (cool slate) |
+| [theme_carbon_gray.puml](themes/theme_carbon_gray.puml) | carbon-gray (dark gray, white text) |
+| [theme_crt_amber.puml](themes/theme_crt_amber.puml) | crt-amber (amber on black) |
+| [theme_crt_green.puml](themes/theme_crt_green.puml) | crt-green (green on black) |
+| [theme_materia_outline.puml](themes/theme_materia_outline.puml) | materia-outline (Material outline) |
+| [theme_mono.puml](themes/theme_mono.puml) | mono (grayscale only) |
+| [theme_nautilus.puml](themes/theme_nautilus.puml) | nautilus (deep blue + teal) |
+| [theme_not_so_funny.puml](themes/theme_not_so_funny.puml) | not-so-funny (high contrast) |
+| [theme_reddress_darkgreen.puml](themes/theme_reddress_darkgreen.puml) | reddress-darkgreen |
+| [theme_reddress_darkorange.puml](themes/theme_reddress_darkorange.puml) | reddress-darkorange |
+| [theme_reddress_darkred.puml](themes/theme_reddress_darkred.puml) | reddress-darkred |
+| [theme_reddress_lightblue.puml](themes/theme_reddress_lightblue.puml) | reddress-lightblue |
+| [theme_reddress_lightgreen.puml](themes/theme_reddress_lightgreen.puml) | reddress-lightgreen |
+| [theme_reddress_lightorange.puml](themes/theme_reddress_lightorange.puml) | reddress-lightorange |
+| [theme_reddress_lightred.puml](themes/theme_reddress_lightred.puml) | reddress-lightred |
+| [theme_sketchy_outline.puml](themes/theme_sketchy_outline.puml) | sketchy-outline |
+| [theme_spacelab_white.puml](themes/theme_spacelab_white.puml) | spacelab-white |
+| [theme_sunlust.puml](themes/theme_sunlust.puml) | sunlust (yellow+orange) |
+| [theme_toy.puml](themes/theme_toy.puml) | toy (bright primary colors) |
+| [theme_vibrant.puml](themes/theme_vibrant.puml) | vibrant (saturated rainbow) |
+
 ### Rendered Samples
 
 ![01_plain](themes/01_plain.svg)
 ![02_spacelab](themes/02_spacelab.svg)
 ![04_spacelab_complex](themes/04_spacelab_complex.svg)
 ![06_spacelab_state](themes/06_spacelab_state.svg)
+![theme_amiga](themes/theme_amiga.svg)
+![theme_vibrant](themes/theme_vibrant.svg)
+![theme_nautilus](themes/theme_nautilus.svg)
+![theme_carbon_gray](themes/theme_carbon_gray.svg)
+![theme_toy](themes/theme_toy.svg)
 
 ---
 
-## Skinparams — 8 examples — full SVG render
+## Skinparams — 18 examples — full SVG render
 
 | # | File | Description |
 |---|---|---|
@@ -195,6 +337,16 @@ Only `plain` and `spacelab` themes are built-in. Examples demonstrate both.
 | 06 | [06_footbox.puml](skinparams/06_footbox.puml) | footbox hide via skinparam |
 | 07 | [07_maxmessagesize.puml](skinparams/07_maxmessagesize.puml) | maxMessageSize |
 | 08 | [08_combined.puml](skinparams/08_combined.puml) | Multiple skinparams combined |
+| 09 | [09_default_font.puml](skinparams/09_default_font.puml) | defaultFontName and defaultFontSize |
+| 10 | [10_background_color.puml](skinparams/10_background_color.puml) | backgroundColor |
+| 11 | [11_text_alignment.puml](skinparams/11_text_alignment.puml) | defaultTextAlignment left |
+| 12 | [12_round_corners.puml](skinparams/12_round_corners.puml) | roundCorner = 15 |
+| 13 | [13_note_styles.puml](skinparams/13_note_styles.puml) | Note background and border colors |
+| 14 | [14_group_style.puml](skinparams/14_group_style.puml) | Group background and border |
+| 15 | [15_lifeline_style.puml](skinparams/15_lifeline_style.puml) | Lifeline and participant borders |
+| 16 | [16_all_colors.puml](skinparams/16_all_colors.puml) | All color skinparams combined (dark theme) |
+| 17 | [17_minimal.puml](skinparams/17_minimal.puml) | Minimal clean style |
+| 18 | [18_corporate.puml](skinparams/18_corporate.puml) | Corporate blue style |
 
 ### Rendered Samples
 
@@ -202,6 +354,8 @@ Only `plain` and `spacelab` themes are built-in. Examples demonstrate both.
 ![02_participant_colors](skinparams/02_participant_colors.svg)
 ![04_group_colors](skinparams/04_group_colors.svg)
 ![08_combined](skinparams/08_combined.svg)
+![16_all_colors](skinparams/16_all_colors.svg)
+![18_corporate](skinparams/18_corporate.svg)
 
 ---
 
@@ -371,15 +525,17 @@ syntax reference only. See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
 
 | Family | Count | SVG Rendered | Render Type |
 |---|---|---|---|
-| sequence | 15 | 15 | Full SVG |
-| class | 10 | 10 | Stub SVG |
+| sequence | 45 | 45 | Full SVG |
+| class | 30 | 30 | Full SVG |
+| activity | 15 | 15 | Full SVG |
+| c4 | 10 | 10 | Full SVG |
 | object | 4 | 4 | Stub SVG |
 | usecase | 4 | 4 | Stub SVG |
 | state | 8 | 8 | Full SVG |
 | gantt | 6 | 6 | Timeline SVG |
 | chronology | 3 | 3 | Timeline SVG |
-| themes | 10 | 10 | Full SVG |
-| skinparams | 8 | 8 | Full SVG |
+| themes | 30 | 30 | Full SVG |
+| skinparams | 18 | 18 | Full SVG |
 | preprocessor | 6 | 6 | Full SVG |
 | creole | 4 | 4 | Full SVG |
 | component | 6 | 0 | Parse only |
@@ -400,4 +556,4 @@ syntax reference only. See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
 | math | 2 | 0 | Not supported |
 | sdl | 2 | 0 | Not supported |
 | ditaa | 2 | 0 | Not supported |
-| **Total** | **148** | **78** | |
+| **Total** | **253** | **183** | |

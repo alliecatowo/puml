@@ -1,0 +1,5 @@
+@startuml
+!theme vibrant
+Alice -> Bob: Saturated rainbow
+Bob --> Alice: Vibrant response
+@enduml

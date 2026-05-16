@@ -1,0 +1,5 @@
+@startuml
+!theme toy
+Alice -> Bob: Bright primary colors
+Bob --> Alice: Toy response
+@enduml

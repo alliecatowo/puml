@@ -1,0 +1,7 @@
+@startuml
+skinparam defaultTextAlignment left
+Alice -> Bob: left-aligned labels
+Bob -> Charlie: another left
+Charlie --> Bob: ack
+Bob --> Alice: done
+@enduml

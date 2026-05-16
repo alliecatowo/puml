@@ -1,0 +1,19 @@
+@startuml
+title Strategy Pattern
+class SortStrategy {
+  +sort(data: List): List
+}
+class QuickSort {
+  +sort(data: List): List
+}
+class MergeSort {
+  +sort(data: List): List
+}
+class Sorter {
+  -strategy: SortStrategy
+  +sort(data: List): List
+}
+QuickSort <|-- SortStrategy
+MergeSort <|-- SortStrategy
+Sorter o-- SortStrategy
+@enduml

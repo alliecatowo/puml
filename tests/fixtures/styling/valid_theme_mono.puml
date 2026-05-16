@@ -1,0 +1,5 @@
+@startuml
+!theme mono
+Alice -> Bob: Grayscale only
+Bob --> Alice: Mono response
+@enduml

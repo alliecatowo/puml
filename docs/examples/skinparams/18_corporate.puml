@@ -1,0 +1,15 @@
+@startuml
+skinparam participantBackgroundColor #003366
+skinparam participantBorderColor #001a33
+skinparam arrowColor #0066cc
+skinparam noteBackgroundColor #e6f0ff
+skinparam noteBorderColor #0066cc
+skinparam groupBackgroundColor #f0f5ff
+skinparam groupBorderColor #003366
+skinparam roundCorner 4
+title Corporate Style
+Client -> Server: enterprise request
+Server -> DB: query
+DB --> Server: result
+Server --> Client: response
+@enduml

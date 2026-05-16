@@ -1,0 +1,18 @@
+@startuml
+title Generic Classes
+class Container<T> {
+  +items: List<T>
+  +add(item: T): void
+  +get(index: int): T
+}
+class Stack<E> {
+  +push(e: E): void
+  +pop(): E
+  +peek(): E
+}
+class Map<K, V> {
+  +put(k: K, v: V): void
+  +get(k: K): V
+}
+Container <|-- Stack
+@enduml

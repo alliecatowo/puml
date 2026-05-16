@@ -1,0 +1,29 @@
+@startuml
+title All Group Types
+Alice -> Bob: request
+alt success
+  Bob --> Alice: 200 OK
+else failure
+  Bob --> Alice: 500 Error
+end
+opt optional step
+  Alice -> Bob: ping
+end
+loop retry 3 times
+  Alice -> Bob: retry
+end
+par parallel
+  Alice -> Bob: async A
+else
+  Alice -> Charlie: async B
+end
+critical critical section
+  Bob -> DB: update
+end
+break on error
+  Alice -> Alice: abort
+end
+group custom label
+  Alice -> Bob: custom
+end
+@enduml

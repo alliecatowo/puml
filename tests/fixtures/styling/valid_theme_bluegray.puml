@@ -1,0 +1,5 @@
+@startuml
+!theme bluegray
+Alice -> Bob: Cool slate tones
+Bob --> Alice: Bluegray response
+@enduml

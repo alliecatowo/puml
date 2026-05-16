@@ -1,0 +1,24 @@
+@startuml
+title Report Generation
+start
+:Select Report Type;
+fork
+  :Fetch Data;
+fork again
+  :Get Template;
+end fork
+:Merge Data and Template;
+while (More Pages?) is (yes)
+  :Render Page;
+endwhile
+:Combine Pages;
+if (Export Format?) then (PDF)
+  :Convert to PDF;
+else (Excel)
+  :Export Excel;
+else (CSV)
+  :Export CSV;
+endif
+:Deliver Report;
+stop
+@enduml

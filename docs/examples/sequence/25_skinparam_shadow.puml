@@ -1,0 +1,7 @@
+@startuml
+skinparam shadowing true
+skinparam participantBackgroundColor #fff3e0
+title Shadowing Effect
+Alice -> Bob: request
+Bob --> Alice: response
+@enduml

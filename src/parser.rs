@@ -3838,7 +3838,10 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
     if let Some((lhs, rhs)) = trimmed.split_once(':') {
         let when = lhs.trim();
         let subject = rhs.trim().trim_matches('"');
-        if !when.is_empty() && !subject.is_empty() && when.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        if !when.is_empty()
+            && !subject.is_empty()
+            && when.chars().next().is_some_and(|c| c.is_ascii_digit())
+        {
             return Some(StatementKind::ChronologyHappensOn {
                 subject: subject.to_string(),
                 when: when.to_string(),

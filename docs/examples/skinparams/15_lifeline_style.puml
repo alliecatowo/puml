@@ -1,0 +1,9 @@
+@startuml
+skinparam lifelineBorderColor #7c4dff
+skinparam participantBorderColor #7c4dff
+skinparam participantBackgroundColor #ede7f6
+Alice -> Bob: message
+Bob -> Charlie: forward
+Charlie --> Bob: ack
+Bob --> Alice: done
+@enduml

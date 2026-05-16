@@ -1,0 +1,25 @@
+@startuml
+title Domain-Driven Design
+class Order {
+  -id: OrderId
+  -status: String
+  +addItem(product, qty): void
+  +confirm(): void
+  +cancel(): void
+}
+class OrderItem {
+  -productId: String
+  -quantity: int
+  -price: Money
+}
+class OrderId {
+  -value: UUID
+}
+class Money {
+  -amount: BigDecimal
+  -currency: String
+}
+Order *-- OrderItem
+Order *-- OrderId
+OrderItem *-- Money
+@enduml

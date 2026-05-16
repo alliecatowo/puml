@@ -1,0 +1,25 @@
+@startuml
+title Observer Pattern
+class Observer {
+  +update(event): void
+}
+class Subject {
+  +subscribe(o): void
+  +notify(): void
+}
+class EventBus {
+  -observers: List
+  +subscribe(o): void
+  +notify(): void
+}
+class UIComponent {
+  +update(event): void
+}
+class Logger {
+  +update(event): void
+}
+EventBus <|-- Subject
+UIComponent <|-- Observer
+Logger <|-- Observer
+EventBus --> Observer
+@enduml

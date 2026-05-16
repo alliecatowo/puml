@@ -1106,10 +1106,14 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     ))
                     .with_span(stmt.span));
                 }
+                // Detect and strip C4 stereotypes embedded in the alias
+                // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
+                let (clean_alias, c4_kind) = extract_c4_stereotype(decl.alias);
+                let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
                 nodes.push(FamilyNode {
-                    kind: FamilyNodeKind::Object,
+                    kind: resolved_kind,
                     name: decl.name,
-                    alias: decl.alias,
+                    alias: clean_alias,
                     members: decl.members,
                     depth: 0,
                     label: None,
@@ -3247,4 +3251,53 @@ fn validate_autonumber_format(format: &str) -> Result<(), String> {
         return Err("autonumber format must not contain an embedded quote".to_string());
     }
     Ok(())
+}
+
+/// Extract `<<stereotype>>` from an alias string like `"myAlias <<person>>"`.
+/// Returns `(clean_alias, Option<FamilyNodeKind>)` where `clean_alias` has the
+/// stereotype stripped.  When the stereotype is not a recognised C4 marker the
+/// kind is `None` and the caller keeps `FamilyNodeKind::Object`.
+pub(crate) fn extract_c4_stereotype(
+    alias: Option<String>,
+) -> (Option<String>, Option<FamilyNodeKind>) {
+    use crate::model::FamilyNodeKind;
+    let Some(raw) = alias else {
+        return (None, None);
+    };
+    // Find `<<...>>`
+    if let Some(start) = raw.find("<<") {
+        if let Some(end) = raw[start..].find(">>") {
+            let stereotype = raw[start + 2..start + end].trim().to_ascii_lowercase();
+            let clean_alias = raw[..start].trim().to_string();
+            let kind = match stereotype.as_str() {
+                "person" => Some(FamilyNodeKind::C4Person),
+                "external-person" => Some(FamilyNodeKind::C4PersonExt),
+                "system" => Some(FamilyNodeKind::C4System),
+                "external-system" => Some(FamilyNodeKind::C4SystemExt),
+                "system-db" | "systemdb" => Some(FamilyNodeKind::C4SystemDb),
+                "system-queue" | "systemqueue" => Some(FamilyNodeKind::C4SystemQueue),
+                "container" => Some(FamilyNodeKind::C4Container),
+                "external-container" => Some(FamilyNodeKind::C4ContainerExt),
+                "container-db" | "containerdb" => Some(FamilyNodeKind::C4ContainerDb),
+                "container-queue" | "containerqueue" => Some(FamilyNodeKind::C4ContainerQueue),
+                "c4-component" | "component" => Some(FamilyNodeKind::C4Component),
+                "external-c4-component" | "external-component" => {
+                    Some(FamilyNodeKind::C4ComponentExt)
+                }
+                "component-db" | "componentdb" => Some(FamilyNodeKind::C4ComponentDb),
+                "component-queue" | "componentqueue" => Some(FamilyNodeKind::C4ComponentQueue),
+                "boundary" | "enterprise-boundary" | "system-boundary" | "container-boundary" => {
+                    Some(FamilyNodeKind::C4Boundary)
+                }
+                _ => None,
+            };
+            let clean = if clean_alias.is_empty() {
+                None
+            } else {
+                Some(clean_alias)
+            };
+            return (clean, kind);
+        }
+    }
+    (Some(raw), None)
 }

@@ -1,0 +1,13 @@
+@startuml
+!include <C4/C4_Container>
+title Container Diagram - Web App
+!Person(user, "User")
+!Container(spa, "SPA", "React", "Single page app")
+!Container(api, "API", "FastAPI", "REST backend")
+!Container(worker, "Worker", "Celery", "Background tasks")
+!System_Ext(email, "Email")
+!Rel(user, spa, "Uses")
+!Rel(spa, api, "Calls")
+!Rel(api, worker, "Enqueues")
+!Rel(worker, email, "Sends via")
+@enduml
