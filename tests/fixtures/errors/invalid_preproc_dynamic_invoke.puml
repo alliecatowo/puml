@@ -1,0 +1,4 @@
+@startuml
+%invoke_procedure("$go")
+Alice -> Bob: unreachable
+@enduml

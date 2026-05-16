@@ -1,0 +1,4 @@
+@startuml
+!log %boolval("x")
+Alice -> Bob: unreachable
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+!log parser-friendly payload text
+!dump_memory EOF marker
+Alice -> Bob: hi
+@enduml
