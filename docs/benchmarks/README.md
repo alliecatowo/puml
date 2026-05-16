@@ -19,6 +19,9 @@
 
 # corpus parity baseline report (oracle placeholders kept intentionally)
 python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
+
+# differential oracle smoke report (PlantUML runtime required)
+python3 scripts/differential_oracle_smoke.py --quick --strict --output docs/benchmarks/oracle_smoke_latest.json
 ```
 
 ## Artifacts
@@ -31,6 +34,7 @@ python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
 - `docs/benchmarks/baseline_full.json`
 - `docs/benchmarks/baseline_quick.json`
 - `docs/benchmarks/parity_latest.json`
+- `docs/benchmarks/oracle_smoke_latest.json`
 
 All benchmark artifacts are deterministic in structure and key ordering. Value fields like timestamps, host metadata, and measured timings are expected to change run-to-run.
 
@@ -60,3 +64,9 @@ If no matching mode baseline exists, regression checks are skipped and absolute/
 - PlantUML oracle remains placeholder-only (`todo`) for this repo baseline.
 - `parity_latest.json` and `latest_trend.json` include explicit oracle placeholder metadata.
 - Do not remove placeholders until Java/oracle execution is intentionally enabled.
+
+## Differential Oracle Smoke
+
+- CI workflow: `.github/workflows/differential-oracle-smoke.yml`
+- Gate mode: deterministic smoke checks only (small fixed corpus, token-presence checks, viewBox checks, structured JSON report).
+- Runtime requirements: `plantuml`, `java` (headless), and `graphviz`.
