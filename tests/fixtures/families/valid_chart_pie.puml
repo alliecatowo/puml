@@ -1,0 +1,7 @@
+@startchart pie
+title Market Share
+"Alpha" : 42
+"Beta" : 28
+"Gamma" : 20
+"Other" : 10
+@endchart

@@ -1,0 +1,6 @@
+@startsdl
+state Idle
+state Active
+state Idle -> Active : start
+state Active -> Idle : stop
+@endsdl

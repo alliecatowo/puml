@@ -400,6 +400,16 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
+        // Intercept specialized diagram families before the main AST pipeline.
+        if let Some(result) = puml::specialized::try_render_specialized(&source.source) {
+            let svg =
+                result.map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
+            all.push(RenderedOutput {
+                name_hint: source.output_name_hint.as_ref().map(|b| format!("{b}.svg")),
+                svg,
+            });
+            return Ok(all);
+        }
         let parse_start = Instant::now();
         let doc = parse_for_cli(
             &source.source,

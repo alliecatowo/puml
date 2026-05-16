@@ -280,9 +280,9 @@ Artifacts:
 | Archimate (`@startarchimate`) | Supported | `archimate "Name" as alias <<layer>>` declarations, relation macros (`Rel_Association`, `Rel_Realization`, `Rel_Serving`, `Rel_Composition`, `Rel_Aggregation`, `Rel_Used_By`, `Rel_Flow`), layered strategy/business/application/technology/motivation swimlanes. |
 | Regex diagrams (`@startregex`) | Supported | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, `\|`, `(...)`, `\d`, `.`, anchors) into a deterministic railroad-style SVG; unsupported quantifiers emit deterministic warnings. |
 | EBNF diagrams (`@startebnf`) | Supported | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, `*`, `+`, `?` into a deterministic railroad SVG. |
-| Math / LaTeX (`@startmath` / `@startlatex`) | Supported (deterministic stub) | LaTeX-like body rendered in a deterministic monospaced frame; no formula typesetting (no Java/external typesetter dependency). |
-| SDL diagrams (`@startsdl`) | Supported (deterministic stub) | Parses `state`, `start`, `stop`, and `from -> to : signal` lines; renders state-machine grid plus transition list. |
-| Ditaa diagrams (`@startditaa`) | Supported (deterministic stub) | ASCII-art body preserved verbatim inside a labeled monospace frame; no raster conversion. |
+| Math / LaTeX (`@startmath` / `@startlatex`) | Supported | Best-effort LaTeX SVG renderer: handles `\sum`, `\int`, `\prod`, `\frac{a}{b}`, `\sqrt{x}`, Greek letters (`\alpha`…`\omega`, `\infty`), sub/sup scripts via tspan baseline shifts and nested scaling. |
+| SDL diagrams (`@startsdl`) | Supported | Parses `state Name` declarations and `from -> to : signal` transitions; renders SDL-style rounded-corner rectangles with labeled arrow transitions in a 2-column grid. |
+| Ditaa diagrams (`@startditaa`) | Supported | Corner-detection parser finds `+...+` rectangles from the ASCII grid, renders them as SVG `<rect>` with extracted inner text, and converts `--->` connector runs to SVG lines with arrowheads. |
 | Chart diagrams (`@startchart`) | Supported | Parses `bar`/`line`/`pie` subtype plus `"label" value` rows; renders bar columns, line plots, or labeled pie slices with deterministic palette colors. |
 
 ### Sequence Diagram Primitives
@@ -354,6 +354,7 @@ Artifacts:
 | `--lint-input INPUT` | Supported | Adds repeatable check/lint inputs (check mode only). |
 | `--lint-glob GLOB` | Supported | Adds repeatable glob-expanded check/lint inputs (check mode only). |
 | `--lint-report human\|json` | Supported | Emits lint summary report format. |
+| `--stdrpt` | Supported | Single-line tab-separated diagnostics `<severity>\t<code>\t<file>:<line>:<col>\t<message>`. |
 
 ## LSP Baseline
 

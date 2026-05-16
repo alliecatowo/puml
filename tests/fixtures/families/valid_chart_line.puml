@@ -1,0 +1,8 @@
+@startchart line
+title Monthly Users
+"Jan" : 120
+"Feb" : 150
+"Mar" : 210
+"Apr" : 195
+"May" : 230
+@endchart
