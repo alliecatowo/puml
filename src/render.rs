@@ -1,4 +1,4 @@
-use crate::ast::DiagramKind;
+use crate::ast::{DiagramKind, MemberModifier};
 use crate::model::{
     FamilyDocument, FamilyNodeKind, ParticipantRole, StateDocument, StateNode, StateNodeKind,
     TimelineDocument, VirtualEndpointKind,
@@ -312,10 +312,23 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
             ));
             y += 22;
             for member in &node.members {
+                let escaped = escape_text(&member.text);
+                let content = match &member.modifier {
+                    Some(MemberModifier::Abstract) => {
+                        format!("<tspan font-style=\"italic\">{escaped}</tspan>")
+                    }
+                    Some(MemberModifier::Static) => {
+                        format!("<tspan text-decoration=\"underline\">{escaped}</tspan>")
+                    }
+                    Some(MemberModifier::Field) => {
+                        format!("<tspan font-style=\"italic\">{escaped}</tspan>")
+                    }
+                    Some(MemberModifier::Method) => escaped,
+                    None => escaped,
+                };
                 out.push_str(&format!(
-                    "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
-                    y + 6,
-                    escape_text(member)
+                    "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{content}</text>",
+                    y + 6
                 ));
                 y += 16;
             }

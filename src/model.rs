@@ -1,4 +1,4 @@
-use crate::ast::DiagramKind;
+use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 use crate::theme::SequenceStyle;
@@ -125,7 +125,7 @@ pub struct FamilyNode {
     pub kind: FamilyNodeKind,
     pub name: String,
     pub alias: Option<String>,
-    pub members: Vec<String>,
+    pub members: Vec<ClassMember>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

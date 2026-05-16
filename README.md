@@ -159,6 +159,7 @@ Modes:
 - `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
   supported markdown fence langs: `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
+- `--stdrpt` emits each diagnostic as a single tab-separated line: `<severity>\t<code>\t<file>:<line>:<col>\t<message>`, suppressing multi-line source-context output (exit codes are unchanged)
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
   `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
   `mermaid`: supports a first-class `sequenceDiagram` subset (participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, and `%%` comments), with deterministic compatibility diagnostics for unsupported constructs

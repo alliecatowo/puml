@@ -122,25 +122,46 @@ pub struct StateInternalAction {
     pub action: String,
 }
 
+/// Modifier on a class/object/usecase member, from `{field}`, `{method}`, `{abstract}`,
+/// `{static}`, or `{class}` (alias for static).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MemberModifier {
+    Field,
+    Method,
+    Abstract,
+    Static,
+}
+
+/// A single member line inside a class/object/usecase body block,
+/// with an optional `{modifier}` annotation.
+#[derive(Debug, Clone)]
+pub struct ClassMember {
+    /// The raw member text (visibility, name, type, etc.) without the modifier token.
+    pub text: String,
+    /// Optional modifier parsed from a trailing or leading `{field}`/`{method}`/
+    /// `{abstract}`/`{static}`/`{class}` token, or from `<<abstract>>`/`<<static>>` stereotypes.
+    pub modifier: Option<MemberModifier>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ClassDecl {
     pub name: String,
     pub alias: Option<String>,
-    pub members: Vec<String>,
+    pub members: Vec<ClassMember>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ObjectDecl {
     pub name: String,
     pub alias: Option<String>,
-    pub members: Vec<String>,
+    pub members: Vec<ClassMember>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UseCaseDecl {
     pub name: String,
     pub alias: Option<String>,
-    pub members: Vec<String>,
+    pub members: Vec<ClassMember>,
 }
 
 #[derive(Debug, Clone)]

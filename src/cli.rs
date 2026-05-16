@@ -71,6 +71,11 @@ pub struct Cli {
     /// Root directory used to resolve !include when reading from stdin.
     #[arg(long, value_name = "DIR")]
     pub include_root: Option<PathBuf>,
+
+    /// Emit diagnostics in single-line tab-separated format: `<severity>\t<code>\t<file>:<line>:<col>\t<message>`.
+    /// Suppresses multi-line source-context output. Exit codes are unchanged.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub stdrpt: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
