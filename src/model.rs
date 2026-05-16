@@ -156,6 +156,8 @@ pub struct SequenceDocument {
     pub style: SequenceStyle,
     pub footbox_visible: bool,
     pub warnings: Vec<Diagnostic>,
+    pub hide_unlinked: bool,
+    pub hidden_participants: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -171,6 +173,8 @@ pub struct SequencePage {
     pub style: SequenceStyle,
     pub footbox_visible: bool,
     pub warnings: Vec<Diagnostic>,
+    pub hide_unlinked: bool,
+    pub hidden_participants: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

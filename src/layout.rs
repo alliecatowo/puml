@@ -662,7 +662,76 @@ fn group_content_min_size(kind: &str, label: Option<&str>) -> (i32, i32) {
 }
 
 fn estimate_text_px_width(line: &str) -> i32 {
-    (line.chars().count() as i32) * 7
+    (visible_chars(line) as i32) * 7
+}
+
+pub fn visible_chars(s: &str) -> usize {
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    let mut count = 0usize;
+    let mut i = 0usize;
+    'outer: while i < len {
+        if bytes[i] == b'<' {
+            let rest = &s[i..];
+            let rest_lower = rest
+                .chars()
+                .take(10)
+                .collect::<String>()
+                .to_ascii_lowercase();
+            for (tag, skip) in &[
+                ("<b>", 3usize),
+                ("<i>", 3),
+                ("<u>", 3),
+                ("</b>", 4),
+                ("</i>", 4),
+                ("</u>", 4),
+                ("</color>", 8),
+                ("</size>", 7),
+                ("</font>", 7),
+            ] {
+                if rest_lower.starts_with(tag) {
+                    i += skip;
+                    continue 'outer;
+                }
+            }
+            if rest_lower.starts_with("<color:")
+                || rest_lower.starts_with("<size:")
+                || rest_lower.starts_with("<font:")
+            {
+                if let Some(close) = rest.find('>') {
+                    i += close + 1;
+                    continue 'outer;
+                }
+            }
+            count += 1;
+            i += 1;
+            continue;
+        }
+        if i + 1 < len && bytes[i] == b'*' && bytes[i + 1] == b'*' {
+            i += 2;
+            continue;
+        }
+        if i + 1 < len && bytes[i] == b'/' && bytes[i + 1] == b'/' {
+            i += 2;
+            continue;
+        }
+        if i + 1 < len && bytes[i] == b'_' && bytes[i + 1] == b'_' {
+            i += 2;
+            continue;
+        }
+        if i + 1 < len && bytes[i] == b'"' && bytes[i + 1] == b'"' {
+            i += 2;
+            continue;
+        }
+        if i + 1 < len && bytes[i] == b'~' && bytes[i + 1] == b'~' {
+            i += 2;
+            continue;
+        }
+        let ch = s[i..].chars().next().unwrap_or('\0');
+        count += 1;
+        i += ch.len_utf8();
+    }
+    count
 }
 
 fn message_x_bounds(
@@ -948,6 +1017,8 @@ mod tests {
             style: SequenceStyle::default(),
             footbox_visible: true,
             warnings: vec![],
+            hide_unlinked: false,
+            hidden_participants: vec![],
         };
         let scene = layout(&doc, LayoutOptions::default());
         assert_eq!(scene.messages.len(), 1);

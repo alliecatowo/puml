@@ -27,6 +27,22 @@ impl Theme {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MessageAlign {
+    Left,
+    #[default]
+    Center,
+    Right,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GroupHeaderFontStyle {
+    #[default]
+    Normal,
+    Bold,
+    Italic,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SequenceStyle {
     pub arrow_color: String,
@@ -37,6 +53,16 @@ pub struct SequenceStyle {
     pub note_border_color: String,
     pub group_background_color: String,
     pub group_border_color: String,
+    pub participant_padding: Option<i32>,
+    pub box_padding: Option<i32>,
+    pub message_align: MessageAlign,
+    pub response_message_below_arrow: bool,
+    pub lifeline_thickness: Option<i32>,
+    pub message_line_color: Option<String>,
+    pub reference_background_color: Option<String>,
+    pub reference_border_color: Option<String>,
+    pub group_header_font_color: Option<String>,
+    pub group_header_font_style: GroupHeaderFontStyle,
 }
 
 impl Default for SequenceStyle {
@@ -50,6 +76,16 @@ impl Default for SequenceStyle {
             note_border_color: "#111".to_string(),
             group_background_color: "#fafafa".to_string(),
             group_border_color: "#666".to_string(),
+            participant_padding: None,
+            box_padding: None,
+            message_align: MessageAlign::Center,
+            response_message_below_arrow: false,
+            lifeline_thickness: None,
+            message_line_color: None,
+            reference_background_color: None,
+            reference_border_color: None,
+            group_header_font_color: None,
+            group_header_font_style: GroupHeaderFontStyle::Normal,
         }
     }
 }
@@ -99,6 +135,7 @@ pub fn resolve_sequence_theme_preset(spec: &str) -> Result<SequenceThemePreset, 
                 note_border_color: "#5f7388".to_string(),
                 group_background_color: "#f4f8fc".to_string(),
                 group_border_color: "#7b8da0".to_string(),
+                ..SequenceStyle::default()
             },
         }),
         _ => Err(format!(
@@ -120,6 +157,16 @@ pub enum SequenceSkinParamValue {
     NoteBorderColor(String),
     GroupBackgroundColor(String),
     GroupBorderColor(String),
+    ParticipantPadding(i32),
+    BoxPadding(i32),
+    MessageAlign(MessageAlign),
+    ResponseMessageBelowArrow(bool),
+    LifelineThickness(i32),
+    MessageLineColor(String),
+    ReferenceBackgroundColor(String),
+    ReferenceBorderColor(String),
+    GroupHeaderFontColor(String),
+    GroupHeaderFontStyle(GroupHeaderFontStyle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,8 +242,91 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "participantpadding" | "sequenceparticipantpadding" => parse_px_value(value)
+            .map(|px| {
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::ParticipantPadding(px),
+                )
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "boxpadding" | "sequenceboxpadding" => parse_px_value(value)
+            .map(|px| {
+                SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::BoxPadding(px))
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "sequencemessagealign" | "messagealign" => {
+            let align = match value.trim().to_ascii_lowercase().as_str() {
+                "left" => MessageAlign::Left,
+                "center" | "centre" => MessageAlign::Center,
+                "right" => MessageAlign::Right,
+                _ => return SequenceSkinParamSupport::UnsupportedValue,
+            };
+            SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::MessageAlign(
+                align,
+            ))
+        }
+        "responsemessagebelowarrow" | "sequenceresponsemessagebelowarrow" => {
+            let v = match value.trim().to_ascii_lowercase().as_str() {
+                "true" | "yes" | "on" => true,
+                "false" | "no" | "off" => false,
+                _ => return SequenceSkinParamSupport::UnsupportedValue,
+            };
+            SequenceSkinParamSupport::SupportedWithValue(
+                SequenceSkinParamValue::ResponseMessageBelowArrow(v),
+            )
+        }
+        "sequencelifelinethickness" | "lifelinethickness" => parse_px_value(value)
+            .map(|px| {
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::LifelineThickness(px),
+                )
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "sequencemessagelinecolor" | "messagelinecolor" => parse_color_value(value)
+            .map(|color| {
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::MessageLineColor(color),
+                )
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "sequencereferencebackgroundcolor" | "referencebackgroundcolor" => parse_color_value(value)
+            .map(|color| {
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::ReferenceBackgroundColor(color),
+                )
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "sequencereferencebordercolor" | "referencebordercolor" => parse_color_value(value)
+            .map(|color| {
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::ReferenceBorderColor(color),
+                )
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "sequencegroupheaderfontcolor" | "groupheaderfontcolor" => parse_color_value(value)
+            .map(|color| {
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::GroupHeaderFontColor(color),
+                )
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "sequencegroupheaderfontstyle" | "groupheaderfontstyle" => {
+            let style = match value.trim().to_ascii_lowercase().as_str() {
+                "normal" => GroupHeaderFontStyle::Normal,
+                "bold" => GroupHeaderFontStyle::Bold,
+                "italic" => GroupHeaderFontStyle::Italic,
+                _ => return SequenceSkinParamSupport::UnsupportedValue,
+            };
+            SequenceSkinParamSupport::SupportedWithValue(
+                SequenceSkinParamValue::GroupHeaderFontStyle(style),
+            )
+        }
         _ => SequenceSkinParamSupport::UnsupportedKey,
     }
+}
+
+fn parse_px_value(value: &str) -> Option<i32> {
+    value.trim().parse::<i32>().ok()
 }
 
 fn parse_footbox_value(value: &str) -> Option<SequenceSkinParamValue> {

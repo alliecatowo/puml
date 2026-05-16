@@ -260,6 +260,8 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
         style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
+        hide_unlinked: false,
+        hidden_participants: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let first = render::render_svg(&scene);

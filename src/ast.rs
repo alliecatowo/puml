@@ -92,6 +92,7 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    HideUnlinked,
     Unknown(String),
 }
 

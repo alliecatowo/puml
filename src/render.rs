@@ -31,33 +31,56 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for l in &scene.lifelines {
+        let lifeline_stroke_width = scene.style.lifeline_thickness.unwrap_or(1);
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"6 4\"/>",
-            l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"6 4\"/>",
+            l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color, lifeline_stroke_width
         ));
     }
 
     for g in &scene.groups {
+        let is_ref = g.kind.eq_ignore_ascii_case("ref");
+        let group_fill = if is_ref {
+            scene
+                .style
+                .reference_background_color
+                .as_deref()
+                .unwrap_or("#eef6ff")
+        } else {
+            scene.style.group_background_color.as_str()
+        };
+        let group_stroke = if is_ref {
+            scene
+                .style
+                .reference_border_color
+                .as_deref()
+                .unwrap_or(scene.style.group_border_color.as_str())
+        } else {
+            scene.style.group_border_color.as_str()
+        };
         out.push_str(&format!(
             "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-            g.x,
-            g.y,
-            g.width,
-            g.height,
-            if g.kind.eq_ignore_ascii_case("ref") {
-                "#eef6ff"
-            } else {
-                scene.style.group_background_color.as_str()
-            },
-            scene.style.group_border_color
+            g.x, g.y, g.width, g.height, group_fill, group_stroke
         ));
 
         if let Some(label) = &g.label {
             let header = label.lines().next().unwrap_or("");
+            let header_color = scene
+                .style
+                .group_header_font_color
+                .as_deref()
+                .unwrap_or("black");
+            let header_weight = match scene.style.group_header_font_style {
+                crate::theme::GroupHeaderFontStyle::Bold => "font-weight=\"bold\"",
+                crate::theme::GroupHeaderFontStyle::Italic => "font-style=\"italic\"",
+                crate::theme::GroupHeaderFontStyle::Normal => "font-weight=\"600\"",
+            };
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\">{}</text>",
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" {} fill=\"{}\">{}</text>",
                 g.x + 8,
                 g.y + 16,
+                header_weight,
+                header_color,
                 escape_text(format!("{} {}", g.kind, header).trim())
             ));
             if g.kind.eq_ignore_ascii_case("ref") {
@@ -95,6 +118,16 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for m in &scene.messages {
+        let msg_stroke_color = scene
+            .style
+            .message_line_color
+            .as_deref()
+            .unwrap_or(scene.style.arrow_color.as_str());
+        let msg_text_anchor = match scene.style.message_align {
+            crate::theme::MessageAlign::Left => "start",
+            crate::theme::MessageAlign::Center => "middle",
+            crate::theme::MessageAlign::Right => "end",
+        };
         let stroke_dash = if m.arrow.contains("--") {
             " stroke-dasharray=\"6 4\""
         } else {
@@ -102,7 +135,7 @@ pub fn render_svg(scene: &Scene) -> String {
         };
         out.push_str(&format!(
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
-            m.x1, m.y, m.x2, m.y, scene.style.arrow_color, stroke_dash
+            m.x1, m.y, m.x2, m.y, msg_stroke_color, stroke_dash
         ));
         let arrow_size = 6;
         if m.x2 >= m.x1 {
@@ -114,7 +147,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 m.y - 4,
                 m.x2 - arrow_size,
                 m.y + 4,
-                scene.style.arrow_color
+                msg_stroke_color
             ));
         } else {
             out.push_str(&format!(
@@ -125,7 +158,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 m.y - 4,
                 m.x2 + arrow_size,
                 m.y + 4,
-                scene.style.arrow_color
+                msg_stroke_color
             ));
         }
 
@@ -138,22 +171,35 @@ pub fn render_svg(scene: &Scene) -> String {
 
         if !m.label_lines.is_empty() {
             let tx = ((m.x1 + m.x2) / 2) + 2;
-            let start_y = m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP);
+            let (start_y, line_dy) = if scene.style.response_message_below_arrow {
+                (m.y + 14, MESSAGE_LABEL_LINE_GAP)
+            } else {
+                (
+                    m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP),
+                    MESSAGE_LABEL_LINE_GAP,
+                )
+            };
             for (idx, line) in m.label_lines.iter().enumerate() {
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"{}\" font-family=\"monospace\" font-size=\"12\">{}</text>",
                     tx,
-                    start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
+                    start_y + (idx as i32 * line_dy),
+                    msg_text_anchor,
                     escape_text(line)
                 ));
             }
         } else if let Some(label) = &m.label {
             let tx = ((m.x1 + m.x2) / 2) + 2;
-            let ty = m.y - 8;
+            let ty = if scene.style.response_message_below_arrow {
+                m.y + 14
+            } else {
+                m.y - 8
+            };
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"{}\" font-family=\"monospace\" font-size=\"12\">{}</text>",
                 tx,
                 ty,
+                msg_text_anchor,
                 escape_text(label)
             ));
         }

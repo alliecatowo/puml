@@ -3024,6 +3024,9 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower == "show footbox" {
         return Some(StatementKind::Footbox(true));
     }
+    if lower == "hide unlinked" {
+        return Some(StatementKind::HideUnlinked);
+    }
 
     let note_kw = if lower.starts_with("note ") {
         Some("note")

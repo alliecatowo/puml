@@ -1,0 +1,7 @@
+@startuml
+Alice -> Bob: ping
+note over Alice
+ line1
+ line2
+end note
+@enduml

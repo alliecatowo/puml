@@ -1065,6 +1065,8 @@ fn layout_handles_return_without_caller() {
         style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
+        hide_unlinked: false,
+        hidden_participants: vec![],
     };
 
     let scene = layout::layout(&doc, LayoutOptions::default());
@@ -1100,6 +1102,8 @@ fn render_escapes_text_in_labels_and_titles() {
         style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
+        hide_unlinked: false,
+        hidden_participants: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let svg = render::render_svg(&scene);
@@ -1173,6 +1177,8 @@ fn layout_wraps_participant_labels_and_grows_boxes_by_default() {
         style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
+        hide_unlinked: false,
+        hidden_participants: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
 
@@ -1208,6 +1214,8 @@ fn layout_uses_ellipsis_for_single_line_overflow_policy() {
         style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
+        hide_unlinked: false,
+        hidden_participants: vec![],
     };
     let options = LayoutOptions {
         text_overflow_policy: TextOverflowPolicy::EllipsisSingleLine,
@@ -1288,6 +1296,8 @@ fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
         style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
+        hide_unlinked: false,
+        hidden_participants: vec![],
     };
     let options = LayoutOptions::default();
     let scene = layout::layout(&model, options);
@@ -1379,6 +1389,8 @@ fn layout_offsets_virtual_endpoints_for_overlap_cases() {
         style: SequenceStyle::default(),
         footbox_visible: true,
         warnings: vec![],
+        hide_unlinked: false,
+        hidden_participants: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let center = scene.participants[0].x + (scene.participants[0].width / 2);
@@ -1631,4 +1643,298 @@ fn unknown_family_render_route_reports_deterministic_error_code() {
         .expect_err("expected unsupported family diagnostic");
     assert!(err.message.contains("E_RENDER_FAMILY_UNSUPPORTED"));
     assert!(!err.message.trim().is_empty());
+}
+
+// ── Issue #182: hide unlinked ──────────────────────────────────────────────
+
+#[test]
+fn hide_unlinked_filters_unreferenced_explicit_participant() {
+    let src = "@startuml\nhide unlinked\nparticipant Alice\nparticipant Bob\nparticipant Charlie\nAlice -> Bob: hello\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert!(model.hide_unlinked, "hide_unlinked flag should be set");
+    assert!(
+        model.hidden_participants.contains(&"Charlie".to_string()),
+        "Charlie should be filtered out"
+    );
+    assert!(
+        !model.participants.iter().any(|p| p.id == "Charlie"),
+        "Charlie should not appear in participants"
+    );
+    assert_eq!(
+        model.participants.len(),
+        2,
+        "only Alice and Bob should remain"
+    );
+}
+
+#[test]
+fn hide_unlinked_diagnostic_surfaces_filtered_ids() {
+    let src = "@startuml\nhide unlinked\nparticipant Alice\nparticipant Bob\nparticipant Charlie\nAlice -> Bob: hello\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let warning = model
+        .warnings
+        .iter()
+        .find(|w| w.message.contains("I_HIDE_UNLINKED_FILTERED"));
+    assert!(
+        warning.is_some(),
+        "I_HIDE_UNLINKED_FILTERED diagnostic should be emitted"
+    );
+    assert!(
+        warning.unwrap().message.contains("Charlie"),
+        "warning should name filtered participant"
+    );
+}
+
+#[test]
+fn hide_unlinked_svg_excludes_filtered_participant() {
+    let src = "@startuml\nhide unlinked\nparticipant Alice\nparticipant Bob\nparticipant Charlie\nAlice -> Bob: hello\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(svg.contains(">Alice<"), "Alice should appear in SVG");
+    assert!(svg.contains(">Bob<"), "Bob should appear in SVG");
+    assert!(
+        !svg.contains(">Charlie<"),
+        "Charlie should be absent from SVG"
+    );
+}
+
+#[test]
+fn hide_unlinked_fixture_renders_without_error() {
+    let src = fs::read_to_string(fixture("styling/valid_hide_unlinked.puml"))
+        .expect("fixture should exist");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+    assert!(svg.contains("Alice"));
+    assert!(svg.contains("Bob"));
+    assert!(!svg.contains("Charlie"));
+}
+
+// ── 10 new sequence skinparams ─────────────────────────────────────────────
+
+#[test]
+fn skinparam_sequencelifelinethickness_parsed_and_stored() {
+    use puml::theme::{SequenceSkinParamSupport, SequenceSkinParamValue};
+    let result = classify_sequence_skinparam("sequencelifelinethickness", "3");
+    assert!(
+        matches!(
+            result,
+            SequenceSkinParamSupport::SupportedWithValue(
+                SequenceSkinParamValue::LifelineThickness(3)
+            )
+        ),
+        "expected LifelineThickness(3), got {:?}",
+        result
+    );
+    let src = "@startuml\nskinparam sequencelifelinethickness 3\nA -> B: hi\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert_eq!(model.style.lifeline_thickness, Some(3));
+}
+
+#[test]
+fn skinparam_sequencemessagealign_parsed_and_stored() {
+    use puml::theme::{MessageAlign, SequenceSkinParamSupport, SequenceSkinParamValue};
+    let result = classify_sequence_skinparam("sequencemessagealign", "left");
+    assert!(
+        matches!(
+            result,
+            SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::MessageAlign(
+                MessageAlign::Left
+            ))
+        ),
+        "expected MessageAlign(Left), got {:?}",
+        result
+    );
+    let src = "@startuml\nskinparam sequencemessagealign right\nA -> B: hi\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert_eq!(model.style.message_align, MessageAlign::Right);
+}
+
+#[test]
+fn skinparam_responsemessagebelowarrow_parsed_and_stored() {
+    use puml::theme::{SequenceSkinParamSupport, SequenceSkinParamValue};
+    let result = classify_sequence_skinparam("responsemessagebelowarrow", "true");
+    assert!(
+        matches!(
+            result,
+            SequenceSkinParamSupport::SupportedWithValue(
+                SequenceSkinParamValue::ResponseMessageBelowArrow(true)
+            )
+        ),
+        "expected ResponseMessageBelowArrow(true), got {:?}",
+        result
+    );
+    let src = "@startuml\nskinparam responsemessagebelowarrow true\nA -> B: hi\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert!(model.style.response_message_below_arrow);
+}
+
+#[test]
+fn skinparam_sequencemessagelinecolor_reflected_in_svg() {
+    let src = "@startuml\nskinparam sequencemessagelinecolor #ff0000\nA -> B: hi\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("#ff0000"),
+        "message line color should appear in SVG"
+    );
+}
+
+#[test]
+fn skinparam_sequencegroupheaderfontcolor_reflected_in_svg() {
+    let src = "@startuml\nskinparam sequencegroupheaderfontcolor #123456\nalt foo\nA -> B: hi\nend\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("#123456"),
+        "group header font color should appear in SVG"
+    );
+}
+
+#[test]
+fn skinparam_sequencereferencebordercolor_reflected_in_svg() {
+    let src = "@startuml\nskinparam sequencereferencebordercolor #abcdef\nref over A\nfoo\nend ref\nA -> B: hi\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("#abcdef"),
+        "reference border color should appear in SVG"
+    );
+}
+
+#[test]
+fn skinparam_participantpadding_and_boxpadding_stored_in_style() {
+    let src = "@startuml\nskinparam participantpadding 20\nskinparam boxpadding 10\nA -> B: hi\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert_eq!(model.style.participant_padding, Some(20));
+    assert_eq!(model.style.box_padding, Some(10));
+}
+
+#[test]
+fn skinparam_sequencegroupheaderfontstyle_bold() {
+    use puml::theme::GroupHeaderFontStyle;
+    let src = "@startuml\nskinparam sequencegroupheaderfontstyle bold\nalt foo\nA -> B: hi\nend\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert_eq!(
+        model.style.group_header_font_style,
+        GroupHeaderFontStyle::Bold
+    );
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("font-weight=\"bold\""),
+        "bold style should appear in SVG"
+    );
+}
+
+// ── visible_chars markup stripping ─────────────────────────────────────────
+
+#[test]
+fn visible_chars_strips_bold_markers() {
+    use puml::layout::visible_chars;
+    assert_eq!(visible_chars("**hello**"), 5, "bold markers stripped");
+}
+
+#[test]
+fn visible_chars_strips_italic_markers() {
+    use puml::layout::visible_chars;
+    assert_eq!(visible_chars("//hello//"), 5, "italic markers stripped");
+}
+
+#[test]
+fn visible_chars_strips_underline_markers() {
+    use puml::layout::visible_chars;
+    assert_eq!(visible_chars("__hello__"), 5, "underline markers stripped");
+}
+
+#[test]
+fn visible_chars_strips_mono_markers() {
+    use puml::layout::visible_chars;
+    assert_eq!(visible_chars("\"\"hello\"\""), 5, "mono markers stripped");
+}
+
+#[test]
+fn visible_chars_strips_strike_markers() {
+    use puml::layout::visible_chars;
+    assert_eq!(visible_chars("~~hello~~"), 5, "strike markers stripped");
+}
+
+#[test]
+fn visible_chars_strips_html_bold_tags() {
+    use puml::layout::visible_chars;
+    assert_eq!(visible_chars("<b>hello</b>"), 5, "html bold tags stripped");
+}
+
+#[test]
+fn visible_chars_strips_html_italic_tags() {
+    use puml::layout::visible_chars;
+    assert_eq!(
+        visible_chars("<i>hello</i>"),
+        5,
+        "html italic tags stripped"
+    );
+}
+
+#[test]
+fn visible_chars_strips_color_tags() {
+    use puml::layout::visible_chars;
+    assert_eq!(
+        visible_chars("<color:red>hello</color>"),
+        5,
+        "color tags stripped"
+    );
+}
+
+#[test]
+fn visible_chars_handles_plain_text() {
+    use puml::layout::visible_chars;
+    assert_eq!(
+        visible_chars("hello world"),
+        11,
+        "plain text counted correctly"
+    );
+}
+
+#[test]
+fn visible_chars_handles_empty_string() {
+    use puml::layout::visible_chars;
+    assert_eq!(visible_chars(""), 0, "empty string returns 0");
+}
+
+// ── multi-line note coverage ───────────────────────────────────────────────
+
+#[test]
+fn multiline_note_parses_to_multi_line_text() {
+    let src = "@startuml\nAlice -> Bob: ping\nnote over Alice\n line1\n line2\nend note\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let note = model
+        .events
+        .iter()
+        .find_map(|e| match &e.kind {
+            puml::model::SequenceEventKind::Note { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+        .expect("expected note event");
+    assert!(note.contains("line1"), "note text should contain line1");
+    assert!(note.contains("line2"), "note text should contain line2");
+}
+
+#[test]
+fn multiline_note_svg_contains_tspans_for_each_line() {
+    let src = "@startuml\nAlice -> Bob: ping\nnote over Alice\n line1\n line2\nend note\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(svg.contains("line1"), "SVG should contain line1");
+    assert!(svg.contains("line2"), "SVG should contain line2");
+}
+
+#[test]
+fn multiline_note_fixture_renders_deterministically() {
+    let src = fs::read_to_string(fixture("notes/valid_note_multiline_tspan.puml"))
+        .expect("fixture should exist");
+    let svg1 = puml::render_source_to_svg(&src).expect("first render should succeed");
+    let svg2 = puml::render_source_to_svg(&src).expect("second render should succeed");
+    assert_eq!(svg1, svg2, "render output should be deterministic");
+    assert!(svg1.contains("line1"));
+    assert!(svg1.contains("line2"));
 }

@@ -91,7 +91,8 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             StatementKind::Legend(v) => legend = Some(v),
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
-            | StatementKind::Pragma(_) => {}
+            | StatementKind::Pragma(_)
+            | StatementKind::HideUnlinked => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }
@@ -204,7 +205,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
-            | StatementKind::Undef(_) => {}
+            | StatementKind::Undef(_)
+            | StatementKind::HideUnlinked => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
@@ -305,7 +307,8 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
-            | StatementKind::Undef(_) => {}
+            | StatementKind::Undef(_)
+            | StatementKind::HideUnlinked => {}
             StatementKind::StateRegionDivider => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(format!(
@@ -513,6 +516,8 @@ fn page_from(
         style: document.style.clone(),
         footbox_visible: document.footbox_visible,
         warnings: document.warnings.clone(),
+        hide_unlinked: document.hide_unlinked,
+        hidden_participants: document.hidden_participants.clone(),
     }
 }
 
@@ -545,6 +550,7 @@ pub fn normalize_with_options(
     let mut footbox_visible = true;
     let mut style = SequenceStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut hide_unlinked = false;
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
     let mut group_stack: Vec<GroupFrame> = Vec::new();
@@ -755,6 +761,36 @@ pub fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::GroupBorderColor(color),
                     ) => style.group_border_color = color,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantPadding(px),
+                    ) => style.participant_padding = Some(px),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::BoxPadding(px),
+                    ) => style.box_padding = Some(px),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageAlign(align),
+                    ) => style.message_align = align,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ResponseMessageBelowArrow(v),
+                    ) => style.response_message_below_arrow = v,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineThickness(px),
+                    ) => style.lifeline_thickness = Some(px),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageLineColor(color),
+                    ) => style.message_line_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBackgroundColor(color),
+                    ) => style.reference_background_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBorderColor(color),
+                    ) => style.reference_border_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontColor(color),
+                    ) => style.group_header_font_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontStyle(fs),
+                    ) => style.group_header_font_style = fs,
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -806,6 +842,9 @@ pub fn normalize_with_options(
             StatementKind::Footbox(v) => {
                 mark_group_content(&mut group_stack);
                 footbox_visible = v
+            }
+            StatementKind::HideUnlinked => {
+                hide_unlinked = true;
             }
             StatementKind::Delay(v) => {
                 mark_group_content(&mut group_stack);
@@ -1010,6 +1049,59 @@ pub fn normalize_with_options(
         .with_span(open.span));
     }
 
+    // Apply hide_unlinked filter
+    let hidden_participants = if hide_unlinked {
+        let mut referenced: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for evt in &events {
+            match &evt.kind {
+                SequenceEventKind::Message { from, to, .. } => {
+                    referenced.insert(from.clone());
+                    referenced.insert(to.clone());
+                }
+                SequenceEventKind::Note {
+                    target: Some(t), ..
+                } => {
+                    for id in t.split(',') {
+                        referenced.insert(id.trim().to_string());
+                    }
+                }
+                SequenceEventKind::Activate(id)
+                | SequenceEventKind::Deactivate(id)
+                | SequenceEventKind::Destroy(id)
+                | SequenceEventKind::Create(id) => {
+                    referenced.insert(id.clone());
+                }
+                SequenceEventKind::Return { from, to, .. } => {
+                    if let Some(f) = from {
+                        referenced.insert(f.clone());
+                    }
+                    if let Some(t) = to {
+                        referenced.insert(t.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut hidden = Vec::new();
+        participants.retain(|p| {
+            if p.explicit && !referenced.contains(&p.id) {
+                hidden.push(p.id.clone());
+                false
+            } else {
+                true
+            }
+        });
+        if !hidden.is_empty() {
+            warnings.push(Diagnostic::warning(format!(
+                "[I_HIDE_UNLINKED_FILTERED] filtered out unlinked explicit participants: {}",
+                hidden.join(", ")
+            )));
+        }
+        hidden
+    } else {
+        Vec::new()
+    };
+
     warnings.sort_by(|a, b| {
         let sa = a.span.map(|s| s.start).unwrap_or_default();
         let sb = b.span.map(|s| s.start).unwrap_or_default();
@@ -1028,6 +1120,8 @@ pub fn normalize_with_options(
         style,
         footbox_visible,
         warnings,
+        hide_unlinked,
+        hidden_participants,
     })
 }
 
