@@ -472,6 +472,25 @@ fn normalize_emits_theme_warning_without_name_suffix_when_theme_name_is_empty() 
 }
 
 #[test]
+fn normalize_emits_deterministic_pragma_warnings() {
+    let teoz_src = "@startuml\n!pragma teoz true\nA -> B: hi\n@enduml\n";
+    let teoz_doc = parse(teoz_src).expect("parse should succeed");
+    let teoz_model = normalize::normalize(teoz_doc).expect("normalize should succeed");
+    assert_eq!(teoz_model.warnings.len(), 1);
+    assert!(teoz_model.warnings[0]
+        .message
+        .contains("W_PRAGMA_TEOZ_UNSUPPORTED"));
+
+    let generic_src = "@startuml\n!pragma foo bar\nA -> B: hi\n@enduml\n";
+    let generic_doc = parse(generic_src).expect("parse should succeed");
+    let generic_model = normalize::normalize(generic_doc).expect("normalize should succeed");
+    assert_eq!(generic_model.warnings.len(), 1);
+    assert!(generic_model.warnings[0]
+        .message
+        .contains("W_PRAGMA_UNSUPPORTED"));
+}
+
+#[test]
 fn normalize_reports_invalid_arrow_when_ast_contains_malformed_arrow() {
     let doc = puml::ast::Document {
         kind: puml::ast::DiagramKind::Sequence,

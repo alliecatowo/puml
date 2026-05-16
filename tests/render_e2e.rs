@@ -31,6 +31,18 @@ fn render_svg_is_deterministic_for_same_input() {
 }
 
 #[test]
+fn render_svg_pragma_teoz_boundary_keeps_sequence_render_output_stable() {
+    let base = "@startuml\nparticipant A\nparticipant B\nA -> B: hello\n@enduml\n";
+    let with_pragma =
+        "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -> B: hello\n@enduml\n";
+
+    let base_svg = puml::render_source_to_svg(base).expect("base render");
+    let pragma_svg = puml::render_source_to_svg(with_pragma).expect("pragma render");
+
+    assert_eq!(base_svg, pragma_svg);
+}
+
+#[test]
 fn render_svg_contains_expected_structure() {
     let src = fixture("e2e/deterministic_sequence.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");
