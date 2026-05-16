@@ -12,7 +12,8 @@ pub mod theme;
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
 pub use model::{
-    FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, TimelineDocument,
+    FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, StateDocument,
+    TimelineDocument,
 };
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
@@ -217,17 +218,25 @@ fn render_document_for_family(
                 model::NormalizedDocument::Family(stub) => {
                     Ok(vec![render::render_family_stub_svg(&stub)])
                 }
-                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family stub render",
+                model::NormalizedDocument::Sequence(_)
+                | model::NormalizedDocument::Timeline(_)
+                | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
                 )),
-                model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family stub render",
+            }
+        }
+        DiagramFamily::State => {
+            match normalize::normalize_family(document)? {
+                model::NormalizedDocument::State(state_doc) => {
+                    Ok(vec![render::render_state_svg(&state_doc)])
+                }
+                _ => Err(Diagnostic::error(
+                    "[E_STATE_INTERNAL] unexpected model variant during state render",
                 )),
             }
         }
         DiagramFamily::Component
         | DiagramFamily::Deployment
-        | DiagramFamily::State
         | DiagramFamily::Activity
         | DiagramFamily::Timing
         | DiagramFamily::MindMap
@@ -242,7 +251,6 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
     let code = match family {
         DiagramFamily::Component => "E_RENDER_COMPONENT_UNSUPPORTED",
         DiagramFamily::Deployment => "E_RENDER_DEPLOYMENT_UNSUPPORTED",
-        DiagramFamily::State => "E_RENDER_STATE_UNSUPPORTED",
         DiagramFamily::Activity => "E_RENDER_ACTIVITY_UNSUPPORTED",
         DiagramFamily::Timing => "E_RENDER_TIMING_UNSUPPORTED",
         DiagramFamily::MindMap => "E_RENDER_MINDMAP_UNSUPPORTED",

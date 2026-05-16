@@ -1,0 +1,8 @@
+@startuml
+state Active
+Active : entry / startTimer
+Active : exit / stopTimer
+Active : tick / handleTick
+[*] --> Active
+Active --> [*]
+@enduml

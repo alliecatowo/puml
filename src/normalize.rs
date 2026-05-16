@@ -5,8 +5,10 @@ use crate::diagnostic::Diagnostic;
 use crate::model::{
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
-    SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
-    TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    SequenceEventKind, SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction,
+    StateNode, StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
+    TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::theme::{
     classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
@@ -40,11 +42,11 @@ pub fn normalize_family_with_options(
         DiagramKind::Gantt | DiagramKind::Chronology => {
             normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
         }
+        DiagramKind::State => normalize_state(document).map(NormalizedDocument::State),
         DiagramKind::MindMap
         | DiagramKind::Wbs
         | DiagramKind::Component
         | DiagramKind::Deployment
-        | DiagramKind::State
         | DiagramKind::Activity
         | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
         DiagramKind::Unknown => Err(Diagnostic::error(
@@ -231,6 +233,202 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         legend,
         warnings: Vec::new(),
     })
+}
+
+fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
+    let mut nodes: Vec<StateNode> = Vec::new();
+    let mut transitions: Vec<ModelStateTransition> = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+
+    for stmt in &document.statements {
+        match &stmt.kind {
+            StatementKind::StateDecl(decl) => {
+                let node = state_decl_to_node(decl);
+                upsert_state_node(&mut nodes, node);
+            }
+            StatementKind::StateTransition(t) => {
+                // Ensure endpoints exist as nodes
+                ensure_state_node(&mut nodes, &t.from);
+                ensure_state_node(&mut nodes, &t.to);
+                transitions.push(ModelStateTransition {
+                    from: t.from.clone(),
+                    to: t.to.clone(),
+                    label: t.label.clone(),
+                });
+            }
+            StatementKind::StateInternalAction(a) => {
+                ensure_state_node(&mut nodes, &a.state);
+                // Add internal action to existing node
+                if let Some(node) = nodes.iter_mut().find(|n| n.name == a.state) {
+                    node.internal_actions.push(ModelStateInternalAction {
+                        kind: a.kind.clone(),
+                        action: a.action.clone(),
+                    });
+                }
+            }
+            StatementKind::StateHistory { deep } => {
+                let kind = if *deep { StateNodeKind::HistoryDeep } else { StateNodeKind::HistoryShallow };
+                upsert_state_node(&mut nodes, StateNode {
+                    name: if *deep { "[H*]".to_string() } else { "[H]".to_string() },
+                    display: Some(if *deep { "H*".to_string() } else { "H".to_string() }),
+                    kind,
+                    internal_actions: Vec::new(),
+                    regions: Vec::new(),
+                });
+            }
+            StatementKind::Title(v) => title = Some(v.clone()),
+            StatementKind::Header(v) => header = Some(v.clone()),
+            StatementKind::Footer(v) => footer = Some(v.clone()),
+            StatementKind::Caption(v) => caption = Some(v.clone()),
+            StatementKind::Legend(v) => legend = Some(v.clone()),
+            StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_) => {}
+            StatementKind::StateRegionDivider => {}
+            StatementKind::Unknown(line) => {
+                return Err(Diagnostic::error(format!(
+                    "[E_STATE_UNSUPPORTED_SYNTAX] unsupported state diagram syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
+            _ => {
+                return Err(Diagnostic::error(
+                    "[E_STATE_MIXED] mixed diagram families are not supported in one document",
+                )
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    Ok(StateDocument {
+        kind: document.kind,
+        nodes,
+        transitions,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        warnings: Vec::new(),
+    })
+}
+
+fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
+    let kind = match decl.stereotype.as_deref() {
+        Some("fork") => StateNodeKind::Fork,
+        Some("join") => StateNodeKind::Join,
+        Some("choice") => StateNodeKind::Choice,
+        Some("end") => StateNodeKind::End,
+        _ => StateNodeKind::Normal,
+    };
+
+    // Parse children into regions separated by region_dividers
+    let mut regions: Vec<Vec<StateNode>> = Vec::new();
+    let mut current_region: Vec<StateNode> = Vec::new();
+    let mut divider_iter = decl.region_dividers.iter().peekable();
+
+    for (child_idx, child_stmt) in decl.children.iter().enumerate() {
+        // Check if a divider appears before this child
+        while divider_iter.peek() == Some(&&child_idx) {
+            divider_iter.next();
+            regions.push(std::mem::take(&mut current_region));
+        }
+        match &child_stmt.kind {
+            StatementKind::StateDecl(child_decl) => {
+                current_region.push(state_decl_to_node(child_decl));
+            }
+            StatementKind::StateHistory { deep } => {
+                current_region.push(StateNode {
+                    name: if *deep { "[H*]".to_string() } else { "[H]".to_string() },
+                    display: Some(if *deep { "H*".to_string() } else { "H".to_string() }),
+                    kind: if *deep { StateNodeKind::HistoryDeep } else { StateNodeKind::HistoryShallow },
+                    internal_actions: Vec::new(),
+                    regions: Vec::new(),
+                });
+            }
+            StatementKind::StateInternalAction(a) => {
+                // Apply to parent node's internal actions (will be collected below)
+                let _ = a;
+            }
+            _ => {}
+        }
+    }
+    regions.push(current_region);
+
+    // Collect internal actions from direct children
+    let mut internal_actions: Vec<ModelStateInternalAction> = Vec::new();
+    for child_stmt in &decl.children {
+        if let StatementKind::StateInternalAction(a) = &child_stmt.kind {
+            // Only collect actions targeted at this parent state
+            if a.state == decl.name {
+                internal_actions.push(ModelStateInternalAction {
+                    kind: a.kind.clone(),
+                    action: a.action.clone(),
+                });
+            }
+        }
+    }
+
+    StateNode {
+        name: decl.alias.clone().unwrap_or_else(|| decl.name.clone()),
+        display: Some(decl.name.clone()),
+        kind,
+        internal_actions,
+        regions,
+    }
+}
+
+/// Ensure a state node exists in the list, creating a Normal node if absent.
+fn ensure_state_node(nodes: &mut Vec<StateNode>, name: &str) {
+    if nodes.iter().any(|n| n.name == name) {
+        return;
+    }
+    let kind = match name {
+        "[*]" => StateNodeKind::StartEnd,
+        "[H]" => StateNodeKind::HistoryShallow,
+        "[H*]" => StateNodeKind::HistoryDeep,
+        _ => StateNodeKind::Normal,
+    };
+    let display = match name {
+        "[*]" => None,
+        "[H]" => Some("H".to_string()),
+        "[H*]" => Some("H*".to_string()),
+        _ => None,
+    };
+    nodes.push(StateNode {
+        name: name.to_string(),
+        display,
+        kind,
+        internal_actions: Vec::new(),
+        regions: Vec::new(),
+    });
+}
+
+/// Upsert a state node: if one with the same name already exists, update it; otherwise push.
+fn upsert_state_node(nodes: &mut Vec<StateNode>, node: StateNode) {
+    if let Some(existing) = nodes.iter_mut().find(|n| n.name == node.name) {
+        // Merge: preserve richer kind, regions, internal_actions
+        if existing.kind == StateNodeKind::Normal && node.kind != StateNodeKind::Normal {
+            existing.kind = node.kind;
+        }
+        if !node.regions.is_empty() {
+            existing.regions = node.regions;
+        }
+        existing.internal_actions.extend(node.internal_actions);
+        if node.display.is_some() && existing.display.is_none() {
+            existing.display = node.display;
+        }
+    } else {
+        nodes.push(node);
+    }
 }
 
 fn family_kind_name(kind: DiagramKind) -> &'static str {
@@ -750,6 +948,11 @@ pub fn normalize_with_options(
             | StatementKind::ObjectDecl(_)
             | StatementKind::UseCaseDecl(_)
             | StatementKind::FamilyRelation(_)
+            | StatementKind::StateDecl(_)
+            | StatementKind::StateTransition(_)
+            | StatementKind::StateInternalAction(_)
+            | StatementKind::StateRegionDivider
+            | StatementKind::StateHistory { .. }
             | StatementKind::GanttTaskDecl { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }

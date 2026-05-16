@@ -146,10 +146,9 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
                 assert!(!model.nodes.is_empty(), "expected nodes for {case}");
                 assert!(!model.relations.is_empty(), "expected relations for {case}");
             }
-            NormalizedDocument::Sequence(_) => {
-                panic!("expected family stub model for {case}");
-            }
-            NormalizedDocument::Timeline(_) => {
+            NormalizedDocument::Sequence(_)
+            | NormalizedDocument::Timeline(_)
+            | NormalizedDocument::State(_) => {
                 panic!("expected family stub model for {case}");
             }
         }
@@ -157,12 +156,12 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
 }
 
 #[test]
-fn normalize_family_rejects_unsupported_state_family() {
+fn normalize_family_succeeds_for_basic_state_diagram() {
     let src = fs::read_to_string(fixture("non_sequence/invalid_state_diagram.puml"))
         .expect("fixture should load");
     let doc = parse(&src).expect("parse should succeed");
-    let err = normalize_family(doc).expect_err("state family should be unsupported");
-    assert!(err.message.contains("E_FAMILY_STATE_UNSUPPORTED"));
+    let normalized = normalize_family(doc).expect("state family should now be supported");
+    assert!(matches!(normalized, NormalizedDocument::State(_)));
 }
 
 #[test]
@@ -338,10 +337,6 @@ fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes(
             "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
         ),
         (
-            "@startuml\nstate Running\n@enduml\n",
-            "E_FAMILY_STATE_UNSUPPORTED",
-        ),
-        (
             "@startuml\nstart\n:step;\nstop\n@enduml\n",
             "E_FAMILY_ACTIVITY_UNSUPPORTED",
         ),
@@ -465,8 +460,9 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
             assert_eq!(model.relations.len(), 1);
             assert!(model.warnings.is_empty());
         }
-        NormalizedDocument::Sequence(_) => panic!("expected family model"),
-        NormalizedDocument::Timeline(_) => panic!("expected family model"),
+        NormalizedDocument::Sequence(_)
+        | NormalizedDocument::Timeline(_)
+        | NormalizedDocument::State(_) => panic!("expected family model"),
     }
 }
 
