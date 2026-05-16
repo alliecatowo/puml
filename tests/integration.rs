@@ -213,18 +213,20 @@ fn mermaid_non_sequence_family_fails_deterministically() {
 }
 
 #[test]
-fn mermaid_unsupported_sequence_construct_fails_deterministically() {
+fn mermaid_alt_else_end_block_now_adapts_successfully() {
     let src = r#"sequenceDiagram
 alt happy path
 Alice->>Bob: hello
+else sad path
+Alice->>Bob: bye
 end"#;
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--dialect", "mermaid", "--check", "-"])
         .write_stdin(src)
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_MERMAID_BLOCK_UNSUPPORTED]"));
+        .success()
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]
@@ -244,7 +246,7 @@ fn mermaid_extended_subset_fixture_checks_cleanly() {
 }
 
 #[test]
-fn mermaid_unsupported_block_construct_uses_stable_code() {
+fn mermaid_alt_end_fixture_now_validates_successfully() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -254,8 +256,8 @@ fn mermaid_unsupported_block_construct_uses_stable_code() {
             &fixture("mermaid/invalid_unsupported_block.mmd"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_MERMAID_BLOCK_UNSUPPORTED]"));
+        .success()
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]
@@ -3593,4 +3595,160 @@ fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mermaid_loops_and_groups_fixture_validates_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/valid_loops_and_groups.mmd.txt"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mermaid_alt_fixture_validates_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/valid_alt.mmd.txt"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mermaid_create_destroy_link_fixture_validates_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/valid_create_destroy_link.mmd.txt"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mermaid_box_fixture_validates_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "mermaid",
+            "--check",
+            &fixture("mermaid/valid_box.mmd.txt"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn sequence_box_grouping_and_hide_unlinked_fixture_validates_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("structure/valid_box_grouping_and_hide_unlinked.puml"),
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn format_png_flag_emits_deterministic_unsupported_error() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "png", "--check", "-"])
+        .write_stdin("@startuml\nA -> B\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_FORMAT_PNG_UNSUPPORTED"));
+}
+
+#[test]
+fn charset_flag_accepts_utf8_and_rejects_others() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--charset", "UTF-8", "--check", "-"])
+        .write_stdin("@startuml\nA -> B\n@enduml\n")
+        .assert()
+        .success();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--charset", "latin-1", "--check", "-"])
+        .write_stdin("@startuml\nA -> B\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_CHARSET_UNSUPPORTED"));
+}
+
+#[test]
+fn overwrite_flag_is_accepted_as_noop() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--overwrite", "--check", "-"])
+        .write_stdin("@startuml\nA -> B\n@enduml\n")
+        .assert()
+        .success();
+}
+
+#[test]
+fn duration_flag_emits_elapsed_to_stderr() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--duration", "--check", "-"])
+        .write_stdin("@startuml\nA -> B\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("elapsed:"));
+}
+
+#[test]
+fn verbose_flag_emits_stage_timings_to_stderr() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--verbose", "--check", "-"])
+        .write_stdin("@startuml\nA -> B\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("[verbose] parse"));
+}
+
+#[test]
+fn quiet_flag_suppresses_warnings_on_stderr() {
+    // hideUnlinked is recognized but currently emits a W_SKINPARAM_UNSUPPORTED-style warning.
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--quiet", "--check", "-"])
+        .write_stdin("@startuml\nhide unlinked\nA -> B\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn fail_on_warn_flag_exits_one_when_warnings_emitted() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--fail-on-warn", "--check", "-"])
+        .write_stdin("@startuml\nhide unlinked\nA -> B\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_WARNINGS_PRESENT"));
 }

@@ -1,9 +1,9 @@
 mod cli;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use cli::{
     Cli, CompatMode as CliCompatMode, DeterminismMode as CliDeterminismMode, DiagnosticsFormat,
-    Dialect as CliDialect, DumpKind, LintReportFormat,
+    Dialect as CliDialect, DumpKind, LintReportFormat, OutputFormat,
 };
 use glob::glob;
 use puml::ast::{
@@ -25,9 +25,33 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
+
+static WARNING_COUNT: AtomicUsize = AtomicUsize::new(0);
+static QUIET: AtomicUsize = AtomicUsize::new(0);
+static VERBOSE: AtomicUsize = AtomicUsize::new(0);
+
+fn record_warning() {
+    WARNING_COUNT.fetch_add(1, Ordering::Relaxed);
+}
+
+fn is_quiet() -> bool {
+    QUIET.load(Ordering::Relaxed) != 0
+}
+
+fn is_verbose() -> bool {
+    VERBOSE.load(Ordering::Relaxed) != 0
+}
+
+fn warn_eprintln(msg: &str) {
+    if !is_quiet() {
+        eprintln!("{msg}");
+    }
+}
 
 const EXIT_OK: u8 = 0;
 const EXIT_VALIDATION: u8 = 1;
@@ -147,8 +171,30 @@ fn main() -> ExitCode {
         }
     };
 
-    match run(cli) {
-        Ok(()) => ExitCode::from(EXIT_OK),
+    QUIET.store(cli.quiet as usize, Ordering::Relaxed);
+    VERBOSE.store(cli.verbose as usize, Ordering::Relaxed);
+    let track_duration = cli.duration;
+    let fail_on_warn = cli.fail_on_warn;
+    let started = Instant::now();
+
+    let result = run(cli);
+
+    if track_duration {
+        let elapsed = started.elapsed();
+        eprintln!("elapsed: {:.3}ms", elapsed.as_secs_f64() * 1_000.0);
+    }
+
+    match result {
+        Ok(()) => {
+            if fail_on_warn && WARNING_COUNT.load(Ordering::Relaxed) > 0 {
+                eprintln!(
+                    "[E_WARNINGS_PRESENT] --fail-on-warn: {} warning(s) emitted",
+                    WARNING_COUNT.load(Ordering::Relaxed)
+                );
+                return ExitCode::from(EXIT_VALIDATION);
+            }
+            ExitCode::from(EXIT_OK)
+        }
         Err((code, msg)) => {
             if !msg.is_empty() {
                 eprintln!("{msg}");
@@ -159,6 +205,24 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<(), (u8, String)> {
+    if !cli.charset.is_empty() && !cli.charset.eq_ignore_ascii_case("UTF-8") && !cli.charset.eq_ignore_ascii_case("utf8") {
+        return Err((
+            EXIT_VALIDATION,
+            format!(
+                "[E_CHARSET_UNSUPPORTED] only UTF-8 is supported (got `{}`)",
+                cli.charset
+            ),
+        ));
+    }
+
+    if matches!(cli.format, OutputFormat::Png) {
+        return Err((
+            EXIT_VALIDATION,
+            "[E_FORMAT_PNG_UNSUPPORTED] only SVG output is supported; rerun with --format svg"
+                .to_string(),
+        ));
+    }
+
     if cli.dump_capabilities {
         println!(
             "{}",
@@ -231,6 +295,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
 
     if cli.check {
         for source in &diagrams {
+            let parse_start = Instant::now();
             let doc = parse_for_cli(
                 &source.source,
                 include_root.clone(),
@@ -240,8 +305,21 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                 source.frontend_hint,
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            if is_verbose() {
+                warn_eprintln(&format!(
+                    "[verbose] parse: {:.3}ms",
+                    parse_start.elapsed().as_secs_f64() * 1_000.0
+                ));
+            }
+            let normalize_start = Instant::now();
             let model = normalize_family(doc)
                 .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            if is_verbose() {
+                warn_eprintln(&format!(
+                    "[verbose] normalize: {:.3}ms",
+                    normalize_start.elapsed().as_secs_f64() * 1_000.0
+                ));
+            }
             emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
         }
         return Ok(());
@@ -319,6 +397,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
+        let parse_start = Instant::now();
         let doc = parse_for_cli(
             &source.source,
             include_root.clone(),
@@ -328,10 +407,30 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             source.frontend_hint,
         )
         .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+        if is_verbose() {
+            warn_eprintln(&format!(
+                "[verbose] parse: {:.3}ms",
+                parse_start.elapsed().as_secs_f64() * 1_000.0
+            ));
+        }
+        let normalize_start = Instant::now();
         let model = normalize_family(doc)
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+        if is_verbose() {
+            warn_eprintln(&format!(
+                "[verbose] normalize: {:.3}ms",
+                normalize_start.elapsed().as_secs_f64() * 1_000.0
+            ));
+        }
         emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+        let render_start = Instant::now();
         let pages = render_pages_from_model(&model);
+        if is_verbose() {
+            warn_eprintln(&format!(
+                "[verbose] render: {:.3}ms",
+                render_start.elapsed().as_secs_f64() * 1_000.0
+            ));
+        }
         let page_count = pages.len();
         for (page_idx, svg) in pages.into_iter().enumerate() {
             let name_hint = source.output_name_hint.as_ref().map(|base| {
@@ -750,7 +849,11 @@ fn emit_warnings_for_model(
     fmt: DiagnosticsFormat,
 ) {
     for warning in normalized_warnings(model) {
+        record_warning();
         let warning = map_diagnostic_span(warning.clone(), mapping);
+        if is_quiet() {
+            continue;
+        }
         match fmt {
             DiagnosticsFormat::Human => eprintln!("{}", warning.render_with_source(source)),
             DiagnosticsFormat::Json => {
@@ -840,6 +943,16 @@ fn read_input(path: Option<&Path>) -> Result<(String, String, Option<&Path>), (u
             Ok((p.display().to_string(), raw, Some(p)))
         }
         _ => {
+            if io::stdin().is_terminal() {
+                let mut cmd = Cli::command();
+                cmd.print_help().ok();
+                println!();
+                return Err((
+                    EXIT_VALIDATION,
+                    "no input provided on stdin (TTY detected); supply a file path or pipe input"
+                        .to_string(),
+                ));
+            }
             let mut raw = String::new();
             io::stdin()
                 .read_to_string(&mut raw)

@@ -71,6 +71,40 @@ pub struct Cli {
     /// Root directory used to resolve !include when reading from stdin.
     #[arg(long, value_name = "DIR")]
     pub include_root: Option<PathBuf>,
+
+    /// No-op compatibility flag (outputs are always overwritten in place).
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub overwrite: bool,
+
+    /// Exit with code 1 if any warnings are emitted.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub fail_on_warn: bool,
+
+    /// No-op compatibility flag (only UTF-8 input is supported).
+    #[arg(long, value_name = "CHARSET", default_value = "UTF-8")]
+    pub charset: String,
+
+    /// Print elapsed wall time to stderr after run completes.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub duration: bool,
+
+    /// Suppress non-error stderr output.
+    #[arg(long, short = 'q', action = ArgAction::SetTrue, conflicts_with = "verbose")]
+    pub quiet: bool,
+
+    /// Emit additional stage timings/diagnostics to stderr.
+    #[arg(long, short = 'v', action = ArgAction::SetTrue)]
+    pub verbose: bool,
+
+    /// Output format. PlantUML's `png` is recognized but unsupported (SVG only).
+    #[arg(long, value_enum, default_value_t = OutputFormat::Svg)]
+    pub format: OutputFormat,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum OutputFormat {
+    Svg,
+    Png,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]

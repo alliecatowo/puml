@@ -316,7 +316,7 @@ fn mermaid_pipeline_supports_notes_lifecycle_and_inline_comments() {
 }
 
 #[test]
-fn mermaid_pipeline_reports_specific_code_for_unsupported_blocks() {
+fn mermaid_pipeline_accepts_supported_block_constructs() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
@@ -324,8 +324,12 @@ fn mermaid_pipeline_reports_specific_code_for_unsupported_blocks() {
         include_root: None,
     };
     let src = "sequenceDiagram\nloop retry\nA->>B: hi\nend\n";
-    let err = parse_with_pipeline_options(src, &options).unwrap_err();
-    assert!(err.message.contains("E_MERMAID_BLOCK_UNSUPPORTED"));
+    let doc = parse_with_pipeline_options(src, &options)
+        .expect("loop/end mermaid blocks should adapt to plantuml groups");
+    assert!(
+        !doc.statements.is_empty(),
+        "expected statements for supported mermaid block construct"
+    );
 }
 
 #[test]
@@ -342,7 +346,7 @@ fn mermaid_pipeline_supports_note_sides_and_destroy_lifecycle() {
 }
 
 #[test]
-fn mermaid_pipeline_reports_specific_codes_for_create_and_link_constructs() {
+fn mermaid_pipeline_accepts_create_and_link_constructs() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
@@ -351,12 +355,16 @@ fn mermaid_pipeline_reports_specific_codes_for_create_and_link_constructs() {
     };
 
     let create = "sequenceDiagram\ncreate A\n";
-    let create_err = parse_with_pipeline_options(create, &options).unwrap_err();
-    assert!(create_err.message.contains("E_MERMAID_CREATE_UNSUPPORTED"));
+    parse_with_pipeline_options(create, &options)
+        .expect("`create X` should adapt to plantuml `create X`");
+
+    let create_participant = "sequenceDiagram\ncreate participant Worker\n";
+    parse_with_pipeline_options(create_participant, &options)
+        .expect("`create participant X` should adapt to plantuml `create X`");
 
     let link = "sequenceDiagram\nlink A: https://example.test\n";
-    let link_err = parse_with_pipeline_options(link, &options).unwrap_err();
-    assert!(link_err.message.contains("E_MERMAID_LINK_UNSUPPORTED"));
+    parse_with_pipeline_options(link, &options)
+        .expect("`link` lines should adapt to a benign plantuml comment placeholder");
 }
 
 #[test]

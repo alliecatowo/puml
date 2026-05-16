@@ -1,0 +1,6 @@
+sequenceDiagram
+participant A
+create participant W
+A->>W: spawn
+destroy W
+link A: docs @ https://example.test

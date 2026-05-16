@@ -2645,6 +2645,15 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     if lower == "show footbox" {
         return Some(StatementKind::Footbox(true));
     }
+    if lower == "hide unlinked" {
+        // Treat `hide unlinked` as a skinparam-style flag; the normalizer
+        // pipeline records it as a pragma so the layout layer can later
+        // filter out participants that never appear on a message.
+        return Some(StatementKind::SkinParam {
+            key: "hideUnlinked".to_string(),
+            value: "true".to_string(),
+        });
+    }
 
     let note_kw = if lower.starts_with("note ") {
         Some("note")
@@ -2695,7 +2704,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         }));
     }
 
-    for g in ["alt", "opt", "loop", "par", "critical", "break", "group"] {
+    for g in ["alt", "opt", "loop", "par", "critical", "break", "group", "box"] {
         if lower == g || lower.starts_with(&(g.to_string() + " ")) {
             let label = line[g.len()..].trim();
             return Some(StatementKind::Group(Group {
@@ -2726,7 +2735,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         let tail = stripped.trim();
         if matches!(
             tail,
-            "alt" | "opt" | "loop" | "par" | "critical" | "break" | "group" | "ref"
+            "alt" | "opt" | "loop" | "par" | "critical" | "break" | "group" | "ref" | "box"
         ) {
             return Some(StatementKind::Group(Group {
                 kind: "end".to_string(),

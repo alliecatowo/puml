@@ -495,6 +495,21 @@ fn adapt_mermaid_to_plantuml(source: &str) -> Result<String, Diagnostic> {
             continue;
         }
 
+        if let Some(converted) = adapt_mermaid_block(line) {
+            out.push(converted);
+            continue;
+        }
+
+        if let Some(converted) = adapt_mermaid_create_destroy(line) {
+            out.push(converted);
+            continue;
+        }
+
+        if let Some(converted) = adapt_mermaid_link(line) {
+            out.push(converted);
+            continue;
+        }
+
         if line.eq_ignore_ascii_case("autonumber") {
             out.push("autonumber".to_string());
             continue;
@@ -633,15 +648,150 @@ fn strip_mermaid_comment(line: &str) -> &str {
     line.split_once("%%").map_or(line, |(prefix, _)| prefix)
 }
 
-fn classify_unsupported_mermaid_construct(line: &str) -> Option<&'static str> {
+fn classify_unsupported_mermaid_construct(_line: &str) -> Option<&'static str> {
+    // All previously-unsupported block/create/destroy/link constructs now
+    // have explicit adapter routes (see `adapt_mermaid_block`,
+    // `adapt_mermaid_create_destroy`, `adapt_mermaid_link`). Leaving this
+    // hook in place keeps the diagnostic shape stable in case we need to
+    // re-introduce targeted classifications later.
+    None
+}
+
+fn adapt_mermaid_block(line: &str) -> Option<String> {
     let first = line.split_ascii_whitespace().next()?.to_ascii_lowercase();
     match first.as_str() {
-        "alt" | "else" | "loop" | "opt" | "par" | "and" | "critical" | "option" | "break"
-        | "rect" | "box" | "end" => Some("E_MERMAID_BLOCK_UNSUPPORTED"),
-        "create" => Some("E_MERMAID_CREATE_UNSUPPORTED"),
-        "link" | "links" => Some("E_MERMAID_LINK_UNSUPPORTED"),
+        "alt" => {
+            let label = line["alt".len()..].trim();
+            Some(if label.is_empty() {
+                "alt".to_string()
+            } else {
+                format!("alt {label}")
+            })
+        }
+        "else" => {
+            let label = line["else".len()..].trim();
+            Some(if label.is_empty() {
+                "else".to_string()
+            } else {
+                format!("else {label}")
+            })
+        }
+        "opt" => {
+            let label = line["opt".len()..].trim();
+            Some(if label.is_empty() {
+                "opt".to_string()
+            } else {
+                format!("opt {label}")
+            })
+        }
+        "loop" => {
+            let label = line["loop".len()..].trim();
+            Some(if label.is_empty() {
+                "loop".to_string()
+            } else {
+                format!("loop {label}")
+            })
+        }
+        "par" => {
+            let label = line["par".len()..].trim();
+            Some(if label.is_empty() {
+                "par".to_string()
+            } else {
+                format!("par {label}")
+            })
+        }
+        "and" => {
+            // Mermaid's `and` inside a par maps to PlantUML's `else` branch.
+            let label = line["and".len()..].trim();
+            Some(if label.is_empty() {
+                "else".to_string()
+            } else {
+                format!("else {label}")
+            })
+        }
+        "critical" => {
+            let label = line["critical".len()..].trim();
+            Some(if label.is_empty() {
+                "critical".to_string()
+            } else {
+                format!("critical {label}")
+            })
+        }
+        "option" => {
+            // Mermaid `option` inside `critical` maps to PlantUML's `else`.
+            let label = line["option".len()..].trim();
+            Some(if label.is_empty() {
+                "else".to_string()
+            } else {
+                format!("else {label}")
+            })
+        }
+        "break" => {
+            let label = line["break".len()..].trim();
+            Some(if label.is_empty() {
+                "break".to_string()
+            } else {
+                format!("break {label}")
+            })
+        }
+        "rect" => {
+            // `rect rgb(...)` becomes a `group` block (color is dropped).
+            let label = line["rect".len()..].trim();
+            Some(if label.is_empty() {
+                "group".to_string()
+            } else {
+                format!("group {label}")
+            })
+        }
+        "box" => {
+            let label = line["box".len()..].trim();
+            Some(if label.is_empty() {
+                "box".to_string()
+            } else {
+                format!("box {label}")
+            })
+        }
+        "end" => Some("end".to_string()),
         _ => None,
     }
+}
+
+fn adapt_mermaid_create_destroy(line: &str) -> Option<String> {
+    let lower = line.to_ascii_lowercase();
+    if let Some(rest) = lower.strip_prefix("create ") {
+        // Mermaid form: `create participant X` or `create X`.
+        let trimmed = line[7..].trim();
+        let payload = if let Some(p) = trimmed.strip_prefix("participant ") {
+            p.trim()
+        } else if let Some(p) = trimmed.strip_prefix("actor ") {
+            p.trim()
+        } else {
+            trimmed
+        };
+        if payload.is_empty() || rest.trim().is_empty() {
+            return None;
+        }
+        return Some(format!("create {payload}"));
+    }
+    if let Some(rest) = lower.strip_prefix("destroy ") {
+        let target = line[8..].trim();
+        if target.is_empty() || rest.trim().is_empty() {
+            return None;
+        }
+        return Some(format!("destroy {target}"));
+    }
+    None
+}
+
+fn adapt_mermaid_link(line: &str) -> Option<String> {
+    let lower = line.to_ascii_lowercase();
+    if !(lower.starts_with("link ") || lower.starts_with("links ")) {
+        return None;
+    }
+    // We don't render real links yet, but we accept the syntax by collapsing
+    // it to a benign comment-style placeholder that the downstream parser
+    // will skip without complaint.
+    Some(format!("' [link] {}", line.trim()))
 }
 
 #[cfg(test)]

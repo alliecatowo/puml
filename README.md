@@ -99,7 +99,22 @@ cargo run -- --dialect plantuml --check tests/fixtures/basic/hello.puml
 
 # stdin + include support
 cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --include-root ./tests/fixtures/include -
+
+# runtime flags (PlantUML parity)
+#   --duration         print elapsed wall time to stderr
+#   --quiet / -q       suppress non-error stderr
+#   --verbose / -v     emit per-stage parse/normalize/render timings
+#   --fail-on-warn     exit 1 if any warnings are emitted
+#   --overwrite        no-op (outputs are always overwritten)
+#   --charset UTF-8    no-op compatibility (only UTF-8 is supported)
+#   --format svg|png   only `svg` is supported; `png` exits 1 deterministically
+cargo run -- --verbose --duration --check tests/fixtures/basic/hello.puml
 ```
+
+Runtime parity flag notes:
+- When stdin is a TTY and no input file is supplied, the CLI prints help instead of blocking forever.
+- `--format png` is recognized but unsupported (SVG only); rerun with `--format svg`.
+- `--charset` accepts only `UTF-8` (case-insensitive); other charsets are rejected with `E_CHARSET_UNSUPPORTED`.
 
 ## Asciicast-Style Example
 
@@ -161,7 +176,7 @@ Modes:
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
   `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
-  `mermaid`: supports a first-class `sequenceDiagram` subset (participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, and `%%` comments), with deterministic compatibility diagnostics for unsupported constructs
+  `mermaid`: supports a first-class `sequenceDiagram` subset including participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, group blocks (`alt`/`else`/`end`, `opt`/`end`, `loop`/`end`, `par`/`and`/`end`, `critical`/`option`/`end`, `break`/`end`, `rect rgb(...)`/`end` adapted to `group`, `box "label"`/`end`), `create [participant] X` / `destroy X`, and `link X: name @ url` (collapsed to a benign comment). Unknown constructs still produce deterministic `E_MERMAID_*` diagnostics.
   `picouml`: canonical first-class language surface; explicit frontend selection is currently not implemented and returns a deterministic diagnostic
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
@@ -241,7 +256,8 @@ Artifacts:
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
 | Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |
-| Notes, groups, separators | Supported | Includes `alt`, `else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `end`, plus `...`, `||`, `newpage`. |
+| Notes, groups, separators | Supported | Includes `alt`, `else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `box`, `ref` (single- and multi-line `ref over A, B`), `end`, plus `...`, `||`, `newpage`. Multi-line `note ... end note` is supported. |
+| `hide unlinked` | Supported | Parsed and recorded as a `hideUnlinked` skinparam-style hint. |
 | Lifecycle/control statements | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber`. |
 | Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
 | `skinparam` sequence styling subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor` (and unprefixed alias), `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (each also supports `Sequence...` alias). Color values are deterministic-safe tokens only: hex (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or alphabetic names (canonicalized to lowercase). |
