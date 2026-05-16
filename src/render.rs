@@ -596,7 +596,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     let transitions = &document.transitions;
 
     // Assign coordinates to each node
-    let mut node_coords: std::collections::BTreeMap<String, (i32, i32)> = std::collections::BTreeMap::new();
+    let mut node_coords: std::collections::BTreeMap<String, (i32, i32)> =
+        std::collections::BTreeMap::new();
     let cols = 2i32;
     for (idx, node) in nodes.iter().enumerate() {
         let col = (idx as i32) % cols;
@@ -663,8 +664,10 @@ pub fn render_state_svg(document: &StateDocument) -> String {
 
 /// Compute start and end points for a transition arrow between two nodes.
 fn transition_endpoints(
-    fx: i32, fy: i32,
-    tx: i32, ty: i32,
+    fx: i32,
+    fy: i32,
+    tx: i32,
+    ty: i32,
     _nodes: &[StateNode],
 ) -> (i32, i32, i32, i32) {
     let fh = STATE_NODE_H / 2;
@@ -732,9 +735,15 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
             // Thick horizontal bar
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"#1e293b\"/>",
-                x, y + base_h / 2 - 4, w
+                x,
+                y + base_h / 2 - 4,
+                w
             ));
-            let label = if node.kind == StateNodeKind::Fork { "fork" } else { "join" };
+            let label = if node.kind == StateNodeKind::Fork {
+                "fork"
+            } else {
+                "join"
+            };
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\" text-anchor=\"middle\">{}</text>",
                 x + w / 2, y + base_h / 2 + 18, escape_text(label)

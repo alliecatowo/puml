@@ -3611,10 +3611,7 @@ fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
 fn state_concurrent_regions_renders_svg_with_dashed_divider() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("families/valid_state_concurrent.puml"),
-        ])
+        .args(["--check", &fixture("families/valid_state_concurrent.puml")])
         .assert()
         .code(0);
 
@@ -3631,10 +3628,7 @@ fn state_concurrent_regions_renders_svg_with_dashed_divider() {
 fn state_history_shallow_renders_h_circle() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("families/valid_state_history.puml"),
-        ])
+        .args(["--check", &fixture("families/valid_state_history.puml")])
         .assert()
         .code(0);
 
@@ -3660,10 +3654,7 @@ fn state_history_deep_renders_hstar_circle() {
 fn state_entry_exit_renders_italic_action_text() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("families/valid_state_entry_exit.puml"),
-        ])
+        .args(["--check", &fixture("families/valid_state_entry_exit.puml")])
         .assert()
         .code(0);
 
@@ -3673,27 +3664,27 @@ fn state_entry_exit_renders_italic_action_text() {
         svg.contains("font-style=\"italic\""),
         "expected italic text for entry/exit actions"
     );
-    assert!(
-        svg.contains("entry"),
-        "expected entry action label in SVG"
-    );
+    assert!(svg.contains("entry"), "expected entry action label in SVG");
 }
 
 #[test]
 fn state_fork_join_choice_end_renders_stereotyped_shapes() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("families/valid_state_fork_join.puml"),
-        ])
+        .args(["--check", &fixture("families/valid_state_fork_join.puml")])
         .assert()
         .code(0);
 
     let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("should render fork/join/choice/end SVG");
-    assert!(svg.contains("<rect"), "expected rect element for fork/join bar");
-    assert!(svg.contains("<polygon"), "expected polygon for choice diamond");
+    assert!(
+        svg.contains("<rect"),
+        "expected rect element for fork/join bar"
+    );
+    assert!(
+        svg.contains("<polygon"),
+        "expected polygon for choice diamond"
+    );
     let circle_count = svg.matches("<circle").count();
     assert!(
         circle_count >= 2,
@@ -3705,8 +3696,14 @@ fn state_fork_join_choice_end_renders_stereotyped_shapes() {
 fn state_transition_labels_appear_in_svg() {
     let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("should render SVG");
-    assert!(svg.contains("done"), "expected 'done' transition label in SVG");
-    assert!(svg.contains("retry"), "expected 'retry' transition label in SVG");
+    assert!(
+        svg.contains("done"),
+        "expected 'done' transition label in SVG"
+    );
+    assert!(
+        svg.contains("retry"),
+        "expected 'retry' transition label in SVG"
+    );
 }
 
 #[test]

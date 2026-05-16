@@ -5,10 +5,11 @@ use crate::diagnostic::Diagnostic;
 use crate::model::{
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
-    SequenceEventKind, SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction,
-    StateNode, StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
-    TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
-    VirtualEndpointKind, VirtualEndpointSide,
+    SequenceEventKind, SequencePage, StateDocument,
+    StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
+    StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineConstraint,
+    TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind,
+    VirtualEndpointSide,
 };
 use crate::theme::{
     classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
@@ -271,14 +272,29 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
                 }
             }
             StatementKind::StateHistory { deep } => {
-                let kind = if *deep { StateNodeKind::HistoryDeep } else { StateNodeKind::HistoryShallow };
-                upsert_state_node(&mut nodes, StateNode {
-                    name: if *deep { "[H*]".to_string() } else { "[H]".to_string() },
-                    display: Some(if *deep { "H*".to_string() } else { "H".to_string() }),
-                    kind,
-                    internal_actions: Vec::new(),
-                    regions: Vec::new(),
-                });
+                let kind = if *deep {
+                    StateNodeKind::HistoryDeep
+                } else {
+                    StateNodeKind::HistoryShallow
+                };
+                upsert_state_node(
+                    &mut nodes,
+                    StateNode {
+                        name: if *deep {
+                            "[H*]".to_string()
+                        } else {
+                            "[H]".to_string()
+                        },
+                        display: Some(if *deep {
+                            "H*".to_string()
+                        } else {
+                            "H".to_string()
+                        }),
+                        kind,
+                        internal_actions: Vec::new(),
+                        regions: Vec::new(),
+                    },
+                );
             }
             StatementKind::Title(v) => title = Some(v.clone()),
             StatementKind::Header(v) => header = Some(v.clone()),
@@ -347,9 +363,21 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
             }
             StatementKind::StateHistory { deep } => {
                 current_region.push(StateNode {
-                    name: if *deep { "[H*]".to_string() } else { "[H]".to_string() },
-                    display: Some(if *deep { "H*".to_string() } else { "H".to_string() }),
-                    kind: if *deep { StateNodeKind::HistoryDeep } else { StateNodeKind::HistoryShallow },
+                    name: if *deep {
+                        "[H*]".to_string()
+                    } else {
+                        "[H]".to_string()
+                    },
+                    display: Some(if *deep {
+                        "H*".to_string()
+                    } else {
+                        "H".to_string()
+                    }),
+                    kind: if *deep {
+                        StateNodeKind::HistoryDeep
+                    } else {
+                        StateNodeKind::HistoryShallow
+                    },
                     internal_actions: Vec::new(),
                     regions: Vec::new(),
                 });

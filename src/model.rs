@@ -49,7 +49,7 @@ pub enum StateNodeKind {
 
 #[derive(Debug, Clone)]
 pub struct StateInternalAction {
-    pub kind: String,   // "entry", "exit", or event name
+    pub kind: String, // "entry", "exit", or event name
     pub action: String,
 }
 

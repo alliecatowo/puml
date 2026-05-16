@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::{
     ClassDecl, DiagramKind, Document, FamilyRelation, Group, Message, Note, ObjectDecl,
-    ParticipantDecl, ParticipantRole, Statement, StatementKind, StateDecl, StateTransition,
-    StateInternalAction, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    ParticipantDecl, ParticipantRole, StateDecl, StateInternalAction, StateTransition, Statement,
+    StatementKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
@@ -1903,7 +1903,10 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 } else {
                     span
                 };
-                statements.push(Statement { span: block_span, kind });
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
                 i = end_idx + 1;
                 continue;
             }
@@ -2697,22 +2700,34 @@ fn parse_state_block(
                 continue;
             }
             if inner == "[H]" {
-                children.push(Statement { span, kind: StatementKind::StateHistory { deep: false } });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateHistory { deep: false },
+                });
                 j += 1;
                 continue;
             }
             if inner == "[H*]" {
-                children.push(Statement { span, kind: StatementKind::StateHistory { deep: true } });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateHistory { deep: true },
+                });
                 j += 1;
                 continue;
             }
             if let Some(transition) = parse_state_transition(inner) {
-                children.push(Statement { span, kind: StatementKind::StateTransition(transition) });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateTransition(transition),
+                });
                 j += 1;
                 continue;
             }
             if let Some(action) = parse_state_internal_action(inner) {
-                children.push(Statement { span, kind: StatementKind::StateInternalAction(action) });
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateInternalAction(action),
+                });
                 j += 1;
                 continue;
             }
@@ -2723,7 +2738,10 @@ fn parse_state_block(
                     } else {
                         span
                     };
-                    children.push(Statement { span: block_span, kind });
+                    children.push(Statement {
+                        span: block_span,
+                        kind,
+                    });
                     j = end_idx + 1;
                     continue;
                 }
@@ -4427,7 +4445,10 @@ mod tests {
     fn state_keyword_is_parsed_as_state_decl() {
         let doc = parse_with_options("state Running\n", &ParseOptions::default()).unwrap();
         assert_eq!(doc.kind, DiagramKind::State);
-        assert!(matches!(doc.statements[0].kind, StatementKind::StateDecl(_)));
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::StateDecl(_)
+        ));
     }
 
     #[test]

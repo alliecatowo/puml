@@ -226,17 +226,15 @@ fn render_document_for_family(
                 )),
             }
         }
-        DiagramFamily::State => {
-            match normalize::normalize_family(document)? {
-                model::NormalizedDocument::State(state_doc) => {
-                    Ok(vec![render::render_state_svg(&state_doc)])
-                }
-                _ => Err(Diagnostic::error(
-                    "[E_STATE_INTERNAL] unexpected model variant during state render",
-                )),
+        DiagramFamily::State => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::State(state_doc) => {
+                Ok(vec![render::render_state_svg(&state_doc)])
             }
-        }
-        DiagramFamily::Gantt | DiagramFamily::Chronology | DiagramFamily::Activity => {
+            _ => Err(Diagnostic::error(
+                "[E_STATE_INTERNAL] unexpected model variant during state render",
+            )),
+        },
+        DiagramFamily::Gantt | DiagramFamily::Chronology => {
             match normalize::normalize_family(document)? {
                 model::NormalizedDocument::Timeline(timeline) => {
                     Ok(vec![render::render_timeline_svg(&timeline)])
