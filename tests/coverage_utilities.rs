@@ -105,6 +105,8 @@ fn diagram_family_as_str_covers_all_variants() {
     assert_eq!(DiagramFamily::Salt.as_str(), "salt");
     assert_eq!(DiagramFamily::MindMap.as_str(), "mindmap");
     assert_eq!(DiagramFamily::Wbs.as_str(), "wbs");
+    assert_eq!(DiagramFamily::Gantt.as_str(), "gantt");
+    assert_eq!(DiagramFamily::Chronology.as_str(), "chronology");
     assert_eq!(DiagramFamily::Unknown.as_str(), "unknown");
 }
 
@@ -123,6 +125,23 @@ fn render_for_salt_family_returns_stub_svg() {
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Salt).unwrap();
     assert!(svg.starts_with("<svg"));
     assert!(svg.contains("submit_button"));
+}
+
+#[test]
+fn render_for_timeline_families_returns_timeline_preview() {
+    let gantt = render_source_to_svg_for_family(
+        "@startgantt\n[2026-01-01] : Kickoff\n@endgantt\n",
+        DiagramFamily::Gantt,
+    )
+    .unwrap();
+    assert!(gantt.contains("timeline entries"));
+
+    let chronology = render_source_to_svg_for_family(
+        "@startchronology\n2026-01-01 : Event\n@endchronology\n",
+        DiagramFamily::Chronology,
+    )
+    .unwrap();
+    assert!(chronology.contains("timeline entries"));
 }
 
 #[test]

@@ -1,0 +1,6 @@
+@startgantt
+title Timeline Overview
+[2026-01-01] : Kickoff
+[2026-01-03] : Design review
+[2026-01-10] : Release
+@endgantt
