@@ -69,6 +69,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="exit non-zero when docs/examples source-to-svg drift is detected",
     )
+    parser.add_argument(
+        "--oracle",
+        action="store_true",
+        help=(
+            "invoke scripts/oracle.sh against docs/examples/**/*.puml and include "
+            "the diff count in the harness report (requires PUML_ORACLE_JAR or "
+            "./oracle/plantuml.jar; skipped gracefully when JAR is absent)"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -378,6 +387,73 @@ def evaluate_doc_example(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def run_oracle() -> Dict[str, Any]:
+    """Invoke scripts/oracle.sh and return its parsed JSON output.
+
+    Always returns a dict.  When the oracle is skipped (JAR absent) or the
+    script fails unexpectedly, returns a safe sentinel with ``skipped=True``
+    so callers can record the result without crashing.
+    """
+    oracle_script = ROOT / "scripts" / "oracle.sh"
+    if not oracle_script.exists():
+        return {
+            "oracle_version": "1",
+            "skipped": True,
+            "skip_reason": "scripts/oracle.sh not found",
+            "total": 0,
+            "identical": 0,
+            "diff_count": 0,
+            "diffs": [],
+        }
+
+    try:
+        proc = subprocess.run(
+            ["bash", str(oracle_script)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "oracle_version": "1",
+            "skipped": True,
+            "skip_reason": f"oracle script raised: {exc}",
+            "total": 0,
+            "identical": 0,
+            "diff_count": 0,
+            "diffs": [],
+        }
+
+    raw = proc.stdout.strip()
+    if not raw:
+        return {
+            "oracle_version": "1",
+            "skipped": True,
+            "skip_reason": f"oracle script produced no output (exit={proc.returncode}); stderr={proc.stderr.strip()!r}",
+            "total": 0,
+            "identical": 0,
+            "diff_count": 0,
+            "diffs": [],
+        }
+
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return {
+            "oracle_version": "1",
+            "skipped": True,
+            "skip_reason": f"oracle output was not valid JSON: {exc}",
+            "total": 0,
+            "identical": 0,
+            "diff_count": 0,
+            "diffs": [],
+        }
+
+    return result
+
+
 def main() -> int:
     args = parse_args()
 
@@ -401,10 +477,14 @@ def main() -> int:
         },
         "oracle": {
             "interface_version": "1",
-            "mode": "todo",
-            "enabled": False,
+            "mode": "active" if args.oracle else "todo",
+            "enabled": args.oracle,
             "command_template": args.oracle_command_template,
-            "notes": "Reserved for future PlantUML comparison integration.",
+            "notes": (
+                "Oracle invoked via scripts/oracle.sh."
+                if args.oracle
+                else "Reserved for future PlantUML comparison integration."
+            ),
         },
         "summary": {
             "total": 0,
@@ -444,6 +524,24 @@ def main() -> int:
         },
         "entries": doc_entries,
     }
+
+    # --oracle: invoke oracle.sh and embed result in report
+    if args.oracle:
+        oracle_result = run_oracle()
+        report["oracle"]["result"] = oracle_result
+        report["oracle"]["diff_count"] = oracle_result.get("diff_count", 0)
+        report["oracle"]["skipped"] = oracle_result.get("skipped", False)
+        if not args.quiet:
+            if oracle_result.get("skipped"):
+                print(
+                    f"[parity] oracle skipped: {oracle_result.get('skip_reason', 'unknown')}"
+                )
+            else:
+                print(
+                    f"[parity] oracle: total={oracle_result.get('total', 0)} "
+                    f"identical={oracle_result.get('identical', 0)} "
+                    f"diff_count={oracle_result.get('diff_count', 0)}"
+                )
 
     schema_errors = validate_report_schema(report)
     if schema_errors:
