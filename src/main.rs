@@ -868,6 +868,10 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Sequence(sequence) => &sequence.warnings,
         NormalizedDocument::Family(family) => &family.warnings,
         NormalizedDocument::Timeline(timeline) => &timeline.warnings,
+        NormalizedDocument::Json(doc) => &doc.warnings,
+        NormalizedDocument::Yaml(doc) => &doc.warnings,
+        NormalizedDocument::Nwdiag(doc) => &doc.warnings,
+        NormalizedDocument::Archimate(doc) => &doc.warnings,
     }
 }
 
@@ -890,6 +894,10 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
             _ => render::render_family_stub_svg(family),
         }],
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
+        NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
+        NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
+        NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
+        NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
     }
 }
 
@@ -1352,6 +1360,10 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
+            DiagramKind::Json => "Json",
+            DiagramKind::Yaml => "Yaml",
+            DiagramKind::Nwdiag => "Nwdiag",
+            DiagramKind::Archimate => "Archimate",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
@@ -1423,6 +1435,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Include(v) => json!({"Include": v}),
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
+        StatementKind::RawBlockContent(v) => json!({"RawBlockContent": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
         StatementKind::ComponentDecl {
             kind,
@@ -1529,6 +1542,33 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Sequence(sequence) => model_to_json(sequence),
         NormalizedDocument::Family(family) => family_model_to_json(family),
         NormalizedDocument::Timeline(timeline) => timeline_model_to_json(timeline),
+        NormalizedDocument::Json(doc) => json!({
+            "kind": "Json",
+            "title": doc.title,
+            "raw": doc.raw,
+            "nodes": doc.nodes.iter().map(|n| json!({"depth": n.depth, "label": n.label})).collect::<Vec<_>>(),
+        }),
+        NormalizedDocument::Yaml(doc) => json!({
+            "kind": "Yaml",
+            "title": doc.title,
+            "raw": doc.raw,
+            "nodes": doc.nodes.iter().map(|n| json!({"depth": n.depth, "label": n.label})).collect::<Vec<_>>(),
+        }),
+        NormalizedDocument::Nwdiag(doc) => json!({
+            "kind": "Nwdiag",
+            "title": doc.title,
+            "networks": doc.networks.iter().map(|n| json!({
+                "name": n.name,
+                "address": n.address,
+                "nodes": n.nodes.iter().map(|nd| json!({"name": nd.name, "address": nd.address})).collect::<Vec<_>>()
+            })).collect::<Vec<_>>(),
+        }),
+        NormalizedDocument::Archimate(doc) => json!({
+            "kind": "Archimate",
+            "title": doc.title,
+            "elements": doc.elements.iter().map(|e| json!({"name": e.name, "alias": e.alias, "layer": e.layer})).collect::<Vec<_>>(),
+            "relations": doc.relations.iter().map(|r| json!({"from": r.from, "to": r.to, "kind": r.kind, "label": r.label})).collect::<Vec<_>>(),
+        }),
     }
 }
 
@@ -1562,6 +1602,10 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
+            DiagramKind::Json => "Json",
+            DiagramKind::Yaml => "Yaml",
+            DiagramKind::Nwdiag => "Nwdiag",
+            DiagramKind::Archimate => "Archimate",
             DiagramKind::Sequence => "Sequence",
             DiagramKind::Unknown => "Unknown",
         },
@@ -1614,6 +1658,10 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
+            DiagramKind::Json => "Json",
+            DiagramKind::Yaml => "Yaml",
+            DiagramKind::Nwdiag => "Nwdiag",
+            DiagramKind::Archimate => "Archimate",
             DiagramKind::Unknown => "Unknown",
         },
         "tasks": model.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
@@ -1783,6 +1831,10 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::State => "State",
                     DiagramKind::Activity => "Activity",
                     DiagramKind::Timing => "Timing",
+                    DiagramKind::Json => "Json",
+                    DiagramKind::Yaml => "Yaml",
+                    DiagramKind::Nwdiag => "Nwdiag",
+                    DiagramKind::Archimate => "Archimate",
                     DiagramKind::Sequence => "Sequence",
                     DiagramKind::Unknown => "Unknown",
                 },
@@ -1830,12 +1882,57 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::State => "State",
                     DiagramKind::Activity => "Activity",
                     DiagramKind::Timing => "Timing",
+                    DiagramKind::Json => "Json",
+                    DiagramKind::Yaml => "Yaml",
+                    DiagramKind::Nwdiag => "Nwdiag",
+                    DiagramKind::Archimate => "Archimate",
                     DiagramKind::Unknown => "Unknown",
                 },
                 "tasks": timeline.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+            })
+        }
+        NormalizedDocument::Json(doc) => {
+            let svg = render::render_json_svg(doc);
+            json!({
+                "kind": "Json",
+                "title": doc.title,
+                "nodes": doc.nodes.iter().map(|n| json!({"depth": n.depth, "label": n.label})).collect::<Vec<_>>(),
+                "svg_preview": svg
+            })
+        }
+        NormalizedDocument::Yaml(doc) => {
+            let svg = render::render_yaml_svg(doc);
+            json!({
+                "kind": "Yaml",
+                "title": doc.title,
+                "nodes": doc.nodes.iter().map(|n| json!({"depth": n.depth, "label": n.label})).collect::<Vec<_>>(),
+                "svg_preview": svg
+            })
+        }
+        NormalizedDocument::Nwdiag(doc) => {
+            let svg = render::render_nwdiag_svg(doc);
+            json!({
+                "kind": "Nwdiag",
+                "title": doc.title,
+                "networks": doc.networks.iter().map(|n| json!({
+                    "name": n.name,
+                    "address": n.address,
+                    "nodes": n.nodes.iter().map(|nd| json!({"name": nd.name, "address": nd.address})).collect::<Vec<_>>()
+                })).collect::<Vec<_>>(),
+                "svg_preview": svg
+            })
+        }
+        NormalizedDocument::Archimate(doc) => {
+            let svg = render::render_archimate_svg(doc);
+            json!({
+                "kind": "Archimate",
+                "title": doc.title,
+                "elements": doc.elements.iter().map(|e| json!({"name": e.name, "alias": e.alias, "layer": e.layer})).collect::<Vec<_>>(),
+                "relations": doc.relations.iter().map(|r| json!({"from": r.from, "to": r.to, "kind": r.kind, "label": r.label})).collect::<Vec<_>>(),
+                "svg_preview": svg
             })
         }
     }

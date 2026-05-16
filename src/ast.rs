@@ -22,6 +22,10 @@ pub enum DiagramKind {
     State,
     Activity,
     Timing,
+    Json,
+    Yaml,
+    Nwdiag,
+    Archimate,
     Unknown,
 }
 
@@ -109,6 +113,7 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    RawBlockContent(String),
     Unknown(String),
 }
 

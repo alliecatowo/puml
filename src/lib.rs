@@ -34,6 +34,10 @@ pub enum DiagramFamily {
     Salt,
     MindMap,
     Wbs,
+    Json,
+    Yaml,
+    Nwdiag,
+    Archimate,
     Unknown,
 }
 
@@ -54,6 +58,10 @@ impl DiagramFamily {
             Self::Salt => "salt",
             Self::MindMap => "mindmap",
             Self::Wbs => "wbs",
+            Self::Json => "json",
+            Self::Yaml => "yaml",
+            Self::Nwdiag => "nwdiag",
+            Self::Archimate => "archimate",
             Self::Unknown => "unknown",
         }
     }
@@ -225,6 +233,9 @@ fn render_document_for_family(
                 model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
                     "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family render",
                 )),
+                _ => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
+                )),
             }
         }
         DiagramFamily::Gantt | DiagramFamily::Chronology => {
@@ -238,6 +249,9 @@ fn render_document_for_family(
                 model::NormalizedDocument::Family(_) => Err(Diagnostic::error(
                     "[E_TIMELINE_INTERNAL] unexpected family model during timeline render",
                 )),
+                _ => Err(Diagnostic::error(
+                    "[E_TIMELINE_INTERNAL] unexpected model during timeline render",
+                )),
             }
         }
         DiagramFamily::Component => render_family_with(document, render::render_component_svg),
@@ -245,6 +259,32 @@ fn render_document_for_family(
         DiagramFamily::State => render_family_with(document, render::render_state_svg),
         DiagramFamily::Activity => render_family_with(document, render::render_activity_svg),
         DiagramFamily::Timing => render_family_with(document, render::render_timing_svg),
+        DiagramFamily::Json => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Json(doc) => Ok(vec![render::render_json_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_JSON_INTERNAL] unexpected model during json render",
+            )),
+        },
+        DiagramFamily::Yaml => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Yaml(doc) => Ok(vec![render::render_yaml_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_YAML_INTERNAL] unexpected model during yaml render",
+            )),
+        },
+        DiagramFamily::Nwdiag => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Nwdiag(doc) => Ok(vec![render::render_nwdiag_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_NWDIAG_INTERNAL] unexpected model during nwdiag render",
+            )),
+        },
+        DiagramFamily::Archimate => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Archimate(doc) => {
+                Ok(vec![render::render_archimate_svg(&doc)])
+            }
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_ARCHIMATE_INTERNAL] unexpected model during archimate render",
+            )),
+        },
         DiagramFamily::MindMap
         | DiagramFamily::Wbs
         | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
@@ -262,6 +302,9 @@ fn render_family_with(
         )),
         model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
             "[E_FAMILY_INTERNAL] unexpected timeline model during extended family render",
+        )),
+        _ => Err(Diagnostic::error(
+            "[E_FAMILY_INTERNAL] unexpected model during extended family render",
         )),
     }
 }
@@ -304,6 +347,10 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::Activity => DiagramFamily::Activity,
         ast::DiagramKind::Timing => DiagramFamily::Timing,
         ast::DiagramKind::Salt => DiagramFamily::Salt,
+        ast::DiagramKind::Json => DiagramFamily::Json,
+        ast::DiagramKind::Yaml => DiagramFamily::Yaml,
+        ast::DiagramKind::Nwdiag => DiagramFamily::Nwdiag,
+        ast::DiagramKind::Archimate => DiagramFamily::Archimate,
         ast::DiagramKind::Unknown => DiagramFamily::Unknown,
     }
 }

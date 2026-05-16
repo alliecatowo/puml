@@ -257,6 +257,10 @@ Artifacts:
 | State diagrams | Supported (baseline) | End-to-end path for `state` declarations, `[*]` initial/final markers, and transitions with guards. |
 | Activity diagrams (new style) | Supported (baseline) | End-to-end path for `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `partition` constructs. |
 | Timing diagrams | Supported (baseline) | End-to-end path for `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>` instants, and `signal is state` transitions. |
+| JSON family (`@startjson` / `@endjson`) | Supported | Parses block body as JSON via `serde_json`; flattens object/array/value tree and renders deterministic indented SVG node tree (falls back to raw line list on parse error). |
+| YAML family (`@startyaml` / `@endyaml`) | Supported | Indentation-based two-space mapping/sequence tree captured into a depth-tagged node list; rendered as a deterministic indented SVG node tree. |
+| nwdiag family (`@startnwdiag` / `@endnwdiag`) | Supported | Parses `network` blocks with optional `address` and `Node [address = "..."]` entries; renders horizontal swimlanes per network with deterministic node ordering. |
+| Archimate family (`@startarchimate` / `@endarchimate`) | Supported | Parses `archimate "Name" as alias <<layer>>` declarations plus relation macros (`Rel_Association`, `Rel_Realization`, `Rel_Serving`, `Rel_Composition`, `Rel_Aggregation`, `Rel_Used_By`, `Rel_Flow`) and plain arrows; renders layered (strategy/business/application/technology/motivation) swimlanes. |
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
 | Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |

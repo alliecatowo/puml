@@ -2356,6 +2356,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let (raw_line, span) = lines[i];
         let line = strip_inline_plantuml_comment(raw_line).trim();
 
+        if let Some(bk) = block_kind {
+            if is_raw_body_block(bk) {
+                if parse_end_block_kind(line).is_some() {
+                    // fall through to end-block handler below
+                } else {
+                    statements.push(Statement {
+                        span,
+                        kind: StatementKind::RawBlockContent(raw_line.to_string()),
+                    });
+                    i += 1;
+                    continue;
+                }
+            }
+        }
+
         if line.is_empty() || line.starts_with('"') {
             i += 1;
             continue;
@@ -2650,6 +2665,10 @@ enum BlockKind {
     Wbs,
     Gantt,
     Chronology,
+    Json,
+    Yaml,
+    Nwdiag,
+    Archimate,
 }
 
 fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
@@ -2662,30 +2681,38 @@ fn parse_end_block_kind(line: &str) -> Option<BlockKind> {
 
 fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     let lower = line.to_ascii_lowercase();
-    let markers = if start {
-        [
+    let markers: &[(&str, BlockKind)] = if start {
+        &[
             ("@startuml", BlockKind::Uml),
             ("@startsalt", BlockKind::Salt),
             ("@startmindmap", BlockKind::MindMap),
             ("@startwbs", BlockKind::Wbs),
             ("@startgantt", BlockKind::Gantt),
             ("@startchronology", BlockKind::Chronology),
+            ("@startjson", BlockKind::Json),
+            ("@startyaml", BlockKind::Yaml),
+            ("@startnwdiag", BlockKind::Nwdiag),
+            ("@startarchimate", BlockKind::Archimate),
         ]
     } else {
-        [
+        &[
             ("@enduml", BlockKind::Uml),
             ("@endsalt", BlockKind::Salt),
             ("@endmindmap", BlockKind::MindMap),
             ("@endwbs", BlockKind::Wbs),
             ("@endgantt", BlockKind::Gantt),
             ("@endchronology", BlockKind::Chronology),
+            ("@endjson", BlockKind::Json),
+            ("@endyaml", BlockKind::Yaml),
+            ("@endnwdiag", BlockKind::Nwdiag),
+            ("@endarchimate", BlockKind::Archimate),
         ]
     };
     for (marker, kind) in markers {
         if lower.starts_with(marker) {
             let rest = &line[marker.len()..];
             if rest.is_empty() || rest.starts_with(char::is_whitespace) {
-                return Some(kind);
+                return Some(*kind);
             }
         }
     }
@@ -2700,6 +2727,10 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Wbs => Some(DiagramKind::Wbs),
         BlockKind::Gantt => Some(DiagramKind::Gantt),
         BlockKind::Chronology => Some(DiagramKind::Chronology),
+        BlockKind::Json => Some(DiagramKind::Json),
+        BlockKind::Yaml => Some(DiagramKind::Yaml),
+        BlockKind::Nwdiag => Some(DiagramKind::Nwdiag),
+        BlockKind::Archimate => Some(DiagramKind::Archimate),
     }
 }
 
@@ -2711,7 +2742,18 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Wbs => "wbs",
         BlockKind::Gantt => "gantt",
         BlockKind::Chronology => "chronology",
+        BlockKind::Json => "json",
+        BlockKind::Yaml => "yaml",
+        BlockKind::Nwdiag => "nwdiag",
+        BlockKind::Archimate => "archimate",
     }
+}
+
+fn is_raw_body_block(kind: BlockKind) -> bool {
+    matches!(
+        kind,
+        BlockKind::Json | BlockKind::Yaml | BlockKind::Nwdiag | BlockKind::Archimate
+    )
 }
 
 fn select_diagram_kind(
@@ -2768,6 +2810,10 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::State => "state",
         DiagramKind::Activity => "activity",
         DiagramKind::Timing => "timing",
+        DiagramKind::Json => "json",
+        DiagramKind::Yaml => "yaml",
+        DiagramKind::Nwdiag => "nwdiag",
+        DiagramKind::Archimate => "archimate",
         DiagramKind::Unknown => "unknown",
     }
 }
