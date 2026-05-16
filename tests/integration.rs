@@ -338,8 +338,10 @@ fn non_sequence_activity_oldstyle_baseline_passes_check() {
 
 #[test]
 fn non_sequence_activity_oldstyle_baseline_renders_with_activity_timeline_labels() {
-    let src = fs::read_to_string(fixture("non_sequence/valid_activity_oldstyle_baseline.puml"))
-        .expect("fixture");
+    let src = fs::read_to_string(fixture(
+        "non_sequence/valid_activity_oldstyle_baseline.puml",
+    ))
+    .expect("fixture");
     let svg = render_source_to_svg(&src).expect("should render activity baseline SVG");
     assert!(svg.contains("ACTIVITY timeline entries"));
     assert!(svg.contains("action[#gold]:"));
