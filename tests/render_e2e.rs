@@ -690,6 +690,16 @@ fn parse_svg_texts(svg: &str) -> Vec<SvgText> {
     texts
 }
 
+fn parse_svg_viewbox_width(svg: &str) -> Option<i32> {
+    let svg_tag = svg.split("<svg ").nth(1)?.split('>').next()?;
+    let viewbox = parse_svg_attr(svg_tag, "viewBox")?;
+    let mut parts = viewbox.split_whitespace();
+    let _min_x = parts.next()?;
+    let _min_y = parts.next()?;
+    let width = parts.next()?.parse::<i32>().ok()?;
+    Some(width)
+}
+
 #[test]
 fn overflow_svg_text_positions_stay_within_associated_rects() {
     let src = fixture("overflow/overflow_notes_refs_groups.puml");
@@ -900,6 +910,7 @@ fn overflow_multiline_group_ref_note_combo_stays_within_rects() {
         .iter()
         .filter(|r| r.fill == "#eef6ff" || r.fill == "#fafafa")
         .collect::<Vec<_>>();
+    let viewbox_width = parse_svg_viewbox_width(&svg).expect("svg should include viewBox width");
 
     assert!(!note_rects.is_empty(), "expected note rects");
     assert!(!group_rects.is_empty(), "expected group/ref rects");
@@ -926,6 +937,21 @@ fn overflow_multiline_group_ref_note_combo_stays_within_rects() {
             owner.is_some(),
             "combo overflow text should stay within associated rects: {line}"
         );
+        if let Some(note_rect) = note_rects
+            .iter()
+            .copied()
+            .find(|r| text.x >= r.x && text.y > r.y && text.y <= r.y + r.height)
+        {
+            let conservative_right = text.x + ((text.text.chars().count() as i32) * 7);
+            assert!(
+                conservative_right <= note_rect.x + note_rect.width,
+                "long note text should fit note rect width without right-edge clipping: {line}"
+            );
+            assert!(
+                conservative_right <= viewbox_width,
+                "long note text should fit scene viewBox width without right-edge clipping: {line}"
+            );
+        }
     }
 
     assert_snapshot!(
