@@ -1,0 +1,54 @@
+name: Differential Oracle Smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: oracle-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  oracle-smoke:
+    name: oracle-smoke-deterministic
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: oracle-smoke-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Install PlantUML oracle runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jre-headless graphviz plantuml
+
+      - name: Differential oracle smoke gate
+        run: python3 ./scripts/differential_oracle_smoke.py --quick --strict --quiet
+
+      - name: Upload oracle smoke artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-smoke-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            docs/benchmarks/oracle_smoke_latest.json

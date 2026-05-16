@@ -239,3 +239,49 @@ fn parity_harness_report_schema_is_stable() {
         "parity harness doc gallery discovery should stay in lock-step with docs/examples markdown links and supported fenced snippets"
     );
 }
+
+#[test]
+fn differential_oracle_smoke_report_schema_is_stable_in_dry_mode() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("target");
+    path.push("oracle_smoke_test_report.json");
+
+    let output = Command::new("python3")
+        .args([
+            "scripts/differential_oracle_smoke.py",
+            "--quick",
+            "--dry",
+            "--quiet",
+            "--output",
+            path.to_str().expect("utf-8 path"),
+        ])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("failed to run scripts/differential_oracle_smoke.py");
+
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!(
+            "differential oracle smoke harness failed\nstatus: {:?}\nstdout:\n{}\nstderr:\n{}",
+            output.status.code(),
+            stdout,
+            stderr
+        );
+    }
+
+    let raw = fs::read_to_string(&path).expect("report should be written");
+    let json: Value = serde_json::from_str(&raw).expect("report must be valid JSON");
+    assert_eq!(json["schema_version"], "1.0.0");
+    assert_eq!(json["oracle"]["mode"], "plantuml-smoke");
+    assert_eq!(json["tool"]["dry_run"], true);
+    assert_eq!(json["tool"]["quick_mode"], true);
+    let fixtures = json["fixtures"]
+        .as_array()
+        .expect("fixtures should be an array");
+    assert!(!fixtures.is_empty(), "expected non-empty fixture corpus");
+    assert_eq!(
+        json["summary"]["total"].as_u64(),
+        Some(fixtures.len() as u64)
+    );
+}
