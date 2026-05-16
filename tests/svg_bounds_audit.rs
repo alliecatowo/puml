@@ -113,7 +113,10 @@ fn parse_expected_gallery_entries() -> Vec<DocExampleKey> {
             snippet_index += 1;
             let artifact = md_path.with_file_name(format!(
                 "{}_snippet_{}.svg",
-                md_path.file_stem().and_then(|s| s.to_str()).unwrap_or("README"),
+                md_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("README"),
                 snippet_index
             ));
             let artifact_svg = artifact
@@ -214,9 +217,15 @@ fn parity_harness_report_schema_is_stable() {
                 .as_str()
                 .unwrap_or_default()
                 .to_string(),
-            source_kind: entry["source_kind"].as_str().unwrap_or_default().to_string(),
+            source_kind: entry["source_kind"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
             source_ref: entry["source_ref"].as_str().unwrap_or_default().to_string(),
-            artifact_svg: entry["artifact_svg"].as_str().unwrap_or_default().to_string(),
+            artifact_svg: entry["artifact_svg"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
         })
         .collect::<Vec<_>>();
     discovered.sort();
