@@ -249,40 +249,104 @@ Artifacts:
 
 ## Feature Matrix
 
+### Diagram Families
+
 | Area | Status | Notes |
 |---|---|---|
-| Sequence diagrams | Supported | End-to-end parser/normalize/layout/render path. |
-| Component diagrams | Supported (baseline) | End-to-end parser/normalize/render path for `component`/`interface`/`port` declarations and relations. |
-| Deployment diagrams | Supported (baseline) | End-to-end path for `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations and relations. |
-| State diagrams | Supported (baseline) | End-to-end path for `state` declarations, `[*]` initial/final markers, and transitions with guards. |
-| Activity diagrams (new style) | Supported (baseline) | End-to-end path for `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `partition` constructs. |
-| Timing diagrams | Supported (baseline) | End-to-end path for `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>` instants, and `signal is state` transitions. |
-| JSON family (`@startjson` / `@endjson`) | Supported | Parses block body as JSON via `serde_json`; flattens object/array/value tree and renders deterministic indented SVG node tree (falls back to raw line list on parse error). |
-| YAML family (`@startyaml` / `@endyaml`) | Supported | Indentation-based two-space mapping/sequence tree captured into a depth-tagged node list; rendered as a deterministic indented SVG node tree. |
-| nwdiag family (`@startnwdiag` / `@endnwdiag`) | Supported | Parses `network` blocks with optional `address` and `Node [address = "..."]` entries; renders horizontal swimlanes per network with deterministic node ordering. |
-| Archimate family (`@startarchimate` / `@endarchimate`) | Supported | Parses `archimate "Name" as alias <<layer>>` declarations plus relation macros (`Rel_Association`, `Rel_Realization`, `Rel_Serving`, `Rel_Composition`, `Rel_Aggregation`, `Rel_Used_By`, `Rel_Flow`) and plain arrows; renders layered (strategy/business/application/technology/motivation) swimlanes. |
-| Regex diagrams (`@startregex`/`@endregex`) | Supported (visual) | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, `\|`, `(...)`, `\d`, `.`, anchors) into a deterministic railroad-style SVG; unsupported quantifiers emit deterministic warnings. |
-| EBNF diagrams (`@startebnf`/`@endebnf`) | Supported (visual) | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, `*`, `+`, `?` into a deterministic railroad SVG. |
-| Math / LaTeX diagrams (`@startmath`/`@startlatex`) | Deterministic stub | LaTeX-like body rendered in a deterministic monospaced frame (no formula typesetting). |
-| SDL diagrams (`@startsdl`/`@endsdl`) | Deterministic stub | Parses `state`, `start`, `stop`, and `from -> to : signal` lines, renders state-machine grid plus transition list. |
-| Ditaa diagrams (`@startditaa`/`@endditaa`) | Deterministic stub | ASCII-art body preserved verbatim inside a labeled monospace frame. |
-| Chart diagrams (`@startchart`/`@endchart`) | Supported (visual) | Parses `bar`/`line`/`pie` subtype plus `"label" value` rows; renders bar columns, line plots, or labeled pie slices with deterministic palette colors. |
+| Sequence diagrams (`@startuml`) | Supported | End-to-end parser/normalize/layout/render path with full parity for participants, arrows, notes, groups, lifecycle, metadata, and skinparam subset. |
+| Class diagrams | Supported | Declarations, relations, fields/methods, visibility, stereotypes, packages/namespaces, notes, generics, association classes, lollipop notation, hide/show. |
+| Object diagrams | Supported | Object instance nodes, field-value lists, map/associative-array forms, and object links. |
+| Use-case diagrams | Supported | Actor declarations/styles, use-case descriptions, packages/boundaries, include/extend/generalization semantics, notes, stereotypes, and direction controls. |
+| Component diagrams | Supported | `component`/`interface`/`port` declarations, dependencies, packages, and notation mode baseline. |
+| Deployment diagrams | Supported | `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations, links, and nesting. |
+| State diagrams | Supported | `state` declarations, `[*]` initial/final markers, transitions with guards, composite/history/fork-join forms. |
+| Activity diagrams (new style) | Supported | `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `partition`/swimlane constructs. |
+| Timing diagrams | Supported | `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>` instants, and `signal is state` transitions. |
+| Salt / wireframe (`@startsalt`) | Supported | Widget/grid/menu/tab/tree/table primitives, nested structures, scrolling markers, and metadata blocks. |
+| MindMap (`@startmindmap`) | Supported | Hierarchical OrgMode-style tree, directional controls, boxless markers, color/style hooks, deterministic layout. |
+| WBS (`@startwbs`) | Supported | Work-breakdown structure trees with orientation, style, and deterministic geometry. |
+| Gantt (`@startgantt`) | Supported | Task/milestone declarations, starts/ends/requires constraints, scale/calendar, resource lanes, deterministic SVG timeline. |
+| Chronology (`@startchronology`) | Supported | `happens on` event statements, timestamp placement, deterministic timeline render. |
+| JSON family (`@startjson`) | Supported | Parses body as JSON via `serde_json`; flattens object/array/value tree into deterministic indented SVG node tree (falls back to raw line list on parse error). |
+| YAML family (`@startyaml`) | Supported | Indentation-based two-space mapping/sequence tree; rendered as a deterministic indented SVG node tree. |
+| nwdiag (`@startnwdiag`) | Supported | `network` blocks with `address` and `Node [address = "..."]` entries; horizontal swimlanes per network with deterministic node ordering. |
+| Archimate (`@startarchimate`) | Supported | `archimate "Name" as alias <<layer>>` declarations, relation macros (`Rel_Association`, `Rel_Realization`, `Rel_Serving`, `Rel_Composition`, `Rel_Aggregation`, `Rel_Used_By`, `Rel_Flow`), layered strategy/business/application/technology/motivation swimlanes. |
+| Regex diagrams (`@startregex`) | Supported | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, `\|`, `(...)`, `\d`, `.`, anchors) into a deterministic railroad-style SVG; unsupported quantifiers emit deterministic warnings. |
+| EBNF diagrams (`@startebnf`) | Supported | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, `*`, `+`, `?` into a deterministic railroad SVG. |
+| Math / LaTeX (`@startmath` / `@startlatex`) | Supported (deterministic stub) | LaTeX-like body rendered in a deterministic monospaced frame; no formula typesetting (no Java/external typesetter dependency). |
+| SDL diagrams (`@startsdl`) | Supported (deterministic stub) | Parses `state`, `start`, `stop`, and `from -> to : signal` lines; renders state-machine grid plus transition list. |
+| Ditaa diagrams (`@startditaa`) | Supported (deterministic stub) | ASCII-art body preserved verbatim inside a labeled monospace frame; no raster conversion. |
+| Chart diagrams (`@startchart`) | Supported | Parses `bar`/`line`/`pie` subtype plus `"label" value` rows; renders bar columns, line plots, or labeled pie slices with deterministic palette colors. |
+
+### Sequence Diagram Primitives
+
+| Area | Status | Notes |
+|---|---|---|
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
-| Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
-| Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |
-| Notes, groups, separators | Supported | Includes `alt`, `else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `box`, `ref` (single- and multi-line `ref over A, B`), `end`, plus `...`, `||`, `newpage`. Multi-line `note ... end note` is supported. |
-| `hide unlinked` | Supported | Parsed and recorded as a `hideUnlinked` skinparam-style hint. |
-| Lifecycle/control statements | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber`. |
-| Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
-| `skinparam` sequence styling subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor` (and unprefixed alias), `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (each also supports `Sequence...` alias). Color values are deterministic-safe tokens only: hex (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or alphabetic names (canonicalized to lowercase). |
-| Other `skinparam` keys | Accepted with warning | Deterministic `W_SKINPARAM_UNSUPPORTED`/`W_SKINPARAM_UNSUPPORTED_VALUE` warning; continues execution. |
-| `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
-| `!if` / `!elseif` / `!else` / `!endif`, `!ifdef`, `!ifndef` | Supported (scoped) | Simple deterministic conditional evaluation (`defined()`, `==`, `!=`, numeric/bool literals). |
-| `!while` / `!endwhile` | Supported (bounded) | Simple deterministic loop evaluation with bounded iterations (`E_PREPROC_WHILE_LIMIT`). |
-| `!function` / `!procedure` + preprocessor builtins (`%strlen`, `%size`, `%strpos`, `%substr`, `%intval`, `%str`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`) | Supported | Deterministic dispatch table; time/env-sensitive builtins (`%date`, `%getenv`) intentionally return empty for byte-stable output. Unknown `%name(...)` calls still surface `E_PREPROC_BUILTIN_UNSUPPORTED`. |
-| `!include_many` / `!include_once` / `!includesub` | Supported | `!include_many` accepts `*`/`?` globs (alphabetical match order); `!include_once` dedupes via canonical path; `!includesub` extracts `!startsub … !endsub` named blocks. |
-| `!includeurl`, `!include http(s)://…` | Rejected (deterministic) | Emits `E_INCLUDE_URL_UNSUPPORTED`; URL fetching would defeat determinism. |
-| Multi-diagram input | Guarded support | Requires explicit `--multi`. |
+| Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`. |
+| Messages + arrows | Supported | `->`, `-->`, `->>`, `-->>`, `<-`, `<--`, `->x`, `-\`, `-\\`, `-/`, `-//`, `->o`, `<->`, `<-->`, and synchronous/async forms. |
+| Virtual endpoints | Supported | `[`, `]` incoming/outgoing messages; `[*]`, found/lost directionality semantics. |
+| Notes | Supported | `note left/right/over`, `hnote`, `rnote`, across/alignment behavior; multi-line `note ... end note`; `note over A, B`. |
+| Groups / fragments | Supported | `alt`/`else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `box`, `ref` (single- and multi-line `ref over A, B`), `end`; mis-nested forms produce deterministic errors. |
+| Separators + dividers | Supported | `== separator ==`, `...`, `||`, `newpage`. |
+| `hide unlinked` | Supported (warning only) | Parsed and recorded as a `hideUnlinked` hint; not yet a layout filter — emits a deterministic note. |
+| Lifecycle / control | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber` (start/stop/resume/format/step). |
+| Metadata | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
+| `skinparam` sequence subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor`, `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (all support `Sequence...` alias prefix). |
+| Other `skinparam` keys | Accepted with warning | Deterministic `W_SKINPARAM_UNSUPPORTED`/`W_SKINPARAM_UNSUPPORTED_VALUE`; continues execution. |
+
+### Preprocessor
+
+| Area | Status | Notes |
+|---|---|---|
+| `!include` | Supported | Relative file includes, cycle/depth guards, root confinement. |
+| `!include_many` | Supported | `*`/`?` glob expansion with alphabetical match order. |
+| `!include_once` | Supported | Deduplication via canonical path. |
+| `!includesub` | Supported | Extracts `!startsub … !endsub` named blocks. |
+| `!includeurl` / `!include http(s)://…` | Rejected (deterministic) | Emits `E_INCLUDE_URL_UNSUPPORTED`; URL fetching would break determinism. |
+| `!define` / `!undef` | Supported | Simple token substitution before normalizer. |
+| `!if` / `!elseif` / `!else` / `!endif` | Supported | Deterministic conditional evaluation: `defined()`, `==`, `!=`, numeric/bool literals. |
+| `!ifdef` / `!ifndef` | Supported | Defined/undefined guards. |
+| `!while` / `!endwhile` | Supported (bounded) | Bounded iterations; exceeding limit emits `E_PREPROC_WHILE_LIMIT`. |
+| `!function` / `!procedure` / `!return` | Supported | User-defined functions and procedures with default/keyword/unquoted args; `!return` for early exit. |
+| Preprocessor builtins | Supported | `%strlen`, `%size`, `%strpos`, `%substr`, `%intval`, `%str`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`. Time/env-sensitive builtins (`%date`, `%getenv`) return empty for byte-stable output. |
+| JSON variable assignment | Supported | `!$var = { ... }` JSON-literal assignment parsed before normalization. |
+| `!import` / stdlib | Supported | Deterministic stdlib catalog resolution; unknown modules emit `E_IMPORT_UNSUPPORTED`. |
+| `!theme` | Supported | Local theme catalog semantics; unknown themes emit a deterministic warning and continue. |
+| `!assert` / `!log` / `!dump_memory` | Supported | Deterministic diagnostic forms; `!assert` failure emits `E_PREPROC_ASSERT_FAIL`. |
+
+### Frontends
+
+| Area | Status | Notes |
+|---|---|---|
+| PlantUML frontend | Supported | First-class 1:1 compatibility target across all implemented diagram families. |
+| Mermaid frontend (`sequenceDiagram`) | Supported | Participants/actors, message arrows, `Note over\|left of\|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, `alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box "label"`, `create [participant] X`, `destroy X`, `link X: name @ url` (collapsed to benign comment). Unknown constructs emit deterministic `E_MERMAID_*` diagnostics. |
+| PicoUML frontend | Supported (baseline) | Canonical first-class language surface; baseline canonical routing implemented. Full spec: `docs/specs/picouml-language.md`. |
+
+### CLI Flags
+
+| Flag | Status | Notes |
+|---|---|---|
+| `--check` | Supported | Parse + normalize only; no render output. |
+| `--dump ast\|model\|scene` | Supported | Emits JSON pipeline dump to stdout. |
+| `--multi` | Supported | Required for inputs with multiple `@startuml`/`@enduml` blocks. |
+| `--from-markdown` | Supported | Extracts fenced diagram blocks from Markdown; auto-enabled for `.md`/`.markdown`/`.mdown`. |
+| `--diagnostics human\|json` | Supported | Controls diagnostics output format; JSON form includes stable `code`/`severity`/`span`/`snippet`/`caret` fields. |
+| `--include-root DIR` | Supported | Resolves `!include` for stdin input. |
+| `--output PATH` | Supported | Writes to specified path for single diagrams, numbered paths for multi. |
+| `--overwrite` | Supported (no-op) | Outputs are always overwritten; flag accepted for PlantUML CLI compat. |
+| `--fail-on-warn` | Supported | Exits 1 if any warnings are emitted. |
+| `--charset UTF-8` | Supported | Only UTF-8 accepted; other charsets emit `E_CHARSET_UNSUPPORTED`. |
+| `--duration` | Supported | Prints elapsed wall time to stderr. |
+| `--quiet` / `-q` | Supported | Suppresses non-error stderr output. |
+| `--verbose` / `-v` | Supported | Emits per-stage parse/normalize/render timings. |
+| `--format svg\|png` | Supported (svg only) | `png` emits a deterministic rejection diagnostic; `svg` is the only supported format. |
+| `--dialect auto\|plantuml\|mermaid\|picouml` | Supported | Selects frontend input dialect. |
+| `--compat strict\|extended` | Supported | Controls stdin include-root fallback policy. |
+| `--determinism strict\|full` | Supported | Controls determinism policy level. |
+| `--lint-input INPUT` | Supported | Adds repeatable check/lint inputs (check mode only). |
+| `--lint-glob GLOB` | Supported | Adds repeatable glob-expanded check/lint inputs (check mode only). |
+| `--lint-report human\|json` | Supported | Emits lint summary report format. |
 
 ## LSP Baseline
 
