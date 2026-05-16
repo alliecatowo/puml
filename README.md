@@ -17,7 +17,7 @@ Fast, deterministic sequence-diagram rendering to SVG with a first-class polymor
 Language and compatibility statement:
 - PicoUML is a first-class canonical language surface for this engine.
 - PlantUML support is a first-class 1:1 target for sequence workflows (subset status is tracked in the feature matrix).
-- Mermaid support is first-class for the supported `sequenceDiagram` subset.
+- Mermaid support is first-class for `sequenceDiagram`, `flowchart`/`graph`, `classDiagram`, `stateDiagram`/`stateDiagram-v2`, and `erDiagram` families.
 
 ## Install And Dev
 
@@ -161,7 +161,13 @@ Modes:
 - `--diagnostics human|json` controls diagnostics output format (default `human`)
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
   `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
-  `mermaid`: supports a first-class `sequenceDiagram` subset (participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, and `%%` comments), with deterministic compatibility diagnostics for unsupported constructs
+  `mermaid`: supports the following diagram families:
+    - `sequenceDiagram`: participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, all group blocks (`alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box`), `create`/`destroy`, `link` (collapsed to benign comment); unknown constructs emit deterministic `E_MERMAID_*` diagnostics
+    - `flowchart TD|LR|...` / `graph TD|LR|...`: nodes with bracket/brace/paren labels, `-->` and `-->|label|` edges, subgraph blocks — adapted to PlantUML component-style
+    - `classDiagram`: class declarations with `{ members }` blocks and `ClassName : member` lines, inheritance/association relations — adapted to PlantUML class diagram
+    - `stateDiagram` / `stateDiagram-v2`: `[*]` pseudo-states, `-->` transitions — adapted to PlantUML state diagram
+    - `erDiagram`: entity declarations and `||--o{` cardinality relations — adapted to PlantUML class-style diagram
+    Unsupported diagram families (e.g. `pie`, `gitDiagram`) emit a deterministic `E_MERMAID_FAMILY_UNSUPPORTED` diagnostic
   `picouml`: canonical first-class language surface; explicit frontend selection is currently not implemented and returns a deterministic diagnostic
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
