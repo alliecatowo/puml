@@ -1,4 +1,8 @@
 use std::cell::RefCell;
+#![allow(clippy::manual_strip)]
+#![allow(clippy::unnecessary_map_or)]
+#![allow(clippy::manual_map)]
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -1,3 +1,7 @@
+#![allow(clippy::manual_strip)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::needless_borrow)]
+
 use crate::ast::DiagramKind;
 use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::model::{
