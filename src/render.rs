@@ -357,7 +357,30 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
         .as_deref()
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
-    let entry_rows = document.entries.len().max(1) as i32;
+    let entry_rows_content = document
+        .tasks
+        .iter()
+        .map(|t| format!("task: {}", t.name))
+        .chain(
+            document
+                .milestones
+                .iter()
+                .map(|m| format!("milestone: {}", m.name)),
+        )
+        .chain(
+            document
+                .constraints
+                .iter()
+                .map(|c| format!("constraint: {} {} {}", c.subject, c.kind.as_str(), c.target)),
+        )
+        .chain(
+            document
+                .chronology_events
+                .iter()
+                .map(|e| format!("chronology: {} {}", e.subject, e.when)),
+        )
+        .collect::<Vec<_>>();
+    let entry_rows = entry_rows_content.len().max(1) as i32;
     let metadata_rows = usize::from(document.header.is_some())
         + usize::from(document.footer.is_some())
         + usize::from(document.caption.is_some())
@@ -372,7 +395,9 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
         width, height, width, height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"#fbfdff\"/>");
-    out.push_str("<line x1=\"36\" y1=\"56\" x2=\"724\" y2=\"56\" stroke=\"#64748b\" stroke-width=\"2\"/>");
+    out.push_str(
+        "<line x1=\"36\" y1=\"56\" x2=\"724\" y2=\"56\" stroke=\"#64748b\" stroke-width=\"2\"/>",
+    );
 
     if let Some(title) = &document.title {
         for line in title.lines() {
@@ -395,7 +420,7 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
     out.push_str("<rect x=\"36\" y=\"60\" width=\"688\" height=\"1\" fill=\"none\"/>");
 
     let mut row = 0i32;
-    for entry in &document.entries {
+    for entry in &entry_rows_content {
         let row_y = y + (row * 30);
         out.push_str(&format!(
             "<rect x=\"40\" y=\"{}\" width=\"688\" height=\"22\" fill=\"#ffffff\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
@@ -413,7 +438,7 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
         row += 1;
     }
 
-    if document.entries.is_empty() {
+    if entry_rows_content.is_empty() {
         let row_y = y;
         out.push_str(&format!(
             "<text x=\"52\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#64748b\">No entries parsed.</text>",

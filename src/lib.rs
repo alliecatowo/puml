@@ -11,7 +11,9 @@ pub mod theme;
 
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
-pub use model::{FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, TimelineDocument};
+pub use model::{
+    FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, TimelineDocument,
+};
 
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
@@ -51,8 +53,6 @@ impl DiagramFamily {
             Self::Object => "object",
             Self::MindMap => "mindmap",
             Self::Wbs => "wbs",
-            Self::Gantt => "gantt",
-            Self::Chronology => "chronology",
             Self::Unknown => "unknown",
         }
     }
@@ -246,8 +246,6 @@ fn render_document_for_family(
         | DiagramFamily::Timing
         | DiagramFamily::MindMap
         | DiagramFamily::Wbs
-        | DiagramFamily::Gantt
-        | DiagramFamily::Chronology
         | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
     }
 }

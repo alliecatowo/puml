@@ -374,7 +374,11 @@ fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes(
 #[test]
 fn normalize_family_accepts_gantt_and_chronology_timelines() {
     let cases = [
-        ("non_sequence/valid_gantt_diagram.puml", puml::ast::DiagramKind::Gantt, 3),
+        (
+            "non_sequence/valid_gantt_diagram.puml",
+            puml::ast::DiagramKind::Gantt,
+            3,
+        ),
         (
             "non_sequence/valid_chronology_diagram.puml",
             puml::ast::DiagramKind::Chronology,
@@ -389,7 +393,13 @@ fn normalize_family_accepts_gantt_and_chronology_timelines() {
         let normalized = normalize_family(doc).expect("timeline normalize should succeed");
         match normalized {
             NormalizedDocument::Timeline(model) => {
-                assert_eq!(model.entries.len(), expected_entries);
+                assert_eq!(
+                    model.tasks.len()
+                        + model.milestones.len()
+                        + model.constraints.len()
+                        + model.chronology_events.len(),
+                    expected_entries
+                );
                 assert_eq!(model.title.as_deref(), Some("Timeline Overview"));
             }
             other => panic!("expected timeline model, got {:?}", other),

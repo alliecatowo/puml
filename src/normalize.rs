@@ -346,9 +346,18 @@ fn looks_like_timeline_sequence_syntax(line: &str) -> bool {
         return false;
     }
 
-    if ["participant ", "actor ", "boundary ", "control ", "entity ", "database ", "collections ", "queue "]
-        .iter()
-        .any(|keyword| lower.starts_with(keyword))
+    if [
+        "participant ",
+        "actor ",
+        "boundary ",
+        "control ",
+        "entity ",
+        "database ",
+        "collections ",
+        "queue ",
+    ]
+    .iter()
+    .any(|keyword| lower.starts_with(keyword))
     {
         return true;
     }
@@ -367,16 +376,18 @@ fn looks_like_timeline_sequence_syntax(line: &str) -> bool {
         return true;
     }
 
-    if lower == "note" || lower.starts_with("note ") || lower.starts_with("hnote ") || lower.starts_with("rnote ") {
+    if lower == "note"
+        || lower.starts_with("note ")
+        || lower.starts_with("hnote ")
+        || lower.starts_with("rnote ")
+    {
         return true;
     }
     if lower.starts_with("ref ") {
         return true;
     }
 
-    if lower == "end" || lower.starts_with("end ")
-        || lower == "else"
-        || lower.starts_with("else ")
+    if lower == "end" || lower.starts_with("end ") || lower == "else" || lower.starts_with("else ")
     {
         return true;
     }
@@ -397,9 +408,11 @@ fn looks_like_timeline_sequence_syntax(line: &str) -> bool {
         }
     }
 
-    ["->", "<->", "<-", "-->", "<--", "->>", "<>>", "<<", "--", "<<-", ">>", "-->"].iter().any(|token| {
-        lower.contains(token)
-    })
+    [
+        "->", "<->", "<-", "-->", "<--", "->>", "<>>", "<<", "--", "<<-", ">>", "-->",
+    ]
+    .iter()
+    .any(|token| lower.contains(token))
 }
 
 pub fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {

@@ -1227,8 +1227,6 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
-            DiagramKind::Gantt => "Gantt",
-            DiagramKind::Chronology => "Chronology",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
@@ -1399,8 +1397,6 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             DiagramKind::Chronology => "Chronology",
             DiagramKind::MindMap => "MindMap",
             DiagramKind::Wbs => "Wbs",
-            DiagramKind::Gantt => "Gantt",
-            DiagramKind::Chronology => "Chronology",
             DiagramKind::Component => "Component",
             DiagramKind::Deployment => "Deployment",
             DiagramKind::State => "State",
@@ -1609,25 +1605,6 @@ fn scene_to_json(model: &SequenceDocument) -> Value {
 fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
     match model {
         NormalizedDocument::Sequence(sequence) => scene_to_json(sequence),
-        NormalizedDocument::Timeline(timeline) => {
-            let svg = render::render_timeline_svg(timeline);
-            json!({
-                "kind": "TimelineStub",
-                "family": match timeline.kind {
-                    DiagramKind::Gantt => "Gantt",
-                    DiagramKind::Chronology => "Chronology",
-                    _ => "Timeline",
-                },
-                "entries": timeline.entries,
-                "title": timeline.title,
-                "header": timeline.header,
-                "footer": timeline.footer,
-                "caption": timeline.caption,
-                "legend": timeline.legend,
-                "svg_preview": svg,
-                "warnings": timeline.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
-            })
-        }
         NormalizedDocument::Family(family) => {
             let svg = render::render_family_stub_svg(family);
             json!({
@@ -1682,27 +1659,23 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
         }
         NormalizedDocument::Timeline(timeline) => {
             json!({
-                "kind": "TimelineBaseline",
+                "kind": "TimelineScene",
                 "family": match timeline.kind {
                     DiagramKind::Gantt => "Gantt",
                     DiagramKind::Chronology => "Chronology",
-                    DiagramKind::Sequence => "Sequence",
-                    DiagramKind::Class => "Class",
-                    DiagramKind::Object => "Object",
-                    DiagramKind::UseCase => "UseCase",
-                    DiagramKind::MindMap => "MindMap",
-                    DiagramKind::Wbs => "Wbs",
-                    DiagramKind::Component => "Component",
-                    DiagramKind::Deployment => "Deployment",
-                    DiagramKind::State => "State",
-                    DiagramKind::Activity => "Activity",
-                    DiagramKind::Timing => "Timing",
-                    DiagramKind::Unknown => "Unknown",
+                    _ => "Timeline",
                 },
                 "tasks": timeline.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+                "title": timeline.title,
+                "header": timeline.header,
+                "footer": timeline.footer,
+                "caption": timeline.caption,
+                "legend": timeline.legend,
+                "svg_preview": render::render_timeline_svg(timeline),
+                "warnings": timeline.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
             })
         }
     }
