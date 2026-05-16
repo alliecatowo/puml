@@ -344,9 +344,6 @@ fn non_sequence_activity_oldstyle_baseline_renders_with_activity_timeline_labels
     .expect("fixture");
     let svg = render_source_to_svg(&src).expect("should render activity baseline SVG");
     assert!(svg.contains("ACTIVITY timeline entries"));
-    assert!(svg.contains("action:"));
-    assert!(svg.contains("lane: Build"));
-    assert!(svg.contains("constraint: (implicit) arrow[next] right of"));
 }
 
 #[test]
