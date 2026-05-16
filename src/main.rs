@@ -1,4 +1,5 @@
 mod cli;
+mod raster;
 
 use clap::{CommandFactory, Parser};
 use cli::{
@@ -26,7 +27,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, IsTerminal, Read};
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -216,14 +217,6 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                 "[E_CHARSET_UNSUPPORTED] only UTF-8 is supported (got `{}`)",
                 cli.charset
             ),
-        ));
-    }
-
-    if matches!(cli.format, OutputFormat::Png) {
-        return Err((
-            EXIT_VALIDATION,
-            "[E_FORMAT_PNG_UNSUPPORTED] only SVG output is supported; rerun with --format svg"
-                .to_string(),
         ));
     }
 
@@ -464,7 +457,11 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         ));
     }
 
+    let want_png = matches!(cli.format, OutputFormat::Png);
+
     if input_path.is_none() && outputs.len() > 1 {
+        // Multi-page stdin: always emit as JSON SVG payload (PNG not supported
+        // for the JSON multi-output mode; each SVG can be rasterized separately).
         let payload = outputs
             .iter()
             .enumerate()
@@ -492,26 +489,47 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             .iter()
             .map(|out| out.svg.clone())
             .collect::<Vec<_>>();
-        write_output_files(&path, &svgs)?;
+        if want_png {
+            let png_path = svg_path_to_png(&path);
+            write_output_files_png(&png_path, &svgs)?;
+        } else {
+            write_output_files(&path, &svgs)?;
+        }
         return Ok(());
     }
 
     if let Some(input) = input_path {
         if from_markdown {
-            write_markdown_output_files(input, &outputs)?;
+            if want_png {
+                write_markdown_output_files_png(input, &outputs)?;
+            } else {
+                write_markdown_output_files(input, &outputs)?;
+            }
         } else {
-            let default_base = default_output_base(input)?;
+            let default_base = default_output_base(input, want_png)?;
             let svgs = outputs
                 .iter()
                 .map(|out| out.svg.clone())
                 .collect::<Vec<_>>();
-            write_output_files(&default_base, &svgs)?;
+            if want_png {
+                write_output_files_png(&default_base, &svgs)?;
+            } else {
+                write_output_files(&default_base, &svgs)?;
+            }
         }
         return Ok(());
     }
 
     if outputs.len() == 1 {
-        println!("{}", outputs[0].svg);
+        if want_png {
+            let png_bytes = raster::svg_to_png(&outputs[0].svg)
+                .map_err(|e| (EXIT_INTERNAL, format!("PNG rasterization failed: {e}")))?;
+            io::stdout()
+                .write_all(&png_bytes)
+                .map_err(|e| (EXIT_IO, format!("failed to write PNG to stdout: {e}")))?;
+        } else {
+            println!("{}", outputs[0].svg);
+        }
         return Ok(());
     }
 
@@ -1244,7 +1262,7 @@ fn diagnostics_json_payload_precomputed(diags: Vec<DiagnosticJson>) -> String {
     })
 }
 
-fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {
+fn default_output_base(input: &Path, want_png: bool) -> Result<PathBuf, (u8, String)> {
     let stem = input.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
         (
             EXIT_IO,
@@ -1254,7 +1272,83 @@ fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {
             ),
         )
     })?;
-    Ok(input.with_file_name(format!("{stem}.svg")))
+    let ext = if want_png { "png" } else { "svg" };
+    Ok(input.with_file_name(format!("{stem}.{ext}")))
+}
+
+/// Replace a `.svg` extension with `.png`; append `.png` if no `.svg` suffix.
+fn svg_path_to_png(path: &Path) -> PathBuf {
+    if path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("svg"))
+        .unwrap_or(false)
+    {
+        path.with_extension("png")
+    } else {
+        let mut p = path.as_os_str().to_os_string();
+        p.push(".png");
+        PathBuf::from(p)
+    }
+}
+
+/// Rasterize SVG strings to PNG and write them using the same multi-file
+/// naming scheme as `write_output_files`.
+fn write_output_files_png(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> {
+    if svgs.len() == 1 {
+        let bytes = raster::svg_to_png(&svgs[0])
+            .map_err(|e| (EXIT_INTERNAL, format!("PNG rasterization failed: {e}")))?;
+        return write_bytes_transactionally(vec![(base.to_path_buf(), bytes)]);
+    }
+
+    let stem = base.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
+        (
+            EXIT_IO,
+            format!(
+                "cannot derive output stem from '{}': invalid stem",
+                base.display()
+            ),
+        )
+    })?;
+    let parent = base.parent().unwrap_or_else(|| Path::new("."));
+    let mut files = Vec::with_capacity(svgs.len());
+
+    for (idx, svg) in svgs.iter().enumerate() {
+        let path = parent.join(format!("{stem}-{}.png", idx + 1));
+        let bytes = raster::svg_to_png(svg)
+            .map_err(|e| (EXIT_INTERNAL, format!("PNG rasterization failed: {e}")))?;
+        files.push((path, bytes));
+    }
+
+    write_bytes_transactionally(files)
+}
+
+/// Rasterize SVG outputs to PNG for markdown extraction mode.
+fn write_markdown_output_files_png(
+    input: &Path,
+    outputs: &[RenderedOutput],
+) -> Result<(), (u8, String)> {
+    let parent = input.parent().unwrap_or_else(|| Path::new("."));
+    let mut files = Vec::with_capacity(outputs.len());
+    for (idx, out) in outputs.iter().enumerate() {
+        let name = out.name_hint.as_ref().ok_or_else(|| {
+            (
+                EXIT_INTERNAL,
+                format!("missing markdown output name for diagram {}", idx + 1),
+            )
+        })?;
+        // Replace .svg extension with .png in the name hint.
+        let png_name = if name.ends_with(".svg") {
+            format!("{}.png", &name[..name.len() - 4])
+        } else {
+            format!("{name}.png")
+        };
+        let path = parent.join(png_name);
+        let bytes = raster::svg_to_png(&out.svg)
+            .map_err(|e| (EXIT_INTERNAL, format!("PNG rasterization failed: {e}")))?;
+        files.push((path, bytes));
+    }
+    write_bytes_transactionally(files)
 }
 
 fn write_markdown_output_files(
@@ -1315,6 +1409,85 @@ struct StagedWrite {
 }
 
 fn write_files_transactionally(files: Vec<(PathBuf, String)>) -> Result<(), (u8, String)> {
+    if files.is_empty() {
+        return Ok(());
+    }
+
+    let pid = std::process::id();
+    let mut staged_writes = Vec::with_capacity(files.len());
+
+    for (idx, (target, contents)) in files.into_iter().enumerate() {
+        if target.is_dir() {
+            cleanup_staged_artifacts(&staged_writes);
+            return Err((
+                EXIT_IO,
+                format!(
+                    "failed to write '{}': target is a directory",
+                    target.display()
+                ),
+            ));
+        }
+        let staged = staging_path_for(&target, "stage", pid, idx);
+        fs::write(&staged, contents).map_err(|e| {
+            cleanup_staged_artifacts(&staged_writes);
+            (
+                EXIT_IO,
+                format!("failed to write '{}': {e}", target.display()),
+            )
+        })?;
+        staged_writes.push(StagedWrite {
+            target,
+            staged,
+            backup: None,
+            published: false,
+        });
+    }
+
+    let fail_after = transactional_write_fail_after();
+
+    for idx in 0..staged_writes.len() {
+        let target_display = staged_writes[idx].target.display().to_string();
+
+        if staged_writes[idx].target.exists() {
+            let backup = staging_path_for(&staged_writes[idx].target, "backup", pid, idx);
+            if let Err(e) = fs::rename(&staged_writes[idx].target, &backup) {
+                rollback_staged_writes(&mut staged_writes);
+                return Err((
+                    EXIT_IO,
+                    format!("failed to prepare output '{target_display}': {e}"),
+                ));
+            }
+            staged_writes[idx].backup = Some(backup);
+        }
+
+        if fail_after == Some(idx) {
+            rollback_staged_writes(&mut staged_writes);
+            return Err((
+                EXIT_IO,
+                format!("failed to write '{target_display}': simulated write failure"),
+            ));
+        }
+
+        if let Err(e) = fs::rename(&staged_writes[idx].staged, &staged_writes[idx].target) {
+            rollback_staged_writes(&mut staged_writes);
+            return Err((EXIT_IO, format!("failed to write '{target_display}': {e}")));
+        }
+
+        staged_writes[idx].published = true;
+    }
+
+    for item in staged_writes {
+        if let Some(backup) = item.backup {
+            let _ = fs::remove_file(backup);
+        }
+    }
+
+    Ok(())
+}
+
+/// Binary analogue of `write_files_transactionally` for PNG (and any future
+/// binary format).  Uses the same staging-rename-commit protocol.
+fn write_bytes_transactionally(files: Vec<(PathBuf, Vec<u8>)>) -> Result<(), (u8, String)> {
     if files.is_empty() {
         return Ok(());
     }

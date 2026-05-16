@@ -1152,7 +1152,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
         _ if name.starts_with('$') => parse_variable_assignment(name, arg, trimmed),
-        "return" | "foreach" | "endfor" => Some(PreprocessDirective::Unsupported(name.to_string())),
+        "return" => Some(PreprocessDirective::Unsupported(name.to_string())),
         // `!startsub` / `!endsub` are markers used by `!includesub`. When a
         // file containing them is included directly, we silently elide the
         // marker lines and pass the body lines through.
@@ -1988,11 +1988,7 @@ fn dispatch_builtin(
             if sep.is_empty() {
                 Some(s)
             } else {
-                Some(
-                    s.split(sep.as_str())
-                        .collect::<Vec<&str>>()
-                        .join(","),
-                )
+                Some(s.split(sep.as_str()).collect::<Vec<&str>>().join(","))
             }
         }
         "strpos" => {

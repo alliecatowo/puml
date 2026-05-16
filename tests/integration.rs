@@ -4197,14 +4197,77 @@ fn sequence_box_grouping_and_hide_unlinked_fixture_validates_cleanly() {
 }
 
 #[test]
-fn format_png_flag_emits_deterministic_unsupported_error() {
-    Command::cargo_bin("puml")
+fn format_png_flag_renders_valid_png_to_stdout() {
+    // --format png on stdin should succeed and emit PNG magic bytes on stdout.
+    let output = Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--format", "png", "--check", "-"])
+        .args(["--format", "png", "-"])
         .write_stdin("@startuml\nA -> B\n@enduml\n")
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_FORMAT_PNG_UNSUPPORTED"));
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    assert!(
+        output.len() > 8,
+        "PNG output should be non-empty (got {} bytes)",
+        output.len()
+    );
+    // PNG magic bytes: 0x89 P N G \r \n 0x1a \n
+    assert_eq!(
+        &output[..8],
+        b"\x89PNG\r\n\x1a\n",
+        "output should start with PNG magic bytes"
+    );
+}
+
+#[test]
+fn format_png_flag_renders_png_file_for_file_input() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("hello.puml");
+    fs::copy(fixture("basic/hello.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "png", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let output = tmp.path().join("hello.png");
+    assert!(output.exists(), "hello.png should be created");
+
+    let bytes = fs::read(&output).unwrap();
+    assert!(bytes.len() > 8, "PNG file should be non-empty");
+    assert_eq!(
+        &bytes[..8],
+        b"\x89PNG\r\n\x1a\n",
+        "PNG file should start with magic bytes"
+    );
+}
+
+#[test]
+fn format_png_output_is_deterministic() {
+    // Two runs with the same SVG source must produce byte-identical PNG output.
+    let run = || {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--format", "png", "-"])
+            .write_stdin("@startuml\nAlice -> Bob: hello\n@enduml\n")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone()
+    };
+
+    let first = run();
+    let second = run();
+    assert_eq!(
+        first, second,
+        "PNG output must be byte-identical across runs"
+    );
 }
 
 #[test]
@@ -5467,7 +5530,10 @@ fn hide_unlinked_removes_unreferenced_participant_from_svg() {
     let svg = render_source_to_svg(src).expect("hide unlinked diagram should render");
     assert!(svg.contains("Alice"), "expected Alice in rendered SVG");
     assert!(svg.contains("Bob"), "expected Bob in rendered SVG");
-    assert!(!svg.contains("Unused"), "Unused should be filtered by hide unlinked");
+    assert!(
+        !svg.contains("Unused"),
+        "Unused should be filtered by hide unlinked"
+    );
 }
 
 #[test]
@@ -5501,6 +5567,9 @@ fn salt_login_form_fixture_renders_svg() {
 fn salt_wireframe_grid_renders_button_and_input() {
     let src = "@startsalt\n{\n| Name | \"Enter name\" |\n| [OK] | [Cancel]    |\n}\n@endsalt\n";
     let svg = render_source_to_svg(src).expect("salt grid should render");
-    assert!(svg.contains("Enter name"), "expected input placeholder in SVG");
+    assert!(
+        svg.contains("Enter name"),
+        "expected input placeholder in SVG"
+    );
     assert!(svg.contains("OK"), "expected button label in SVG");
 }

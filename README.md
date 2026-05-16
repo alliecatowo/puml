@@ -107,13 +107,13 @@ cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --includ
 #   --fail-on-warn     exit 1 if any warnings are emitted
 #   --overwrite        no-op (outputs are always overwritten)
 #   --charset UTF-8    no-op compatibility (only UTF-8 is supported)
-#   --format svg|png   only `svg` is supported; `png` exits 1 deterministically
+#   --format svg|png   both `svg` and `png` are supported (png via resvg+tiny-skia)
 cargo run -- --verbose --duration --check tests/fixtures/basic/hello.puml
 ```
 
 Runtime parity flag notes:
 - When stdin is a TTY and no input file is supplied, the CLI prints help instead of blocking forever.
-- `--format png` is recognized but unsupported (SVG only); rerun with `--format svg`.
+- `--format png` produces real PNG raster output via `resvg` + `tiny-skia` (deterministic; close #197).
 - `--charset` accepts only `UTF-8` (case-insensitive); other charsets are rejected with `E_CHARSET_UNSUPPORTED`.
 
 ## Asciicast-Style Example
