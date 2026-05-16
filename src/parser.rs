@@ -1146,6 +1146,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
     let mut detected_kind: Option<DiagramKind> = None;
     let mut in_block = false;
+    let mut block_kind: Option<BlockKind> = None;
     let mut block_start_span: Option<Span> = None;
     let mut i = 0usize;
     while i < lines.len() {
@@ -1156,26 +1157,39 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
-        if matches_startuml_marker(line) {
+        if let Some(start_kind) = parse_start_block_kind(line) {
             if in_block {
                 return Err(Diagnostic::error(
-                    "unmatched @startuml/@enduml boundary: found @startuml before closing previous block",
+                    "unmatched @startuml/@enduml boundary: found new @start marker before closing previous block",
                 )
                 .with_span(span));
             }
             in_block = true;
+            block_kind = Some(start_kind);
             block_start_span = Some(span);
+            if let Some(candidate) = start_block_family(start_kind) {
+                detected_kind = Some(select_diagram_kind(detected_kind, candidate, span)?);
+            }
             i += 1;
             continue;
         }
-        if matches_enduml_marker(line) {
+        if let Some(end_kind) = parse_end_block_kind(line) {
             if !in_block {
                 return Err(Diagnostic::error(
-                    "unmatched @startuml/@enduml boundary: found @enduml without a preceding @startuml",
+                    "unmatched @startuml/@enduml boundary: found @end marker without a preceding @startuml",
                 )
                 .with_span(span));
             }
+            if block_kind != Some(end_kind) {
+                return Err(Diagnostic::error(format!(
+                    "[E_BLOCK_MISMATCH] closing marker `@end{}` does not match opening `@start{}`",
+                    block_kind_name(end_kind),
+                    block_kind_name(block_kind.unwrap_or(BlockKind::Uml))
+                ))
+                .with_span(span));
+            }
             in_block = false;
+            block_kind = None;
             block_start_span = None;
             i += 1;
             continue;
@@ -1314,7 +1328,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
     if in_block {
         return Err(Diagnostic::error(
-            "unmatched @startuml/@enduml boundary: @startuml is missing a closing @enduml",
+            "unmatched @startuml/@enduml boundary: opening @start marker is missing a closing @enduml",
         )
         .with_span(block_start_span.unwrap_or(Span::new(0, 0))));
     }
@@ -1339,22 +1353,61 @@ fn strip_inline_plantuml_comment(line: &str) -> &str {
     line
 }
 
-fn matches_startuml_marker(line: &str) -> bool {
-    matches_prefixed_uml_marker(line, "@startuml")
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BlockKind {
+    Uml,
+    MindMap,
+    Wbs,
 }
 
-fn matches_enduml_marker(line: &str) -> bool {
-    matches_prefixed_uml_marker(line, "@enduml")
+fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
+    parse_block_marker_kind(line, true)
 }
 
-fn matches_prefixed_uml_marker(line: &str, marker: &str) -> bool {
+fn parse_end_block_kind(line: &str) -> Option<BlockKind> {
+    parse_block_marker_kind(line, false)
+}
+
+fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     let lower = line.to_ascii_lowercase();
-    let marker_len = marker.len();
-    if !lower.starts_with(marker) {
-        return false;
+    let markers = if start {
+        [
+            ("@startuml", BlockKind::Uml),
+            ("@startmindmap", BlockKind::MindMap),
+            ("@startwbs", BlockKind::Wbs),
+        ]
+    } else {
+        [
+            ("@enduml", BlockKind::Uml),
+            ("@endmindmap", BlockKind::MindMap),
+            ("@endwbs", BlockKind::Wbs),
+        ]
+    };
+    for (marker, kind) in markers {
+        if lower.starts_with(marker) {
+            let rest = &line[marker.len()..];
+            if rest.is_empty() || rest.starts_with(char::is_whitespace) {
+                return Some(kind);
+            }
+        }
     }
-    let rest = &line[marker_len..];
-    rest.is_empty() || rest.starts_with(char::is_whitespace)
+    None
+}
+
+fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
+    match kind {
+        BlockKind::Uml => None,
+        BlockKind::MindMap => Some(DiagramKind::MindMap),
+        BlockKind::Wbs => Some(DiagramKind::Wbs),
+    }
+}
+
+fn block_kind_name(kind: BlockKind) -> &'static str {
+    match kind {
+        BlockKind::Uml => "uml",
+        BlockKind::MindMap => "mindmap",
+        BlockKind::Wbs => "wbs",
+    }
 }
 
 fn select_diagram_kind(
@@ -1385,6 +1438,9 @@ fn looks_like_unsupported_family_syntax(line: &str) -> bool {
         || lower.starts_with("component ")
         || lower.starts_with("activity ")
         || lower.starts_with("deployment ")
+        || lower.starts_with('*')
+        || lower.starts_with("mindmap")
+        || lower.starts_with("wbs")
         || lower.starts_with("node ")
         || lower.starts_with("clock ")
         || lower.starts_with("binary ")
@@ -1398,6 +1454,8 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::MindMap => "mindmap",
+        DiagramKind::Wbs => "wbs",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -1585,6 +1643,18 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
 
     if line.starts_with("state ") || line == "[*]" || line == "[H]" || line == "[H*]" {
         return Some(DiagramKind::State);
+    }
+
+    if line.starts_with('*')
+        || line.starts_with('+')
+        || line.starts_with('-')
+        || line.starts_with('#')
+    {
+        return Some(DiagramKind::MindMap);
+    }
+
+    if line.starts_with("wbs ") {
+        return Some(DiagramKind::Wbs);
     }
 
     if line.starts_with("start")
@@ -3146,6 +3216,27 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(labels, vec!["one", "two"]);
+    }
+
+    #[test]
+    fn startmindmap_and_startwbs_markers_set_family_kind() {
+        let mindmap = parse_with_options(
+            "@startmindmap\n* Root\n** Child\n@endmindmap\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(mindmap.kind, DiagramKind::MindMap);
+
+        let wbs =
+            parse_with_options("@startwbs\n* Scope\n@endwbs\n", &ParseOptions::default()).unwrap();
+        assert_eq!(wbs.kind, DiagramKind::Wbs);
+    }
+
+    #[test]
+    fn mismatched_start_end_family_markers_report_deterministic_error() {
+        let err = parse_with_options("@startmindmap\n* Root\n@endwbs\n", &ParseOptions::default())
+            .unwrap_err();
+        assert!(err.message.contains("E_BLOCK_MISMATCH"));
     }
 
     #[test]

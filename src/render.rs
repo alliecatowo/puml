@@ -358,6 +358,8 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::State => "state",
         DiagramKind::Activity => "activity",
         DiagramKind::Timing => "timing",
+        DiagramKind::MindMap => "mindmap",
+        DiagramKind::Wbs => "wbs",
         DiagramKind::Sequence => "sequence",
         DiagramKind::Unknown => "unknown",
     }
