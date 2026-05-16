@@ -75,8 +75,10 @@ enum PreprocessDirective {
     Procedure,
     EndProcedure,
     Assert(String),
-    Log,
-    DumpMemory,
+    Log(String),
+    DumpMemory(String),
+    DynamicInvocation(String),
+    JsonPreproc(String),
     Unsupported(String),
 }
 
@@ -238,14 +240,45 @@ fn preprocess_text(
                     continue;
                 }
                 PreprocessDirective::Assert(body) => {
-                    if active && !evaluate_assert_expression(&body) {
+                    if active && !evaluate_assert_expression(&body, defines)? {
                         return Err(Diagnostic::error_code(
                             "E_PREPROC_ASSERT",
                             format!("!assert failed: {body}"),
                         ));
                     }
                 }
-                PreprocessDirective::Log | PreprocessDirective::DumpMemory => {}
+                PreprocessDirective::Log(payload) => {
+                    if active {
+                        ensure_no_unsupported_builtin_payload(&payload)?;
+                    }
+                }
+                PreprocessDirective::DumpMemory(payload) => {
+                    if active {
+                        ensure_no_unsupported_builtin_payload(&payload)?;
+                    }
+                }
+                PreprocessDirective::DynamicInvocation(raw) => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_DYNAMIC_UNSUPPORTED",
+                            format!(
+                                "dynamic preprocessor invocation is not supported in this deterministic subset: `{}`",
+                                raw
+                            ),
+                        ));
+                    }
+                }
+                PreprocessDirective::JsonPreproc(raw) => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_JSON_UNSUPPORTED",
+                            format!(
+                                "JSON preprocessing is not supported in this deterministic subset: `{}`",
+                                raw
+                            ),
+                        ));
+                    }
+                }
                 PreprocessDirective::EndFunction | PreprocessDirective::EndProcedure => {
                     if active {
                         return Err(Diagnostic::error_code(
@@ -466,6 +499,13 @@ fn process_include_directive(
 
 fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
     let trimmed = line.trim();
+    if trimmed
+        .to_ascii_lowercase()
+        .starts_with("%invoke_procedure(")
+        || trimmed.to_ascii_lowercase().starts_with("%call_user_func(")
+    {
+        return Some(PreprocessDirective::DynamicInvocation(trimmed.to_string()));
+    }
     if !trimmed.starts_with('!') {
         return None;
     }
@@ -501,8 +541,9 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "procedure" => Some(PreprocessDirective::Procedure),
         "endprocedure" => Some(PreprocessDirective::EndProcedure),
         "assert" => Some(PreprocessDirective::Assert(arg.to_string())),
-        "log" => Some(PreprocessDirective::Log),
-        "dump_memory" => Some(PreprocessDirective::DumpMemory),
+        "log" => Some(PreprocessDirective::Log(arg.to_string())),
+        "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
+        _ if name.starts_with('$') => Some(PreprocessDirective::JsonPreproc(trimmed.to_string())),
         "return" | "foreach" | "endfor" | "import" | "startsub" | "endsub" => {
             Some(PreprocessDirective::Unsupported(name.to_string()))
         }
@@ -657,19 +698,58 @@ fn consume_preprocessor_block(
     ))
 }
 
-fn evaluate_assert_expression(body: &str) -> bool {
+fn evaluate_assert_expression(
+    body: &str,
+    defines: &BTreeMap<String, String>,
+) -> Result<bool, Diagnostic> {
     let expression = body.split_once(':').map_or(body, |(expr, _)| expr).trim();
     if expression.is_empty() {
-        return false;
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_ASSERT_EXPR_REQUIRED",
+            "!assert requires a non-empty expression before optional `:` message",
+        ));
     }
-    if let Ok(num) = expression.parse::<i64>() {
-        return num != 0;
+    if contains_builtin_invocation(expression) {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_BUILTIN_UNSUPPORTED",
+            "preprocessor builtin functions (`%...`) are not supported in this deterministic subset",
+        ));
     }
-    match expression.to_ascii_lowercase().as_str() {
-        "true" | "yes" | "on" => true,
-        "false" | "no" | "off" | "null" | "none" => false,
-        _ => true,
+    evaluate_preprocess_expr(expression, defines)
+}
+
+fn ensure_no_unsupported_builtin_payload(payload: &str) -> Result<(), Diagnostic> {
+    if contains_builtin_invocation(payload) {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_BUILTIN_UNSUPPORTED",
+            "preprocessor builtin functions (`%...`) are not supported in this deterministic subset",
+        ));
     }
+    Ok(())
+}
+
+fn contains_builtin_invocation(raw: &str) -> bool {
+    let bytes = raw.as_bytes();
+    for i in 0..bytes.len() {
+        if bytes[i] != b'%' {
+            continue;
+        }
+        let mut j = i + 1;
+        let mut saw_ident = false;
+        while j < bytes.len() {
+            let ch = bytes[j] as char;
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                saw_ident = true;
+                j += 1;
+                continue;
+            }
+            break;
+        }
+        if saw_ident && j < bytes.len() && bytes[j] == b'(' {
+            return true;
+        }
+    }
+    false
 }
 
 fn resolve_include_path(
@@ -2232,6 +2312,45 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_PREPROC_ASSERT"));
+    }
+
+    #[test]
+    fn preprocessor_assert_requires_non_empty_expression() {
+        let err = parse_with_options(
+            "@startuml\n!assert\nA -> B: hi\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_PREPROC_ASSERT_EXPR_REQUIRED"));
+    }
+
+    #[test]
+    fn preprocessor_builtin_dynamic_and_json_edges_are_deterministic() {
+        for (src, code) in [
+            (
+                "@startuml\n!assert %true() : no\nA -> B: hi\n@enduml\n",
+                "E_PREPROC_BUILTIN_UNSUPPORTED",
+            ),
+            (
+                "@startuml\n!log %boolval(\"x\")\nA -> B: hi\n@enduml\n",
+                "E_PREPROC_BUILTIN_UNSUPPORTED",
+            ),
+            (
+                "@startuml\n%invoke_procedure(\"$go\")\nA -> B: hi\n@enduml\n",
+                "E_PREPROC_DYNAMIC_UNSUPPORTED",
+            ),
+            (
+                "@startuml\n!$foo = { \"k\": 1 }\nA -> B: hi\n@enduml\n",
+                "E_PREPROC_JSON_UNSUPPORTED",
+            ),
+        ] {
+            let err = parse_with_options(src, &ParseOptions::default()).unwrap_err();
+            assert!(
+                err.message.contains(code),
+                "missing {code}: {}",
+                err.message
+            );
+        }
     }
 
     #[test]

@@ -457,6 +457,11 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_expr_unsupported_parens.puml",
         "errors/invalid_preproc_unexpected_endfunction.puml",
         "errors/invalid_preproc_while_iteration_limit.puml",
+        "errors/invalid_preproc_assert_missing_expr.puml",
+        "errors/invalid_preproc_builtin_in_assert.puml",
+        "errors/invalid_preproc_builtin_in_log.puml",
+        "errors/invalid_preproc_dynamic_invoke.puml",
+        "errors/invalid_preproc_json_assignment.puml",
         "errors/invalid_include_absolute_path.puml",
         "errors/invalid_include_empty_path.puml",
     ] {
@@ -1775,6 +1780,16 @@ fn preprocessor_function_procedure_assert_log_and_dump_are_minimally_compatible(
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("preprocessor/valid_log_and_dump_with_payload.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]
@@ -1866,6 +1881,26 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
         (
             "errors/invalid_preproc_while_iteration_limit.puml",
             "E_PREPROC_WHILE_LIMIT",
+        ),
+        (
+            "errors/invalid_preproc_assert_missing_expr.puml",
+            "E_PREPROC_ASSERT_EXPR_REQUIRED",
+        ),
+        (
+            "errors/invalid_preproc_builtin_in_assert.puml",
+            "E_PREPROC_BUILTIN_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_preproc_builtin_in_log.puml",
+            "E_PREPROC_BUILTIN_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_preproc_dynamic_invoke.puml",
+            "E_PREPROC_DYNAMIC_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_preproc_json_assignment.puml",
+            "E_PREPROC_JSON_UNSUPPORTED",
         ),
     ];
 
