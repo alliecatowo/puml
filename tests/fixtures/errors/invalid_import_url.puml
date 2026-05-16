@@ -1,0 +1,4 @@
+@startuml
+!import https://example.com/lib.puml
+Alice -> Bob: unreachable
+@enduml

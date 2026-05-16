@@ -64,6 +64,7 @@ enum PreprocessDirective {
     IncludeMany(String),
     IncludeSub(String),
     IncludeUrl(String),
+    Import(String),
     If(String),
     IfDef { name: String, negated: bool },
     ElseIf(String),
@@ -377,6 +378,19 @@ fn preprocess_text(
                         ));
                     }
                 }
+                PreprocessDirective::Import(raw_target) => {
+                    if active {
+                        process_import_directive(
+                            &raw_target,
+                            options,
+                            defines,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            out,
+                        )?;
+                    }
+                }
                 PreprocessDirective::Unsupported(name) => {
                     if active {
                         return Err(Diagnostic::error_code(
@@ -506,6 +520,77 @@ fn process_include_directive(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn process_import_directive(
+    raw_target: &str,
+    options: &ParseOptions,
+    defines: &mut BTreeMap<String, String>,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    if raw_target.trim().is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_PATH_REQUIRED",
+            "!import requires a stdlib module path",
+        ));
+    }
+    if is_url_include_target(raw_target) {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_URL_UNSUPPORTED",
+            format!("!import URL targets are not supported: {raw_target}"),
+        ));
+    }
+
+    let target = parse_import_target(raw_target)?;
+    if target.is_absolute() {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_ABSOLUTE_PATH",
+            format!(
+                "!import only supports relative stdlib paths: {}",
+                target.display()
+            ),
+        ));
+    }
+
+    let stdlib_root = resolve_stdlib_root(options, include_stack)?;
+    let resolved = resolve_import_path(&stdlib_root, &target)?;
+    if !include_once_seen.insert(resolved.clone()) {
+        return Ok(());
+    }
+    if include_stack.iter().any(|p| p == &resolved) {
+        let mut cycle = include_stack
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>();
+        cycle.push(resolved.display().to_string());
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_CYCLE",
+            format!("import cycle detected: {}", cycle.join(" -> ")),
+        ));
+    }
+
+    let content = fs::read_to_string(&resolved).map_err(|e| {
+        Diagnostic::error_code(
+            "E_IMPORT_READ",
+            format!("failed to read import '{}': {e}", resolved.display()),
+        )
+    })?;
+    include_stack.push(resolved);
+    preprocess_text(
+        &content,
+        options,
+        defines,
+        include_stack,
+        include_once_seen,
+        depth + 1,
+        out,
+    )?;
+    include_stack.pop();
+    Ok(())
+}
+
 fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
     let trimmed = line.trim();
     if trimmed
@@ -532,6 +617,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "include_many" => Some(PreprocessDirective::IncludeMany(arg.to_string())),
         "includesub" => Some(PreprocessDirective::IncludeSub(arg.to_string())),
         "includeurl" => Some(PreprocessDirective::IncludeUrl(arg.to_string())),
+        "import" => Some(PreprocessDirective::Import(arg.to_string())),
         "if" => Some(PreprocessDirective::If(arg.to_string())),
         "ifdef" => Some(PreprocessDirective::IfDef {
             name: arg.to_string(),
@@ -554,7 +640,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
         _ if name.starts_with('$') => Some(PreprocessDirective::JsonPreproc(trimmed.to_string())),
-        "return" | "foreach" | "endfor" | "import" | "startsub" | "endsub" => {
+        "return" | "foreach" | "endfor" | "startsub" | "endsub" => {
             Some(PreprocessDirective::Unsupported(name.to_string()))
         }
         "theme" | "pragma" => None,
@@ -842,6 +928,34 @@ fn parse_include_target(raw_target: &str) -> IncludeTarget {
     }
 }
 
+fn parse_import_target(raw_target: &str) -> Result<PathBuf, Diagnostic> {
+    let trimmed = raw_target.trim();
+    let unwrapped = trimmed
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| trimmed.strip_prefix('<').and_then(|s| s.strip_suffix('>')))
+        .unwrap_or(trimmed)
+        .trim();
+    if unwrapped.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_PATH_REQUIRED",
+            "!import requires a stdlib module path",
+        ));
+    }
+    if unwrapped.contains('!') {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_INVALID_FORM",
+            format!("!import does not support tag selection (`path!TAG`): {raw_target}"),
+        ));
+    }
+
+    let mut path = PathBuf::from(unwrapped);
+    if path.extension().is_none() {
+        path.set_extension("puml");
+    }
+    Ok(path)
+}
+
 fn is_url_include_target(raw_target: &str) -> bool {
     let trimmed = raw_target
         .trim()
@@ -851,6 +965,74 @@ fn is_url_include_target(raw_target: &str) -> bool {
         .trim();
     let lower = trimmed.to_ascii_lowercase();
     lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+fn resolve_stdlib_root(
+    options: &ParseOptions,
+    include_stack: &[PathBuf],
+) -> Result<PathBuf, Diagnostic> {
+    let candidate = options
+        .include_root
+        .clone()
+        .map(|r| r.join("stdlib"))
+        .or_else(|| {
+            include_stack
+                .first()
+                .and_then(|p| p.parent().map(|dir| dir.join("stdlib")))
+        });
+
+    let Some(root) = candidate else {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_ROOT_REQUIRED",
+            "!import requires a stdlib root; pass --include-root or use file input with a sibling `stdlib/` directory",
+        ));
+    };
+
+    let root_canon = root.canonicalize().map_err(|e| {
+        Diagnostic::error_code(
+            "E_IMPORT_STDLIB_ROOT_INVALID",
+            format!("failed to access stdlib root '{}': {e}", root.display()),
+        )
+    })?;
+
+    if !root_canon.is_dir() {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_STDLIB_ROOT_INVALID",
+            format!("stdlib root is not a directory: '{}'", root_canon.display()),
+        ));
+    }
+    Ok(root_canon)
+}
+
+fn resolve_import_path(stdlib_root: &Path, import_path: &Path) -> Result<PathBuf, Diagnostic> {
+    let resolved = normalize_path(stdlib_root.join(import_path));
+    if !resolved.starts_with(stdlib_root) {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_ESCAPE",
+            format!(
+                "import path escapes stdlib root: '{}' resolves outside '{}'",
+                import_path.display(),
+                stdlib_root.display()
+            ),
+        ));
+    }
+    let resolved_canon = resolved.canonicalize().map_err(|e| {
+        Diagnostic::error_code(
+            "E_IMPORT_STDLIB_NOT_FOUND",
+            format!("stdlib import not found '{}': {e}", import_path.display()),
+        )
+    })?;
+    if !resolved_canon.starts_with(stdlib_root) {
+        return Err(Diagnostic::error_code(
+            "E_IMPORT_ESCAPE",
+            format!(
+                "import path escapes stdlib root: '{}' resolves outside '{}'",
+                import_path.display(),
+                stdlib_root.display()
+            ),
+        ));
+    }
+    Ok(resolved_canon)
 }
 
 fn extract_include_tag(content: &str, tag: &str) -> Option<String> {
@@ -2337,6 +2519,69 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn import_resolves_stdlib_module_from_include_root() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(stdlib.join("nested")).unwrap();
+        fs::write(stdlib.join("core.puml"), "A -> B : core\n").unwrap();
+        fs::write(
+            stdlib.join("nested").join("extra.puml"),
+            "B -> A : nested\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!import core\n!import nested/extra\n!import core\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 2);
+    }
+
+    #[test]
+    fn import_requires_stdlib_root_when_no_include_root_is_available() {
+        let err = parse_with_options("!import core\n", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_IMPORT_ROOT_REQUIRED"));
+    }
+
+    #[test]
+    fn import_security_and_shape_errors_are_deterministic() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(&stdlib).unwrap();
+        fs::write(stdlib.join("ok.puml"), "A -> B\n").unwrap();
+
+        let cases = [
+            ("!import\n", "E_IMPORT_PATH_REQUIRED"),
+            (
+                "!import https://example.com/lib.puml\n",
+                "E_IMPORT_URL_UNSUPPORTED",
+            ),
+            ("!import /tmp/abs.puml\n", "E_IMPORT_ABSOLUTE_PATH"),
+            ("!import bad!TAG\n", "E_IMPORT_INVALID_FORM"),
+            ("!import ../outside\n", "E_IMPORT_ESCAPE"),
+            ("!import does/not/exist\n", "E_IMPORT_STDLIB_NOT_FOUND"),
+        ];
+
+        for (src, code) in cases {
+            let err = parse_with_options(
+                src,
+                &ParseOptions {
+                    include_root: Some(dir.path().to_path_buf()),
+                },
+            )
+            .unwrap_err();
+            assert!(
+                err.message.contains(code),
+                "missing {code}: {}",
+                err.message
+            );
+        }
     }
 
     #[test]

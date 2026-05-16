@@ -1,0 +1,4 @@
+@startuml
+!import module!FLOW
+Alice -> Bob: unreachable
+@enduml

@@ -1,0 +1,4 @@
+@startuml
+!import ../outside
+Alice -> Bob: unreachable
+@enduml

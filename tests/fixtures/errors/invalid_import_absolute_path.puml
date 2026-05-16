@@ -1,0 +1,4 @@
+@startuml
+!import /tmp/not_allowed.puml
+Alice -> Bob: unreachable
+@enduml
