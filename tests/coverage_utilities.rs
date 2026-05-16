@@ -119,10 +119,10 @@ fn render_for_class_family_returns_stub_svg() {
 
 #[test]
 fn render_for_salt_family_returns_stub_svg() {
-    let src = "@startsalt\nsalt: login form\n@endsalt\n";
+    let src = "@startsalt\nwidget submit_button\n@endsalt\n";
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Salt).unwrap();
-    assert!(svg.contains("Bootstrap stub for salt diagrams"));
-    assert!(svg.contains("widget"));
+    assert!(svg.starts_with("<svg"));
+    assert!(svg.contains("submit_button"));
 }
 
 #[test]
