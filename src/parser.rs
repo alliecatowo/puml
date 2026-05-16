@@ -3705,6 +3705,45 @@ mod tests {
     }
 
     #[test]
+    fn import_and_include_catalog_support_azure_and_gcp_shape_stub_surface() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+
+        fs::create_dir_all(stdlib.join("azure")).unwrap();
+        fs::write(
+            stdlib.join("azure").join("AzureCommon.puml"),
+            "!procedure AzureIcon($alias,$service,$label=\"\")\n$alias -> $alias : [AZURE $service] $label\n!endprocedure\n",
+        )
+        .unwrap();
+        fs::write(
+            stdlib.join("azure").join("StorageAccount.puml"),
+            "!include <azure/AzureCommon>\n!procedure AzureStorageAccount($alias,$label=\"\")\nAzureIcon($alias,StorageAccount,$label)\n!endprocedure\n",
+        )
+        .unwrap();
+
+        fs::create_dir_all(stdlib.join("gcp")).unwrap();
+        fs::write(
+            stdlib.join("gcp").join("GCPCommon.puml"),
+            "!procedure GCPIcon($alias,$service,$label=\"\")\n$alias -> $alias : [GCP $service] $label\n!endprocedure\n",
+        )
+        .unwrap();
+        fs::write(
+            stdlib.join("gcp").join("ComputeEngine.puml"),
+            "!include <gcp/GCPCommon>\n!procedure GCPComputeEngine($alias,$label=\"\")\nGCPIcon($alias,ComputeEngine,$label)\n!endprocedure\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!import azure/AzureCommon\n!include <azure/StorageAccount>\nAzureStorageAccount(AzStore, \"assets\")\n!import gcp/GCPCommon\n!include <gcp/ComputeEngine>\nGCPComputeEngine(GceNode, \"ingress\")\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 2);
+    }
+
+    #[test]
     fn import_requires_stdlib_root_when_no_include_root_is_available() {
         let err = parse_with_options("!import core\n", &ParseOptions::default()).unwrap_err();
         assert!(err.message.contains("E_IMPORT_ROOT_REQUIRED"));
