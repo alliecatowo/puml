@@ -1023,6 +1023,16 @@ fn theme_classifies_sequence_skinparam_subset() {
         ))
     );
     assert_eq!(
+        classify_sequence_skinparam("ArrowColor", "PeachPuff"),
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(
+            "peachpuff".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_sequence_skinparam("ArrowColor", "NotARealCssColor"),
+        SequenceSkinParamSupport::UnsupportedValue
+    );
+    assert_eq!(
         classify_sequence_skinparam("ArrowColor", "\"/><script"),
         SequenceSkinParamSupport::UnsupportedValue
     );
