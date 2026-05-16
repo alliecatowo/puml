@@ -3,9 +3,10 @@ mod cli;
 use clap::Parser;
 use cli::{
     Cli, CompatMode as CliCompatMode, DeterminismMode as CliDeterminismMode, DiagnosticsFormat,
-    Dialect as CliDialect, DumpKind, LintReportFormat,
+    Dialect as CliDialect, DumpKind, LintReportFormat, OutputFormat,
 };
 use glob::glob;
+use image::ImageEncoder;
 use puml::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl,
     ParticipantRole as AstParticipantRole, Statement, StatementKind,
@@ -26,7 +27,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -80,6 +81,12 @@ struct InputDiagram {
 struct RenderedOutput {
     name_hint: Option<String>,
     svg: String,
+}
+
+#[derive(Debug, Clone)]
+struct RenderedBinaryOutput {
+    name_hint: Option<String>,
+    bytes: Vec<u8>,
 }
 
 #[derive(Debug, Serialize)]
@@ -337,9 +344,9 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         for (page_idx, svg) in pages.into_iter().enumerate() {
             let name_hint = source.output_name_hint.as_ref().map(|base| {
                 if page_count == 1 {
-                    format!("{base}.svg")
+                    format!("{base}.{}", output_extension(cli.format))
                 } else {
-                    format!("{base}-{}.svg", page_idx + 1)
+                    format!("{base}-{}.{}", page_idx + 1, output_extension(cli.format))
                 }
             });
             all.push(RenderedOutput { name_hint, svg });
@@ -355,6 +362,13 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     if input_path.is_none() && outputs.len() > 1 {
+        if cli.format == OutputFormat::Png {
+            return Err((
+                EXIT_VALIDATION,
+                "multiple PNG outputs on stdin are not supported; provide file input or --output"
+                    .to_string(),
+            ));
+        }
         let payload = outputs
             .iter()
             .enumerate()
@@ -377,31 +391,45 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         return Ok(());
     }
 
+    let binary_outputs = outputs
+        .iter()
+        .map(|out| render_output_bytes(out, cli.format, cli.dpi))
+        .collect::<Result<Vec<_>, _>>()?;
+
     if let Some(path) = cli.output {
-        let svgs = outputs
+        let payloads = binary_outputs
             .iter()
-            .map(|out| out.svg.clone())
+            .map(|out| out.bytes.clone())
             .collect::<Vec<_>>();
-        write_output_files(&path, &svgs)?;
+        write_output_files(&path, &payloads)?;
         return Ok(());
     }
 
     if let Some(input) = input_path {
         if from_markdown {
-            write_markdown_output_files(input, &outputs)?;
+            write_markdown_output_files(input, &binary_outputs)?;
         } else {
-            let default_base = default_output_base(input)?;
-            let svgs = outputs
+            let default_base = default_output_base(input, cli.format)?;
+            let payloads = binary_outputs
                 .iter()
-                .map(|out| out.svg.clone())
+                .map(|out| out.bytes.clone())
                 .collect::<Vec<_>>();
-            write_output_files(&default_base, &svgs)?;
+            write_output_files(&default_base, &payloads)?;
         }
         return Ok(());
     }
 
     if outputs.len() == 1 {
-        println!("{}", outputs[0].svg);
+        match cli.format {
+            OutputFormat::Svg => {
+                println!("{}", outputs[0].svg);
+            }
+            OutputFormat::Png => {
+                io::stdout()
+                    .write_all(&binary_outputs[0].bytes)
+                    .map_err(|e| (EXIT_IO, format!("failed to write PNG to stdout: {e}")))?;
+            }
+        }
         return Ok(());
     }
 
@@ -1023,7 +1051,7 @@ fn diagnostics_json_payload_precomputed(diags: Vec<DiagnosticJson>) -> String {
     })
 }
 
-fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {
+fn default_output_base(input: &Path, format: OutputFormat) -> Result<PathBuf, (u8, String)> {
     let stem = input.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
         (
             EXIT_IO,
@@ -1033,12 +1061,12 @@ fn default_output_base(input: &Path) -> Result<PathBuf, (u8, String)> {
             ),
         )
     })?;
-    Ok(input.with_file_name(format!("{stem}.svg")))
+    Ok(input.with_file_name(format!("{stem}.{}", output_extension(format))))
 }
 
 fn write_markdown_output_files(
     input: &Path,
-    outputs: &[RenderedOutput],
+    outputs: &[RenderedBinaryOutput],
 ) -> Result<(), (u8, String)> {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let mut files = Vec::with_capacity(outputs.len());
@@ -1050,14 +1078,14 @@ fn write_markdown_output_files(
             )
         })?;
         let path = parent.join(name);
-        files.push((path, out.svg.clone()));
+        files.push((path, out.bytes.clone()));
     }
     write_files_transactionally(files)
 }
 
-fn write_output_files(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> {
-    if svgs.len() == 1 {
-        return write_files_transactionally(vec![(base.to_path_buf(), svgs[0].clone())]);
+fn write_output_files(base: &Path, payloads: &[Vec<u8>]) -> Result<(), (u8, String)> {
+    if payloads.len() == 1 {
+        return write_files_transactionally(vec![(base.to_path_buf(), payloads[0].clone())]);
     }
 
     let stem = base.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
@@ -1075,11 +1103,11 @@ fn write_output_files(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> 
         .filter(|s| !s.is_empty())
         .unwrap_or("svg");
     let parent = base.parent().unwrap_or_else(|| Path::new("."));
-    let mut files = Vec::with_capacity(svgs.len());
+    let mut files = Vec::with_capacity(payloads.len());
 
-    for (idx, svg) in svgs.iter().enumerate() {
+    for (idx, payload) in payloads.iter().enumerate() {
         let path = parent.join(format!("{stem}-{}.{}", idx + 1, ext));
-        files.push((path, svg.clone()));
+        files.push((path, payload.clone()));
     }
 
     write_files_transactionally(files)
@@ -1093,7 +1121,7 @@ struct StagedWrite {
     published: bool,
 }
 
-fn write_files_transactionally(files: Vec<(PathBuf, String)>) -> Result<(), (u8, String)> {
+fn write_files_transactionally(files: Vec<(PathBuf, Vec<u8>)>) -> Result<(), (u8, String)> {
     if files.is_empty() {
         return Ok(());
     }
@@ -1212,6 +1240,64 @@ fn transactional_write_fail_after() -> Option<usize> {
     std::env::var("PUML_FAIL_OUTPUT_AFTER")
         .ok()
         .and_then(|raw| raw.parse::<usize>().ok())
+}
+
+fn output_extension(format: OutputFormat) -> &'static str {
+    match format {
+        OutputFormat::Svg => "svg",
+        OutputFormat::Png => "png",
+    }
+}
+
+fn render_output_bytes(
+    output: &RenderedOutput,
+    format: OutputFormat,
+    dpi: f32,
+) -> Result<RenderedBinaryOutput, (u8, String)> {
+    let bytes = match format {
+        OutputFormat::Svg => output.svg.as_bytes().to_vec(),
+        OutputFormat::Png => svg_to_png_bytes(&output.svg, dpi)?,
+    };
+    Ok(RenderedBinaryOutput {
+        name_hint: output.name_hint.clone(),
+        bytes,
+    })
+}
+
+fn svg_to_png_bytes(svg: &str, dpi: f32) -> Result<Vec<u8>, (u8, String)> {
+    let opt = resvg::usvg::Options::default();
+    let tree = resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| {
+        (
+            EXIT_VALIDATION,
+            format!("failed to parse rendered SVG for PNG output: {e}"),
+        )
+    })?;
+
+    let size = tree.size();
+    let scale = dpi / 96.0;
+    let width = (size.width() * scale).round() as u32;
+    let height = (size.height() * scale).round() as u32;
+    if width == 0 || height == 0 {
+        return Err((
+            EXIT_INTERNAL,
+            "failed to rasterize PNG: computed zero-sized output".to_string(),
+        ));
+    }
+
+    let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or_else(|| {
+        (
+            EXIT_INTERNAL,
+            format!("failed to allocate PNG surface {width}x{height}"),
+        )
+    })?;
+    let transform = tiny_skia::Transform::from_scale(scale, scale);
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+
+    let mut png = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(pixmap.data(), width, height, image::ColorType::Rgba8.into())
+        .map_err(|e| (EXIT_IO, format!("failed to encode PNG: {e}")))?;
+    Ok(png)
 }
 
 fn ast_to_json(doc: &Document) -> Value {

@@ -23,6 +23,14 @@ pub struct Cli {
     #[arg(short = 'o', long = "output", value_name = "OUTPUT")]
     pub output: Option<PathBuf>,
 
+    /// Render output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Svg)]
+    pub format: OutputFormat,
+
+    /// PNG rasterization DPI (used only when `--format png`).
+    #[arg(long, default_value_t = 96.0, value_parser = parse_dpi)]
+    pub dpi: f32,
+
     /// Parse and normalize only; do not render or write outputs.
     #[arg(long, action = ArgAction::SetTrue, conflicts_with = "dump")]
     pub check: bool,
@@ -110,4 +118,21 @@ pub enum CompatMode {
 pub enum DeterminismMode {
     Strict,
     Full,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum OutputFormat {
+    Svg,
+    Png,
+}
+
+fn parse_dpi(raw: &str) -> Result<f32, String> {
+    let value = raw
+        .parse::<f32>()
+        .map_err(|e| format!("invalid DPI '{raw}': {e}"))?;
+    if (1.0..=1200.0).contains(&value) {
+        Ok(value)
+    } else {
+        Err("dpi must be in range [1, 1200]".to_string())
+    }
 }

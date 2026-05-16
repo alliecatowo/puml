@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use image::GenericImageView;
 use insta::{assert_json_snapshot, assert_snapshot};
 use predicates::prelude::*;
 use puml::render_source_to_svg;
@@ -29,6 +30,63 @@ fn single_file_defaults_to_svg_file_output() {
     let expected = fs::read_to_string(fixture("single_valid.svg")).unwrap();
     let actual = fs::read_to_string(output).unwrap();
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn png_output_writes_valid_png_with_default_dpi_dimensions_matching_svg_viewbox() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single_valid.puml");
+    let output = tmp.path().join("single_valid.png");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--format",
+            "png",
+            "--output",
+            output.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let bytes = fs::read(&output).unwrap();
+    assert!(
+        bytes.starts_with(&[0x89, b'P', b'N', b'G']),
+        "expected PNG signature"
+    );
+
+    let image = image::load_from_memory(&bytes).expect("png should decode");
+    assert_eq!(image.dimensions(), (328, 160));
+}
+
+#[test]
+fn png_output_scales_dimensions_by_dpi() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single_valid.puml");
+    let output = tmp.path().join("single_valid_2x.png");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--format",
+            "png",
+            "--dpi",
+            "192",
+            "--output",
+            output.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let bytes = fs::read(&output).unwrap();
+    let image = image::load_from_memory(&bytes).expect("png should decode");
+    assert_eq!(image.dimensions(), (656, 320));
 }
 
 #[test]
