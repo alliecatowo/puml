@@ -822,6 +822,20 @@ fn check_mode_accepts_phase1_supported_skinparam_keys_without_warnings() {
 }
 
 #[test]
+fn check_mode_accepts_css_named_colors_for_sequence_skinparams() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(
+            "@startuml\nskinparam ArrowColor coral\nskinparam SequenceLifeLineBorderColor lavender\nskinparam NoteBackgroundColor peachpuff\nA -> B: ok\nnote over A, B: color smoke\n@enduml\n",
+        )
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
 fn check_mode_skinparam_unsupported_key_and_value_are_both_reported_deterministically() {
     let output = Command::cargo_bin("puml")
         .expect("binary")
