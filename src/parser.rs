@@ -81,6 +81,8 @@ enum PreprocessDirective {
     EndIf,
     While(String),
     EndWhile,
+    Foreach(String),
+    EndFor,
     Function,
     EndFunction,
     Procedure,
@@ -270,6 +272,58 @@ fn preprocess_text(
                     return Err(Diagnostic::error_code(
                         "E_PREPROC_WHILE_UNEXPECTED",
                         "`!endwhile` without matching `!while`",
+                    ));
+                }
+                PreprocessDirective::Foreach(spec) => {
+                    let endfor = find_matching_endfor(&lines, i)?;
+                    if active {
+                        // Expected form: `$var in val1, val2, val3` or
+                        // `$var in $listvar` where $listvar is comma-separated.
+                        let parts: Vec<&str> = spec.splitn(2, " in ").collect();
+                        if parts.len() != 2 {
+                            return Err(Diagnostic::error_code(
+                                "E_PREPROC_FOREACH_FORM",
+                                "`!foreach` requires form `$var in val1, val2, ...`",
+                            ));
+                        }
+                        let var_name = parts[0].trim().trim_start_matches('$').to_string();
+                        let rhs = expand_preprocessor_text(parts[1].trim(), state, 0)?;
+                        let items: Vec<String> = rhs
+                            .split(',')
+                            .map(|s| s.trim().trim_matches('"').to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect();
+                        let block = lines[i + 1..endfor].join("\n");
+                        let prev = state.vars.get(&var_name).cloned();
+                        for item in items {
+                            state.vars.insert(var_name.clone(), item);
+                            preprocess_text(
+                                &block,
+                                options,
+                                state,
+                                include_stack,
+                                include_once_seen,
+                                depth,
+                                call_depth,
+                                out,
+                            )?;
+                        }
+                        match prev {
+                            Some(v) => {
+                                state.vars.insert(var_name, v);
+                            }
+                            None => {
+                                state.vars.remove(&var_name);
+                            }
+                        }
+                    }
+                    i = endfor + 1;
+                    continue;
+                }
+                PreprocessDirective::EndFor => {
+                    return Err(Diagnostic::error_code(
+                        "E_PREPROC_FOREACH_UNEXPECTED",
+                        "`!endfor` without matching `!foreach`",
                     ));
                 }
                 PreprocessDirective::Function => {
@@ -1087,6 +1141,8 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "else" => Some(PreprocessDirective::Else),
         "endif" => Some(PreprocessDirective::EndIf),
         "while" => Some(PreprocessDirective::While(arg.to_string())),
+        "foreach" => Some(PreprocessDirective::Foreach(arg.to_string())),
+        "endfor" => Some(PreprocessDirective::EndFor),
         "endwhile" => Some(PreprocessDirective::EndWhile),
         "function" => Some(PreprocessDirective::Function),
         "endfunction" => Some(PreprocessDirective::EndFunction),
@@ -1320,6 +1376,27 @@ fn find_matching_endwhile(lines: &[&str], while_idx: usize) -> Result<usize, Dia
     Err(Diagnostic::error_code(
         "E_PREPROC_WHILE_UNCLOSED",
         "missing `!endwhile` for `!while` block",
+    ))
+}
+
+fn find_matching_endfor(lines: &[&str], foreach_idx: usize) -> Result<usize, Diagnostic> {
+    let mut depth = 0usize;
+    for (idx, raw) in lines.iter().enumerate().skip(foreach_idx + 1) {
+        let line = raw.trim();
+        match parse_preprocess_directive(line) {
+            Some(PreprocessDirective::Foreach(_)) => depth += 1,
+            Some(PreprocessDirective::EndFor) => {
+                if depth == 0 {
+                    return Ok(idx);
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    Err(Diagnostic::error_code(
+        "E_PREPROC_FOREACH_UNCLOSED",
+        "missing `!endfor` for `!foreach` block",
     ))
 }
 
