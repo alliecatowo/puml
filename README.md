@@ -308,6 +308,7 @@ python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
 - Developer flow: [`docs/codex-workflow.md`](docs/codex-workflow.md)
 - Command cookbook: [`docs/autonomous-workflow-cookbook.md`](docs/autonomous-workflow-cookbook.md)
 - Benchmark workflow: [`docs/benchmarks/README.md`](docs/benchmarks/README.md)
+- PlantUML frontend conformance matrix: [`docs/plantuml_frontend_conformance_matrix.md`](docs/plantuml_frontend_conformance_matrix.md)
 - Contribution guide: [`docs/contributing.md`](docs/contributing.md)
 - Troubleshooting guide: [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - VS Code extension scaffold: [`extensions/vscode/README.md`](extensions/vscode/README.md)

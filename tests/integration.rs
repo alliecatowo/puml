@@ -1214,6 +1214,32 @@ fn multi_mode_splits_uppercase_start_enduml_blocks() {
 }
 
 #[test]
+fn multi_mode_splits_named_startuml_blocks_and_ignores_comment_markers() {
+    let input = fs::read_to_string(fixture("conformance/valid_named_blocks_and_comments.puml"))
+        .expect("fixture load");
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--multi", "--dump", "ast", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected multi-dump array output");
+    assert_eq!(arr.len(), 2);
+    let first_label = arr[0]["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .expect("first block message label");
+    assert_eq!(first_label, "\"don't split\"");
+}
+
+#[test]
 fn multi_mode_reports_unterminated_trailing_startuml_block() {
     let input = "@startuml\nAlice -> Bob: one\n@enduml\n@startuml\nBob -> Alice: two\n";
     Command::cargo_bin("puml")
@@ -1241,6 +1267,39 @@ fn multi_mode_reports_enduml_without_startuml() {
             "unmatched @startuml/@enduml boundary",
         ))
         .stderr(predicate::str::contains("without a preceding @startuml"));
+}
+
+#[test]
+fn check_mode_reports_enduml_without_startuml_even_with_suffix_text() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_unmatched_enduml_with_suffix.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "unmatched @startuml/@enduml boundary",
+        ))
+        .stderr(predicate::str::contains("without a preceding @startuml"));
+}
+
+#[test]
+fn check_mode_reports_nested_startuml_even_with_suffix_text() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_nested_startuml_with_suffix.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "unmatched @startuml/@enduml boundary",
+        ))
+        .stderr(predicate::str::contains("found @startuml"))
+        .stderr(predicate::str::contains("before closing previous block"));
 }
 
 #[test]

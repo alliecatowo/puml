@@ -1,0 +1,8 @@
+@startuml "Primary Block"
+' full-line comment with marker text @startuml should not open a block
+Alice -> Bob: "don't split" ' trailing comment should be ignored
+@enduml label
+
+@startuml Secondary_Block
+Bob -> Alice: two
+@enduml

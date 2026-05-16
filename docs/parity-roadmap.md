@@ -17,6 +17,7 @@ Product language policy baseline:
 ## Source Inputs
 
 - Current parity research: `docs/parity-research-chunk-g-sequence.md`
+- Frontend conformance contract matrix: `docs/plantuml_frontend_conformance_matrix.md`
 - Contract decisions: `docs/decision-log.md`
 - Coverage and test signals: `docs/coverage-status.md`, `tests/**`
 - Existing fixture constraints for this track: `tests/fixtures/errors/` and `tests/fixtures/basic/` (only when needed)

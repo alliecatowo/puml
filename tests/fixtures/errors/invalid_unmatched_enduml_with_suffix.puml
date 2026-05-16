@@ -1,0 +1,4 @@
+@enduml trailing
+@startuml
+A -> B : one
+@enduml
