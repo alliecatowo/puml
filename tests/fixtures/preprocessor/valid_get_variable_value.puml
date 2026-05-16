@@ -1,0 +1,4 @@
+@startuml
+!$env = production
+A -> B : %get_variable_value("env")
+@enduml

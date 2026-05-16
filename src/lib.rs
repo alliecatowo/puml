@@ -341,9 +341,9 @@ fn render_document_for_family(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during chart render",
             )),
         },
-        DiagramFamily::MindMap | DiagramFamily::Wbs | DiagramFamily::Unknown => {
-            Err(unsupported_render_family_diagnostic(family))
-        }
+        DiagramFamily::MindMap => render_family_with(document, render::render_mindmap_svg),
+        DiagramFamily::Wbs => render_family_with(document, render::render_wbs_svg),
+        DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
     }
 }
 

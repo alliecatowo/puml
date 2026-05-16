@@ -1,0 +1,11 @@
+@startmindmap
+* Root
+** Right child 1
+*** Grandchild A
+*** Grandchild B
+** Right child 2
+left side
+** Left child 1
+** Left child 2
+*** Grandchild C
+@endmindmap

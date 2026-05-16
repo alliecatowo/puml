@@ -400,6 +400,26 @@ pub struct FamilyGroup {
     pub member_ids: Vec<String>,
 }
 
+/// Side placement for MindMap nodes (left/right of root).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MindMapSide {
+    /// Determined by context / `left side` keyword (default = right)
+    #[default]
+    Right,
+    Left,
+}
+
+/// Checkbox / progress annotation for WBS nodes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WbsCheckbox {
+    /// `[x]` — checked
+    Checked,
+    /// `[ ]` — unchecked
+    Unchecked,
+    /// `[%NN]` — progress percentage (0–100)
+    Progress(u8),
+}
+
 #[derive(Debug, Clone)]
 pub struct FamilyNode {
     pub kind: FamilyNodeKind,
@@ -408,6 +428,10 @@ pub struct FamilyNode {
     pub members: Vec<ClassMember>,
     pub depth: usize,
     pub label: Option<String>,
+    /// MindMap side (only meaningful for MindMap kind)
+    pub mindmap_side: MindMapSide,
+    /// WBS checkbox annotation (only meaningful for Wbs kind)
+    pub wbs_checkbox: Option<WbsCheckbox>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

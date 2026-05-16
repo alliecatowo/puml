@@ -9,14 +9,14 @@ use crate::model::{
     ArchimateDocument, ArchimateElement, ArchimateRelation, ChartDocument, ChartPoint,
     ChartSubtype, DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup,
     FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation,
-    JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, NormalizedDocument,
-    NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument,
-    RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind,
-    SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage, StateDocument,
-    StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
+    JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, MindMapSide,
+    NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole,
+    RegexDocument, RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState,
+    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
+    StateDocument, StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineConstraint,
     TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind,
-    VirtualEndpointSide, YamlDocument, YamlTreeNode,
+    VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
@@ -1100,6 +1100,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     members: decl.members,
                     depth: 0,
                     label: None,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::ObjectDecl(decl) => {
@@ -1117,6 +1119,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     members: decl.members,
                     depth: 0,
                     label: None,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::UseCaseDecl(decl) => {
@@ -1134,6 +1138,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     members: decl.members,
                     depth: 0,
                     label: None,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
@@ -1166,6 +1172,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                             members: Vec::new(),
                             depth: 0,
                             label: None,
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
                         });
                     }
                 }
@@ -1205,6 +1213,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     members: Vec::new(),
                     depth: 0,
                     label: None,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::Unknown(line) => {
@@ -1481,6 +1491,8 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
     let mut orientation = FamilyOrientation::TopToBottom;
     let mut style = SequenceStyle::default();
     let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
+    // MindMap: track whether subsequent depth-1 nodes should go on the left side.
+    let mut mindmap_left_side_mode = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -1628,19 +1640,43 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
                     orientation = value;
                     continue;
                 }
-                if let Some((depth, name)) = parse_mindmap_or_wbs_node(&line) {
+                // MindMap `left side` / `right side` keyword switches which side
+                // subsequent depth-1 nodes appear on when no explicit +/- prefix.
+                if family_kind == DiagramKind::MindMap {
+                    let lower = line.trim().to_ascii_lowercase();
+                    if lower == "left side" {
+                        mindmap_left_side_mode = true;
+                        continue;
+                    } else if lower == "right side" {
+                        mindmap_left_side_mode = false;
+                        continue;
+                    }
+                }
+                if let Some(mut node_info) = parse_mindmap_or_wbs_node(&line) {
                     let kind = match family_kind {
                         DiagramKind::MindMap => FamilyNodeKind::MindMap,
                         DiagramKind::Wbs => FamilyNodeKind::Wbs,
                         _ => FamilyNodeKind::Salt,
                     };
+                    // Apply left-side mode: if depth >= 1 and no explicit +/-
+                    // prefix was given (we detect this by checking if the original
+                    // line had a prefix), use the current mode.
+                    if family_kind == DiagramKind::MindMap && node_info.depth >= 1 {
+                        let has_explicit = line.trim_start().starts_with('+')
+                            || line.trim_start().starts_with('-');
+                        if !has_explicit && mindmap_left_side_mode {
+                            node_info.side = MindMapSide::Left;
+                        }
+                    }
                     nodes.push(FamilyNode {
                         kind,
-                        name,
+                        name: node_info.name,
                         alias: None,
                         members: Vec::new(),
-                        depth,
+                        depth: node_info.depth,
                         label: None,
+                        mindmap_side: node_info.side,
+                        wbs_checkbox: node_info.checkbox,
                     });
                     continue;
                 }
@@ -1765,17 +1801,87 @@ fn parse_family_orientation_directive(line: &str) -> Option<FamilyOrientation> {
     None
 }
 
-fn parse_mindmap_or_wbs_node(line: &str) -> Option<(usize, String)> {
+struct MindMapWbsNode {
+    depth: usize,
+    name: String,
+    side: MindMapSide,
+    checkbox: Option<WbsCheckbox>,
+}
+
+/// Parse a MindMap / WBS node line. Handles:
+///
+/// - `* Root`, `** Child`, `*** Grandchild` — star-depth (depth = stars - 1)
+/// - `** Left child` after a `left side` keyword (tracked externally)
+/// - `+** Right`, `-** Left` — explicit side prefix on first depth-2+ star
+/// - WBS annotations: `[x]` checked, `[ ]` unchecked, `[%NN]` progress
+fn parse_mindmap_or_wbs_node(line: &str) -> Option<MindMapWbsNode> {
     let trimmed = line.trim_start();
-    let star_prefix = trimmed.bytes().take_while(|c| *c == b'*').count();
+
+    // Detect optional side prefix: `+` = right, `-` = left (only matters at
+    // depth >= 1 in MindMap, but we parse it universally and let the renderer
+    // decide what to do with it).
+    let (side_prefix, rest) = if let Some(s) = trimmed.strip_prefix('+') {
+        (Some(MindMapSide::Right), s)
+    } else if let Some(s) = trimmed.strip_prefix('-') {
+        (Some(MindMapSide::Left), s)
+    } else {
+        (None, trimmed)
+    };
+
+    let star_prefix = rest.bytes().take_while(|c| *c == b'*').count();
     if star_prefix == 0 {
         return None;
     }
-    let label = trimmed[star_prefix..].trim();
+
+    let mut label = rest[star_prefix..].trim().to_string();
     if label.is_empty() {
         return None;
     }
-    Some((star_prefix.saturating_sub(1), label.to_string()))
+
+    // Parse WBS checkbox suffix: `[x]`, `[ ]`, `[%NN]` at end of label.
+    let checkbox = parse_wbs_checkbox(&mut label);
+
+    // Side defaults to Right unless explicitly prefixed.
+    let side = side_prefix.unwrap_or(MindMapSide::Right);
+    let depth = star_prefix.saturating_sub(1);
+
+    Some(MindMapWbsNode {
+        depth,
+        name: label,
+        side,
+        checkbox,
+    })
+}
+
+/// Try to parse a WBS checkbox annotation from the end of a label, stripping it
+/// from the label string if found.
+fn parse_wbs_checkbox(label: &mut String) -> Option<WbsCheckbox> {
+    let trimmed = label.trim_end();
+    if let Some(inner) = trimmed.strip_suffix(']') {
+        if let Some(bracket_start) = inner.rfind('[') {
+            let content = &inner[bracket_start + 1..];
+            let checkbox = if content == "x" || content == "X" {
+                Some(WbsCheckbox::Checked)
+            } else if content == " " || content.is_empty() {
+                Some(WbsCheckbox::Unchecked)
+            } else if let Some(pct_str) = content.strip_prefix('%') {
+                pct_str
+                    .trim()
+                    .parse::<u8>()
+                    .ok()
+                    .filter(|&n| n <= 100)
+                    .map(WbsCheckbox::Progress)
+            } else {
+                None
+            };
+            if checkbox.is_some() {
+                let prefix = &inner[..bracket_start].trim_end().to_string();
+                *label = prefix.to_string();
+                return checkbox;
+            }
+        }
+    }
+    None
 }
 
 fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
@@ -1805,6 +1911,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     members: Vec::new(),
                     depth: 0,
                     label,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::StateDecl(decl) => nodes.push(FamilyNode {
@@ -1814,6 +1922,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 members: Vec::new(),
                 depth: 0,
                 label: None,
+                mindmap_side: MindMapSide::Right,
+                wbs_checkbox: None,
             }),
             StatementKind::ActivityStep(step) => {
                 activity_step_counter += 1;
@@ -1826,6 +1936,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     members: Vec::new(),
                     depth: 0,
                     label: step.label,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::TimingDecl { kind, name, label } => {
@@ -1837,6 +1949,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     members: Vec::new(),
                     depth: 0,
                     label,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::TimingEvent {
@@ -1867,6 +1981,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     } else {
                         Some(display)
                     },
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
                 });
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {

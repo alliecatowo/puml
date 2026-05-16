@@ -629,6 +629,22 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "include/valid_includesub.puml",
         "include/valid_c4_context.puml",
         "include/valid_awslib_ec2.puml",
+        // preprocessor advanced directives
+        "preprocessor/valid_while_variable_loop.puml",
+        "preprocessor/valid_undef.puml",
+        "preprocessor/valid_assert_true.puml",
+        "preprocessor/valid_log_directive.puml",
+        "preprocessor/valid_get_json_attribute.puml",
+        "preprocessor/valid_get_variable_value.puml",
+        "preprocessor/valid_feature_builtin.puml",
+        "preprocessor/valid_newline_builtin.puml",
+        "preprocessor/valid_retrieve_procedure_return.puml",
+        "preprocessor/valid_function_exists.puml",
+        "preprocessor/valid_variable_exists.puml",
+        // MindMap/WBS hardening fixtures
+        "families/valid_mindmap_palette.puml",
+        "families/valid_wbs_progress.puml",
+        "families/valid_mindmap_orientation.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -5223,6 +5239,19 @@ fn stdrpt_exit_code_semantics_unchanged_for_valid_input() {
         .success();
 }
 
+// ─── Preprocessor advanced directives ────────────────────────────────────────
+
+#[test]
+fn preproc_newline_builtin_returns_newline_char() {
+    let src = "@startuml\n!$nl = %newline()\nA -> B : ok\n@enduml\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success();
+}
+
 // ── Issue #188: Full PicoUML native syntax ────────────────────────────────────
 
 #[test]
@@ -5238,6 +5267,135 @@ fn picouml_full_constructs_passes_check() {
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn preproc_feature_builtin_returns_false_for_unknown() {
+    let src = "@startuml\n!$f = %feature(\"nosuchfeature\")\nA -> B : %feature(\"x\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("feature builtin should work");
+    assert!(svg.contains("false"), "expected 'false' from %feature");
+}
+
+#[test]
+fn preproc_variable_exists_returns_correct_bool() {
+    let src = "@startuml\n!$x = hello\nA -> B : %variable_exists(\"x\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("variable_exists should work");
+    assert!(
+        svg.contains("true"),
+        "expected 'true' for existing variable"
+    );
+}
+
+#[test]
+fn preproc_function_exists_detects_defined_function() {
+    let src = "@startuml\n!function MyFn($a)\n!return $a\n!endfunction\nA -> B : %function_exists(\"MyFn\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("function_exists should work");
+    assert!(svg.contains("true"), "expected 'true' for defined function");
+}
+
+#[test]
+fn preproc_get_json_attribute_nested_path() {
+    // Simple flat key — nested path traversal
+    let src = "@startuml\n!$cfg = { \"name\": \"beta\" }\nA -> B : %get_json_attribute($cfg, \"name\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("get_json_attribute should work");
+    assert!(svg.contains("beta"), "expected 'beta' from JSON attribute");
+}
+
+#[test]
+fn preproc_retrieve_procedure_return_is_empty_in_deterministic_model() {
+    let src = "@startuml\n!$ret = %retrieve_procedure_return()\nA -> B : done\n@enduml\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success();
+}
+
+#[test]
+fn preproc_while_loop_with_variable_counter_expands_correctly() {
+    let src = "@startuml\n!$i = 0\n!while $i < 3\n!$i = $i + 1\nA$i -> B$i\n!endwhile\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("while loop should work");
+    // Should have produced 3 messages
+    assert!(svg.contains("A1"), "expected A1 in output");
+    assert!(svg.contains("A2"), "expected A2 in output");
+    assert!(svg.contains("A3"), "expected A3 in output");
+}
+
+#[test]
+fn preproc_undef_removes_define() {
+    // After !undef, the define should no longer expand
+    let src = "@startuml\n!define GREETING hello\n!undef GREETING\nA -> B : ok\n@enduml\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success();
+}
+
+// ─── MindMap / WBS rendering ──────────────────────────────────────────────────
+
+#[test]
+fn mindmap_palette_fixture_renders_svg() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(fixture("families/valid_mindmap_palette.puml")).unwrap(),
+    )
+    .expect("mindmap should render");
+    assert!(svg.starts_with("<svg"), "expected SVG");
+    assert!(svg.contains("Root"), "expected Root node in mindmap SVG");
+}
+
+#[test]
+fn wbs_progress_fixture_renders_svg_with_progress_bar() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(fixture("families/valid_wbs_progress.puml")).unwrap(),
+    )
+    .expect("wbs should render");
+    assert!(svg.starts_with("<svg"), "expected SVG");
+    assert!(svg.contains("Project"), "expected Project root");
+    // Progress bar should be present (blue rect)
+    assert!(svg.contains("#3b82f6"), "expected progress bar fill color");
+}
+
+#[test]
+fn wbs_checked_unchecked_nodes_render_svg() {
+    let src = "@startwbs\n* Scope\n** Done [x]\n** Pending [ ]\n@endwbs\n";
+    let svg = render_source_to_svg(src).expect("wbs checkbox should render");
+    assert!(svg.starts_with("<svg"), "expected SVG");
+    assert!(svg.contains("#16a34a"), "expected checked green color");
+}
+
+#[test]
+fn mindmap_left_side_mode_accepted_in_check() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_mindmap_palette.puml")])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn mindmap_plus_minus_prefix_side_assignment() {
+    let src = "@startmindmap\n* Root\n+** Right\n-** Left\n@endmindmap\n";
+    let svg = render_source_to_svg(src).expect("mindmap +/- prefix should render");
+    assert!(svg.starts_with("<svg"), "expected SVG");
+    assert!(svg.contains("Right"), "expected Right node");
+    assert!(svg.contains("Left"), "expected Left node");
+}
+
+#[test]
+fn mindmap_orientation_directive_check_passes() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_mindmap_orientation.puml"),
+        ])
+        .assert()
+        .success()
         .stderr(predicate::str::is_empty());
 }
 
@@ -5282,4 +5440,12 @@ fn json_projection_inline_parse_roundtrip() {
     let svg = render_source_to_svg(src).expect("inline json projection should render");
     assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
     assert!(svg.contains("key"), "SVG must contain key 'key'");
+}
+
+#[test]
+fn mindmap_caption_and_legend_render_in_svg() {
+    let src =
+        "@startmindmap\ntitle My Map\ncaption A test diagram\nlegend\nsome legend\nend legend\n* Root\n** Child\n@endmindmap\n";
+    let svg = render_source_to_svg(src).expect("mindmap with caption/legend should render");
+    assert!(svg.contains("A test diagram"), "expected caption text");
 }

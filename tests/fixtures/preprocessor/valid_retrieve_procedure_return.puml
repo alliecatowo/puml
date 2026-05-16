@@ -1,0 +1,4 @@
+@startuml
+!$val = %retrieve_procedure_return()
+A -> B : called
+@enduml

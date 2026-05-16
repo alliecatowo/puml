@@ -14,7 +14,7 @@ use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 
 const MAX_INCLUDE_DEPTH: usize = 32;
-const MAX_PREPROC_WHILE_ITERATIONS: usize = 256;
+const MAX_PREPROC_WHILE_ITERATIONS: usize = 10_000;
 const MAX_PREPROC_CALL_DEPTH: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -399,7 +399,14 @@ fn preprocess_text(
                                 state.vars.insert(name, value.trim().to_string());
                             } else {
                                 let rendered = substitute_tokens_and_vars(&value, state);
-                                state.vars.insert(name, rendered.trim().to_string());
+                                let resolved = rendered.trim();
+                                // If the resolved value is a simple integer arithmetic
+                                // expression (e.g. "0 + 1", "3 - 1"), evaluate it so
+                                // that !while loop counters increment correctly.
+                                let final_val = eval_simple_arithmetic(resolved)
+                                    .map(|n| n.to_string())
+                                    .unwrap_or_else(|| resolved.to_string());
+                                state.vars.insert(name, final_val);
                             }
                         }
                     }
@@ -1164,6 +1171,27 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
     if let Some((lhs, rhs)) = trimmed.split_once("!=") {
         return Ok(normalize_expr_value(lhs) != normalize_expr_value(rhs));
     }
+    // Numeric comparisons: check two-char operators before one-char to avoid splitting <=/>= wrong.
+    if let Some((lhs, rhs)) = trimmed.split_once("<=") {
+        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
+        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
+        return Ok(a <= b);
+    }
+    if let Some((lhs, rhs)) = trimmed.split_once(">=") {
+        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
+        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
+        return Ok(a >= b);
+    }
+    if let Some((lhs, rhs)) = trimmed.split_once('<') {
+        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
+        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
+        return Ok(a < b);
+    }
+    if let Some((lhs, rhs)) = trimmed.split_once('>') {
+        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
+        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
+        return Ok(a > b);
+    }
     if let Some(inner) = trimmed.strip_prefix('!') {
         return evaluate_scalar_expr(inner).map(|v| !v);
     }
@@ -1196,6 +1224,37 @@ fn normalize_expr_value(value: &str) -> String {
         .trim_matches('\'')
         .trim()
         .to_string()
+}
+
+/// Evaluate a simple two-operand integer arithmetic expression such as "3 + 1"
+/// or "5 - 2".  Only +, -, *, / operators on integer literals are handled.
+/// Returns `None` if the expression is not in this form (non-integer values or
+/// more complex expressions), so the caller can fall back to the raw string.
+fn eval_simple_arithmetic(expr: &str) -> Option<i64> {
+    // Try binary operators in order (longest match first to avoid splitting "-" from negative).
+    for op in ['+', '-', '*', '/'] {
+        // Scan from the end to give subtraction the right operand precedence for simple cases.
+        let bytes = expr.as_bytes();
+        let search_from = if op == '-' { 1 } else { 0 }; // skip leading minus (negative literal)
+        if let Some(pos) = bytes[search_from..]
+            .iter()
+            .rposition(|&b| b == op as u8)
+            .map(|p| p + search_from)
+        {
+            let lhs = expr[..pos].trim();
+            let rhs = expr[pos + 1..].trim();
+            if let (Ok(a), Ok(b)) = (lhs.parse::<i64>(), rhs.parse::<i64>()) {
+                return Some(match op {
+                    '+' => a + b,
+                    '-' => a - b,
+                    '*' => a * b,
+                    '/' if b != 0 => a / b,
+                    _ => return None,
+                });
+            }
+        }
+    }
+    None
 }
 
 fn find_matching_endwhile(lines: &[&str], while_idx: usize) -> Result<usize, Diagnostic> {
@@ -1898,11 +1957,35 @@ fn dispatch_builtin(
                     .unwrap_or_default(),
             )
         }
-        "feature" => Some(String::new()),
+        // %feature — always "false" for unknown features; deterministic and safe
+        "feature" => Some("false".to_string()),
+        // %get_variable_value — fully resolved string value of a variable
         "get_variable_value" => {
             let key = arg(0);
             Some(state.vars.get(&key).cloned().unwrap_or_default())
         }
+        // %variable_exists — true if the variable is defined in state
+        "variable_exists" => {
+            let key = arg(0);
+            Some(state.vars.contains_key(&key).to_string())
+        }
+        // %function_exists — true if a function callable is registered
+        "function_exists" => {
+            let key = arg(0);
+            Some(
+                state
+                    .callables
+                    .get(&key)
+                    .map(|c| c.kind == PreprocCallableKind::Function)
+                    .unwrap_or(false)
+                    .to_string(),
+            )
+        }
+        // %newline — literal newline character (PlantUML parity)
+        "newline" => Some("\n".to_string()),
+        // %retrieve_procedure_return — last procedure return value (stateless in our
+        // deterministic model; procedures cannot return values so always empty)
+        "retrieve_procedure_return" => Some(String::new()),
         "set_variable_value" => {
             // Read-only in our model; document by returning empty.
             Some(String::new())
@@ -1991,13 +2074,76 @@ fn boolval(s: &str) -> bool {
     !matches!(lower.as_str(), "0" | "false" | "no" | "off")
 }
 
-/// Minimal top-level JSON key lookup so `%get_json_attribute` can serve the
-/// common case `!$cfg = { "name": "X" }` → `%get_json_attribute($cfg, "name")`.
-/// Returns the value for the first matching key as a string (with quotes
-/// stripped for string values; numeric/boolean/null left verbatim). Returns
-/// an empty string when the input is not an object or the key is missing.
-/// This intentionally avoids pulling a full JSON dependency.
+/// JSON key lookup supporting simple dot-path and array-index access so
+/// `%get_json_attribute` can serve patterns like:
+///   `%get_json_attribute($cfg, "name")`           — top-level string key
+///   `%get_json_attribute($cfg, "users[0].name")`  — nested path
+///
+/// Returns the value as a string (quotes stripped for string values; numeric /
+/// boolean / null left verbatim). Returns an empty string when the input is
+/// not valid JSON, the path is missing, or the value is a nested
+/// object/array (callers may then pass sub-JSON to a further call).
 fn get_json_attribute(json: &str, key: &str) -> String {
+    // Split the key path into segments: "a.b[2].c" → ["a", "b", "[2]", "c"]
+    let segments = split_json_path(key);
+    let mut current = json.trim().to_string();
+    for segment in &segments {
+        if let Some(idx_str) = segment.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+            // Array index access
+            let idx: usize = idx_str.trim().parse().unwrap_or(usize::MAX);
+            current = json_array_index(&current, idx);
+        } else {
+            // Object key access
+            current = get_json_top_level_key(&current, segment);
+        }
+        if current.is_empty() {
+            return String::new();
+        }
+    }
+    current
+}
+
+/// Split a JSON path like `users[0].name` into segments `["users", "[0]", "name"]`.
+fn split_json_path(path: &str) -> Vec<String> {
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    let chars: Vec<char> = path.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            '.' => {
+                if !current.is_empty() {
+                    segments.push(current.clone());
+                    current.clear();
+                }
+            }
+            '[' => {
+                if !current.is_empty() {
+                    segments.push(current.clone());
+                    current.clear();
+                }
+                current.push('[');
+                i += 1;
+                while i < chars.len() && chars[i] != ']' {
+                    current.push(chars[i]);
+                    i += 1;
+                }
+                current.push(']');
+                segments.push(current.clone());
+                current.clear();
+            }
+            c => current.push(c),
+        }
+        i += 1;
+    }
+    if !current.is_empty() {
+        segments.push(current);
+    }
+    segments
+}
+
+/// Look up a single top-level object key in a JSON string.
+fn get_json_top_level_key(json: &str, key: &str) -> String {
     let bytes = json.as_bytes();
     let mut i = 0usize;
     while i < bytes.len() && bytes[i].is_ascii_whitespace() {
@@ -2050,14 +2196,39 @@ fn get_json_attribute(json: &str, key: &str) -> String {
     String::new()
 }
 
+/// Return the Nth element of a JSON array as a string (for further traversal).
+fn json_array_index(json: &str, idx: usize) -> String {
+    let bytes = json.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+        i += 1;
+    }
+    if i >= bytes.len() || bytes[i] != b'[' {
+        return String::new();
+    }
+    i += 1;
+    let mut count = 0usize;
+    while i < bytes.len() {
+        while i < bytes.len() && (bytes[i].is_ascii_whitespace() || bytes[i] == b',') {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] == b']' {
+            break;
+        }
+        let value_start = i;
+        let value = read_json_value(bytes, &mut i);
+        if count == idx {
+            return value.unwrap_or_else(|| json[value_start..i].to_string());
+        }
+        count += 1;
+    }
+    String::new()
+}
+
 fn json_contains_key(json: &str, key: &str) -> bool {
-    // Cheap reuse: re-run lookup; non-empty result OR explicit empty-but-present
-    // would require deeper parsing. Treat presence as "key appears as a JSON
-    // key in the object". For our minimal model, empty-string returns mean
-    // either missing or empty-value; PlantUML callers nearly always pair this
-    // with a non-empty value so we equate "has non-empty value" with present.
-    // This deterministic simplification is documented above.
-    !get_json_attribute(json, key).is_empty()
+    // Reuse the top-level key scan rather than the full path traversal so that
+    // an empty-value key still reports as present (PlantUML semantics).
+    !get_json_top_level_key(json, key).is_empty()
 }
 
 /// Read a JSON-ish scalar/object/array value starting at `*idx`, advancing
@@ -2686,6 +2857,9 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
         let allow_chronology_parse = matches!(detected_kind, Some(DiagramKind::Chronology));
         let allow_state_parse = matches!(detected_kind, Some(DiagramKind::State));
+        // MindMap and WBS also support multiline legend/title/caption/header/footer blocks.
+        let allow_family_keyword_block =
+            matches!(detected_kind, Some(DiagramKind::MindMap | DiagramKind::Wbs));
 
         if allow_sequence_parse {
             if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
@@ -2694,6 +2868,18 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                     DiagramKind::Sequence,
                     span,
                 )?);
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+        }
+
+        if allow_family_keyword_block {
+            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
                 let block_span = Span::new(span.start, lines[end_idx].1.end);
                 statements.push(Statement {
                     span: block_span,

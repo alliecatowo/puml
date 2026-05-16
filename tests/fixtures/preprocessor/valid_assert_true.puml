@@ -1,0 +1,5 @@
+@startuml
+!$x = 1
+!assert $x == 1 : x must be 1
+A -> B : assertion passed
+@enduml

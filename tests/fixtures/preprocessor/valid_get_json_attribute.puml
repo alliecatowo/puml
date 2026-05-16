@@ -1,0 +1,4 @@
+@startuml
+!$cfg = { "name": "alpha", "version": "2" }
+A -> B : %get_json_attribute($cfg, "name")
+@enduml

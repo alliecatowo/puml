@@ -153,28 +153,33 @@ fn render_for_mismatched_family_reports_deterministic_error() {
 
 #[test]
 fn render_for_unsupported_families_reports_specific_codes() {
-    let cases = [
-        (
-            "@startmindmap\n* Root\n@endmindmap\n",
-            DiagramFamily::MindMap,
-            "E_RENDER_MINDMAP_UNSUPPORTED",
-        ),
-        (
-            "@startwbs\n* Scope\n@endwbs\n",
-            DiagramFamily::Wbs,
-            "E_RENDER_WBS_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nfoo bar\n@enduml\n",
-            DiagramFamily::Unknown,
-            "E_RENDER_FAMILY_UNSUPPORTED",
-        ),
-    ];
+    // MindMap and WBS are now implemented; only Unknown should error.
+    let cases = [(
+        "@startuml\nfoo bar\n@enduml\n",
+        DiagramFamily::Unknown,
+        "E_RENDER_FAMILY_UNSUPPORTED",
+    )];
 
     for (src, family, code) in cases {
         let err = render_source_to_svg_for_family(src, family).expect_err("unsupported family");
         assert!(err.message.contains(code), "missing code {code}");
     }
+
+    // MindMap and WBS now render successfully.
+    let mindmap_svg = render_source_to_svg_for_family(
+        "@startmindmap\n* Root\n@endmindmap\n",
+        DiagramFamily::MindMap,
+    )
+    .expect("mindmap should render");
+    assert!(
+        mindmap_svg.contains("<svg"),
+        "expected SVG output from mindmap"
+    );
+
+    let wbs_svg =
+        render_source_to_svg_for_family("@startwbs\n* Scope\n@endwbs\n", DiagramFamily::Wbs)
+            .expect("wbs should render");
+    assert!(wbs_svg.contains("<svg"), "expected SVG output from wbs");
 }
 
 #[test]

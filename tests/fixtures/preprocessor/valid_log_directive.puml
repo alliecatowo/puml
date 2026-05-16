@@ -1,0 +1,5 @@
+@startuml
+!$msg = diagnostics
+!log rendering $msg
+A -> B : ok
+@enduml
