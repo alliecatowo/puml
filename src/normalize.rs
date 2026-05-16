@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
+    FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
     TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
@@ -89,7 +89,9 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             StatementKind::Legend(v) => legend = Some(v),
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
-            | StatementKind::Pragma(_) => {}
+            | StatementKind::Pragma(_)
+            | StatementKind::SetOption { .. }
+            | StatementKind::HideOption(_) => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }
@@ -133,6 +135,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
 
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
+    let mut groups = Vec::new();
+    let mut hide_options = std::collections::BTreeSet::new();
+    let mut namespace_separator: Option<String> = None;
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -192,6 +197,21 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 arrow: rel.arrow,
                 label: rel.label,
             }),
+            StatementKind::ClassGroup { kind, label, members } => {
+                groups.push(FamilyGroup {
+                    kind,
+                    label,
+                    member_ids: members,
+                });
+            }
+            StatementKind::SetOption { key, value } => {
+                if key.eq_ignore_ascii_case("namespaceSeparator") {
+                    namespace_separator = Some(value);
+                }
+            }
+            StatementKind::HideOption(opt) => {
+                hide_options.insert(opt.to_ascii_lowercase());
+            }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -224,6 +244,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         kind: family_kind,
         nodes,
         relations,
+        groups,
+        hide_options,
+        namespace_separator,
         title,
         header,
         footer,
@@ -753,12 +776,15 @@ pub fn normalize_with_options(
             | StatementKind::GanttTaskDecl { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
-            | StatementKind::ChronologyHappensOn { .. } => {
+            | StatementKind::ChronologyHappensOn { .. }
+            | StatementKind::ClassGroup { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )
                 .with_span(stmt.span));
             }
+            // Class-family-only options: silently ignored in sequence context
+            StatementKind::SetOption { .. } | StatementKind::HideOption(_) => {}
             StatementKind::Unknown(line) => {
                 if line.trim() == "---" {
                     continue;

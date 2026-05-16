@@ -1,0 +1,17 @@
+@startuml
+title Visibility Markers
+class Person {
+  +publicName: String
+  -privateId: UUID
+  #protectedAge: Int
+  ~packageHelper: String
+  {abstract}abstractMethod()
+  {static}staticUtil()
+}
+
+class Role {
+  +name: String
+}
+
+Person --> Role : hasRole
+@enduml

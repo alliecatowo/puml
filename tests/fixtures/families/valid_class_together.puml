@@ -1,0 +1,19 @@
+@startuml
+title Together Group
+class User {
+  +name: String
+  -id: UUID
+}
+class Account {
+  +balance: Float
+}
+class Profile
+
+together {
+  User
+  Account
+  Profile
+}
+
+User --> Account : owns
+@enduml

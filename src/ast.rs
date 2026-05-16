@@ -85,6 +85,16 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    ClassGroup {
+        kind: String,
+        label: Option<String>,
+        members: Vec<String>,
+    },
+    SetOption {
+        key: String,
+        value: String,
+    },
+    HideOption(String),
     Unknown(String),
 }
 

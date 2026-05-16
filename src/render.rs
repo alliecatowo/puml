@@ -244,14 +244,32 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
     let body_rows = document.nodes.len().max(1) as i32;
+
+    let hide_empty_members = document.hide_options.contains("empty members")
+        || document.hide_options.contains("empty methods")
+        || document.hide_options.contains("empty fields");
+    let hide_circle = document.hide_options.contains("circle");
+    let hide_stereotype = document.hide_options.contains("stereotype");
+
     let member_rows = document
         .nodes
         .iter()
-        .map(|n| n.members.len() as i32)
+        .map(|n| {
+            if hide_empty_members && n.members.is_empty() {
+                0i32
+            } else {
+                n.members.len() as i32
+            }
+        })
         .sum::<i32>();
     let relation_rows = document.relations.len() as i32;
-    let height =
-        140 + (body_rows * 42) + (member_rows * 16) + (relation_rows * 20) + (title_lines * 24);
+    let group_rows = document.groups.len() as i32;
+    let height = 140
+        + (body_rows * 42)
+        + (member_rows * 16)
+        + (relation_rows * 20)
+        + (title_lines * 24)
+        + (group_rows * 24);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -278,6 +296,30 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
     ));
     y += 16;
 
+    // Render groups (together/package/namespace) as labeled frames before class boxes
+    for group in &document.groups {
+        let group_label = match group.label.as_deref() {
+            Some(lbl) => format!("{} {}", group.kind, lbl),
+            None => group.kind.clone(),
+        };
+        let member_list = group.member_ids.join(", ");
+        out.push_str(&format!(
+            "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"40\" rx=\"6\" ry=\"6\" fill=\"#f0f4ff\" stroke=\"#6366f1\" stroke-width=\"1.5\"/>",
+            y
+        ));
+        out.push_str(&format!(
+            "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{}</text>",
+            y + 14,
+            escape_text(&group_label)
+        ));
+        out.push_str(&format!(
+            "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#6366f1\">{}</text>",
+            y + 28,
+            escape_text(&member_list)
+        ));
+        y += 48;
+    }
+
     out.push_str(&format!(
         "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#f8fafc\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
         y,
@@ -293,30 +335,78 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
         y += 30;
     } else {
         for node in &document.nodes {
+            // Calculate node box height (title row + optional members)
+            let show_members = !hide_empty_members || !node.members.is_empty();
+            let member_count = if show_members { node.members.len() as i32 } else { 0 };
+            let box_height = 30 + (member_count * 16);
+
             out.push_str(&format!(
-                "<rect x=\"40\" y=\"{}\" width=\"680\" height=\"30\" rx=\"4\" ry=\"4\" fill=\"white\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
-                y - 14
+                "<rect x=\"40\" y=\"{}\" width=\"680\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"white\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+                y - 14,
+                box_height
             ));
+
+            // Class circle icon (optional)
+            let mut text_x = 52i32;
+            if !hide_circle && node.kind == crate::model::FamilyNodeKind::Class {
+                out.push_str(&format!(
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"none\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+                    text_x + 6,
+                    y
+                ));
+                text_x += 18;
+            }
+
             let alias = node
                 .alias
                 .as_deref()
                 .map(|v| format!(" as {v}"))
                 .unwrap_or_default();
-            out.push_str(&format!(
-                "<text x=\"52\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{} {}{}</text>",
-                y + 6,
-                family_node_label(node.kind),
-                escape_text(&node.name),
-                escape_text(&alias)
-            ));
-            y += 22;
-            for member in &node.members {
+
+            // Stereotype text (optional)
+            if !hide_stereotype {
                 out.push_str(&format!(
-                    "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{} {}{}</text>",
+                    text_x,
                     y + 6,
-                    escape_text(member)
+                    family_node_label(node.kind),
+                    escape_text(&node.name),
+                    escape_text(&alias)
                 ));
-                y += 16;
+            } else {
+                // No stereotype label for the kind prefix; just show the name
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}{}</text>",
+                    text_x,
+                    y + 6,
+                    escape_text(&node.name),
+                    escape_text(&alias)
+                ));
+            }
+            y += 22;
+
+            if show_members {
+                for member in &node.members {
+                    let (symbol, color, member_text) = parse_visibility_member(member);
+                    // Render visibility symbol
+                    if let Some(sym) = symbol {
+                        out.push_str(&format!(
+                            "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                            y + 6,
+                            color,
+                            escape_text(sym)
+                        ));
+                    }
+                    // Render member text (handle {abstract}/{static} modifiers)
+                    let (extra_style, clean_text) = parse_member_modifiers(member_text);
+                    out.push_str(&format!(
+                        "<text x=\"80\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\"{}>{}</text>",
+                        y + 6,
+                        extra_style,
+                        escape_text(clean_text)
+                    ));
+                    y += 16;
+                }
             }
             y += 20;
         }
@@ -348,6 +438,32 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+/// Parse visibility prefix from member line.
+/// Returns (Option<symbol_str>, color, rest_of_text).
+fn parse_visibility_member(member: &str) -> (Option<&'static str>, &'static str, &str) {
+    let trimmed = member.trim();
+    match trimmed.chars().next() {
+        Some('+') => (Some("+"), "#16a34a", trimmed[1..].trim_start()),
+        Some('-') => (Some("-"), "#dc2626", trimmed[1..].trim_start()),
+        Some('#') => (Some("#"), "#d97706", trimmed[1..].trim_start()),
+        Some('~') => (Some("~"), "#7c3aed", trimmed[1..].trim_start()),
+        _ => (None, "#334155", trimmed),
+    }
+}
+
+/// Parse {abstract} / {static} modifiers from member text.
+/// Returns (SVG style attrs string, cleaned text without modifiers).
+fn parse_member_modifiers(text: &str) -> (&'static str, &str) {
+    let t = text.trim();
+    if t.starts_with("{abstract}") {
+        (" font-style=\"italic\"", t["{abstract}".len()..].trim_start())
+    } else if t.starts_with("{static}") {
+        (" text-decoration=\"underline\"", t["{static}".len()..].trim_start())
+    } else {
+        ("", t)
+    }
 }
 
 fn family_kind_label(kind: DiagramKind) -> &'static str {

@@ -1298,6 +1298,13 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Include(v) => json!({"Include": v}),
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
+        StatementKind::ClassGroup { kind, label, members } => {
+            json!({"ClassGroup": {"kind": kind, "label": label, "members": members}})
+        }
+        StatementKind::SetOption { key, value } => {
+            json!({"SetOption": {"key": key, "value": value}})
+        }
+        StatementKind::HideOption(v) => json!({"HideOption": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
     }
 }

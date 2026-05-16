@@ -3598,3 +3598,162 @@ fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
         .success()
         .stderr(predicate::str::is_empty());
 }
+
+#[test]
+fn class_together_group_passes_check_and_svg_contains_group_frame() {
+    let src = fs::read_to_string(fixture("families/valid_class_together.puml")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_class_together.puml")])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(&src).expect("rendered svg");
+    // together group frame should be present
+    assert!(
+        svg.contains("together"),
+        "SVG should contain 'together' group label"
+    );
+    // member names from the together block
+    assert!(svg.contains("User"), "SVG should contain User");
+    assert!(svg.contains("Account"), "SVG should contain Account");
+}
+
+#[test]
+fn class_package_namespace_passes_check_and_svg_contains_scope_labels() {
+    let src = fs::read_to_string(fixture("families/valid_class_package_namespace.puml")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_class_package_namespace.puml")])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(&src).expect("rendered svg");
+    // package and namespace labels should appear
+    assert!(
+        svg.contains("package"),
+        "SVG should contain 'package' label"
+    );
+    assert!(
+        svg.contains("namespace"),
+        "SVG should contain 'namespace' label"
+    );
+    assert!(svg.contains("com.example"), "SVG should contain package label");
+    assert!(svg.contains("net.api"), "SVG should contain namespace label");
+}
+
+#[test]
+fn class_hide_options_suppress_circle_and_stereotype() {
+    let src = fs::read_to_string(fixture("families/valid_class_hide_options.puml")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_class_hide_options.puml")])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(&src).expect("rendered svg");
+    // When hide circle is active, no circle element for class icon
+    assert!(
+        !svg.contains("<circle"),
+        "SVG should not contain class icon circle when hide circle is set"
+    );
+    // When hide stereotype is active, the 'class' keyword label should not appear before node names
+    // The node names themselves should still appear
+    assert!(svg.contains("Visible"), "SVG should contain node name 'Visible'");
+}
+
+#[test]
+fn class_visibility_markers_render_colored_symbols() {
+    let src = fs::read_to_string(fixture("families/valid_class_visibility.puml")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_class_visibility.puml")])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(&src).expect("rendered svg");
+    // Visibility symbols should appear as colored text elements
+    assert!(svg.contains("+"), "SVG should contain + visibility marker");
+    assert!(svg.contains("-"), "SVG should contain - visibility marker");
+    assert!(svg.contains("#"), "SVG should contain # visibility marker");
+    assert!(svg.contains("~"), "SVG should contain ~ visibility marker");
+    // Abstract and static modifiers should produce style attributes
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "SVG should contain italic style for {{abstract}} modifier"
+    );
+    assert!(
+        svg.contains("text-decoration=\"underline\""),
+        "SVG should contain underline style for {{static}} modifier"
+    );
+}
+
+#[test]
+fn class_hide_empty_members_collapses_empty_compartment() {
+    let src = "@startuml\nhide empty members\nclass Full {\n  +name: String\n}\nclass Empty\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("rendered svg");
+    // Full class should show its member; Empty class box should be shorter (no extra member rows)
+    assert!(svg.contains("name: String"), "SVG should contain member text");
+    // Both class names should appear
+    assert!(svg.contains("Full"), "SVG should contain Full class");
+    assert!(svg.contains("Empty"), "SVG should contain Empty class");
+}
+
+#[test]
+fn class_set_namespace_separator_is_recorded_in_model() {
+    use puml::normalize_family;
+    use puml::parser::parse;
+    use puml::NormalizedDocument;
+
+    let src = "@startuml\nset namespaceSeparator ::\nclass Foo\n@enduml\n";
+    let doc = parse(src).expect("parse ok");
+    let model = normalize_family(doc).expect("normalize ok");
+    let NormalizedDocument::Family(family) = model else {
+        panic!("expected Family model");
+    };
+    assert_eq!(
+        family.namespace_separator.as_deref(),
+        Some("::"),
+        "namespace_separator should be recorded as ::"
+    );
+}
+
+#[test]
+fn class_together_group_member_ids_are_recorded_in_model() {
+    use puml::normalize_family;
+    use puml::parser::parse;
+    use puml::NormalizedDocument;
+
+    let src = "@startuml\nclass A\nclass B\ntogether {\n  A\n  B\n}\n@enduml\n";
+    let doc = parse(src).expect("parse ok");
+    let model = normalize_family(doc).expect("normalize ok");
+    let NormalizedDocument::Family(family) = model else {
+        panic!("expected Family model");
+    };
+    assert_eq!(family.groups.len(), 1, "should have 1 group");
+    let group = &family.groups[0];
+    assert_eq!(group.kind, "together");
+    assert!(group.member_ids.contains(&"A".to_string()));
+    assert!(group.member_ids.contains(&"B".to_string()));
+}
+
+#[test]
+fn class_hide_options_are_recorded_in_model() {
+    use puml::normalize_family;
+    use puml::parser::parse;
+    use puml::NormalizedDocument;
+
+    let src = "@startuml\nhide circle\nhide stereotype\nhide empty members\nclass Foo\n@enduml\n";
+    let doc = parse(src).expect("parse ok");
+    let model = normalize_family(doc).expect("normalize ok");
+    let NormalizedDocument::Family(family) = model else {
+        panic!("expected Family model");
+    };
+    assert!(family.hide_options.contains("circle"));
+    assert!(family.hide_options.contains("stereotype"));
+    assert!(family.hide_options.contains("empty members"));
+}
