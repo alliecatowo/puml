@@ -32,7 +32,10 @@ FIXTURE_CORPUS = [
 SVG_RE = re.compile(r"<svg\\b[^>]*>", re.IGNORECASE)
 VIEWBOX_RE = re.compile(r'viewBox\\s*=\\s*"([^"]+)"')
 MD_PUML_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+\.puml)\)")
-MD_FENCE_RE = re.compile(r"```(?:puml|plantuml)\n(.*?)```", re.DOTALL | re.IGNORECASE)
+MD_FENCE_RE = re.compile(
+    r"```(?:puml|pumlx|picouml|plantuml|uml|puml-sequence|uml-sequence|mermaid)\n(.*?)```",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 def parse_args() -> argparse.Namespace:

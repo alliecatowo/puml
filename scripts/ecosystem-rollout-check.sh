@@ -34,8 +34,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "[ecosystem] mode=$MODE"
-echo "[ecosystem] contract audits (LSP/VS Code/Studio/agent-pack)"
-cargo test --test ecosystem_rollout_contract_audit --test studio_spa_contract_audit
+echo "[ecosystem] contract audits (LSP/VS Code/Studio/agent-pack/docs-harness)"
+cargo test \
+  --test ecosystem_rollout_contract_audit \
+  --test studio_spa_contract_audit \
+  --test docs_harness_contract_audit
 
 echo "[ecosystem] agent-pack + parity harness"
 if [[ "$MODE" == "quick" ]]; then

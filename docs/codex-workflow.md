@@ -6,7 +6,6 @@ This repo supports fully autonomous engineering loops for Codex and Claude with 
 
 Canonical cookbook: [`docs/autonomous-workflow-cookbook.md`](autonomous-workflow-cookbook.md).
 
-
 ```console
 ./scripts/harness-check.sh         # agent-pack + MCP + parity harness only
 ./scripts/autonomy-check.sh        # full chain: lint/test/bench/harness/smoke
@@ -43,7 +42,7 @@ Expected success tail:
 - `parity harness wrote ...`
 - `[harness] complete`
 
-## Exact Codex/Claude Harness Runbook
+## Exact Codex + Claude Runbook
 
 Run from repo root:
 
@@ -58,8 +57,10 @@ If docs/examples source markdown or `.puml` changed, re-render and commit artifa
 
 ```console
 for f in docs/examples/*.puml; do cargo run -- "$f"; done
+for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
 cargo run -- --from-markdown docs/examples/README.md --output docs/examples/README_snippet_1.svg
-python3 ./scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
+cargo run -- --from-markdown --multi docs/examples/sequence/README.md
+python3 ./scripts/parity_harness.py --fail-on-doc-drift --output docs/benchmarks/parity_latest.json
 ```
 
 Pre-PR confidence chain:
@@ -74,13 +75,15 @@ Required green markers before opening PR:
 - `[autonomy] complete`
 - `doc_examples.summary.failed = 0` in `docs/benchmarks/parity_latest.json`
 
-## Codex and Claude Workflow Recipe
+## Workflow Recipe (Codex + Claude)
 
-1. Author diagrams and skills under `agent-pack/**`.
-2. Run `./scripts/harness-check.sh --quick` during iteration.
-3. Run `./scripts/autonomy-check.sh --quick` before broad changes.
-4. Run `./scripts/autonomy-check.sh` before handoff/PR.
-5. Include `docs/benchmarks` + parity artifacts when behavior/perf changed.
+1. Create a dedicated worktree/branch for each task/issue.
+2. Author diagrams, docs, and skills under `agent-pack/**` and `docs/**`.
+3. Run `./scripts/harness-check.sh --quick` during iteration.
+4. If docs gallery sources changed, regenerate gallery artifacts and run parity drift checks.
+5. Run `./scripts/autonomy-check.sh --quick` before broad changes.
+6. Run `./scripts/autonomy-check.sh` before handoff/PR.
+7. Include `docs/benchmarks` + parity artifacts when behavior/perf changed.
 
 ## Troubleshooting
 
@@ -92,7 +95,6 @@ Required green markers before opening PR:
   - Re-render docs examples and commit updated SVG artifacts.
 - Dry-run sanity:
   - Use `./scripts/harness-check.sh --dry` and `./scripts/autonomy-check.sh --dry` to inspect planned execution.
-
 
 ## Command Cookbook
 
@@ -115,11 +117,3 @@ cargo run -- --from-markdown docs/examples/sequence/README.md --output docs/exam
 ./scripts/autonomy-check.sh --quick
 ./scripts/autonomy-check.sh
 ```
-
-## Codex And Claude Autonomous Workflow
-
-1. Use a dedicated worktree + branch for each chunk (avoid touching teammate edits).
-2. Iterate with `./scripts/harness-check.sh --quick` after diagram/docs changes.
-3. Treat docs examples as test fixtures; if source changes, re-render SVG artifacts before PR.
-4. Run `./scripts/autonomy-check.sh` before opening PR.
-5. Include parity report updates when behavior or corpus changes.
