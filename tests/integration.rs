@@ -898,10 +898,144 @@ fn check_mode_rejects_theme_unknown_name_with_catalog_message() {
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("[E_THEME_UNKNOWN]").and(predicate::str::contains(
-                "available local themes: plain, spacelab",
-            )),
+            predicate::str::contains("[E_THEME_UNKNOWN]")
+                .and(predicate::str::contains("available local themes:"))
+                .and(predicate::str::contains("plain"))
+                .and(predicate::str::contains("spacelab")),
         );
+}
+
+#[test]
+fn theme_plain_produces_default_style_colors_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", &fixture("styling/valid_theme_plain.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let style = &json["style"];
+    assert_eq!(style["arrow_color"], "#111");
+    assert_eq!(style["participant_background_color"], "#f6f6f6");
+    assert_eq!(style["note_background_color"], "#fff8c4");
+}
+
+#[test]
+fn theme_aws_orange_produces_orange_style_colors_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", &fixture("styling/valid_theme_aws_orange.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let style = &json["style"];
+    assert_eq!(style["arrow_color"], "#232f3e");
+    assert_eq!(style["participant_background_color"], "#ff9900");
+    assert_eq!(style["lifeline_border_color"], "#ff9900");
+}
+
+#[test]
+fn theme_blueprint_produces_dark_blue_style_colors_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", &fixture("styling/valid_theme_blueprint.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let style = &json["style"];
+    assert_eq!(style["arrow_color"], "#ffffff");
+    assert_eq!(style["participant_background_color"], "#1a3a5c");
+    assert_eq!(style["lifeline_border_color"], "#7eb4d4");
+}
+
+#[test]
+fn theme_cerulean_produces_blue_style_colors_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", &fixture("styling/valid_theme_cerulean.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let style = &json["style"];
+    assert_eq!(style["arrow_color"], "#2fa4e7");
+    assert_eq!(style["participant_background_color"], "#d9edf7");
+}
+
+#[test]
+fn theme_hacker_produces_green_on_black_style_colors_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", &fixture("styling/valid_theme_hacker.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let style = &json["style"];
+    assert_eq!(style["arrow_color"], "#00ff00");
+    assert_eq!(style["participant_background_color"], "#0d0d0d");
+    assert_eq!(style["note_background_color"], "#000000");
+}
+
+#[test]
+fn theme_sketchy_produces_hand_drawn_style_colors_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "model", &fixture("styling/valid_theme_sketchy.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let style = &json["style"];
+    assert_eq!(style["arrow_color"], "#333333");
+    assert_eq!(style["participant_background_color"], "#fffde7");
+}
+
+#[test]
+fn theme_catalog_covers_all_22_presets() {
+    use puml::theme::{LOCAL_SEQUENCE_THEME_CATALOG, resolve_sequence_theme_preset};
+    assert_eq!(LOCAL_SEQUENCE_THEME_CATALOG.len(), 22);
+    for name in LOCAL_SEQUENCE_THEME_CATALOG {
+        let result = resolve_sequence_theme_preset(name);
+        assert!(result.is_ok(), "preset `{name}` failed to resolve: {:?}", result);
+        let preset = result.unwrap();
+        assert_eq!(preset.name, *name);
+        // All color strings must start with '#' or be a named color
+        assert!(!preset.style.arrow_color.is_empty());
+        assert!(!preset.style.participant_background_color.is_empty());
+    }
+}
+
+#[test]
+fn all_22_theme_fixtures_pass_check_mode() {
+    for name in &[
+        "styling/valid_theme_plain.puml",
+        "styling/valid_theme_aws_orange.puml",
+        "styling/valid_theme_blueprint.puml",
+        "styling/valid_theme_cerulean.puml",
+        "styling/valid_theme_hacker.puml",
+        "styling/valid_theme_sketchy.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(name)])
+            .assert()
+            .success();
+    }
 }
 
 #[test]

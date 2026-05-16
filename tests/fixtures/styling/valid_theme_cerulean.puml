@@ -1,0 +1,7 @@
+@startuml
+!theme cerulean
+participant Alice
+participant Bob
+Alice -> Bob : hello
+Bob --> Alice : hi
+@enduml
