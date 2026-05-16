@@ -3,7 +3,6 @@ use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
 };
 use puml::scene::LayoutOptions;
-use puml::theme::SequenceStyle;
 use puml::{
     extract_markdown_diagrams, layout, parse_with_pipeline_options, render, FrontendSelection,
     ParsePipelineOptions,

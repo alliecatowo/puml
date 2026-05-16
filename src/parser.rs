@@ -1182,7 +1182,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
         _ if name.starts_with('$') => parse_variable_assignment(name, arg, trimmed),
-        "return" | "foreach" | "endfor" => Some(PreprocessDirective::Unsupported(name.to_string())),
+        "return" => Some(PreprocessDirective::Unsupported(name.to_string())),
         // `!startsub` / `!endsub` are markers used by `!includesub`. When a
         // file containing them is included directly, we silently elide the
         // marker lines and pass the body lines through.
@@ -2018,11 +2018,7 @@ fn dispatch_builtin(
             if sep.is_empty() {
                 Some(s)
             } else {
-                Some(
-                    s.split(sep.as_str())
-                        .collect::<Vec<&str>>()
-                        .join(","),
-                )
+                Some(s.split(sep.as_str()).collect::<Vec<&str>>().join(","))
             }
         }
         "strpos" => {
@@ -4157,7 +4153,9 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         } else {
             (None, rest)
         };
-        let (name_raw, alias_raw) = if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
+        let (name_raw, alias_raw) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
+            (label.as_deref().unwrap_or("").trim(), Some(alias.trim()))
+        } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
             (lhs.trim(), Some(rhs.trim()))
         } else {
             (rest_after_label, None)
@@ -4491,256 +4489,6 @@ fn parse_state_statement(
     // `state Name` or `state Name <<stereotype>>` or `state Name { ... }`
     if line.starts_with("state ") {
         let rest = line.strip_prefix("state ").unwrap_or("").trim();
-        if rest.is_empty() {
-            return Ok(None);
-        }
-
-        // Extract optional stereotype `<<...>>`
-        let (name_part, stereotype) = if let Some(idx) = rest.find("<<") {
-            let name = rest[..idx].trim();
-            let after = &rest[idx + 2..];
-            let stereo = after.find(">>").map(|end| after[..end].trim().to_string());
-            (name, stereo)
-        } else {
-            (rest, None)
-        };
-
-        // Check if there's a block
-        let (name_alias_part, has_block) = if name_part.ends_with('{') {
-            (name_part.trim_end_matches('{').trim(), true)
-        } else {
-            (name_part, false)
-        };
-
-        // Extract alias
-        let (name_raw, alias) = if let Some((lhs, rhs)) = name_alias_part.split_once(" as ") {
-            let name = clean_ident(lhs.trim());
-            let alias = clean_ident(rhs.trim());
-            (name, if alias.is_empty() { None } else { Some(alias) })
-        } else {
-            (clean_ident(name_alias_part), None)
-        };
-
-        if name_raw.is_empty() {
-            return Ok(None);
-        }
-
-        if has_block {
-            // Parse nested children until matching `}`
-            let (children, region_dividers, end_idx) = parse_state_block(lines, start)?;
-            let decl = StateDecl {
-                name: name_raw,
-                alias,
-                stereotype,
-                children,
-                region_dividers,
-            };
-            return Ok(Some((StatementKind::StateDecl(decl), end_idx)));
-        } else {
-            let decl = StateDecl {
-                name: name_raw,
-                alias,
-                stereotype,
-                children: Vec::new(),
-                region_dividers: Vec::new(),
-            };
-            return Ok(Some((StatementKind::StateDecl(decl), start)));
-        }
-    }
-
-    // Transition: `From --> To` or `From --> To : label`
-    // Also handles `[*] --> X` and `X --> [*]`
-    if let Some(transition) = parse_state_transition(line) {
-        return Ok(Some((StatementKind::StateTransition(transition), start)));
-    }
-
-    // Internal action: `State : entry / action` or `State : exit / action` or `State : event / action`
-    if let Some(action) = parse_state_internal_action(line) {
-        return Ok(Some((StatementKind::StateInternalAction(action), start)));
-    }
-
-    Ok(None)
-}
-
-/// Parse the body of a `state X { ... }` block.
-/// Returns (children, region_divider_indices, end_line_index).
-fn parse_state_block(
-    lines: &[(&str, Span)],
-    start: usize,
-) -> Result<(Vec<Statement>, Vec<usize>, usize), Diagnostic> {
-    let mut children: Vec<Statement> = Vec::new();
-    let mut region_dividers: Vec<usize> = Vec::new();
-    let mut depth = 1i32;
-    let mut j = start + 1;
-
-    while j < lines.len() {
-        let (raw, span) = lines[j];
-        let inner = raw.trim();
-
-        if inner.ends_with('{') || inner == "{" {
-            depth += 1;
-        }
-        if inner == "}" {
-            depth -= 1;
-            if depth == 0 {
-                return Ok((children, region_dividers, j));
-            }
-        }
-
-        // `||` region divider
-        if inner == "||" && depth == 1 {
-            region_dividers.push(children.len());
-            j += 1;
-            continue;
-        }
-
-        // Recurse for nested state declarations inside a block
-        if depth == 1 {
-            if inner.is_empty() || inner.starts_with('\'') {
-                j += 1;
-                continue;
-            }
-            if inner == "[H]" {
-                children.push(Statement {
-                    span,
-                    kind: StatementKind::StateHistory { deep: false },
-                });
-                j += 1;
-                continue;
-            }
-            if inner == "[H*]" {
-                children.push(Statement {
-                    span,
-                    kind: StatementKind::StateHistory { deep: true },
-                });
-                j += 1;
-                continue;
-            }
-            if let Some(transition) = parse_state_transition(inner) {
-                children.push(Statement {
-                    span,
-                    kind: StatementKind::StateTransition(transition),
-                });
-                j += 1;
-                continue;
-            }
-            if let Some(action) = parse_state_internal_action(inner) {
-                children.push(Statement {
-                    span,
-                    kind: StatementKind::StateInternalAction(action),
-                });
-                j += 1;
-                continue;
-            }
-            if inner.starts_with("state ") {
-                if let Some((kind, end_idx)) = parse_state_statement(lines, j, inner)? {
-                    let block_span = if end_idx > j {
-                        Span::new(span.start, lines[end_idx].1.end)
-                    } else {
-                        span
-                    };
-                    children.push(Statement {
-                        span: block_span,
-                        kind,
-                    });
-                    j = end_idx + 1;
-                    continue;
-                }
-            }
-            if let Some(kind) = parse_keyword(inner) {
-                children.push(Statement { span, kind });
-                j += 1;
-                continue;
-            }
-            // Unknown line inside block — store for normalizer
-            children.push(Statement {
-                span,
-                kind: StatementKind::Unknown(inner.to_string()),
-            });
-        }
-        j += 1;
-    }
-
-    // Unclosed block — treat as if closed at EOF
-    Ok((children, region_dividers, lines.len().saturating_sub(1)))
-}
-
-/// Parse `From --> To` or `From --> To : label`
-fn parse_state_transition(line: &str) -> Option<StateTransition> {
-    // Look for `-->` arrow
-    let arrow = "-->";
-    let idx = line.find(arrow)?;
-    let from_raw = line[..idx].trim();
-    let rest = line[idx + arrow.len()..].trim();
-
-    // Split `To : label`
-    let (to_raw, label) = if let Some((to_part, lbl)) = rest.split_once(':') {
-        (to_part.trim(), Some(lbl.trim().to_string()))
-    } else {
-        (rest, None)
-    };
-
-    if from_raw.is_empty() || to_raw.is_empty() {
-        return None;
-    }
-
-    Some(StateTransition {
-        from: from_raw.to_string(),
-        to: to_raw.to_string(),
-        label,
-    })
-}
-
-/// Parse `State : entry / action` or `State : exit / action` or `State : event / action`
-fn parse_state_internal_action(line: &str) -> Option<StateInternalAction> {
-    let (state_part, rest) = line.split_once(':')?;
-    let state = state_part.trim();
-    if state.is_empty() || state.contains("-->") {
-        return None;
-    }
-    // Rest should have form `kind / action` or `kind`
-    let rest = rest.trim();
-    if rest.is_empty() {
-        return None;
-    }
-    let (kind, action) = if let Some((k, a)) = rest.split_once('/') {
-        (k.trim().to_string(), a.trim().to_string())
-    } else {
-        (rest.to_string(), String::new())
-    };
-    if kind.is_empty() {
-        return None;
-    }
-    Some(StateInternalAction {
-        state: state.to_string(),
-        kind,
-        action,
-    })
-}
-
-/// Parse a state diagram statement from the current line.
-/// Returns `Some((kind, end_index))` where `end_index` is the last consumed line.
-fn parse_state_statement(
-    lines: &[(&str, Span)],
-    start: usize,
-    line: &str,
-) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
-    // Handle common keywords that are valid in any diagram
-    if let Some(kind) = parse_keyword(line) {
-        return Ok(Some((kind, start)));
-    }
-
-    // `[H]` or `[H*]` — history pseudo-states
-    if line == "[H]" {
-        return Ok(Some((StatementKind::StateHistory { deep: false }, start)));
-    }
-    if line == "[H*]" {
-        return Ok(Some((StatementKind::StateHistory { deep: true }, start)));
-    }
-
-    // `state Name` or `state Name <<stereotype>>` or `state Name { ... }`
-    if let Some(stripped_state) = line.strip_prefix("state ") {
-        let rest = stripped_state.trim();
         if rest.is_empty() {
             return Ok(None);
         }

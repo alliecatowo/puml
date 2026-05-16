@@ -10,9 +10,7 @@ use puml::normalize;
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
 use puml::source::Span;
-use puml::theme::{
-    classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
-};
+use puml::theme::{classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue};
 use puml::{normalize_family, parse, render, NormalizedDocument};
 use std::fs;
 use tempfile::tempdir;

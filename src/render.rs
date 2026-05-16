@@ -5,10 +5,11 @@ use crate::model::{
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle, JsonDocument,
     LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument, ParticipantRole,
     RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind, StateDocument,
-    StateNode, StateNodeKind, TimelineDocument, VirtualEndpointKind, WbsCheckbox, YamlDocument,
+    StateNode, StateNodeKind, TimelineDocument, TimelineTask, VirtualEndpointKind, WbsCheckbox,
+    YamlDocument,
 };
-use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle};
 use crate::scene::{ParticipantBox, Scene, StructureKind};
+use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
 
@@ -678,11 +679,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         render_class_node(
             &mut out,
             node,
-            bx.x,
-            bx.y,
-            bx.w,
-            bx.h,
-            bx.header_h,
+            ClassNodeGeometry {
+                x: bx.x,
+                y: bx.y,
+                w: bx.w,
+                h: bx.h,
+                header_h: bx.header_h,
+            },
             &class_style,
         );
     }
@@ -1570,16 +1573,28 @@ fn family_node_label(kind: FamilyNodeKind) -> &'static str {
     }
 }
 
-fn render_class_node(
-    out: &mut String,
-    node: &crate::model::FamilyNode,
+struct ClassNodeGeometry {
     x: i32,
     y: i32,
     w: i32,
     h: i32,
     header_h: i32,
+}
+
+fn render_class_node(
+    out: &mut String,
+    node: &crate::model::FamilyNode,
+    geometry: ClassNodeGeometry,
     class_style: &ClassStyle,
 ) {
+    let ClassNodeGeometry {
+        x,
+        y,
+        w,
+        h,
+        header_h,
+    } = geometry;
+
     // ── C4 node rendering ─────────────────────────────────────────────────────
     if is_c4_kind(node.kind) {
         render_c4_node(out, node, x, y, w, h);
@@ -1695,7 +1710,7 @@ fn render_class_node(
         // If no explicit visibility color, fall back to member_color from style
         let effective_color = vis_color;
         let _ = &class_style.member_color; // Available if needed for override
-        // Reconstruct display text: keep visibility prefix + remaining text
+                                           // Reconstruct display text: keep visibility prefix + remaining text
         let display_text = if vis_sym.is_some() {
             format!("{}{}", vis_sym.unwrap_or(""), text_after_mod)
         } else {
@@ -2242,10 +2257,20 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         row_counter += 1;
     }
 
-    // Time axis: use slot indices since baseline data has no explicit durations.
-    // Allocate equal-width slots: max(rows, 4)
-    let slot_count = (row_count).max(4);
-    let slot_w = chart_w / slot_count;
+    let min_day = document
+        .tasks
+        .iter()
+        .map(|t| t.start_day)
+        .min()
+        .unwrap_or(0);
+    let max_day_exclusive = document
+        .tasks
+        .iter()
+        .map(|t| t.start_day.saturating_add(t.duration_days.max(1)))
+        .max()
+        .unwrap_or(min_day.saturating_add(1));
+    let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
+    let tick_count = total_days.clamp(1, 8);
 
     // Axis header bar
     out.push_str(&format!(
@@ -2255,27 +2280,27 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         w = chart_w,
         h = header_h
     ));
-    for i in 0..slot_count {
-        let x = chart_left + i * slot_w;
+    for i in 0..=tick_count {
+        let day_offset = i.saturating_mul(total_days) / tick_count;
+        let x = chart_left + ((chart_w as u32 * day_offset) / total_days) as i32;
         out.push_str(&format!(
             "<line x1=\"{x}\" y1=\"{y1}\" x2=\"{x}\" y2=\"{y2}\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>",
             y1 = chart_top - header_h,
             y2 = chart_top + chart_h
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">T{n}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">D+{n}</text>",
             tx = x + 6,
             ty = chart_top - 10,
-            n = i + 1
+            n = day_offset
         ));
     }
 
-    // Helper to compute bar geometry from name (slot = row_index)
-    let bar_geom = |name: &str| -> (i32, i32, i32) {
-        let idx = *row_index.get(name).unwrap_or(&0);
-        let bx = chart_left + idx * slot_w;
-        let bw = slot_w.max(40);
-        (bx, bw, idx)
+    let bar_geom = |task: &TimelineTask| -> (i32, i32) {
+        let start_offset = task.start_day.saturating_sub(min_day);
+        let bx = chart_left + ((chart_w as u32 * start_offset) / total_days) as i32;
+        let bw = (((chart_w as u32) * task.duration_days.max(1)) / total_days).max(8) as i32;
+        (bx, bw)
     };
 
     // Render tasks as horizontal bars
@@ -2289,7 +2314,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             ty = y + bar_height - 6,
             txt = escape_text(&task.name)
         ));
-        let (bx, bw, _) = bar_geom(&task.name);
+        let (bx, bw) = bar_geom(task);
         out.push_str(&format!(
             "<rect x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1\"/>",
             bh = bar_height
@@ -2307,8 +2332,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             ty = y + bar_height - 6,
             txt = escape_text(&milestone.name)
         ));
-        let (bx, _bw, _) = bar_geom(&milestone.name);
-        let cx = bx + slot_w / 2;
+        let cx = chart_left + chart_w / 2;
         let r = (bar_height / 2) - 2;
         out.push_str(&format!(
             "<polygon points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"#facc15\" stroke=\"#854d0e\" stroke-width=\"1.5\"/>",
@@ -2340,10 +2364,14 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         if let Some(to_row) = to_row {
             let from_y = chart_top + from_row * (bar_height + row_gap) + row_gap / 2 + bar_height;
             let to_y = chart_top + to_row * (bar_height + row_gap) + row_gap / 2;
-            let (fx, fw, _) = bar_geom(&constraint.subject);
-            let (tx, _tw, _) = bar_geom(&normalized_target);
+            let from_task = document.tasks.iter().find(|t| t.name == constraint.subject);
+            let to_task = document.tasks.iter().find(|t| t.name == normalized_target);
+            let (fx, fw) = from_task.map(bar_geom).unwrap_or((chart_left, 0));
+            let (tx, tw) = to_task
+                .map(bar_geom)
+                .unwrap_or((chart_left + chart_w / 2, 0));
             let x1 = fx + fw / 2;
-            let x2 = tx + slot_w / 2;
+            let x2 = tx + tw / 2;
             let y1 = from_y;
             let y2 = to_y;
             out.push_str(&format!(

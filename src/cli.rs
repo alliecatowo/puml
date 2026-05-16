@@ -104,10 +104,6 @@ pub struct Cli {
     #[arg(long, short = 'v', action = ArgAction::SetTrue)]
     pub verbose: bool,
 
-    /// Output format. PlantUML's `png` is recognized but unsupported (SVG only).
-    #[arg(long, value_enum, default_value_t = OutputFormat::Svg)]
-    pub format: OutputFormat,
-
     /// Emit diagnostics in single-line tab-separated format:
     /// `<severity>\t<code>\t<file>:<line>:<col>\t<message>`. Suppresses multi-line
     /// source-context output. Exit codes are unchanged.
@@ -125,6 +121,7 @@ pub enum OutputFormat {
 pub enum DiagnosticsFormat {
     Human,
     Json,
+    Stdrpt,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
@@ -158,12 +155,6 @@ pub enum CompatMode {
 pub enum DeterminismMode {
     Strict,
     Full,
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
-pub enum OutputFormat {
-    Svg,
-    Png,
 }
 
 fn parse_dpi(raw: &str) -> Result<f32, String> {

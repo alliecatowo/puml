@@ -5,6 +5,7 @@ use crate::ast::{
     StatementKind, TimingDeclKind,
 };
 use crate::diagnostic::Diagnostic;
+use crate::model::FamilyStyle;
 use crate::model::{
     ArchimateDocument, ArchimateElement, ArchimateRelation, ChartDocument, ChartPoint,
     ChartSubtype, DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup,
@@ -25,7 +26,6 @@ use crate::theme::{
     ActivityStyle, ClassStyle, ComponentStyle, SequenceSkinParamSupport, SequenceSkinParamValue,
     SequenceStyle, SkinParamSupport, StateStyle,
 };
-use crate::model::FamilyStyle;
 
 #[derive(Debug, Clone, Default)]
 pub struct NormalizeOptions {
@@ -663,7 +663,19 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
 
     for stmt in document.statements {
         match stmt.kind {
-            StatementKind::GanttTaskDecl { name } => tasks.push(TimelineTask { name }),
+            StatementKind::GanttTaskDecl {
+                name,
+                start_date,
+                duration_days,
+                ..
+            } => tasks.push(TimelineTask {
+                name,
+                start_day: start_date
+                    .as_deref()
+                    .and_then(parse_iso_date_day)
+                    .unwrap_or(0),
+                duration_days: duration_days.unwrap_or(1).max(1),
+            }),
             StatementKind::GanttMilestoneDecl { name } => {
                 milestones.push(TimelineMilestone { name })
             }
@@ -706,6 +718,25 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         }
     }
 
+    if document.kind == DiagramKind::Gantt && !tasks.is_empty() {
+        let fallback_anchor = tasks
+            .iter()
+            .filter(|t| t.start_day > 0)
+            .map(|t| t.start_day)
+            .min()
+            .unwrap_or(0);
+        let mut cursor = fallback_anchor;
+        for task in &mut tasks {
+            if task.start_day == 0 {
+                task.start_day = cursor;
+            }
+            let task_end = task.start_day.saturating_add(task.duration_days);
+            if task_end > cursor {
+                cursor = task_end;
+            }
+        }
+    }
+
     Ok(TimelineDocument {
         kind: document.kind,
         tasks,
@@ -719,6 +750,27 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         legend,
         warnings: Vec::new(),
     })
+}
+
+fn parse_iso_date_day(raw: &str) -> Option<u32> {
+    let mut parts = raw.trim().split('-');
+    let y = parts.next()?.parse::<i64>().ok()?;
+    let m = parts.next()?.parse::<i64>().ok()?;
+    let d = parts.next()?.parse::<i64>().ok()?;
+    if parts.next().is_some() || !(1..=12).contains(&m) || !(1..=31).contains(&d) || y < 0 {
+        return None;
+    }
+    let y_adj = y - if m <= 2 { 1 } else { 0 };
+    let era = if y_adj >= 0 { y_adj } else { y_adj - 399 } / 400;
+    let yoe = y_adj - era * 400;
+    let mp = m + if m > 2 { -3 } else { 9 };
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146097 + doe - 719468;
+    if days < 0 {
+        return None;
+    }
+    u32::try_from(days).ok()
 }
 
 fn collect_raw_block(document: &Document) -> (String, Option<String>) {
@@ -1119,9 +1171,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     SkinParamSupport::UnsupportedKey => {
                         // Class diagrams accept generic sequence keys silently
                         // (PlantUML applies them across all families).
-                        use crate::theme::{
-                            classify_sequence_skinparam, SequenceSkinParamSupport,
-                        };
+                        use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport};
                         if !matches!(
                             classify_sequence_skinparam(&key, &value),
                             SequenceSkinParamSupport::UnsupportedKey
@@ -2202,7 +2252,10 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
             }
             StatementKind::SkinParam { key, value } => {
                 let mut handled = false;
-                if matches!(family_kind, DiagramKind::Component | DiagramKind::Deployment) {
+                if matches!(
+                    family_kind,
+                    DiagramKind::Component | DiagramKind::Deployment
+                ) {
                     use crate::theme::ComponentSkinParamValue;
                     match classify_component_skinparam(&key, &value) {
                         SkinParamSupport::SupportedNoop => {

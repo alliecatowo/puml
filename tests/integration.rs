@@ -330,7 +330,7 @@ fn mermaid_classdiagram_fixture_checks_and_renders_nonempty_svg() {
     fs::copy(fixture("mermaid/valid_classdiagram.mmd"), &input).unwrap();
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dialect", "mermaid", &input.to_str().unwrap()])
+        .args(["--dialect", "mermaid", input.to_str().unwrap()])
         .assert()
         .success();
     let svg_path = tmp.path().join("valid_classdiagram.svg");
@@ -362,7 +362,7 @@ fn mermaid_statediagram_fixture_checks_and_renders_nonempty_svg() {
     fs::copy(fixture("mermaid/valid_statediagram.mmd"), &input).unwrap();
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dialect", "mermaid", &input.to_str().unwrap()])
+        .args(["--dialect", "mermaid", input.to_str().unwrap()])
         .assert()
         .success();
     let svg_path = tmp.path().join("valid_statediagram.svg");
@@ -394,7 +394,7 @@ fn mermaid_erdiagram_fixture_checks_and_renders_nonempty_svg() {
     fs::copy(fixture("mermaid/valid_erdiagram.mmd"), &input).unwrap();
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--dialect", "mermaid", &input.to_str().unwrap()])
+        .args(["--dialect", "mermaid", input.to_str().unwrap()])
         .assert()
         .success();
     let svg_path = tmp.path().join("valid_erdiagram.svg");
@@ -2645,17 +2645,16 @@ fn lifecycle_after_destroy_is_rejected() {
 
 #[test]
 fn non_sequence_inputs_fail_validation() {
-    for (case, code) in [(
+    let (case, code) = (
         "errors/invalid_salt_block_mismatch.puml",
         "E_BLOCK_MISMATCH",
-    )] {
-        Command::cargo_bin("puml")
-            .expect("binary")
-            .args(["--check", &fixture(case)])
-            .assert()
-            .code(1)
-            .stderr(predicate::str::contains(code));
-    }
+    );
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture(case)])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(code));
 }
 
 #[test]
@@ -4197,14 +4196,15 @@ fn sequence_box_grouping_and_hide_unlinked_fixture_validates_cleanly() {
 }
 
 #[test]
-fn format_png_flag_emits_deterministic_unsupported_error() {
+fn format_png_flag_is_accepted_in_check_mode() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--format", "png", "--check", "-"])
         .write_stdin("@startuml\nA -> B\n@enduml\n")
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_FORMAT_PNG_UNSUPPORTED"));
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]
@@ -5467,7 +5467,10 @@ fn hide_unlinked_removes_unreferenced_participant_from_svg() {
     let svg = render_source_to_svg(src).expect("hide unlinked diagram should render");
     assert!(svg.contains("Alice"), "expected Alice in rendered SVG");
     assert!(svg.contains("Bob"), "expected Bob in rendered SVG");
-    assert!(!svg.contains("Unused"), "Unused should be filtered by hide unlinked");
+    assert!(
+        !svg.contains("Unused"),
+        "Unused should be filtered by hide unlinked"
+    );
 }
 
 #[test]
@@ -5501,7 +5504,10 @@ fn salt_login_form_fixture_renders_svg() {
 fn salt_wireframe_grid_renders_button_and_input() {
     let src = "@startsalt\n{\n| Name | \"Enter name\" |\n| [OK] | [Cancel]    |\n}\n@endsalt\n";
     let svg = render_source_to_svg(src).expect("salt grid should render");
-    assert!(svg.contains("Enter name"), "expected input placeholder in SVG");
+    assert!(
+        svg.contains("Enter name"),
+        "expected input placeholder in SVG"
+    );
     assert!(svg.contains("OK"), "expected button label in SVG");
 }
 
@@ -5511,10 +5517,7 @@ fn salt_wireframe_grid_renders_button_and_input() {
 fn skinparam_class_keys_accepted_without_warnings() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("styling/valid_skinparam_class.puml"),
-        ])
+        .args(["--check", &fixture("styling/valid_skinparam_class.puml")])
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
@@ -5548,10 +5551,7 @@ fn skinparam_class_background_color_appears_in_svg() {
 fn skinparam_state_keys_accepted_without_warnings() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("styling/valid_skinparam_state.puml"),
-        ])
+        .args(["--check", &fixture("styling/valid_skinparam_state.puml")])
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
@@ -5618,10 +5618,7 @@ fn skinparam_component_colors_appear_in_svg() {
 fn skinparam_activity_keys_accepted_without_warnings() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args([
-            "--check",
-            &fixture("styling/valid_skinparam_activity.puml"),
-        ])
+        .args(["--check", &fixture("styling/valid_skinparam_activity.puml")])
         .assert()
         .success()
         .stdout(predicate::str::is_empty())

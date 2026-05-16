@@ -169,7 +169,7 @@ fn oracle_report_schema_is_stable() {
 
     // Soft-assert: exit code must be 0, 1, or 2
     assert!(
-        matches!(code, 0 | 1 | 2),
+        matches!(code, 0..=2),
         "oracle.sh must exit 0, 1, or 2 (got {code}); stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );

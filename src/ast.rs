@@ -201,7 +201,7 @@ pub struct StateInternalAction {
 
 /// Modifier on a class/object/usecase member, from `{field}`, `{method}`, `{abstract}`,
 /// `{static}`, or `{class}` (alias for static).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum MemberModifier {
     Field,
     Method,
@@ -211,7 +211,7 @@ pub enum MemberModifier {
 
 /// A single member line inside a class/object/usecase body block,
 /// with an optional `{modifier}` annotation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ClassMember {
     /// The raw member text (visibility, name, type, etc.) without the modifier token.
     pub text: String,
