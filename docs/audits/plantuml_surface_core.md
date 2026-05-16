@@ -25,9 +25,9 @@ Current `puml` baseline used for parity status:
 | Attributes/methods | Fields, methods, grouped class bodies | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
 | Visibility markers | `+ - # ~` visibility and class visibility controls | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
 | Abstract/static/interface semantics | Abstract/static members, interfaces, abstract classes | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
-| Notes/stereotypes | Notes on classes, links, fields, methods; stereotype rendering | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
-| Hide/remove controls | Hide/remove members/classes/tags/wildcards | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
-| Packages/namespaces | Package and namespace blocks, automatic package creation | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
+| Notes/stereotypes | Notes on classes, links, fields, methods; stereotype rendering | partial | Member stereotype lines are parsed and can be hidden via `hide stereotype`; full stereotype semantics remain incomplete. | https://plantuml.com/class-diagram |
+| Hide/remove controls | Hide/remove members/classes/tags/wildcards | partial | `hide stereotype`, `hide circle`, and `hide empty members` are implemented for class member display in stub render; broader hide/remove surface remains missing. | https://plantuml.com/class-diagram |
+| Packages/namespaces | Package and namespace blocks, automatic package creation | partial | `package {}` and `namespace {}` scoping now qualify class names in the model/render stub; broader package semantics remain missing. | https://plantuml.com/class-diagram |
 | Advanced relation/style controls | Generics, association class, lollipop, inline styles, orientation | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
 
 ## Object Family

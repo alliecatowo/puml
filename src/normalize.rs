@@ -138,6 +138,11 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut scope_stack: Vec<String> = Vec::new();
+    let mut together_depth = 0usize;
+    let mut hide_stereotype = false;
+    let mut hide_circle = false;
+    let mut hide_empty_members = false;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -151,9 +156,14 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 }
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::Class,
-                    name: decl.name,
+                    name: scoped_name(&scope_stack, &decl.name),
                     alias: decl.alias,
-                    members: decl.members,
+                    members: filter_family_members(
+                        decl.members,
+                        hide_stereotype,
+                        hide_circle,
+                        hide_empty_members,
+                    ),
                 });
             }
             StatementKind::ObjectDecl(decl) => {
@@ -166,9 +176,14 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 }
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::Object,
-                    name: decl.name,
+                    name: scoped_name(&scope_stack, &decl.name),
                     alias: decl.alias,
-                    members: decl.members,
+                    members: filter_family_members(
+                        decl.members,
+                        hide_stereotype,
+                        hide_circle,
+                        hide_empty_members,
+                    ),
                 });
             }
             StatementKind::UseCaseDecl(decl) => {
@@ -181,17 +196,38 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 }
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::UseCase,
-                    name: decl.name,
+                    name: scoped_name(&scope_stack, &decl.name),
                     alias: decl.alias,
-                    members: decl.members,
+                    members: filter_family_members(
+                        decl.members,
+                        hide_stereotype,
+                        hide_circle,
+                        hide_empty_members,
+                    ),
                 });
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
-                from: rel.from,
-                to: rel.to,
+                from: scoped_endpoint(&scope_stack, &rel.from),
+                to: scoped_endpoint(&scope_stack, &rel.to),
                 arrow: rel.arrow,
                 label: rel.label,
             }),
+            StatementKind::FamilyScopeStart { name, .. } => scope_stack.push(name),
+            StatementKind::FamilyScopeEnd => {
+                if together_depth > 0 {
+                    together_depth -= 1;
+                } else {
+                    scope_stack.pop();
+                }
+            }
+            StatementKind::FamilyTogetherStart => together_depth += 1,
+            StatementKind::FamilyTogetherEnd => together_depth = together_depth.saturating_sub(1),
+            StatementKind::FamilyHide { target } => match target.as_str() {
+                "stereotype" => hide_stereotype = true,
+                "circle" => hide_circle = true,
+                "empty members" => hide_empty_members = true,
+                _ => {}
+            },
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -224,6 +260,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         kind: family_kind,
         nodes,
         relations,
+        hide_stereotype,
+        hide_circle,
+        hide_empty_members,
         title,
         header,
         footer,
@@ -231,6 +270,44 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         legend,
         warnings: Vec::new(),
     })
+}
+
+fn scoped_name(scope_stack: &[String], name: &str) -> String {
+    if scope_stack.is_empty() {
+        return name.to_string();
+    }
+    format!("{}::{}", scope_stack.join("::"), name)
+}
+
+fn scoped_endpoint(scope_stack: &[String], endpoint: &str) -> String {
+    if endpoint.contains("::") || scope_stack.is_empty() {
+        return endpoint.to_string();
+    }
+    scoped_name(scope_stack, endpoint)
+}
+
+fn filter_family_members(
+    members: Vec<String>,
+    hide_stereotype: bool,
+    hide_circle: bool,
+    hide_empty_members: bool,
+) -> Vec<String> {
+    members
+        .into_iter()
+        .filter(|m| {
+            let trimmed = m.trim();
+            if hide_stereotype && trimmed.starts_with("<<") && trimmed.ends_with(">>") {
+                return false;
+            }
+            if hide_circle && trimmed == "()" {
+                return false;
+            }
+            if hide_empty_members && (trimmed.is_empty() || trimmed == "--" || trimmed == "..") {
+                return false;
+            }
+            true
+        })
+        .collect()
 }
 
 fn family_kind_name(kind: DiagramKind) -> &'static str {

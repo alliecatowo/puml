@@ -38,6 +38,16 @@ pub enum StatementKind {
     ObjectDecl(ObjectDecl),
     UseCaseDecl(UseCaseDecl),
     FamilyRelation(FamilyRelation),
+    FamilyScopeStart {
+        keyword: String,
+        name: String,
+    },
+    FamilyScopeEnd,
+    FamilyTogetherStart,
+    FamilyTogetherEnd,
+    FamilyHide {
+        target: String,
+    },
     GanttTaskDecl {
         name: String,
     },

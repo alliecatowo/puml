@@ -1772,6 +1772,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
+        if let Some(kind) = parse_family_scope_statement(line) {
+            if detected_kind.is_none() {
+                detected_kind = Some(DiagramKind::Class);
+            }
+            statements.push(Statement { span, kind });
+            i += 1;
+            continue;
+        }
 
         if detected_kind.is_none() {
             if let Some(kind) = detect_non_sequence_family(line) {
@@ -2256,6 +2264,59 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         arrow: arrow.to_string(),
         label,
     }))
+}
+
+fn parse_family_scope_statement(line: &str) -> Option<StatementKind> {
+    let lower = line.to_ascii_lowercase();
+    if lower == "}" {
+        return Some(StatementKind::FamilyScopeEnd);
+    }
+    if lower == "together {" {
+        return Some(StatementKind::FamilyTogetherStart);
+    }
+    if lower == "end together" {
+        return Some(StatementKind::FamilyTogetherEnd);
+    }
+    if let Some(name) = parse_named_scope_start(line, "package") {
+        return Some(StatementKind::FamilyScopeStart {
+            keyword: "package".to_string(),
+            name,
+        });
+    }
+    if let Some(name) = parse_named_scope_start(line, "namespace") {
+        return Some(StatementKind::FamilyScopeStart {
+            keyword: "namespace".to_string(),
+            name,
+        });
+    }
+    if lower == "hide stereotype" {
+        return Some(StatementKind::FamilyHide {
+            target: "stereotype".to_string(),
+        });
+    }
+    if lower == "hide circle" {
+        return Some(StatementKind::FamilyHide {
+            target: "circle".to_string(),
+        });
+    }
+    if lower == "hide empty members" {
+        return Some(StatementKind::FamilyHide {
+            target: "empty members".to_string(),
+        });
+    }
+    None
+}
+
+fn parse_named_scope_start(line: &str, keyword: &str) -> Option<String> {
+    if !line.starts_with(keyword) {
+        return None;
+    }
+    let rest = line[keyword.len()..].trim();
+    let inner = rest.strip_suffix('{')?.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    Some(clean_ident(inner))
 }
 
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
@@ -3906,6 +3967,36 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_FAMILY_DECL_BLOCK_UNCLOSED"));
+    }
+
+    #[test]
+    fn parses_class_scope_together_and_hide_controls() {
+        let doc = parse_with_options(
+            "hide stereotype\nhide circle\nhide empty members\npackage Domain {\nnamespace Core {\ntogether {\nclass User\nend together\n}\n}\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::FamilyHide { .. }
+        ));
+        assert!(matches!(
+            doc.statements[3].kind,
+            StatementKind::FamilyScopeStart { .. }
+        ));
+        assert!(matches!(
+            doc.statements[5].kind,
+            StatementKind::FamilyTogetherStart
+        ));
+        assert!(matches!(
+            doc.statements[6].kind,
+            StatementKind::ClassDecl(_)
+        ));
+        assert!(matches!(
+            doc.statements[7].kind,
+            StatementKind::FamilyTogetherEnd
+        ));
     }
 
     #[test]
