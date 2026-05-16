@@ -2356,18 +2356,32 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let (raw_line, span) = lines[i];
         let line = strip_inline_plantuml_comment(raw_line).trim();
 
+        // In raw-body family blocks we never strip empty lines or interpret comments.
+        // Check for the closing marker first; otherwise capture verbatim.
         if let Some(bk) = block_kind {
-            if is_raw_body_block(bk) {
-                if parse_end_block_kind(line).is_some() {
-                    // fall through to end-block handler below
-                } else {
-                    statements.push(Statement {
-                        span,
-                        kind: StatementKind::RawBlockContent(raw_line.to_string()),
-                    });
-                    i += 1;
-                    continue;
+            if is_raw_body_block(bk) || block_kind_is_raw_body(bk) {
+                if let Some(end_kind) = parse_end_block_kind(raw_line.trim()) {
+                    if block_kind == Some(end_kind) {
+                        in_block = false;
+                        block_kind = None;
+                        block_start_span = None;
+                        i += 1;
+                        continue;
+                    } else {
+                        return Err(Diagnostic::error(format!(
+                            "[E_BLOCK_MISMATCH] closing marker `@end{}` does not match opening `@start{}`",
+                            block_kind_name(end_kind),
+                            block_kind_name(bk)
+                        ))
+                        .with_span(span));
+                    }
                 }
+                statements.push(Statement {
+                    span,
+                    kind: StatementKind::RawBody(raw_line.to_string()),
+                });
+                i += 1;
+                continue;
             }
         }
 
@@ -2669,6 +2683,12 @@ enum BlockKind {
     Yaml,
     Nwdiag,
     Archimate,
+    Regex,
+    Ebnf,
+    Math,
+    Sdl,
+    Ditaa,
+    Chart,
 }
 
 fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
@@ -2681,31 +2701,46 @@ fn parse_end_block_kind(line: &str) -> Option<BlockKind> {
 
 fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     let lower = line.to_ascii_lowercase();
+    // NOTE: longer markers must come before shorter prefixes that they share.
     let markers: &[(&str, BlockKind)] = if start {
         &[
-            ("@startuml", BlockKind::Uml),
-            ("@startsalt", BlockKind::Salt),
             ("@startmindmap", BlockKind::MindMap),
-            ("@startwbs", BlockKind::Wbs),
-            ("@startgantt", BlockKind::Gantt),
             ("@startchronology", BlockKind::Chronology),
             ("@startjson", BlockKind::Json),
             ("@startyaml", BlockKind::Yaml),
             ("@startnwdiag", BlockKind::Nwdiag),
             ("@startarchimate", BlockKind::Archimate),
+            ("@startregex", BlockKind::Regex),
+            ("@startebnf", BlockKind::Ebnf),
+            ("@startlatex", BlockKind::Math),
+            ("@startmath", BlockKind::Math),
+            ("@startditaa", BlockKind::Ditaa),
+            ("@startchart", BlockKind::Chart),
+            ("@startsdl", BlockKind::Sdl),
+            ("@startgantt", BlockKind::Gantt),
+            ("@startwbs", BlockKind::Wbs),
+            ("@startsalt", BlockKind::Salt),
+            ("@startuml", BlockKind::Uml),
         ]
     } else {
         &[
-            ("@enduml", BlockKind::Uml),
-            ("@endsalt", BlockKind::Salt),
             ("@endmindmap", BlockKind::MindMap),
-            ("@endwbs", BlockKind::Wbs),
-            ("@endgantt", BlockKind::Gantt),
             ("@endchronology", BlockKind::Chronology),
             ("@endjson", BlockKind::Json),
             ("@endyaml", BlockKind::Yaml),
             ("@endnwdiag", BlockKind::Nwdiag),
             ("@endarchimate", BlockKind::Archimate),
+            ("@endregex", BlockKind::Regex),
+            ("@endebnf", BlockKind::Ebnf),
+            ("@endlatex", BlockKind::Math),
+            ("@endmath", BlockKind::Math),
+            ("@endditaa", BlockKind::Ditaa),
+            ("@endchart", BlockKind::Chart),
+            ("@endsdl", BlockKind::Sdl),
+            ("@endgantt", BlockKind::Gantt),
+            ("@endwbs", BlockKind::Wbs),
+            ("@endsalt", BlockKind::Salt),
+            ("@enduml", BlockKind::Uml),
         ]
     };
     for (marker, kind) in markers {
@@ -2731,6 +2766,12 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Yaml => Some(DiagramKind::Yaml),
         BlockKind::Nwdiag => Some(DiagramKind::Nwdiag),
         BlockKind::Archimate => Some(DiagramKind::Archimate),
+        BlockKind::Regex => Some(DiagramKind::Regex),
+        BlockKind::Ebnf => Some(DiagramKind::Ebnf),
+        BlockKind::Math => Some(DiagramKind::Math),
+        BlockKind::Sdl => Some(DiagramKind::Sdl),
+        BlockKind::Ditaa => Some(DiagramKind::Ditaa),
+        BlockKind::Chart => Some(DiagramKind::Chart),
     }
 }
 
@@ -2746,6 +2787,12 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Yaml => "yaml",
         BlockKind::Nwdiag => "nwdiag",
         BlockKind::Archimate => "archimate",
+        BlockKind::Regex => "regex",
+        BlockKind::Ebnf => "ebnf",
+        BlockKind::Math => "math",
+        BlockKind::Sdl => "sdl",
+        BlockKind::Ditaa => "ditaa",
+        BlockKind::Chart => "chart",
     }
 }
 
@@ -2753,6 +2800,18 @@ fn is_raw_body_block(kind: BlockKind) -> bool {
     matches!(
         kind,
         BlockKind::Json | BlockKind::Yaml | BlockKind::Nwdiag | BlockKind::Archimate
+    )
+}
+
+fn block_kind_is_raw_body(kind: BlockKind) -> bool {
+    matches!(
+        kind,
+        BlockKind::Regex
+            | BlockKind::Ebnf
+            | BlockKind::Math
+            | BlockKind::Sdl
+            | BlockKind::Ditaa
+            | BlockKind::Chart
     )
 }
 
@@ -2814,6 +2873,12 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Yaml => "yaml",
         DiagramKind::Nwdiag => "nwdiag",
         DiagramKind::Archimate => "archimate",
+        DiagramKind::Regex => "regex",
+        DiagramKind::Ebnf => "ebnf",
+        DiagramKind::Math => "math",
+        DiagramKind::Sdl => "sdl",
+        DiagramKind::Ditaa => "ditaa",
+        DiagramKind::Chart => "chart",
         DiagramKind::Unknown => "unknown",
     }
 }

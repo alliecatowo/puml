@@ -26,6 +26,12 @@ pub enum DiagramKind {
     Yaml,
     Nwdiag,
     Archimate,
+    Regex,
+    Ebnf,
+    Math,
+    Sdl,
+    Ditaa,
+    Chart,
     Unknown,
 }
 
@@ -114,6 +120,7 @@ pub enum StatementKind {
     },
     Undef(String),
     RawBlockContent(String),
+    RawBody(String),
     Unknown(String),
 }
 

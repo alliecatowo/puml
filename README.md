@@ -261,6 +261,12 @@ Artifacts:
 | YAML family (`@startyaml` / `@endyaml`) | Supported | Indentation-based two-space mapping/sequence tree captured into a depth-tagged node list; rendered as a deterministic indented SVG node tree. |
 | nwdiag family (`@startnwdiag` / `@endnwdiag`) | Supported | Parses `network` blocks with optional `address` and `Node [address = "..."]` entries; renders horizontal swimlanes per network with deterministic node ordering. |
 | Archimate family (`@startarchimate` / `@endarchimate`) | Supported | Parses `archimate "Name" as alias <<layer>>` declarations plus relation macros (`Rel_Association`, `Rel_Realization`, `Rel_Serving`, `Rel_Composition`, `Rel_Aggregation`, `Rel_Used_By`, `Rel_Flow`) and plain arrows; renders layered (strategy/business/application/technology/motivation) swimlanes. |
+| Regex diagrams (`@startregex`/`@endregex`) | Supported (visual) | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, `\|`, `(...)`, `\d`, `.`, anchors) into a deterministic railroad-style SVG; unsupported quantifiers emit deterministic warnings. |
+| EBNF diagrams (`@startebnf`/`@endebnf`) | Supported (visual) | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, `*`, `+`, `?` into a deterministic railroad SVG. |
+| Math / LaTeX diagrams (`@startmath`/`@startlatex`) | Deterministic stub | LaTeX-like body rendered in a deterministic monospaced frame (no formula typesetting). |
+| SDL diagrams (`@startsdl`/`@endsdl`) | Deterministic stub | Parses `state`, `start`, `stop`, and `from -> to : signal` lines, renders state-machine grid plus transition list. |
+| Ditaa diagrams (`@startditaa`/`@endditaa`) | Deterministic stub | ASCII-art body preserved verbatim inside a labeled monospace frame. |
+| Chart diagrams (`@startchart`/`@endchart`) | Supported (visual) | Parses `bar`/`line`/`pie` subtype plus `"label" value` rows; renders bar columns, line plots, or labeled pie slices with deterministic palette colors. |
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
 | Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |

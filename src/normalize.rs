@@ -6,10 +6,12 @@ use crate::ast::{
 };
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    ArchimateDocument, ArchimateElement, ArchimateRelation, FamilyDocument, FamilyNode,
-    FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument,
-    JsonTreeNode, NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant,
-    ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
+    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartDocument, ChartPoint, ChartSubtype,
+    DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyNode, FamilyNodeKind,
+    FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode,
+    MathDocument, NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant,
+    ParticipantRole, RegexDocument, RegexPattern, RegexToken, RepeatKind, SdlDocument, SdlState,
+    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
     TimelineChronologyEvent, TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask,
     VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, YamlDocument, YamlTreeNode,
 };
@@ -57,6 +59,12 @@ pub fn normalize_family_with_options(
         DiagramKind::Archimate => {
             normalize_archimate_document(document).map(NormalizedDocument::Archimate)
         }
+        DiagramKind::Regex => normalize_regex(document).map(NormalizedDocument::Regex),
+        DiagramKind::Ebnf => normalize_ebnf(document).map(NormalizedDocument::Ebnf),
+        DiagramKind::Math => normalize_math(document).map(NormalizedDocument::Math),
+        DiagramKind::Sdl => normalize_sdl(document).map(NormalizedDocument::Sdl),
+        DiagramKind::Ditaa => normalize_ditaa(document).map(NormalizedDocument::Ditaa),
+        DiagramKind::Chart => normalize_chart(document).map(NormalizedDocument::Chart),
         DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::State
@@ -66,6 +74,578 @@ pub fn normalize_family_with_options(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
         )),
     }
+}
+
+fn collect_raw_body(document: &Document) -> (Option<String>, Vec<String>) {
+    let mut title: Option<String> = None;
+    let mut body: Vec<String> = Vec::new();
+    for stmt in &document.statements {
+        match &stmt.kind {
+            StatementKind::Title(v) => title = Some(v.clone()),
+            StatementKind::RawBody(line) => {
+                let trimmed = line.trim_start();
+                if let Some(rest) = trimmed.strip_prefix("title ") {
+                    if title.is_none() {
+                        title = Some(rest.trim().to_string());
+                    }
+                    continue;
+                }
+                if trimmed.eq_ignore_ascii_case("title") {
+                    continue;
+                }
+                body.push(line.clone());
+            }
+            _ => {}
+        }
+    }
+    (title, body)
+}
+
+fn normalize_regex(document: Document) -> Result<RegexDocument, Diagnostic> {
+    let (title, body) = collect_raw_body(&document);
+    let mut patterns = Vec::new();
+    let mut warnings: Vec<Diagnostic> = Vec::new();
+    for line in body {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let tokens = parse_regex_tokens(trimmed, &mut warnings);
+        patterns.push(RegexPattern {
+            source: trimmed.to_string(),
+            tokens,
+        });
+    }
+    Ok(RegexDocument {
+        title,
+        patterns,
+        warnings,
+    })
+}
+
+fn parse_regex_tokens(input: &str, warnings: &mut Vec<Diagnostic>) -> Vec<RegexToken> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut idx = 0usize;
+    let tokens = parse_regex_alt(&chars, &mut idx, false, warnings);
+    if idx < chars.len() {
+        warnings.push(Diagnostic::warning(format!(
+            "[W_REGEX_UNCONSUMED] trailing input not consumed at offset {idx}"
+        )));
+    }
+    tokens
+}
+
+fn parse_regex_alt(
+    chars: &[char],
+    idx: &mut usize,
+    in_group: bool,
+    warnings: &mut Vec<Diagnostic>,
+) -> Vec<RegexToken> {
+    let mut branches: Vec<Vec<RegexToken>> = Vec::new();
+    let mut current = parse_regex_seq(chars, idx, in_group, warnings);
+    while *idx < chars.len() && chars[*idx] == '|' {
+        *idx += 1;
+        branches.push(std::mem::take(&mut current));
+        current = parse_regex_seq(chars, idx, in_group, warnings);
+    }
+    if branches.is_empty() {
+        current
+    } else {
+        branches.push(current);
+        vec![RegexToken::Alt(branches)]
+    }
+}
+
+fn parse_regex_seq(
+    chars: &[char],
+    idx: &mut usize,
+    in_group: bool,
+    warnings: &mut Vec<Diagnostic>,
+) -> Vec<RegexToken> {
+    let mut out: Vec<RegexToken> = Vec::new();
+    let mut literal = String::new();
+    while *idx < chars.len() {
+        let ch = chars[*idx];
+        if ch == ')' && in_group {
+            break;
+        }
+        if ch == '|' {
+            break;
+        }
+        if ch == '(' {
+            flush_literal(&mut literal, &mut out);
+            *idx += 1;
+            let inner = parse_regex_alt(chars, idx, true, warnings);
+            if *idx < chars.len() && chars[*idx] == ')' {
+                *idx += 1;
+            } else {
+                warnings.push(Diagnostic::warning(
+                    "[W_REGEX_UNBALANCED] missing closing `)`",
+                ));
+            }
+            push_with_repeat(RegexToken::Group(inner), chars, idx, &mut out);
+            continue;
+        }
+        if ch == '[' {
+            flush_literal(&mut literal, &mut out);
+            *idx += 1;
+            let mut class = String::new();
+            while *idx < chars.len() && chars[*idx] != ']' {
+                class.push(chars[*idx]);
+                *idx += 1;
+            }
+            if *idx < chars.len() {
+                *idx += 1;
+            } else {
+                warnings.push(Diagnostic::warning(
+                    "[W_REGEX_UNBALANCED] missing closing `]`",
+                ));
+            }
+            push_with_repeat(RegexToken::CharClass(class), chars, idx, &mut out);
+            continue;
+        }
+        if ch == '\\' {
+            flush_literal(&mut literal, &mut out);
+            *idx += 1;
+            if *idx < chars.len() {
+                let esc = chars[*idx];
+                *idx += 1;
+                push_with_repeat(RegexToken::Escape(esc), chars, idx, &mut out);
+            } else {
+                warnings.push(Diagnostic::warning(
+                    "[W_REGEX_TRAILING_ESCAPE] trailing backslash",
+                ));
+            }
+            continue;
+        }
+        if ch == '.' {
+            flush_literal(&mut literal, &mut out);
+            *idx += 1;
+            push_with_repeat(RegexToken::AnyChar, chars, idx, &mut out);
+            continue;
+        }
+        if ch == '^' || ch == '$' {
+            flush_literal(&mut literal, &mut out);
+            *idx += 1;
+            out.push(RegexToken::Anchor(ch.to_string()));
+            continue;
+        }
+        if ch == '{' {
+            flush_literal(&mut literal, &mut out);
+            let mut spec = String::new();
+            while *idx < chars.len() && chars[*idx] != '}' {
+                spec.push(chars[*idx]);
+                *idx += 1;
+            }
+            if *idx < chars.len() {
+                *idx += 1;
+            }
+            warnings.push(Diagnostic::warning(format!(
+                "[W_REGEX_QUANT_UNSUPPORTED] quantifier `{{{}}}` not fully supported",
+                spec.trim_start_matches('{')
+            )));
+            out.push(RegexToken::Unsupported(format!("{{{spec}}}")));
+            continue;
+        }
+        if matches!(ch, '*' | '+' | '?') {
+            // Stray quantifier with no prior atom; treat as literal.
+            flush_literal(&mut literal, &mut out);
+            *idx += 1;
+            warnings.push(Diagnostic::warning(format!(
+                "[W_REGEX_STRAY_QUANT] stray quantifier `{ch}`"
+            )));
+            out.push(RegexToken::Unsupported(ch.to_string()));
+            continue;
+        }
+        literal.push(ch);
+        *idx += 1;
+        // Peek for following quantifier on the last character of literal.
+        if *idx < chars.len() && matches!(chars[*idx], '*' | '+' | '?') {
+            // Split off the last char as its own atom so the quantifier applies to it.
+            let last = literal.pop();
+            flush_literal(&mut literal, &mut out);
+            if let Some(c) = last {
+                push_with_repeat(RegexToken::Literal(c.to_string()), chars, idx, &mut out);
+            }
+        }
+    }
+    flush_literal(&mut literal, &mut out);
+    out
+}
+
+fn flush_literal(literal: &mut String, out: &mut Vec<RegexToken>) {
+    if !literal.is_empty() {
+        out.push(RegexToken::Literal(std::mem::take(literal)));
+    }
+}
+
+fn push_with_repeat(token: RegexToken, chars: &[char], idx: &mut usize, out: &mut Vec<RegexToken>) {
+    if *idx < chars.len() {
+        let kind = match chars[*idx] {
+            '*' => Some(RepeatKind::ZeroOrMore),
+            '+' => Some(RepeatKind::OneOrMore),
+            '?' => Some(RepeatKind::ZeroOrOne),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            *idx += 1;
+            out.push(RegexToken::Repeat {
+                inner: Box::new(token),
+                kind,
+            });
+            return;
+        }
+    }
+    out.push(token);
+}
+
+fn normalize_ebnf(document: Document) -> Result<EbnfDocument, Diagnostic> {
+    let (title, body) = collect_raw_body(&document);
+    let mut rules = Vec::new();
+    let mut warnings: Vec<Diagnostic> = Vec::new();
+    let joined = body.join("\n");
+    // Split rules on `;` terminator.
+    for chunk in joined.split(';') {
+        let chunk = chunk.trim();
+        if chunk.is_empty() {
+            continue;
+        }
+        let Some((name, body)) = chunk.split_once('=') else {
+            warnings.push(Diagnostic::warning(format!(
+                "[W_EBNF_RULE_MALFORMED] missing `=` in rule `{chunk}`"
+            )));
+            continue;
+        };
+        let name = name.trim().to_string();
+        let body = body.trim().to_string();
+        let tokens = parse_ebnf_tokens(&body, &mut warnings);
+        rules.push(EbnfRule {
+            name,
+            body,
+            tokens,
+        });
+    }
+    Ok(EbnfDocument {
+        title,
+        rules,
+        warnings,
+    })
+}
+
+fn parse_ebnf_tokens(input: &str, warnings: &mut Vec<Diagnostic>) -> Vec<EbnfToken> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut idx = 0usize;
+    let tokens = parse_ebnf_alt(&chars, &mut idx, None, warnings);
+    if idx < chars.len() {
+        warnings.push(Diagnostic::warning(format!(
+            "[W_EBNF_UNCONSUMED] trailing input at offset {idx}"
+        )));
+    }
+    tokens
+}
+
+fn parse_ebnf_alt(
+    chars: &[char],
+    idx: &mut usize,
+    terminator: Option<char>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Vec<EbnfToken> {
+    let mut branches: Vec<Vec<EbnfToken>> = Vec::new();
+    let mut current = parse_ebnf_seq(chars, idx, terminator, warnings);
+    while *idx < chars.len() && chars[*idx] == '|' {
+        *idx += 1;
+        branches.push(std::mem::take(&mut current));
+        current = parse_ebnf_seq(chars, idx, terminator, warnings);
+    }
+    if branches.is_empty() {
+        current
+    } else {
+        branches.push(current);
+        vec![EbnfToken::Alt(branches)]
+    }
+}
+
+fn parse_ebnf_seq(
+    chars: &[char],
+    idx: &mut usize,
+    terminator: Option<char>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Vec<EbnfToken> {
+    let mut out: Vec<EbnfToken> = Vec::new();
+    while *idx < chars.len() {
+        let ch = chars[*idx];
+        if Some(ch) == terminator {
+            break;
+        }
+        if ch == '|' {
+            break;
+        }
+        if ch.is_whitespace() {
+            *idx += 1;
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            let quote = ch;
+            *idx += 1;
+            let mut s = String::new();
+            while *idx < chars.len() && chars[*idx] != quote {
+                s.push(chars[*idx]);
+                *idx += 1;
+            }
+            if *idx < chars.len() {
+                *idx += 1;
+            }
+            let token = EbnfToken::Terminal(s);
+            push_ebnf_with_repeat(token, chars, idx, &mut out);
+            continue;
+        }
+        if ch == '(' {
+            *idx += 1;
+            let inner = parse_ebnf_alt(chars, idx, Some(')'), warnings);
+            if *idx < chars.len() && chars[*idx] == ')' {
+                *idx += 1;
+            } else {
+                warnings.push(Diagnostic::warning(
+                    "[W_EBNF_UNBALANCED] missing closing `)`",
+                ));
+            }
+            push_ebnf_with_repeat(EbnfToken::Group(inner), chars, idx, &mut out);
+            continue;
+        }
+        if ch == '[' {
+            *idx += 1;
+            let inner = parse_ebnf_alt(chars, idx, Some(']'), warnings);
+            if *idx < chars.len() && chars[*idx] == ']' {
+                *idx += 1;
+            } else {
+                warnings.push(Diagnostic::warning(
+                    "[W_EBNF_UNBALANCED] missing closing `]`",
+                ));
+            }
+            out.push(EbnfToken::Optional(inner));
+            continue;
+        }
+        if ch == '{' {
+            *idx += 1;
+            let inner = parse_ebnf_alt(chars, idx, Some('}'), warnings);
+            if *idx < chars.len() && chars[*idx] == '}' {
+                *idx += 1;
+            } else {
+                warnings.push(Diagnostic::warning(
+                    "[W_EBNF_UNBALANCED] missing closing `}`",
+                ));
+            }
+            out.push(EbnfToken::Repetition(inner));
+            continue;
+        }
+        if ch.is_alphanumeric() || ch == '_' {
+            let mut name = String::new();
+            while *idx < chars.len()
+                && (chars[*idx].is_alphanumeric() || chars[*idx] == '_' || chars[*idx] == '-')
+            {
+                name.push(chars[*idx]);
+                *idx += 1;
+            }
+            push_ebnf_with_repeat(EbnfToken::NonTerminal(name), chars, idx, &mut out);
+            continue;
+        }
+        // Unknown character; skip with warning.
+        warnings.push(Diagnostic::warning(format!(
+            "[W_EBNF_UNSUPPORTED_CHAR] unsupported character `{ch}`"
+        )));
+        out.push(EbnfToken::Unsupported(ch.to_string()));
+        *idx += 1;
+    }
+    out
+}
+
+fn push_ebnf_with_repeat(
+    token: EbnfToken,
+    chars: &[char],
+    idx: &mut usize,
+    out: &mut Vec<EbnfToken>,
+) {
+    if *idx < chars.len() {
+        let kind = match chars[*idx] {
+            '*' => Some(RepeatKind::ZeroOrMore),
+            '+' => Some(RepeatKind::OneOrMore),
+            '?' => Some(RepeatKind::ZeroOrOne),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            *idx += 1;
+            out.push(EbnfToken::Repeat {
+                inner: Box::new(token),
+                kind,
+            });
+            return;
+        }
+    }
+    out.push(token);
+}
+
+fn normalize_math(document: Document) -> Result<MathDocument, Diagnostic> {
+    let (title, body) = collect_raw_body(&document);
+    Ok(MathDocument {
+        title,
+        body: body.join("\n"),
+        warnings: Vec::new(),
+    })
+}
+
+fn normalize_ditaa(document: Document) -> Result<DitaaDocument, Diagnostic> {
+    let (title, body) = collect_raw_body(&document);
+    Ok(DitaaDocument {
+        title,
+        body: body.join("\n"),
+        warnings: Vec::new(),
+    })
+}
+
+fn normalize_sdl(document: Document) -> Result<SdlDocument, Diagnostic> {
+    let (title, body) = collect_raw_body(&document);
+    let mut states = Vec::new();
+    let mut transitions = Vec::new();
+    let warnings: Vec<Diagnostic> = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let record_state = |name: &str,
+                        kind: SdlStateKind,
+                        seen: &mut std::collections::BTreeSet<String>,
+                        states: &mut Vec<SdlState>| {
+        if !seen.contains(name) {
+            seen.insert(name.to_string());
+            states.push(SdlState {
+                name: name.to_string(),
+                kind,
+            });
+        }
+    };
+    for line in body {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('\'') {
+            continue;
+        }
+        // Recognized forms:
+        //   state <name>
+        //   start <name>            (alias: declares <name> with Start kind)
+        //   stop <name>
+        //   <from> -> <to> : <signal>
+        //   <from> -> <to>
+        let lower = line.to_ascii_lowercase();
+        if let Some(rest) = lower.strip_prefix("state ") {
+            let name = line[6..].trim();
+            let _ = rest;
+            record_state(name, SdlStateKind::State, &mut seen, &mut states);
+            continue;
+        }
+        if let Some(_rest) = lower.strip_prefix("start ") {
+            let name = line[6..].trim();
+            record_state(name, SdlStateKind::Start, &mut seen, &mut states);
+            continue;
+        }
+        if let Some(_rest) = lower.strip_prefix("stop ") {
+            let name = line[5..].trim();
+            record_state(name, SdlStateKind::Stop, &mut seen, &mut states);
+            continue;
+        }
+        if let Some((core, signal)) = line.split_once(':') {
+            if let Some((from, to)) = core.split_once("->") {
+                let from = from.trim().to_string();
+                let to = to.trim().to_string();
+                record_state(&from, SdlStateKind::State, &mut seen, &mut states);
+                record_state(&to, SdlStateKind::State, &mut seen, &mut states);
+                transitions.push(SdlTransition {
+                    from,
+                    to,
+                    signal: Some(signal.trim().to_string()),
+                });
+                continue;
+            }
+        }
+        if let Some((from, to)) = line.split_once("->") {
+            let from = from.trim().to_string();
+            let to = to.trim().to_string();
+            record_state(&from, SdlStateKind::State, &mut seen, &mut states);
+            record_state(&to, SdlStateKind::State, &mut seen, &mut states);
+            transitions.push(SdlTransition {
+                from,
+                to,
+                signal: None,
+            });
+            continue;
+        }
+        // Otherwise treat as a state declaration.
+        record_state(line, SdlStateKind::State, &mut seen, &mut states);
+    }
+    Ok(SdlDocument {
+        title,
+        states,
+        transitions,
+        warnings,
+    })
+}
+
+fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
+    let (title, body) = collect_raw_body(&document);
+    let mut subtype = ChartSubtype::Bar;
+    let mut data = Vec::new();
+    let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut first_non_empty = true;
+    for line in body {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('\'') {
+            continue;
+        }
+        if first_non_empty {
+            first_non_empty = false;
+            match line.to_ascii_lowercase().as_str() {
+                "bar" | "bars" => {
+                    subtype = ChartSubtype::Bar;
+                    continue;
+                }
+                "line" | "lines" => {
+                    subtype = ChartSubtype::Line;
+                    continue;
+                }
+                "pie" => {
+                    subtype = ChartSubtype::Pie;
+                    continue;
+                }
+                _ => {
+                    // not a subtype keyword; fall through to data parsing.
+                }
+            }
+        }
+        // Parse data point: "Label" value  OR  Label value
+        let (label, rest) = if let Some(stripped) = line.strip_prefix('"') {
+            if let Some(end) = stripped.find('"') {
+                (stripped[..end].to_string(), stripped[end + 1..].trim())
+            } else {
+                warnings.push(Diagnostic::warning(format!(
+                    "[W_CHART_UNQUOTED] unterminated quoted label on line `{line}`"
+                )));
+                (stripped.to_string(), "")
+            }
+        } else {
+            let mut parts = line.splitn(2, char::is_whitespace);
+            let head = parts.next().unwrap_or("");
+            let tail = parts.next().unwrap_or("").trim();
+            (head.to_string(), tail)
+        };
+        let value_str = rest.trim().split_whitespace().next().unwrap_or("");
+        match value_str.parse::<f64>() {
+            Ok(v) => data.push(ChartPoint { label, value: v }),
+            Err(_) => warnings.push(Diagnostic::warning(format!(
+                "[W_CHART_NUMERIC] could not parse numeric value `{value_str}`"
+            ))),
+        }
+    }
+    Ok(ChartDocument {
+        title,
+        subtype,
+        data,
+        warnings,
+    })
 }
 
 fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, Diagnostic> {
@@ -138,7 +718,9 @@ fn collect_raw_block(document: &Document) -> (String, Option<String>) {
     let mut title: Option<String> = None;
     for stmt in &document.statements {
         match &stmt.kind {
-            StatementKind::RawBlockContent(s) => lines.push(s.clone()),
+            StatementKind::RawBlockContent(s) | StatementKind::RawBody(s) => {
+                lines.push(s.clone())
+            }
             StatementKind::Title(v) => title = Some(v.clone()),
             _ => {}
         }
@@ -1087,6 +1669,12 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Yaml => "yaml",
         DiagramKind::Nwdiag => "nwdiag",
         DiagramKind::Archimate => "archimate",
+        DiagramKind::Regex => "regex",
+        DiagramKind::Ebnf => "ebnf",
+        DiagramKind::Math => "math",
+        DiagramKind::Sdl => "sdl",
+        DiagramKind::Ditaa => "ditaa",
+        DiagramKind::Chart => "chart",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -1601,7 +2189,9 @@ pub fn normalize_with_options(
             | StatementKind::StateDecl { .. }
             | StatementKind::ActivityStep(_)
             | StatementKind::TimingDecl { .. }
-            | StatementKind::TimingEvent { .. } => {
+            | StatementKind::TimingEvent { .. }
+            | StatementKind::RawBlockContent(_)
+            | StatementKind::RawBody(_) => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )

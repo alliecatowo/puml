@@ -38,6 +38,12 @@ pub enum DiagramFamily {
     Yaml,
     Nwdiag,
     Archimate,
+    Regex,
+    Ebnf,
+    Math,
+    Sdl,
+    Ditaa,
+    Chart,
     Unknown,
 }
 
@@ -62,6 +68,12 @@ impl DiagramFamily {
             Self::Yaml => "yaml",
             Self::Nwdiag => "nwdiag",
             Self::Archimate => "archimate",
+            Self::Regex => "regex",
+            Self::Ebnf => "ebnf",
+            Self::Math => "math",
+            Self::Sdl => "sdl",
+            Self::Ditaa => "ditaa",
+            Self::Chart => "chart",
             Self::Unknown => "unknown",
         }
     }
@@ -285,6 +297,42 @@ fn render_document_for_family(
                 "[E_FAMILY_ARCHIMATE_INTERNAL] unexpected model during archimate render",
             )),
         },
+        DiagramFamily::Regex => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Regex(doc) => Ok(vec![render::render_regex_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during regex render",
+            )),
+        },
+        DiagramFamily::Ebnf => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Ebnf(doc) => Ok(vec![render::render_ebnf_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during ebnf render",
+            )),
+        },
+        DiagramFamily::Math => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Math(doc) => Ok(vec![render::render_math_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during math render",
+            )),
+        },
+        DiagramFamily::Sdl => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Sdl(doc) => Ok(vec![render::render_sdl_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during sdl render",
+            )),
+        },
+        DiagramFamily::Ditaa => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Ditaa(doc) => Ok(vec![render::render_ditaa_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during ditaa render",
+            )),
+        },
+        DiagramFamily::Chart => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Chart(doc) => Ok(vec![render::render_chart_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected model during chart render",
+            )),
+        },
         DiagramFamily::MindMap
         | DiagramFamily::Wbs
         | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
@@ -351,6 +399,12 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::Yaml => DiagramFamily::Yaml,
         ast::DiagramKind::Nwdiag => DiagramFamily::Nwdiag,
         ast::DiagramKind::Archimate => DiagramFamily::Archimate,
+        ast::DiagramKind::Regex => DiagramFamily::Regex,
+        ast::DiagramKind::Ebnf => DiagramFamily::Ebnf,
+        ast::DiagramKind::Math => DiagramFamily::Math,
+        ast::DiagramKind::Sdl => DiagramFamily::Sdl,
+        ast::DiagramKind::Ditaa => DiagramFamily::Ditaa,
+        ast::DiagramKind::Chart => DiagramFamily::Chart,
         ast::DiagramKind::Unknown => DiagramFamily::Unknown,
     }
 }

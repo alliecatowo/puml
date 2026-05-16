@@ -1,0 +1,11 @@
+@startsdl
+title Login FSM
+start Idle
+state Authenticating
+state LoggedIn
+stop Done
+Idle -> Authenticating : credentials
+Authenticating -> LoggedIn : success
+Authenticating -> Idle : failure
+LoggedIn -> Done : logout
+@endsdl

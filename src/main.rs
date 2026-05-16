@@ -872,6 +872,12 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Yaml(doc) => &doc.warnings,
         NormalizedDocument::Nwdiag(doc) => &doc.warnings,
         NormalizedDocument::Archimate(doc) => &doc.warnings,
+        NormalizedDocument::Regex(doc) => &doc.warnings,
+        NormalizedDocument::Ebnf(doc) => &doc.warnings,
+        NormalizedDocument::Math(doc) => &doc.warnings,
+        NormalizedDocument::Sdl(doc) => &doc.warnings,
+        NormalizedDocument::Ditaa(doc) => &doc.warnings,
+        NormalizedDocument::Chart(doc) => &doc.warnings,
     }
 }
 
@@ -898,6 +904,12 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
         NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
         NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
+        NormalizedDocument::Regex(doc) => vec![render::render_regex_svg(doc)],
+        NormalizedDocument::Ebnf(doc) => vec![render::render_ebnf_svg(doc)],
+        NormalizedDocument::Math(doc) => vec![render::render_math_svg(doc)],
+        NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
+        NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
+        NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
     }
 }
 
@@ -1364,7 +1376,12 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::Yaml => "Yaml",
             DiagramKind::Nwdiag => "Nwdiag",
             DiagramKind::Archimate => "Archimate",
-            DiagramKind::Unknown => "Unknown",
+            DiagramKind::Regex => "Regex",
+            DiagramKind::Ebnf => "Ebnf",
+            DiagramKind::Math => "Math",
+            DiagramKind::Sdl => "Sdl",
+            DiagramKind::Ditaa => "Ditaa",
+            DiagramKind::Chart => "Chart",            DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
     })
@@ -1436,6 +1453,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::RawBlockContent(v) => json!({"RawBlockContent": v}),
+        StatementKind::RawBody(v) => json!({"RawBody": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
         StatementKind::ComponentDecl {
             kind,
@@ -1569,6 +1587,52 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
             "elements": doc.elements.iter().map(|e| json!({"name": e.name, "alias": e.alias, "layer": e.layer})).collect::<Vec<_>>(),
             "relations": doc.relations.iter().map(|r| json!({"from": r.from, "to": r.to, "kind": r.kind, "label": r.label})).collect::<Vec<_>>(),
         }),
+        NormalizedDocument::Regex(doc) => json!({
+            "kind": "Regex",
+            "title": doc.title,
+            "patterns": doc.patterns.iter().map(|p| json!({"source": p.source})).collect::<Vec<_>>(),
+            "warnings": doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        }),
+        NormalizedDocument::Ebnf(doc) => json!({
+            "kind": "Ebnf",
+            "title": doc.title,
+            "rules": doc.rules.iter().map(|r| json!({"name": r.name, "body": r.body})).collect::<Vec<_>>(),
+            "warnings": doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        }),
+        NormalizedDocument::Math(doc) => json!({
+            "kind": "Math",
+            "title": doc.title,
+            "body": doc.body,
+            "warnings": doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        }),
+        NormalizedDocument::Sdl(doc) => json!({
+            "kind": "Sdl",
+            "title": doc.title,
+            "states": doc.states.iter().map(|s| json!({"name": s.name, "kind": match s.kind {
+                puml::model::SdlStateKind::Start => "Start",
+                puml::model::SdlStateKind::Stop => "Stop",
+                puml::model::SdlStateKind::State => "State",
+            }})).collect::<Vec<_>>(),
+            "transitions": doc.transitions.iter().map(|t| json!({"from": t.from, "to": t.to, "signal": t.signal})).collect::<Vec<_>>(),
+            "warnings": doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        }),
+        NormalizedDocument::Ditaa(doc) => json!({
+            "kind": "Ditaa",
+            "title": doc.title,
+            "body": doc.body,
+            "warnings": doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        }),
+        NormalizedDocument::Chart(doc) => json!({
+            "kind": "Chart",
+            "title": doc.title,
+            "subtype": match doc.subtype {
+                puml::model::ChartSubtype::Bar => "Bar",
+                puml::model::ChartSubtype::Line => "Line",
+                puml::model::ChartSubtype::Pie => "Pie",
+            },
+            "data": doc.data.iter().map(|p| json!({"label": p.label, "value": p.value})).collect::<Vec<_>>(),
+            "warnings": doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        }),
     }
 }
 
@@ -1607,6 +1671,12 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             DiagramKind::Nwdiag => "Nwdiag",
             DiagramKind::Archimate => "Archimate",
             DiagramKind::Sequence => "Sequence",
+            DiagramKind::Regex => "Regex",
+            DiagramKind::Ebnf => "Ebnf",
+            DiagramKind::Math => "Math",
+            DiagramKind::Sdl => "Sdl",
+            DiagramKind::Ditaa => "Ditaa",
+            DiagramKind::Chart => "Chart",
             DiagramKind::Unknown => "Unknown",
         },
         "nodes": model
@@ -1662,7 +1732,12 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             DiagramKind::Yaml => "Yaml",
             DiagramKind::Nwdiag => "Nwdiag",
             DiagramKind::Archimate => "Archimate",
-            DiagramKind::Unknown => "Unknown",
+            DiagramKind::Regex => "Regex",
+            DiagramKind::Ebnf => "Ebnf",
+            DiagramKind::Math => "Math",
+            DiagramKind::Sdl => "Sdl",
+            DiagramKind::Ditaa => "Ditaa",
+            DiagramKind::Chart => "Chart",            DiagramKind::Unknown => "Unknown",
         },
         "tasks": model.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
         "milestones": model.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
@@ -1836,6 +1911,12 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::Nwdiag => "Nwdiag",
                     DiagramKind::Archimate => "Archimate",
                     DiagramKind::Sequence => "Sequence",
+                    DiagramKind::Regex => "Regex",
+                    DiagramKind::Ebnf => "Ebnf",
+                    DiagramKind::Math => "Math",
+                    DiagramKind::Sdl => "Sdl",
+                    DiagramKind::Ditaa => "Ditaa",
+                    DiagramKind::Chart => "Chart",
                     DiagramKind::Unknown => "Unknown",
                 },
                 "nodes": family
@@ -1886,6 +1967,12 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::Yaml => "Yaml",
                     DiagramKind::Nwdiag => "Nwdiag",
                     DiagramKind::Archimate => "Archimate",
+                    DiagramKind::Regex => "Regex",
+                    DiagramKind::Ebnf => "Ebnf",
+                    DiagramKind::Math => "Math",
+                    DiagramKind::Sdl => "Sdl",
+                    DiagramKind::Ditaa => "Ditaa",
+                    DiagramKind::Chart => "Chart",
                     DiagramKind::Unknown => "Unknown",
                 },
                 "tasks": timeline.tasks.iter().map(|t| json!({"name": t.name})).collect::<Vec<_>>(),
@@ -1935,5 +2022,36 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "svg_preview": svg
             })
         }
+        NormalizedDocument::Regex(doc) => json!({
+            "kind": "RegexScene",
+            "svg_preview": render::render_regex_svg(doc),
+            "patterns": doc.patterns.iter().map(|p| json!({"source": p.source})).collect::<Vec<_>>(),
+        }),
+        NormalizedDocument::Ebnf(doc) => json!({
+            "kind": "EbnfScene",
+            "svg_preview": render::render_ebnf_svg(doc),
+            "rules": doc.rules.iter().map(|r| json!({"name": r.name, "body": r.body})).collect::<Vec<_>>(),
+        }),
+        NormalizedDocument::Math(doc) => json!({
+            "kind": "MathScene",
+            "svg_preview": render::render_math_svg(doc),
+            "body": doc.body,
+        }),
+        NormalizedDocument::Sdl(doc) => json!({
+            "kind": "SdlScene",
+            "svg_preview": render::render_sdl_svg(doc),
+            "states": doc.states.iter().map(|s| json!({"name": s.name})).collect::<Vec<_>>(),
+            "transitions": doc.transitions.iter().map(|t| json!({"from": t.from, "to": t.to, "signal": t.signal})).collect::<Vec<_>>(),
+        }),
+        NormalizedDocument::Ditaa(doc) => json!({
+            "kind": "DitaaScene",
+            "svg_preview": render::render_ditaa_svg(doc),
+            "body": doc.body,
+        }),
+        NormalizedDocument::Chart(doc) => json!({
+            "kind": "ChartScene",
+            "svg_preview": render::render_chart_svg(doc),
+            "data": doc.data.iter().map(|p| json!({"label": p.label, "value": p.value})).collect::<Vec<_>>(),
+        }),
     }
 }

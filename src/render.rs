@@ -1,7 +1,9 @@
 use crate::ast::DiagramKind;
 use crate::model::{
-    ArchimateDocument, FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, JsonDocument,
-    NwdiagDocument, ParticipantRole, TimelineDocument, VirtualEndpointKind, YamlDocument,
+    ArchimateDocument, ChartDocument, ChartSubtype, DitaaDocument, EbnfDocument, EbnfToken,
+    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, JsonDocument, MathDocument,
+    NwdiagDocument, ParticipantRole, RegexDocument, RegexToken, RepeatKind, SdlDocument,
+    SdlStateKind, TimelineDocument, VirtualEndpointKind, YamlDocument,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
@@ -760,6 +762,12 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Yaml => "yaml",
         DiagramKind::Nwdiag => "nwdiag",
         DiagramKind::Archimate => "archimate",
+        DiagramKind::Regex => "regex",
+        DiagramKind::Ebnf => "ebnf",
+        DiagramKind::Math => "math",
+        DiagramKind::Sdl => "sdl",
+        DiagramKind::Ditaa => "ditaa",
+        DiagramKind::Chart => "chart",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -2438,6 +2446,647 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
     }
     out.push_str("</svg>");
     out
+}
+
+pub fn render_regex_svg(document: &RegexDocument) -> String {
+    let width = 760;
+    let row_height = 80;
+    let height = 80 + (document.patterns.len().max(1) as i32) * row_height;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 32;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+            escape_text(title)
+        ));
+        y += 24;
+    }
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">Railroad diagram (regex)</text>"
+    ));
+    y += 18;
+    if document.patterns.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#94a3b8\">(empty)</text>"
+        ));
+    } else {
+        for pat in &document.patterns {
+            render_regex_row(&mut out, &pat.source, &pat.tokens, y, width);
+            y += row_height;
+        }
+    }
+    out.push_str("</svg>");
+    out
+}
+
+fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i32, width: i32) {
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">/{}/</text>",
+        y - 4,
+        escape_text(source)
+    ));
+    let baseline = y + 26;
+    out.push_str(&format!(
+        "<line x1=\"24\" y1=\"{by}\" x2=\"{x2}\" y2=\"{by}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+        by = baseline,
+        x2 = width - 24
+    ));
+    let mut x = 40;
+    out.push_str(&format!(
+        "<circle cx=\"{x}\" cy=\"{by}\" r=\"5\" fill=\"#1e293b\"/>",
+        x = x,
+        by = baseline
+    ));
+    x += 18;
+    let labels = regex_tokens_to_labels(tokens);
+    for label in &labels {
+        let box_w = (label.len().max(1) as i32) * 8 + 18;
+        let box_w = box_w.min(width - x - 60);
+        out.push_str(&format!(
+            "<rect x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"22\" rx=\"4\" ry=\"4\" fill=\"#e0f2fe\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+            x = x,
+            ry = baseline - 11,
+            w = box_w
+        ));
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#0c4a6e\">{}</text>",
+            escape_text(label),
+            tx = x + 6,
+            ty = baseline + 4
+        ));
+        x += box_w + 8;
+        if x > width - 80 {
+            break;
+        }
+    }
+    out.push_str(&format!(
+        "<circle cx=\"{x}\" cy=\"{by}\" r=\"5\" fill=\"#1e293b\"/>",
+        x = (width - 36),
+        by = baseline
+    ));
+}
+
+fn regex_tokens_to_labels(tokens: &[RegexToken]) -> Vec<String> {
+    let mut out = Vec::new();
+    for t in tokens {
+        out.push(regex_token_label(t));
+    }
+    out
+}
+
+fn regex_token_label(token: &RegexToken) -> String {
+    match token {
+        RegexToken::Literal(s) => format!("'{}'", s),
+        RegexToken::CharClass(s) => format!("[{}]", s),
+        RegexToken::Group(inner) => format!("({})", regex_tokens_to_labels(inner).join(" ")),
+        RegexToken::Alt(branches) => {
+            let parts: Vec<String> = branches
+                .iter()
+                .map(|b| regex_tokens_to_labels(b).join(" "))
+                .collect();
+            format!("alt({})", parts.join("|"))
+        }
+        RegexToken::Repeat { inner, kind } => {
+            let suffix = match kind {
+                RepeatKind::ZeroOrOne => "?",
+                RepeatKind::ZeroOrMore => "*",
+                RepeatKind::OneOrMore => "+",
+            };
+            format!("{}{}", regex_token_label(inner), suffix)
+        }
+        RegexToken::Escape(c) => format!("\\{}", c),
+        RegexToken::AnyChar => ".".to_string(),
+        RegexToken::Anchor(s) => s.clone(),
+        RegexToken::Unsupported(s) => format!("?{}?", s),
+    }
+}
+
+pub fn render_ebnf_svg(document: &EbnfDocument) -> String {
+    let width = 820;
+    let row_height = 90;
+    let height = 80 + (document.rules.len().max(1) as i32) * row_height;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 32;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+            escape_text(title)
+        ));
+        y += 24;
+    }
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">EBNF railroad diagrams</text>"
+    ));
+    y += 18;
+    if document.rules.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#94a3b8\">(empty)</text>"
+        ));
+    } else {
+        for rule in &document.rules {
+            out.push_str(&format!(
+                "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#0f172a\">{} ::=</text>",
+                escape_text(&rule.name),
+                ty = y
+            ));
+            let baseline = y + 30;
+            out.push_str(&format!(
+                "<line x1=\"24\" y1=\"{by}\" x2=\"{x2}\" y2=\"{by}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+                by = baseline,
+                x2 = width - 24
+            ));
+            out.push_str(&format!(
+                "<circle cx=\"40\" cy=\"{by}\" r=\"5\" fill=\"#1e293b\"/>",
+                by = baseline
+            ));
+            let mut x = 60;
+            let labels = ebnf_tokens_to_labels(&rule.tokens);
+            for label in &labels {
+                let box_w = ((label.len() as i32) * 8).clamp(36, width - x - 60);
+                let fill = if label.starts_with('\'') || label.starts_with('"') {
+                    "#fef3c7"
+                } else {
+                    "#e0e7ff"
+                };
+                let stroke = if label.starts_with('\'') || label.starts_with('"') {
+                    "#d97706"
+                } else {
+                    "#4f46e5"
+                };
+                out.push_str(&format!(
+                    "<rect x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"22\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+                    x = x,
+                    ry = baseline - 11,
+                    w = box_w
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">{}</text>",
+                    escape_text(label),
+                    tx = x + 6,
+                    ty = baseline + 4
+                ));
+                x += box_w + 8;
+                if x > width - 80 {
+                    break;
+                }
+            }
+            out.push_str(&format!(
+                "<circle cx=\"{x}\" cy=\"{by}\" r=\"5\" fill=\"#1e293b\"/>",
+                x = (width - 36),
+                by = baseline
+            ));
+            y += row_height;
+        }
+    }
+    out.push_str("</svg>");
+    out
+}
+
+fn ebnf_tokens_to_labels(tokens: &[EbnfToken]) -> Vec<String> {
+    tokens.iter().map(ebnf_token_label).collect()
+}
+
+fn ebnf_token_label(token: &EbnfToken) -> String {
+    match token {
+        EbnfToken::Terminal(s) => format!("\"{}\"", s),
+        EbnfToken::NonTerminal(s) => s.clone(),
+        EbnfToken::Alt(branches) => {
+            let parts: Vec<String> = branches
+                .iter()
+                .map(|b| ebnf_tokens_to_labels(b).join(" "))
+                .collect();
+            format!("({})", parts.join(" | "))
+        }
+        EbnfToken::Group(inner) => format!("({})", ebnf_tokens_to_labels(inner).join(" ")),
+        EbnfToken::Optional(inner) => format!("[{}]", ebnf_tokens_to_labels(inner).join(" ")),
+        EbnfToken::Repetition(inner) => format!("{{{}}}", ebnf_tokens_to_labels(inner).join(" ")),
+        EbnfToken::Repeat { inner, kind } => {
+            let suffix = match kind {
+                RepeatKind::ZeroOrOne => "?",
+                RepeatKind::ZeroOrMore => "*",
+                RepeatKind::OneOrMore => "+",
+            };
+            format!("{}{}", ebnf_token_label(inner), suffix)
+        }
+        EbnfToken::Unsupported(s) => format!("?{}?", s),
+    }
+}
+
+pub fn render_math_svg(document: &MathDocument) -> String {
+    let width = 760;
+    let lines: Vec<&str> = document.body.lines().collect();
+    let line_count = lines.len().max(1) as i32;
+    let height = 120 + line_count * 22;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 32;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+            escape_text(title)
+        ));
+        y += 24;
+    }
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">math (LaTeX-like, deterministic stub)</text>"
+    ));
+    y += 16;
+    let box_y = y;
+    let box_h = (line_count * 22) + 24;
+    out.push_str(&format!(
+        "<rect x=\"24\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" rx=\"6\" ry=\"6\" fill=\"#f8fafc\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+        by = box_y,
+        bw = width - 48,
+        bh = box_h
+    ));
+    let mut ty = box_y + 24;
+    for line in lines {
+        out.push_str(&format!(
+            "<text x=\"40\" y=\"{ty}\" font-family=\"monospace\" font-size=\"13\" fill=\"#0f172a\">{}</text>",
+            escape_text(line)
+        ));
+        ty += 22;
+    }
+    out.push_str("</svg>");
+    out
+}
+
+pub fn render_ditaa_svg(document: &DitaaDocument) -> String {
+    let width = 820;
+    let lines: Vec<&str> = document.body.lines().collect();
+    let line_count = lines.len().max(1) as i32;
+    let height = 120 + line_count * 18;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 32;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+            escape_text(title)
+        ));
+        y += 24;
+    }
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">ditaa (ASCII art frame, deterministic stub)</text>"
+    ));
+    y += 16;
+    let box_y = y;
+    let box_h = (line_count * 18) + 24;
+    out.push_str(&format!(
+        "<rect x=\"24\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" rx=\"4\" ry=\"4\" fill=\"#fdf6e3\" stroke=\"#b58900\" stroke-width=\"1\"/>",
+        by = box_y,
+        bw = width - 48,
+        bh = box_h
+    ));
+    let mut ty = box_y + 20;
+    for line in lines {
+        out.push_str(&format!(
+            "<text x=\"36\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"#073642\" xml:space=\"preserve\">{}</text>",
+            escape_text(line)
+        ));
+        ty += 18;
+    }
+    out.push_str("</svg>");
+    out
+}
+
+pub fn render_sdl_svg(document: &SdlDocument) -> String {
+    let width = 820;
+    let col_w = 160;
+    let row_h = 90;
+    let state_count = document.states.len().max(1) as i32;
+    let cols = ((width - 80) / col_w).max(1);
+    let rows = (state_count + cols - 1) / cols;
+    let height = 120 + rows * row_h + (document.transitions.len() as i32 * 18);
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 32;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+            escape_text(title)
+        ));
+        y += 24;
+    }
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">SDL state machine (deterministic stub)</text>"
+    ));
+    y += 16;
+    let grid_top = y;
+    for (idx, state) in document.states.iter().enumerate() {
+        let col = (idx as i32) % cols;
+        let row = (idx as i32) / cols;
+        let sx = 40 + col * col_w;
+        let sy = grid_top + row * row_h + 20;
+        let (fill, stroke) = match state.kind {
+            SdlStateKind::Start => ("#dcfce7", "#16a34a"),
+            SdlStateKind::Stop => ("#fee2e2", "#dc2626"),
+            SdlStateKind::State => ("#e0e7ff", "#4f46e5"),
+        };
+        out.push_str(&format!(
+            "<rect x=\"{sx}\" y=\"{sy}\" width=\"{w}\" height=\"40\" rx=\"18\" ry=\"18\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            sx = sx,
+            sy = sy,
+            w = col_w - 16
+        ));
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}: {}</text>",
+            sdl_state_kind_label(state.kind),
+            escape_text(&state.name),
+            tx = sx + 8,
+            ty = sy + 24
+        ));
+    }
+    let mut ty = grid_top + rows * row_h + 16;
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#334155\">Transitions</text>"
+    ));
+    ty += 18;
+    for tr in &document.transitions {
+        let sig = tr
+            .signal
+            .as_deref()
+            .map(|s| format!(" : {s}"))
+            .unwrap_or_default();
+        out.push_str(&format!(
+            "<text x=\"36\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} -&gt; {}{}</text>",
+            escape_text(&tr.from),
+            escape_text(&tr.to),
+            escape_text(&sig)
+        ));
+        ty += 18;
+    }
+    out.push_str("</svg>");
+    out
+}
+
+fn sdl_state_kind_label(kind: SdlStateKind) -> &'static str {
+    match kind {
+        SdlStateKind::Start => "start",
+        SdlStateKind::Stop => "stop",
+        SdlStateKind::State => "state",
+    }
+}
+
+pub fn render_chart_svg(document: &ChartDocument) -> String {
+    let width = 780;
+    let height = 420;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        w = width,
+        h = height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 28;
+    if let Some(title) = &document.title {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+            escape_text(title)
+        ));
+        y += 22;
+    }
+    let label = match document.subtype {
+        ChartSubtype::Bar => "bar chart",
+        ChartSubtype::Line => "line chart",
+        ChartSubtype::Pie => "pie chart",
+    };
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">{}</text>",
+        label
+    ));
+    let plot_top = y + 16;
+    let plot_bottom = height - 60;
+    let plot_left = 60;
+    let plot_right = width - 40;
+    match document.subtype {
+        ChartSubtype::Bar => render_chart_bars(
+            &mut out,
+            &document.data,
+            plot_left,
+            plot_top,
+            plot_right,
+            plot_bottom,
+        ),
+        ChartSubtype::Line => render_chart_line(
+            &mut out,
+            &document.data,
+            plot_left,
+            plot_top,
+            plot_right,
+            plot_bottom,
+        ),
+        ChartSubtype::Pie => {
+            render_chart_pie(&mut out, &document.data, width / 2, (plot_top + plot_bottom) / 2)
+        }
+    }
+    out.push_str("</svg>");
+    out
+}
+
+const CHART_PALETTE: &[&str] = &[
+    "#1d4ed8", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#dc2626", "#0f172a", "#facc15",
+];
+
+fn render_chart_bars(
+    out: &mut String,
+    data: &[crate::model::ChartPoint],
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+) {
+    out.push_str(&format!(
+        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        l = left,
+        r = right,
+        b = bottom
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        l = left,
+        t = top,
+        b = bottom
+    ));
+    if data.is_empty() {
+        return;
+    }
+    let max_value = data
+        .iter()
+        .map(|p| p.value.max(0.0))
+        .fold(0.0_f64, f64::max)
+        .max(1.0);
+    let count = data.len() as i32;
+    let avail = (right - left).max(20);
+    let bar_w = (avail / count).max(4) - 6;
+    for (idx, point) in data.iter().enumerate() {
+        let bx = left + (idx as i32) * (avail / count) + 4;
+        let bh = ((point.value.max(0.0) / max_value) * ((bottom - top) as f64)) as i32;
+        let by = bottom - bh;
+        let color = CHART_PALETTE[idx % CHART_PALETTE.len()];
+        out.push_str(&format!(
+            "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"#0f172a\" stroke-width=\"0.5\"/>",
+            bx = bx,
+            by = by,
+            bw = bar_w,
+            bh = bh
+        ));
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            escape_text(&point.label),
+            tx = bx + bar_w / 2,
+            ty = bottom + 16
+        ));
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+            format_chart_value(point.value),
+            tx = bx + bar_w / 2,
+            ty = by - 4
+        ));
+    }
+}
+
+fn render_chart_line(
+    out: &mut String,
+    data: &[crate::model::ChartPoint],
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+) {
+    out.push_str(&format!(
+        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        l = left,
+        r = right,
+        b = bottom
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        l = left,
+        t = top,
+        b = bottom
+    ));
+    if data.is_empty() {
+        return;
+    }
+    let max_value = data
+        .iter()
+        .map(|p| p.value.max(0.0))
+        .fold(0.0_f64, f64::max)
+        .max(1.0);
+    let count = data.len() as i32;
+    let step = ((right - left) as f64) / ((count.max(2) - 1) as f64).max(1.0);
+    let mut points = String::new();
+    for (idx, point) in data.iter().enumerate() {
+        let px = left + ((idx as f64) * step) as i32;
+        let ph = ((point.value.max(0.0) / max_value) * ((bottom - top) as f64)) as i32;
+        let py = bottom - ph;
+        if !points.is_empty() {
+            points.push(' ');
+        }
+        points.push_str(&format!("{px},{py}"));
+        out.push_str(&format!(
+            "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"#1d4ed8\"/>"
+        ));
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            escape_text(&point.label),
+            tx = px,
+            ty = bottom + 16
+        ));
+    }
+    out.push_str(&format!(
+        "<polyline points=\"{}\" fill=\"none\" stroke=\"#1d4ed8\" stroke-width=\"1.5\"/>",
+        points
+    ));
+}
+
+fn render_chart_pie(out: &mut String, data: &[crate::model::ChartPoint], cx: i32, cy: i32) {
+    let radius = 120_i32;
+    let total: f64 = data.iter().map(|p| p.value.max(0.0)).sum();
+    if total <= 0.0 {
+        out.push_str(&format!(
+            "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\" fill=\"#e2e8f0\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+            cx = cx,
+            cy = cy,
+            r = radius
+        ));
+        return;
+    }
+    let mut acc = 0.0_f64;
+    // Deterministic angle accumulation using f64.
+    for (idx, point) in data.iter().enumerate() {
+        let v = point.value.max(0.0);
+        let start = acc / total * std::f64::consts::TAU;
+        acc += v;
+        let end = acc / total * std::f64::consts::TAU;
+        let x1 = cx as f64 + (radius as f64) * start.cos();
+        let y1 = cy as f64 + (radius as f64) * start.sin();
+        let x2 = cx as f64 + (radius as f64) * end.cos();
+        let y2 = cy as f64 + (radius as f64) * end.sin();
+        let large = if (end - start) > std::f64::consts::PI {
+            1
+        } else {
+            0
+        };
+        let color = CHART_PALETTE[idx % CHART_PALETTE.len()];
+        out.push_str(&format!(
+            "<path d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{color}\" stroke=\"#0f172a\" stroke-width=\"0.5\"/>",
+            cx = cx,
+            cy = cy,
+            r = radius,
+            x1 = x1,
+            y1 = y1,
+            x2 = x2,
+            y2 = y2,
+            large = large,
+            color = color
+        ));
+        let mid = (start + end) / 2.0;
+        let lx = cx as f64 + ((radius as f64) * 0.6) * mid.cos();
+        let ly = cy as f64 + ((radius as f64) * 0.6) * mid.sin();
+        out.push_str(&format!(
+            "<text x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#fff\">{}</text>",
+            escape_text(&point.label),
+            lx = lx,
+            ly = ly
+        ));
+    }
+}
+
+fn format_chart_value(v: f64) -> String {
+    if (v - v.round()).abs() < 1e-9 {
+        format!("{}", v as i64)
+    } else {
+        format!("{:.2}", v)
+    }
 }
 
 fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: VirtualEndpointKind) {
