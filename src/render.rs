@@ -635,7 +635,6 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
     const MARGIN: i32 = 24;
     const CHAR_WIDTH: i32 = 7;
-    const TOPLINE_FONT_SIZE: i32 = 13;
     const NODE_FONT_SIZE: i32 = 12;
     const NODE_MIN_WIDTH: i32 = 220;
     const NODE_MAX_WIDTH: i32 = 360;

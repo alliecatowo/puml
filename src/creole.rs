@@ -638,7 +638,7 @@ mod tests {
         // "bold //bi//" is bold; "bi" is bold+italic; " only bold" is plain
         // But since we parse sequentially, order matters.
         let bold_span = line.iter().find(|s| s.text == "bold ");
-        assert!(bold_span.map_or(false, |s| s.bold));
+        assert!(bold_span.is_some_and(|s| s.bold));
     }
 
     #[test]
