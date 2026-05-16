@@ -314,7 +314,14 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     };
 
     let lifeline_start = participant_top + participant_height;
-    let content_end = events_top + events_height;
+    let row_based_content_end = events_top + events_height;
+    let max_box_bottom = groups
+        .iter()
+        .map(|g| g.y + g.height)
+        .chain(notes.iter().map(|n| n.y + n.height))
+        .max()
+        .unwrap_or(row_based_content_end);
+    let content_end = row_based_content_end.max(max_box_bottom);
     let lifeline_end = if document.footbox_visible {
         content_end + options.footer_height
     } else {
