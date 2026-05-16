@@ -1,0 +1,59 @@
+' PicoUML stdlib stub — C4 Component diagram macros
+
+!procedure Person($alias, $label)
+object $label as $alias <<person>>
+!endprocedure
+
+!procedure System($alias, $label)
+object $label as $alias <<system>>
+!endprocedure
+
+!procedure Container($alias, $label, $technology, $description)
+object $label as $alias <<container>>
+!endprocedure
+
+!procedure Component($alias, $label, $technology, $description)
+object $label as $alias <<c4-component>>
+!endprocedure
+
+!procedure Component_Ext($alias, $label, $technology, $description)
+object $label as $alias <<external-c4-component>>
+!endprocedure
+
+!procedure Component_Boundary($alias, $label)
+!endprocedure
+
+!procedure Container_Boundary($alias, $label)
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_U($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_D($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_L($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_R($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure UpdateRelStyle($from, $to, $textColor, $lineColor)
+!endprocedure
+
+!procedure UpdateElementStyle($alias, $bgColor, $fontColor, $borderColor)
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
+!endprocedure
+
+!procedure LAYOUT_AS_SKETCH()
+!endprocedure

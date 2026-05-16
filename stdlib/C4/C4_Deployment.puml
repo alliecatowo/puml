@@ -1,0 +1,53 @@
+' PicoUML stdlib stub — C4 Deployment diagram macros
+
+!procedure Deployment_Node($alias, $label)
+object $label as $alias <<deployment-node>>
+!endprocedure
+
+!procedure Deployment_Node_L($alias, $label)
+object $label as $alias <<deployment-node>>
+!endprocedure
+
+!procedure Deployment_Node_R($alias, $label)
+object $label as $alias <<deployment-node>>
+!endprocedure
+
+!procedure Container($alias, $label, $technology, $description)
+object $label as $alias <<container>>
+!endprocedure
+
+!procedure Container_Ext($alias, $label, $technology, $description)
+object $label as $alias <<external-container>>
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_U($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_D($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_L($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_R($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure UpdateRelStyle($from, $to, $textColor, $lineColor)
+!endprocedure
+
+!procedure UpdateElementStyle($alias, $bgColor, $fontColor, $borderColor)
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
+!endprocedure
+
+!procedure LAYOUT_AS_SKETCH()
+!endprocedure

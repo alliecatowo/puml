@@ -1,0 +1,9 @@
+' PicoUML stdlib stub — AWS EC2 icon macro
+
+!procedure EC2($alias, $label, $description="")
+object $label as $alias <<aws-ec2>>
+!endprocedure
+
+!procedure EC2Spotfleet($alias, $label, $description="")
+object $label as $alias <<aws-ec2-spotfleet>>
+!endprocedure

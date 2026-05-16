@@ -481,6 +481,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "include/valid_include_once.puml",
         "include/valid_include_many.puml",
         "include/valid_includesub.puml",
+        "include/valid_c4_context.puml",
+        "include/valid_awslib_ec2.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -3664,7 +3666,6 @@ fn mermaid_loops_and_groups_fixture_validates_cleanly() {
         .success();
 }
 
-#[test]
 // -- New diagram families: JSON / YAML / nwdiag / Archimate --------------------
 
 #[test]
@@ -4116,4 +4117,143 @@ fn archimate_family_renders_deterministic_svg_with_layers() {
     assert!(a.contains("Archimate"));
     assert!(a.contains("application"));
     assert!(a.contains("Customer"));
+}
+
+// ---- stdlib catalog tests (#173) ----
+
+#[test]
+fn stdlib_c4_context_check_passes_and_ast_has_object_declarations() {
+    // --check must succeed (requires normalize_family to accept Object diagram).
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("include/valid_c4_context.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    // AST dump must show ObjectDecl nodes with macro-expanded names and aliases.
+    let stdout = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", &fixture("include/valid_c4_context.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let ast: Value = serde_json::from_slice(&stdout).expect("valid JSON AST");
+
+    // Diagram must be Object kind (C4 stubs emit `object` declarations).
+    assert_eq!(ast["kind"], "Object", "C4 context fixture must produce Object diagram");
+
+    let stmts = ast["statements"].as_array().expect("statements array");
+
+    // Person(u, "User") -> ObjectDecl { name: "User", alias: "u <<person>>" }
+    let user_decl = stmts.iter().find(|s| {
+        s["kind"]["ObjectDecl"]["name"] == "User"
+    }).expect("User ObjectDecl from Person() macro");
+    assert!(
+        user_decl["kind"]["ObjectDecl"]["alias"].as_str().unwrap_or("").contains("<<person>>"),
+        "Person macro alias must contain <<person>> stereotype"
+    );
+
+    // System(s, "Software System") -> ObjectDecl { name: "Software System", alias: "s <<system>>" }
+    let sys_decl = stmts.iter().find(|s| {
+        s["kind"]["ObjectDecl"]["name"] == "Software System"
+    }).expect("Software System ObjectDecl from System() macro");
+    assert!(
+        sys_decl["kind"]["ObjectDecl"]["alias"].as_str().unwrap_or("").contains("<<system>>"),
+        "System macro alias must contain <<system>> stereotype"
+    );
+
+    // Rel(u, s, "Uses") -> FamilyRelation { from: "u", to: "s" }
+    let rel = stmts.iter().find(|s| {
+        s["kind"]["FamilyRelation"]["from"] == "u" && s["kind"]["FamilyRelation"]["to"] == "s"
+    }).expect("Rel(u, s) FamilyRelation");
+    assert_eq!(rel["kind"]["FamilyRelation"]["arrow"], "-->");
+}
+
+#[test]
+fn stdlib_awslib_ec2_check_passes_and_ast_has_object_declarations() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("include/valid_awslib_ec2.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let stdout = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", &fixture("include/valid_awslib_ec2.puml")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let ast: Value = serde_json::from_slice(&stdout).expect("valid JSON AST");
+
+    assert_eq!(ast["kind"], "Object", "AWS EC2 fixture must produce Object diagram");
+
+    let stmts = ast["statements"].as_array().expect("statements array");
+
+    // EC2(server, "App Server") -> ObjectDecl { name: "App Server", alias: "server <<aws-ec2>>" }
+    let server_decl = stmts.iter().find(|s| {
+        s["kind"]["ObjectDecl"]["name"] == "App Server"
+    }).expect("App Server ObjectDecl from EC2() macro");
+    assert!(
+        server_decl["kind"]["ObjectDecl"]["alias"].as_str().unwrap_or("").contains("<<aws-ec2>>"),
+        "EC2 macro alias must contain <<aws-ec2>> stereotype"
+    );
+
+    // Rel(server, cache, "reads from") -> FamilyRelation
+    let rel = stmts.iter().find(|s| {
+        s["kind"]["FamilyRelation"]["from"] == "server"
+    }).expect("Rel(server, cache) FamilyRelation");
+    assert_eq!(rel["kind"]["FamilyRelation"]["to"], "cache");
+}
+
+#[test]
+fn stdlib_angle_bracket_include_is_idempotent_when_included_twice() {
+    // Including the same stdlib file twice must not cause duplicate procedure errors.
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("double_include.puml");
+    fs::write(
+        &input,
+        "@startuml\n!include <C4/C4_Context>\n!include <C4/C4_Context>\n!Person(u, User)\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_angle_bracket_include_with_puml_stdlib_root_env_override() {
+    // PUML_STDLIB_ROOT must point directly to the stdlib dir.
+    let stdlib_path = format!("{}/stdlib", env!("CARGO_MANIFEST_DIR"));
+
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("env_override.puml");
+    fs::write(
+        &input,
+        "@startuml\n!include <C4/C4_Context>\n!Person(u, TestUser)\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .env("PUML_STDLIB_ROOT", &stdlib_path)
+        .args(["--check", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
 }

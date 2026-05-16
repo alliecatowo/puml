@@ -572,6 +572,23 @@ fn process_include_directive(
         ));
     }
 
+    // Angle-bracket form `!include <Library/Module>` resolves through the stdlib root,
+    // behaving like `!import` but allowing tag selection and include_once semantics.
+    if is_angle_bracket_include(raw_target) {
+        return process_stdlib_angle_include(
+            raw_target,
+            directive_name,
+            include_once,
+            options,
+            state,
+            include_stack,
+            include_once_seen,
+            depth,
+            call_depth,
+            out,
+        );
+    }
+
     let include_target = parse_include_target(raw_target);
     if require_tag && include_target.tag.is_none() {
         return Err(Diagnostic::error_code(
@@ -851,6 +868,101 @@ fn glob_matches(pattern: &str, name: &str) -> bool {
     }
     rec(&p, &n)
 }
+
+/// Handle `!include <Library/Module>` by resolving the path through the stdlib root.
+/// The angle-bracket form is a stdlib reference; it is always treated as include-once.
+#[allow(clippy::too_many_arguments)]
+fn process_stdlib_angle_include(
+    raw_target: &str,
+    directive_name: &str,
+    _include_once: bool,
+    options: &ParseOptions,
+    state: &mut PreprocState,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    call_depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    let inner = raw_target
+        .trim()
+        .trim_start_matches('<')
+        .trim_end_matches('>')
+        .trim();
+    if inner.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_PATH_REQUIRED",
+            format!("{directive_name} angle-bracket stdlib target cannot be empty"),
+        ));
+    }
+
+    let mut path = PathBuf::from(inner);
+    if path.extension().is_none() {
+        path.set_extension("puml");
+    }
+
+    if path.is_absolute() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_ABSOLUTE_PATH",
+            format!(
+                "{directive_name} angle-bracket targets must be relative stdlib paths: {}",
+                path.display()
+            ),
+        ));
+    }
+
+    let Some(stdlib_root) = resolve_stdlib_root_for_angle_include(options, include_stack) else {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_STDLIB_ROOT_REQUIRED",
+            format!(
+                "{directive_name} <{inner}> requires a stdlib root; set PUML_STDLIB_ROOT, pass \
+                 --include-root pointing to a directory with a `stdlib/` sibling, or place the \
+                 input file next to a `stdlib/` directory"
+            ),
+        ));
+    };
+
+    let resolved = resolve_import_path(&stdlib_root, &path)?;
+
+    // Angle-bracket includes are always treated as include-once (stdlib files are idempotent).
+    if !include_once_seen.insert(resolved.clone()) {
+        return Ok(());
+    }
+
+    if include_stack.iter().any(|p| p == &resolved) {
+        let mut cycle = include_stack
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>();
+        cycle.push(resolved.display().to_string());
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_CYCLE",
+            format!("include cycle detected: {}", cycle.join(" -> ")),
+        ));
+    }
+
+    let content = fs::read_to_string(&resolved).map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_READ",
+            format!("failed to read stdlib include '{}': {e}", resolved.display()),
+        )
+    })?;
+
+    include_stack.push(resolved);
+    preprocess_text(
+        &content,
+        options,
+        state,
+        include_stack,
+        include_once_seen,
+        depth + 1,
+        call_depth,
+        out,
+    )?;
+    include_stack.pop();
+    Ok(())
+}
+
 
 #[allow(clippy::too_many_arguments)]
 fn process_import_directive(
@@ -1300,6 +1412,69 @@ fn resolve_stdlib_root(
         ));
     }
     Ok(root_canon)
+}
+
+/// Resolve the stdlib root for angle-bracket `!include <Library/Module>` references.
+///
+/// Search order:
+/// 1. `PUML_STDLIB_ROOT` environment variable override.
+/// 2. `include_root/stdlib/` from `ParseOptions`.
+/// 3. `stdlib/` adjacent to the first file on the include stack.
+/// 4. `CARGO_MANIFEST_DIR/stdlib/` at compile time (dev and test builds).
+fn resolve_stdlib_root_for_angle_include(
+    options: &ParseOptions,
+    include_stack: &[PathBuf],
+) -> Option<PathBuf> {
+    // Priority 1: PUML_STDLIB_ROOT env var override.
+    if let Ok(env_root) = std::env::var("PUML_STDLIB_ROOT") {
+        let root = PathBuf::from(env_root);
+        if let Ok(canon) = root.canonicalize() {
+            if canon.is_dir() {
+                return Some(canon);
+            }
+        }
+    }
+
+    // Priority 2: stdlib/ sibling to the include_root option.
+    if let Some(ref root) = options.include_root {
+        let candidate = root.join("stdlib");
+        if let Ok(canon) = candidate.canonicalize() {
+            if canon.is_dir() {
+                return Some(canon);
+            }
+        }
+    }
+
+    // Priority 3: stdlib/ sibling to the first file on the include stack.
+    if let Some(first) = include_stack.first() {
+        if let Some(parent) = first.parent() {
+            let candidate = parent.join("stdlib");
+            if let Ok(canon) = candidate.canonicalize() {
+                if canon.is_dir() {
+                    return Some(canon);
+                }
+            }
+        }
+    }
+
+    // Priority 4: CARGO_MANIFEST_DIR/stdlib/ compiled in (dev/test builds only).
+    if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
+        let candidate = PathBuf::from(manifest_dir).join("stdlib");
+        if let Ok(canon) = candidate.canonicalize() {
+            if canon.is_dir() {
+                return Some(canon);
+            }
+        }
+    }
+
+    None
+}
+
+/// Returns true when the raw include target is an angle-bracket stdlib reference
+/// such as `<C4/C4_Context>` or `<awslib14/Compute/EC2>`.
+fn is_angle_bracket_include(raw_target: &str) -> bool {
+    let trimmed = raw_target.trim();
+    trimmed.starts_with('<') && trimmed.ends_with('>')
 }
 
 fn resolve_import_path(stdlib_root: &Path, import_path: &Path) -> Result<PathBuf, Diagnostic> {

@@ -1,0 +1,18 @@
+' PicoUML stdlib stub — AWS Common macros
+
+!procedure AWS_ICON($alias, $label, $technology="aws")
+object $label as $alias <<aws-$technology>>
+!endprocedure
+
+!procedure AWSGroupColoring($groupDefinition, $bgColor, $fontColor, $borderColor, $shadingColor)
+!endprocedure
+
+!procedure AWSGroup($label, $groupDefinition)
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
+!endprocedure
