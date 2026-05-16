@@ -245,6 +245,9 @@ fn render_document_for_family(
                 model::NormalizedDocument::Family(_) => Err(Diagnostic::error(
                     "[E_FAMILY_STUB_INTERNAL] unexpected family model during timeline render",
                 )),
+                model::NormalizedDocument::State(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected state model during timeline render",
+                )),
             }
         }
         DiagramFamily::Component
