@@ -55,6 +55,61 @@ impl Default for SequenceStyle {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SequenceThemePreset {
+    pub name: &'static str,
+    pub style: SequenceStyle,
+}
+
+pub const LOCAL_SEQUENCE_THEME_CATALOG: &[&str] = &["plain", "spacelab"];
+
+pub fn resolve_sequence_theme_preset(spec: &str) -> Result<SequenceThemePreset, String> {
+    let trimmed = spec.trim();
+    if trimmed.is_empty() {
+        return Err("[E_THEME_INVALID] malformed !theme syntax: missing theme name".to_string());
+    }
+
+    let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+    if tokens.len() != 1 {
+        if tokens.len() >= 3 && tokens[1].eq_ignore_ascii_case("from") {
+            return Err(format!(
+                "[E_THEME_SOURCE_UNSUPPORTED] unsupported !theme source `{}`; only built-in local themes are supported",
+                tokens[2..].join(" ")
+            ));
+        }
+        return Err(format!(
+            "[E_THEME_INVALID] malformed !theme syntax: expected `!theme <name>`, got `!theme {}`",
+            trimmed
+        ));
+    }
+
+    let name = tokens[0].to_ascii_lowercase();
+    match name.as_str() {
+        "plain" => Ok(SequenceThemePreset {
+            name: "plain",
+            style: SequenceStyle::default(),
+        }),
+        "spacelab" => Ok(SequenceThemePreset {
+            name: "spacelab",
+            style: SequenceStyle {
+                arrow_color: "#2f4f6f".to_string(),
+                lifeline_border_color: "#6d7f91".to_string(),
+                participant_background_color: "#edf3f8".to_string(),
+                participant_border_color: "#2f4f6f".to_string(),
+                note_background_color: "#fff7d8".to_string(),
+                note_border_color: "#5f7388".to_string(),
+                group_background_color: "#f4f8fc".to_string(),
+                group_border_color: "#7b8da0".to_string(),
+            },
+        }),
+        _ => Err(format!(
+            "[E_THEME_UNKNOWN] unknown theme `{}`; available local themes: {}",
+            tokens[0],
+            LOCAL_SEQUENCE_THEME_CATALOG.join(", ")
+        )),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SequenceSkinParamValue {
     FootboxVisible(bool),
     ArrowColor(String),

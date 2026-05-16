@@ -486,6 +486,9 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_dynamic_invoke.puml",
         "errors/invalid_preproc_json_assignment.puml",
         "errors/invalid_pragma_missing_body.puml",
+        "errors/invalid_theme_empty_name.puml",
+        "errors/invalid_theme_remote_source.puml",
+        "errors/invalid_theme_unknown_name.puml",
         "errors/invalid_include_absolute_path.puml",
         "errors/invalid_include_empty_path.puml",
     ] {
@@ -743,9 +746,8 @@ fn dump_mode_emits_warnings_in_deterministic_order() {
     let stderr = String::from_utf8(out.stderr).unwrap();
     let first = stderr.find("W_SKINPARAM_UNSUPPORTED").unwrap();
     let second = stderr[first + 1..].find("W_SKINPARAM_UNSUPPORTED").unwrap();
-    let theme = stderr.find("W_THEME_UNSUPPORTED").unwrap();
-    assert!(first < theme);
-    assert!(first + 1 + second < theme);
+    assert!(first + 1 + second > first);
+    assert!(!stderr.contains("W_THEME_UNSUPPORTED"));
 
     let json: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert!(json.get("participants").is_some());
@@ -759,9 +761,36 @@ fn render_mode_emits_styling_warnings_but_succeeds() {
         .assert()
         .success()
         .stdout(predicate::str::contains("<svg"))
+        .stderr(predicate::str::contains("W_SKINPARAM_UNSUPPORTED"));
+}
+
+#[test]
+fn check_mode_rejects_theme_remote_source_with_deterministic_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_theme_remote_source.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_THEME_SOURCE_UNSUPPORTED]"));
+}
+
+#[test]
+fn check_mode_rejects_theme_unknown_name_with_catalog_message() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_theme_unknown_name.puml"),
+        ])
+        .assert()
+        .code(1)
         .stderr(
-            predicate::str::contains("W_SKINPARAM_UNSUPPORTED")
-                .and(predicate::str::contains("W_THEME_UNSUPPORTED")),
+            predicate::str::contains("[E_THEME_UNKNOWN]").and(predicate::str::contains(
+                "available local themes: plain, spacelab",
+            )),
         );
 }
 

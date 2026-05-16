@@ -8,7 +8,8 @@ use crate::model::{
     SequenceEventKind, SequencePage, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::theme::{
-    classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
+    classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
+    SequenceSkinParamValue, SequenceStyle,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -473,17 +474,9 @@ pub fn normalize_with_options(
             }
             StatementKind::Theme(name) => {
                 mark_group_content(&mut group_stack);
-                warnings.push(
-                    Diagnostic::warning(format!(
-                        "[W_THEME_UNSUPPORTED] !theme is not supported yet{}",
-                        if name.is_empty() {
-                            "".to_string()
-                        } else {
-                            format!(" (`{}`)", name)
-                        }
-                    ))
-                    .with_span(stmt.span),
-                );
+                let preset = resolve_sequence_theme_preset(&name)
+                    .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?;
+                style = preset.style;
             }
             StatementKind::Pragma(value) => {
                 mark_group_content(&mut group_stack);

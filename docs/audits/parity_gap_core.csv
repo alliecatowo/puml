@@ -98,7 +98,7 @@ sequence,"Return","Documented on sequence diagram page",implemented,"Return infe
 sequence,"Participant creation","Documented on sequence diagram page",implemented,"Create lifecycle path implemented",https://plantuml.com/sequence-diagram
 sequence,"Incoming/outgoing endpoint arrows","Documented on sequence diagram page",partial,"Endpoint surface exists with reduced fidelity semantics",https://plantuml.com/sequence-diagram
 sequence,"Sequence skinparam surface","Documented on sequence diagram page",partial,"Selected keys implemented; unsupported keys warn",https://plantuml.com/sequence-diagram
-sequence,"Theme usage via !theme","Documented on sequence diagram page",partial,"Accepted but warning-only behavior",https://plantuml.com/sequence-diagram
+sequence,"Theme usage via !theme","Documented on sequence diagram page",partial,"Local built-in subset (`plain`,`spacelab`) applies; unsupported and remote forms reject deterministically",https://plantuml.com/sequence-diagram
 sequence,"Teoz/parallel-message specific semantics","Documented on sequence diagram page",missing,"No dedicated teoz semantic support",https://plantuml.com/sequence-diagram
 preprocessor,"Variable definition (!$var, =, ?=)","Documented on preprocessing page",missing,"Preprocessor variable language absent",https://plantuml.com/preprocessing
 preprocessor,"Boolean expressions","Documented on preprocessing page",partial,"Simple deterministic subset implemented (defined(), ==, !=, numeric/bool literals); broader expression language missing",https://plantuml.com/preprocessing
@@ -122,7 +122,7 @@ preprocessor,"Search path behavior","Documented on preprocessing page",partial,"
 preprocessor,"Argument concatenation (##)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
 preprocessor,"Dynamic invocation (%invoke_procedure/%call_user_func)","Documented on preprocessing page",missing,"Not implemented",https://plantuml.com/preprocessing
 preprocessor,"JSON preprocessing","Documented on preprocessing JSON page",missing,"Not implemented",https://plantuml.com/preprocessing-json
-preprocessor,"Theme include directive (!theme)","Documented on preprocessing page",partial,"Accepted but no theme semantic application",https://plantuml.com/preprocessing
-preprocessor,"Theme catalog/local/internet themes","Documented on theme page",missing,"No theme catalog/resolution implementation",https://plantuml.com/theme
+preprocessor,"Theme include directive (!theme)","Documented on preprocessing page",partial,"Deterministic local-catalog semantics for sequence; source forms rejected",https://plantuml.com/preprocessing
+preprocessor,"Theme catalog/local/internet themes","Documented on theme page",partial,"Local built-in subset only; broader catalog/fetch surface not implemented",https://plantuml.com/theme
 preprocessor,"Standard library catalog (awslib/C4/etc)","Documented on stdlib page",missing,"No stdlib include/catalog implementation",https://plantuml.com/stdlib
 preprocessor,"Source include identifiers (include/includedef forms)","Documented on sources page",partial,"Some tag extraction exists; full sources-surface parity missing",https://plantuml.com/sources

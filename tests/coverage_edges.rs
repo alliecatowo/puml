@@ -459,16 +459,28 @@ fn normalize_supports_max_message_size_skinparam_without_warning() {
 }
 
 #[test]
-fn normalize_emits_theme_warning_without_name_suffix_when_theme_name_is_empty() {
-    let src = "@startuml\n!theme\nA -> B\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    let model = normalize::normalize(doc).expect("normalize should succeed");
+fn normalize_applies_known_theme_and_rejects_unsupported_variants_deterministically() {
+    let ok_src = "@startuml\n!theme spacelab\nA -> B\n@enduml\n";
+    let ok_doc = parse(ok_src).expect("parse should succeed");
+    let ok_model = normalize::normalize(ok_doc).expect("normalize should succeed");
+    assert!(ok_model.warnings.is_empty());
+    assert_eq!(ok_model.style.arrow_color, "#2f4f6f");
 
-    assert_eq!(model.warnings.len(), 1);
-    assert_eq!(
-        model.warnings[0].message,
-        "[W_THEME_UNSUPPORTED] !theme is not supported yet"
-    );
+    let missing_name_src = "@startuml\n!theme\nA -> B\n@enduml\n";
+    let missing_name_doc = parse(missing_name_src).expect("parse should succeed");
+    let missing_name_err =
+        normalize::normalize(missing_name_doc).expect_err("expected missing-name error");
+    assert!(missing_name_err.message.contains("E_THEME_INVALID"));
+
+    let remote_src = "@startuml\n!theme plain from https://example.com/themes\nA -> B\n@enduml\n";
+    let remote_doc = parse(remote_src).expect("parse should succeed");
+    let remote_err = normalize::normalize(remote_doc).expect_err("expected source-policy error");
+    assert!(remote_err.message.contains("E_THEME_SOURCE_UNSUPPORTED"));
+
+    let unknown_src = "@startuml\n!theme coffee\nA -> B\n@enduml\n";
+    let unknown_doc = parse(unknown_src).expect("parse should succeed");
+    let unknown_err = normalize::normalize(unknown_doc).expect_err("expected unknown-theme error");
+    assert!(unknown_err.message.contains("E_THEME_UNKNOWN"));
 }
 
 #[test]
