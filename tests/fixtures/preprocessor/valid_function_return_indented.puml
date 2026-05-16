@@ -1,0 +1,6 @@
+@startuml
+!function Echo($x)
+  !return $x
+!endfunction
+Alice -> Bob: %Echo("A")
+@enduml

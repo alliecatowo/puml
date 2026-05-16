@@ -1306,6 +1306,7 @@ fn parse_variable_assignment(name: &str, arg: &str, raw: &str) -> Option<Preproc
 }
 
 fn parse_named_call(rest: &str) -> Option<(String, String)> {
+    let rest = rest.trim();
     let open = rest.find('(')?;
     let close = rest.rfind(')')?;
     if close <= open || close != rest.len() - 1 {
@@ -1614,12 +1615,16 @@ fn execute_function_call(
         if !line.to_ascii_lowercase().starts_with("!return") {
             continue;
         }
-        let expr = raw[7..].trim();
+        let trimmed_return = raw.trim_start();
+        let expr = trimmed_return
+            .trim_start_matches("!return")
+            .trim_start()
+            .to_string();
         let mut local_state = state.clone();
         for (k, v) in &bindings {
             local_state.vars.insert(k.clone(), v.clone());
         }
-        return expand_preprocessor_text(expr, &local_state, call_depth + 1);
+        return expand_preprocessor_text(&expr, &local_state, call_depth + 1);
     }
     Err(Diagnostic::error_code(
         "E_PREPROC_RETURN_REQUIRED",
