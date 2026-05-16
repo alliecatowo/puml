@@ -214,14 +214,27 @@ fn render_document_for_family(
         }
         DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase => {
             match normalize::normalize_family(document)? {
-                model::NormalizedDocument::Family(stub) => {
-                    Ok(vec![render::render_family_stub_svg(&stub)])
+                model::NormalizedDocument::Family(family_doc) => {
+                    Ok(vec![render::render_class_svg(&family_doc)])
                 }
                 model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family stub render",
+                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family render",
                 )),
                 model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family stub render",
+                    "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family render",
+                )),
+            }
+        }
+        DiagramFamily::Gantt | DiagramFamily::Chronology => {
+            match normalize::normalize_family(document)? {
+                model::NormalizedDocument::Timeline(timeline) => {
+                    Ok(vec![render::render_timeline_svg(&timeline)])
+                }
+                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
+                    "[E_TIMELINE_INTERNAL] unexpected sequence model during timeline render",
+                )),
+                model::NormalizedDocument::Family(_) => Err(Diagnostic::error(
+                    "[E_TIMELINE_INTERNAL] unexpected family model during timeline render",
                 )),
             }
         }
@@ -232,8 +245,6 @@ fn render_document_for_family(
         | DiagramFamily::Timing
         | DiagramFamily::MindMap
         | DiagramFamily::Wbs
-        | DiagramFamily::Gantt
-        | DiagramFamily::Chronology
         | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
     }
 }

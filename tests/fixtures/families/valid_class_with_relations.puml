@@ -1,0 +1,20 @@
+@startuml
+class Animal {
+  +name: String
+  +eat()
+}
+class Dog {
+  +bark()
+}
+class Cat {
+  +meow()
+}
+class Collar {
+  +material: String
+}
+Animal <|-- Dog
+Animal <|-- Cat
+Dog *-- Collar : has
+Cat o-- Collar : wears
+Dog --> Animal : refers
+@enduml
