@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::ast::DiagramKind;
+use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
 use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
@@ -398,7 +398,7 @@ pub struct FamilyNode {
     pub kind: FamilyNodeKind,
     pub name: String,
     pub alias: Option<String>,
-    pub members: Vec<String>,
+    pub members: Vec<ClassMember>,
     pub depth: usize,
     pub label: Option<String>,
 }

@@ -461,7 +461,16 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
                 kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
                     name: "User".to_string(),
                     alias: Some("U".to_string()),
-                    members: vec!["+id: UUID".to_string(), "+name: String".to_string()],
+                    members: vec![
+                        puml::ast::ClassMember {
+                            text: "+id: UUID".to_string(),
+                            modifier: None,
+                        },
+                        puml::ast::ClassMember {
+                            text: "+name: String".to_string(),
+                            modifier: None,
+                        },
+                    ],
                 }),
             },
             puml::ast::Statement {

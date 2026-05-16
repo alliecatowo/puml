@@ -99,6 +99,12 @@ pub struct Cli {
     /// Output format. PlantUML's `png` is recognized but unsupported (SVG only).
     #[arg(long, value_enum, default_value_t = OutputFormat::Svg)]
     pub format: OutputFormat,
+
+    /// Emit diagnostics in single-line tab-separated format:
+    /// `<severity>\t<code>\t<file>:<line>:<col>\t<message>`. Suppresses multi-line
+    /// source-context output. Exit codes are unchanged.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub stdrpt: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]

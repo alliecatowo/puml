@@ -227,6 +227,8 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         ));
     }
 
+    let diag_ctx = DiagCtx::from_cli(&cli);
+
     if cli.dump_capabilities {
         println!(
             "{}",
@@ -254,10 +256,9 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             cli.determinism,
             None,
         )
-        .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
-        let model =
-            normalize_family(doc).map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
-        emit_warnings_for_model(&model, &src, None, cli.diagnostics);
+        .map_err(|d| diag_err_with_source(&src, d, diag_ctx))?;
+        let model = normalize_family(doc).map_err(|d| diag_err_with_source(&src, d, diag_ctx))?;
+        emit_warnings_for_model(&model, &src, None, diag_ctx);
         return Ok(());
     }
 
@@ -276,7 +277,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         .and_then(|stem| stem.to_str())
         .map(|stem| stem.to_string());
     let diagrams = split_diagrams(&raw, from_markdown, markdown_name_prefix.as_deref())
-        .map_err(|d| diag_err_with_source(&raw, d, cli.diagnostics))?;
+        .map_err(|d| diag_err_with_source(&raw, d, diag_ctx))?;
 
     if diagrams.is_empty() {
         if from_markdown {
@@ -308,7 +309,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                 cli.determinism,
                 source.frontend_hint,
             )
-            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
             if is_verbose() {
                 warn_eprintln(&format!(
                     "[verbose] parse: {:.3}ms",
@@ -317,14 +318,14 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             }
             let normalize_start = Instant::now();
             let model = normalize_family(doc)
-                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
             if is_verbose() {
                 warn_eprintln(&format!(
                     "[verbose] normalize: {:.3}ms",
                     normalize_start.elapsed().as_secs_f64() * 1_000.0
                 ));
             }
-            emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+            emit_warnings_for_model(&model, &raw, source.source_span, diag_ctx);
         }
         return Ok(());
     }
@@ -342,7 +343,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         cli.determinism,
                         source.frontend_hint,
                     )
-                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
                     Ok(ast_to_json(&doc))
                 }
                 DumpKind::Model => {
@@ -354,11 +355,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         cli.determinism,
                         source.frontend_hint,
                     )
-                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-                    let model = normalize_family(doc).map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
-                    })?;
-                    emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
+                    let model = normalize_family(doc)
+                        .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
+                    emit_warnings_for_model(&model, &raw, source.source_span, diag_ctx);
                     Ok(normalized_model_to_json(&model))
                 }
                 DumpKind::Scene => {
@@ -370,11 +370,10 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
                         cli.determinism,
                         source.frontend_hint,
                     )
-                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-                    let model = normalize_family(doc).map_err(|d| {
-                        diag_err_mapped(&raw, source.source_span, d, cli.diagnostics)
-                    })?;
-                    emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
+                    let model = normalize_family(doc)
+                        .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
+                    emit_warnings_for_model(&model, &raw, source.source_span, diag_ctx);
                     Ok(normalized_scene_to_json(&model))
                 }
             })
@@ -410,7 +409,7 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             cli.determinism,
             source.frontend_hint,
         )
-        .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+        .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
         if is_verbose() {
             warn_eprintln(&format!(
                 "[verbose] parse: {:.3}ms",
@@ -419,14 +418,14 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
         }
         let normalize_start = Instant::now();
         let model = normalize_family(doc)
-            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diag_ctx))?;
         if is_verbose() {
             warn_eprintln(&format!(
                 "[verbose] normalize: {:.3}ms",
                 normalize_start.elapsed().as_secs_f64() * 1_000.0
             ));
         }
-        emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+        emit_warnings_for_model(&model, &raw, source.source_span, diag_ctx);
         let render_start = Instant::now();
         let pages = render_pages_from_model(&model);
         if is_verbose() {
@@ -515,6 +514,8 @@ fn is_lint_mode_enabled(cli: &Cli) -> bool {
 }
 
 fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
+    let diag_ctx = DiagCtx::from_cli(cli);
+
     if !cli.check {
         return Err((EXIT_VALIDATION, "lint mode requires --check".to_string()));
     }
@@ -564,7 +565,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
             Ok(diagrams) => diagrams,
             Err(d) => {
                 acc.errors += 1;
-                emit_lint_diagnostic(&path, &raw, d, cli.diagnostics, &mut lint_json_diagnostics);
+                emit_lint_diagnostic(&path, &raw, d, diag_ctx, &mut lint_json_diagnostics);
                 files.push(LintFileResult {
                     path: path_display,
                     diagrams: acc.diagrams,
@@ -583,7 +584,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 &path,
                 &raw,
                 Diagnostic::error("no diagram content provided"),
-                cli.diagnostics,
+                diag_ctx,
                 &mut lint_json_diagnostics,
             );
             files.push(LintFileResult {
@@ -615,7 +616,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                         &path,
                         &raw,
                         map_diagnostic_span(d, source.source_span),
-                        cli.diagnostics,
+                        diag_ctx,
                         &mut lint_json_diagnostics,
                     );
                     continue;
@@ -631,7 +632,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                         &path,
                         &raw,
                         map_diagnostic_span(d, source.source_span),
-                        cli.diagnostics,
+                        diag_ctx,
                         &mut lint_json_diagnostics,
                     );
                     continue;
@@ -639,17 +640,14 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
             };
 
             acc.warnings += normalized_warnings(&model).len();
-            match cli.diagnostics {
-                DiagnosticsFormat::Human => {
-                    emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics)
-                }
-                DiagnosticsFormat::Json => {
-                    for warning in normalized_warnings(&model) {
-                        let warning = map_diagnostic_span(warning.clone(), source.source_span);
-                        let mut json = warning.to_json_with_source(&raw);
-                        json.file = Some(path_display.clone());
-                        lint_json_diagnostics.push(json);
-                    }
+            if diag_ctx.stdrpt || diag_ctx.fmt == DiagnosticsFormat::Human {
+                emit_warnings_for_model(&model, &raw, source.source_span, diag_ctx);
+            } else {
+                for warning in normalized_warnings(&model) {
+                    let warning = map_diagnostic_span(warning.clone(), source.source_span);
+                    let mut json = warning.to_json_with_source(&raw);
+                    json.file = Some(path_display.clone());
+                    lint_json_diagnostics.push(json);
                 }
             }
         }
@@ -679,7 +677,10 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
     };
 
     emit_lint_report(cli.lint_report, &summary, &files)?;
-    if cli.diagnostics == DiagnosticsFormat::Json && !lint_json_diagnostics.is_empty() {
+    if diag_ctx.fmt == DiagnosticsFormat::Json
+        && !diag_ctx.stdrpt
+        && !lint_json_diagnostics.is_empty()
+    {
         eprintln!(
             "{}",
             diagnostics_json_payload_precomputed(lint_json_diagnostics)
@@ -728,10 +729,17 @@ fn emit_lint_diagnostic(
     path: &Path,
     source: &str,
     d: Diagnostic,
-    fmt: DiagnosticsFormat,
+    ctx: DiagCtx,
     lint_json_diagnostics: &mut Vec<DiagnosticJson>,
 ) {
-    match fmt {
+    if ctx.stdrpt {
+        eprintln!(
+            "{}",
+            render_stdrpt(&d, source, Some(&path.display().to_string()))
+        );
+        return;
+    }
+    match ctx.fmt {
         DiagnosticsFormat::Human => {
             eprintln!("--> {}", path.display());
             eprintln!("{}", d.render_with_source(source));
@@ -829,8 +837,62 @@ fn lsp_capabilities_manifest() -> Value {
     })
 }
 
-fn diag_err_with_source(source: &str, d: Diagnostic, fmt: DiagnosticsFormat) -> (u8, String) {
-    match fmt {
+/// Lightweight context for diagnostic formatting, threading both the format enum
+/// and the `--stdrpt` single-line flag together.
+#[derive(Debug, Clone, Copy)]
+struct DiagCtx {
+    fmt: DiagnosticsFormat,
+    stdrpt: bool,
+}
+
+impl DiagCtx {
+    fn from_cli(cli: &Cli) -> Self {
+        Self {
+            fmt: cli.diagnostics,
+            stdrpt: cli.stdrpt,
+        }
+    }
+}
+
+/// Format a diagnostic as a single-line tab-separated report line:
+/// `<severity>\t<code>\t<file>:<line>:<col>\t<message>`
+///
+/// When no span is available the location field is `-`.
+fn render_stdrpt(d: &Diagnostic, source: &str, file: Option<&str>) -> String {
+    let severity = match d.severity {
+        puml::diagnostic::Severity::Error => "error",
+        puml::diagnostic::Severity::Warning => "warning",
+    };
+    let json = d.to_json_with_source(source);
+    let code = json.code.as_deref().unwrap_or("-");
+    let location = match (json.line, json.column) {
+        (Some(line), Some(col)) => {
+            let f = file.unwrap_or("-");
+            format!("{f}:{line}:{col}")
+        }
+        _ => {
+            let f = file.unwrap_or("-");
+            format!("{f}:-:-")
+        }
+    };
+    // Strip the [CODE] prefix from the message if present (it's already in `code`)
+    let msg = if let Some(stripped) = d.message.strip_prefix('[') {
+        if let Some(end) = stripped.find("] ") {
+            stripped[end + 2..].trim()
+        } else {
+            d.message.as_str()
+        }
+    } else {
+        d.message.as_str()
+    };
+    format!("{severity}\t{code}\t{location}\t{msg}")
+}
+
+fn diag_err_with_source(source: &str, d: Diagnostic, ctx: DiagCtx) -> (u8, String) {
+    if ctx.stdrpt {
+        return (EXIT_VALIDATION, render_stdrpt(&d, source, None));
+    }
+    match ctx.fmt {
         DiagnosticsFormat::Human => (EXIT_VALIDATION, d.render_with_source(source)),
         DiagnosticsFormat::Json => (EXIT_VALIDATION, diagnostics_json_payload(vec![d], source)),
     }
@@ -840,17 +902,17 @@ fn diag_err_mapped(
     raw_source: &str,
     mapping: Option<Span>,
     d: Diagnostic,
-    fmt: DiagnosticsFormat,
+    ctx: DiagCtx,
 ) -> (u8, String) {
     let mapped = map_diagnostic_span(d, mapping);
-    diag_err_with_source(raw_source, mapped, fmt)
+    diag_err_with_source(raw_source, mapped, ctx)
 }
 
 fn emit_warnings_for_model(
     model: &NormalizedDocument,
     source: &str,
     mapping: Option<Span>,
-    fmt: DiagnosticsFormat,
+    ctx: DiagCtx,
 ) {
     for warning in normalized_warnings(model) {
         record_warning();
@@ -858,7 +920,11 @@ fn emit_warnings_for_model(
         if is_quiet() {
             continue;
         }
-        match fmt {
+        if ctx.stdrpt {
+            eprintln!("{}", render_stdrpt(&warning, source, None));
+            continue;
+        }
+        match ctx.fmt {
             DiagnosticsFormat::Human => eprintln!("{}", warning.render_with_source(source)),
             DiagnosticsFormat::Json => {
                 eprintln!("{}", diagnostics_json_payload(vec![warning], source));
@@ -1399,18 +1465,36 @@ fn statement_to_json(s: &Statement) -> Value {
     })
 }
 
+fn class_members_to_json(members: &[puml::ast::ClassMember]) -> Value {
+    members
+        .iter()
+        .map(|m| {
+            json!({
+                "text": m.text,
+                "modifier": m.modifier.as_ref().map(|mod_| match mod_ {
+                    puml::ast::MemberModifier::Field => "field",
+                    puml::ast::MemberModifier::Method => "method",
+                    puml::ast::MemberModifier::Abstract => "abstract",
+                    puml::ast::MemberModifier::Static => "static",
+                })
+            })
+        })
+        .collect::<Vec<_>>()
+        .into()
+}
+
 fn statement_kind_to_json(kind: &StatementKind) -> Value {
     match kind {
         StatementKind::Participant(p) => json!({"Participant": participant_decl_to_json(p)}),
         StatementKind::Message(m) => json!({"Message": message_to_json(m)}),
         StatementKind::ClassDecl(v) => {
-            json!({"ClassDecl": {"name": v.name, "alias": v.alias, "members": v.members}})
+            json!({"ClassDecl": {"name": v.name, "alias": v.alias, "members": class_members_to_json(&v.members)}})
         }
         StatementKind::ObjectDecl(v) => {
-            json!({"ObjectDecl": {"name": v.name, "alias": v.alias, "members": v.members}})
+            json!({"ObjectDecl": {"name": v.name, "alias": v.alias, "members": class_members_to_json(&v.members)}})
         }
         StatementKind::UseCaseDecl(v) => {
-            json!({"UseCaseDecl": {"name": v.name, "alias": v.alias, "members": v.members}})
+            json!({"UseCaseDecl": {"name": v.name, "alias": v.alias, "members": class_members_to_json(&v.members)}})
         }
         StatementKind::FamilyRelation(v) => {
             json!({"FamilyRelation": {"from": v.from, "to": v.to, "arrow": v.arrow, "label": v.label}})

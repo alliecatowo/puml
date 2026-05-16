@@ -1848,7 +1848,13 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     kind: FamilyNodeKind::TimingEvent,
                     name: time,
                     alias: signal,
-                    members: state.into_iter().collect(),
+                    members: state
+                        .into_iter()
+                        .map(|s| crate::ast::ClassMember {
+                            text: s,
+                            modifier: None,
+                        })
+                        .collect(),
                     depth: 0,
                     label: if display.is_empty() {
                         None

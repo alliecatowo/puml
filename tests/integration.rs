@@ -2766,7 +2766,9 @@ fn family_member_blocks_are_preserved_in_ast_dump() {
         .as_array()
         .expect("members should be present");
     assert_eq!(members.len(), 3);
-    assert_eq!(members[0], "+id: UUID");
+    // Members are now objects with "text" and "modifier" fields
+    assert_eq!(members[0]["text"], "+id: UUID");
+    assert_eq!(members[0]["modifier"], serde_json::Value::Null);
 }
 
 #[test]
@@ -5055,4 +5057,173 @@ fn state_basic_render_produces_valid_svg() {
     let svg = render_source_to_svg(src).expect("basic state should render");
     assert!(svg.starts_with("<svg"), "expected SVG output");
     assert!(svg.contains("Active"), "expected state name in SVG");
+}
+
+// ── Issue #183: class member modifiers {field}/{method}/{abstract}/{static} ───
+
+#[test]
+fn class_member_modifier_fixture_parses_and_renders() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_class_html_members.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn class_member_abstract_modifier_renders_italic_in_svg() {
+    // {abstract} and <<abstract>> members must produce italic tspan in SVG
+    let src = "@startuml\nclass Animal {\n  {abstract} #speak(): void\n  +name: String <<abstract>>\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("should render");
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "expected italic for abstract member"
+    );
+}
+
+#[test]
+fn class_member_static_modifier_renders_underline_in_svg() {
+    // {static} / {class} / <<static>> members must produce underline tspan in SVG
+    let src = "@startuml\nclass Config {\n  {static} MAX: Int\n  {class} DEFAULT: String\n  COUNT: Int <<static>>\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("should render");
+    assert!(
+        svg.contains("text-decoration=\"underline\""),
+        "expected underline for static member"
+    );
+}
+
+#[test]
+fn class_member_field_modifier_renders_italic_in_svg() {
+    // {field} produces italic tspan
+    let src = "@startuml\nclass User {\n  {field} +id: UUID\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("should render");
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "expected italic for field modifier"
+    );
+}
+
+#[test]
+fn class_member_method_modifier_has_no_special_styling() {
+    // {method} produces no extra styling — just plain text
+    let src = "@startuml\nclass User {\n  {method} +save(): void\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("should render");
+    // The text "save" must appear; no extra decoration expected
+    assert!(svg.contains("save"), "expected method name in SVG");
+}
+
+#[test]
+fn class_member_trailing_modifier_parsed_correctly() {
+    // Trailing modifiers: `member {field}`, `member {static}`
+    let src = "@startuml\nclass Foo {\n  +x: Int {field}\n  +y: Float {static}\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("should render");
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "expected italic for trailing field"
+    );
+    assert!(
+        svg.contains("text-decoration=\"underline\""),
+        "expected underline for trailing static"
+    );
+}
+
+// ── Issue #191: --stdrpt single-line diagnostic format ───────────────────────
+
+#[test]
+fn stdrpt_flag_formats_error_as_single_tab_separated_line() {
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--stdrpt",
+            &fixture("errors/invalid_family_decl_block_unclosed.puml"),
+        ])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8_lossy(&output);
+    let lines: Vec<&str> = stderr.lines().collect();
+    // Exactly one line per diagnostic
+    assert_eq!(
+        lines.len(),
+        1,
+        "expected exactly one stdrpt line, got: {stderr:?}"
+    );
+    let parts: Vec<&str> = lines[0].split('\t').collect();
+    assert_eq!(
+        parts.len(),
+        4,
+        "expected 4 tab-separated fields, got: {:?}",
+        parts
+    );
+    assert_eq!(parts[0], "error", "first field should be severity");
+    // second field is code, third is location, fourth is message
+    assert!(!parts[3].is_empty(), "message field should not be empty");
+}
+
+#[test]
+fn stdrpt_flag_location_includes_file_and_line_col() {
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--stdrpt",
+            &fixture("errors/invalid_family_decl_block_unclosed.puml"),
+        ])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8_lossy(&output);
+    let line = stderr.lines().next().unwrap_or("");
+    let parts: Vec<&str> = line.split('\t').collect();
+    // location field (index 2) must contain a colon-separated path:line:col
+    let location = parts.get(2).copied().unwrap_or("");
+    assert!(
+        location.contains(':'),
+        "location field should contain colons: {location:?}"
+    );
+}
+
+#[test]
+fn stdrpt_does_not_emit_multiline_source_context() {
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--stdrpt",
+            &fixture("errors/invalid_family_decl_block_unclosed.puml"),
+        ])
+        .assert()
+        .code(1)
+        .get_output()
+        .stderr
+        .clone();
+
+    let stderr = String::from_utf8_lossy(&output);
+    // No caret lines (lines starting with spaces + ^^^)
+    for line in stderr.lines() {
+        assert!(
+            !line.trim_start().starts_with('^'),
+            "stdrpt should suppress caret lines, found: {line:?}"
+        );
+    }
+}
+
+#[test]
+fn stdrpt_exit_code_semantics_unchanged_for_valid_input() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--stdrpt", "--check", &fixture("single_valid.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
 }

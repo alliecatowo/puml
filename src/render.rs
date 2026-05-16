@@ -1,4 +1,4 @@
-use crate::ast::DiagramKind;
+use crate::ast::{DiagramKind, MemberModifier};
 use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::model::{
     ArchimateDocument, ChartDocument, ChartSubtype, DitaaDocument, EbnfDocument, EbnfToken,
@@ -853,14 +853,14 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
                 layout.y + NODE_PADDING_Y + 6
             ));
         }
-        // Render members with visibility markers
+        // Render members with visibility markers + modifier styling
         let show_members = !hide_empty_members || !node.members.is_empty();
         if show_members {
             let member_y_base =
                 layout.y + NODE_PADDING_Y + (layout.label_lines.len() as i32 * 18) + 4;
             for (midx, member) in node.members.iter().enumerate() {
                 let my = member_y_base + (midx as i32 * 16);
-                let (symbol, color, member_text) = parse_visibility_member(member);
+                let (symbol, color, member_text) = parse_visibility_member(&member.text);
                 if let Some(sym) = symbol {
                     out.push_str(&format!(
                         "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
@@ -870,7 +870,21 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
                         escape_text(sym)
                     ));
                 }
-                let (extra_style, clean_text) = parse_member_modifiers(member_text);
+                let (base_style, clean_text) = parse_member_modifiers(member_text);
+                let mut extra_style = String::from(base_style);
+                match &member.modifier {
+                    Some(MemberModifier::Abstract) | Some(MemberModifier::Field) => {
+                        if !extra_style.contains("font-style") {
+                            extra_style.push_str(" font-style=\"italic\"");
+                        }
+                    }
+                    Some(MemberModifier::Static) => {
+                        if !extra_style.contains("text-decoration") {
+                            extra_style.push_str(" text-decoration=\"underline\"");
+                        }
+                    }
+                    Some(MemberModifier::Method) | None => {}
+                }
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\"{}>{}</text>",
                     layout.x + NODE_PADDING_X + 12,
@@ -1086,7 +1100,7 @@ fn render_class_node(
             out.push_str(&format!(
                 "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{m}</text>",
                 tx = x + w / 2,
-                m = escape_text(member)
+                m = escape_text(&member.text)
             ));
             my += 14;
         }
@@ -1138,8 +1152,22 @@ fn render_class_node(
     // Members
     let mut my = y + header_h + 16;
     for member in &node.members {
-        let (vis_sym, vis_color, rest_after_vis) = parse_visibility_member(member);
-        let (style_attrs, text_after_mod) = parse_member_modifiers(rest_after_vis);
+        let (vis_sym, vis_color, rest_after_vis) = parse_visibility_member(&member.text);
+        let (base_style, text_after_mod) = parse_member_modifiers(rest_after_vis);
+        let mut style_attrs = String::from(base_style);
+        match &member.modifier {
+            Some(MemberModifier::Abstract) | Some(MemberModifier::Field) => {
+                if !style_attrs.contains("font-style") {
+                    style_attrs.push_str(" font-style=\"italic\"");
+                }
+            }
+            Some(MemberModifier::Static) => {
+                if !style_attrs.contains("text-decoration") {
+                    style_attrs.push_str(" text-decoration=\"underline\"");
+                }
+            }
+            Some(MemberModifier::Method) | None => {}
+        }
         // Reconstruct display text: keep visibility prefix + remaining text
         let display_text = if vis_sym.is_some() {
             format!("{}{}", vis_sym.unwrap_or(""), text_after_mod)
@@ -2420,7 +2448,11 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 .position(|t| *t == ev.name.as_str())
                 .unwrap_or(0);
             let x = left_pad + (t_idx as i32) * col_w;
-            let state = ev.members.first().cloned().unwrap_or_default();
+            let state = ev
+                .members
+                .first()
+                .map(|m| m.text.clone())
+                .unwrap_or_default();
             // vertical transition
             if let (Some(lx), Some(_ls)) = (last_x, last_state.as_ref()) {
                 out.push_str(&format!(
