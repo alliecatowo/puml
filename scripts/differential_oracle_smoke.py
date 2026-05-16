@@ -22,11 +22,11 @@ VIEWBOX_RE = re.compile(r'viewBox\s*=\s*"([^"]+)"', re.IGNORECASE)
 FIXTURES: List[Dict[str, Any]] = [
     {
         "fixture": "basic/hello.puml",
-        "expect_tokens": ["Alice", "Bob", "Hello"],
+        "expect_tokens": ["Alice", "Bob", "hello"],
     },
     {
         "fixture": "participants/valid_aliases.puml",
-        "expect_tokens": ["Alice", "Bob"],
+        "expect_tokens": ["User", "API", "request"],
     },
     {
         "fixture": "groups/valid_ref_and_else_rendering.puml",
