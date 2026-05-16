@@ -2339,6 +2339,7 @@ fn non_sequence_inputs_fail_validation() {
             "non_sequence/invalid_wbs_diagram.puml",
             "E_FAMILY_WBS_UNSUPPORTED",
         ),
+        ("errors/invalid_salt_block_mismatch.puml", "E_BLOCK_MISMATCH"),
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -2355,6 +2356,7 @@ fn class_object_usecase_bootstrap_inputs_pass_check() {
         "families/valid_class_bootstrap.puml",
         "families/valid_object_bootstrap.puml",
         "families/valid_usecase_bootstrap.puml",
+        "families/valid_salt_bootstrap.puml",
         "families/valid_class_members_block.puml",
         "families/valid_object_members_block.puml",
         "families/valid_usecase_members_block.puml",
@@ -2382,6 +2384,10 @@ fn class_object_usecase_bootstrap_render_stubs_are_deterministic() {
         (
             "families/valid_usecase_bootstrap.puml",
             "Bootstrap stub for usecase diagrams",
+        ),
+        (
+            "families/valid_salt_bootstrap.puml",
+            "Bootstrap stub for salt diagrams",
         ),
         (
             "families/valid_class_members_block.puml",

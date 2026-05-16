@@ -1227,6 +1227,7 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
+            DiagramKind::Salt => "Salt",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
@@ -1402,6 +1403,7 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
+            DiagramKind::Salt => "Salt",
             DiagramKind::Sequence => "Sequence",
             DiagramKind::Unknown => "Unknown",
         },
@@ -1411,10 +1413,11 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             .map(|n| {
                 json!({
                     "kind": match n.kind {
-                        puml::model::FamilyNodeKind::Class => "Class",
-                        puml::model::FamilyNodeKind::Object => "Object",
-                        puml::model::FamilyNodeKind::UseCase => "UseCase",
-                    },
+                    puml::model::FamilyNodeKind::Class => "Class",
+                    puml::model::FamilyNodeKind::Object => "Object",
+                    puml::model::FamilyNodeKind::UseCase => "UseCase",
+                    puml::model::FamilyNodeKind::Salt => "Salt",
+                },
                     "name": n.name,
                     "alias": n.alias
                 })
@@ -1444,6 +1447,7 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
 fn timeline_model_to_json(model: &TimelineDocument) -> Value {
     json!({
         "kind": match model.kind {
+            DiagramKind::Salt => "Salt",
             DiagramKind::Gantt => "Gantt",
             DiagramKind::Chronology => "Chronology",
             DiagramKind::Sequence => "Sequence",
@@ -1625,10 +1629,11 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::State => "State",
                     DiagramKind::Activity => "Activity",
                     DiagramKind::Timing => "Timing",
+                    DiagramKind::Salt => "Salt",
                     DiagramKind::Sequence => "Sequence",
                     DiagramKind::Unknown => "Unknown",
                 },
-                "nodes": family
+                    "nodes": family
                     .nodes
                     .iter()
                     .map(|n| {
@@ -1637,6 +1642,7 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                                 puml::model::FamilyNodeKind::Class => "Class",
                                 puml::model::FamilyNodeKind::Object => "Object",
                                 puml::model::FamilyNodeKind::UseCase => "UseCase",
+                                puml::model::FamilyNodeKind::Salt => "Salt",
                             },
                             "name": n.name,
                             "alias": n.alias
@@ -1662,6 +1668,7 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
             json!({
                 "kind": "TimelineBaseline",
                 "family": match timeline.kind {
+                    DiagramKind::Salt => "Salt",
                     DiagramKind::Gantt => "Gantt",
                     DiagramKind::Chronology => "Chronology",
                     DiagramKind::Sequence => "Sequence",

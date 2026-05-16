@@ -34,7 +34,7 @@ pub fn normalize_family_with_options(
         DiagramKind::Sequence => {
             normalize_with_options(document, options).map(NormalizedDocument::Sequence)
         }
-        DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
+        DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase | DiagramKind::Salt => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
         DiagramKind::Gantt | DiagramKind::Chronology => {
@@ -124,6 +124,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         DiagramKind::Class => FamilyNodeKind::Class,
         DiagramKind::Object => FamilyNodeKind::Object,
         DiagramKind::UseCase => FamilyNodeKind::UseCase,
+        DiagramKind::Salt => FamilyNodeKind::Salt,
         _ => {
             return Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] invalid family for stub normalization",
@@ -204,6 +205,18 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
             StatementKind::Unknown(line) => {
+                if family_kind == DiagramKind::Salt {
+                    let text = line.trim();
+                    if !text.is_empty() {
+                        nodes.push(FamilyNode {
+                            kind: FamilyNodeKind::Salt,
+                            name: text.to_string(),
+                            alias: None,
+                            members: Vec::new(),
+                        });
+                    }
+                    continue;
+                }
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
                     line
@@ -243,6 +256,7 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
         DiagramKind::Chronology => "chronology",
+        DiagramKind::Salt => "salt",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -812,6 +826,7 @@ fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
         DiagramKind::Wbs => ("E_FAMILY_WBS_UNSUPPORTED", "wbs"),
         DiagramKind::Gantt => ("E_FAMILY_GANTT_UNSUPPORTED", "gantt"),
         DiagramKind::Chronology => ("E_FAMILY_CHRONOLOGY_UNSUPPORTED", "chronology"),
+        DiagramKind::Salt => ("E_FAMILY_SALT_UNSUPPORTED", "salt"),
         _ => ("E_FAMILY_UNSUPPORTED", "unknown"),
     };
 

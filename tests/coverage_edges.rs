@@ -137,6 +137,7 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
         "families/valid_class_bootstrap.puml",
         "families/valid_object_bootstrap.puml",
         "families/valid_usecase_bootstrap.puml",
+        "families/valid_salt_bootstrap.puml",
     ] {
         let src = fs::read_to_string(fixture(case)).expect("fixture should load");
         let doc = parse(&src).expect("parse should succeed");
@@ -286,12 +287,29 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
             puml::ast::DiagramKind::MindMap,
         ),
         ("@startwbs\n* Scope\n@endwbs\n", puml::ast::DiagramKind::Wbs),
+        ("@startsalt\nwidget\nauto\n@endsalt\n", puml::ast::DiagramKind::Salt),
     ];
 
     for (src, expected_kind) in cases {
         let doc = parse(src).expect("parse should succeed");
         assert_eq!(doc.kind, expected_kind);
     }
+}
+
+#[test]
+fn parser_supports_salt_baseline_marker_fixture() {
+    let src = fs::read_to_string(fixture("families/valid_salt_bootstrap.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    assert_eq!(doc.kind, puml::ast::DiagramKind::Salt);
+}
+
+#[test]
+fn parser_rejects_salt_marker_mismatch_fixture() {
+    let src = fs::read_to_string(fixture("errors/invalid_salt_block_mismatch.puml"))
+        .expect("fixture should load");
+    let err = parse(&src).unwrap_err();
+    assert!(err.message.contains("E_BLOCK_MISMATCH"));
 }
 
 #[test]
@@ -360,6 +378,21 @@ fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes(
         let doc = parse(src).expect("parse should succeed");
         let err = normalize_family(doc).expect_err("family should be unsupported in this slice");
         assert!(err.message.contains(code), "missing code {code}");
+    }
+}
+
+#[test]
+fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
+    let src = "@startsalt\nwidget title\n@endsalt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("salt normalize should succeed");
+    match normalized {
+        NormalizedDocument::Family(model) => {
+            assert_eq!(model.nodes.len(), 1, "expected one widget node");
+            assert_eq!(model.nodes[0].name, "widget title");
+            assert_eq!(model.relations.len(), 0, "no relations expected");
+        }
+        NormalizedDocument::Sequence(_) => panic!("expected salt family model"),
     }
 }
 

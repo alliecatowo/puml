@@ -364,6 +364,7 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Timing => "timing",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
+        DiagramKind::Salt => "salt",
         DiagramKind::Sequence => "sequence",
         DiagramKind::Unknown => "unknown",
     }
@@ -374,6 +375,7 @@ fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::Class => "class",
         FamilyNodeKind::Object => "object",
         FamilyNodeKind::UseCase => "usecase",
+        FamilyNodeKind::Salt => "widget",
     }
 }
 

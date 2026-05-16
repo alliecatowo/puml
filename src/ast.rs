@@ -16,6 +16,7 @@ pub enum DiagramKind {
     Wbs,
     Gantt,
     Chronology,
+    Salt,
     Component,
     Deployment,
     State,

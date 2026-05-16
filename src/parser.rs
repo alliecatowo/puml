@@ -1954,6 +1954,7 @@ enum BlockKind {
     Wbs,
     Gantt,
     Chronology,
+    Salt,
 }
 
 fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
@@ -1973,6 +1974,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@startwbs", BlockKind::Wbs),
             ("@startgantt", BlockKind::Gantt),
             ("@startchronology", BlockKind::Chronology),
+            ("@startsalt", BlockKind::Salt),
         ]
     } else {
         [
@@ -1981,6 +1983,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@endwbs", BlockKind::Wbs),
             ("@endgantt", BlockKind::Gantt),
             ("@endchronology", BlockKind::Chronology),
+            ("@endsalt", BlockKind::Salt),
         ]
     };
     for (marker, kind) in markers {
@@ -2001,6 +2004,7 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Wbs => Some(DiagramKind::Wbs),
         BlockKind::Gantt => Some(DiagramKind::Gantt),
         BlockKind::Chronology => Some(DiagramKind::Chronology),
+        BlockKind::Salt => Some(DiagramKind::Salt),
     }
 }
 
@@ -2011,6 +2015,7 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Wbs => "wbs",
         BlockKind::Gantt => "gantt",
         BlockKind::Chronology => "chronology",
+        BlockKind::Salt => "salt",
     }
 }
 
@@ -2062,6 +2067,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
         DiagramKind::Chronology => "chronology",
+        DiagramKind::Salt => "salt",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -2209,7 +2215,10 @@ fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
 
 fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
     match family {
-        Some(DiagramKind::Class) | Some(DiagramKind::Object) | Some(DiagramKind::UseCase) => {}
+        Some(DiagramKind::Class)
+        | Some(DiagramKind::Object)
+        | Some(DiagramKind::UseCase)
+        | Some(DiagramKind::Salt) => {}
         _ => return None,
     }
 
@@ -2287,6 +2296,9 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("scale ")
     {
         return Some(DiagramKind::Timing);
+    }
+    if line.starts_with("salt ") {
+        return Some(DiagramKind::Salt);
     }
 
     None
