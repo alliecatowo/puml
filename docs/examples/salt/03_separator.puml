@@ -1,0 +1,11 @@
+@startsalt
+' Salt separator example (not yet supported)
+{
+  Header
+  ..
+  Body content
+  ==
+  Footer
+  [OK]
+}
+@endsalt

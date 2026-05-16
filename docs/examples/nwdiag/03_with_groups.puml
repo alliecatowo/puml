@@ -1,0 +1,18 @@
+@startnwdiag
+nwdiag {
+  group frontend {
+    web01;
+    web02;
+  }
+  group backend {
+    app01;
+    app02;
+  }
+  network dmz {
+    web01; web02;
+  }
+  network internal {
+    app01; app02;
+  }
+}
+@endnwdiag

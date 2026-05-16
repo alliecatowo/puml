@@ -1,0 +1,7 @@
+@startgantt
+title Release Plan
+[Alpha] happens on 2026-02-01
+[Beta] happens on 2026-03-01
+[RC1] happens on 2026-04-01
+[GA] happens on 2026-05-01
+@endgantt

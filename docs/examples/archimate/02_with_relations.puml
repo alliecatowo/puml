@@ -1,0 +1,6 @@
+@startuml
+' ArchiMate Rel_* macros (not yet supported)
+archimate #Business "Order Process" <<business-process>>
+archimate #Application "Order Service" <<application-service>>
+Rel_Assignment("Order Process", "Order Service")
+@enduml

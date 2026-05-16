@@ -1,0 +1,14 @@
+@startnwdiag
+nwdiag {
+  network public {
+    address = "10.0.0.x"
+    lb;
+  }
+  network private {
+    address = "192.168.1.x"
+    lb;
+    app1;
+    app2;
+  }
+}
+@endnwdiag

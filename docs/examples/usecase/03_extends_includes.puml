@@ -1,0 +1,9 @@
+@startuml
+usecase Checkout as UC1
+usecase ApplyCoupon as UC2
+usecase ProcessPayment as UC3
+usecase SendConfirmation as UC4
+UC1 --> UC2 : extends
+UC1 --> UC3 : includes
+UC1 --> UC4 : includes
+@enduml

@@ -1,0 +1,15 @@
+@startuml
+binary "Request" as REQ
+binary "Ack" as ACK
+@0
+REQ is low
+ACK is low
+@10
+REQ is high
+@20
+ACK is high
+@30
+REQ is low
+@40
+ACK is low
+@enduml

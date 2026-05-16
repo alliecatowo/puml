@@ -1,0 +1,9 @@
+@startsalt
+' Salt frame example (not yet supported)
+{+
+  Login Form
+  Name: | "           "
+  Pass: | "           "
+  [Login]
+}
+@endsalt

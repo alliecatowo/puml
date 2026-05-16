@@ -1,0 +1,14 @@
+@startuml
+state Operational {
+  state Idle
+  state Working {
+    state Fetching
+    state Processing
+    Fetching --> Processing : data ready
+  }
+  Idle --> Working : start
+  Working --> Idle : done
+}
+[*] --> Operational
+Operational --> [*] : shutdown
+@enduml

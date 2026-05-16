@@ -1,0 +1,13 @@
+@startuml
+object Order {
+  id = 1001
+  status = pending
+  total = 99.99
+}
+object Customer {
+  id = 42
+  name = Alice Smith
+  email = alice@example.com
+}
+Order --> Customer : placedBy
+@enduml

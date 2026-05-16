@@ -1,0 +1,35 @@
+@startuml
+title E-Commerce Order Flow
+actor Customer
+participant "Web App" as Web
+participant "Order Service" as Orders
+participant "Inventory" as Inv
+participant "Payment" as Pay
+database "Order DB" as DB
+queue "Email Queue" as Mail
+
+Customer -> Web: place order
+Web -> Orders: POST /orders
+Orders -> Inv: check stock
+alt in stock
+  Inv --> Orders: available
+  Orders -> Pay: charge card
+  alt payment ok
+    Pay --> Orders: charged
+    Orders -> DB: INSERT order
+    DB --> Orders: order_id
+    Orders -> Mail: enqueue confirmation
+    Mail --> Orders: queued
+    Orders --> Web: 201 Created
+    Web --> Customer: order confirmed
+  else payment failed
+    Pay --> Orders: declined
+    Orders --> Web: 402 Payment Required
+    Web --> Customer: payment failed
+  end
+else out of stock
+  Inv --> Orders: unavailable
+  Orders --> Web: 409 Conflict
+  Web --> Customer: item out of stock
+end
+@enduml

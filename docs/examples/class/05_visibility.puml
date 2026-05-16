@@ -1,0 +1,12 @@
+@startuml
+class BankAccount {
+  +accountNumber: String
+  #balance: Decimal
+  -pin: String
+  ~branch: String
+  +deposit(amount: Decimal)
+  +withdraw(amount: Decimal)
+  #checkBalance(): Decimal
+  -validatePin(pin: String): Boolean
+}
+@enduml

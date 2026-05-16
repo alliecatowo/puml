@@ -1,0 +1,7 @@
+@startuml
+autonumber 10
+Alice -> Bob: first message
+Bob -> Alice: second message
+Bob -> Carol: third message
+Carol --> Bob: fourth message
+@enduml

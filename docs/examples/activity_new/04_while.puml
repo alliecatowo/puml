@@ -1,0 +1,8 @@
+@startuml
+' New-style activity while (not yet supported)
+start
+while (has items?) is (yes)
+  :process item;
+endwhile (no)
+stop
+@enduml

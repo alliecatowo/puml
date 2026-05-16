@@ -1,0 +1,17 @@
+@startgantt
+title Sprint Breakdown
+[Discovery]
+[UX Design]
+[Backend]
+[Frontend]
+[QA]
+[Discovery] starts 2026-05-01
+[UX Design] starts 2026-05-08
+[UX Design] requires [Discovery]
+[Backend] starts 2026-05-15
+[Frontend] starts 2026-05-15
+[Backend] requires [UX Design]
+[Frontend] requires [UX Design]
+[QA] requires [Backend]
+[QA] requires [Frontend]
+@endgantt

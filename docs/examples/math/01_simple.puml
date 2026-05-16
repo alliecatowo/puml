@@ -1,0 +1,4 @@
+@startmath
+' Math/LaTeX diagrams not yet supported by this parser
+E = mc^2
+@endmath

@@ -1,0 +1,12 @@
+@startuml
+' New-style activity partition (not yet supported)
+start
+partition Backend {
+  :fetch data;
+  :process;
+}
+partition Frontend {
+  :render;
+}
+stop
+@enduml

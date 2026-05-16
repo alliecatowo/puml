@@ -1,0 +1,5 @@
+@startuml
+object Alice
+object Bob
+Alice --> Bob : knows
+@enduml

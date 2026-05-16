@@ -1,0 +1,8 @@
+@startchart
+' Line chart (not yet supported)
+line chart
+  Jan : 10
+  Feb : 15
+  Mar : 12
+  Apr : 20
+@endchart

@@ -1,0 +1,5 @@
+@startuml
+!theme plain
+Alice -> Bob: Hello with plain theme
+Bob --> Alice: Response
+@enduml

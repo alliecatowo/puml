@@ -1,0 +1,10 @@
+@startditaa
+' Ditaa components (not yet supported)
+/------\   /------\
+| Auth |-->| App  |
+\------/   \------/
+               |
+           /------\
+           |  DB  |
+           \------/
+@endditaa

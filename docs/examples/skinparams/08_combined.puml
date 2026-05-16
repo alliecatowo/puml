@@ -1,0 +1,11 @@
+@startuml
+skinparam participantBackgroundColor #fce4ec
+skinparam participantBorderColor #e91e63
+skinparam arrowColor #e91e63
+skinparam noteBackgroundColor #fce4ec
+skinparam noteBorderColor #c2185b
+title Combined Skinparams
+Alice -> Bob: styled message
+note right of Bob: styled note
+Bob --> Alice: reply
+@enduml

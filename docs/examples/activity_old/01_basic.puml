@@ -1,0 +1,5 @@
+@startuml
+(*) --> "Start"
+"Start" --> "Process"
+"Process" --> (*)
+@enduml
