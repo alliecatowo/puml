@@ -124,6 +124,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::Legend(v) => legend = Some(v),
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
@@ -483,6 +484,28 @@ pub fn normalize_with_options(
                     ))
                     .with_span(stmt.span),
                 );
+            }
+            StatementKind::Pragma(value) => {
+                mark_group_content(&mut group_stack);
+                let trimmed = value.trim();
+                let lower = trimmed.to_ascii_lowercase();
+                if lower.starts_with("teoz ") || lower == "teoz" {
+                    warnings.push(
+                        Diagnostic::warning(
+                            "[W_PRAGMA_TEOZ_UNSUPPORTED] !pragma teoz is not supported yet; continuing with default sequence layout semantics"
+                                .to_string(),
+                        )
+                        .with_span(stmt.span),
+                    );
+                } else {
+                    warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_PRAGMA_UNSUPPORTED] unsupported pragma `{}`",
+                            trimmed
+                        ))
+                        .with_span(stmt.span),
+                    );
+                }
             }
             StatementKind::Footbox(v) => {
                 mark_group_content(&mut group_stack);

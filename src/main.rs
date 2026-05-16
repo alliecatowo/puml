@@ -1230,6 +1230,7 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Caption(v) => json!({"Caption": v}),
         StatementKind::Legend(v) => json!({"Legend": v}),
         StatementKind::Theme(v) => json!({"Theme": v}),
+        StatementKind::Pragma(v) => json!({"Pragma": v}),
         StatementKind::SkinParam { key, value } => {
             json!({"SkinParam": {"key": key, "value": value}})
         }

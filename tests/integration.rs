@@ -345,7 +345,6 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "participants/valid_queue_separator.puml",
         "basic/valid_separator_equals.puml",
         "basic/valid_participant_queue.puml",
-        "basic/valid_pragma_directives.puml",
         "basic/valid_arrows_extended_set.puml",
         "basic/valid_skinparam_maxmessagesize.puml",
         "arrows/valid_directions.puml",
@@ -391,6 +390,30 @@ fn check_mode_passes_for_additional_valid_fixtures() {
             .stdout(predicate::str::is_empty())
             .stderr(predicate::str::is_empty());
     }
+}
+
+#[test]
+fn check_mode_pragma_teoz_emits_deterministic_warning_and_succeeds() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("basic/valid_pragma_directives.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("[W_PRAGMA_TEOZ_UNSUPPORTED]"));
+}
+
+#[test]
+fn malformed_pragma_missing_body_reports_deterministic_diagnostic() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_pragma_missing_body.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_PRAGMA_INVALID]"));
 }
 
 #[test]
@@ -457,6 +480,7 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_expr_unsupported_parens.puml",
         "errors/invalid_preproc_unexpected_endfunction.puml",
         "errors/invalid_preproc_while_iteration_limit.puml",
+        "errors/invalid_pragma_missing_body.puml",
         "errors/invalid_include_absolute_path.puml",
         "errors/invalid_include_empty_path.puml",
     ] {

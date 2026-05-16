@@ -43,6 +43,7 @@ pub enum StatementKind {
     Legend(String),
     SkinParam { key: String, value: String },
     Theme(String),
+    Pragma(String),
     Footbox(bool),
     Delay(Option<String>),
     Divider(Option<String>),

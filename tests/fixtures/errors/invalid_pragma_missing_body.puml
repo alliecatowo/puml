@@ -1,0 +1,4 @@
+@startuml
+!pragma
+A -> B: hello
+@enduml
