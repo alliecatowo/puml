@@ -124,5 +124,5 @@ preprocessor,"Dynamic invocation (%invoke_procedure/%call_user_func)","Documente
 preprocessor,"JSON preprocessing","Documented on preprocessing JSON page",missing,"Not implemented",https://plantuml.com/preprocessing-json
 preprocessor,"Theme include directive (!theme)","Documented on preprocessing page",partial,"Deterministic local-catalog semantics for sequence; source forms rejected",https://plantuml.com/preprocessing
 preprocessor,"Theme catalog/local/internet themes","Documented on theme page",partial,"Local built-in subset only; broader catalog/fetch surface not implemented",https://plantuml.com/theme
-preprocessor,"Standard library catalog (awslib/C4/etc)","Documented on stdlib page",missing,"No stdlib include/catalog implementation",https://plantuml.com/stdlib
+preprocessor,"Standard library catalog (awslib/C4/etc)","Documented on stdlib page",partial,"Deterministic bundled catalog stubs implemented for C4, AWS14, Azure, GCP, Office, Material, and tupadr3; icon rendering remains labeled-stub parity",https://plantuml.com/stdlib
 preprocessor,"Source include identifiers (include/includedef forms)","Documented on sources page",partial,"Some tag extraction exists; full sources-surface parity missing",https://plantuml.com/sources

@@ -506,6 +506,25 @@ fn preprocess_text(
         }
 
         if active {
+            if let Some((name, args)) = parse_named_call(line) {
+                if let Some(callable) = state.callables.get(&name) {
+                    if callable.kind == PreprocCallableKind::Procedure {
+                        execute_procedure_call(
+                            &name,
+                            &args,
+                            state,
+                            options,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            call_depth,
+                            out,
+                        )?;
+                        i += 1;
+                        continue;
+                    }
+                }
+            }
             let expanded_line = expand_preprocessor_text(raw_line, state, call_depth)?;
             out.push_str(&expanded_line);
             out.push('\n');
@@ -573,7 +592,13 @@ fn process_include_directive(
         ));
     }
 
-    let resolved = resolve_include_path(options, include_stack, &include_target.path)?;
+    let resolved = if is_stdlib_catalog_target(raw_target) && include_target.tag.is_none() {
+        let stdlib_target = parse_import_target(raw_target)?;
+        let stdlib_root = resolve_stdlib_root(options, include_stack)?;
+        resolve_import_path(&stdlib_root, &stdlib_target)?
+    } else {
+        resolve_include_path(options, include_stack, &include_target.path)?
+    };
     if include_once && !include_once_seen.insert(resolved.clone()) {
         return Ok(());
     }
@@ -622,6 +647,11 @@ fn process_include_directive(
     )?;
     include_stack.pop();
     Ok(())
+}
+
+fn is_stdlib_catalog_target(raw_target: &str) -> bool {
+    let trimmed = raw_target.trim();
+    trimmed.starts_with('<') && trimmed.ends_with('>')
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3330,6 +3360,53 @@ mod tests {
         )
         .unwrap();
         assert_eq!(doc.statements.len(), 2);
+    }
+
+    #[test]
+    fn include_angle_bracket_targets_resolve_from_stdlib_catalog() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(stdlib.join("C4")).unwrap();
+        fs::write(
+            stdlib.join("C4").join("C4_Container.puml"),
+            "!procedure Container($alias,$label)\n$alias -> $alias : [C4] $label\n!endprocedure\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!include <C4/C4_Container>\nContainer(Api, \"API\")\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 1);
+    }
+
+    #[test]
+    fn import_and_include_catalog_support_aws_shape_stub_surface() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(stdlib.join("awslib14").join("Compute")).unwrap();
+        fs::write(
+            stdlib.join("awslib14").join("AWSCommon.puml"),
+            "!procedure AWSIcon($alias,$service,$label=\"\")\n$alias -> $alias : [AWS $service] $label\n!endprocedure\n",
+        )
+        .unwrap();
+        fs::write(
+            stdlib.join("awslib14").join("Compute").join("EC2.puml"),
+            "!include <awslib14/AWSCommon>\n!procedure EC2($alias,$label=\"\")\nAWSIcon($alias,EC2,$label)\n!endprocedure\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!import awslib14/AWSCommon\n!include <awslib14/Compute/EC2>\nEC2(NodeA, \"ingress\")\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+            },
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 1);
     }
 
     #[test]

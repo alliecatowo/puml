@@ -1,0 +1,5 @@
+' Deterministic GCP stdlib compatibility stub.
+!procedure GCPIcon($alias, $service, $label="", $descr="")
+participant $alias
+$alias -> $alias : [GCP $service] $label
+!endprocedure

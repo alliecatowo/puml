@@ -1,0 +1,28 @@
+' Deterministic C4 stdlib compatibility stub surface.
+!procedure Person($alias, $label, $descr="")
+participant $alias
+$alias -> $alias : [C4 Person] $label
+!endprocedure
+
+!procedure Person_Ext($alias, $label, $descr="")
+participant $alias
+$alias -> $alias : [C4 Person_Ext] $label
+!endprocedure
+
+!procedure System($alias, $label, $descr="")
+participant $alias
+$alias -> $alias : [C4 System] $label
+!endprocedure
+
+!procedure System_Ext($alias, $label, $descr="")
+participant $alias
+$alias -> $alias : [C4 System_Ext] $label
+!endprocedure
+
+!procedure Rel($from, $to, $label, $tech="")
+$from -> $to : [C4 Rel] $label
+!endprocedure
+
+!procedure Rel_U($from, $to, $label, $tech="")
+$from -> $to : [C4 Rel_U] $label
+!endprocedure

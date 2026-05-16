@@ -1,0 +1,5 @@
+' Deterministic AWS stdlib compatibility stub.
+!procedure AWSIcon($alias, $service, $label="", $descr="")
+participant $alias
+$alias -> $alias : [AWS $service] $label
+!endprocedure

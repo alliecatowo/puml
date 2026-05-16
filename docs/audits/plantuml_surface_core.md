@@ -182,12 +182,12 @@ Current `puml` baseline used for parity status:
 | `!log` | Preprocessor logging | missing | Not implemented. | https://plantuml.com/preprocessing |
 | `!dump_memory` | Memory dump directive | missing | Not implemented. | https://plantuml.com/preprocessing |
 | `!assert` | Assertion directive | missing | Not implemented. | https://plantuml.com/preprocessing |
-| `!import` library building | Import/build custom library | missing | Not implemented. | https://plantuml.com/preprocessing |
+| `!import` library building | Import/build custom library | partial | Relative stdlib module import is supported with deterministic root confinement; broader library-build surface remains out of scope. | https://plantuml.com/preprocessing |
 | Search path behavior | Preprocessor search path semantics | partial | `include_root` exists but broader search-path surface is absent. | https://plantuml.com/preprocessing |
 | Argument concatenation `##` | Macro argument concatenation | partial | Explicit deterministic rejection implemented (`E_PREPROC_CONCAT_UNSUPPORTED`) in callable signatures/call args. | https://plantuml.com/preprocessing |
 | Dynamic invocation | `%invoke_procedure`, `%call_user_func` | missing | Not implemented. | https://plantuml.com/preprocessing |
 | JSON preprocessing | JSON variable/object preprocessing surface | missing | Not implemented. | https://plantuml.com/preprocessing-json |
 | `!theme` include | Theme include command | partial | Deterministic local-catalog semantics implemented for sequence (`plain`, `spacelab`); remote/source forms are rejected. | https://plantuml.com/preprocessing |
 | Theme catalog usage | Built-in theme listing/local/internet themes | partial | Local built-in catalog subset only; broader catalog/listing/fetch remains unimplemented. | https://plantuml.com/theme |
-| Stdlib catalog usage | Standard library include/catalog (`awslib`, `C4`, etc.) | missing | Stdlib resolution and library loading not implemented. | https://plantuml.com/stdlib |
+| Stdlib catalog usage | Standard library include/catalog (`awslib`, `C4`, etc.) | partial | Bundled deterministic catalog stubs resolve via `!include <...>`/`!import` for C4/AWS14/Azure/GCP/Office/Material/tupadr3; icon visuals are labeled stubs. | https://plantuml.com/stdlib |
 | Include identifiers in sources docs | Include identifier and include-definition patterns in source files | partial | Some tag extraction supported; full sources-surface parity is not. | https://plantuml.com/sources |
