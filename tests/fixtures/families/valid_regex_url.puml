@@ -1,0 +1,3 @@
+@startregex
+^(https?|ftp)://[^/\s]+(/[^\s]*)?$
+@endregex

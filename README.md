@@ -252,6 +252,12 @@ Artifacts:
 | `!while` / `!endwhile` | Supported (bounded) | Simple deterministic loop evaluation with bounded iterations (`E_PREPROC_WHILE_LIMIT`). |
 | `!procedure`, `!function`, and advanced preprocessor surface | Partial (deterministic subset) | Definition + invocation subset supported (including bare macro calls like `Container(...)` once imported); dynamic invocation/builtin `%...` and JSON preprocessing remain unsupported. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
+| `@startregex` / `@endregex` (railroad from regex) | Supported | Parses regex into minimal AST (literal, alternation, group, repetition `*+?`, char class, anchors); renders as SVG railroad diagram with rounded-rect literals, parallel alternation branches, and loop-back repetition arcs. |
+| `@startebnf` / `@endebnf` (railroad from EBNF grammar) | Supported | Parses ISO EBNF rules (`name = body ;`); body uses `,` for sequence, `\|` for alternation, `{…}` for repetition, `[…]` for optional, `(…)` for group, `"…"` for terminal, identifier for non-terminal. Each rule rendered as a labeled railroad diagram. |
+| `@startchart` / `@endchart` (bar/line/pie charts) | Supported | First-line subtype: `bar`, `line`, `pie`, `column`. Data rows: `"label" : value`. Optional `title` prefix. Bar/column: vertical bars on baseline axis. Line: polyline with point circles. Pie: arc segments with percentage labels and legend. |
+| `@startmath` / `@endmath` (LaTeX-style math) | Supported | Best-effort SVG renderer; handles `\sum`, `\int`, `\prod`, `\frac{a}{b}`, `\sqrt{x}`, Greek letters (`\alpha` … `\omega`, `\infty`), sub/sup scripts (`_{…}`, `^{…}`) via tspan baseline shifts and nested scaling. |
+| `@startsdl` / `@endsdl` (SDL process state machine) | Supported | Parses `state Name` declarations and `state From -> To : label` transitions; renders SDL-style rounded-corner rectangles with labeled arrow transitions. |
+| `@startditaa` / `@endditaa` (ASCII art to SVG) | Supported | Parses ASCII grid; identifies rectangles (`+...+` corner pairs with `-`/`\|` edges); extracts text content inside boxes; converts `--->`  connector sequences to SVG lines with arrowheads. |
 
 ## LSP Baseline
 
