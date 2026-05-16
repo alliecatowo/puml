@@ -251,15 +251,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                 },
             },
         ],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..puml::model::SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let first = render::render_svg(&scene);

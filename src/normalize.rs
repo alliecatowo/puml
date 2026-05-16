@@ -4,9 +4,10 @@ use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKin
 use crate::diagnostic::Diagnostic;
 use crate::model::{
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
-    NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
-    SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
-    TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    LegendHAlign, LegendVAlign, NormalizedDocument, Participant, ParticipantRole, ScaleSpec,
+    SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage, TimelineChronologyEvent,
+    TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::theme::{
     classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
@@ -86,10 +87,14 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
-            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::Legend(v) => {
+                legend = Some(strip_legend_pos_prefix(&v));
+            }
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
-            | StatementKind::Pragma(_) => {}
+            | StatementKind::Pragma(_)
+            | StatementKind::Scale(_)
+            | StatementKind::LegendPos(_) => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }
@@ -196,13 +201,17 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
-            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::Legend(v) => {
+                legend = Some(strip_legend_pos_prefix(&v));
+            }
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
-            | StatementKind::Undef(_) => {}
+            | StatementKind::Undef(_)
+            | StatementKind::Scale(_)
+            | StatementKind::LegendPos(_) => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
@@ -287,6 +296,9 @@ fn page_from(
         skinparams: document.skinparams.clone(),
         style: document.style.clone(),
         footbox_visible: document.footbox_visible,
+        scale: document.scale.clone(),
+        legend_halign: document.legend_halign,
+        legend_valign: document.legend_valign,
         warnings: document.warnings.clone(),
     }
 }
@@ -319,6 +331,9 @@ pub fn normalize_with_options(
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
     let mut style = SequenceStyle::default();
+    let mut scale: Option<ScaleSpec> = None;
+    let mut legend_halign = LegendHAlign::default();
+    let mut legend_valign = LegendVAlign::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
@@ -495,7 +510,43 @@ pub fn normalize_with_options(
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
-            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::Legend(v) => {
+                // Parse packed "LEGEND_POS:<pos>\n<text>" format emitted by the parser
+                // when a multiline legend block has positioning qualifiers.
+                if let Some(rest) = v.strip_prefix("LEGEND_POS:") {
+                    if let Some(newline_idx) = rest.find('\n') {
+                        let pos = &rest[..newline_idx];
+                        let text = &rest[newline_idx + 1..];
+                        legend = Some(text.to_string());
+                        let lower_pos = pos.to_ascii_lowercase();
+                        for token in lower_pos.split_whitespace() {
+                            match token {
+                                "left" => legend_halign = LegendHAlign::Left,
+                                "right" => legend_halign = LegendHAlign::Right,
+                                "center" => legend_halign = LegendHAlign::Center,
+                                "top" => legend_valign = LegendVAlign::Top,
+                                "bottom" => legend_valign = LegendVAlign::Bottom,
+                                _ => {}
+                            }
+                        }
+                    } else {
+                        // Just position, no text
+                        let lower_pos = rest.to_ascii_lowercase();
+                        for token in lower_pos.split_whitespace() {
+                            match token {
+                                "left" => legend_halign = LegendHAlign::Left,
+                                "right" => legend_halign = LegendHAlign::Right,
+                                "center" => legend_halign = LegendHAlign::Center,
+                                "top" => legend_valign = LegendVAlign::Top,
+                                "bottom" => legend_valign = LegendVAlign::Bottom,
+                                _ => {}
+                            }
+                        }
+                    }
+                } else {
+                    legend = Some(v);
+                }
+            }
             StatementKind::SkinParam { key, value } => {
                 mark_group_content(&mut group_stack);
                 skinparams.push((key.clone(), value.clone()));
@@ -530,6 +581,24 @@ pub fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::GroupBorderColor(color),
                     ) => style.group_border_color = color,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::RoundCorner(n),
+                    ) => style.round_corner = n,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Shadowing(enabled),
+                    ) => style.shadowing = enabled,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::DefaultFontName(name),
+                    ) => style.default_font_name = Some(name),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::DefaultFontSize(sz),
+                    ) => style.default_font_size = Some(sz),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::BackgroundColor(color),
+                    ) => style.background_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::DefaultTextAlignment(align),
+                    ) => style.text_alignment = align,
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -746,6 +815,24 @@ pub fn normalize_with_options(
             StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
             }
+            StatementKind::Scale(body) => {
+                mark_group_content(&mut group_stack);
+                scale = parse_scale_spec(&body).or(scale);
+            }
+            StatementKind::LegendPos(pos) => {
+                mark_group_content(&mut group_stack);
+                let lower = pos.to_ascii_lowercase();
+                for token in lower.split_whitespace() {
+                    match token {
+                        "left" => legend_halign = LegendHAlign::Left,
+                        "right" => legend_halign = LegendHAlign::Right,
+                        "center" => legend_halign = LegendHAlign::Center,
+                        "top" => legend_valign = LegendVAlign::Top,
+                        "bottom" => legend_valign = LegendVAlign::Bottom,
+                        _ => {}
+                    }
+                }
+            }
             StatementKind::ClassDecl(_)
             | StatementKind::ObjectDecl(_)
             | StatementKind::UseCaseDecl(_)
@@ -797,8 +884,50 @@ pub fn normalize_with_options(
         skinparams,
         style,
         footbox_visible,
+        scale,
+        legend_halign,
+        legend_valign,
         warnings,
     })
+}
+
+/// Strip the LEGEND_POS prefix from a packed legend value, returning just the text.
+fn strip_legend_pos_prefix(v: &str) -> String {
+    if let Some(rest) = v.strip_prefix("LEGEND_POS:") {
+        if let Some(nl) = rest.find('\n') {
+            return rest[nl + 1..].to_string();
+        }
+        return String::new();
+    }
+    v.to_string()
+}
+
+/// Parse a scale body (everything after "scale ").
+/// Supports:
+///   "1.5"          → Factor(1.5)
+///   "800*600"      → Fixed { width: 800, height: 600 }
+///   "max 800"      → Max(800)
+fn parse_scale_spec(body: &str) -> Option<ScaleSpec> {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some(rest) = lower.strip_prefix("max ") {
+        let n: u32 = rest.trim().parse().ok()?;
+        return Some(ScaleSpec::Max(n));
+    }
+    if let Some(idx) = trimmed.find('*') {
+        let w: u32 = trimmed[..idx].trim().parse().ok()?;
+        let h: u32 = trimmed[idx + 1..].trim().parse().ok()?;
+        return Some(ScaleSpec::Fixed { width: w, height: h });
+    }
+    let f: f64 = trimmed.parse().ok()?;
+    if f > 0.0 {
+        Some(ScaleSpec::Factor(f))
+    } else {
+        None
+    }
 }
 
 fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {

@@ -1,0 +1,10 @@
+@startuml
+skinparam roundCorner 12
+skinparam shadowing true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam backgroundColor cornsilk
+skinparam defaultTextAlignment left
+Alice -> Bob : rounded and shadowed
+Bob --> Alice : response
+@enduml

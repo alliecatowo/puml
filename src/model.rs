@@ -3,6 +3,35 @@ use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 use crate::theme::SequenceStyle;
 
+/// How to scale (or fix the size of) the output SVG.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScaleSpec {
+    /// Multiply both width and height by this factor (e.g. `scale 1.5`).
+    Factor(f64),
+    /// Render to exactly this pixel size, preserving aspect via viewBox
+    /// (e.g. `scale 800*600`).
+    Fixed { width: u32, height: u32 },
+    /// Cap the larger dimension at this pixel size (e.g. `scale max 800`).
+    Max(u32),
+}
+
+/// Horizontal positioning of the legend box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LegendHAlign {
+    Left,
+    #[default]
+    Center,
+    Right,
+}
+
+/// Vertical positioning of the legend box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LegendVAlign {
+    #[default]
+    Bottom,
+    Top,
+}
+
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum NormalizedDocument {
@@ -97,7 +126,31 @@ pub struct SequenceDocument {
     pub skinparams: Vec<(String, String)>,
     pub style: SequenceStyle,
     pub footbox_visible: bool,
+    pub scale: Option<ScaleSpec>,
+    pub legend_halign: LegendHAlign,
+    pub legend_valign: LegendVAlign,
     pub warnings: Vec<Diagnostic>,
+}
+
+impl Default for SequenceDocument {
+    fn default() -> Self {
+        Self {
+            participants: Vec::new(),
+            events: Vec::new(),
+            title: None,
+            header: None,
+            footer: None,
+            caption: None,
+            legend: None,
+            skinparams: Vec::new(),
+            style: SequenceStyle::default(),
+            footbox_visible: true,
+            scale: None,
+            legend_halign: LegendHAlign::default(),
+            legend_valign: LegendVAlign::default(),
+            warnings: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +165,9 @@ pub struct SequencePage {
     pub skinparams: Vec<(String, String)>,
     pub style: SequenceStyle,
     pub footbox_visible: bool,
+    pub scale: Option<ScaleSpec>,
+    pub legend_halign: LegendHAlign,
+    pub legend_valign: LegendVAlign,
     pub warnings: Vec<Diagnostic>,
 }
 

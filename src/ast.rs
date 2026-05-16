@@ -85,6 +85,8 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    Scale(String),
+    LegendPos(String),
     Unknown(String),
 }
 

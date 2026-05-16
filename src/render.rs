@@ -1,6 +1,7 @@
 use crate::ast::DiagramKind;
 use crate::model::{
-    FamilyDocument, FamilyNodeKind, ParticipantRole, TimelineDocument, VirtualEndpointKind,
+    FamilyDocument, FamilyNodeKind, LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec,
+    TimelineDocument, VirtualEndpointKind,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
@@ -8,11 +9,47 @@ const MESSAGE_LABEL_LINE_GAP: i32 = 16;
 
 pub fn render_svg(scene: &Scene) -> String {
     let mut out = String::new();
+
+    // Compute output dimensions based on scale spec.
+    let (svg_width, svg_height, viewbox) = compute_svg_dimensions(scene);
+
+    // Determine if a drop-shadow filter is needed.
+    let shadow_filter = if scene.style.shadowing {
+        " filter=\"url(#shadow)\""
+    } else {
+        ""
+    };
+    let _ = shadow_filter; // used below per-element
+
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        scene.width, scene.height, scene.width, scene.height
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"{}\">",
+        svg_width, svg_height, viewbox
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+
+    // Embed drop-shadow filter when shadowing is enabled.
+    if scene.style.shadowing {
+        out.push_str(
+            "<defs><filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\
+             <feDropShadow dx=\"3\" dy=\"3\" stdDeviation=\"2\" flood-color=\"#00000040\"/>\
+             </filter></defs>",
+        );
+    }
+
+    let bg_fill = scene
+        .style
+        .background_color
+        .as_deref()
+        .unwrap_or("white");
+    out.push_str(&format!("<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>", escape_text(bg_fill)));
+
+    // Determine font family and size from style.
+    let font_family = scene
+        .style
+        .default_font_name
+        .as_deref()
+        .unwrap_or("monospace");
+    let font_size_px = scene.style.default_font_size.unwrap_or(12);
+    let _ = (font_family, font_size_px); // used inline below
 
     if let Some(title) = &scene.title {
         for (idx, line) in title.lines.iter().enumerate() {
@@ -37,12 +74,15 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for g in &scene.groups {
+        let grx = (scene.style.round_corner / 2).max(2);
         out.push_str(&format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
             g.x,
             g.y,
             g.width,
             g.height,
+            grx,
+            grx,
             if g.kind.eq_ignore_ascii_case("ref") {
                 "#eef6ff"
             } else {
@@ -159,9 +199,10 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for n in &scene.notes {
+        let nrx = (scene.style.round_corner / 2).max(2);
         out.push_str(&format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-            n.x, n.y, n.width, n.height, scene.style.note_background_color, scene.style.note_border_color
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            n.x, n.y, n.width, n.height, nrx, nrx, scene.style.note_background_color, scene.style.note_border_color
         ));
 
         let mut text_y = n.y + 20;
@@ -231,8 +272,77 @@ pub fn render_svg(scene: &Scene) -> String {
         render_participant_box(&mut out, p, scene);
     }
 
+    // Render legend if present.
+    if let Some(legend_text) = &scene.legend_text {
+        render_legend(&mut out, legend_text, scene);
+    }
+
     out.push_str("</svg>");
     out
+}
+
+fn compute_svg_dimensions(scene: &Scene) -> (String, String, String) {
+    let w = scene.width;
+    let h = scene.height;
+    let viewbox = format!("0 0 {} {}", w, h);
+    match &scene.scale {
+        None => (w.to_string(), h.to_string(), viewbox),
+        Some(ScaleSpec::Factor(f)) => {
+            let sw = (w as f64 * f).round() as i32;
+            let sh = (h as f64 * f).round() as i32;
+            (sw.to_string(), sh.to_string(), viewbox)
+        }
+        Some(ScaleSpec::Fixed {
+            width: fw,
+            height: fh,
+        }) => (fw.to_string(), fh.to_string(), viewbox),
+        Some(ScaleSpec::Max(max)) => {
+            let max = *max as f64;
+            let larger = (w.max(h)) as f64;
+            if larger <= max {
+                (w.to_string(), h.to_string(), viewbox)
+            } else {
+                let factor = max / larger;
+                let sw = (w as f64 * factor).round() as i32;
+                let sh = (h as f64 * factor).round() as i32;
+                (sw.to_string(), sh.to_string(), viewbox)
+            }
+        }
+    }
+}
+
+fn render_legend(out: &mut String, text: &str, scene: &Scene) {
+    let lines: Vec<&str> = text.lines().collect();
+    let line_count = lines.len() as i32;
+    let box_width = 200_i32;
+    let box_height = 24 + line_count * 16;
+    let margin = 10_i32;
+
+    let x = match scene.legend_halign {
+        LegendHAlign::Left => margin,
+        LegendHAlign::Center => (scene.width - box_width) / 2,
+        LegendHAlign::Right => scene.width - box_width - margin,
+    };
+    let y = match scene.legend_valign {
+        LegendVAlign::Top => margin,
+        LegendVAlign::Bottom => scene.height - box_height - margin,
+    };
+
+    out.push_str(&format!(
+        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#fffff0\" stroke=\"#aaa\" stroke-width=\"1\" opacity=\"0.9\"/>",
+        x, y, box_width, box_height
+    ));
+
+    let mut ty = y + 16;
+    for line in &lines {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#333\">{}</text>",
+            x + 8,
+            ty,
+            escape_text(line)
+        ));
+        ty += 16;
+    }
 }
 
 pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
@@ -508,14 +618,19 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
 
     match participant.role {
         ParticipantRole::Participant => {
+            let rx = scene.style.round_corner;
+            let shadow_attr = if scene.style.shadowing { " filter=\"url(#shadow)\"" } else { "" };
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"{shadow_attr}/>",
                 x,
                 y,
                 width,
                 height,
+                rx,
+                rx,
                 scene.style.participant_background_color,
-                scene.style.participant_border_color
+                scene.style.participant_border_color,
+                shadow_attr = shadow_attr
             ));
         }
         ParticipantRole::Actor => {

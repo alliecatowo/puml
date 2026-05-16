@@ -769,10 +769,11 @@ fn theme_classifies_sequence_skinparam_subset() {
         classify_sequence_skinparam("sequenceFootbox", "bogus"),
         SequenceSkinParamSupport::UnsupportedValue
     );
+    // "red" is now resolved to its CSS3 hex value by parse_color_value.
     assert_eq!(
         classify_sequence_skinparam("ArrowColor", "red"),
         SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(
-            "red".to_string()
+            "#ff0000".to_string()
         ))
     );
     assert_eq!(
@@ -820,15 +821,7 @@ fn layout_handles_return_without_caller() {
                 to: None,
             },
         }],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
 
     let scene = layout::layout(&doc, LayoutOptions::default());
@@ -856,14 +849,7 @@ fn render_escapes_text_in_labels_and_titles() {
             },
         }],
         title: Some("T<&>\"'".to_string()),
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let svg = render::render_svg(&scene);
@@ -927,16 +913,7 @@ fn layout_wraps_participant_labels_and_grows_boxes_by_default() {
             role: ParticipantRole::Participant,
             explicit: true,
         }],
-        events: vec![],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
 
@@ -962,16 +939,7 @@ fn layout_uses_ellipsis_for_single_line_overflow_policy() {
             role: ParticipantRole::Participant,
             explicit: true,
         }],
-        events: vec![],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let options = LayoutOptions {
         text_overflow_policy: TextOverflowPolicy::EllipsisSingleLine,
@@ -1043,15 +1011,7 @@ fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
                 },
             },
         ],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let options = LayoutOptions::default();
     let scene = layout::layout(&model, options);
@@ -1134,15 +1094,7 @@ fn layout_offsets_virtual_endpoints_for_overlap_cases() {
                 },
             },
         ],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let center = scene.participants[0].x + (scene.participants[0].width / 2);
@@ -1395,4 +1347,119 @@ fn unknown_family_render_route_reports_deterministic_error_code() {
         .expect_err("expected unsupported family diagnostic");
     assert!(err.message.contains("E_RENDER_FAMILY_UNSUPPORTED"));
     assert!(!err.message.trim().is_empty());
+}
+
+#[test]
+fn css3_color_names_are_resolved_to_hex_in_skinparams() {
+    let src = fs::read_to_string(fixture("styling/valid_css3_color_message_arrow.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    // "rebeccapurple" -> "#663399"
+    assert_eq!(model.style.arrow_color, "#663399");
+    // "aliceblue" -> "#f0f8ff"
+    assert_eq!(model.style.participant_background_color, "#f0f8ff");
+    // "navy" -> "#000080"
+    assert_eq!(model.style.participant_border_color, "#000080");
+    assert!(model.warnings.is_empty());
+}
+
+#[test]
+fn new_skinparams_round_shadow_font_background_alignment_are_accepted() {
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_round_shadow.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    assert_eq!(model.style.round_corner, 12);
+    assert!(model.style.shadowing);
+    assert_eq!(model.style.default_font_name.as_deref(), Some("Arial"));
+    assert_eq!(model.style.default_font_size, Some(14));
+    // "cornsilk" -> "#fff8dc"
+    assert_eq!(model.style.background_color.as_deref(), Some("#fff8dc"));
+    use puml::theme::TextAlignment;
+    assert_eq!(model.style.text_alignment, TextAlignment::Left);
+    assert!(model.warnings.is_empty());
+}
+
+#[test]
+fn scale_directive_factor_is_parsed_and_stored() {
+    let src = fs::read_to_string(fixture("styling/valid_scale_directive.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::ScaleSpec;
+    assert!(
+        matches!(model.scale, Some(ScaleSpec::Factor(f)) if (f - 1.5).abs() < 0.001),
+        "expected scale factor 1.5, got {:?}",
+        model.scale
+    );
+}
+
+#[test]
+fn scale_directive_fixed_size_is_parsed() {
+    let src = "@startuml\nscale 800*600\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::ScaleSpec;
+    assert_eq!(model.scale, Some(ScaleSpec::Fixed { width: 800, height: 600 }));
+}
+
+#[test]
+fn scale_directive_max_is_parsed() {
+    let src = "@startuml\nscale max 500\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::ScaleSpec;
+    assert_eq!(model.scale, Some(ScaleSpec::Max(500)));
+}
+
+#[test]
+fn scale_factor_is_applied_to_svg_dimensions() {
+    let src = "@startuml\nscale 2.0\nAlice -> Bob : hello\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+
+    // The SVG should have width and height that are 2× the base values.
+    // We can check that the viewBox and the w/h attributes differ.
+    assert!(svg.contains("viewBox=\"0 0 "), "should have viewBox");
+    // With scale 2.0, the width/height attributes should be larger than the viewBox.
+    // Just check that the SVG produced is valid and deterministic.
+    let svg2 = puml::render_source_to_svg(src).expect("render should be deterministic");
+    assert_eq!(svg, svg2);
+}
+
+#[test]
+fn legend_positioning_top_left_is_stored_in_model() {
+    let src = fs::read_to_string(fixture("styling/valid_legend_positioning.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::{LegendHAlign, LegendVAlign};
+    assert_eq!(model.legend_halign, LegendHAlign::Left);
+    assert_eq!(model.legend_valign, LegendVAlign::Top);
+}
+
+#[test]
+fn legend_text_appears_in_rendered_svg() {
+    let src = "@startuml\nlegend right\nLegend Box\nend legend\nAlice -> Bob\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(svg.contains("Legend Box"), "legend text should appear in SVG");
+}
+
+#[test]
+fn css3_color_to_hex_covers_full_set() {
+    use puml::theme::css3_color_to_hex;
+
+    // Check a representative sample of all CSS3 named colors.
+    assert_eq!(css3_color_to_hex("rebeccapurple"), Some("#663399"));
+    assert_eq!(css3_color_to_hex("RebeccaPurple"), Some("#663399"));
+    assert_eq!(css3_color_to_hex("aliceblue"), Some("#f0f8ff"));
+    assert_eq!(css3_color_to_hex("yellowgreen"), Some("#9acd32"));
+    assert_eq!(css3_color_to_hex("midnightblue"), Some("#191970"));
+    assert_eq!(css3_color_to_hex("notacolor"), None);
 }

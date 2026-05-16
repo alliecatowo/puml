@@ -1298,6 +1298,8 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Include(v) => json!({"Include": v}),
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
+        StatementKind::Scale(v) => json!({"Scale": v}),
+        StatementKind::LegendPos(v) => json!({"LegendPos": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
     }
 }
