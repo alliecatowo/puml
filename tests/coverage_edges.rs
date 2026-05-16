@@ -10,7 +10,10 @@ use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
 use puml::source::Span;
 use puml::theme::{
-    classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
+    classify_activity_skinparam, classify_class_skinparam, classify_component_skinparam,
+    classify_gantt_skinparam, classify_sequence_skinparam, classify_state_skinparam,
+    FamilySkinParamSupport, FamilySkinParamValue, SequenceSkinParamSupport, SequenceSkinParamValue,
+    SequenceStyle,
 };
 use puml::{normalize_family, parse, render, NormalizedDocument};
 use std::fs;
@@ -698,7 +701,10 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
             assert_eq!(model.nodes.len(), 1);
             assert_eq!(model.nodes[0].members.len(), 2);
             assert_eq!(model.relations.len(), 1);
-            assert!(model.warnings.is_empty());
+            assert_eq!(model.warnings.len(), 1);
+            assert!(model.warnings[0]
+                .message
+                .contains("W_SKINPARAM_UNSUPPORTED"));
         }
         NormalizedDocument::Sequence(_)
         | NormalizedDocument::Timeline(_)
@@ -1036,6 +1042,68 @@ fn theme_classifies_sequence_skinparam_subset() {
         classify_sequence_skinparam("ArrowColor", "\"/><script"),
         SequenceSkinParamSupport::UnsupportedValue
     );
+}
+
+#[test]
+fn theme_classifies_family_skinparam_subsets() {
+    assert_eq!(
+        classify_class_skinparam("ClassBackgroundColor", "LightBlue"),
+        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(
+            "lightblue".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_class_skinparam("ClassBorderColor", "#112233"),
+        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(
+            "#112233".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_class_skinparam("ClassFontSize", "16"),
+        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::FontSize(16))
+    );
+    assert_eq!(
+        classify_state_skinparam("StateBackgroundColor", "lightyellow"),
+        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(
+            "lightyellow".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_component_skinparam("ComponentBorderColor", "navy"),
+        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(
+            "navy".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_activity_skinparam("ActivityBackgroundColor", "mintcream"),
+        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(
+            "mintcream".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_gantt_skinparam("GanttBorderColor", "teal"),
+        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(
+            "teal".to_string()
+        ))
+    );
+}
+
+#[test]
+fn family_and_state_skinparams_apply_to_rendered_svg_styles() {
+    let class_svg = puml::render_source_to_svg(
+        "@startuml\nskinparam ClassBackgroundColor lavender\nskinparam ClassBorderColor navy\nskinparam ClassFontSize 18\nclass A\n@enduml\n",
+    )
+    .expect("class render should succeed");
+    assert!(class_svg.contains("fill=\"lavender\""));
+    assert!(class_svg.contains("stroke=\"navy\""));
+    assert!(class_svg.contains("font-size=\"18\""));
+
+    let state_svg = puml::render_source_to_svg(
+        "@startuml\nskinparam StateBackgroundColor lightyellow\nskinparam StateBorderColor teal\nstate Active\n@enduml\n",
+    )
+    .expect("state render should succeed");
+    assert!(state_svg.contains("fill=\"lightyellow\""));
+    assert!(state_svg.contains("stroke=\"teal\""));
 }
 
 #[test]

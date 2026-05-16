@@ -894,6 +894,23 @@ fn check_mode_accepts_css_named_colors_for_sequence_skinparams() {
 }
 
 #[test]
+fn check_mode_accepts_class_state_and_activity_family_skinparams() {
+    for src in [
+        "@startuml\nskinparam ClassBackgroundColor lavender\nskinparam ClassBorderColor navy\nskinparam ClassFontSize 18\nclass A\n@enduml\n",
+        "@startuml\nskinparam StateBackgroundColor lightyellow\nskinparam StateBorderColor teal\nstate Active\n@enduml\n",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", "-"])
+            .write_stdin(src)
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
 fn check_mode_skinparam_unsupported_key_and_value_are_both_reported_deterministically() {
     let output = Command::cargo_bin("puml")
         .expect("binary")

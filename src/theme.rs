@@ -315,6 +315,124 @@ pub enum SequenceSkinParamSupport {
     UnsupportedValue,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FamilyStyle {
+    pub background_color: String,
+    pub border_color: String,
+    pub font_size: i32,
+}
+
+impl Default for FamilyStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#f8fafc".to_string(),
+            border_color: "#94a3b8".to_string(),
+            font_size: 12,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateStyle {
+    pub background_color: String,
+    pub border_color: String,
+}
+
+impl Default for StateStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#f8fafc".to_string(),
+            border_color: "#64748b".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimelineStyle {
+    pub row_background_color: String,
+    pub row_border_color: String,
+}
+
+impl Default for TimelineStyle {
+    fn default() -> Self {
+        Self {
+            row_background_color: "#ffffff".to_string(),
+            row_border_color: "#cbd5e1".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FamilySkinParamValue {
+    BackgroundColor(String),
+    BorderColor(String),
+    FontSize(i32),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FamilySkinParamSupport {
+    SupportedWithValue(FamilySkinParamValue),
+    UnsupportedKey,
+    UnsupportedValue,
+}
+
+pub fn classify_class_skinparam(key: &str, value: &str) -> FamilySkinParamSupport {
+    classify_skinparam_for_prefixes(key, value, &["class"])
+}
+
+pub fn classify_state_skinparam(key: &str, value: &str) -> FamilySkinParamSupport {
+    classify_skinparam_for_prefixes(key, value, &["state"])
+}
+
+pub fn classify_component_skinparam(key: &str, value: &str) -> FamilySkinParamSupport {
+    classify_skinparam_for_prefixes(key, value, &["component"])
+}
+
+pub fn classify_activity_skinparam(key: &str, value: &str) -> FamilySkinParamSupport {
+    classify_skinparam_for_prefixes(key, value, &["activity"])
+}
+
+pub fn classify_gantt_skinparam(key: &str, value: &str) -> FamilySkinParamSupport {
+    classify_skinparam_for_prefixes(key, value, &["gantt"])
+}
+
+fn classify_skinparam_for_prefixes(
+    key: &str,
+    value: &str,
+    prefixes: &[&str],
+) -> FamilySkinParamSupport {
+    let normalized_key = key.trim().to_ascii_lowercase();
+    for prefix in prefixes {
+        let bg_key = format!("{prefix}backgroundcolor");
+        if normalized_key == bg_key {
+            return parse_color_value(value)
+                .map(|v| {
+                    FamilySkinParamSupport::SupportedWithValue(
+                        FamilySkinParamValue::BackgroundColor(v),
+                    )
+                })
+                .unwrap_or(FamilySkinParamSupport::UnsupportedValue);
+        }
+        let border_key = format!("{prefix}bordercolor");
+        if normalized_key == border_key {
+            return parse_color_value(value)
+                .map(|v| {
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(v))
+                })
+                .unwrap_or(FamilySkinParamSupport::UnsupportedValue);
+        }
+        let font_key = format!("{prefix}fontsize");
+        if normalized_key == font_key {
+            return parse_font_size_value(value)
+                .map(|v| {
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::FontSize(v))
+                })
+                .unwrap_or(FamilySkinParamSupport::UnsupportedValue);
+        }
+    }
+    FamilySkinParamSupport::UnsupportedKey
+}
+
 pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamSupport {
     let normalized_key = key.trim().to_ascii_lowercase();
     match normalized_key.as_str() {
@@ -392,6 +510,15 @@ fn parse_footbox_value(value: &str) -> Option<SequenceSkinParamValue> {
         _ => return None,
     };
     Some(SequenceSkinParamValue::FootboxVisible(visible))
+}
+
+fn parse_font_size_value(value: &str) -> Option<i32> {
+    let parsed = value.trim().parse::<i32>().ok()?;
+    if (6..=96).contains(&parsed) {
+        Some(parsed)
+    } else {
+        None
+    }
 }
 
 fn parse_color_value(value: &str) -> Option<String> {

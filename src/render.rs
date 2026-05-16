@@ -280,9 +280,11 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
     y += 16;
 
     out.push_str(&format!(
-        "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#f8fafc\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+        "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
         y,
-        32 + (body_rows * 42) + (member_rows * 16)
+        32 + (body_rows * 42) + (member_rows * 16),
+        escape_text(&document.style.background_color),
+        escape_text(&document.style.border_color)
     ));
     y += 24;
 
@@ -304,8 +306,9 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
                 .map(|v| format!(" as {v}"))
                 .unwrap_or_default();
             out.push_str(&format!(
-                "<text x=\"52\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{} {}{}</text>",
+                "<text x=\"52\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" fill=\"#0f172a\">{} {}{}</text>",
                 y + 6,
+                document.style.font_size,
                 family_node_label(node.kind),
                 escape_text(&node.name),
                 escape_text(&alias)
@@ -424,8 +427,10 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
     for entry in &entry_rows_content {
         let row_y = y + (row * 30);
         out.push_str(&format!(
-            "<rect x=\"40\" y=\"{}\" width=\"688\" height=\"22\" fill=\"#ffffff\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
-            row_y
+            "<rect x=\"40\" y=\"{}\" width=\"688\" height=\"22\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            row_y,
+            escape_text(&document.style.row_background_color),
+            escape_text(&document.style.row_border_color)
         ));
         out.push_str(&format!(
             "<circle cx=\"52\" cy=\"{}\" r=\"5\" fill=\"#1f2937\"/>",
@@ -654,7 +659,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // Draw nodes
     for node in nodes {
         if let Some(&(x, y)) = node_coords.get(&node.name) {
-            render_state_node_svg(&mut out, node, x, y);
+            render_state_node_svg(&mut out, node, x, y, &document.style);
         }
     }
 
@@ -701,7 +706,13 @@ fn transition_endpoints(
 }
 
 /// Render a single state node at (x, y).
-fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
+fn render_state_node_svg(
+    out: &mut String,
+    node: &StateNode,
+    x: i32,
+    y: i32,
+    node_style: &crate::theme::StateStyle,
+) {
     let w = STATE_NODE_W;
     let base_h = STATE_NODE_H;
     // Extra height for internal actions
@@ -807,15 +818,15 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
                     let region_x = x + ri as i32 * region_w + 4;
                     let mut child_y = y + 28;
                     for child in region {
-                        render_state_node_svg(out, child, region_x, child_y);
+                        render_state_node_svg(out, child, region_x, child_y, node_style);
                         child_y += STATE_NODE_H + 12;
                     }
                 }
             } else {
                 // Simple state: rounded rect with name header
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#f8fafc\" stroke=\"#64748b\" stroke-width=\"1.5\"/>",
-                    x, y, w, h
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    x, y, w, h, escape_text(&node_style.background_color), escape_text(&node_style.border_color)
                 ));
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#0f172a\">{}</text>",
@@ -824,8 +835,8 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
                 // Separator line if there are internal actions
                 if !node.internal_actions.is_empty() {
                     out.push_str(&format!(
-                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
-                        x, y + base_h - 4, x + w, y + base_h - 4
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y + base_h - 4, x + w, y + base_h - 4, escape_text(&node_style.border_color)
                     ));
                     for (ai, action) in node.internal_actions.iter().enumerate() {
                         let ay = y + base_h + ai as i32 * 14;
@@ -845,7 +856,7 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
                     if !region.is_empty() {
                         let mut child_y = y + h + 4;
                         for child in region {
-                            render_state_node_svg(out, child, x + 8, child_y);
+                            render_state_node_svg(out, child, x + 8, child_y, node_style);
                             child_y += STATE_NODE_H + 8;
                         }
                     }
