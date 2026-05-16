@@ -482,6 +482,12 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_procedure_call_args.puml",
         "preprocessor/valid_import_stdlib_core.puml",
         "preprocessor/valid_import_stdlib_nested_no_ext.puml",
+        "preprocessor/valid_builtin_strlen.puml",
+        "preprocessor/valid_builtin_boolval.puml",
+        "preprocessor/valid_builtin_chain.puml",
+        "include/valid_include_once.puml",
+        "include/valid_include_many.puml",
+        "include/valid_includesub.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -3751,4 +3757,109 @@ fn fail_on_warn_flag_exits_one_when_warnings_emitted() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_WARNINGS_PRESENT"));
+}
+
+#[test]
+fn preprocessor_builtin_strlen_expands_to_character_count() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_builtin_strlen.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(label, "len=8");
+}
+
+#[test]
+fn preprocessor_builtin_boolval_expands_truthiness_and_not_inverts() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_builtin_boolval.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels: Vec<&str> = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|s| s["kind"]["Message"]["label"].as_str())
+        .collect();
+    assert_eq!(labels, vec!["true", "false", "false"]);
+}
+
+#[test]
+fn preprocessor_builtin_chain_composes_substr_upper_intval_dec2hex() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_builtin_chain.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(label, "PLANT-12-ff");
+}
+
+#[test]
+fn preprocessor_include_directives_are_deterministic_for_same_input() {
+    // Deterministic-bytes contract for the new include surface: rendering
+    // the same source twice yields identical AST bytes.
+    for case in [
+        "include/valid_include_once.puml",
+        "include/valid_include_many.puml",
+        "include/valid_includesub.puml",
+    ] {
+        let first = Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--dump", "ast", &fixture(case)])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let second = Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--dump", "ast", &fixture(case)])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        assert_eq!(first, second, "non-deterministic output for {case}");
+    }
+}
+
+#[test]
+fn preprocessor_includeurl_directive_rejects_with_deterministic_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\n!includeurl https://example.com/lib.puml\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_INCLUDE_URL_UNSUPPORTED"));
 }

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -87,6 +88,7 @@ enum PreprocessDirective {
     DynamicInvocation(String),
     JsonPreproc(String),
     Unsupported(String),
+    NoOp,
     ProcedureCall {
         name: String,
         args: String,
@@ -122,6 +124,13 @@ struct PreprocState {
     defines: BTreeMap<String, String>,
     vars: BTreeMap<String, String>,
     callables: BTreeMap<String, PreprocCallable>,
+    // Counters used by the deterministic builtins `%false_then_true` /
+    // `%true_then_false`. PlantUML semantics use a per-callsite latch — we
+    // key by the argument value so identical sources produce identical
+    // AST/render bytes. Interior mutability lets us update from
+    // `expand_function_invocations` which only borrows `&PreprocState`.
+    false_then_true_counts: RefCell<BTreeMap<String, u64>>,
+    true_then_false_counts: RefCell<BTreeMap<String, u64>>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -308,23 +317,28 @@ fn preprocess_text(
                 }
                 PreprocessDirective::Log(payload) => {
                     if active {
-                        ensure_no_unsupported_builtin_payload(&payload)?;
+                        // Expand for diagnostics parity; result is discarded
+                        // because we are a deterministic offline renderer.
+                        let _ = expand_preprocessor_text(&payload, state, call_depth)?;
                     }
                 }
                 PreprocessDirective::DumpMemory(payload) => {
                     if active {
-                        ensure_no_unsupported_builtin_payload(&payload)?;
+                        let _ = expand_preprocessor_text(&payload, state, call_depth)?;
                     }
                 }
                 PreprocessDirective::DynamicInvocation(raw) => {
                     if active {
-                        return Err(Diagnostic::error_code(
-                            "E_PREPROC_DYNAMIC_UNSUPPORTED",
-                            format!(
-                                "dynamic preprocessor invocation is not supported in this deterministic subset: `{}`",
-                                raw
-                            ),
-                        ));
+                        invoke_dynamic_procedure(
+                            &raw,
+                            state,
+                            options,
+                            include_stack,
+                            include_once_seen,
+                            depth,
+                            call_depth,
+                            out,
+                        )?;
                     }
                 }
                 PreprocessDirective::JsonPreproc(raw) => {
@@ -372,18 +386,20 @@ fn preprocess_text(
                 } => {
                     if active {
                         let trimmed = value.trim_start();
-                        if trimmed.starts_with('{') || trimmed.starts_with('[') {
-                            return Err(Diagnostic::error_code(
-                                "E_PREPROC_JSON_UNSUPPORTED",
-                                format!(
-                                    "JSON preprocessing is not supported in this deterministic subset: `!${} = {}`",
-                                    name, value
-                                ),
-                            ));
-                        }
+                        let is_json_literal =
+                            trimmed.starts_with('{') || trimmed.starts_with('[');
                         if !conditional || !state.vars.contains_key(&name) {
-                            let rendered = substitute_tokens_and_vars(&value, state);
-                            state.vars.insert(name, rendered.trim().to_string());
+                            if is_json_literal {
+                                // Preserve JSON literal verbatim (no
+                                // substitution / no trimming inside the
+                                // braces) so `%get_json_attribute` can do a
+                                // simple key lookup. We still trim outer
+                                // whitespace for determinism.
+                                state.vars.insert(name, value.trim().to_string());
+                            } else {
+                                let rendered = substitute_tokens_and_vars(&value, state);
+                                state.vars.insert(name, rendered.trim().to_string());
+                            }
                         }
                     }
                 }
@@ -423,11 +439,8 @@ fn preprocess_text(
                 }
                 PreprocessDirective::IncludeMany(raw_target) => {
                     if active {
-                        process_include_directive(
+                        process_include_many_directive(
                             &raw_target,
-                            "!include_many",
-                            false,
-                            false,
                             options,
                             state,
                             include_stack,
@@ -499,6 +512,9 @@ fn preprocess_text(
                             format!("unsupported preprocessor directive `!{name}`"),
                         ));
                     }
+                }
+                PreprocessDirective::NoOp => {
+                    // Intentionally drop: e.g. `!startsub`/`!endsub` markers.
                 }
             }
             i += 1;
@@ -624,6 +640,217 @@ fn process_include_directive(
     Ok(())
 }
 
+/// `!include_many` with optional glob expansion. When the path contains `*`
+/// or `?`, expand it to every matching file in deterministic alphabetical
+/// order; otherwise behave like `!include`. Globs only match the file-name
+/// segment of the path so we cannot escape the include root by accident.
+#[allow(clippy::too_many_arguments)]
+fn process_include_many_directive(
+    raw_target: &str,
+    options: &ParseOptions,
+    state: &mut PreprocState,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    call_depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    if raw_target.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_PATH_REQUIRED",
+            "!include_many requires a relative path",
+        ));
+    }
+    if is_url_include_target(raw_target) {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_URL_UNSUPPORTED",
+            format!("!include_many URL targets are not supported: {raw_target}"),
+        ));
+    }
+
+    let target = parse_include_target(raw_target);
+    if target.path.is_absolute() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_ABSOLUTE_PATH",
+            format!(
+                "!include_many only supports relative paths: {}",
+                target.path.display()
+            ),
+        ));
+    }
+
+    let glob_pattern = target.path.file_name().and_then(|n| n.to_str());
+    let has_glob = glob_pattern
+        .map(|n| n.contains('*') || n.contains('?'))
+        .unwrap_or(false);
+
+    if !has_glob {
+        return process_include_directive(
+            raw_target,
+            "!include_many",
+            false,
+            false,
+            options,
+            state,
+            include_stack,
+            include_once_seen,
+            depth,
+            call_depth,
+            out,
+        );
+    }
+
+    let pattern = glob_pattern.unwrap_or("");
+    let parent = target.path.parent().unwrap_or(Path::new(""));
+    // Resolve directory by going through the include-root machinery using a
+    // dummy file name in the parent dir.
+    let dir_probe = parent.join("__glob_probe__");
+    // We need the canonical parent dir; the helper expects an existing file.
+    // Manually walk the resolution: produce an absolute parent dir under the
+    // configured root.
+    let root_dir = options.include_root.clone().or_else(|| {
+        include_stack
+            .first()
+            .and_then(|p| p.parent().map(Path::to_path_buf))
+    });
+    let Some(root_dir) = root_dir else {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_ROOT_REQUIRED",
+            "!include_many from stdin requires include_root option",
+        ));
+    };
+    let root_canon = root_dir.canonicalize().map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_ROOT_INVALID",
+            format!(
+                "failed to access include root '{}': {e}",
+                root_dir.display()
+            ),
+        )
+    })?;
+    let base_dir = include_stack
+        .last()
+        .and_then(|curr| curr.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| root_canon.clone());
+    let resolved_parent = normalize_path(base_dir.join(parent));
+    let resolved_parent_canon = resolved_parent.canonicalize().map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_READ",
+            format!(
+                "failed to read include glob parent '{}': {e}",
+                resolved_parent.display()
+            ),
+        )
+    })?;
+    if !resolved_parent_canon.starts_with(&root_canon) {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_ESCAPE",
+            format!(
+                "include path escapes include root: '{}' resolves outside '{}'",
+                dir_probe.display(),
+                root_canon.display()
+            ),
+        ));
+    }
+
+    let mut matches: Vec<PathBuf> = Vec::new();
+    for entry in fs::read_dir(&resolved_parent_canon).map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_READ",
+            format!(
+                "failed to read include glob dir '{}': {e}",
+                resolved_parent_canon.display()
+            ),
+        )
+    })? {
+        let entry = entry.map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_READ",
+                format!("failed to enumerate include glob entry: {e}"),
+            )
+        })?;
+        if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+            continue;
+        }
+        let name_os = entry.file_name();
+        let Some(name) = name_os.to_str() else {
+            continue;
+        };
+        if glob_matches(pattern, name) {
+            matches.push(entry.path());
+        }
+    }
+    // Deterministic ordering — alphabetical.
+    matches.sort();
+
+    for resolved in matches {
+        let resolved = resolved.canonicalize().map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_READ",
+                format!("failed to read include '{}': {e}", resolved.display()),
+            )
+        })?;
+        if !resolved.starts_with(&root_canon) {
+            continue;
+        }
+        if include_stack.iter().any(|p| p == &resolved) {
+            continue;
+        }
+        let content = fs::read_to_string(&resolved).map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_READ",
+                format!("failed to read include '{}': {e}", resolved.display()),
+            )
+        })?;
+        include_stack.push(resolved);
+        preprocess_text(
+            &content,
+            options,
+            state,
+            include_stack,
+            include_once_seen,
+            depth + 1,
+            call_depth,
+            out,
+        )?;
+        include_stack.pop();
+    }
+    Ok(())
+}
+
+/// Minimal `*`/`?` glob match — sufficient for `!include_many` filename
+/// patterns. Backtracks on `*` to keep behaviour predictable. No character
+/// classes, no recursion across path separators.
+fn glob_matches(pattern: &str, name: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let n: Vec<char> = name.chars().collect();
+    fn rec(p: &[char], n: &[char]) -> bool {
+        let mut pi = 0;
+        let mut ni = 0;
+        let mut star: Option<(usize, usize)> = None;
+        while ni < n.len() {
+            if pi < p.len() && (p[pi] == '?' || p[pi] == n[ni]) {
+                pi += 1;
+                ni += 1;
+            } else if pi < p.len() && p[pi] == '*' {
+                star = Some((pi, ni));
+                pi += 1;
+            } else if let Some((sp, sn)) = star {
+                pi = sp + 1;
+                ni = sn + 1;
+                star = Some((sp, sn + 1));
+            } else {
+                return false;
+            }
+        }
+        while pi < p.len() && p[pi] == '*' {
+            pi += 1;
+        }
+        pi == p.len()
+    }
+    rec(&p, &n)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn process_import_directive(
     raw_target: &str,
@@ -746,9 +973,13 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
         _ if name.starts_with('$') => parse_variable_assignment(name, arg, trimmed),
-        "return" | "foreach" | "endfor" | "startsub" | "endsub" => {
+        "return" | "foreach" | "endfor" => {
             Some(PreprocessDirective::Unsupported(name.to_string()))
         }
+        // `!startsub` / `!endsub` are markers used by `!includesub`. When a
+        // file containing them is included directly, we silently elide the
+        // marker lines and pass the body lines through.
+        "startsub" | "endsub" => Some(PreprocessDirective::NoOp),
         "theme" | "pragma" => None,
         _ if let Some((call_name, call_args)) = parse_named_call(rest) => {
             Some(PreprocessDirective::ProcedureCall {
@@ -911,47 +1142,7 @@ fn evaluate_assert_expression(body: &str, state: &PreprocState) -> Result<bool, 
             "!assert requires a non-empty expression before optional `:` message",
         ));
     }
-    if contains_builtin_invocation(expression) {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_BUILTIN_UNSUPPORTED",
-            "preprocessor builtin functions (`%...`) are not supported in this deterministic subset",
-        ));
-    }
     evaluate_preprocess_expr(expression, state)
-}
-
-fn ensure_no_unsupported_builtin_payload(payload: &str) -> Result<(), Diagnostic> {
-    if contains_builtin_invocation(payload) {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_BUILTIN_UNSUPPORTED",
-            "preprocessor builtin functions (`%...`) are not supported in this deterministic subset",
-        ));
-    }
-    Ok(())
-}
-
-fn contains_builtin_invocation(raw: &str) -> bool {
-    let bytes = raw.as_bytes();
-    for i in 0..bytes.len() {
-        if bytes[i] != b'%' {
-            continue;
-        }
-        let mut j = i + 1;
-        let mut saw_ident = false;
-        while j < bytes.len() {
-            let ch = bytes[j] as char;
-            if ch.is_ascii_alphanumeric() || ch == '_' {
-                saw_ident = true;
-                j += 1;
-                continue;
-            }
-            break;
-        }
-        if saw_ident && j < bytes.len() && bytes[j] == b'(' {
-            return true;
-        }
-    }
-    false
 }
 
 fn resolve_include_path(
@@ -1356,34 +1547,410 @@ fn expand_function_invocations(
             if j < chars.len() && chars[j] == '(' {
                 let call_name: String = chars[i + 1..j].iter().collect();
                 let (args_raw, next_idx) = extract_parenthesized_args(&chars, j)?;
-                let callable = state.callables.get(&call_name).ok_or_else(|| {
-                    Diagnostic::error_code(
-                        "E_PREPROC_BUILTIN_UNSUPPORTED",
-                        format!(
-                            "preprocessor builtin or unknown function `%{}(...)` is not supported in this deterministic subset",
-                            call_name
-                        ),
-                    )
-                })?;
-                if callable.kind != PreprocCallableKind::Function {
-                    return Err(Diagnostic::error_code(
-                        "E_PREPROC_CALL_KIND",
-                        format!(
-                            "`{}` is a procedure and cannot be called as `%...` function",
-                            call_name
-                        ),
-                    ));
+                // 1) User-defined callable wins over a builtin of the same
+                //    name (parity with PlantUML which lets users shadow).
+                if let Some(callable) = state.callables.get(&call_name) {
+                    if callable.kind != PreprocCallableKind::Function {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_CALL_KIND",
+                            format!(
+                                "`{}` is a procedure and cannot be called as `%...` function",
+                                call_name
+                            ),
+                        ));
+                    }
+                    let ret =
+                        execute_function_call(&call_name, &args_raw, state, call_depth + 1)?;
+                    out.push_str(&ret);
+                    i = next_idx;
+                    continue;
                 }
-                let ret = execute_function_call(&call_name, &args_raw, state, call_depth + 1)?;
-                out.push_str(&ret);
-                i = next_idx;
-                continue;
+                // 2) Builtin dispatch.
+                if let Some(ret) =
+                    dispatch_builtin(&call_name, &args_raw, state, call_depth)?
+                {
+                    out.push_str(&ret);
+                    i = next_idx;
+                    continue;
+                }
+                // 3) Otherwise, unknown — deterministic diagnostic.
+                return Err(Diagnostic::error_code(
+                    "E_PREPROC_BUILTIN_UNSUPPORTED",
+                    format!(
+                        "preprocessor builtin or unknown function `%{}(...)` is not supported in this deterministic subset",
+                        call_name
+                    ),
+                ));
             }
         }
         out.push(chars[i]);
         i += 1;
     }
     Ok(out)
+}
+
+/// Dispatch a known preprocessor builtin. Returns `Ok(Some(result))` if the
+/// name maps to a builtin, `Ok(None)` if the name is not recognised so the
+/// caller can fall through to its unknown-function diagnostic.
+///
+/// Time/IO-sensitive builtins (`%date`, `%getenv`) deliberately return an
+/// empty string. PlantUML's defaults inject the current wall-clock or process
+/// environment, which would defeat determinism: identical source must yield
+/// identical bytes for `cargo test`/`puml --check` to be useful.
+fn dispatch_builtin(
+    name: &str,
+    args_raw: &str,
+    state: &PreprocState,
+    call_depth: usize,
+) -> Result<Option<String>, Diagnostic> {
+    // Expand each argument as a preprocessor expression so callers may chain
+    // builtins (e.g. `%upper(%substr("hello", 1, 3))`).
+    let args = split_args(args_raw)?;
+    let mut expanded_args = Vec::with_capacity(args.len());
+    for a in &args {
+        let trimmed = a.trim();
+        let stripped = strip_quotes(trimmed);
+        let val = if stripped.as_ptr() == trimmed.as_ptr() && stripped.len() == trimmed.len() {
+            // Unquoted: still allow recursive expansion (e.g. `$var`).
+            expand_preprocessor_text(trimmed, state, call_depth + 1)?
+        } else {
+            // Quoted: expand the inside (variable substitution still applies)
+            // and preserve as a literal string.
+            expand_preprocessor_text(&stripped, state, call_depth + 1)?
+        };
+        expanded_args.push(val);
+    }
+    let arg = |idx: usize| expanded_args.get(idx).cloned().unwrap_or_default();
+    let argc = expanded_args.len();
+
+    let result: Option<String> = match name {
+        "strlen" | "size" => Some(arg(0).chars().count().to_string()),
+        "strpos" => {
+            let s = arg(0);
+            let sub = arg(1);
+            Some(match s.find(sub.as_str()) {
+                Some(byte_idx) => {
+                    // Return char index (PlantUML semantics).
+                    let char_idx = s[..byte_idx].chars().count();
+                    char_idx.to_string()
+                }
+                None => "-1".to_string(),
+            })
+        }
+        "substr" => {
+            let s = arg(0);
+            let start = parse_int_lenient(&arg(1)).max(0) as usize;
+            let chars: Vec<char> = s.chars().collect();
+            let start = start.min(chars.len());
+            let end = if argc >= 3 {
+                let len = parse_int_lenient(&arg(2));
+                if len < 0 {
+                    chars.len()
+                } else {
+                    (start + len as usize).min(chars.len())
+                }
+            } else {
+                chars.len()
+            };
+            Some(chars[start..end].iter().collect())
+        }
+        "intval" => Some(parse_int_lenient(&arg(0)).to_string()),
+        "str" => Some(arg(0)),
+        "boolval" => Some(boolval(&arg(0)).to_string()),
+        "true" => Some("true".to_string()),
+        "false" => Some("false".to_string()),
+        "not" => Some((!boolval(&arg(0))).to_string()),
+        "lower" => Some(arg(0).to_lowercase()),
+        "upper" => Some(arg(0).to_uppercase()),
+        "chr" => {
+            let n = parse_int_lenient(&arg(0));
+            if n < 0 {
+                Some(String::new())
+            } else if let Some(c) = u32::try_from(n).ok().and_then(char::from_u32) {
+                Some(c.to_string())
+            } else {
+                Some(String::new())
+            }
+        }
+        "dec2hex" => {
+            let n = parse_int_lenient(&arg(0));
+            if n < 0 {
+                Some(String::new())
+            } else {
+                Some(format!("{:x}", n))
+            }
+        }
+        "hex2dec" => {
+            let s = arg(0);
+            let cleaned = s.trim().trim_start_matches("0x").trim_start_matches("0X");
+            Some(
+                i64::from_str_radix(cleaned, 16)
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|_| "0".to_string()),
+            )
+        }
+        "ord" => Some(
+            arg(0)
+                .chars()
+                .next()
+                .map(|c| (c as u32).to_string())
+                .unwrap_or_else(|| "0".to_string()),
+        ),
+        // Time-/env-sensitive builtins: empty for determinism.
+        "date" | "getenv" => Some(String::new()),
+        "dirpath" => {
+            let p = arg(0);
+            Some(
+                std::path::Path::new(&p)
+                    .parent()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            )
+        }
+        "filename" => {
+            let p = arg(0);
+            Some(
+                std::path::Path::new(&p)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            )
+        }
+        "filenameroot" => {
+            let p = arg(0);
+            Some(
+                std::path::Path::new(&p)
+                    .file_stem()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            )
+        }
+        "feature" => Some(String::new()),
+        "get_variable_value" => {
+            let key = arg(0);
+            Some(state.vars.get(&key).cloned().unwrap_or_default())
+        }
+        "set_variable_value" => {
+            // Read-only in our model; document by returning empty.
+            Some(String::new())
+        }
+        "get_json_attribute" => {
+            let json = arg(0);
+            let key = arg(1);
+            Some(get_json_attribute(&json, &key))
+        }
+        "json_key_exists" => {
+            let json = arg(0);
+            let key = arg(1);
+            Some(json_contains_key(&json, &key).to_string())
+        }
+        "false_then_true" => {
+            let key = arg(0);
+            let mut counts = state.false_then_true_counts.borrow_mut();
+            let entry = counts.entry(key).or_insert(0);
+            let result = if *entry == 0 { "false" } else { "true" };
+            *entry = entry.saturating_add(1);
+            Some(result.to_string())
+        }
+        "true_then_false" => {
+            let key = arg(0);
+            let mut counts = state.true_then_false_counts.borrow_mut();
+            let entry = counts.entry(key).or_insert(0);
+            let result = if *entry == 0 { "true" } else { "false" };
+            *entry = entry.saturating_add(1);
+            Some(result.to_string())
+        }
+        "invoke_procedure" | "call_user_func" => {
+            return Err(Diagnostic::error_code(
+                "E_PREPROC_DYNAMIC_UNSUPPORTED",
+                format!(
+                    "dynamic preprocessor invocation `%{}(...)` is not supported in this deterministic subset",
+                    name
+                ),
+            ));
+        }
+        _ => None,
+    };
+    Ok(result)
+}
+
+/// Strip a single layer of matching double quotes from a value.
+fn strip_quotes(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.len() >= 2 && trimmed.starts_with('"') && trimmed.ends_with('"') {
+        trimmed[1..trimmed.len() - 1].to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn parse_int_lenient(s: &str) -> i64 {
+    let t = s.trim();
+    if t.is_empty() {
+        return 0;
+    }
+    if let Ok(n) = t.parse::<i64>() {
+        return n;
+    }
+    // PlantUML's `%intval` is lenient: extract the longest leading numeric
+    // prefix (optionally signed) and fall back to 0 when nothing parses.
+    let bytes = t.as_bytes();
+    let mut end = 0usize;
+    if !bytes.is_empty() && (bytes[0] == b'-' || bytes[0] == b'+') {
+        end += 1;
+    }
+    while end < bytes.len() && bytes[end].is_ascii_digit() {
+        end += 1;
+    }
+    if end == 0 || (end == 1 && (bytes[0] == b'-' || bytes[0] == b'+')) {
+        return 0;
+    }
+    t[..end].parse::<i64>().unwrap_or(0)
+}
+
+/// PlantUML-ish truthiness for `%boolval`/`%not`.
+fn boolval(s: &str) -> bool {
+    let t = s.trim();
+    if t.is_empty() {
+        return false;
+    }
+    let lower = t.to_ascii_lowercase();
+    !matches!(lower.as_str(), "0" | "false" | "no" | "off")
+}
+
+/// Minimal top-level JSON key lookup so `%get_json_attribute` can serve the
+/// common case `!$cfg = { "name": "X" }` → `%get_json_attribute($cfg, "name")`.
+/// Returns the value for the first matching key as a string (with quotes
+/// stripped for string values; numeric/boolean/null left verbatim). Returns
+/// an empty string when the input is not an object or the key is missing.
+/// This intentionally avoids pulling a full JSON dependency.
+fn get_json_attribute(json: &str, key: &str) -> String {
+    let bytes = json.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+        i += 1;
+    }
+    if i >= bytes.len() || bytes[i] != b'{' {
+        return String::new();
+    }
+    i += 1;
+    while i < bytes.len() {
+        while i < bytes.len() && (bytes[i].is_ascii_whitespace() || bytes[i] == b',') {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] == b'}' {
+            break;
+        }
+        if bytes[i] != b'"' {
+            return String::new();
+        }
+        i += 1;
+        let key_start = i;
+        while i < bytes.len() && bytes[i] != b'"' {
+            if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                i += 2;
+                continue;
+            }
+            i += 1;
+        }
+        if i >= bytes.len() {
+            return String::new();
+        }
+        let candidate = &json[key_start..i];
+        i += 1; // closing "
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] != b':' {
+            return String::new();
+        }
+        i += 1;
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        let value_start = i;
+        let value = read_json_value(bytes, &mut i);
+        if candidate == key {
+            return value.unwrap_or_else(|| json[value_start..i].to_string());
+        }
+    }
+    String::new()
+}
+
+fn json_contains_key(json: &str, key: &str) -> bool {
+    // Cheap reuse: re-run lookup; non-empty result OR explicit empty-but-present
+    // would require deeper parsing. Treat presence as "key appears as a JSON
+    // key in the object". For our minimal model, empty-string returns mean
+    // either missing or empty-value; PlantUML callers nearly always pair this
+    // with a non-empty value so we equate "has non-empty value" with present.
+    // This deterministic simplification is documented above.
+    !get_json_attribute(json, key).is_empty()
+}
+
+/// Read a JSON-ish scalar/object/array value starting at `*idx`, advancing
+/// `*idx` past the value. Returns `Some(str)` for unwrapped string scalars.
+fn read_json_value(bytes: &[u8], idx: &mut usize) -> Option<String> {
+    if *idx >= bytes.len() {
+        return None;
+    }
+    match bytes[*idx] {
+        b'"' => {
+            *idx += 1;
+            let start = *idx;
+            while *idx < bytes.len() && bytes[*idx] != b'"' {
+                if bytes[*idx] == b'\\' && *idx + 1 < bytes.len() {
+                    *idx += 2;
+                    continue;
+                }
+                *idx += 1;
+            }
+            let end = *idx;
+            if *idx < bytes.len() {
+                *idx += 1; // closing "
+            }
+            std::str::from_utf8(&bytes[start..end]).ok().map(str::to_string)
+        }
+        b'{' | b'[' => {
+            let open = bytes[*idx];
+            let close = if open == b'{' { b'}' } else { b']' };
+            let mut depth = 1usize;
+            *idx += 1;
+            while *idx < bytes.len() && depth > 0 {
+                let c = bytes[*idx];
+                if c == b'"' {
+                    *idx += 1;
+                    while *idx < bytes.len() && bytes[*idx] != b'"' {
+                        if bytes[*idx] == b'\\' && *idx + 1 < bytes.len() {
+                            *idx += 2;
+                            continue;
+                        }
+                        *idx += 1;
+                    }
+                    if *idx < bytes.len() {
+                        *idx += 1;
+                    }
+                    continue;
+                }
+                if c == open {
+                    depth += 1;
+                } else if c == close {
+                    depth -= 1;
+                }
+                *idx += 1;
+            }
+            None
+        }
+        _ => {
+            while *idx < bytes.len() {
+                let c = bytes[*idx];
+                if c == b',' || c == b'}' || c == b']' || c.is_ascii_whitespace() {
+                    break;
+                }
+                *idx += 1;
+            }
+            None
+        }
+    }
 }
 
 fn extract_parenthesized_args(
@@ -1494,7 +2061,9 @@ fn parse_params(raw: &str) -> Result<Vec<PreprocParam>, Diagnostic> {
 fn split_args(raw: &str) -> Result<Vec<String>, Diagnostic> {
     let mut out = Vec::new();
     let mut curr = String::new();
-    let mut depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut bracket_depth = 0usize;
     let mut in_quotes = false;
     for ch in raw.chars() {
         if ch == '"' {
@@ -1503,25 +2072,32 @@ fn split_args(raw: &str) -> Result<Vec<String>, Diagnostic> {
             continue;
         }
         if !in_quotes {
-            if ch == '(' {
-                depth += 1;
-            } else if ch == ')' {
-                if depth == 0 {
-                    return Err(Diagnostic::error_code(
-                        "E_PREPROC_CALL_SYNTAX",
-                        "unbalanced `)` in argument list",
-                    ));
+            match ch {
+                '(' => paren_depth += 1,
+                ')' => {
+                    if paren_depth == 0 {
+                        return Err(Diagnostic::error_code(
+                            "E_PREPROC_CALL_SYNTAX",
+                            "unbalanced `)` in argument list",
+                        ));
+                    }
+                    paren_depth -= 1;
                 }
-                depth -= 1;
-            } else if ch == ',' && depth == 0 {
-                out.push(curr.trim().to_string());
-                curr.clear();
-                continue;
+                '{' => brace_depth += 1,
+                '}' => brace_depth = brace_depth.saturating_sub(1),
+                '[' => bracket_depth += 1,
+                ']' => bracket_depth = bracket_depth.saturating_sub(1),
+                ',' if paren_depth == 0 && brace_depth == 0 && bracket_depth == 0 => {
+                    out.push(curr.trim().to_string());
+                    curr.clear();
+                    continue;
+                }
+                _ => {}
             }
         }
         curr.push(ch);
     }
-    if in_quotes || depth != 0 {
+    if in_quotes || paren_depth != 0 {
         return Err(Diagnostic::error_code(
             "E_PREPROC_CALL_SYNTAX",
             "malformed argument list",
@@ -1686,6 +2262,72 @@ fn execute_procedure_call(
         &local,
         options,
         state,
+        include_stack,
+        include_once_seen,
+        depth,
+        call_depth + 1,
+        out,
+    )
+}
+
+/// Execute a dynamic `%invoke_procedure("name"[, args...])` line-level
+/// invocation. The procedure name must resolve at expand time to a previously
+/// declared `!procedure` (we explicitly do not support free-form code paths).
+#[allow(clippy::too_many_arguments)]
+fn invoke_dynamic_procedure(
+    raw: &str,
+    state: &mut PreprocState,
+    options: &ParseOptions,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    call_depth: usize,
+    out: &mut String,
+) -> Result<(), Diagnostic> {
+    let trimmed = raw.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let prefix = if lower.starts_with("%invoke_procedure(") {
+        "%invoke_procedure("
+    } else if lower.starts_with("%call_user_func(") {
+        "%call_user_func("
+    } else {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_DYNAMIC_UNSUPPORTED",
+            format!("dynamic preprocessor invocation `{raw}` is malformed"),
+        ));
+    };
+    let body = &trimmed[prefix.len()..];
+    let body = body
+        .strip_suffix(')')
+        .ok_or_else(|| {
+            Diagnostic::error_code(
+                "E_PREPROC_CALL_SYNTAX",
+                format!("malformed dynamic procedure invocation `{raw}`"),
+            )
+        })?;
+    let parts = split_args(body)?;
+    let mut iter = parts.into_iter();
+    let name_raw = iter.next().ok_or_else(|| {
+        Diagnostic::error_code(
+            "E_PREPROC_DYNAMIC_UNSUPPORTED",
+            "%invoke_procedure requires a procedure name argument",
+        )
+    })?;
+    let name_resolved = expand_preprocessor_text(&name_raw, state, call_depth)?;
+    let name = strip_quotes(&name_resolved);
+    if name.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_DYNAMIC_UNSUPPORTED",
+            "%invoke_procedure requires a non-empty procedure name",
+        ));
+    }
+    let remaining: Vec<String> = iter.collect();
+    let args_raw = remaining.join(", ");
+    execute_procedure_call(
+        &name,
+        &args_raw,
+        state,
+        options,
         include_stack,
         include_once_seen,
         depth,
@@ -3520,31 +4162,69 @@ mod tests {
     }
 
     #[test]
-    fn preprocessor_builtin_dynamic_and_json_edges_are_deterministic() {
-        for (src, code) in [
-            (
-                "@startuml\n!assert %true() : no\nA -> B: hi\n@enduml\n",
-                "E_PREPROC_BUILTIN_UNSUPPORTED",
-            ),
-            (
-                "@startuml\n!log %boolval(\"x\")\nA -> B: hi\n@enduml\n",
-                "E_PREPROC_BUILTIN_UNSUPPORTED",
-            ),
-            (
-                "@startuml\n%invoke_procedure(\"$go\")\nA -> B: hi\n@enduml\n",
-                "E_PREPROC_DYNAMIC_UNSUPPORTED",
-            ),
-            (
-                "@startuml\n!$foo = { \"k\": 1 }\nA -> B: hi\n@enduml\n",
-                "E_PREPROC_JSON_UNSUPPORTED",
-            ),
-        ] {
-            let err = parse_with_options(src, &ParseOptions::default()).unwrap_err();
-            assert!(
-                err.message.contains(code),
-                "missing {code}: {}",
-                err.message
-            );
+    fn preprocessor_unknown_builtin_is_rejected_deterministically() {
+        // Truly-unknown `%xyz(...)` invocations must surface a deterministic
+        // diagnostic so that drift in PlantUML's builtin surface fails fast
+        // instead of silently going through.
+        let err = parse_with_options(
+            "@startuml\n!assert %nosuchbuiltin() : no\nA -> B: hi\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(
+            err.message.contains("E_PREPROC_BUILTIN_UNSUPPORTED"),
+            "expected E_PREPROC_BUILTIN_UNSUPPORTED, got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn preprocessor_builtin_basics_expand_inline() {
+        // strlen, upper/lower, substr, intval, boolval — these used to error
+        // out via E_PREPROC_BUILTIN_UNSUPPORTED. They now expand inline.
+        let doc = parse_with_options(
+            "@startuml\nA -> B : %strlen(\"hello\")=%upper(\"ab\")/%substr(\"plantuml\", 0, 5)\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.label.as_deref(), Some("5=AB/plant"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_json_variable_round_trips_via_get_json_attribute() {
+        // JSON variable assignment is now accepted; `%get_json_attribute`
+        // reads a single top-level string value.
+        let doc = parse_with_options(
+            "@startuml\n!$cfg = { \"name\": \"alpha\", \"v\": 2 }\nA -> B : %get_json_attribute($cfg, \"name\")\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("alpha")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_invoke_procedure_dynamically_dispatches_to_callable() {
+        // `%invoke_procedure("$Say", ...)` resolves to a previously declared
+        // `!procedure` and executes its body deterministically.
+        let doc = parse_with_options(
+            "@startuml\n!procedure $Say($who)\nA -> $who : hi\n!endprocedure\n%invoke_procedure(\"$Say\", \"Bob\")\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.to, "Bob");
+                assert_eq!(m.label.as_deref(), Some("hi"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
         }
     }
 

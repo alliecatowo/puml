@@ -265,7 +265,9 @@ Artifacts:
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
 | `!if` / `!elseif` / `!else` / `!endif`, `!ifdef`, `!ifndef` | Supported (scoped) | Simple deterministic conditional evaluation (`defined()`, `==`, `!=`, numeric/bool literals). |
 | `!while` / `!endwhile` | Supported (bounded) | Simple deterministic loop evaluation with bounded iterations (`E_PREPROC_WHILE_LIMIT`). |
-| `!procedure`, `!function`, and advanced preprocessor surface | Unsupported (deterministic) | Explicit `E_PREPROC_UNSUPPORTED` diagnostics for unsupported preprocessor directives. |
+| `!function` / `!procedure` + preprocessor builtins (`%strlen`, `%size`, `%strpos`, `%substr`, `%intval`, `%str`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`) | Supported | Deterministic dispatch table; time/env-sensitive builtins (`%date`, `%getenv`) intentionally return empty for byte-stable output. Unknown `%name(...)` calls still surface `E_PREPROC_BUILTIN_UNSUPPORTED`. |
+| `!include_many` / `!include_once` / `!includesub` | Supported | `!include_many` accepts `*`/`?` globs (alphabetical match order); `!include_once` dedupes via canonical path; `!includesub` extracts `!startsub … !endsub` named blocks. |
+| `!includeurl`, `!include http(s)://…` | Rejected (deterministic) | Emits `E_INCLUDE_URL_UNSUPPORTED`; URL fetching would defeat determinism. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 
 ## LSP Baseline
