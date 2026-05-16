@@ -1,0 +1,10 @@
+@startuml
+usecase Authenticate {
+  actor: user
+  outcome: token
+}
+usecase Authorize {
+  actor: system
+}
+Authenticate --> Authorize : delegates
+@enduml

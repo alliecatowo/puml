@@ -1215,13 +1215,13 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Participant(p) => json!({"Participant": participant_decl_to_json(p)}),
         StatementKind::Message(m) => json!({"Message": message_to_json(m)}),
         StatementKind::ClassDecl(v) => {
-            json!({"ClassDecl": {"name": v.name, "alias": v.alias}})
+            json!({"ClassDecl": {"name": v.name, "alias": v.alias, "members": v.members}})
         }
         StatementKind::ObjectDecl(v) => {
-            json!({"ObjectDecl": {"name": v.name, "alias": v.alias}})
+            json!({"ObjectDecl": {"name": v.name, "alias": v.alias, "members": v.members}})
         }
         StatementKind::UseCaseDecl(v) => {
-            json!({"UseCaseDecl": {"name": v.name, "alias": v.alias}})
+            json!({"UseCaseDecl": {"name": v.name, "alias": v.alias, "members": v.members}})
         }
         StatementKind::FamilyRelation(v) => {
             json!({"FamilyRelation": {"from": v.from, "to": v.to, "arrow": v.arrow, "label": v.label}})

@@ -28,6 +28,7 @@ pub struct FamilyNode {
     pub kind: FamilyNodeKind,
     pub name: String,
     pub alias: Option<String>,
+    pub members: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

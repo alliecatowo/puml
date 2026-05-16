@@ -1,0 +1,10 @@
+@startuml
+object Session {
+  token = abc123
+  active = true
+}
+object UserRef {
+  id = 42
+}
+Session --> UserRef : links
+@enduml

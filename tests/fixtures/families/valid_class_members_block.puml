@@ -1,0 +1,11 @@
+@startuml
+class User {
+  +id: UUID
+  +name: String
+  +activate()
+}
+class Account {
+  +number: String
+}
+User --> Account : owns
+@enduml

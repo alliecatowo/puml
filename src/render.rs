@@ -242,8 +242,14 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
     let body_rows = document.nodes.len().max(1) as i32;
+    let member_rows = document
+        .nodes
+        .iter()
+        .map(|n| n.members.len() as i32)
+        .sum::<i32>();
     let relation_rows = document.relations.len() as i32;
-    let height = 140 + (body_rows * 42) + (relation_rows * 20) + (title_lines * 24);
+    let height =
+        140 + (body_rows * 42) + (member_rows * 16) + (relation_rows * 20) + (title_lines * 24);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -273,7 +279,7 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
     out.push_str(&format!(
         "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#f8fafc\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
         y,
-        32 + (body_rows * 42)
+        32 + (body_rows * 42) + (member_rows * 16)
     ));
     y += 24;
 
@@ -301,7 +307,16 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
                 escape_text(&node.name),
                 escape_text(&alias)
             ));
-            y += 42;
+            y += 22;
+            for member in &node.members {
+                out.push_str(&format!(
+                    "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                    y + 6,
+                    escape_text(member)
+                ));
+                y += 16;
+            }
+            y += 20;
         }
     }
 
