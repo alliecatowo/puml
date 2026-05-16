@@ -2587,7 +2587,6 @@ pub fn normalize_with_options(
             | StatementKind::ActivityStep(_)
             | StatementKind::TimingDecl { .. }
             | StatementKind::TimingEvent { .. }
-            | StatementKind::RawBlockContent(_)
             | StatementKind::RawBody(_)
             | StatementKind::ClassGroup { .. } => {
                 return Err(Diagnostic::error(
