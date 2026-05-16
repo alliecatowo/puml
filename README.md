@@ -250,6 +250,7 @@ Artifacts:
 | `!include`, `!import`, `!define`, `!undef` | Supported (scoped) | Relative includes + stdlib catalog includes (`<...>`), stdlib imports, simple define/undef substitution, cycle/depth guards. |
 | `!if` / `!elseif` / `!else` / `!endif`, `!ifdef`, `!ifndef` | Supported (scoped) | Simple deterministic conditional evaluation (`defined()`, `==`, `!=`, numeric/bool literals). |
 | `!while` / `!endwhile` | Supported (bounded) | Simple deterministic loop evaluation with bounded iterations (`E_PREPROC_WHILE_LIMIT`). |
+| `!theme` catalog (sequence) | Partial | Local deterministic preset catalog supported: `aws-orange`, `blueprint`, `cerulean`, `cerulean-outline`, `crt-amber`, `crt-green`, `cyborg`, `hacker`, `mars`, `materia`, `metal`, `mimeograph`, `minty`, `plain`, `reddress-darkblue`, `sandstone`, `silver`, `sketchy`, `sketchy-outline`, `spacelab`, `superhero`, `united`; remote/source themes remain unsupported. |
 | `!procedure`, `!function`, and advanced preprocessor surface | Partial (deterministic subset) | Definition + invocation subset supported (including bare macro calls like `Container(...)` once imported); dynamic invocation/builtin `%...` and JSON preprocessing remain unsupported. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 

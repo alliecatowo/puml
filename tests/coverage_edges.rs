@@ -809,6 +809,11 @@ fn normalize_applies_known_theme_and_rejects_unsupported_variants_deterministica
     let unknown_doc = parse(unknown_src).expect("parse should succeed");
     let unknown_err = normalize::normalize(unknown_doc).expect_err("expected unknown-theme error");
     assert!(unknown_err.message.contains("E_THEME_UNKNOWN"));
+
+    let sketchy_src = "@startuml\n!theme sketchy\nA -> B\n@enduml\n";
+    let sketchy_doc = parse(sketchy_src).expect("parse should succeed");
+    let sketchy_model = normalize::normalize(sketchy_doc).expect("normalize should succeed");
+    assert_eq!(sketchy_model.style.arrow_color, "#202020");
 }
 
 #[test]
