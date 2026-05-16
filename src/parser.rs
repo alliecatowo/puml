@@ -2407,14 +2407,48 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
 
 fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
+    if let Some(rest) = trimmed.strip_prefix("Project starts ") {
+        let date = rest.trim();
+        if is_iso_date_literal(date) {
+            return Some(StatementKind::GanttConstraint {
+                subject: "Project".to_string(),
+                kind: "starts".to_string(),
+                target: date.to_string(),
+            });
+        }
+    }
     let (subject, rest) = parse_bracket_subject(trimmed)?;
     if rest.is_empty() {
-        return Some(StatementKind::GanttTaskDecl { name: subject });
+        return Some(StatementKind::GanttTaskDecl {
+            name: subject,
+            start_date: None,
+            duration_days: None,
+            depends_on: Vec::new(),
+        });
     }
     let rest = rest.trim();
     if let Some(rest) = rest.strip_prefix(':') {
         return Some(StatementKind::GanttTaskDecl {
             name: rest.trim().to_string(),
+            start_date: None,
+            duration_days: None,
+            depends_on: Vec::new(),
+        });
+    }
+    if let Some((start_date, duration_days)) = parse_gantt_start_and_duration(rest) {
+        return Some(StatementKind::GanttTaskDecl {
+            name: subject,
+            start_date: Some(start_date),
+            duration_days: Some(duration_days),
+            depends_on: Vec::new(),
+        });
+    }
+    if let Some(duration_days) = parse_gantt_duration_clause(rest) {
+        return Some(StatementKind::GanttTaskDecl {
+            name: subject,
+            start_date: None,
+            duration_days: Some(duration_days),
+            depends_on: Vec::new(),
         });
     }
     let lower = rest.to_ascii_lowercase();
@@ -2431,6 +2465,61 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
         }
     }
     None
+}
+
+fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
+    let lower = rest.to_ascii_lowercase();
+    let marker = " and lasts ";
+    let idx = lower.find(marker)?;
+    let start_clause = rest[..idx].trim();
+    let duration_clause = rest[idx + marker.len()..].trim();
+    let start_date = start_clause.strip_prefix("starts ")?.trim();
+    if !is_iso_date_literal(start_date) {
+        return None;
+    }
+    let duration_days = parse_gantt_duration_clause(duration_clause)?;
+    Some((start_date.to_string(), duration_days))
+}
+
+fn parse_gantt_duration_clause(rest: &str) -> Option<u32> {
+    let trimmed = rest.trim();
+    let clause = trimmed
+        .strip_prefix("lasts ")
+        .map(str::trim)
+        .unwrap_or(trimmed);
+    let mut parts = clause.split_whitespace();
+    let n = parts.next()?.parse::<u32>().ok()?;
+    let unit = parts.next()?.to_ascii_lowercase();
+    if parts.next().is_some() {
+        return None;
+    }
+    match unit.as_str() {
+        "day" | "days" => Some(n.max(1)),
+        "week" | "weeks" => Some(n.saturating_mul(7).max(1)),
+        _ => None,
+    }
+}
+
+fn is_iso_date_literal(raw: &str) -> bool {
+    let mut parts = raw.trim().split('-');
+    let Some(y) = parts.next() else {
+        return false;
+    };
+    let Some(m) = parts.next() else {
+        return false;
+    };
+    let Some(d) = parts.next() else {
+        return false;
+    };
+    if parts.next().is_some() {
+        return false;
+    }
+    if y.len() != 4 || m.len() != 2 || d.len() != 2 {
+        return false;
+    }
+    y.chars().all(|c| c.is_ascii_digit())
+        && m.chars().all(|c| c.is_ascii_digit())
+        && d.chars().all(|c| c.is_ascii_digit())
 }
 
 fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
@@ -4338,6 +4427,41 @@ mod tests {
         assert!(matches!(
             doc.statements[2].kind,
             StatementKind::GanttConstraint { .. }
+        ));
+    }
+
+    #[test]
+    fn parses_gantt_dates_and_duration_baseline_statements() {
+        let doc = parse_with_options(
+            "@startgantt\nProject starts 2026-05-01\n[Build] lasts 5 days\n[Test] starts 2026-05-06 and lasts 2 weeks\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Gantt);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::GanttConstraint {
+                ref subject,
+                ref kind,
+                ref target
+            } if subject == "Project" && kind == "starts" && target == "2026-05-01"
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttTaskDecl {
+                ref name,
+                duration_days: Some(5),
+                ..
+            } if name == "Build"
+        ));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::GanttTaskDecl {
+                ref name,
+                start_date: Some(ref d),
+                duration_days: Some(14),
+                ..
+            } if name == "Test" && d == "2026-05-06"
         ));
     }
 

@@ -47,6 +47,9 @@ pub enum StatementKind {
     },
     GanttTaskDecl {
         name: String,
+        start_date: Option<String>,
+        duration_days: Option<u32>,
+        depends_on: Vec<String>,
     },
     GanttMilestoneDecl {
         name: String,
