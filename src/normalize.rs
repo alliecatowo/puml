@@ -1071,6 +1071,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
     let mut groups = Vec::new();
+    let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
     let mut hide_options = std::collections::BTreeSet::new();
     let mut namespace_separator: Option<String> = None;
     let mut title = None;
@@ -1081,6 +1082,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::JsonProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection { alias, body });
+            }
             StatementKind::ClassDecl(decl) => {
                 if node_kind != FamilyNodeKind::Class {
                     return Err(Diagnostic::error(format!(
@@ -1225,6 +1229,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         nodes,
         relations,
         groups,
+        json_projections,
         hide_options,
         namespace_separator,
         title,
@@ -1672,6 +1677,7 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
         text_overflow_policy,
         warnings,
         groups: Vec::new(),
+        json_projections: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
     })
@@ -1916,6 +1922,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings: Vec::new(),
         groups: Vec::new(),
+        json_projections: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
     })
@@ -2594,7 +2601,8 @@ pub fn normalize_with_options(
             | StatementKind::TimingDecl { .. }
             | StatementKind::TimingEvent { .. }
             | StatementKind::RawBody(_)
-            | StatementKind::ClassGroup { .. } => {
+            | StatementKind::ClassGroup { .. }
+            | StatementKind::JsonProjection { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )

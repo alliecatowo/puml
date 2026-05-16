@@ -5223,7 +5223,66 @@ fn stdrpt_exit_code_semantics_unchanged_for_valid_input() {
         .expect("binary")
         .args(["--stdrpt", "--check", &fixture("single_valid.puml")])
         .assert()
+        .success();
+}
+
+// ── Issue #188: Full PicoUML native syntax ────────────────────────────────────
+
+#[test]
+fn picouml_full_constructs_passes_check() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "picouml",
+            "--check",
+            &fixture("picouml/valid_full_constructs.puml"),
+        ])
+        .assert()
         .success()
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn picouml_full_constructs_renders_nonempty_svg() {
+    let src = fs::read_to_string(fixture("picouml/valid_full_constructs.puml")).unwrap();
+    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        ..ParsePipelineOptions::default()
+    };
+    let _doc = parse_with_pipeline_options(&src, &options)
+        .expect("picouml full constructs must parse via picouml adapter");
+}
+
+// ── Issue #103: JSON projection into UML contexts ────────────────────────────
+
+#[test]
+fn json_projection_fixture_passes_check() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_json_projection.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn json_projection_render_contains_alias_and_keys() {
+    let src = fs::read_to_string(fixture("families/valid_json_projection.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("json projection should render");
+    assert!(svg.starts_with("<svg"), "output must be SVG");
+    assert!(!svg.is_empty(), "SVG must be non-empty");
+    assert!(svg.contains("$user"), "SVG must contain the alias header");
+    assert!(svg.contains("name"), "SVG must contain the 'name' key");
+}
+
+#[test]
+fn json_projection_inline_parse_roundtrip() {
+    let src = "@startuml\njson $cfg { \"key\": \"val\" }\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("inline json projection should render");
+    assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
+    assert!(svg.contains("key"), "SVG must contain key 'key'");
 }

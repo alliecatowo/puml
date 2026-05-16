@@ -349,11 +349,18 @@ pub struct TimelineChronologyEvent {
 }
 
 #[derive(Debug, Clone)]
+pub struct JsonProjection {
+    pub alias: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
     pub nodes: Vec<FamilyNode>,
     pub relations: Vec<FamilyRelation>,
     pub groups: Vec<FamilyGroup>,
+    pub json_projections: Vec<JsonProjection>,
     pub hide_options: BTreeSet<String>,
     pub namespace_separator: Option<String>,
     pub title: Option<String>,

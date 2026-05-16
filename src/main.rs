@@ -1595,6 +1595,9 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         } => json!({
             "TimingEvent": {"time": time, "signal": signal, "state": state, "note": note}
         }),
+        StatementKind::JsonProjection { alias, body } => json!({
+            "JsonProjection": {"alias": alias, "body": body}
+        }),
     }
 }
 

@@ -480,9 +480,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .max()
         .unwrap_or(margin_top + title_block_height);
 
-    // Compute width / height of the SVG
+    // Compute width / height of the SVG; account for JSON projection height.
+    let proj_extra_height: i32 = document.json_projections.iter().fold(0, |acc, proj| {
+        let kv_count = extract_json_kv_lines(&proj.body).len() as i32;
+        acc + 22 + kv_count * 16 + 8 + 12
+    });
     let svg_width = margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap;
-    let svg_height = nodes_bottom + 40;
+    let svg_height = nodes_bottom + 40 + proj_extra_height;
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -628,8 +632,121 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         render_class_node(&mut out, node, bx.x, bx.y, bx.w, bx.h, bx.header_h);
     }
 
+    // Render inline JSON projections (yellow labelled rectangles with key: value layout).
+    if !document.json_projections.is_empty() {
+        let proj_margin_left = margin_x;
+        let mut proj_y = nodes_bottom + 16;
+        let proj_width = 300_i32;
+        let proj_line_h = 16_i32;
+        let proj_header_h = 22_i32;
+        let proj_padding = 8_i32;
+
+        for proj in &document.json_projections {
+            let kv_lines = extract_json_kv_lines(&proj.body);
+            let body_h = (kv_lines.len() as i32) * proj_line_h + proj_padding * 2;
+            let proj_h = proj_header_h + body_h;
+
+            // Yellow fill for the JSON projection box.
+            out.push_str(&format!(
+                "<rect x=\"{px}\" y=\"{py}\" width=\"{pw}\" height=\"{ph}\" rx=\"4\" ry=\"4\" fill=\"#fffde7\" stroke=\"#f59e0b\" stroke-width=\"1.5\"/>",
+                px = proj_margin_left,
+                py = proj_y,
+                pw = proj_width,
+                ph = proj_h,
+            ));
+            // Header: alias name.
+            out.push_str(&format!(
+                "<rect x=\"{px}\" y=\"{py}\" width=\"{pw}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"#fef08a\" stroke=\"#f59e0b\" stroke-width=\"1.5\"/>",
+                px = proj_margin_left,
+                py = proj_y,
+                pw = proj_width,
+                hh = proj_header_h,
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#78350f\">{alias}</text>",
+                tx = proj_margin_left + 8,
+                ty = proj_y + 15,
+                alias = escape_text(&proj.alias),
+            ));
+            // Separator line.
+            out.push_str(&format!(
+                "<line x1=\"{lx1}\" y1=\"{ly}\" x2=\"{lx2}\" y2=\"{ly}\" stroke=\"#f59e0b\" stroke-width=\"1\"/>",
+                lx1 = proj_margin_left,
+                ly = proj_y + proj_header_h,
+                lx2 = proj_margin_left + proj_width,
+            ));
+            // Body: key: value lines.
+            for (idx, kv) in kv_lines.iter().enumerate() {
+                let text_y =
+                    proj_y + proj_header_h + proj_padding + (idx as i32) * proj_line_h + 12;
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">{kv}</text>",
+                    tx = proj_margin_left + 8,
+                    ty = text_y,
+                    kv = escape_text(kv),
+                ));
+            }
+
+            proj_y += proj_h + 12;
+        }
+    }
+
     out.push_str("</svg>");
     out
+}
+
+/// Extract `key: value` display lines from a JSON body string.
+/// Strips outer braces/brackets, parses simple string-keyed properties.
+fn extract_json_kv_lines(body: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    // Simple line-by-line extraction: look for `"key": value` patterns.
+    for raw in body.lines() {
+        let trimmed = raw.trim().trim_end_matches(',');
+        if trimmed.is_empty()
+            || trimmed == "{"
+            || trimmed == "}"
+            || trimmed == "["
+            || trimmed == "]"
+        {
+            continue;
+        }
+        // Try to extract key: value from `"key": value` form.
+        if let Some(kv) = parse_json_kv_display(trimmed) {
+            lines.push(kv);
+        } else if !trimmed.is_empty() {
+            // Just push the trimmed line if we can't parse it as k/v.
+            lines.push(trimmed.to_string());
+        }
+    }
+    // If body is a flat single-line JSON, try splitting on commas.
+    if lines.is_empty() && !body.trim().is_empty() {
+        let flat = body
+            .trim()
+            .trim_start_matches('{')
+            .trim_end_matches('}')
+            .trim();
+        for segment in flat.split(',') {
+            let seg = segment.trim().trim_end_matches(',');
+            if !seg.is_empty() {
+                if let Some(kv) = parse_json_kv_display(seg) {
+                    lines.push(kv);
+                }
+            }
+        }
+    }
+    lines
+}
+
+/// Parse a single JSON key-value segment like `"name": "Alice"` → `name: Alice`.
+fn parse_json_kv_display(segment: &str) -> Option<String> {
+    // Expect: optional quote, key chars, optional quote, `:`, value
+    let (key_part, val_part) = segment.split_once(':')?;
+    let key = key_part.trim().trim_matches('"');
+    let val = val_part.trim().trim_matches('"');
+    if key.is_empty() {
+        return None;
+    }
+    Some(format!("{key}: {val}"))
 }
 
 pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
