@@ -3287,7 +3287,7 @@ fn parse_class_scoping_block(
             .iter()
             .map(|(raw, _)| raw.trim())
             .filter(|s| !s.is_empty())
-            .map(|s| clean_ident(s))
+            .map(clean_ident)
             .filter(|s| !s.is_empty())
             .collect();
         return Ok(Some((
@@ -3302,7 +3302,7 @@ fn parse_class_scoping_block(
 
     // package "label" { ... } or package label { ... }
     if lower.starts_with("package ") && line.trim_end().ends_with('{') {
-        let rest = line["package ".len()..].trim();
+        let rest = line.strip_prefix("package ").unwrap_or("").trim();
         let label_raw = rest.trim_end_matches('{').trim();
         let label = clean_ident(label_raw.trim_matches('"'));
         let end_idx = find_family_decl_end(lines, start);
@@ -3316,7 +3316,7 @@ fn parse_class_scoping_block(
             .iter()
             .map(|(raw, _)| raw.trim())
             .filter(|s| !s.is_empty())
-            .map(|s| extract_class_member_name(s))
+            .map(extract_class_member_name)
             .filter(|s| !s.is_empty())
             .collect();
         return Ok(Some((
@@ -3331,7 +3331,7 @@ fn parse_class_scoping_block(
 
     // namespace ns { ... }
     if lower.starts_with("namespace ") && line.trim_end().ends_with('{') {
-        let rest = line["namespace ".len()..].trim();
+        let rest = line.strip_prefix("namespace ").unwrap_or("").trim();
         let label_raw = rest.trim_end_matches('{').trim();
         let label = clean_ident(label_raw.trim_matches('"'));
         let end_idx = find_family_decl_end(lines, start);
@@ -3345,7 +3345,7 @@ fn parse_class_scoping_block(
             .iter()
             .map(|(raw, _)| raw.trim())
             .filter(|s| !s.is_empty())
-            .map(|s| extract_class_member_name(s))
+            .map(extract_class_member_name)
             .filter(|s| !s.is_empty())
             .collect();
         return Ok(Some((
@@ -3359,39 +3359,6 @@ fn parse_class_scoping_block(
     }
 
     Ok(None)
-}
-
-/// Parse single-line class options: `set namespaceSeparator`, `hide circle`, etc.
-fn parse_class_option_statement(line: &str) -> Option<StatementKind> {
-    let lower = line.to_ascii_lowercase();
-
-    // set namespaceSeparator <sep>
-    if lower.starts_with("set namespaceseparator") {
-        let rest = line["set namespaceSeparator".len()..].trim();
-        return Some(StatementKind::SetOption {
-            key: "namespaceSeparator".to_string(),
-            value: rest.to_string(),
-        });
-    }
-
-    // hide options: hide circle, hide stereotype, hide empty members, hide empty methods, hide empty fields
-    if lower.starts_with("hide ") {
-        let rest = lower["hide ".len()..].trim();
-        let known = [
-            "circle",
-            "stereotype",
-            "empty members",
-            "empty methods",
-            "empty fields",
-        ];
-        for opt in known {
-            if rest == opt {
-                return Some(StatementKind::HideOption(rest.to_string()));
-            }
-        }
-    }
-
-    None
 }
 
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
@@ -3417,10 +3384,10 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         return Some(DiagramKind::State);
     }
     // State transitions involving pseudo-states
-    if line.starts_with("[*]") || line.starts_with("[H]") || line.starts_with("[H*]") {
-        if line.contains("-->") {
-            return Some(DiagramKind::State);
-        }
+    if (line.starts_with("[*]") || line.starts_with("[H]") || line.starts_with("[H*]"))
+        && line.contains("-->")
+    {
+        return Some(DiagramKind::State);
     }
     // Any line that is `X --> Y` where Y is `[*]`, `[H]`, or `[H*]`
     if line.contains("-->") {
@@ -3539,7 +3506,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             .as_bytes()
             .get(kw.len())
             .copied()
-            .map_or(false, |b| b == b' ' || b == b'\t')
+            .is_some_and(|b| b == b' ' || b == b'\t')
         {
             // For the very first char after kw, ensure it's whitespace.
             // (line is already trimmed by caller; recompute on trimmed)
@@ -3552,7 +3519,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         }
         let rest = rest_raw.trim_end_matches('{').trim();
         let (label, rest_after_label) = if rest.starts_with('"') {
-            let stripped = &rest[1..];
+            let stripped = rest.strip_prefix('"')?;
             let end = stripped.find('"')?;
             (
                 Some(stripped[..end].to_string()),
@@ -3756,7 +3723,7 @@ fn parse_timing_decl(line: &str) -> Option<StatementKind> {
                 return None;
             }
             let (label, name_raw) = if rest.starts_with('"') {
-                let stripped = &rest[1..];
+                let stripped = rest.strip_prefix('"')?;
                 let end = stripped.find('"')?;
                 let rem = stripped[end + 1..].trim();
                 let name = rem.strip_prefix("as ").map(str::trim).unwrap_or(rem).trim();
@@ -3874,7 +3841,7 @@ fn parse_state_statement(
 
     // `state Name` or `state Name <<stereotype>>` or `state Name { ... }`
     if line.starts_with("state ") {
-        let rest = line["state ".len()..].trim();
+        let rest = line.strip_prefix("state ").unwrap_or("").trim();
         if rest.is_empty() {
             return Ok(None);
         }
@@ -3883,11 +3850,7 @@ fn parse_state_statement(
         let (name_part, stereotype) = if let Some(idx) = rest.find("<<") {
             let name = rest[..idx].trim();
             let after = &rest[idx + 2..];
-            let stereo = if let Some(end) = after.find(">>") {
-                Some(after[..end].trim().to_string())
-            } else {
-                None
-            };
+            let stereo = after.find(">>").map(|end| after[..end].trim().to_string());
             (name, stereo)
         } else {
             (rest, None)
@@ -4472,7 +4435,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
 
     // Class-diagram hide options (parsed here so they work before any class decl sets detected_kind)
     if lower.starts_with("hide ") {
-        let rest = lower["hide ".len()..].trim();
+        let rest = lower.strip_prefix("hide ").unwrap_or("").trim();
         let class_hide_opts = [
             "circle",
             "stereotype",

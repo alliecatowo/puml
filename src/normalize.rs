@@ -631,7 +631,7 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
             let tail = parts.next().unwrap_or("").trim();
             (head.to_string(), tail)
         };
-        let value_str = rest.trim().split_whitespace().next().unwrap_or("");
+        let value_str = rest.split_whitespace().next().unwrap_or("");
         match value_str.parse::<f64>() {
             Ok(v) => data.push(ChartPoint { label, value: v }),
             Err(_) => warnings.push(Diagnostic::warning(format!(
@@ -1677,7 +1677,7 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
     })
 }
 
-fn normalize_family_tree_warnings(warnings: &mut Vec<Diagnostic>) {
+fn normalize_family_tree_warnings(warnings: &mut [Diagnostic]) {
     warnings.sort_by(|a, b| {
         let sa = a.span.map(|s| s.start).unwrap_or_default();
         let sb = b.span.map(|s| s.start).unwrap_or_default();
@@ -2584,9 +2584,6 @@ pub fn normalize_with_options(
             | StatementKind::GanttConstraint { .. }
             | StatementKind::ChronologyHappensOn { .. }
             | StatementKind::ComponentDecl { .. }
-            | StatementKind::StateDecl(_)
-            | StatementKind::StateTransition(_)
-            | StatementKind::StateInternalAction(_)
             | StatementKind::ActivityStep(_)
             | StatementKind::TimingDecl { .. }
             | StatementKind::TimingEvent { .. }

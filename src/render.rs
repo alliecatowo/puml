@@ -990,48 +990,12 @@ fn parse_visibility_member(member: &str) -> (Option<&'static str>, &'static str,
 /// Returns (SVG style attrs string, cleaned text without modifiers).
 fn parse_member_modifiers(text: &str) -> (&'static str, &str) {
     let t = text.trim();
-    if t.starts_with("{abstract}") {
-        (
-            " font-style=\"italic\"",
-            t["{abstract}".len()..].trim_start(),
-        )
-    } else if t.starts_with("{static}") {
-        (
-            " text-decoration=\"underline\"",
-            t["{static}".len()..].trim_start(),
-        )
+    if let Some(rest) = t.strip_prefix("{abstract}") {
+        (" font-style=\"italic\"", rest.trim_start())
+    } else if let Some(rest) = t.strip_prefix("{static}") {
+        (" text-decoration=\"underline\"", rest.trim_start())
     } else {
         ("", t)
-    }
-}
-
-fn family_kind_label(kind: DiagramKind) -> &'static str {
-    match kind {
-        DiagramKind::Class => "class",
-        DiagramKind::Object => "object",
-        DiagramKind::UseCase => "usecase",
-        DiagramKind::Gantt => "gantt",
-        DiagramKind::Chronology => "chronology",
-        DiagramKind::Salt => "salt",
-        DiagramKind::Component => "component",
-        DiagramKind::Deployment => "deployment",
-        DiagramKind::State => "state",
-        DiagramKind::Activity => "activity",
-        DiagramKind::Timing => "timing",
-        DiagramKind::MindMap => "mindmap",
-        DiagramKind::Wbs => "wbs",
-        DiagramKind::Sequence => "sequence",
-        DiagramKind::Json => "json",
-        DiagramKind::Yaml => "yaml",
-        DiagramKind::Nwdiag => "nwdiag",
-        DiagramKind::Archimate => "archimate",
-        DiagramKind::Regex => "regex",
-        DiagramKind::Ebnf => "ebnf",
-        DiagramKind::Math => "math",
-        DiagramKind::Sdl => "sdl",
-        DiagramKind::Ditaa => "ditaa",
-        DiagramKind::Chart => "chart",
-        DiagramKind::Unknown => "unknown",
     }
 }
 
@@ -1734,8 +1698,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let cy1 = fy + fh / 2;
         let cx2 = tx + tw / 2;
         let cy2 = ty + th / 2;
-        let (x1, y1) = clip_to_box_edge(cx1, cy1, cx2, cy2, fx, fy, fw, fh);
-        let (x2, y2) = clip_to_box_edge(cx2, cy2, cx1, cy1, tx, ty, tw, th);
+        let (x1, y1) = clip_to_box_edge((cx1, cy1), (cx2, cy2), (fx, fy, fw, fh));
+        let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
         let dashed = rel.arrow.contains("..") || rel.arrow.contains("--");
         let dash = if dashed && rel.arrow.contains("..") {
             " stroke-dasharray=\"4 4\""
@@ -1925,7 +1889,6 @@ fn ellipsize(text: String, max_chars: usize) -> String {
         return "...".to_string();
     }
 
-    let mut chars = text.chars();
     let count = text.chars().count();
     if count <= max_chars {
         return text;
@@ -1939,15 +1902,13 @@ fn ellipsize(text: String, max_chars: usize) -> String {
 }
 
 fn clip_to_box_edge(
-    cx: i32,
-    cy: i32,
-    tx: i32,
-    ty: i32,
-    bx: i32,
-    by: i32,
-    bw: i32,
-    bh: i32,
+    center: (i32, i32),
+    target: (i32, i32),
+    rect: (i32, i32, i32, i32),
 ) -> (i32, i32) {
+    let (cx, cy) = center;
+    let (tx, ty) = target;
+    let (bx, by, bw, bh) = rect;
     let dx = (tx - cx) as f64;
     let dy = (ty - cy) as f64;
     if dx.abs() < 1e-6 && dy.abs() < 1e-6 {
@@ -2598,7 +2559,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         let to_coord = node_coords.get(&t.to);
         if let (Some(&(fx, fy)), Some(&(tx, ty))) = (from_coord, to_coord) {
             // Compute start/end points at node boundaries
-            let (x1, y1, x2, y2) = transition_endpoints(fx, fy, tx, ty, &nodes);
+            let (x1, y1, x2, y2) = transition_endpoints(fx, fy, tx, ty, nodes);
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
                 x1, y1, x2, y2

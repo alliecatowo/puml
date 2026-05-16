@@ -924,7 +924,6 @@ mod tests {
         Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
     };
     use crate::source::Span;
-    use crate::theme::SequenceStyle;
 
     #[test]
     fn return_event_with_ids_is_laid_out_with_default_centers_for_unknown_participants() {
