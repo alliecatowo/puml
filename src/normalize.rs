@@ -3,10 +3,12 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
-    NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
-    SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
-    TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    ArchimateDocument, ArchimateElement, ArchimateRelation, FamilyDocument, FamilyNode,
+    FamilyNodeKind, FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode,
+    NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole,
+    SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage, TimelineChronologyEvent,
+    TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide, YamlDocument, YamlTreeNode,
 };
 use crate::theme::{
     classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
@@ -39,6 +41,14 @@ pub fn normalize_family_with_options(
         }
         DiagramKind::Gantt | DiagramKind::Chronology => {
             normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
+        }
+        DiagramKind::Json => normalize_json_document(document).map(NormalizedDocument::Json),
+        DiagramKind::Yaml => normalize_yaml_document(document).map(NormalizedDocument::Yaml),
+        DiagramKind::Nwdiag => {
+            normalize_nwdiag_document(document).map(NormalizedDocument::Nwdiag)
+        }
+        DiagramKind::Archimate => {
+            normalize_archimate_document(document).map(NormalizedDocument::Archimate)
         }
         DiagramKind::MindMap
         | DiagramKind::Wbs
@@ -116,6 +126,334 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         legend,
         warnings: Vec::new(),
     })
+}
+
+fn collect_raw_block(document: &Document) -> (String, Option<String>) {
+    let mut lines: Vec<String> = Vec::new();
+    let mut title: Option<String> = None;
+    for stmt in &document.statements {
+        match &stmt.kind {
+            StatementKind::RawBlockContent(s) => lines.push(s.clone()),
+            StatementKind::Title(v) => title = Some(v.clone()),
+            _ => {}
+        }
+    }
+    (lines.join("\n"), title)
+}
+
+fn normalize_json_document(document: Document) -> Result<JsonDocument, Diagnostic> {
+    let (raw, title) = collect_raw_block(&document);
+    let nodes = match serde_json::from_str::<serde_json::Value>(raw.trim()) {
+        Ok(value) => {
+            let mut out = Vec::new();
+            flatten_json_value(&value, None, 0, &mut out);
+            out
+        }
+        Err(_) => raw
+            .lines()
+            .map(|line| JsonTreeNode {
+                depth: 0,
+                label: line.trim_end().to_string(),
+            })
+            .collect(),
+    };
+    Ok(JsonDocument {
+        raw,
+        nodes,
+        title,
+        warnings: Vec::new(),
+    })
+}
+
+fn flatten_json_value(
+    value: &serde_json::Value,
+    label: Option<&str>,
+    depth: usize,
+    out: &mut Vec<JsonTreeNode>,
+) {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) => {
+            let header = label.map(|l| format!("{l}: {{...}}")).unwrap_or_else(|| "{...}".to_string());
+            out.push(JsonTreeNode {
+                depth,
+                label: header,
+            });
+            for (k, v) in map {
+                flatten_json_value(v, Some(k), depth + 1, out);
+            }
+        }
+        Value::Array(items) => {
+            let header = label.map(|l| format!("{l}: [...]")).unwrap_or_else(|| "[...]".to_string());
+            out.push(JsonTreeNode {
+                depth,
+                label: header,
+            });
+            for (i, v) in items.iter().enumerate() {
+                let key = format!("[{i}]");
+                flatten_json_value(v, Some(&key), depth + 1, out);
+            }
+        }
+        Value::String(s) => out.push(JsonTreeNode {
+            depth,
+            label: label
+                .map(|l| format!("{l}: \"{s}\""))
+                .unwrap_or_else(|| format!("\"{s}\"")),
+        }),
+        Value::Number(n) => out.push(JsonTreeNode {
+            depth,
+            label: label
+                .map(|l| format!("{l}: {n}"))
+                .unwrap_or_else(|| n.to_string()),
+        }),
+        Value::Bool(b) => out.push(JsonTreeNode {
+            depth,
+            label: label
+                .map(|l| format!("{l}: {b}"))
+                .unwrap_or_else(|| b.to_string()),
+        }),
+        Value::Null => out.push(JsonTreeNode {
+            depth,
+            label: label
+                .map(|l| format!("{l}: null"))
+                .unwrap_or_else(|| "null".to_string()),
+        }),
+    }
+}
+
+fn normalize_yaml_document(document: Document) -> Result<YamlDocument, Diagnostic> {
+    let (raw, title) = collect_raw_block(&document);
+    let mut nodes = Vec::new();
+    for line in raw.lines() {
+        // Strip trailing whitespace; skip fully blank lines and comment-only lines.
+        let trimmed_end = line.trim_end();
+        if trimmed_end.is_empty() {
+            continue;
+        }
+        let indent = trimmed_end.len() - trimmed_end.trim_start().len();
+        let depth = indent / 2;
+        let content = trimmed_end.trim_start();
+        if content.starts_with('#') {
+            continue;
+        }
+        nodes.push(YamlTreeNode {
+            depth,
+            label: content.to_string(),
+        });
+    }
+    Ok(YamlDocument {
+        raw,
+        nodes,
+        title,
+        warnings: Vec::new(),
+    })
+}
+
+fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagnostic> {
+    let (raw, title) = collect_raw_block(&document);
+    let mut networks: Vec<NwdiagNetwork> = Vec::new();
+    let mut current: Option<NwdiagNetwork> = None;
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("network ") {
+            // close any previous network without explicit `}` (lenient)
+            if let Some(net) = current.take() {
+                networks.push(net);
+            }
+            let name = rest.trim_end_matches('{').trim().to_string();
+            current = Some(NwdiagNetwork {
+                name,
+                address: None,
+                nodes: Vec::new(),
+            });
+            continue;
+        }
+        if trimmed == "}" {
+            if let Some(net) = current.take() {
+                networks.push(net);
+            }
+            continue;
+        }
+        if let Some(net) = current.as_mut() {
+            // address = "..."
+            if let Some(rest) = trimmed.strip_prefix("address") {
+                let value = rest.trim_start_matches([' ', '=']).trim().trim_matches('"').to_string();
+                net.address = Some(value);
+                continue;
+            }
+            // NodeName [address = "..."] or NodeName
+            let (name_part, attrs) = match trimmed.split_once('[') {
+                Some((n, rest)) => (n.trim().to_string(), Some(rest.trim_end_matches(']'))),
+                None => (trimmed.to_string(), None),
+            };
+            let mut node_address: Option<String> = None;
+            if let Some(attrs) = attrs {
+                for kv in attrs.split(',') {
+                    if let Some((k, v)) = kv.split_once('=') {
+                        if k.trim() == "address" {
+                            node_address = Some(v.trim().trim_matches('"').to_string());
+                        }
+                    }
+                }
+            }
+            net.nodes.push(NwdiagNode {
+                name: name_part,
+                address: node_address,
+            });
+        }
+    }
+    if let Some(net) = current.take() {
+        networks.push(net);
+    }
+    Ok(NwdiagDocument {
+        networks,
+        title,
+        warnings: Vec::new(),
+    })
+}
+
+fn normalize_archimate_document(document: Document) -> Result<ArchimateDocument, Diagnostic> {
+    let (raw, title) = collect_raw_block(&document);
+    let mut elements: Vec<ArchimateElement> = Vec::new();
+    let mut relations: Vec<ArchimateRelation> = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with('\'') {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("archimate ") {
+            // archimate "Name" as alias <<layer>>
+            if let Some(elem) = parse_archimate_element(rest) {
+                elements.push(elem);
+                continue;
+            }
+        }
+        // Relation macros: Rel_Association(a, b, "label"), Rel_Realization(a, b)
+        if let Some(open) = trimmed.find('(') {
+            let macro_name = trimmed[..open].trim();
+            if let Some(kind) = archimate_rel_kind_from_macro(macro_name) {
+                let inside = trimmed[open + 1..].trim_end_matches([')', ' ', '\t']);
+                let args: Vec<String> = split_csv_args(inside);
+                if args.len() >= 2 {
+                    let from = args[0].trim().trim_matches('"').to_string();
+                    let to = args[1].trim().trim_matches('"').to_string();
+                    let label = args
+                        .get(2)
+                        .map(|s| s.trim().trim_matches('"').to_string())
+                        .filter(|s| !s.is_empty());
+                    relations.push(ArchimateRelation {
+                        from,
+                        to,
+                        kind: kind.to_string(),
+                        label,
+                    });
+                    continue;
+                }
+            }
+        }
+        // Plain arrow: a --> b : label
+        if let Some(rel) = parse_archimate_arrow(trimmed) {
+            relations.push(rel);
+            continue;
+        }
+    }
+
+    Ok(ArchimateDocument {
+        elements,
+        relations,
+        title,
+        warnings: Vec::new(),
+    })
+}
+
+fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
+    // expect: "Name" as alias <<layer>>  OR  Name <<layer>>  OR  "Name" <<layer>>
+    let mut s = rest.trim().to_string();
+    let mut layer = "business".to_string();
+    if let Some(open) = s.find("<<") {
+        if let Some(close) = s[open + 2..].find(">>") {
+            layer = s[open + 2..open + 2 + close].trim().to_string();
+            s = format!("{} {}", &s[..open], &s[open + 2 + close + 2..]);
+        }
+    }
+    let s = s.trim();
+    let (name, alias) = if let Some(stripped) = s.strip_prefix('"') {
+        let close = stripped.find('"')?;
+        let name = stripped[..close].to_string();
+        let rest = stripped[close + 1..].trim();
+        let alias = rest.strip_prefix("as ").map(|a| a.trim().to_string());
+        (name, alias)
+    } else {
+        let mut parts = s.split_whitespace();
+        let name = parts.next()?.to_string();
+        let alias = if parts.next() == Some("as") {
+            parts.next().map(|s| s.to_string())
+        } else {
+            None
+        };
+        (name, alias)
+    };
+    Some(ArchimateElement { name, alias, layer })
+}
+
+fn archimate_rel_kind_from_macro(name: &str) -> Option<&'static str> {
+    match name {
+        "Rel_Association" => Some("association"),
+        "Rel_Realization" => Some("realization"),
+        "Rel_Serving" => Some("serving"),
+        "Rel_Composition" => Some("composition"),
+        "Rel_Aggregation" => Some("aggregation"),
+        "Rel_Used_By" => Some("used_by"),
+        "Rel_Flow" => Some("flow"),
+        _ => None,
+    }
+}
+
+fn split_csv_args(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut in_quotes = false;
+    for ch in s.chars() {
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            cur.push(ch);
+        } else if ch == ',' && !in_quotes {
+            out.push(std::mem::take(&mut cur));
+        } else {
+            cur.push(ch);
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+fn parse_archimate_arrow(line: &str) -> Option<ArchimateRelation> {
+    for arrow in ["-->", "->", "<--", "<-"] {
+        if let Some(ix) = line.find(arrow) {
+            let lhs = line[..ix].trim();
+            let rhs_full = line[ix + arrow.len()..].trim();
+            if lhs.is_empty() || rhs_full.is_empty() {
+                return None;
+            }
+            let (rhs, label) = match rhs_full.split_once(':') {
+                Some((r, l)) => (r.trim(), Some(l.trim().to_string())),
+                None => (rhs_full, None),
+            };
+            return Some(ArchimateRelation {
+                from: lhs.to_string(),
+                to: rhs.to_string(),
+                kind: "uses".to_string(),
+                label,
+            });
+        }
+    }
+    None
 }
 
 fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
@@ -248,6 +586,10 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::State => "state",
         DiagramKind::Activity => "activity",
         DiagramKind::Timing => "timing",
+        DiagramKind::Json => "json",
+        DiagramKind::Yaml => "yaml",
+        DiagramKind::Nwdiag => "nwdiag",
+        DiagramKind::Archimate => "archimate",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -745,6 +1087,10 @@ pub fn normalize_with_options(
             }
             StatementKind::Include(_) | StatementKind::Define { .. } | StatementKind::Undef(_) => {
                 // Preprocessor directives should be expanded before normalization.
+            }
+            StatementKind::RawBlockContent(_) => {
+                // Raw block content is only meaningful in dedicated raw-body families
+                // (json/yaml/nwdiag/archimate); ignore in sequence normalization.
             }
             StatementKind::ClassDecl(_)
             | StatementKind::ObjectDecl(_)

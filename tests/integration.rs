@@ -3598,3 +3598,92 @@ fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
         .success()
         .stderr(predicate::str::is_empty());
 }
+
+// -- New diagram families: JSON / YAML / nwdiag / Archimate --------------------
+
+#[test]
+fn json_family_check_mode_passes_for_valid_input() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("non_sequence/valid_json.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn json_family_renders_deterministic_svg() {
+    let src = fs::read_to_string(fixture("non_sequence/valid_json.puml")).unwrap();
+    let a = render_source_to_svg(&src).expect("render JSON");
+    let b = render_source_to_svg(&src).expect("render JSON again");
+    assert_eq!(a, b, "JSON render must be deterministic");
+    assert!(a.starts_with("<svg"));
+    assert!(a.contains("JSON"));
+    assert!(a.contains("name"));
+}
+
+#[test]
+fn yaml_family_check_mode_passes_for_valid_input() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("non_sequence/valid_yaml.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn yaml_family_renders_deterministic_svg() {
+    let src = fs::read_to_string(fixture("non_sequence/valid_yaml.puml")).unwrap();
+    let a = render_source_to_svg(&src).expect("render YAML");
+    let b = render_source_to_svg(&src).expect("render YAML again");
+    assert_eq!(a, b, "YAML render must be deterministic");
+    assert!(a.contains("YAML"));
+    assert!(a.contains("project:"));
+}
+
+#[test]
+fn nwdiag_family_check_mode_passes_for_valid_input() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("non_sequence/valid_nwdiag.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn nwdiag_family_renders_deterministic_svg_with_networks() {
+    let src = fs::read_to_string(fixture("non_sequence/valid_nwdiag.puml")).unwrap();
+    let a = render_source_to_svg(&src).expect("render nwdiag");
+    let b = render_source_to_svg(&src).expect("render nwdiag again");
+    assert_eq!(a, b, "nwdiag render must be deterministic");
+    assert!(a.contains("network dmz"));
+    assert!(a.contains("web01"));
+    assert!(a.contains("network internal"));
+}
+
+#[test]
+fn archimate_family_check_mode_passes_for_valid_input() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("non_sequence/valid_archimate.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn archimate_family_renders_deterministic_svg_with_layers() {
+    let src = fs::read_to_string(fixture("non_sequence/valid_archimate.puml")).unwrap();
+    let a = render_source_to_svg(&src).expect("render archimate");
+    let b = render_source_to_svg(&src).expect("render archimate again");
+    assert_eq!(a, b, "archimate render must be deterministic");
+    assert!(a.contains("Archimate"));
+    assert!(a.contains("application"));
+    assert!(a.contains("Customer"));
+}

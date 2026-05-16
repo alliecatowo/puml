@@ -1,0 +1,8 @@
+@startyaml
+project:
+  name: puml
+  version: 1
+features:
+  - parser
+  - renderer
+@endyaml

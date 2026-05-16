@@ -9,6 +9,81 @@ pub enum NormalizedDocument {
     Sequence(SequenceDocument),
     Family(FamilyDocument),
     Timeline(TimelineDocument),
+    Json(JsonDocument),
+    Yaml(YamlDocument),
+    Nwdiag(NwdiagDocument),
+    Archimate(ArchimateDocument),
+}
+
+#[derive(Debug, Clone)]
+pub struct JsonDocument {
+    pub raw: String,
+    pub nodes: Vec<JsonTreeNode>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct JsonTreeNode {
+    pub depth: usize,
+    pub label: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct YamlDocument {
+    pub raw: String,
+    pub nodes: Vec<YamlTreeNode>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct YamlTreeNode {
+    pub depth: usize,
+    pub label: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NwdiagDocument {
+    pub networks: Vec<NwdiagNetwork>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NwdiagNetwork {
+    pub name: String,
+    pub address: Option<String>,
+    pub nodes: Vec<NwdiagNode>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NwdiagNode {
+    pub name: String,
+    pub address: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArchimateDocument {
+    pub elements: Vec<ArchimateElement>,
+    pub relations: Vec<ArchimateRelation>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArchimateElement {
+    pub name: String,
+    pub alias: Option<String>,
+    pub layer: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArchimateRelation {
+    pub from: String,
+    pub to: String,
+    pub kind: String,
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone)]

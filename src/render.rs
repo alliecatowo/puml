@@ -1,6 +1,7 @@
 use crate::ast::DiagramKind;
 use crate::model::{
-    FamilyDocument, FamilyNodeKind, ParticipantRole, TimelineDocument, VirtualEndpointKind,
+    ArchimateDocument, FamilyDocument, FamilyNodeKind, JsonDocument, NwdiagDocument,
+    ParticipantRole, TimelineDocument, VirtualEndpointKind, YamlDocument,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
@@ -365,6 +366,10 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
         DiagramKind::Sequence => "sequence",
+        DiagramKind::Json => "json",
+        DiagramKind::Yaml => "yaml",
+        DiagramKind::Nwdiag => "nwdiag",
+        DiagramKind::Archimate => "archimate",
         DiagramKind::Unknown => "unknown",
     }
 }
@@ -439,6 +444,243 @@ pub fn render_timeline_stub_svg(document: &TimelineDocument) -> String {
             escape_text(&evt.when)
         ));
         y += 20;
+    }
+    out.push_str("</svg>");
+    out
+}
+
+pub fn render_json_svg(document: &JsonDocument) -> String {
+    let width = 760;
+    let height = 80 + (document.nodes.len().max(1) as i32) * 22;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 28;
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+        y,
+        escape_text(document.title.as_deref().unwrap_or("JSON"))
+    ));
+    y += 28;
+    if document.nodes.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">(empty)</text>",
+            y
+        ));
+    } else {
+        for node in &document.nodes {
+            let x = 24 + (node.depth as i32) * 18;
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"18\" rx=\"3\" ry=\"3\" fill=\"#f1f5f9\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+                x,
+                y - 12,
+                (width - 48 - (node.depth as i32) * 18).max(80)
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                x + 6,
+                y + 2,
+                escape_text(&node.label)
+            ));
+            y += 22;
+        }
+    }
+    out.push_str("</svg>");
+    out
+}
+
+pub fn render_yaml_svg(document: &YamlDocument) -> String {
+    let width = 760;
+    let height = 80 + (document.nodes.len().max(1) as i32) * 22;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 28;
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+        y,
+        escape_text(document.title.as_deref().unwrap_or("YAML"))
+    ));
+    y += 28;
+    if document.nodes.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">(empty)</text>",
+            y
+        ));
+    } else {
+        for node in &document.nodes {
+            let x = 24 + (node.depth as i32) * 18;
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"18\" rx=\"3\" ry=\"3\" fill=\"#fef9c3\" stroke=\"#ca8a04\" stroke-width=\"1\"/>",
+                x,
+                y - 12,
+                (width - 48 - (node.depth as i32) * 18).max(80)
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                x + 6,
+                y + 2,
+                escape_text(&node.label)
+            ));
+            y += 22;
+        }
+    }
+    out.push_str("</svg>");
+    out
+}
+
+pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
+    let width = 760;
+    let net_rows: i32 = document
+        .networks
+        .iter()
+        .map(|n| 1 + n.nodes.len() as i32)
+        .sum();
+    let height = 80 + net_rows.max(1) * 24 + (document.networks.len() as i32) * 14;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 28;
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+        y,
+        escape_text(document.title.as_deref().unwrap_or("Network diagram"))
+    ));
+    y += 24;
+    if document.networks.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">(no networks)</text>",
+            y
+        ));
+    } else {
+        for net in &document.networks {
+            // Swimlane header
+            out.push_str(&format!(
+                "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"22\" fill=\"#e0f2fe\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+                y
+            ));
+            let label = match &net.address {
+                Some(a) => format!("network {} ({})", net.name, a),
+                None => format!("network {}", net.name),
+            };
+            out.push_str(&format!(
+                "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#0c4a6e\">{}</text>",
+                y + 16,
+                escape_text(&label)
+            ));
+            y += 26;
+            for node in &net.nodes {
+                out.push_str(&format!(
+                    "<rect x=\"56\" y=\"{}\" width=\"680\" height=\"20\" rx=\"3\" ry=\"3\" fill=\"white\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+                    y
+                ));
+                let lbl = match &node.address {
+                    Some(a) => format!("{} [{}]", node.name, a),
+                    None => node.name.clone(),
+                };
+                out.push_str(&format!(
+                    "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                    y + 14,
+                    escape_text(&lbl)
+                ));
+                y += 24;
+            }
+            y += 10;
+        }
+    }
+    out.push_str("</svg>");
+    out
+}
+
+pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
+    let width = 760;
+    let layers = ["strategy", "business", "application", "technology", "motivation"];
+    let lane_height = 80;
+    let height = 80 + (layers.len() as i32) * lane_height + (document.relations.len() as i32) * 18;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    let mut y = 28;
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+        y,
+        escape_text(document.title.as_deref().unwrap_or("Archimate"))
+    ));
+    y += 16;
+    for layer in layers.iter() {
+        let layer_y = y;
+        let bg = match *layer {
+            "strategy" => "#fee2e2",
+            "business" => "#fef3c7",
+            "application" => "#dbeafe",
+            "technology" => "#dcfce7",
+            "motivation" => "#ede9fe",
+            _ => "#f1f5f9",
+        };
+        out.push_str(&format!(
+            "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+            layer_y, lane_height, bg
+        ));
+        out.push_str(&format!(
+            "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{}</text>",
+            layer_y + 14,
+            escape_text(layer)
+        ));
+        let mut x = 100;
+        for elem in document.elements.iter().filter(|e| e.layer == *layer) {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"140\" height=\"40\" rx=\"4\" ry=\"4\" fill=\"white\" stroke=\"#334155\" stroke-width=\"1\"/>",
+                x,
+                layer_y + 22
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                x + 8,
+                layer_y + 46,
+                escape_text(&elem.name)
+            ));
+            x += 150;
+            if x + 140 > 736 {
+                break;
+            }
+        }
+        y += lane_height;
+    }
+    if !document.relations.is_empty() {
+        y += 12;
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#334155\">Relations</text>",
+            y
+        ));
+        y += 18;
+        for rel in &document.relations {
+            let label = rel
+                .label
+                .as_deref()
+                .map(|l| format!(" : {l}"))
+                .unwrap_or_default();
+            out.push_str(&format!(
+                "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} -[{}]-&gt; {}{}</text>",
+                y,
+                escape_text(&rel.from),
+                escape_text(&rel.kind),
+                escape_text(&rel.to),
+                escape_text(&label)
+            ));
+            y += 18;
+        }
     }
     out.push_str("</svg>");
     out
