@@ -1077,7 +1077,10 @@ fn write_files_transactionally(files: Vec<(PathBuf, String)>) -> Result<(), (u8,
             cleanup_staged_artifacts(&staged_writes);
             return Err((
                 EXIT_IO,
-                format!("failed to write '{}': target is a directory", target.display()),
+                format!(
+                    "failed to write '{}': target is a directory",
+                    target.display()
+                ),
             ));
         }
         let staged = staging_path_for(&target, "stage", pid, idx);
