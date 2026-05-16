@@ -212,6 +212,109 @@ fn render_state_svg_emits_expected_primitives_for_history_and_composite_regions(
 }
 
 #[test]
+fn normalize_state_accepts_document_metadata_fields() {
+    let src = "@startuml\nheader Hdr\nfooter Ftr\ncaption Cap\nlegend Leg\nstate Ready\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state normalize should succeed");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+    assert_eq!(model.header.as_deref(), Some("Hdr"));
+    assert_eq!(model.footer.as_deref(), Some("Ftr"));
+    assert_eq!(model.caption.as_deref(), Some("Cap"));
+    assert_eq!(model.legend.as_deref(), Some("Leg"));
+}
+
+#[test]
+fn normalize_timeline_baseline_accepts_metadata_fields() {
+    let src = "@startgantt\nheader Hdr\nfooter Ftr\ncaption Cap\nlegend Leg\n[Build]\n@endgantt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("timeline normalize should succeed");
+    let NormalizedDocument::Timeline(model) = normalized else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.header.as_deref(), Some("Hdr"));
+    assert_eq!(model.footer.as_deref(), Some("Ftr"));
+    assert_eq!(model.caption.as_deref(), Some("Cap"));
+    assert_eq!(model.legend.as_deref(), Some("Leg"));
+}
+
+#[test]
+fn normalize_state_history_and_transition_nodes_preserve_display_and_kind() {
+    let src = "@startuml\n[H]\n[H*]\n[*] --> [H]\n[H*] --> [*]\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state should normalize");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+
+    let shallow = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "[H]")
+        .expect("shallow history node should exist");
+    assert!(matches!(
+        shallow.kind,
+        puml::model::StateNodeKind::HistoryShallow
+    ));
+    assert_eq!(shallow.display.as_deref(), Some("H"));
+
+    let deep = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "[H*]")
+        .expect("deep history node should exist");
+    assert!(matches!(deep.kind, puml::model::StateNodeKind::HistoryDeep));
+    assert_eq!(deep.display.as_deref(), Some("H*"));
+
+    let start_end = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "[*]")
+        .expect("start/end node should exist");
+    assert!(matches!(
+        start_end.kind,
+        puml::model::StateNodeKind::StartEnd
+    ));
+    assert_eq!(start_end.display, None);
+}
+
+#[test]
+fn parse_state_block_covers_comment_empty_keyword_and_nested_history_paths() {
+    let src = "@startuml\nstate Parent as P {\n  \n  ' keep comment branch covered\n  [H]\n  [H*]\n  title Nested title\n  P : entry / warmup\n  P --> [H] : resume\n  state Child as C\n}\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    assert!(matches!(doc.kind, puml::ast::DiagramKind::State));
+
+    let Some(state_stmt) = doc
+        .statements
+        .iter()
+        .find(|stmt| matches!(stmt.kind, puml::ast::StatementKind::StateDecl(_)))
+    else {
+        panic!("expected a state declaration");
+    };
+    let puml::ast::StatementKind::StateDecl(parent) = &state_stmt.kind else {
+        panic!("expected parent state declaration");
+    };
+    assert_eq!(parent.alias.as_deref(), Some("P"));
+    assert!(parent.children.iter().any(|c| matches!(
+        c.kind,
+        puml::ast::StatementKind::StateHistory { deep: false }
+    )));
+    assert!(parent.children.iter().any(|c| matches!(
+        c.kind,
+        puml::ast::StatementKind::StateHistory { deep: true }
+    )));
+    assert!(parent
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, puml::ast::StatementKind::StateInternalAction(_))));
+    assert!(parent
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, puml::ast::StatementKind::StateTransition(_))));
+}
+
+#[test]
 fn normalize_state_accepts_metadata_and_region_dividers_without_side_effects() {
     let src = "@startuml\ntitle State Title\nheader State Header\nfooter State Footer\ncaption State Caption\nlegend State Legend\nskinparam ArrowColor #112233\n!theme plain\n!pragma teoz true\nstate A\nstate B\nA --> B : next\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
