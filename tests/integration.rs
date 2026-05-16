@@ -381,6 +381,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_if_elseif_else.puml",
         "preprocessor/valid_ifdef_ifndef.puml",
         "preprocessor/valid_while_define_counter.puml",
+        "preprocessor/valid_import_stdlib_core.puml",
+        "preprocessor/valid_import_stdlib_nested_no_ext.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -485,6 +487,12 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_builtin_in_log.puml",
         "errors/invalid_preproc_dynamic_invoke.puml",
         "errors/invalid_preproc_json_assignment.puml",
+        "errors/invalid_import_empty_path.puml",
+        "errors/invalid_import_url.puml",
+        "errors/invalid_import_absolute_path.puml",
+        "errors/invalid_import_tag_form.puml",
+        "errors/invalid_import_escape_path.puml",
+        "errors/invalid_import_missing_module.puml",
         "errors/invalid_pragma_missing_body.puml",
         "errors/invalid_theme_empty_name.puml",
         "errors/invalid_theme_remote_source.puml",
@@ -2016,6 +2024,24 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
             "errors/invalid_preproc_json_assignment.puml",
             "E_PREPROC_JSON_UNSUPPORTED",
         ),
+        (
+            "errors/invalid_import_empty_path.puml",
+            "E_IMPORT_PATH_REQUIRED",
+        ),
+        ("errors/invalid_import_url.puml", "E_IMPORT_URL_UNSUPPORTED"),
+        (
+            "errors/invalid_import_absolute_path.puml",
+            "E_IMPORT_ABSOLUTE_PATH",
+        ),
+        (
+            "errors/invalid_import_tag_form.puml",
+            "E_IMPORT_INVALID_FORM",
+        ),
+        ("errors/invalid_import_escape_path.puml", "E_IMPORT_ESCAPE"),
+        (
+            "errors/invalid_import_missing_module.puml",
+            "E_IMPORT_STDLIB_NOT_FOUND",
+        ),
     ];
 
     for (path, code) in cases {
@@ -2495,6 +2521,29 @@ fn stdin_include_with_include_root_passes() {
 }
 
 #[test]
+fn stdin_import_requires_include_root_or_fails() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin("@startuml\n!import core\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_IMPORT_ROOT_REQUIRED"));
+}
+
+#[test]
+fn stdin_import_with_include_root_passes() {
+    let root = format!("{}/tests/fixtures", env!("CARGO_MANIFEST_DIR"));
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "--include-root", &root, "-"])
+        .write_stdin("@startuml\n!import core\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
 fn file_multi_output_with_o_writes_numbered_files() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("multi_three.puml");
@@ -2770,6 +2819,24 @@ fn file_input_infers_include_root_from_parent_directory() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--check", parent.to_str().unwrap()])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn file_input_infers_stdlib_root_for_imports_from_parent_directory() {
+    let tmp = tempdir().unwrap();
+    let stdlib = tmp.path().join("stdlib");
+    fs::create_dir_all(&stdlib).unwrap();
+    fs::write(stdlib.join("core.puml"), "Alice -> Bob : from stdlib\n").unwrap();
+
+    let src_path = tmp.path().join("diagram.puml");
+    fs::write(&src_path, "@startuml\n!import core\n@enduml\n").unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", src_path.to_str().unwrap()])
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
