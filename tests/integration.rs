@@ -2481,6 +2481,65 @@ fn unclosed_family_declaration_block_reports_deterministic_error() {
 }
 
 #[test]
+fn extended_families_render_to_deterministic_svg() {
+    let cases = [
+        ("non_sequence/valid_regex.puml", "Railroad diagram (regex)"),
+        ("non_sequence/valid_ebnf.puml", "EBNF railroad diagrams"),
+        ("non_sequence/valid_math.puml", "math (LaTeX-like, deterministic stub)"),
+        ("non_sequence/valid_sdl.puml", "SDL state machine"),
+        ("non_sequence/valid_ditaa.puml", "ditaa (ASCII art frame"),
+        ("non_sequence/valid_chart_bar.puml", "bar chart"),
+        ("non_sequence/valid_chart_pie.puml", "pie chart"),
+    ];
+    for (case, marker) in cases {
+        let src = fs::read_to_string(fixture(case)).unwrap();
+        let first = Command::cargo_bin("puml")
+            .expect("binary")
+            .arg("-")
+            .write_stdin(src.clone())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let second = Command::cargo_bin("puml")
+            .expect("binary")
+            .arg("-")
+            .write_stdin(src)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        assert_eq!(first, second, "render must be deterministic for {case}");
+        let svg = String::from_utf8(first).unwrap();
+        assert!(
+            svg.contains(marker),
+            "missing marker `{marker}` for {case}; got: {svg}"
+        );
+    }
+}
+
+#[test]
+fn extended_families_pass_check() {
+    for case in [
+        "non_sequence/valid_regex.puml",
+        "non_sequence/valid_ebnf.puml",
+        "non_sequence/valid_math.puml",
+        "non_sequence/valid_sdl.puml",
+        "non_sequence/valid_ditaa.puml",
+        "non_sequence/valid_chart_bar.puml",
+        "non_sequence/valid_chart_pie.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .success();
+    }
+}
+
+#[test]
 fn autonumber_is_preserved_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")

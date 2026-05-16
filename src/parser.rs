@@ -1713,6 +1713,35 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         let (raw_line, span) = lines[i];
         let line = strip_inline_plantuml_comment(raw_line).trim();
 
+        // In raw-body family blocks we never strip empty lines or interpret comments.
+        // Check for the closing marker first; otherwise capture verbatim.
+        if let Some(bk) = block_kind {
+            if block_kind_is_raw_body(bk) {
+                if let Some(end_kind) = parse_end_block_kind(raw_line.trim()) {
+                    if block_kind == Some(end_kind) {
+                        in_block = false;
+                        block_kind = None;
+                        block_start_span = None;
+                        i += 1;
+                        continue;
+                    } else {
+                        return Err(Diagnostic::error(format!(
+                            "[E_BLOCK_MISMATCH] closing marker `@end{}` does not match opening `@start{}`",
+                            block_kind_name(end_kind),
+                            block_kind_name(bk)
+                        ))
+                        .with_span(span));
+                    }
+                }
+                statements.push(Statement {
+                    span,
+                    kind: StatementKind::RawBody(raw_line.to_string()),
+                });
+                i += 1;
+                continue;
+            }
+        }
+
         if line.is_empty() || line.starts_with('"') {
             i += 1;
             continue;
@@ -1954,6 +1983,12 @@ enum BlockKind {
     Wbs,
     Gantt,
     Chronology,
+    Regex,
+    Ebnf,
+    Math,
+    Sdl,
+    Ditaa,
+    Chart,
 }
 
 fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
@@ -1966,28 +2001,44 @@ fn parse_end_block_kind(line: &str) -> Option<BlockKind> {
 
 fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     let lower = line.to_ascii_lowercase();
-    let markers = if start {
-        [
-            ("@startuml", BlockKind::Uml),
+    // NOTE: longer markers must come before shorter prefixes that they share.
+    // e.g. `@startmath` must be checked before any conflicting shorter prefix.
+    let markers: &[(&str, BlockKind)] = if start {
+        &[
             ("@startmindmap", BlockKind::MindMap),
-            ("@startwbs", BlockKind::Wbs),
-            ("@startgantt", BlockKind::Gantt),
             ("@startchronology", BlockKind::Chronology),
+            ("@startregex", BlockKind::Regex),
+            ("@startebnf", BlockKind::Ebnf),
+            ("@startlatex", BlockKind::Math),
+            ("@startmath", BlockKind::Math),
+            ("@startditaa", BlockKind::Ditaa),
+            ("@startchart", BlockKind::Chart),
+            ("@startsdl", BlockKind::Sdl),
+            ("@startgantt", BlockKind::Gantt),
+            ("@startwbs", BlockKind::Wbs),
+            ("@startuml", BlockKind::Uml),
         ]
     } else {
-        [
-            ("@enduml", BlockKind::Uml),
+        &[
             ("@endmindmap", BlockKind::MindMap),
-            ("@endwbs", BlockKind::Wbs),
-            ("@endgantt", BlockKind::Gantt),
             ("@endchronology", BlockKind::Chronology),
+            ("@endregex", BlockKind::Regex),
+            ("@endebnf", BlockKind::Ebnf),
+            ("@endlatex", BlockKind::Math),
+            ("@endmath", BlockKind::Math),
+            ("@endditaa", BlockKind::Ditaa),
+            ("@endchart", BlockKind::Chart),
+            ("@endsdl", BlockKind::Sdl),
+            ("@endgantt", BlockKind::Gantt),
+            ("@endwbs", BlockKind::Wbs),
+            ("@enduml", BlockKind::Uml),
         ]
     };
     for (marker, kind) in markers {
         if lower.starts_with(marker) {
             let rest = &line[marker.len()..];
             if rest.is_empty() || rest.starts_with(char::is_whitespace) {
-                return Some(kind);
+                return Some(*kind);
             }
         }
     }
@@ -2001,6 +2052,12 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Wbs => Some(DiagramKind::Wbs),
         BlockKind::Gantt => Some(DiagramKind::Gantt),
         BlockKind::Chronology => Some(DiagramKind::Chronology),
+        BlockKind::Regex => Some(DiagramKind::Regex),
+        BlockKind::Ebnf => Some(DiagramKind::Ebnf),
+        BlockKind::Math => Some(DiagramKind::Math),
+        BlockKind::Sdl => Some(DiagramKind::Sdl),
+        BlockKind::Ditaa => Some(DiagramKind::Ditaa),
+        BlockKind::Chart => Some(DiagramKind::Chart),
     }
 }
 
@@ -2011,7 +2068,25 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Wbs => "wbs",
         BlockKind::Gantt => "gantt",
         BlockKind::Chronology => "chronology",
+        BlockKind::Regex => "regex",
+        BlockKind::Ebnf => "ebnf",
+        BlockKind::Math => "math",
+        BlockKind::Sdl => "sdl",
+        BlockKind::Ditaa => "ditaa",
+        BlockKind::Chart => "chart",
     }
+}
+
+fn block_kind_is_raw_body(kind: BlockKind) -> bool {
+    matches!(
+        kind,
+        BlockKind::Regex
+            | BlockKind::Ebnf
+            | BlockKind::Math
+            | BlockKind::Sdl
+            | BlockKind::Ditaa
+            | BlockKind::Chart
+    )
 }
 
 fn select_diagram_kind(
@@ -2067,6 +2142,12 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::State => "state",
         DiagramKind::Activity => "activity",
         DiagramKind::Timing => "timing",
+        DiagramKind::Regex => "regex",
+        DiagramKind::Ebnf => "ebnf",
+        DiagramKind::Math => "math",
+        DiagramKind::Sdl => "sdl",
+        DiagramKind::Ditaa => "ditaa",
+        DiagramKind::Chart => "chart",
         DiagramKind::Unknown => "unknown",
     }
 }

@@ -21,6 +21,12 @@ pub enum DiagramKind {
     State,
     Activity,
     Timing,
+    Regex,
+    Ebnf,
+    Math,
+    Sdl,
+    Ditaa,
+    Chart,
     Unknown,
 }
 
@@ -85,6 +91,7 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    RawBody(String),
     Unknown(String),
 }
 

@@ -238,6 +238,12 @@ Artifacts:
 |---|---|---|
 | Sequence diagrams | Supported | End-to-end parser/normalize/layout/render path. |
 | Non-sequence family routing (`component`, `deployment`, `state`, `activity`, `timing`) | Stubbed (deterministic) | Parser identifies family and emits family-specific deterministic unsupported diagnostics in normalize/render paths. |
+| Regex diagrams (`@startregex`/`@endregex`) | Supported (visual) | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, `\|`, `(...)`, `\d`, `.`, anchors) into a deterministic railroad-style SVG; unsupported quantifiers emit deterministic warnings. |
+| EBNF diagrams (`@startebnf`/`@endebnf`) | Supported (visual) | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, `*`, `+`, `?` into a deterministic railroad SVG. |
+| Math / LaTeX diagrams (`@startmath`/`@startlatex`) | Deterministic stub | LaTeX-like body rendered in a deterministic monospaced frame (no formula typesetting). |
+| SDL diagrams (`@startsdl`/`@endsdl`) | Deterministic stub | Parses `state`, `start`, `stop`, and `from -> to : signal` lines, renders state-machine grid plus transition list. |
+| Ditaa diagrams (`@startditaa`/`@endditaa`) | Deterministic stub | ASCII-art body preserved verbatim inside a labeled monospace frame. |
+| Chart diagrams (`@startchart`/`@endchart`) | Supported (visual) | Parses `bar`/`line`/`pie` subtype plus `"label" value` rows; renders bar columns, line plots, or labeled pie slices with deterministic palette colors. |
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`. |
 | Messages + common arrows | Supported | Includes forms like `->`, `-->`, `<-` with optional labels. |

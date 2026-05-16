@@ -1,0 +1,7 @@
+@startchart
+title Bar Demo
+bar
+"Apples" 10
+"Bananas" 20
+"Cherries" 15
+@endchart
