@@ -1,0 +1,7 @@
+@startgantt
+[Design]
+[Build]
+[Kickoff] happens on 2026-05-01
+[Build] starts 2026-05-02
+[Build] requires [Design]
+@endgantt

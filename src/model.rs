@@ -8,6 +8,45 @@ use crate::theme::SequenceStyle;
 pub enum NormalizedDocument {
     Sequence(SequenceDocument),
     Family(FamilyDocument),
+    Timeline(TimelineDocument),
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineDocument {
+    pub kind: DiagramKind,
+    pub tasks: Vec<TimelineTask>,
+    pub milestones: Vec<TimelineMilestone>,
+    pub constraints: Vec<TimelineConstraint>,
+    pub chronology_events: Vec<TimelineChronologyEvent>,
+    pub title: Option<String>,
+    pub header: Option<String>,
+    pub footer: Option<String>,
+    pub caption: Option<String>,
+    pub legend: Option<String>,
+    pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineTask {
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineMilestone {
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineConstraint {
+    pub subject: String,
+    pub kind: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineChronologyEvent {
+    pub subject: String,
+    pub when: String,
 }
 
 #[derive(Debug, Clone)]

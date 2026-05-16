@@ -94,6 +94,8 @@ fn theme_new_and_default_enable_footbox_and_empty_skinparams() {
 fn diagram_family_as_str_covers_all_variants() {
     assert_eq!(DiagramFamily::Sequence.as_str(), "sequence");
     assert_eq!(DiagramFamily::Class.as_str(), "class");
+    assert_eq!(DiagramFamily::Gantt.as_str(), "gantt");
+    assert_eq!(DiagramFamily::Chronology.as_str(), "chronology");
     assert_eq!(DiagramFamily::State.as_str(), "state");
     assert_eq!(DiagramFamily::Activity.as_str(), "activity");
     assert_eq!(DiagramFamily::Component.as_str(), "component");
@@ -217,6 +219,8 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     let component = "@startuml\ncomponent API\n@enduml\n";
     let mindmap = "@startmindmap\n* Root\n@endmindmap\n";
     let wbs = "@startwbs\n* Scope\n@endwbs\n";
+    let gantt = "@startgantt\n[Build]\n@endgantt\n";
+    let chronology = "@startchronology\nLaunch happens on 2026-05-16\n@endchronology\n";
 
     assert_eq!(
         detect_diagram_family(sequence).expect("sequence family"),
@@ -233,6 +237,14 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     assert_eq!(
         detect_diagram_family(wbs).expect("wbs family"),
         DiagramFamily::Wbs
+    );
+    assert_eq!(
+        detect_diagram_family(gantt).expect("gantt family"),
+        DiagramFamily::Gantt
+    );
+    assert_eq!(
+        detect_diagram_family(chronology).expect("chronology family"),
+        DiagramFamily::Chronology
     );
 
     let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";

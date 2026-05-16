@@ -14,6 +14,8 @@ pub enum DiagramKind {
     UseCase,
     MindMap,
     Wbs,
+    Gantt,
+    Chronology,
     Component,
     Deployment,
     State,
@@ -36,6 +38,21 @@ pub enum StatementKind {
     ObjectDecl(ObjectDecl),
     UseCaseDecl(UseCaseDecl),
     FamilyRelation(FamilyRelation),
+    GanttTaskDecl {
+        name: String,
+    },
+    GanttMilestoneDecl {
+        name: String,
+    },
+    GanttConstraint {
+        subject: String,
+        kind: String,
+        target: String,
+    },
+    ChronologyHappensOn {
+        subject: String,
+        when: String,
+    },
     Note(Note),
     Group(Group),
     Title(String),
@@ -43,7 +60,10 @@ pub enum StatementKind {
     Footer(String),
     Caption(String),
     Legend(String),
-    SkinParam { key: String, value: String },
+    SkinParam {
+        key: String,
+        value: String,
+    },
     Theme(String),
     Pragma(String),
     Footbox(bool),
@@ -60,7 +80,10 @@ pub enum StatementKind {
     Create(String),
     Return(Option<String>),
     Include(String),
-    Define { name: String, value: Option<String> },
+    Define {
+        name: String,
+        value: Option<String>,
+    },
     Undef(String),
     Unknown(String),
 }

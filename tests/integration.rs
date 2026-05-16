@@ -373,6 +373,64 @@ fn non_sequence_wbs_reports_deterministic_family_code() {
 }
 
 #[test]
+fn gantt_and_chronology_baseline_inputs_pass_check() {
+    for case in [
+        "timeline/valid_gantt_baseline.puml",
+        "timeline/valid_chronology_baseline.puml",
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .success()
+            .stderr(predicate::str::is_empty());
+    }
+}
+
+#[test]
+fn gantt_and_chronology_dump_model_is_stable() {
+    for case in [
+        "timeline/valid_gantt_baseline.puml",
+        "timeline/valid_chronology_baseline.puml",
+    ] {
+        let out = Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--dump", "model", &fixture(case)])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let json: Value = serde_json::from_slice(&out).unwrap();
+        assert_json_snapshot!(
+            format!("timeline_dump_model__{}", case.replace('/', "__")),
+            json
+        );
+    }
+}
+
+#[test]
+fn gantt_and_chronology_unsupported_baseline_syntax_is_deterministic() {
+    for (case, code) in [
+        (
+            "errors/invalid_gantt_unsupported_baseline.puml",
+            "E_GANTT_UNSUPPORTED",
+        ),
+        (
+            "errors/invalid_chronology_unsupported_baseline.puml",
+            "E_CHRONOLOGY_UNSUPPORTED",
+        ),
+    ] {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .code(1)
+            .stderr(predicate::str::contains(code));
+    }
+}
+
+#[test]
 fn check_mode_passes_for_additional_valid_fixtures() {
     for case in [
         "single_valid.puml",

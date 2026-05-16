@@ -149,6 +149,9 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
             NormalizedDocument::Sequence(_) => {
                 panic!("expected family stub model for {case}");
             }
+            NormalizedDocument::Timeline(_) => {
+                panic!("expected family stub model for {case}");
+            }
         }
     }
 }
@@ -168,6 +171,50 @@ fn normalize_family_rejects_unknown_family_with_deterministic_code() {
     let doc = parse(src).expect("parse should succeed");
     let err = normalize_family(doc).expect_err("unknown family should be rejected");
     assert!(err.message.contains("E_FAMILY_UNKNOWN"));
+}
+
+#[test]
+fn normalize_family_accepts_gantt_and_chronology_baseline_models() {
+    for src in [
+        "@startgantt\n[Build]\n[M1] happens on 2026-05-01\n[Build] starts 2026-04-01\n@endgantt\n",
+        "@startchronology\nLaunch happens on 2026-05-15\n@endchronology\n",
+    ] {
+        let doc = parse(src).expect("parse should succeed");
+        let normalized = normalize_family(doc).expect("timeline baseline should normalize");
+        match normalized {
+            NormalizedDocument::Timeline(model) => {
+                assert!(!model.tasks.is_empty() || !model.chronology_events.is_empty())
+            }
+            other => panic!("expected timeline model, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn render_timeline_stub_svg_contains_expected_labels() {
+    for (src, expected_label, expected_row) in [
+        (
+            "@startgantt\n[Build]\n[Build] starts 2026-04-01\n@endgantt\n",
+            "Baseline gantt model",
+            "task: Build",
+        ),
+        (
+            "@startchronology\nLaunch happens on 2026-05-15\n@endchronology\n",
+            "Baseline chronology model",
+            "event: Launch happens on 2026-05-15",
+        ),
+    ] {
+        let doc = parse(src).expect("parse should succeed");
+        let normalized = normalize_family(doc).expect("timeline baseline should normalize");
+        let NormalizedDocument::Timeline(model) = normalized else {
+            panic!("expected timeline model");
+        };
+        let svg = render::render_timeline_stub_svg(&model);
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains(expected_label));
+        assert!(svg.contains(expected_row));
+        assert!(svg.contains("</svg>"));
+    }
 }
 
 #[test]
@@ -419,6 +466,7 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
             assert!(model.warnings.is_empty());
         }
         NormalizedDocument::Sequence(_) => panic!("expected family model"),
+        NormalizedDocument::Timeline(_) => panic!("expected family model"),
     }
 }
 

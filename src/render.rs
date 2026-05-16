@@ -1,5 +1,7 @@
 use crate::ast::DiagramKind;
-use crate::model::{FamilyDocument, FamilyNodeKind, ParticipantRole, VirtualEndpointKind};
+use crate::model::{
+    FamilyDocument, FamilyNodeKind, ParticipantRole, TimelineDocument, VirtualEndpointKind,
+};
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
@@ -353,6 +355,8 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Gantt => "gantt",
+        DiagramKind::Chronology => "chronology",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -371,6 +375,73 @@ fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::Object => "object",
         FamilyNodeKind::UseCase => "usecase",
     }
+}
+
+pub fn render_timeline_stub_svg(document: &TimelineDocument) -> String {
+    let width = 760;
+    let event_rows =
+        (document.tasks.len() + document.milestones.len() + document.constraints.len()) as i32;
+    let chronology_rows = document.chronology_events.len() as i32;
+    let height = 180 + (event_rows * 20) + (chronology_rows * 20);
+    let mut y = 32;
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
+        width, height, width, height
+    ));
+    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">Baseline {} model</text>",
+        y,
+        match document.kind {
+            DiagramKind::Gantt => "gantt",
+            DiagramKind::Chronology => "chronology",
+            _ => "timeline",
+        }
+    ));
+    y += 26;
+    out.push_str(&format!(
+        "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#334155\">Render parity for this family is out-of-scope in this slice.</text>",
+        y
+    ));
+    y += 28;
+    for task in &document.tasks {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">task: {}</text>",
+            y,
+            escape_text(&task.name)
+        ));
+        y += 20;
+    }
+    for milestone in &document.milestones {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">milestone: {}</text>",
+            y,
+            escape_text(&milestone.name)
+        ));
+        y += 20;
+    }
+    for constraint in &document.constraints {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">constraint: {} {} {}</text>",
+            y,
+            escape_text(&constraint.subject),
+            escape_text(&constraint.kind),
+            escape_text(&constraint.target)
+        ));
+        y += 20;
+    }
+    for evt in &document.chronology_events {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">event: {} happens on {}</text>",
+            y,
+            escape_text(&evt.subject),
+            escape_text(&evt.when)
+        ));
+        y += 20;
+    }
+    out.push_str("</svg>");
+    out
 }
 
 fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: VirtualEndpointKind) {
