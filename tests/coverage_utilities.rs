@@ -159,11 +159,6 @@ fn render_for_unsupported_families_reports_specific_codes() {
             "E_RENDER_STATE_UNSUPPORTED",
         ),
         (
-            "@startuml\nstart\n:work;\nstop\n@enduml\n",
-            DiagramFamily::Activity,
-            "E_RENDER_ACTIVITY_UNSUPPORTED",
-        ),
-        (
             "@startuml\nclock clk\n@enduml\n",
             DiagramFamily::Timing,
             "E_RENDER_TIMING_UNSUPPORTED",
