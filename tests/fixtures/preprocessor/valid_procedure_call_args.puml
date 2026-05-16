@@ -1,0 +1,7 @@
+@startuml
+!procedure Emit($from, $to="B", $txt="ok")
+$from -> $to: $txt
+!endprocedure
+!Emit(A)
+!Emit($to=D, $from=C, $txt=go)
+@enduml

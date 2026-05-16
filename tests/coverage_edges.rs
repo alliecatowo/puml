@@ -39,6 +39,37 @@ fn parser_define_substitution_skips_quoted_tokens() {
 }
 
 #[test]
+fn parser_preprocessor_variables_and_callable_invocations_expand_deterministically() {
+    let src = "@startuml\n!$name = Alice\n!function F($x,$y=\"B\")\n!return $x + $y\n!endfunction\n!procedure P($from,$to)\n$from -> $to: via-proc\n!endprocedure\n!P($name, Bob)\n$name -> Bob: %F(\"A\")\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let labels = model
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            SequenceEventKind::Message { label, .. } => label.clone(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["via-proc", "\"A\" + \"B\""]);
+}
+
+#[test]
+fn parser_preprocessor_concat_and_procedure_return_fail_with_stable_codes() {
+    let concat_src =
+        "@startuml\n!function Join($a##$b)\n!return $a\n!endfunction\nA -> B\n@enduml\n";
+    let concat_err = parse(concat_src).expect_err("expected concat unsupported");
+    assert!(concat_err.message.contains("E_PREPROC_CONCAT_UNSUPPORTED"));
+
+    let proc_return_src =
+        "@startuml\n!procedure Bad($x)\n!return $x\n!endprocedure\n!Bad(\"A\")\n@enduml\n";
+    let proc_return_err = parse(proc_return_src).expect_err("expected procedure return failure");
+    assert!(proc_return_err
+        .message
+        .contains("E_PREPROC_RETURN_UNEXPECTED"));
+}
+
+#[test]
 fn parser_include_from_stdin_requires_include_root() {
     let src = "@startuml\n!include child.puml\n@enduml\n";
     let err =
