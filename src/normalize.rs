@@ -48,7 +48,6 @@ pub fn normalize_family_with_options(
         | DiagramKind::Wbs
         | DiagramKind::Component
         | DiagramKind::Deployment
-        | DiagramKind::Activity
         | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
         DiagramKind::Unknown => Err(Diagnostic::error(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
