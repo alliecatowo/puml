@@ -13,6 +13,7 @@ const GROUP_TEXT_INSET_X: i32 = 8;
 const GROUP_HEADER_BASELINE_Y: i32 = 16;
 const GROUP_REF_BODY_BASELINE_Y: i32 = 32;
 const GROUP_BOTTOM_PADDING: i32 = 8;
+const NOTE_TEXT_WIDTH_GUARD_PX: i32 = 8;
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     let mut pages = layout_pages(document, options);
@@ -172,7 +173,8 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             } => {
                 let y = events_top + (event_rows * options.message_row_height);
                 let (content_width, text_lines) = multiline_metrics(text);
-                let width_from_text = content_width + (options.note_padding * 2);
+                let width_from_text =
+                    content_width + (options.note_padding * 2) + NOTE_TEXT_WIDTH_GUARD_PX;
                 let width = options.note_width.max(width_from_text);
                 let height = (text_lines * TEXT_LINE_HEIGHT) + (options.note_padding * 2);
                 let (x, width) = note_horizontal_bounds(
