@@ -1168,6 +1168,273 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
     }
 }
 
+// ─── Class-family skinparam support ─────────────────────────────────────────
+
+/// Style overrides for class/object/usecase diagrams.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassStyle {
+    pub background_color: String,
+    pub border_color: String,
+    pub header_color: String,
+    pub member_color: String,
+    pub arrow_color: String,
+    pub font_size: Option<u32>,
+    pub font_name: Option<String>,
+}
+
+impl Default for ClassStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#ffffff".to_string(),
+            border_color: "#1e293b".to_string(),
+            header_color: "#dbeafe".to_string(),
+            member_color: "#334155".to_string(),
+            arrow_color: "#1e293b".to_string(),
+            font_size: None,
+            font_name: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClassSkinParamValue {
+    BackgroundColor(String),
+    BorderColor(String),
+    HeaderBackgroundColor(String),
+    MemberFontColor(String),
+    ArrowColor(String),
+    FontSize(u32),
+    FontName(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SkinParamSupport<V> {
+    SupportedNoop,
+    SupportedWithValue(V),
+    UnsupportedKey,
+    UnsupportedValue,
+}
+
+pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<ClassSkinParamValue> {
+    let normalized = key.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "classbackgroundcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::BackgroundColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "classbordercolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::BorderColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "classheaderbackgroundcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::HeaderBackgroundColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "classmemberfontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::MemberFontColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "classarrowcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ArrowColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "classfontsize" => {
+            if let Ok(n) = value.trim().parse::<u32>() {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::FontSize(n))
+            } else {
+                SkinParamSupport::UnsupportedValue
+            }
+        }
+        "classfontname" => {
+            let name = value.trim();
+            if name.is_empty() {
+                SkinParamSupport::UnsupportedValue
+            } else {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::FontName(
+                    name.to_string(),
+                ))
+            }
+        }
+        _ => SkinParamSupport::UnsupportedKey,
+    }
+}
+
+// ─── State-family skinparam support ─────────────────────────────────────────
+
+/// Style overrides for state diagrams.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateStyle {
+    pub background_color: String,
+    pub border_color: String,
+    pub arrow_color: String,
+    pub start_color: String,
+    pub font_size: Option<u32>,
+}
+
+impl Default for StateStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#f6f6f6".to_string(),
+            border_color: "#1e293b".to_string(),
+            arrow_color: "#1e293b".to_string(),
+            start_color: "#0f172a".to_string(),
+            font_size: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StateSkinParamValue {
+    BackgroundColor(String),
+    BorderColor(String),
+    ArrowColor(String),
+    StartColor(String),
+    FontSize(u32),
+}
+
+pub fn classify_state_skinparam(key: &str, value: &str) -> SkinParamSupport<StateSkinParamValue> {
+    let normalized = key.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "statebackgroundcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::BackgroundColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "statebordercolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::BorderColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "statearrowcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::ArrowColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "statestartcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::StartColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "statefontsize" => {
+            if let Ok(n) = value.trim().parse::<u32>() {
+                SkinParamSupport::SupportedWithValue(StateSkinParamValue::FontSize(n))
+            } else {
+                SkinParamSupport::UnsupportedValue
+            }
+        }
+        _ => SkinParamSupport::UnsupportedKey,
+    }
+}
+
+// ─── Component-family skinparam support ──────────────────────────────────────
+
+/// Style overrides for component/deployment diagrams.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentStyle {
+    pub background_color: String,
+    pub border_color: String,
+    pub interface_color: String,
+    pub arrow_color: String,
+}
+
+impl Default for ComponentStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#f0f4f8".to_string(),
+            border_color: "#1e293b".to_string(),
+            interface_color: "#e2e8f0".to_string(),
+            arrow_color: "#1e293b".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ComponentSkinParamValue {
+    BackgroundColor(String),
+    BorderColor(String),
+    InterfaceColor(String),
+    ArrowColor(String),
+}
+
+pub fn classify_component_skinparam(
+    key: &str,
+    value: &str,
+) -> SkinParamSupport<ComponentSkinParamValue> {
+    let normalized = key.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "componentbackgroundcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::BackgroundColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "componentbordercolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::BorderColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "interfacebackgroundcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::InterfaceColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "componentarrowcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::ArrowColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        _ => SkinParamSupport::UnsupportedKey,
+    }
+}
+
+// ─── Activity-family skinparam support ───────────────────────────────────────
+
+/// Style overrides for activity diagrams.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivityStyle {
+    pub background_color: String,
+    pub border_color: String,
+    pub diamond_color: String,
+    pub fork_color: String,
+    pub arrow_color: String,
+}
+
+impl Default for ActivityStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#ecfdf5".to_string(),
+            border_color: "#047857".to_string(),
+            diamond_color: "#fef9c3".to_string(),
+            fork_color: "#0f172a".to_string(),
+            arrow_color: "#0f172a".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActivitySkinParamValue {
+    BackgroundColor(String),
+    BorderColor(String),
+    DiamondBackgroundColor(String),
+    BarColor(String),
+    ArrowColor(String),
+}
+
+pub fn classify_activity_skinparam(
+    key: &str,
+    value: &str,
+) -> SkinParamSupport<ActivitySkinParamValue> {
+    let normalized = key.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "activitybackgroundcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BackgroundColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "activitybordercolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BorderColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "activitydiamondbackgroundcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(
+                    ActivitySkinParamValue::DiamondBackgroundColor(c),
+                )
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "activitybarcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BarColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "activityarrowcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::ArrowColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        _ => SkinParamSupport::UnsupportedKey,
+    }
+}
+
 fn parse_footbox_value(value: &str) -> Option<SequenceSkinParamValue> {
     let normalized = value.trim().to_ascii_lowercase();
     let visible = match normalized.as_str() {

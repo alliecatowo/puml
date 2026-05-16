@@ -1,0 +1,22 @@
+@startuml
+skinparam ActivityBackgroundColor #fdf4ff
+skinparam ActivityBorderColor #9333ea
+skinparam ActivityDiamondBackgroundColor #f3e8ff
+skinparam ActivityBarColor #3b0764
+skinparam ActivityArrowColor #7e22ce
+
+start
+:Receive request;
+if (Valid?) then (yes)
+  :Process request;
+  fork
+    :Notify user;
+  fork again
+    :Log event;
+  end fork
+  :Send response;
+else (no)
+  :Return error;
+endif
+stop
+@enduml

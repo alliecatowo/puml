@@ -20,9 +20,12 @@ use crate::model::{
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
-    classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
-    SequenceSkinParamValue, SequenceStyle,
+    classify_activity_skinparam, classify_class_skinparam, classify_component_skinparam,
+    classify_sequence_skinparam, classify_state_skinparam, resolve_sequence_theme_preset,
+    ActivityStyle, ClassStyle, ComponentStyle, SequenceSkinParamSupport, SequenceSkinParamValue,
+    SequenceStyle, SkinParamSupport, StateStyle,
 };
+use crate::model::FamilyStyle;
 
 #[derive(Debug, Clone, Default)]
 pub struct NormalizeOptions {
@@ -1079,9 +1082,72 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut class_style = ClassStyle::default();
+    let mut warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SkinParam { key, value } => {
+                match classify_class_skinparam(&key, &value) {
+                    SkinParamSupport::SupportedNoop => {}
+                    SkinParamSupport::SupportedWithValue(v) => {
+                        use crate::theme::ClassSkinParamValue;
+                        match v {
+                            ClassSkinParamValue::BackgroundColor(c) => {
+                                class_style.background_color = c;
+                            }
+                            ClassSkinParamValue::BorderColor(c) => {
+                                class_style.border_color = c;
+                            }
+                            ClassSkinParamValue::HeaderBackgroundColor(c) => {
+                                class_style.header_color = c;
+                            }
+                            ClassSkinParamValue::MemberFontColor(c) => {
+                                class_style.member_color = c;
+                            }
+                            ClassSkinParamValue::ArrowColor(c) => {
+                                class_style.arrow_color = c;
+                            }
+                            ClassSkinParamValue::FontSize(n) => {
+                                class_style.font_size = Some(n);
+                            }
+                            ClassSkinParamValue::FontName(n) => {
+                                class_style.font_name = Some(n);
+                            }
+                        }
+                    }
+                    SkinParamSupport::UnsupportedKey => {
+                        // Class diagrams accept generic sequence keys silently
+                        // (PlantUML applies them across all families).
+                        use crate::theme::{
+                            classify_sequence_skinparam, SequenceSkinParamSupport,
+                        };
+                        if !matches!(
+                            classify_sequence_skinparam(&key, &value),
+                            SequenceSkinParamSupport::UnsupportedKey
+                        ) {
+                            // Recognized sequence key — no warning.
+                        } else {
+                            warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                                    key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                    SkinParamSupport::UnsupportedValue => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                }
+            }
             StatementKind::JsonProjection { alias, body } => {
                 json_projections.push(crate::model::JsonProjection { alias, body });
             }
@@ -1200,8 +1266,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::SkinParam { .. }
-            | StatementKind::Theme(_)
+            StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -1288,8 +1353,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         legend,
         orientation: FamilyOrientation::TopToBottom,
         style: SequenceStyle::default(),
+        family_style: Some(FamilyStyle::Class(class_style)),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
-        warnings: Vec::new(),
+        warnings,
     })
 }
 
@@ -1301,6 +1367,8 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut state_style = StateStyle::default();
+    let mut warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in &document.statements {
         match &stmt.kind {
@@ -1358,8 +1426,48 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
             StatementKind::Footer(v) => footer = Some(v.clone()),
             StatementKind::Caption(v) => caption = Some(v.clone()),
             StatementKind::Legend(v) => legend = Some(v.clone()),
-            StatementKind::SkinParam { .. }
-            | StatementKind::Theme(_)
+            StatementKind::SkinParam { key, value } => {
+                use crate::theme::StateSkinParamValue;
+                match classify_state_skinparam(key, value) {
+                    SkinParamSupport::SupportedNoop => {}
+                    SkinParamSupport::SupportedWithValue(v) => match v {
+                        StateSkinParamValue::BackgroundColor(c) => {
+                            state_style.background_color = c;
+                        }
+                        StateSkinParamValue::BorderColor(c) => {
+                            state_style.border_color = c;
+                        }
+                        StateSkinParamValue::ArrowColor(c) => {
+                            state_style.arrow_color = c;
+                        }
+                        StateSkinParamValue::StartColor(c) => {
+                            state_style.start_color = c;
+                        }
+                        StateSkinParamValue::FontSize(n) => {
+                            state_style.font_size = Some(n);
+                        }
+                    },
+                    SkinParamSupport::UnsupportedKey => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                                key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                    SkinParamSupport::UnsupportedValue => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                }
+            }
+            StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -1390,7 +1498,8 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
         footer,
         caption,
         legend,
-        warnings: Vec::new(),
+        state_style,
+        warnings,
     })
 }
 
@@ -1799,6 +1908,7 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
         legend,
         orientation,
         style,
+        family_style: None,
         text_overflow_policy,
         warnings,
         groups: Vec::new(),
@@ -1983,6 +2093,9 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut caption = None;
     let mut legend = None;
     let mut activity_step_counter: usize = 0;
+    let mut component_style = ComponentStyle::default();
+    let mut activity_style = ActivityStyle::default();
+    let mut ext_warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -2087,8 +2200,94 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
             StatementKind::Legend(v) => {
                 legend = Some(strip_legend_pos_prefix(&v));
             }
-            StatementKind::SkinParam { .. }
-            | StatementKind::Theme(_)
+            StatementKind::SkinParam { key, value } => {
+                let mut handled = false;
+                if matches!(family_kind, DiagramKind::Component | DiagramKind::Deployment) {
+                    use crate::theme::ComponentSkinParamValue;
+                    match classify_component_skinparam(&key, &value) {
+                        SkinParamSupport::SupportedNoop => {
+                            handled = true;
+                        }
+                        SkinParamSupport::SupportedWithValue(v) => {
+                            handled = true;
+                            match v {
+                                ComponentSkinParamValue::BackgroundColor(c) => {
+                                    component_style.background_color = c;
+                                }
+                                ComponentSkinParamValue::BorderColor(c) => {
+                                    component_style.border_color = c;
+                                }
+                                ComponentSkinParamValue::InterfaceColor(c) => {
+                                    component_style.interface_color = c;
+                                }
+                                ComponentSkinParamValue::ArrowColor(c) => {
+                                    component_style.arrow_color = c;
+                                }
+                            }
+                        }
+                        SkinParamSupport::UnsupportedKey => {}
+                        SkinParamSupport::UnsupportedValue => {
+                            handled = true;
+                            ext_warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                    value, key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                }
+                if !handled && matches!(family_kind, DiagramKind::Activity) {
+                    use crate::theme::ActivitySkinParamValue;
+                    match classify_activity_skinparam(&key, &value) {
+                        SkinParamSupport::SupportedNoop => {
+                            handled = true;
+                        }
+                        SkinParamSupport::SupportedWithValue(v) => {
+                            handled = true;
+                            match v {
+                                ActivitySkinParamValue::BackgroundColor(c) => {
+                                    activity_style.background_color = c;
+                                }
+                                ActivitySkinParamValue::BorderColor(c) => {
+                                    activity_style.border_color = c;
+                                }
+                                ActivitySkinParamValue::DiamondBackgroundColor(c) => {
+                                    activity_style.diamond_color = c;
+                                }
+                                ActivitySkinParamValue::BarColor(c) => {
+                                    activity_style.fork_color = c;
+                                }
+                                ActivitySkinParamValue::ArrowColor(c) => {
+                                    activity_style.arrow_color = c;
+                                }
+                            }
+                        }
+                        SkinParamSupport::UnsupportedKey => {}
+                        SkinParamSupport::UnsupportedValue => {
+                            handled = true;
+                            ext_warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                    value, key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                }
+                if !handled {
+                    ext_warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                            key
+                        ))
+                        .with_span(stmt.span),
+                    );
+                }
+            }
+            StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -2113,6 +2312,14 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         }
     }
 
+    let family_style = match family_kind {
+        DiagramKind::Component | DiagramKind::Deployment => {
+            Some(FamilyStyle::Component(component_style))
+        }
+        DiagramKind::Activity => Some(FamilyStyle::Activity(activity_style)),
+        _ => None,
+    };
+
     Ok(FamilyDocument {
         kind: family_kind,
         nodes,
@@ -2124,8 +2331,9 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         legend,
         orientation: FamilyOrientation::TopToBottom,
         style: SequenceStyle::default(),
+        family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
-        warnings: Vec::new(),
+        warnings: ext_warnings,
         groups: Vec::new(),
         json_projections: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),

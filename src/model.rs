@@ -4,7 +4,7 @@ use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
 use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
-use crate::theme::SequenceStyle;
+use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle, SequenceStyle, StateStyle};
 
 /// How to scale (or fix the size of) the output SVG.
 #[derive(Debug, Clone, PartialEq)]
@@ -47,6 +47,7 @@ pub struct StateDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    pub state_style: StateStyle,
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -354,6 +355,15 @@ pub struct JsonProjection {
     pub body: String,
 }
 
+/// Per-family style overrides carried through the model.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FamilyStyle {
+    Class(ClassStyle),
+    State(StateStyle),
+    Component(ComponentStyle),
+    Activity(ActivityStyle),
+}
+
 #[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
@@ -370,6 +380,8 @@ pub struct FamilyDocument {
     pub legend: Option<String>,
     pub orientation: FamilyOrientation,
     pub style: SequenceStyle,
+    /// Family-specific style overrides (class/state/component/activity).
+    pub family_style: Option<FamilyStyle>,
     pub text_overflow_policy: TextOverflowPolicy,
     pub warnings: Vec<Diagnostic>,
 }

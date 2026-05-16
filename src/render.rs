@@ -2,11 +2,12 @@ use crate::ast::{DiagramKind, MemberModifier};
 use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::model::{
     ArchimateDocument, ChartDocument, ChartSubtype, DitaaDocument, EbnfDocument, EbnfToken,
-    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, JsonDocument, LegendHAlign,
-    LegendVAlign, MathDocument, MindMapSide, NwdiagDocument, ParticipantRole, RegexDocument,
-    RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind, StateDocument, StateNode,
-    StateNodeKind, TimelineDocument, VirtualEndpointKind, WbsCheckbox, YamlDocument,
+    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle, JsonDocument,
+    LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument, ParticipantRole,
+    RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind, StateDocument,
+    StateNode, StateNodeKind, TimelineDocument, VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
+use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle};
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
@@ -407,6 +408,12 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
 /// (header + member compartment) laid out in a simple grid, plus arrows
 /// for the document's relations.
 pub fn render_class_svg(document: &FamilyDocument) -> String {
+    // Extract class style (use defaults if not present)
+    let class_style = match &document.family_style {
+        Some(FamilyStyle::Class(s)) => s.clone(),
+        _ => ClassStyle::default(),
+    };
+
     // Layout constants
     let margin_x: i32 = 32;
     let margin_top: i32 = 32;
@@ -533,32 +540,33 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
-    // Arrowhead/diamond marker defs
+    // Arrowhead/diamond marker defs — use class_style.arrow_color for stroke
+    let arrow_stroke = &class_style.arrow_color;
     out.push_str("<defs>");
-    out.push_str(
+    out.push_str(&format!(
         "<marker id=\"arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
          markerWidth=\"10\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"#1e293b\" stroke-width=\"1.5\"/>\
+         <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
          </marker>",
-    );
-    out.push_str(
+    ));
+    out.push_str(&format!(
         "<marker id=\"arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
          markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"#1e293b\" stroke-width=\"1.5\"/>\
+         <path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
          </marker>",
-    );
-    out.push_str(
+    ));
+    out.push_str(&format!(
         "<marker id=\"arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
          markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#1e293b\" stroke=\"#1e293b\" stroke-width=\"1\"/>\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
-    );
-    out.push_str(
+    ));
+    out.push_str(&format!(
         "<marker id=\"arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
          markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"#1e293b\" stroke-width=\"1\"/>\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
-    );
+    ));
     out.push_str("</defs>");
 
     // Title
@@ -600,14 +608,15 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             markers.push_str(&format!(" marker-start=\"url(#{start})\""));
         }
         out.push_str(&format!(
-            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#1e293b\" stroke-width=\"1.5\"{dash}{markers}/>",
+            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"{dash}{markers}/>",
             dash = stroke_dash
         ));
         if let Some(label) = &relation.label {
             let lx = (x1 + x2) / 2;
             let ly = (y1 + y2) / 2 - 4;
             out.push_str(&format!(
-                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{txt}</text>",
+                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
+                member_color = class_style.member_color,
                 txt = escape_text(label)
             ));
         }
@@ -666,7 +675,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let Some(bx) = node_boxes.get(&key) else {
             continue;
         };
-        render_class_node(&mut out, node, bx.x, bx.y, bx.w, bx.h, bx.header_h);
+        render_class_node(
+            &mut out,
+            node,
+            bx.x,
+            bx.y,
+            bx.w,
+            bx.h,
+            bx.header_h,
+            &class_style,
+        );
     }
 
     // Render inline JSON projections (yellow labelled rectangles with key: value layout).
@@ -1560,6 +1578,7 @@ fn render_class_node(
     w: i32,
     h: i32,
     header_h: i32,
+    class_style: &ClassStyle,
 ) {
     // ── C4 node rendering ─────────────────────────────────────────────────────
     if is_c4_kind(node.kind) {
@@ -1567,11 +1586,13 @@ fn render_class_node(
         return;
     }
 
-    let (fill, stroke, header_fill) = match node.kind {
-        FamilyNodeKind::Class => ("#ffffff", "#1e293b", "#dbeafe"),
-        FamilyNodeKind::Object => ("#ffffff", "#1e293b", "#fef3c7"),
-        FamilyNodeKind::UseCase => ("#ffffff", "#1e293b", "#dcfce7"),
-        _ => ("#ffffff", "#1e293b", "#f1f5f9"),
+    let fill = &class_style.background_color;
+    let stroke = &class_style.border_color;
+    let header_fill = match node.kind {
+        FamilyNodeKind::Class => class_style.header_color.as_str(),
+        FamilyNodeKind::Object => "#fef3c7",
+        FamilyNodeKind::UseCase => "#dcfce7",
+        _ => "#f1f5f9",
     };
 
     if matches!(node.kind, FamilyNodeKind::UseCase) {
@@ -1600,8 +1621,9 @@ fn render_class_node(
         let mut my = y + h + 14;
         for member in &node.members {
             out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{m}</text>",
+                "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{mc}\">{m}</text>",
                 tx = x + w / 2,
+                mc = class_style.member_color,
                 m = escape_text(&member.text)
             ));
             my += 14;
@@ -1670,6 +1692,9 @@ fn render_class_node(
             }
             Some(MemberModifier::Method) | None => {}
         }
+        // If no explicit visibility color, fall back to member_color from style
+        let effective_color = vis_color;
+        let _ = &class_style.member_color; // Available if needed for override
         // Reconstruct display text: keep visibility prefix + remaining text
         let display_text = if vis_sym.is_some() {
             format!("{}{}", vis_sym.unwrap_or(""), text_after_mod)
@@ -1679,7 +1704,7 @@ fn render_class_node(
         out.push_str(&format!(
             "<text x=\"{tx}\" y=\"{my}\" font-family=\"monospace\" font-size=\"11\" fill=\"{vc}\"{sa}>{m}</text>",
             tx = x + 10,
-            vc = vis_color,
+            vc = effective_color,
             sa = style_attrs,
             m = escape_text(&display_text)
         ));
@@ -2459,6 +2484,12 @@ pub fn render_deployment_svg(doc: &FamilyDocument) -> String {
 }
 
 fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
+    // Extract component style (use defaults if not present)
+    let comp_style = match &doc.family_style {
+        Some(FamilyStyle::Component(s)) => s.clone(),
+        _ => ComponentStyle::default(),
+    };
+
     let cols = 3i32;
     let cell_w = 200i32;
     let cell_h = 80i32;
@@ -2511,7 +2542,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let row = (idx as i32) / cols;
         let x = margin_x + col * (cell_w + gap);
         let y = header_h + margin_y + row * (cell_h + gap);
-        render_family_node_shape(&mut out, node, x, y, cell_w, cell_h);
+        render_family_node_shape_styled(&mut out, node, x, y, cell_w, cell_h, &comp_style);
         let id_name = node.name.clone();
         let id_alias = node.alias.clone();
         positions.insert(id_name, (x, y, cell_w, cell_h));
@@ -2540,11 +2571,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             ""
         };
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#334155\" stroke-width=\"1.5\"{}/>",
-            x1, y1, x2, y2, dash
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
+            x1, y1, x2, y2, comp_style.arrow_color, dash
         ));
         // arrowhead
-        out.push_str(&arrowhead_svg(x1, y1, x2, y2, "#334155"));
+        out.push_str(&arrowhead_svg(x1, y1, x2, y2, &comp_style.arrow_color));
         if let Some(label) = &rel.label {
             let mx = (x1 + x2) / 2;
             let my = (y1 + y2) / 2 - 6;
@@ -2983,7 +3014,78 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
     ));
 }
 
+/// Styled variant of `render_family_node_shape` that applies `comp_style` for
+/// Component/Interface nodes and falls back to the default for others.
+fn render_family_node_shape_styled(
+    out: &mut String,
+    node: &FamilyNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    comp_style: &ComponentStyle,
+) {
+    let cx = x + w / 2;
+    let cy = y + h / 2;
+    let display = node.label.clone().unwrap_or_else(|| node.name.clone());
+    let kind_label = family_node_label(node.kind);
+
+    match node.kind {
+        FamilyNodeKind::Interface => {
+            let r = 18;
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                cx, cy, r, comp_style.interface_color, comp_style.border_color
+            ));
+        }
+        FamilyNodeKind::Component => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x, y, w, h, comp_style.background_color, comp_style.border_color
+            ));
+            // component badges (two small rectangles on the left edge)
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x - 4, y + 12, comp_style.background_color, comp_style.border_color
+            ));
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x - 4, y + h - 20, comp_style.background_color, comp_style.border_color
+            ));
+        }
+        _ => {
+            // Delegate to the non-styled version for all other shapes
+            render_family_node_shape(out, node, x, y, w, h);
+            return;
+        }
+    }
+
+    // Label
+    let (label_x, label_y) = match node.kind {
+        FamilyNodeKind::Interface => (cx, cy + 28),
+        _ => (cx, cy + 6),
+    };
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\">{}</text>",
+        label_x, label_y, escape_text(&display)
+    ));
+    let kind_tag_y = match node.kind {
+        FamilyNodeKind::Interface => label_y + 14,
+        _ => y + 14,
+    };
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
+        cx, kind_tag_y, kind_label
+    ));
+}
+
 pub fn render_activity_svg(doc: &FamilyDocument) -> String {
+    // Extract activity style (use defaults if not present)
+    let act_style = match &doc.family_style {
+        Some(FamilyStyle::Activity(s)) => s.clone(),
+        _ => ActivityStyle::default(),
+    };
+
     let width = 480;
     let step_h = 60;
     let n = doc.nodes.len() as i32;
@@ -3028,29 +3130,34 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         match node.kind {
             FamilyNodeKind::ActivityStart => {
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"#0f172a\"/>",
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\"/>",
                     cx,
-                    y + 20
+                    y + 20,
+                    act_style.fork_color
                 ));
             }
             FamilyNodeKind::ActivityStop => {
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"white\" stroke=\"#0f172a\" stroke-width=\"1.5\"/>",
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                     cx,
-                    y + 20
+                    y + 20,
+                    act_style.fork_color
                 ));
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"7\" fill=\"#0f172a\"/>",
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"7\" fill=\"{}\"/>",
                     cx,
-                    y + 20
+                    y + 20,
+                    act_style.fork_color
                 ));
             }
             FamilyNodeKind::ActivityAction => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"18\" ry=\"18\" fill=\"#ecfdf5\" stroke=\"#047857\" stroke-width=\"1.5\"/>",
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"18\" ry=\"18\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                     cx - box_w / 2,
                     y + 4,
-                    box_w
+                    box_w,
+                    act_style.background_color,
+                    act_style.border_color
                 ));
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
@@ -3064,7 +3171,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 let dx = 100;
                 let dy = 22;
                 out.push_str(&format!(
-                    "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#fef9c3\" stroke=\"#a16207\" stroke-width=\"1.5\"/>",
+                    "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                     cx,
                     y + 2,
                     cx + dx,
@@ -3072,7 +3179,9 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     cx,
                     y + 2 + (dy * 2),
                     cx - dx,
-                    y + 2 + dy
+                    y + 2 + dy,
+                    act_style.diamond_color,
+                    act_style.border_color
                 ));
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\">{}</text>",
@@ -3083,10 +3192,11 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
             FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"#0f172a\"/>",
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
                     cx - box_w / 2,
                     y + 24,
-                    box_w
+                    box_w,
+                    act_style.fork_color
                 ));
             }
             FamilyNodeKind::ActivityMerge => {
@@ -3122,20 +3232,22 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         // arrow from previous
         if let Some(prev_y) = last_y {
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#0f172a\" stroke-width=\"1.5\"/>",
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 cx,
                 prev_y + 42,
                 cx,
-                y
+                y,
+                act_style.arrow_color
             ));
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#0f172a\"/>",
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
                 cx,
                 y,
                 cx - 4,
                 y - 6,
                 cx + 4,
-                y - 6
+                y - 6,
+                act_style.arrow_color
             ));
         }
         last_y = Some(y);
@@ -3348,6 +3460,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // then draw transitions as arrows.
     let nodes = &document.nodes;
     let transitions = &document.transitions;
+    let state_style = &document.state_style;
 
     // Assign coordinates to each node
     let mut node_coords: std::collections::BTreeMap<String, (i32, i32)> =
@@ -3372,7 +3485,10 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         width, height, width, height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
-    out.push_str("<defs><marker id=\"arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"6\" refY=\"3\" orient=\"auto\"><path d=\"M0,0 L0,6 L8,3 z\" fill=\"#333\"/></marker></defs>");
+    out.push_str(&format!(
+        "<defs><marker id=\"arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"6\" refY=\"3\" orient=\"auto\"><path d=\"M0,0 L0,6 L8,3 z\" fill=\"{}\"/></marker></defs>",
+        state_style.arrow_color
+    ));
 
     // Title
     let mut y_header = 28i32;
@@ -3398,8 +3514,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             // Compute start/end points at node boundaries
             let (x1, y1, x2, y2) = transition_endpoints(fx, fy, tx, ty, nodes);
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
-                x1, y1, x2, y2
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
+                x1, y1, x2, y2, state_style.arrow_color
             ));
             if let Some(label) = &t.label {
                 let mx = (x1 + x2) / 2;
@@ -3412,10 +3528,10 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
-    // Draw nodes
+    // Draw nodes — pass state_style for coloring
     for node in nodes {
         if let Some(&(x, y)) = node_coords.get(&node.name) {
-            render_state_node_svg(&mut out, node, x, y);
+            render_state_node_svg_styled(&mut out, node, x, y, state_style);
         }
     }
 
@@ -4305,22 +4421,26 @@ fn transition_endpoints(
     }
 }
 
-/// Render a single state node at (x, y).
-fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
+/// Render a single state node at (x, y) — delegates to the styled version with defaults.
+fn render_state_node_svg_styled(
+    out: &mut String,
+    node: &StateNode,
+    x: i32,
+    y: i32,
+    state_style: &crate::theme::StateStyle,
+) {
     let w = STATE_NODE_W;
     let base_h = STATE_NODE_H;
-    // Extra height for internal actions
     let action_rows = node.internal_actions.len() as i32;
     let h = base_h + action_rows * 14;
 
     match node.kind {
         StateNodeKind::StartEnd => {
-            // Filled circle (start) or double circle (we use filled circle for both [*])
             let cx = x + w / 2;
             let cy = y + base_h / 2;
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"#1e293b\"/>",
-                cx, cy
+                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\"/>",
+                cx, cy, state_style.start_color
             ));
         }
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => {
@@ -4328,21 +4448,21 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
             let cy = y + base_h / 2;
             let label = node.display.as_deref().unwrap_or("H");
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"16\" fill=\"white\" stroke=\"#1e293b\" stroke-width=\"2\"/>",
-                cx, cy
+                "<circle cx=\"{}\" cy=\"{}\" r=\"16\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                cx, cy, state_style.background_color, state_style.border_color
             ));
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#1e293b\">{}</text>",
-                cx, cy, escape_text(label)
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
+                cx, cy, state_style.border_color, escape_text(label)
             ));
         }
         StateNodeKind::Fork | StateNodeKind::Join => {
-            // Thick horizontal bar
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"#1e293b\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
                 x,
                 y + base_h / 2 - 4,
-                w
+                w,
+                state_style.start_color
             ));
             let label = if node.kind == StateNodeKind::Fork {
                 "fork"
@@ -4355,82 +4475,74 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
             ));
         }
         StateNodeKind::Choice => {
-            // Diamond
             let cx = x + w / 2;
             let cy = y + base_h / 2;
             let r = 18i32;
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"white\" stroke=\"#1e293b\" stroke-width=\"2\"/>",
+                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
                 cx, cy - r,
                 cx + r, cy,
                 cx, cy + r,
-                cx - r, cy
+                cx - r, cy,
+                state_style.background_color, state_style.border_color
             ));
         }
         StateNodeKind::End => {
-            // Outer circle + inner filled circle
             let cx = x + w / 2;
             let cy = y + base_h / 2;
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"white\" stroke=\"#1e293b\" stroke-width=\"2\"/>",
-                cx, cy
+                "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                cx, cy, state_style.background_color, state_style.border_color
             ));
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"9\" fill=\"#1e293b\"/>",
-                cx, cy
+                "<circle cx=\"{}\" cy=\"{}\" r=\"9\" fill=\"{}\"/>",
+                cx, cy, state_style.start_color
             ));
         }
         StateNodeKind::Normal => {
-            // Composite or simple state
             let has_regions = node.regions.len() > 1
                 || node.regions.first().map(|r| !r.is_empty()).unwrap_or(false);
             let display = node.display.as_deref().unwrap_or(&node.name);
 
             if has_regions && node.regions.len() > 1 {
-                // Concurrent regions — draw outer box, then divide with dashed vertical line
                 let total_w = w + (node.regions.len() as i32 - 1) * (STATE_NODE_W / 2 + 10);
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#f0f9ff\" stroke=\"#0ea5e9\" stroke-width=\"1.5\"/>",
-                    x, y, total_w, h + 16
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    x, y, total_w, h + 16, state_style.background_color, state_style.border_color
                 ));
-                // State name header
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#0c4a6e\">{}</text>",
                     x + total_w / 2, y + 16, escape_text(display)
                 ));
-                // Dashed dividers between regions
                 let region_w = total_w / node.regions.len() as i32;
                 for ri in 1..node.regions.len() {
                     let div_x = x + ri as i32 * region_w;
                     out.push_str(&format!(
-                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#0ea5e9\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
-                        div_x, y + 24, div_x, y + h + 16
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+                        div_x, y + 24, div_x, y + h + 16, state_style.border_color
                     ));
                 }
-                // Render child nodes in each region
                 for (ri, region) in node.regions.iter().enumerate() {
                     let region_x = x + ri as i32 * region_w + 4;
                     let mut child_y = y + 28;
                     for child in region {
-                        render_state_node_svg(out, child, region_x, child_y);
+                        render_state_node_svg_styled(out, child, region_x, child_y, state_style);
                         child_y += STATE_NODE_H + 12;
                     }
                 }
             } else {
-                // Simple state: rounded rect with name header
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#f8fafc\" stroke=\"#64748b\" stroke-width=\"1.5\"/>",
-                    x, y, w, h
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    x, y, w, h, state_style.background_color, state_style.border_color
                 ));
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#0f172a\">{}</text>",
                     x + w / 2, y + 24, escape_text(display)
                 ));
-                // Separator line if there are internal actions
                 if !node.internal_actions.is_empty() {
                     out.push_str(&format!(
-                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
-                        x, y + base_h - 4, x + w, y + base_h - 4
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y + base_h - 4, x + w, y + base_h - 4, state_style.border_color
                     ));
                     for (ai, action) in node.internal_actions.iter().enumerate() {
                         let ay = y + base_h + ai as i32 * 14;
@@ -4445,12 +4557,11 @@ fn render_state_node_svg(out: &mut String, node: &StateNode, x: i32, y: i32) {
                         ));
                     }
                 }
-                // Render first region children if any
                 if let Some(region) = node.regions.first() {
                     if !region.is_empty() {
                         let mut child_y = y + h + 4;
                         for child in region {
-                            render_state_node_svg(out, child, x + 8, child_y);
+                            render_state_node_svg_styled(out, child, x + 8, child_y, state_style);
                             child_y += STATE_NODE_H + 8;
                         }
                     }

@@ -5504,3 +5504,153 @@ fn salt_wireframe_grid_renders_button_and_input() {
     assert!(svg.contains("Enter name"), "expected input placeholder in SVG");
     assert!(svg.contains("OK"), "expected button label in SVG");
 }
+
+// ── skinparam classify: class/state/component/activity (#202) ─────────────────
+
+#[test]
+fn skinparam_class_keys_accepted_without_warnings() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_class.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn skinparam_class_background_color_appears_in_svg() {
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_class.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("class skinparam svg should render");
+    assert!(svg.starts_with("<svg"), "should be valid svg");
+    assert!(
+        svg.contains("#e0f2fe"),
+        "ClassBackgroundColor #e0f2fe should appear in SVG: {svg}"
+    );
+    assert!(
+        svg.contains("#0369a1"),
+        "ClassBorderColor #0369a1 should appear in SVG"
+    );
+    assert!(
+        svg.contains("#bfdbfe"),
+        "ClassHeaderBackgroundColor #bfdbfe should appear in SVG"
+    );
+    assert!(
+        svg.contains("#0284c7"),
+        "ClassArrowColor #0284c7 should appear in SVG"
+    );
+}
+
+#[test]
+fn skinparam_state_keys_accepted_without_warnings() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_state.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn skinparam_state_colors_appear_in_svg() {
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_state.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("state skinparam svg should render");
+    assert!(svg.starts_with("<svg"), "should be valid svg");
+    assert!(
+        svg.contains("#fef3c7"),
+        "StateBackgroundColor #fef3c7 should appear in SVG"
+    );
+    assert!(
+        svg.contains("#d97706"),
+        "StateBorderColor #d97706 should appear in SVG"
+    );
+    assert!(
+        svg.contains("#b45309"),
+        "StateArrowColor #b45309 should appear in SVG"
+    );
+    assert!(
+        svg.contains("#1c1917"),
+        "StateStartColor #1c1917 should appear in SVG"
+    );
+}
+
+#[test]
+fn skinparam_component_keys_accepted_without_warnings() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_component.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn skinparam_component_colors_appear_in_svg() {
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_component.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("component skinparam svg should render");
+    assert!(svg.starts_with("<svg"), "should be valid svg");
+    assert!(
+        svg.contains("#f0fdf4"),
+        "ComponentBackgroundColor #f0fdf4 should appear in SVG"
+    );
+    assert!(
+        svg.contains("#16a34a"),
+        "ComponentBorderColor #16a34a should appear in SVG"
+    );
+    assert!(
+        svg.contains("#15803d"),
+        "ComponentArrowColor #15803d should appear in SVG"
+    );
+}
+
+#[test]
+fn skinparam_activity_keys_accepted_without_warnings() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_activity.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn skinparam_activity_colors_appear_in_svg() {
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_activity.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("activity skinparam svg should render");
+    assert!(svg.starts_with("<svg"), "should be valid svg");
+    assert!(
+        svg.contains("#fdf4ff"),
+        "ActivityBackgroundColor #fdf4ff should appear in SVG"
+    );
+    assert!(
+        svg.contains("#9333ea"),
+        "ActivityBorderColor #9333ea should appear in SVG"
+    );
+    assert!(
+        svg.contains("#f3e8ff"),
+        "ActivityDiamondBackgroundColor #f3e8ff should appear in SVG"
+    );
+    assert!(
+        svg.contains("#3b0764"),
+        "ActivityBarColor #3b0764 should appear in SVG"
+    );
+    assert!(
+        svg.contains("#7e22ce"),
+        "ActivityArrowColor #7e22ce should appear in SVG"
+    );
+}
