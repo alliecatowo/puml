@@ -478,6 +478,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_while_define_counter.puml",
         "preprocessor/valid_variable_assignment_reference.puml",
         "preprocessor/valid_function_call_args_defaults_keywords.puml",
+        "preprocessor/valid_function_return_indented.puml",
         "preprocessor/valid_procedure_call_args.puml",
         "preprocessor/valid_import_stdlib_core.puml",
         "preprocessor/valid_import_stdlib_nested_no_ext.puml",
@@ -2068,6 +2069,31 @@ fn preprocessor_function_and_procedure_args_expand_deterministically() {
 }
 
 #[test]
+fn preprocessor_function_return_with_leading_indentation_is_honored() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_function_return_indented.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["\"A\""]);
+}
+
+#[test]
 fn preprocessor_function_procedure_assert_log_and_dump_are_minimally_compatible() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -2175,6 +2201,10 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
         (
             "errors/invalid_preproc_unexpected_endfunction.puml",
             "E_PREPROC_UNEXPECTED",
+        ),
+        (
+            "errors/invalid_preproc_procedure_unsupported.puml",
+            "E_PREPROC_CALL_KIND",
         ),
         (
             "errors/invalid_preproc_while_iteration_limit.puml",

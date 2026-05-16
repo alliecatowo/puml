@@ -1,7 +1,5 @@
 @startuml
 !procedure Build($x)
-!return $x
 !endprocedure
-!Build("a")
-A -> B: one
+Alice -> Bob: %Build("A")
 @enduml
