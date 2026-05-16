@@ -1,0 +1,10 @@
+@startuml
+!theme plain
+A -> B: start
+alt happy path
+  B -> C: process
+  C --> B: ok
+else error
+  B --> A: fail
+end
+@enduml

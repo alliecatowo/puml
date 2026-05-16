@@ -1,0 +1,14 @@
+@startuml
+concise "Web User" as WU
+concise "System" as Sys
+@0
+WU is Idle
+Sys is Idle
+@100
+WU is Active
+@200
+Sys is Processing
+@300
+WU is Idle
+Sys is Done
+@enduml

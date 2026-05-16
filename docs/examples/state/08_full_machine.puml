@@ -1,0 +1,32 @@
+@startuml
+title Order State Machine
+
+state fork1 <<fork>>
+state join1 <<join>>
+state choice1 <<choice>>
+
+state Pending
+state Fulfillment {
+  state Picking
+  state Packing
+  Picking --> Packing : picked
+}
+state Shipped
+state Delivered
+state Cancelled
+
+Pending : entry / notifyCustomer
+Shipped : entry / sendTrackingEmail
+
+[*] --> Pending
+Pending --> fork1 : confirm
+fork1 --> Fulfillment
+fork1 --> choice1
+choice1 --> Cancelled : out of stock
+Fulfillment --> join1 : packed
+choice1 --> join1 : in stock
+join1 --> Shipped
+Shipped --> Delivered : delivered
+Delivered --> [*]
+Cancelled --> [*]
+@enduml

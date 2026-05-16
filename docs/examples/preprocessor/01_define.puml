@@ -1,0 +1,6 @@
+@startuml
+!define SENDER Alice
+!define RECEIVER Bob
+SENDER -> RECEIVER: Hello
+RECEIVER --> SENDER: Hi back
+@enduml

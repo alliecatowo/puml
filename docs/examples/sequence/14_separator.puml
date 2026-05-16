@@ -1,0 +1,7 @@
+@startuml
+Alice -> Bob: phase one
+== Separator ==
+Bob -> Carol: phase two
+== Another phase ==
+Carol --> Alice: done
+@enduml

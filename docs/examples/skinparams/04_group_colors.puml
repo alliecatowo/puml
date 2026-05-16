@@ -1,0 +1,10 @@
+@startuml
+skinparam groupBackgroundColor #e8f5e9
+skinparam groupBorderColor #4caf50
+Alice -> Bob: start
+alt success
+  Bob --> Alice: ok
+else fail
+  Bob --> Alice: error
+end
+@enduml

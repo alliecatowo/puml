@@ -1,0 +1,5 @@
+@startuml
+skinparam maxMessageSize 100
+Alice -> Bob: This is a very long message that demonstrates the maximum message size skinparam in action
+Bob --> Alice: Short reply
+@enduml

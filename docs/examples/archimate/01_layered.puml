@@ -1,0 +1,9 @@
+@startuml
+' ArchiMate notation (not yet supported natively)
+' Using @startuml with archimate stereotypes as workaround
+archimate #Application "Web App" <<application-component>>
+archimate #Technology "API Server" <<technology-service>>
+archimate #Data "Database" <<data-store>>
+Rel("Web App", "API Server", "calls")
+Rel("API Server", "Database", "reads/writes")
+@enduml

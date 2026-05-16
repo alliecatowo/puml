@@ -1,0 +1,10 @@
+@startuml
+usecase Browse
+usecase AddToCart
+usecase Checkout
+usecase ManageProducts as MP
+usecase ManageOrders as MO
+Browse --> AddToCart
+AddToCart --> Checkout
+MP --> MO : depends
+@enduml

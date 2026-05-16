@@ -1,0 +1,10 @@
+@startuml
+component A
+component B
+component C
+component D
+A --> B : calls
+A ..> C : uses
+B <|-- D : extends
+C --* A : composed
+@enduml

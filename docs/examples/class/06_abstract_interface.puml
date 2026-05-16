@@ -1,0 +1,19 @@
+@startuml
+class Shape {
+  color: String
+  area(): Float
+  perimeter(): Float
+}
+class Circle {
+  radius: Float
+  area(): Float
+  perimeter(): Float
+}
+class Rectangle {
+  width: Float
+  height: Float
+  area(): Float
+}
+Shape <|-- Circle
+Shape <|-- Rectangle
+@enduml

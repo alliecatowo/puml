@@ -1,0 +1,7 @@
+@startuml
+!theme plain
+Alice -> Bob: request
+note right of Bob: plain theme note
+Bob --> Alice: response
+note over Alice: received
+@enduml

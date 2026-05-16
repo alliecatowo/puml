@@ -1,0 +1,13 @@
+@startuml
+state fork1 <<fork>>
+state join1 <<join>>
+state choice1 <<choice>>
+[*] --> fork1
+fork1 --> TaskA
+fork1 --> TaskB
+TaskA --> join1
+TaskB --> join1
+join1 --> choice1
+choice1 --> Success : ok
+choice1 --> Failure : error
+@enduml

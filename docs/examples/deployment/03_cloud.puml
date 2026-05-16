@@ -1,0 +1,9 @@
+@startuml
+node "EC2 Instance" as EC2
+node "RDS Instance" as RDS
+database "S3 Bucket" as S3
+artifact "Lambda Function" as Lambda
+EC2 --> RDS : queries
+EC2 --> S3 : stores
+Lambda --> S3 : reads
+@enduml

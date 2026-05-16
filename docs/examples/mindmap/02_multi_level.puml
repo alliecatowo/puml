@@ -1,0 +1,14 @@
+@startmindmap
+* Technology Stack
+** Frontend
+*** React
+*** TypeScript
+*** TailwindCSS
+** Backend
+*** Rust
+*** PostgreSQL
+*** Redis
+** DevOps
+*** Docker
+*** Kubernetes
+@endmindmap

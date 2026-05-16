@@ -1,0 +1,14 @@
+@startuml
+class House {
+  +address: String
+}
+class Room {
+  +name: String
+  +area: Float
+}
+class Furniture {
+  +type: String
+}
+House *-- Room : contains
+Room o-- Furniture : may have
+@enduml

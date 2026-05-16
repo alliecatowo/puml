@@ -1,0 +1,9 @@
+@startsalt
+' Salt wireframe diagrams are not yet supported by this parser.
+' Reference PlantUML syntax shown below:
+{
+  Name: | "Alice      "
+  Age:  | "30         "
+  [OK]  | [Cancel]
+}
+@endsalt

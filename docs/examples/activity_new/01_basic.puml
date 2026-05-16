@@ -1,0 +1,13 @@
+@startuml
+' New-style activity diagram (not yet supported by this parser)
+' The parser supports old-style activity syntax only.
+' See activity_old/ for renderable examples.
+' Reference PlantUML syntax:
+'
+' start
+' :action;
+' stop
+start
+:hello;
+stop
+@enduml

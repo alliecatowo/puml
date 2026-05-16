@@ -1,0 +1,11 @@
+@startsdl
+' SDL with transitions (not yet supported)
+process Handler
+  state Idle
+    receive Request
+    nextstate Processing
+  state Processing
+    task "process"
+    send Response
+    nextstate Idle
+@endsdl

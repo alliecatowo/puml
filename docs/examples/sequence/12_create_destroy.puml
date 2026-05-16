@@ -1,0 +1,8 @@
+@startuml
+Alice -> Bob: request
+create Session
+Bob -> Session: new
+Session --> Bob: id
+Bob --> Alice: session id
+destroy Session
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+Alice -> Bob: send `code snippet`
+note right of Bob: use monospace for code
+Bob --> Alice: received
+@enduml

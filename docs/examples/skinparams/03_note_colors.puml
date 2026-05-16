@@ -1,0 +1,7 @@
+@startuml
+skinparam noteBackgroundColor #fffde7
+skinparam noteBorderColor #ffc107
+Alice -> Bob: request
+note right of Bob: styled note
+Bob --> Alice: response
+@enduml

@@ -1,0 +1,8 @@
+@startuml
+' New-style activity repeat (not yet supported)
+start
+repeat
+  :action;
+repeat while (condition?) is (yes)
+stop
+@enduml

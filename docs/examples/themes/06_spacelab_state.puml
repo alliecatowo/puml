@@ -1,0 +1,7 @@
+@startuml
+!theme spacelab
+[*] --> Idle
+Idle --> Running : start
+Running --> Stopped : stop
+Stopped --> [*]
+@enduml

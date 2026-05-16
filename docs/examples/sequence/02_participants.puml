@@ -1,0 +1,15 @@
+@startuml
+participant "Client" as C
+participant "Server" as S
+actor User
+database DB
+queue JobQueue as Q
+
+User -> C: submit request
+C -> S: POST /api/order
+S -> DB: INSERT order
+DB --> S: ok
+S -> Q: enqueue job
+S --> C: 202 Accepted
+C --> User: order received
+@enduml

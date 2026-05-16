@@ -1,0 +1,15 @@
+@startuml
+Alice -> Bob: authenticate
+alt credentials valid
+  Bob --> Alice: token
+else invalid
+  Bob --> Alice: 401 Unauthorized
+end
+opt remember me
+  Alice -> Bob: store session
+end
+loop 3 times
+  Alice -> Bob: heartbeat
+  Bob --> Alice: pong
+end
+@enduml
