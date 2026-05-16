@@ -635,7 +635,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         let to_coord = node_coords.get(&t.to);
         if let (Some(&(fx, fy)), Some(&(tx, ty))) = (from_coord, to_coord) {
             // Compute start/end points at node boundaries
-            let (x1, y1, x2, y2) = transition_endpoints(fx, fy, tx, ty, &nodes);
+            let (x1, y1, x2, y2) = transition_endpoints(fx, fy, tx, ty, nodes);
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
                 x1, y1, x2, y2

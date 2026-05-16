@@ -2336,10 +2336,10 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         return Some(DiagramKind::State);
     }
     // State transitions involving pseudo-states
-    if line.starts_with("[*]") || line.starts_with("[H]") || line.starts_with("[H*]") {
-        if line.contains("-->") {
-            return Some(DiagramKind::State);
-        }
+    if (line.starts_with("[*]") || line.starts_with("[H]") || line.starts_with("[H*]"))
+        && line.contains("-->")
+    {
+        return Some(DiagramKind::State);
     }
     // Any line that is `X --> Y` where Y is `[*]`, `[H]`, or `[H*]`
     if line.contains("-->") {
@@ -2584,8 +2584,8 @@ fn parse_state_statement(
     }
 
     // `state Name` or `state Name <<stereotype>>` or `state Name { ... }`
-    if line.starts_with("state ") {
-        let rest = line["state ".len()..].trim();
+    if let Some(stripped_state) = line.strip_prefix("state ") {
+        let rest = stripped_state.trim();
         if rest.is_empty() {
             return Ok(None);
         }
@@ -2594,11 +2594,7 @@ fn parse_state_statement(
         let (name_part, stereotype) = if let Some(idx) = rest.find("<<") {
             let name = rest[..idx].trim();
             let after = &rest[idx + 2..];
-            let stereo = if let Some(end) = after.find(">>") {
-                Some(after[..end].trim().to_string())
-            } else {
-                None
-            };
+            let stereo = after.find(">>").map(|end| after[..end].trim().to_string());
             (name, stereo)
         } else {
             (rest, None)
