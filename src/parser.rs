@@ -1809,6 +1809,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i += 1;
                 continue;
             }
+            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_keyword(line) {
+                if is_timeline_metadata_statement(&kind) {
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
+            }
             statements.push(Statement {
                 span,
                 kind: StatementKind::Unknown(format!(
@@ -1824,6 +1839,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 statements.push(Statement { span, kind });
                 i += 1;
                 continue;
+            }
+            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_keyword(line) {
+                if is_timeline_metadata_statement(&kind) {
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
             }
             statements.push(Statement {
                 span,
@@ -2332,6 +2362,20 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
         return None;
     }
     Some(StatementKind::ChronologyHappensOn { subject, when })
+}
+
+fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
+    matches!(
+        kind,
+        StatementKind::Title(_)
+            | StatementKind::Header(_)
+            | StatementKind::Footer(_)
+            | StatementKind::Caption(_)
+            | StatementKind::Legend(_)
+            | StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
+    )
 }
 
 fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {

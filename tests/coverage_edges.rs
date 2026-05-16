@@ -412,7 +412,7 @@ fn normalize_family_rejects_sequence_only_syntax_in_timeline_slice() {
     let src = "@startgantt\nparticipant A\nA -> B\n@endgantt\n";
     let doc = parse(src).expect("parse should succeed");
     let err = normalize_family(doc).expect_err("mixed timeline/sequence syntax should fail");
-    assert!(err.message.contains("E_FAMILY_STUB_UNSUPPORTED"));
+    assert!(err.message.contains("E_GANTT_UNSUPPORTED"));
 }
 
 #[test]
