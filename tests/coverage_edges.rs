@@ -392,10 +392,6 @@ fn normalize_family_routes_activity_to_timeline_and_rejects_other_wave1_families
             "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
         ),
         (
-            "@startuml\nstart\n:step;\nstop\n@enduml\n",
-            "E_FAMILY_ACTIVITY_UNSUPPORTED",
-        ),
-        (
             "@startuml\nclock clk\n@enduml\n",
             "E_FAMILY_TIMING_UNSUPPORTED",
         ),
