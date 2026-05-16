@@ -1,4 +1,4 @@
 @startuml
-!log %boolval("x")
+!log %nosuchbuiltin("x")
 Alice -> Bob: unreachable
 @enduml
