@@ -4,20 +4,20 @@ Fast, deterministic sequence-diagram rendering to SVG with a first-class polymor
 
 ![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)
 ![rust](https://img.shields.io/badge/rust-2021-f97316)
-![scope](https://img.shields.io/badge/scope-sequence--first%20%2B%20uml--bootstrap-14b8a6)
+![scope](https://img.shields.io/badge/scope-full%20PlantUML%20parity%20target-14b8a6)
 ![license](https://img.shields.io/badge/license-MIT-22c55e)
 ![docs parity](https://img.shields.io/badge/docs--as--tests-enabled-16a34a)
 ![determinism](https://img.shields.io/badge/svg-deterministic-0f766e)
 ![agent harness](https://img.shields.io/badge/codex%2Fclaude-harness--ready-f59e0b)
 
-## Why Sequence-First
+## Why full PlantUML parity?
 
-`puml` is intentionally sequence-first. Class/object/usecase now have a bootstrap parser->model->stub-render path, while deeper semantics and additional families remain out of scope so parser, validator, layout, and SVG contracts stay predictable and testable.
+`puml` is committed to full 1:1 parity with PlantUML across all diagram families, with staged family-lane implementation to preserve deterministic parser/normalizer/layout/render contracts.
 
 Language and compatibility statement:
-- PicoUML is a first-class canonical language surface for this engine.
-- PlantUML support is a first-class 1:1 target for sequence workflows (subset status is tracked in the feature matrix).
-- Mermaid support is first-class for the supported `sequenceDiagram` subset.
+- PicoUML is the first-class canonical language surface for this engine.
+- PlantUML is a first-class 1:1 compatibility target across all implemented and planned diagram families.
+- Mermaid remains first-class for sequence-diagram parity, with explicit deterministic diagnostics for unsupported constructs.
 
 ## Install And Dev
 

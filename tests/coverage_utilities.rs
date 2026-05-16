@@ -102,6 +102,7 @@ fn diagram_family_as_str_covers_all_variants() {
     assert_eq!(DiagramFamily::Deployment.as_str(), "deployment");
     assert_eq!(DiagramFamily::UseCase.as_str(), "usecase");
     assert_eq!(DiagramFamily::Object.as_str(), "object");
+    assert_eq!(DiagramFamily::Salt.as_str(), "salt");
     assert_eq!(DiagramFamily::MindMap.as_str(), "mindmap");
     assert_eq!(DiagramFamily::Wbs.as_str(), "wbs");
     assert_eq!(DiagramFamily::Unknown.as_str(), "unknown");
@@ -112,6 +113,14 @@ fn render_for_class_family_returns_stub_svg() {
     let src = "@startuml\nclass User\n@enduml\n";
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Class).unwrap();
     assert!(svg.contains("Bootstrap stub for class diagrams"));
+}
+
+#[test]
+fn render_for_salt_family_returns_stub_svg() {
+    let src = "@startsalt\nsalt: login form\n@endsalt\n";
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Salt).unwrap();
+    assert!(svg.contains("Bootstrap stub for salt diagrams"));
+    assert!(svg.contains("widget"));
 }
 
 #[test]
@@ -245,6 +254,10 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     assert_eq!(
         detect_diagram_family(chronology).expect("chronology family"),
         DiagramFamily::Chronology
+    );
+    assert_eq!(
+        detect_diagram_family("@startsalt\nwidget\n@endsalt\n").expect("salt family"),
+        DiagramFamily::Salt
     );
 
     let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";

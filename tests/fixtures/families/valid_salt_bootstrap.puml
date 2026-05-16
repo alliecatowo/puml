@@ -1,0 +1,4 @@
+@startsalt
+widget submit_button
+submit_button --> auth_service : posts credentials
+@endsalt

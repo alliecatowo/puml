@@ -4,10 +4,19 @@ This log records intentional contract deviations and updates adopted in the curr
 
 ## 2026-05-15
 
-### D-001: Sequence-only scope
-- Decision: Treat sequence diagrams as the only supported diagram family.
-- Rationale: Keeps parser, normalization, and rendering behavior deterministic for the delivered MVP.
-- Impact: Class/state and other non-sequence syntax is rejected at validation time (exit code `1`).
+### D-001: Sequenced-first scaffold launch (superseded)
+- Decision: Bootstrapped implementation started from the sequence family to validate the shared parser/normalize/layout/render contract.
+- Rationale: Keeps early behavior deterministic while proving the cross-family pipeline before widening support.
+- Impact: Some non-sequence families were initially routed to deterministic unsupported-family diagnostics during the scaffold phase.
+- Status: superseded by D-022.
+
+### D-022: Full PlantUML parity target
+- Decision: Move from a sequence-first product boundary to a full PlantUML parity target across families, delivered by family-lane implementation and explicit progress tracking.
+- Rationale: User-facing compatibility claims and parity contracts require a clear 1:1 objective without scope-tiering.
+- Impact:
+  - User-facing docs and board status now treat PlantUML as the complete target surface.
+  - Family support is now expressed as implemented vs in-progress in the parity roadmap matrix.
+  - `out of scope` language is restricted to intentionally deferred features, not product families.
 
 ### D-002: Explicit opt-in for multi-diagram parsing
 - Decision: Require `--multi` to accept inputs containing multiple `@startuml`/`@enduml` blocks.

@@ -31,6 +31,7 @@ pub enum DiagramFamily {
     Deployment,
     UseCase,
     Object,
+    Salt,
     MindMap,
     Wbs,
     Unknown,
@@ -50,6 +51,7 @@ impl DiagramFamily {
             Self::Deployment => "deployment",
             Self::UseCase => "usecase",
             Self::Object => "object",
+            Self::Salt => "salt",
             Self::MindMap => "mindmap",
             Self::Wbs => "wbs",
             Self::Unknown => "unknown",
@@ -212,7 +214,7 @@ fn render_document_for_family(
             let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
             Ok(scenes.iter().map(render::render_svg).collect())
         }
-        DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase => {
+        DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase | DiagramFamily::Salt => {
             match normalize::normalize_family(document)? {
                 model::NormalizedDocument::Family(stub) => {
                     Ok(vec![render::render_family_stub_svg(&stub)])
@@ -275,6 +277,7 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::State => DiagramFamily::State,
         ast::DiagramKind::Activity => DiagramFamily::Activity,
         ast::DiagramKind::Timing => DiagramFamily::Timing,
+        ast::DiagramKind::Salt => DiagramFamily::Salt,
         ast::DiagramKind::Unknown => DiagramFamily::Unknown,
     }
 }

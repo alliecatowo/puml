@@ -1218,6 +1218,7 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::Class => "Class",
             DiagramKind::Object => "Object",
             DiagramKind::UseCase => "UseCase",
+            DiagramKind::Salt => "Salt",
             DiagramKind::MindMap => "MindMap",
             DiagramKind::Wbs => "Wbs",
             DiagramKind::Gantt => "Gantt",
@@ -1393,6 +1394,7 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             DiagramKind::Class => "Class",
             DiagramKind::Object => "Object",
             DiagramKind::UseCase => "UseCase",
+            DiagramKind::Salt => "Salt",
             DiagramKind::MindMap => "MindMap",
             DiagramKind::Wbs => "Wbs",
             DiagramKind::Gantt => "Gantt",
@@ -1414,6 +1416,9 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
                         puml::model::FamilyNodeKind::Class => "Class",
                         puml::model::FamilyNodeKind::Object => "Object",
                         puml::model::FamilyNodeKind::UseCase => "UseCase",
+                        puml::model::FamilyNodeKind::Salt => "Salt",
+                        puml::model::FamilyNodeKind::MindMap => "MindMap",
+                        puml::model::FamilyNodeKind::Wbs => "Wbs",
                     },
                     "name": n.name,
                     "alias": n.alias
@@ -1450,6 +1455,7 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             DiagramKind::Class => "Class",
             DiagramKind::Object => "Object",
             DiagramKind::UseCase => "UseCase",
+            DiagramKind::Salt => "Salt",
             DiagramKind::MindMap => "MindMap",
             DiagramKind::Wbs => "Wbs",
             DiagramKind::Component => "Component",
@@ -1616,6 +1622,7 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::Class => "Class",
                     DiagramKind::Object => "Object",
                     DiagramKind::UseCase => "UseCase",
+                    DiagramKind::Salt => "Salt",
                     DiagramKind::MindMap => "MindMap",
                     DiagramKind::Wbs => "Wbs",
                     DiagramKind::Gantt => "Gantt",
@@ -1633,11 +1640,14 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     .iter()
                     .map(|n| {
                         json!({
-                            "kind": match n.kind {
-                                puml::model::FamilyNodeKind::Class => "Class",
-                                puml::model::FamilyNodeKind::Object => "Object",
-                                puml::model::FamilyNodeKind::UseCase => "UseCase",
-                            },
+                        "kind": match n.kind {
+                            puml::model::FamilyNodeKind::Class => "Class",
+                            puml::model::FamilyNodeKind::Object => "Object",
+                            puml::model::FamilyNodeKind::UseCase => "UseCase",
+                            puml::model::FamilyNodeKind::Salt => "Salt",
+                            puml::model::FamilyNodeKind::MindMap => "MindMap",
+                            puml::model::FamilyNodeKind::Wbs => "Wbs",
+                        },
                             "name": n.name,
                             "alias": n.alias
                         })
@@ -1668,6 +1678,7 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::Class => "Class",
                     DiagramKind::Object => "Object",
                     DiagramKind::UseCase => "UseCase",
+                    DiagramKind::Salt => "Salt",
                     DiagramKind::MindMap => "MindMap",
                     DiagramKind::Wbs => "Wbs",
                     DiagramKind::Component => "Component",

@@ -1950,6 +1950,7 @@ fn strip_inline_plantuml_comment(line: &str) -> &str {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BlockKind {
     Uml,
+    Salt,
     MindMap,
     Wbs,
     Gantt,
@@ -1969,6 +1970,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     let markers = if start {
         [
             ("@startuml", BlockKind::Uml),
+            ("@startsalt", BlockKind::Salt),
             ("@startmindmap", BlockKind::MindMap),
             ("@startwbs", BlockKind::Wbs),
             ("@startgantt", BlockKind::Gantt),
@@ -1977,6 +1979,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
     } else {
         [
             ("@enduml", BlockKind::Uml),
+            ("@endsalt", BlockKind::Salt),
             ("@endmindmap", BlockKind::MindMap),
             ("@endwbs", BlockKind::Wbs),
             ("@endgantt", BlockKind::Gantt),
@@ -1997,6 +2000,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
 fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
     match kind {
         BlockKind::Uml => None,
+        BlockKind::Salt => Some(DiagramKind::Salt),
         BlockKind::MindMap => Some(DiagramKind::MindMap),
         BlockKind::Wbs => Some(DiagramKind::Wbs),
         BlockKind::Gantt => Some(DiagramKind::Gantt),
@@ -2007,6 +2011,7 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
 fn block_kind_name(kind: BlockKind) -> &'static str {
     match kind {
         BlockKind::Uml => "uml",
+        BlockKind::Salt => "salt",
         BlockKind::MindMap => "mindmap",
         BlockKind::Wbs => "wbs",
         BlockKind::Gantt => "gantt",
@@ -2058,6 +2063,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Salt => "salt",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
@@ -2209,7 +2215,10 @@ fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
 
 fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
     match family {
-        Some(DiagramKind::Class) | Some(DiagramKind::Object) | Some(DiagramKind::UseCase) => {}
+        Some(DiagramKind::Class)
+        | Some(DiagramKind::Object)
+        | Some(DiagramKind::UseCase)
+        | Some(DiagramKind::Salt) => {}
         _ => return None,
     }
 
@@ -2287,6 +2296,10 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("scale ")
     {
         return Some(DiagramKind::Timing);
+    }
+
+    if line.starts_with("salt ") {
+        return Some(DiagramKind::Salt);
     }
 
     None

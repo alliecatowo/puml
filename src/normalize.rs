@@ -3,11 +3,12 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
+    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
     TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
+use crate::scene::TextOverflowPolicy;
 use crate::theme::{
     classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
     SequenceSkinParamValue, SequenceStyle,
@@ -34,15 +35,16 @@ pub fn normalize_family_with_options(
         DiagramKind::Sequence => {
             normalize_with_options(document, options).map(NormalizedDocument::Sequence)
         }
-        DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
+        DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase | DiagramKind::Salt => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
         DiagramKind::Gantt | DiagramKind::Chronology => {
             normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
         }
-        DiagramKind::MindMap
-        | DiagramKind::Wbs
-        | DiagramKind::Component
+        DiagramKind::MindMap | DiagramKind::Wbs => {
+            normalize_family_tree(document).map(NormalizedDocument::Family)
+        }
+        DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::State
         | DiagramKind::Activity
@@ -124,6 +126,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         DiagramKind::Class => FamilyNodeKind::Class,
         DiagramKind::Object => FamilyNodeKind::Object,
         DiagramKind::UseCase => FamilyNodeKind::UseCase,
+        DiagramKind::Salt => FamilyNodeKind::Salt,
         _ => {
             return Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] invalid family for stub normalization",
@@ -154,6 +157,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     name: decl.name,
                     alias: decl.alias,
                     members: decl.members,
+                    depth: 0,
                 });
             }
             StatementKind::ObjectDecl(decl) => {
@@ -169,6 +173,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     name: decl.name,
                     alias: decl.alias,
                     members: decl.members,
+                    depth: 0,
                 });
             }
             StatementKind::UseCaseDecl(decl) => {
@@ -184,6 +189,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     name: decl.name,
                     alias: decl.alias,
                     members: decl.members,
+                    depth: 0,
                 });
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
@@ -203,6 +209,18 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
+            StatementKind::Unknown(line) if family_kind == DiagramKind::Salt => {
+                if line.trim() == "---" {
+                    continue;
+                }
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::Salt,
+                    name: line,
+                    alias: None,
+                    members: Vec::new(),
+                    depth: 0,
+                });
+            }
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
@@ -229,8 +247,288 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         footer,
         caption,
         legend,
+        orientation: FamilyOrientation::TopToBottom,
+        style: SequenceStyle::default(),
+        text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings: Vec::new(),
     })
+}
+
+fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
+    let mut nodes = Vec::new();
+    let mut relations = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+
+    let family_kind = document.kind;
+    let mut warnings = Vec::new();
+    let mut orientation = FamilyOrientation::TopToBottom;
+    let mut style = SequenceStyle::default();
+    let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::SkinParam { key, value } => {
+                if handle_family_overflow_skinparam(
+                    &key,
+                    &value,
+                    &mut text_overflow_policy,
+                    &mut warnings,
+                    stmt.span,
+                ) {
+                    continue;
+                }
+                match classify_sequence_skinparam(&key, &value) {
+                    SequenceSkinParamSupport::SupportedNoop => {}
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::FootboxVisible(_),
+                    ) => {}
+                    SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(color)) => {
+                        style.arrow_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineBorderColor(color),
+                    ) => {
+                        style.lifeline_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantBackgroundColor(color),
+                    ) => {
+                        style.participant_background_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantBorderColor(color),
+                    ) => {
+                        style.participant_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::NoteBackgroundColor(color),
+                    ) => {
+                        style.note_background_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::NoteBorderColor(color),
+                    ) => {
+                        style.note_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupBackgroundColor(color),
+                    ) => {
+                        style.group_background_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupBorderColor(color),
+                    ) => {
+                        style.group_border_color = color;
+                    }
+                    SequenceSkinParamSupport::UnsupportedValue => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                    SequenceSkinParamSupport::UnsupportedKey => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                                key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                }
+            }
+            StatementKind::Theme(value) => {
+                style = resolve_sequence_theme_preset(&value)
+                    .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                    .style;
+            }
+            StatementKind::Pragma(v) => {
+                let trimmed = v.trim();
+                let lower = trimmed.to_ascii_lowercase();
+                if lower.starts_with("teoz ") || lower == "teoz" {
+                    warnings.push(
+                        Diagnostic::warning(
+                            "[W_PRAGMA_TEOZ_UNSUPPORTED] !pragma teoz is not supported yet; continuing with default rendering semantics"
+                                .to_string(),
+                        )
+                        .with_span(stmt.span),
+                    );
+                } else {
+                    warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_PRAGMA_UNSUPPORTED] unsupported pragma `{}`",
+                            trimmed
+                        ))
+                        .with_span(stmt.span),
+                    );
+                }
+            }
+            StatementKind::Unknown(line) => {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Some(value) = parse_family_orientation_directive(&line) {
+                    orientation = value;
+                    continue;
+                }
+                if let Some((depth, name)) = parse_mindmap_or_wbs_node(&line) {
+                    let kind = match family_kind {
+                        DiagramKind::MindMap => FamilyNodeKind::MindMap,
+                        DiagramKind::Wbs => FamilyNodeKind::Wbs,
+                        _ => FamilyNodeKind::Salt,
+                    };
+                    nodes.push(FamilyNode {
+                        kind,
+                        name,
+                        alias: None,
+                        members: Vec::new(),
+                        depth,
+                    });
+                    continue;
+                }
+                return Err(Diagnostic::error(format!(
+                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_STUB_UNSUPPORTED] unsupported {} syntax in bootstrap slice",
+                    family_kind_name(family_kind)
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    build_family_tree_relations(&mut nodes, &mut relations);
+    normalize_family_tree_warnings(&mut warnings);
+
+    Ok(FamilyDocument {
+        kind: family_kind,
+        nodes,
+        relations,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        orientation,
+        style,
+        text_overflow_policy,
+        warnings,
+    })
+}
+
+fn normalize_family_tree_warnings(warnings: &mut Vec<Diagnostic>) {
+    warnings.sort_by(|a, b| {
+        let sa = a.span.map(|s| s.start).unwrap_or_default();
+        let sb = b.span.map(|s| s.start).unwrap_or_default();
+        (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
+    });
+}
+
+fn build_family_tree_relations(
+    nodes: &mut [FamilyNode],
+    relations: &mut Vec<ModelFamilyRelation>,
+) {
+    let mut parents: Vec<usize> = Vec::new();
+    for idx in 0..nodes.len() {
+        let depth = nodes[idx].depth;
+        while parents.len() > depth {
+            parents.pop();
+        }
+        if let Some(parent_idx) = parents.last().copied() {
+            relations.push(ModelFamilyRelation {
+                from: nodes[parent_idx].name.clone(),
+                to: nodes[idx].name.clone(),
+                arrow: "->".to_string(),
+                label: None,
+            });
+        }
+        parents.push(idx);
+    }
+}
+
+fn handle_family_overflow_skinparam(
+    key: &str,
+    value: &str,
+    policy: &mut TextOverflowPolicy,
+    warnings: &mut Vec<Diagnostic>,
+    span: crate::source::Span,
+) -> bool {
+    let normalized_key = key.trim().to_ascii_lowercase();
+    let normalized_value = value.trim().to_ascii_lowercase();
+    if normalized_key != "textoverflowpolicy" && normalized_key != "text_overflow_policy" {
+        return false;
+    }
+
+    let parsed = match normalized_value.as_str() {
+        "wrap" | "wrapandgrow" | "wrap_and_grow" | "wrapgrow" => {
+            Some(TextOverflowPolicy::WrapAndGrow)
+        }
+        "ellipsis" | "ellipsesingleline" | "ellipsissingleline" | "singleline" | "nowrap" => {
+            Some(TextOverflowPolicy::EllipsisSingleLine)
+        }
+        _ => {
+            warnings.push(
+                Diagnostic::warning(format!(
+                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                    value, key
+                ))
+                .with_span(span),
+            );
+            None
+        }
+    };
+    if let Some(parsed) = parsed {
+        *policy = parsed;
+    }
+    true
+}
+
+fn parse_family_orientation_directive(line: &str) -> Option<FamilyOrientation> {
+    let tokens = line
+        .split_whitespace()
+        .map(|t| t.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    if tokens.len() == 4 && tokens[3].as_str() == "direction" {
+        let key = [&tokens[0][..], &tokens[1][..], &tokens[2][..]].join(" ");
+        return match key.as_str() {
+            "left to right" => Some(FamilyOrientation::LeftToRight),
+            "right to left" => Some(FamilyOrientation::RightToLeft),
+            "top to bottom" => Some(FamilyOrientation::TopToBottom),
+            "bottom to top" => Some(FamilyOrientation::BottomToTop),
+            _ => None,
+        };
+    }
+    None
+}
+
+fn parse_mindmap_or_wbs_node(line: &str) -> Option<(usize, String)> {
+    let trimmed = line.trim_start();
+    let star_prefix = trimmed.bytes().take_while(|c| *c == b'*').count();
+    if star_prefix == 0 {
+        return None;
+    }
+    let label = trimmed[star_prefix..].trim();
+    if label.is_empty() {
+        return None;
+    }
+    Some((star_prefix.saturating_sub(1), label.to_string()))
 }
 
 fn family_kind_name(kind: DiagramKind) -> &'static str {
@@ -239,6 +537,7 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::Salt => "salt",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
@@ -808,8 +1107,6 @@ fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
         DiagramKind::State => ("E_FAMILY_STATE_UNSUPPORTED", "state"),
         DiagramKind::Activity => ("E_FAMILY_ACTIVITY_UNSUPPORTED", "activity"),
         DiagramKind::Timing => ("E_FAMILY_TIMING_UNSUPPORTED", "timing"),
-        DiagramKind::MindMap => ("E_FAMILY_MINDMAP_UNSUPPORTED", "mindmap"),
-        DiagramKind::Wbs => ("E_FAMILY_WBS_UNSUPPORTED", "wbs"),
         DiagramKind::Gantt => ("E_FAMILY_GANTT_UNSUPPORTED", "gantt"),
         DiagramKind::Chronology => ("E_FAMILY_CHRONOLOGY_UNSUPPORTED", "chronology"),
         _ => ("E_FAMILY_UNSUPPORTED", "unknown"),

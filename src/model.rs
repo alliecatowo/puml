@@ -2,6 +2,7 @@ use crate::ast::DiagramKind;
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
 use crate::theme::SequenceStyle;
+use crate::scene::TextOverflowPolicy;
 
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -59,7 +60,29 @@ pub struct FamilyDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    pub orientation: FamilyOrientation,
+    pub style: SequenceStyle,
+    pub text_overflow_policy: TextOverflowPolicy,
     pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FamilyOrientation {
+    TopToBottom,
+    LeftToRight,
+    BottomToTop,
+    RightToLeft,
+}
+
+impl FamilyOrientation {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TopToBottom => "TopToBottom",
+            Self::LeftToRight => "LeftToRight",
+            Self::BottomToTop => "BottomToTop",
+            Self::RightToLeft => "RightToLeft",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +91,7 @@ pub struct FamilyNode {
     pub name: String,
     pub alias: Option<String>,
     pub members: Vec<String>,
+    pub depth: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +99,9 @@ pub enum FamilyNodeKind {
     Class,
     Object,
     UseCase,
+    Salt,
+    MindMap,
+    Wbs,
 }
 
 #[derive(Debug, Clone)]

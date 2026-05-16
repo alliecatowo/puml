@@ -350,7 +350,7 @@ fn non_sequence_timing_reports_deterministic_family_code() {
 }
 
 #[test]
-fn non_sequence_mindmap_reports_deterministic_family_code() {
+fn non_sequence_mindmap_check_now_succeeds_with_baseline_renderer() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -358,18 +358,16 @@ fn non_sequence_mindmap_reports_deterministic_family_code() {
             &fixture("non_sequence/invalid_mindmap_diagram.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_MINDMAP_UNSUPPORTED]"));
+        .code(0);
 }
 
 #[test]
-fn non_sequence_wbs_reports_deterministic_family_code() {
+fn non_sequence_wbs_check_now_succeeds_with_baseline_renderer() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--check", &fixture("non_sequence/invalid_wbs_diagram.puml")])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_WBS_UNSUPPORTED]"));
+        .code(0);
 }
 
 #[test]
@@ -2331,14 +2329,7 @@ fn non_sequence_inputs_fail_validation() {
             "non_sequence/invalid_timing_diagram.puml",
             "E_FAMILY_TIMING_UNSUPPORTED",
         ),
-        (
-            "non_sequence/invalid_mindmap_diagram.puml",
-            "E_FAMILY_MINDMAP_UNSUPPORTED",
-        ),
-        (
-            "non_sequence/invalid_wbs_diagram.puml",
-            "E_FAMILY_WBS_UNSUPPORTED",
-        ),
+        ("errors/invalid_salt_block_mismatch.puml", "E_BLOCK_MISMATCH"),
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -2355,6 +2346,7 @@ fn class_object_usecase_bootstrap_inputs_pass_check() {
         "families/valid_class_bootstrap.puml",
         "families/valid_object_bootstrap.puml",
         "families/valid_usecase_bootstrap.puml",
+        "families/valid_salt_bootstrap.puml",
         "families/valid_class_members_block.puml",
         "families/valid_object_members_block.puml",
         "families/valid_usecase_members_block.puml",
@@ -2382,6 +2374,10 @@ fn class_object_usecase_bootstrap_render_stubs_are_deterministic() {
         (
             "families/valid_usecase_bootstrap.puml",
             "Bootstrap stub for usecase diagrams",
+        ),
+        (
+            "families/valid_salt_bootstrap.puml",
+            "Bootstrap stub for salt diagrams",
         ),
         (
             "families/valid_class_members_block.puml",
