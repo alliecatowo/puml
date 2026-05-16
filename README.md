@@ -312,11 +312,12 @@ Artifacts:
 | `!includesub` | Supported | Extracts `!startsub … !endsub` named blocks. |
 | `!includeurl` / `!include http(s)://…` | Rejected (deterministic) | Emits `E_INCLUDE_URL_UNSUPPORTED`; URL fetching would break determinism. |
 | `!define` / `!undef` | Supported | Simple token substitution before normalizer. |
-| `!if` / `!elseif` / `!else` / `!endif` | Supported | Deterministic conditional evaluation: `defined()`, `==`, `!=`, numeric/bool literals. |
+| `!if` / `!elseif` / `!else` / `!endif` | Supported | Deterministic conditional evaluation: `defined()`, `==`, `!=`, numeric/bool literals; compound `&&`/`||` at top level (short-circuit; respects parens depth and quoted strings). |
 | `!ifdef` / `!ifndef` | Supported | Defined/undefined guards. |
 | `!while` / `!endwhile` | Supported (bounded) | Bounded iterations; exceeding limit emits `E_PREPROC_WHILE_LIMIT`. |
+| `!foreach` / `!endfor` | Supported | `!foreach $var in v1, v2, v3` (or `$var in $listvar`) iterates over comma-separated items; nested foreach OK; restores prior `$var` on exit. |
 | `!function` / `!procedure` / `!return` | Supported | User-defined functions and procedures with default/keyword/unquoted args; `!return` for early exit. |
-| Preprocessor builtins | Supported | `%strlen`, `%size`, `%strpos`, `%substr`, `%intval`, `%str`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`. Time/env-sensitive builtins (`%date`, `%getenv`) return empty for byte-stable output. |
+| Preprocessor builtins | Supported | `%strlen`, `%size`, `%strpos`, `%substr`, `%splitstr`, `%intval`, `%str`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`, `%feature`, `%variable_exists`, `%function_exists`, `%newline`, `%retrieve_procedure_return`. Time/env-sensitive builtins (`%date`, `%getenv`) return empty for byte-stable output. |
 | JSON variable assignment | Supported | `!$var = { ... }` JSON-literal assignment parsed before normalization. |
 | `!import` / stdlib | Supported | Deterministic stdlib catalog resolution; unknown modules emit `E_IMPORT_UNSUPPORTED`. |
 | `!theme` | Supported | Local theme catalog semantics; unknown themes emit a deterministic warning and continue. |
