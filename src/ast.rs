@@ -135,6 +135,12 @@ pub enum StatementKind {
         value: String,
     },
     HideOption(String),
+    /// `json $alias { ... }` inline block inside a `@startuml`/`@enduml` block.
+    /// The body is the raw JSON text (everything between the outer braces).
+    JsonProjection {
+        alias: String,
+        body: String,
+    },
     Unknown(String),
 }
 

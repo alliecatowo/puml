@@ -4910,3 +4910,128 @@ fn state_basic_render_produces_valid_svg() {
     assert!(svg.starts_with("<svg"), "expected SVG output");
     assert!(svg.contains("Active"), "expected state name in SVG");
 }
+
+// ── Issue #188: Full PicoUML native syntax ────────────────────────────────────
+
+#[test]
+fn picouml_full_constructs_passes_check() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "picouml",
+            "--check",
+            &fixture("picouml/valid_full_constructs.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn picouml_full_constructs_renders_nonempty_svg() {
+    let src = fs::read_to_string(fixture("picouml/valid_full_constructs.puml")).unwrap();
+    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        ..ParsePipelineOptions::default()
+    };
+    let doc =
+        parse_with_pipeline_options(&src, &options).expect("picouml full constructs should parse");
+    let norm = puml::normalize(doc).expect("should normalize");
+    let scenes = puml::layout::layout_pages(&norm, puml::LayoutOptions::default());
+    let svg = puml::render::render_svg(&scenes[0]);
+    assert!(!svg.is_empty(), "SVG should be non-empty");
+    assert!(svg.starts_with("<svg"), "output must be SVG");
+}
+
+#[test]
+fn picouml_arrow_double_eq_translates_to_plantuml() {
+    let src = "@startpicouml\nA => B : call\n@endpicouml\n";
+    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        ..ParsePipelineOptions::default()
+    };
+    // Should parse without error (=> is adapted to ->).
+    parse_with_pipeline_options(src, &options).expect("=> arrow must parse via picouml adapter");
+}
+
+#[test]
+fn picouml_tilde_arrow_translates_to_plantuml() {
+    let src = "@startpicouml\nA ~> B : signal\n@endpicouml\n";
+    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        ..ParsePipelineOptions::default()
+    };
+    parse_with_pipeline_options(src, &options).expect("~> arrow must parse via picouml adapter");
+}
+
+#[test]
+fn picouml_note_shorthand_translates_to_plantuml() {
+    let src = "@startpicouml\nactor A\nnote left A : hello\n@endpicouml\n";
+    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        ..ParsePipelineOptions::default()
+    };
+    parse_with_pipeline_options(src, &options)
+        .expect("note shorthand must parse via picouml adapter");
+}
+
+#[test]
+fn picouml_group_with_slash_translates_to_plantuml() {
+    let src =
+        "@startpicouml\nactor A\nactor B\ngroup Main / auth\nA -> B : req\nend\n@endpicouml\n";
+    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        ..ParsePipelineOptions::default()
+    };
+    parse_with_pipeline_options(src, &options).expect("group X / Y must parse via picouml adapter");
+}
+
+#[test]
+fn picouml_block_comment_stripped() {
+    let src = "@startpicouml\nactor A\n[/* stripped */]\nactor B\nA -> B : hi\n@endpicouml\n";
+    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        ..ParsePipelineOptions::default()
+    };
+    parse_with_pipeline_options(src, &options)
+        .expect("[/* ... */] block comment must be stripped before parsing");
+}
+
+// ── Issue #103: JSON projection into UML contexts ────────────────────────────
+
+#[test]
+fn json_projection_fixture_passes_check() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_json_projection.puml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn json_projection_render_contains_alias_and_keys() {
+    let src = fs::read_to_string(fixture("families/valid_json_projection.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("json projection should render");
+    assert!(svg.starts_with("<svg"), "output must be SVG");
+    assert!(!svg.is_empty(), "SVG must be non-empty");
+    assert!(svg.contains("$user"), "SVG must contain the alias header");
+    assert!(svg.contains("name"), "SVG must contain the 'name' key");
+}
+
+#[test]
+fn json_projection_inline_parse_roundtrip() {
+    let src = "@startuml\njson $cfg { \"key\": \"val\" }\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("inline json projection should render");
+    assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
+    assert!(svg.contains("key"), "SVG must contain key 'key'");
+}

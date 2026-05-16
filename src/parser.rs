@@ -2838,6 +2838,24 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        // Inline JSON projection: `json $alias {` ... `}`
+        // Valid inside @startuml/@enduml blocks for object-diagram-like use.
+        // Marks the document as Class family (rendered via render_class_svg).
+        if let Some((kind, end_idx)) = parse_json_projection_block(&lines, i, line)? {
+            detected_kind = Some(select_diagram_kind(
+                detected_kind,
+                DiagramKind::Class,
+                span,
+            )?);
+            let block_span = Span::new(span.start, lines[end_idx].1.end);
+            statements.push(Statement {
+                span: block_span,
+                kind,
+            });
+            i = end_idx + 1;
+            continue;
+        }
+
         statements.push(Statement {
             span,
             kind: StatementKind::Unknown(line.to_string()),
@@ -3838,7 +3856,10 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
     if let Some((lhs, rhs)) = trimmed.split_once(':') {
         let when = lhs.trim();
         let subject = rhs.trim().trim_matches('"');
-        if !when.is_empty() && !subject.is_empty() && when.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        if !when.is_empty()
+            && !subject.is_empty()
+            && when.chars().next().is_some_and(|c| c.is_ascii_digit())
+        {
             return Some(StatementKind::ChronologyHappensOn {
                 subject: subject.to_string(),
                 when: when.to_string(),
@@ -4944,6 +4965,118 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Create(_)
             | StatementKind::Return(_)
     )
+}
+
+/// Parse an inline `json $alias { ... }` block.
+/// Returns `(StatementKind::JsonProjection, closing_line_idx)` if found, else `None`.
+/// Errors if `json <id> {` is found but no matching closing `}` appears.
+fn parse_json_projection_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    // Match: `json` <whitespace> <identifier starting with optional $> `{`
+    let lower = line.to_ascii_lowercase();
+    if !lower.starts_with("json ") {
+        return Ok(None);
+    }
+    let rest = line["json ".len()..].trim();
+    if rest.is_empty() {
+        return Ok(None);
+    }
+
+    // Parse alias (identifier, optionally starting with `$`)
+    let (alias, after_alias) = {
+        let mut end = 0;
+        let chars: Vec<char> = rest.chars().collect();
+        if chars.is_empty() {
+            return Ok(None);
+        }
+        // Allow `$identifier` or plain `identifier`
+        if chars[0] == '$' {
+            end += 1;
+        }
+        while end < chars.len() && (chars[end].is_alphanumeric() || chars[end] == '_') {
+            end += 1;
+        }
+        if end == 0 || (end == 1 && rest.starts_with('$')) {
+            return Ok(None);
+        }
+        let alias = rest[..end].to_string();
+        let after = rest[end..].trim();
+        (alias, after)
+    };
+
+    // Must be followed by `{`
+    if !after_alias.starts_with('{') {
+        return Ok(None);
+    }
+
+    // Accumulate body lines until the matching `}` (depth-tracked).
+    let mut body_lines: Vec<&str> = Vec::new();
+    // The opening `{` may have content after it on the same line.
+    let inline_after_brace = after_alias[1..].trim();
+    let mut depth: i32 = 1;
+
+    // If everything is on one line: `json $alias { ... }`
+    if !inline_after_brace.is_empty() {
+        let mut j = 0;
+        let ib = inline_after_brace.as_bytes();
+        while j < ib.len() {
+            if ib[j] == b'{' {
+                depth += 1;
+            } else if ib[j] == b'}' {
+                depth -= 1;
+                if depth == 0 {
+                    let body = inline_after_brace[..j].trim().to_string();
+                    return Ok(Some((StatementKind::JsonProjection { alias, body }, start)));
+                }
+            }
+            j += 1;
+        }
+        // Depth > 0: content continues on next lines.
+        body_lines.push(inline_after_brace);
+    }
+
+    // Continue scanning subsequent lines.
+    let mut i = start + 1;
+    while i < lines.len() {
+        let (raw, _span) = lines[i];
+        let trimmed = raw.trim();
+        // Check for matching closing brace.
+        let mut consumed_close = false;
+        let mut close_pos = 0;
+        for (pos, b) in trimmed.as_bytes().iter().enumerate() {
+            if *b == b'{' {
+                depth += 1;
+            } else if *b == b'}' {
+                depth -= 1;
+                if depth == 0 {
+                    consumed_close = true;
+                    close_pos = pos;
+                    break;
+                }
+            }
+        }
+        if consumed_close {
+            // Everything before the closing `}` is part of the body.
+            let last_body = trimmed[..close_pos].trim();
+            if !last_body.is_empty() {
+                body_lines.push(last_body);
+            }
+            let body = body_lines.join("\n");
+            return Ok(Some((StatementKind::JsonProjection { alias, body }, i)));
+        }
+        body_lines.push(trimmed);
+        i += 1;
+    }
+
+    // No closing brace found.
+    Err(Diagnostic::error(format!(
+        "[E_JSON_PROJECTION_UNCLOSED] `json {}` block has no matching closing `}}`",
+        alias
+    ))
+    .with_span(lines[start].1))
 }
 
 #[cfg(test)]
