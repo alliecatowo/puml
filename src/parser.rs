@@ -2359,6 +2359,15 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
 }
 
 fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    if let Some((subject, when)) = trimmed.split_once(':') {
+        if !when.trim().is_empty() && !subject.trim().is_empty() {
+            return Some(StatementKind::ChronologyHappensOn {
+                subject: subject.trim().trim_matches('"').to_string(),
+                when: when.trim().to_string(),
+            });
+        }
+    }
     let lower = line.to_ascii_lowercase();
     let marker = " happens on ";
     let idx = lower.find(marker)?;
