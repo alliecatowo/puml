@@ -287,7 +287,10 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
             puml::ast::DiagramKind::MindMap,
         ),
         ("@startwbs\n* Scope\n@endwbs\n", puml::ast::DiagramKind::Wbs),
-        ("@startsalt\nwidget\nauto\n@endsalt\n", puml::ast::DiagramKind::Salt),
+        (
+            "@startsalt\nwidget\nauto\n@endsalt\n",
+            puml::ast::DiagramKind::Salt,
+        ),
     ];
 
     for (src, expected_kind) in cases {

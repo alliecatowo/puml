@@ -214,19 +214,20 @@ fn render_document_for_family(
             let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
             Ok(scenes.iter().map(render::render_svg).collect())
         }
-        DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase | DiagramFamily::Salt => {
-            match normalize::normalize_family(document)? {
-                model::NormalizedDocument::Family(stub) => {
-                    Ok(vec![render::render_family_stub_svg(&stub)])
-                }
-                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family stub render",
-                )),
-                model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family stub render",
-                )),
+        DiagramFamily::Class
+        | DiagramFamily::Object
+        | DiagramFamily::UseCase
+        | DiagramFamily::Salt => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Family(stub) => {
+                Ok(vec![render::render_family_stub_svg(&stub)])
             }
-        }
+            model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family stub render",
+            )),
+            model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family stub render",
+            )),
+        },
         DiagramFamily::Component
         | DiagramFamily::Deployment
         | DiagramFamily::State

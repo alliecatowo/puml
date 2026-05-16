@@ -2339,7 +2339,10 @@ fn non_sequence_inputs_fail_validation() {
             "non_sequence/invalid_wbs_diagram.puml",
             "E_FAMILY_WBS_UNSUPPORTED",
         ),
-        ("errors/invalid_salt_block_mismatch.puml", "E_BLOCK_MISMATCH"),
+        (
+            "errors/invalid_salt_block_mismatch.puml",
+            "E_BLOCK_MISMATCH",
+        ),
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
