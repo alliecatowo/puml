@@ -165,6 +165,53 @@ fn normalize_family_succeeds_for_basic_state_diagram() {
 }
 
 #[test]
+fn normalize_state_captures_history_and_internal_actions() {
+    let src = "@startuml\n[H]\n[H*]\nstate Parent {\n  Parent : entry / warmup\n  Child : exit / should_not_attach\n  state Child\n}\n[H] --> Parent : resume\nParent --> [H*] : archive\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state should normalize");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+
+    assert!(model
+        .nodes
+        .iter()
+        .any(|n| n.kind == puml::model::StateNodeKind::HistoryShallow));
+    assert!(model
+        .nodes
+        .iter()
+        .any(|n| n.kind == puml::model::StateNodeKind::HistoryDeep));
+
+    let parent = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "Parent")
+        .expect("parent state should exist");
+    assert_eq!(parent.internal_actions.len(), 1);
+    assert_eq!(parent.internal_actions[0].kind, "entry");
+    assert_eq!(parent.internal_actions[0].action, "warmup");
+
+    assert!(model
+        .transitions
+        .iter()
+        .any(|t| t.from == "[H]" && t.to == "Parent"));
+    assert!(model
+        .transitions
+        .iter()
+        .any(|t| t.from == "Parent" && t.to == "[H*]"));
+}
+
+#[test]
+fn render_state_svg_emits_expected_primitives_for_history_and_composite_regions() {
+    let src = "@startuml\nstate Session {\n  [H]\n  ||\n  state Active\n}\n[*] --> Session\nSession --> [*]\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("state should render");
+    assert!(svg.contains("<svg"));
+    assert!(svg.contains("stroke-dasharray"), "expected region divider");
+    assert!(svg.contains(">H<"), "expected shallow history marker");
+    assert!(svg.contains("Session"), "expected composite state label");
+}
+
+#[test]
 fn normalize_family_rejects_unknown_family_with_deterministic_code() {
     let src = "@startuml\nthis is not supported\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
