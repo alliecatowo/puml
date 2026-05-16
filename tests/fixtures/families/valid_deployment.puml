@@ -1,0 +1,10 @@
+@startuml
+title Production Topology
+node web
+artifact app
+database store
+cloud edge
+web --> app : runs
+app --> store : reads
+edge --> web : routes
+@enduml

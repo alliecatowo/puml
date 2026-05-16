@@ -877,8 +877,19 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
             let scenes = layout::layout_pages(sequence, LayoutOptions::default());
             scenes.iter().map(render::render_svg).collect::<Vec<_>>()
         }
-        NormalizedDocument::Family(family) => vec![render::render_family_stub_svg(family)],
-        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_stub_svg(timeline)],
+        NormalizedDocument::Family(family) => vec![match family.kind {
+            DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase | DiagramKind::Salt => {
+                render::render_class_svg(family)
+            }
+            DiagramKind::MindMap | DiagramKind::Wbs => render::render_family_tree_svg(family),
+            DiagramKind::Component => render::render_component_svg(family),
+            DiagramKind::Deployment => render::render_deployment_svg(family),
+            DiagramKind::State => render::render_state_svg(family),
+            DiagramKind::Activity => render::render_activity_svg(family),
+            DiagramKind::Timing => render::render_timing_svg(family),
+            _ => render::render_family_stub_svg(family),
+        }],
+        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
     }
 }
 
@@ -1413,6 +1424,40 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
+        StatementKind::ComponentDecl {
+            kind,
+            name,
+            alias,
+            label,
+        } => json!({
+            "ComponentDecl": {
+                "kind": format!("{:?}", kind),
+                "name": name,
+                "alias": alias,
+                "label": label,
+            }
+        }),
+        StatementKind::StateDecl {
+            name,
+            alias,
+            label,
+        } => json!({
+            "StateDecl": {"name": name, "alias": alias, "label": label}
+        }),
+        StatementKind::ActivityStep(step) => json!({
+            "ActivityStep": {"kind": format!("{:?}", step.kind), "label": step.label}
+        }),
+        StatementKind::TimingDecl { kind, name, label } => json!({
+            "TimingDecl": {"kind": format!("{:?}", kind), "name": name, "label": label}
+        }),
+        StatementKind::TimingEvent {
+            time,
+            signal,
+            state,
+            note,
+        } => json!({
+            "TimingEvent": {"time": time, "signal": signal, "state": state, "note": note}
+        }),
     }
 }
 
@@ -1525,14 +1570,7 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
             .iter()
             .map(|n| {
                 json!({
-                    "kind": match n.kind {
-                        puml::model::FamilyNodeKind::Class => "Class",
-                        puml::model::FamilyNodeKind::Object => "Object",
-                        puml::model::FamilyNodeKind::UseCase => "UseCase",
-                        puml::model::FamilyNodeKind::Salt => "Salt",
-                        puml::model::FamilyNodeKind::MindMap => "MindMap",
-                        puml::model::FamilyNodeKind::Wbs => "Wbs",
-                    },
+                    "kind": format!("{:?}", n.kind),
                     "name": n.name,
                     "alias": n.alias
                 })
@@ -1753,14 +1791,7 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     .iter()
                     .map(|n| {
                         json!({
-                        "kind": match n.kind {
-                            puml::model::FamilyNodeKind::Class => "Class",
-                            puml::model::FamilyNodeKind::Object => "Object",
-                            puml::model::FamilyNodeKind::UseCase => "UseCase",
-                            puml::model::FamilyNodeKind::Salt => "Salt",
-                            puml::model::FamilyNodeKind::MindMap => "MindMap",
-                            puml::model::FamilyNodeKind::Wbs => "Wbs",
-                        },
+                            "kind": format!("{:?}", n.kind),
                             "name": n.name,
                             "alias": n.alias
                         })

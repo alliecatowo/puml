@@ -12,6 +12,7 @@ use puml::source::Span;
 use puml::theme::{
     classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
 };
+use puml::ast::DiagramKind;
 use puml::{normalize_family, parse, render, NormalizedDocument};
 use std::fs;
 use tempfile::tempdir;
@@ -158,12 +159,17 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
 }
 
 #[test]
-fn normalize_family_rejects_unsupported_state_family() {
+fn normalize_family_accepts_state_family() {
     let src = fs::read_to_string(fixture("non_sequence/invalid_state_diagram.puml"))
         .expect("fixture should load");
     let doc = parse(&src).expect("parse should succeed");
-    let err = normalize_family(doc).expect_err("state family should be unsupported");
-    assert!(err.message.contains("E_FAMILY_STATE_UNSUPPORTED"));
+    let normalized = normalize_family(doc).expect("state family should now normalize");
+    match normalized {
+        NormalizedDocument::Family(model) => {
+            assert!(!model.nodes.is_empty());
+        }
+        other => panic!("expected family model, got {other:?}"),
+    }
 }
 
 #[test]
@@ -342,38 +348,6 @@ fn parser_rejects_salt_marker_mismatch_fixture() {
 }
 
 #[test]
-fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes() {
-    let cases = [
-        (
-            "@startuml\ncomponent API\n@enduml\n",
-            "E_FAMILY_COMPONENT_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nnode web\n@enduml\n",
-            "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nstate Running\n@enduml\n",
-            "E_FAMILY_STATE_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nstart\n:step;\nstop\n@enduml\n",
-            "E_FAMILY_ACTIVITY_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nclock clk\n@enduml\n",
-            "E_FAMILY_TIMING_UNSUPPORTED",
-        ),
-    ];
-
-    for (src, code) in cases {
-        let doc = parse(src).expect("parse should succeed");
-        let err = normalize_family(doc).expect_err("family should be unsupported in this slice");
-        assert!(err.message.contains(code), "missing code {code}");
-    }
-}
-
-#[test]
 fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
     let src = "@startsalt\nwidget title\n@endsalt\n";
     let doc = parse(src).expect("parse should succeed");
@@ -386,6 +360,29 @@ fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
         }
         NormalizedDocument::Sequence(_) => panic!("expected salt family model"),
         NormalizedDocument::Timeline(_) => panic!("expected salt family model"),
+    }
+}
+
+#[test]
+fn normalize_family_accepts_wave1_implemented_families() {
+    let cases = [
+        ("@startuml\ncomponent API\n@enduml\n", DiagramKind::Component),
+        ("@startuml\nnode web\n@enduml\n", DiagramKind::Deployment),
+        ("@startuml\nstate Running\n@enduml\n", DiagramKind::State),
+        (
+            "@startuml\nstart\n:step;\nstop\n@enduml\n",
+            DiagramKind::Activity,
+        ),
+        ("@startuml\nclock clk\n@enduml\n", DiagramKind::Timing),
+    ];
+    for (src, expected_kind) in cases {
+        let doc = parse(src).expect("parse should succeed");
+        assert_eq!(doc.kind, expected_kind);
+        let normalized = normalize_family(doc).expect("family should normalize");
+        match normalized {
+            NormalizedDocument::Family(model) => assert_eq!(model.kind, expected_kind),
+            other => panic!("expected family model, got {other:?}"),
+        }
     }
 }
 

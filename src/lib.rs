@@ -240,14 +240,29 @@ fn render_document_for_family(
                 )),
             }
         }
-        DiagramFamily::Component
-        | DiagramFamily::Deployment
-        | DiagramFamily::State
-        | DiagramFamily::Activity
-        | DiagramFamily::Timing
-        | DiagramFamily::MindMap
+        DiagramFamily::Component => render_family_with(document, render::render_component_svg),
+        DiagramFamily::Deployment => render_family_with(document, render::render_deployment_svg),
+        DiagramFamily::State => render_family_with(document, render::render_state_svg),
+        DiagramFamily::Activity => render_family_with(document, render::render_activity_svg),
+        DiagramFamily::Timing => render_family_with(document, render::render_timing_svg),
+        DiagramFamily::MindMap
         | DiagramFamily::Wbs
         | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
+    }
+}
+
+fn render_family_with(
+    document: Document,
+    renderer: fn(&FamilyDocument) -> String,
+) -> Result<Vec<String>, Diagnostic> {
+    match normalize::normalize_family(document)? {
+        model::NormalizedDocument::Family(doc) => Ok(vec![renderer(&doc)]),
+        model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
+            "[E_FAMILY_INTERNAL] unexpected sequence model during extended family render",
+        )),
+        model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
+            "[E_FAMILY_INTERNAL] unexpected timeline model during extended family render",
+        )),
     }
 }
 

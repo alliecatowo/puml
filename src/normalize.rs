@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
+use crate::ast::{
+    ActivityStepKind, ComponentNodeKind, DiagramKind, Document, ParticipantRole as AstRole,
+    StatementKind, TimingDeclKind,
+};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation,
@@ -48,7 +51,7 @@ pub fn normalize_family_with_options(
         | DiagramKind::Deployment
         | DiagramKind::State
         | DiagramKind::Activity
-        | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
+        | DiagramKind::Timing => normalize_extended_family(document).map(NormalizedDocument::Family),
         DiagramKind::Unknown => Err(Diagnostic::error(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
         )),
@@ -158,6 +161,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     alias: decl.alias,
                     members: decl.members,
                     depth: 0,
+                    label: None,
                 });
             }
             StatementKind::ObjectDecl(decl) => {
@@ -174,6 +178,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     alias: decl.alias,
                     members: decl.members,
                     depth: 0,
+                    label: None,
                 });
             }
             StatementKind::UseCaseDecl(decl) => {
@@ -190,6 +195,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     alias: decl.alias,
                     members: decl.members,
                     depth: 0,
+                    label: None,
                 });
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
@@ -219,6 +225,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     alias: None,
                     members: Vec::new(),
                     depth: 0,
+                    label: None,
                 });
             }
             StatementKind::Unknown(line) => {
@@ -253,6 +260,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         warnings: Vec::new(),
     })
 }
+
 
 fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let mut nodes = Vec::new();
@@ -395,6 +403,7 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
                         alias: None,
                         members: Vec::new(),
                         depth,
+                        label: None,
                     });
                     continue;
                 }
@@ -529,6 +538,195 @@ fn parse_mindmap_or_wbs_node(line: &str) -> Option<(usize, String)> {
         return None;
     }
     Some((star_prefix.saturating_sub(1), label.to_string()))
+}
+
+fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
+    let family_kind = document.kind;
+    let mut nodes = Vec::new();
+    let mut relations = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+    let mut activity_step_counter: usize = 0;
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::ComponentDecl {
+                kind,
+                name,
+                alias,
+                label,
+            } => {
+                let node_kind = component_node_kind(kind);
+                nodes.push(FamilyNode {
+                    kind: node_kind,
+                    name,
+                    alias,
+                    members: Vec::new(),
+                    depth: 0,
+                    label,
+                });
+            }
+            StatementKind::StateDecl {
+                name,
+                alias,
+                label,
+            } => nodes.push(FamilyNode {
+                kind: FamilyNodeKind::State,
+                name,
+                alias,
+                members: Vec::new(),
+                depth: 0,
+                label,
+            }),
+            StatementKind::ActivityStep(step) => {
+                activity_step_counter += 1;
+                let kind = activity_step_node_kind(&step.kind);
+                let name = format!("__act_{activity_step_counter:04}");
+                nodes.push(FamilyNode {
+                    kind,
+                    name,
+                    alias: Some(format!("{:?}", step.kind)),
+                    members: Vec::new(),
+                    depth: 0,
+                    label: step.label,
+                });
+            }
+            StatementKind::TimingDecl { kind, name, label } => {
+                let node_kind = timing_decl_node_kind(kind);
+                nodes.push(FamilyNode {
+                    kind: node_kind,
+                    name,
+                    alias: None,
+                    members: Vec::new(),
+                    depth: 0,
+                    label,
+                });
+            }
+            StatementKind::TimingEvent {
+                time,
+                signal,
+                state,
+                note,
+            } => {
+                let display = match (&signal, &state, &note) {
+                    (Some(s), Some(st), _) => format!("{s} is {st}"),
+                    (None, None, Some(n)) => n.clone(),
+                    _ => String::new(),
+                };
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::TimingEvent,
+                    name: time,
+                    alias: signal,
+                    members: state.into_iter().collect(),
+                    depth: 0,
+                    label: if display.is_empty() {
+                        None
+                    } else {
+                        Some(display)
+                    },
+                });
+            }
+            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
+                from: rel.from,
+                to: rel.to,
+                arrow: rel.arrow,
+                label: rel.label,
+            }),
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_) => {}
+            StatementKind::Unknown(line) => {
+                return Err(Diagnostic::error(format!(
+                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_{}_UNSUPPORTED_STMT] unsupported {} syntax",
+                    family_kind_name(family_kind).to_uppercase(),
+                    family_kind_name(family_kind)
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    Ok(FamilyDocument {
+        kind: family_kind,
+        nodes,
+        relations,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        orientation: FamilyOrientation::TopToBottom,
+        style: SequenceStyle::default(),
+        text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        warnings: Vec::new(),
+    })
+}
+
+fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {
+    match kind {
+        ComponentNodeKind::Component => FamilyNodeKind::Component,
+        ComponentNodeKind::Interface => FamilyNodeKind::Interface,
+        ComponentNodeKind::Port => FamilyNodeKind::Port,
+        ComponentNodeKind::Node => FamilyNodeKind::Node,
+        ComponentNodeKind::Artifact => FamilyNodeKind::Artifact,
+        ComponentNodeKind::Cloud => FamilyNodeKind::Cloud,
+        ComponentNodeKind::Frame => FamilyNodeKind::Frame,
+        ComponentNodeKind::Storage => FamilyNodeKind::Storage,
+        ComponentNodeKind::Database => FamilyNodeKind::Database,
+        ComponentNodeKind::Package => FamilyNodeKind::Package,
+        ComponentNodeKind::Rectangle => FamilyNodeKind::Rectangle,
+        ComponentNodeKind::Folder => FamilyNodeKind::Folder,
+        ComponentNodeKind::File => FamilyNodeKind::File,
+        ComponentNodeKind::Card => FamilyNodeKind::Card,
+        ComponentNodeKind::Actor => FamilyNodeKind::Actor,
+    }
+}
+
+fn activity_step_node_kind(kind: &ActivityStepKind) -> FamilyNodeKind {
+    match kind {
+        ActivityStepKind::Start => FamilyNodeKind::ActivityStart,
+        ActivityStepKind::Stop | ActivityStepKind::End => FamilyNodeKind::ActivityStop,
+        ActivityStepKind::Action => FamilyNodeKind::ActivityAction,
+        ActivityStepKind::IfStart
+        | ActivityStepKind::WhileStart
+        | ActivityStepKind::RepeatWhile => FamilyNodeKind::ActivityDecision,
+        ActivityStepKind::Else | ActivityStepKind::EndIf | ActivityStepKind::EndWhile => {
+            FamilyNodeKind::ActivityMerge
+        }
+        ActivityStepKind::Fork | ActivityStepKind::ForkAgain => FamilyNodeKind::ActivityFork,
+        ActivityStepKind::EndFork => FamilyNodeKind::ActivityForkEnd,
+        ActivityStepKind::RepeatStart => FamilyNodeKind::ActivityMerge,
+        ActivityStepKind::PartitionStart | ActivityStepKind::PartitionEnd => {
+            FamilyNodeKind::ActivityPartition
+        }
+    }
+}
+
+fn timing_decl_node_kind(kind: TimingDeclKind) -> FamilyNodeKind {
+    match kind {
+        TimingDeclKind::Concise => FamilyNodeKind::TimingConcise,
+        TimingDeclKind::Robust => FamilyNodeKind::TimingRobust,
+        TimingDeclKind::Clock => FamilyNodeKind::TimingClock,
+        TimingDeclKind::Binary => FamilyNodeKind::TimingBinary,
+    }
 }
 
 fn family_kind_name(kind: DiagramKind) -> &'static str {
@@ -1052,7 +1250,12 @@ pub fn normalize_with_options(
             | StatementKind::GanttTaskDecl { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
-            | StatementKind::ChronologyHappensOn { .. } => {
+            | StatementKind::ChronologyHappensOn { .. }
+            | StatementKind::ComponentDecl { .. }
+            | StatementKind::StateDecl { .. }
+            | StatementKind::ActivityStep(_)
+            | StatementKind::TimingDecl { .. }
+            | StatementKind::TimingEvent { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )

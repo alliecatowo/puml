@@ -285,7 +285,7 @@ fn check_mode_fails_for_invalid_input() {
 }
 
 #[test]
-fn non_sequence_component_reports_deterministic_family_code() {
+fn component_family_now_passes_validation() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -293,12 +293,11 @@ fn non_sequence_component_reports_deterministic_family_code() {
             &fixture("non_sequence/invalid_component_diagram.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_COMPONENT_UNSUPPORTED]"));
+        .success();
 }
 
 #[test]
-fn non_sequence_deployment_reports_deterministic_family_code() {
+fn deployment_family_now_passes_validation() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -306,14 +305,11 @@ fn non_sequence_deployment_reports_deterministic_family_code() {
             &fixture("non_sequence/invalid_deployment_diagram.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains(
-            "[E_FAMILY_DEPLOYMENT_UNSUPPORTED]",
-        ));
+        .success();
 }
 
 #[test]
-fn non_sequence_state_reports_deterministic_family_code() {
+fn state_family_now_passes_validation() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -321,12 +317,11 @@ fn non_sequence_state_reports_deterministic_family_code() {
             &fixture("non_sequence/invalid_state_diagram.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_STATE_UNSUPPORTED]"));
+        .success();
 }
 
 #[test]
-fn non_sequence_activity_reports_deterministic_family_code() {
+fn activity_family_now_passes_validation() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -334,12 +329,11 @@ fn non_sequence_activity_reports_deterministic_family_code() {
             &fixture("non_sequence/invalid_activity_diagram.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_ACTIVITY_UNSUPPORTED]"));
+        .success();
 }
 
 #[test]
-fn non_sequence_timing_reports_deterministic_family_code() {
+fn timing_family_now_passes_validation() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -347,8 +341,7 @@ fn non_sequence_timing_reports_deterministic_family_code() {
             &fixture("non_sequence/invalid_timing_diagram.puml"),
         ])
         .assert()
-        .code(1)
-        .stderr(predicate::str::contains("[E_FAMILY_TIMING_UNSUPPORTED]"));
+        .success();
 }
 
 #[test]
@@ -552,7 +545,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_include_only.puml",
         "errors/invalid_define_only.puml",
         "errors/invalid_undef_only.puml",
-        "non_sequence/invalid_state_diagram.puml",
         "include/error_include_cycle_self.puml",
         "include/error_include_chain_a.puml",
         "lifecycle/valid_destroy_then_message.puml",
@@ -2317,26 +2309,6 @@ fn lifecycle_after_destroy_is_rejected() {
 #[test]
 fn non_sequence_inputs_fail_validation() {
     for (case, code) in [
-        (
-            "non_sequence/invalid_component_diagram.puml",
-            "E_FAMILY_COMPONENT_UNSUPPORTED",
-        ),
-        (
-            "non_sequence/invalid_deployment_diagram.puml",
-            "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
-        ),
-        (
-            "non_sequence/invalid_state_diagram.puml",
-            "E_FAMILY_STATE_UNSUPPORTED",
-        ),
-        (
-            "non_sequence/invalid_activity_diagram.puml",
-            "E_FAMILY_ACTIVITY_UNSUPPORTED",
-        ),
-        (
-            "non_sequence/invalid_timing_diagram.puml",
-            "E_FAMILY_TIMING_UNSUPPORTED",
-        ),
         ("errors/invalid_salt_block_mismatch.puml", "E_BLOCK_MISMATCH"),
     ] {
         Command::cargo_bin("puml")
@@ -2345,6 +2317,43 @@ fn non_sequence_inputs_fail_validation() {
             .assert()
             .code(1)
             .stderr(predicate::str::contains(code));
+    }
+}
+
+#[test]
+fn extended_family_fixtures_pass_check_and_render_svg() {
+    let cases = [
+        ("families/valid_component.puml", "component diagram"),
+        ("families/valid_deployment.puml", "deployment diagram"),
+        ("families/valid_state.puml", "state diagram"),
+        ("families/valid_activity.puml", "activity diagram"),
+        ("families/valid_timing.puml", "timing diagram"),
+    ];
+    for (case, marker) in cases {
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", &fixture(case)])
+            .assert()
+            .success()
+            .stderr(predicate::str::is_empty());
+
+        let src = fs::read_to_string(fixture(case)).unwrap();
+        let out = Command::cargo_bin("puml")
+            .expect("binary")
+            .arg("-")
+            .write_stdin(src)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let svg = String::from_utf8(out).expect("svg utf8");
+        assert!(svg.contains("<svg"), "missing svg envelope for {case}");
+        assert!(svg.contains("</svg>"), "missing svg close for {case}");
+        assert!(
+            svg.contains(marker),
+            "expected marker `{marker}` for {case}"
+        );
     }
 }
 
