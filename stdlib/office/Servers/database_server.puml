@@ -1,0 +1,6 @@
+' Deterministic Office database_server icon stub.
+!include <office/common>
+
+!procedure OFF_DATABASE_SERVER($alias, $label="database_server", $descr="")
+OfficeIcon($alias, Servers_database_server, $label, $descr)
+!endprocedure

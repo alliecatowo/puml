@@ -1,0 +1,6 @@
+' Deterministic Azure Key Vault compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureKeyVault($alias, $label="", $descr="")
+AzureIcon($alias, AzureKeyVault, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons react stub.
+!include <tupadr3/common>
+
+!procedure DEV_REACT($alias, $label="react", $descr="")
+FontAwesomeIcon($alias, devicons_react, $label, $descr)
+!endprocedure

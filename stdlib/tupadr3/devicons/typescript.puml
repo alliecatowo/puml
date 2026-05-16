@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons typescript stub.
+!include <tupadr3/common>
+
+!procedure DEV_TYPESCRIPT($alias, $label="typescript", $descr="")
+FontAwesomeIcon($alias, devicons_typescript, $label, $descr)
+!endprocedure

@@ -1,0 +1,19 @@
+@startuml
+!include <tupadr3/font-awesome-5/database>
+!include <tupadr3/font-awesome-5/server>
+!include <tupadr3/font-awesome-5/cloud>
+!include <tupadr3/font-awesome-5/user>
+!include <tupadr3/font-awesome-5/lock>
+!include <tupadr3/font-awesome-5/globe>
+FA5_USER(user, "End User")
+FA5_GLOBE(browser, "Browser")
+FA5_CLOUD(cdn, "CDN")
+FA5_SERVER(backend, "API Server")
+FA5_DATABASE(db, "Database")
+FA5_LOCK(auth, "Auth Service")
+user -> browser : opens
+browser -> cdn : fetches from
+cdn -> backend : proxies to
+backend -> auth : validates
+auth -> db : queries
+@enduml

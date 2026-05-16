@@ -1,0 +1,6 @@
+' Deterministic GCP GKE (Kubernetes Engine) compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure GKE($alias, $label="", $descr="")
+GCPIcon($alias, GKE, $label, $descr)
+!endprocedure

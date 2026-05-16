@@ -1,0 +1,6 @@
+' Deterministic GCP Cloud SQL compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure CloudSQL($alias, $label="", $descr="")
+GCPIcon($alias, CloudSQL, $label, $descr)
+!endprocedure

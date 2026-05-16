@@ -1,0 +1,6 @@
+' Deterministic AWS Cognito compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Cognito($alias, $label="", $descr="")
+AWSIcon($alias, Cognito, $label, $descr)
+!endprocedure

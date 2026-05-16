@@ -1,0 +1,6 @@
+' Deterministic Material token icon stub.
+!include <material/common>
+
+!procedure MA_TOKEN($alias, $label="token", $descr="")
+MaterialIcon($alias, token, $label, $descr)
+!endprocedure

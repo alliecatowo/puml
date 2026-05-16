@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons elasticsearch stub.
+!include <tupadr3/common>
+
+!procedure DEV_ELASTICSEARCH($alias, $label="elasticsearch", $descr="")
+FontAwesomeIcon($alias, devicons_elasticsearch, $label, $descr)
+!endprocedure

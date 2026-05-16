@@ -1,0 +1,6 @@
+' Deterministic Material sync icon stub.
+!include <material/common>
+
+!procedure MA_SYNC($alias, $label="sync", $descr="")
+MaterialIcon($alias, sync, $label, $descr)
+!endprocedure

@@ -3451,6 +3451,9 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
 
 fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
+    if let Some(kind) = parse_keyword(trimmed) {
+        return Some(kind);
+    }
     let (subject, rest) = parse_bracket_subject(trimmed)?;
     if rest.is_empty() {
         return Some(StatementKind::GanttTaskDecl { name: subject });
@@ -3458,6 +3461,15 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     let lower = rest.to_ascii_lowercase();
     if lower.starts_with("happens") {
         return Some(StatementKind::GanttMilestoneDecl { name: subject });
+    }
+    // `[date] : label` shorthand for milestones
+    if let Some(stripped) = rest.strip_prefix(':') {
+        let label = stripped.trim();
+        if !label.is_empty() && subject.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            return Some(StatementKind::GanttMilestoneDecl {
+                name: format!("{label} ({subject})"),
+            });
+        }
     }
     for kind in ["starts", "ends", "requires"] {
         if lower.starts_with(kind) {
@@ -3808,15 +3820,32 @@ fn split_is(s: &str) -> Option<(String, String)> {
 }
 
 fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
-    let lower = line.to_ascii_lowercase();
-    let marker = " happens on ";
-    let idx = lower.find(marker)?;
-    let subject = line[..idx].trim().trim_matches('"').to_string();
-    let when = line[idx + marker.len()..].trim().to_string();
-    if subject.is_empty() || when.is_empty() {
-        return None;
+    let trimmed = line.trim();
+    if let Some(kind) = parse_keyword(trimmed) {
+        return Some(kind);
     }
-    Some(StatementKind::ChronologyHappensOn { subject, when })
+    let lower = trimmed.to_ascii_lowercase();
+    let marker = " happens on ";
+    if let Some(idx) = lower.find(marker) {
+        let subject = trimmed[..idx].trim().trim_matches('"').to_string();
+        let when = trimmed[idx + marker.len()..].trim().to_string();
+        if subject.is_empty() || when.is_empty() {
+            return None;
+        }
+        return Some(StatementKind::ChronologyHappensOn { subject, when });
+    }
+    // Accept ISO `YYYY-MM-DD : Label` shorthand
+    if let Some((lhs, rhs)) = trimmed.split_once(':') {
+        let when = lhs.trim();
+        let subject = rhs.trim().trim_matches('"');
+        if !when.is_empty() && !subject.is_empty() && when.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            return Some(StatementKind::ChronologyHappensOn {
+                subject: subject.to_string(),
+                when: when.to_string(),
+            });
+        }
+    }
+    None
 }
 
 /// Parse a state diagram statement from the current line.

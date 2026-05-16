@@ -1,0 +1,6 @@
+' Deterministic GCP Cloud Functions compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure CloudFunctions($alias, $label="", $descr="")
+GCPIcon($alias, CloudFunctions, $label, $descr)
+!endprocedure

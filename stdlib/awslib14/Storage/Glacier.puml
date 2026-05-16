@@ -1,0 +1,6 @@
+' Deterministic AWS Glacier compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Glacier($alias, $label="", $descr="")
+AWSIcon($alias, Glacier, $label, $descr)
+!endprocedure

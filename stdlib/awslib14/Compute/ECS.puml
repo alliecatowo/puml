@@ -1,0 +1,6 @@
+' Deterministic AWS ECS compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure ECS($alias, $label="", $descr="")
+AWSIcon($alias, ECS, $label, $descr)
+!endprocedure

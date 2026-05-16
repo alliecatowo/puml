@@ -1,0 +1,6 @@
+' Deterministic Material notifications icon stub.
+!include <material/common>
+
+!procedure MA_NOTIFICATIONS($alias, $label="notifications", $descr="")
+MaterialIcon($alias, notifications, $label, $descr)
+!endprocedure

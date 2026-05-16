@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons javascript stub.
+!include <tupadr3/common>
+
+!procedure DEV_JAVASCRIPT($alias, $label="javascript", $descr="")
+FontAwesomeIcon($alias, devicons_javascript, $label, $descr)
+!endprocedure

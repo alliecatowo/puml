@@ -1,0 +1,6 @@
+' Deterministic Office application_server icon stub.
+!include <office/common>
+
+!procedure OFF_APPLICATION_SERVER($alias, $label="application_server", $descr="")
+OfficeIcon($alias, Servers_application_server, $label, $descr)
+!endprocedure

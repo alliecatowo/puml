@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 shopping-cart icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_SHOPPING_CART($alias, $label="shopping_cart", $descr="")
+FontAwesomeIcon($alias, fa5_shopping_cart, $label, $descr)
+!endprocedure

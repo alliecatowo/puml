@@ -1,0 +1,6 @@
+' Deterministic Material hub icon stub.
+!include <material/common>
+
+!procedure MA_HUB($alias, $label="hub", $descr="")
+MaterialIcon($alias, hub, $label, $descr)
+!endprocedure

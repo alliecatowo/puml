@@ -1,0 +1,6 @@
+' Deterministic AWS Aurora compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Aurora($alias, $label="", $descr="")
+AWSIcon($alias, Aurora, $label, $descr)
+!endprocedure

@@ -1,0 +1,14 @@
+@startuml
+!include <awslib14/Storage/S3>
+!include <awslib14/Storage/EBS>
+!include <awslib14/Database/RDS>
+!include <awslib14/Database/DynamoDB>
+!include <awslib14/Database/ElastiCache>
+S3(bucket, "Assets Bucket", "S3")
+EBS(vol, "Data Volume", "gp3")
+RDS(db, "User Database", "PostgreSQL")
+DynamoDB(ddb, "Session Store", "on-demand")
+ElastiCache(cache, "Cache Layer", "Redis")
+bucket -> db : archives to
+cache -> db : caches
+@enduml

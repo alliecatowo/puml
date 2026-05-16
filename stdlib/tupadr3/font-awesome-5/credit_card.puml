@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 credit-card icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_CREDIT_CARD($alias, $label="credit_card", $descr="")
+FontAwesomeIcon($alias, fa5_credit_card, $label, $descr)
+!endprocedure

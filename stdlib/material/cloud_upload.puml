@@ -1,0 +1,6 @@
+' Deterministic Material cloud_upload icon stub.
+!include <material/common>
+
+!procedure MA_CLOUD_UPLOAD($alias, $label="cloud_upload", $descr="")
+MaterialIcon($alias, cloud_upload, $label, $descr)
+!endprocedure

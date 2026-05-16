@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons mongodb stub.
+!include <tupadr3/common>
+
+!procedure DEV_MONGODB($alias, $label="mongodb", $descr="")
+FontAwesomeIcon($alias, devicons_mongodb, $label, $descr)
+!endprocedure

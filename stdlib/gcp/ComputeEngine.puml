@@ -1,0 +1,6 @@
+' Deterministic GCP Compute Engine compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure ComputeEngine($alias, $label="", $descr="")
+GCPIcon($alias, ComputeEngine, $label, $descr)
+!endprocedure

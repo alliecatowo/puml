@@ -1,0 +1,6 @@
+' Deterministic Material dashboard icon stub.
+!include <material/common>
+
+!procedure MA_DASHBOARD($alias, $label="dashboard", $descr="")
+MaterialIcon($alias, dashboard, $label, $descr)
+!endprocedure

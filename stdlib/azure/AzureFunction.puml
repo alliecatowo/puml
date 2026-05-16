@@ -1,0 +1,6 @@
+' Deterministic Azure Function compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureFunction($alias, $label="", $descr="")
+AzureIcon($alias, AzureFunction, $label, $descr)
+!endprocedure

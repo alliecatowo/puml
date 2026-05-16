@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 laptop icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_LAPTOP($alias, $label="laptop", $descr="")
+FontAwesomeIcon($alias, fa5_laptop, $label, $descr)
+!endprocedure

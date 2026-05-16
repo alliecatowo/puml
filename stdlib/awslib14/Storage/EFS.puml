@@ -1,0 +1,6 @@
+' Deterministic AWS EFS compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure EFS($alias, $label="", $descr="")
+AWSIcon($alias, EFS, $label, $descr)
+!endprocedure

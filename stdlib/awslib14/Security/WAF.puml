@@ -1,0 +1,6 @@
+' Deterministic AWS WAF compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure WAF($alias, $label="", $descr="")
+AWSIcon($alias, WAF, $label, $descr)
+!endprocedure

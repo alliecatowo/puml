@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 mobile-alt icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_MOBILE_ALT($alias, $label="mobile_alt", $descr="")
+FontAwesomeIcon($alias, fa5_mobile_alt, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic AWS CloudFront compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure CloudFront($alias, $label="", $descr="")
+AWSIcon($alias, CloudFront, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 server icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_SERVER($alias, $label="server", $descr="")
+FontAwesomeIcon($alias, fa5_server, $label, $descr)
+!endprocedure

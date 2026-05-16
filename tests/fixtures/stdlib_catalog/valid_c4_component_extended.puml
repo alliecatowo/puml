@@ -1,0 +1,9 @@
+@startuml
+!include <C4/C4_Component>
+Component(router, "Router", "Rust", "HTTP routing layer")
+ComponentDb(repo, "Repository", "SQL", "Data access layer")
+ComponentQueue(publisher, "Publisher", "AMQP", "Event publishing")
+Component_Ext(ext, "External Gateway", "REST", "Third-party integration")
+Rel(router, repo, "queries")
+Rel(router, publisher, "emits events")
+@enduml

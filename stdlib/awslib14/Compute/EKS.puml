@@ -1,0 +1,6 @@
+' Deterministic AWS EKS compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure EKS($alias, $label="", $descr="")
+AWSIcon($alias, EKS, $label, $descr)
+!endprocedure

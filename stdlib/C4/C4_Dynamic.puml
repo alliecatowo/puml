@@ -1,0 +1,23 @@
+' Deterministic C4 Dynamic view compatibility stub.
+!include <C4/C4_Container>
+
+!procedure Rel_Dynamic($from, $to, $label, $tech="", $index="")
+$from -> $to : [C4 Rel_Dynamic($index)] $label
+!endprocedure
+
+!procedure Rel_Back($from, $to, $label, $tech="")
+$to -> $from : [C4 Rel_Back] $label
+!endprocedure
+
+!procedure Rel_Neighbor($from, $to, $label, $tech="")
+$from -> $to : [C4 Rel_Neighbor] $label
+!endprocedure
+
+!procedure BiRel($from, $to, $label, $tech="")
+$from -> $to : [C4 BiRel] $label
+$to -> $from : [C4 BiRel] $label
+!endprocedure
+
+!procedure Rel_Back_Neighbor($from, $to, $label, $tech="")
+$to -> $from : [C4 Rel_Back_Neighbor] $label
+!endprocedure
