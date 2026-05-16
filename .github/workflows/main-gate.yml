@@ -53,7 +53,7 @@ jobs:
         with:
           name: main-benchmarks-${{ github.sha }}
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 90
           path: |
             docs/benchmarks/latest.md
             docs/benchmarks/latest.csv
@@ -63,3 +63,15 @@ jobs:
             docs/benchmarks/parity_latest.json
             docs/benchmarks/baseline_full.json
             docs/benchmarks/baseline_quick.json
+
+      - name: Upload parity report (persistent)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-report-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            docs/benchmarks/parity_latest.json
+            docs/benchmarks/latest_trend.json
+            docs/benchmarks/latest_trend.md
