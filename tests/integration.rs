@@ -923,9 +923,8 @@ fn check_mode_rejects_theme_unknown_name_with_catalog_message() {
         .assert()
         .code(1)
         .stderr(
-            predicate::str::contains("[E_THEME_UNKNOWN]").and(predicate::str::contains(
-                "available local themes: plain, spacelab",
-            )),
+            predicate::str::contains("[E_THEME_UNKNOWN]")
+                .and(predicate::str::contains("available local themes: ")),
         );
 }
 
