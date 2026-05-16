@@ -1,0 +1,6 @@
+' Deterministic GCP Cloud CDN compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure CloudCDN($alias, $label="", $descr="")
+GCPIcon($alias, CloudCDN, $label, $descr)
+!endprocedure

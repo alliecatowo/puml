@@ -1,0 +1,6 @@
+' Deterministic Material policy icon stub.
+!include <material/common>
+
+!procedure MA_POLICY($alias, $label="policy", $descr="")
+MaterialIcon($alias, policy, $label, $descr)
+!endprocedure

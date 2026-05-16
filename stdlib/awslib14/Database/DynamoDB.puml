@@ -1,0 +1,6 @@
+' Deterministic AWS DynamoDB compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure DynamoDB($alias, $label="", $descr="")
+AWSIcon($alias, DynamoDB, $label, $descr)
+!endprocedure

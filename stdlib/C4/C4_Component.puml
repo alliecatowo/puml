@@ -5,3 +5,18 @@
 participant $alias
 $alias -> $alias : [C4 Component] $label
 !endprocedure
+
+!procedure ComponentDb($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 ComponentDb] $label
+!endprocedure
+
+!procedure ComponentQueue($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 ComponentQueue] $label
+!endprocedure
+
+!procedure Component_Ext($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 Component_Ext] $label
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic Material terminal icon stub.
+!include <material/common>
+
+!procedure MA_TERMINAL($alias, $label="terminal", $descr="")
+MaterialIcon($alias, terminal, $label, $descr)
+!endprocedure

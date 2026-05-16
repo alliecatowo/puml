@@ -1,0 +1,6 @@
+' Deterministic Azure Service Bus compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureServiceBus($alias, $label="", $descr="")
+AzureIcon($alias, AzureServiceBus, $label, $descr)
+!endprocedure

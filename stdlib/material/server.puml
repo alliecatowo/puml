@@ -1,0 +1,6 @@
+' Deterministic Material server icon stub.
+!include <material/common>
+
+!procedure MA_SERVER($alias, $label="server", $descr="")
+MaterialIcon($alias, server, $label, $descr)
+!endprocedure

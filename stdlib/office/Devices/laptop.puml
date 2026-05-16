@@ -1,0 +1,6 @@
+' Deterministic Office laptop device icon stub.
+!include <office/common>
+
+!procedure OFF_LAPTOP($alias, $label="laptop", $descr="")
+OfficeIcon($alias, Devices_laptop, $label, $descr)
+!endprocedure

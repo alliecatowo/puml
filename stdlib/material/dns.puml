@@ -1,0 +1,6 @@
+' Deterministic Material dns icon stub.
+!include <material/common>
+
+!procedure MA_DNS($alias, $label="dns", $descr="")
+MaterialIcon($alias, dns, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 calendar icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_CALENDAR($alias, $label="calendar", $descr="")
+FontAwesomeIcon($alias, fa5_calendar, $label, $descr)
+!endprocedure

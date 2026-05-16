@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 file-alt icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_FILE_ALT($alias, $label="file_alt", $descr="")
+FontAwesomeIcon($alias, fa5_file_alt, $label, $descr)
+!endprocedure

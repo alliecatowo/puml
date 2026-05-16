@@ -1,0 +1,6 @@
+' Deterministic AWS VPC compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure VPC($alias, $label="", $descr="")
+AWSIcon($alias, VPC, $label, $descr)
+!endprocedure

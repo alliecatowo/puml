@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons nginx stub.
+!include <tupadr3/common>
+
+!procedure DEV_NGINX($alias, $label="nginx", $descr="")
+FontAwesomeIcon($alias, devicons_nginx, $label, $descr)
+!endprocedure

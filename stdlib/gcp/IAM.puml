@@ -1,0 +1,6 @@
+' Deterministic GCP IAM compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure IAM($alias, $label="", $descr="")
+GCPIcon($alias, IAM, $label, $descr)
+!endprocedure

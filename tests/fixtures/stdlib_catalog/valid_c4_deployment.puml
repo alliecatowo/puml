@@ -1,0 +1,9 @@
+@startuml
+!include <C4/C4_Deployment>
+Deployment_Node(prod, "Production", "AWS")
+Deployment_Node(k8s, "Kubernetes Cluster", "EKS")
+InfrastructureNode(lb, "Load Balancer", "ALB")
+Container(api, "API Service", "Rust", "Backend service")
+Rel(prod, k8s, "hosts")
+Rel(lb, api, "routes to")
+@enduml

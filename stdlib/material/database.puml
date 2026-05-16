@@ -1,0 +1,6 @@
+' Deterministic Material database icon stub.
+!include <material/common>
+
+!procedure MA_DATABASE($alias, $label="database", $descr="")
+MaterialIcon($alias, database, $label, $descr)
+!endprocedure

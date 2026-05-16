@@ -1,0 +1,6 @@
+' Deterministic Material smartphone icon stub.
+!include <material/common>
+
+!procedure MA_SMARTPHONE($alias, $label="smartphone", $descr="")
+MaterialIcon($alias, smartphone, $label, $descr)
+!endprocedure

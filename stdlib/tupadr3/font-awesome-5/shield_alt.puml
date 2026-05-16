@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 shield-alt icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_SHIELD_ALT($alias, $label="shield_alt", $descr="")
+FontAwesomeIcon($alias, fa5_shield_alt, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons redis stub.
+!include <tupadr3/common>
+
+!procedure DEV_REDIS($alias, $label="redis", $descr="")
+FontAwesomeIcon($alias, devicons_redis, $label, $descr)
+!endprocedure

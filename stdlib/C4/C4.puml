@@ -19,10 +19,94 @@ participant $alias
 $alias -> $alias : [C4 System_Ext] $label
 !endprocedure
 
+!procedure SystemDb($alias, $label, $descr="")
+participant $alias
+$alias -> $alias : [C4 SystemDb] $label
+!endprocedure
+
+!procedure SystemQueue($alias, $label, $descr="")
+participant $alias
+$alias -> $alias : [C4 SystemQueue] $label
+!endprocedure
+
+!procedure Boundary($alias, $label, $type="")
+participant $alias
+$alias -> $alias : [C4 Boundary] $label
+!endprocedure
+
+!procedure System_Boundary($alias, $label)
+Boundary($alias, $label, System)
+!endprocedure
+
+!procedure Container_Boundary($alias, $label)
+Boundary($alias, $label, Container)
+!endprocedure
+
+!procedure Component_Boundary($alias, $label)
+Boundary($alias, $label, Component)
+!endprocedure
+
+!procedure Lay_R($from, $to)
+$from -> $to : [C4 Lay_R]
+!endprocedure
+
+!procedure Lay_L($from, $to)
+$to -> $from : [C4 Lay_L]
+!endprocedure
+
+!procedure Lay_U($from, $to)
+$from -> $to : [C4 Lay_U]
+!endprocedure
+
+!procedure Lay_D($from, $to)
+$from -> $to : [C4 Lay_D]
+!endprocedure
+
+!procedure Title($label)
+note over title : $label
+!endprocedure
+
+!procedure Footer($label)
+note over footer : $label
+!endprocedure
+
+!procedure Legend()
+note over legend : C4 Legend
+!endprocedure
+
 !procedure Rel($from, $to, $label, $tech="")
 $from -> $to : [C4 Rel] $label
 !endprocedure
 
 !procedure Rel_U($from, $to, $label, $tech="")
 $from -> $to : [C4 Rel_U] $label
+!endprocedure
+
+!procedure Rel_D($from, $to, $label, $tech="")
+$from -> $to : [C4 Rel_D] $label
+!endprocedure
+
+!procedure Rel_L($from, $to, $label, $tech="")
+$from -> $to : [C4 Rel_L] $label
+!endprocedure
+
+!procedure Rel_R($from, $to, $label, $tech="")
+$from -> $to : [C4 Rel_R] $label
+!endprocedure
+
+!procedure Rel_Back($from, $to, $label, $tech="")
+$to -> $from : [C4 Rel_Back] $label
+!endprocedure
+
+!procedure Rel_Neighbor($from, $to, $label, $tech="")
+$from -> $to : [C4 Rel_Neighbor] $label
+!endprocedure
+
+!procedure BiRel($from, $to, $label, $tech="")
+$from -> $to : [C4 BiRel] $label
+$to -> $from : [C4 BiRel] $label
+!endprocedure
+
+!procedure Rel_Back_Neighbor($from, $to, $label, $tech="")
+$to -> $from : [C4 Rel_Back_Neighbor] $label
 !endprocedure

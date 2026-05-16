@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 tasks icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_TASKS($alias, $label="tasks", $descr="")
+FontAwesomeIcon($alias, fa5_tasks, $label, $descr)
+!endprocedure

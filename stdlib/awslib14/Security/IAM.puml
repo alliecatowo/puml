@@ -1,0 +1,6 @@
+' Deterministic AWS IAM compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure IAM($alias, $label="", $descr="")
+AWSIcon($alias, IAM, $label, $descr)
+!endprocedure

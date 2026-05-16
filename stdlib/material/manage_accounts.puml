@@ -1,0 +1,6 @@
+' Deterministic Material manage_accounts icon stub.
+!include <material/common>
+
+!procedure MA_MANAGE_ACCOUNTS($alias, $label="manage_accounts", $descr="")
+MaterialIcon($alias, manage_accounts, $label, $descr)
+!endprocedure

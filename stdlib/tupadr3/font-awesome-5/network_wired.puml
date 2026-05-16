@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 network-wired icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_NETWORK_WIRED($alias, $label="network_wired", $descr="")
+FontAwesomeIcon($alias, fa5_network_wired, $label, $descr)
+!endprocedure

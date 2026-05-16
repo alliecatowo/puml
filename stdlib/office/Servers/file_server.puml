@@ -1,0 +1,6 @@
+' Deterministic Office file_server icon stub.
+!include <office/common>
+
+!procedure OFF_FILE_SERVER($alias, $label="file_server", $descr="")
+OfficeIcon($alias, Servers_file_server, $label, $descr)
+!endprocedure

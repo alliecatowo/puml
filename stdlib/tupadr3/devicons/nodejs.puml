@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons nodejs stub.
+!include <tupadr3/common>
+
+!procedure DEV_NODEJS($alias, $label="nodejs", $descr="")
+FontAwesomeIcon($alias, devicons_nodejs, $label, $descr)
+!endprocedure

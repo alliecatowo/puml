@@ -1,0 +1,6 @@
+' Deterministic Material build icon stub.
+!include <material/common>
+
+!procedure MA_BUILD($alias, $label="build", $descr="")
+MaterialIcon($alias, build, $label, $descr)
+!endprocedure

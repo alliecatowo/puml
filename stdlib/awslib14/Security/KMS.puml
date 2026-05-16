@@ -1,0 +1,6 @@
+' Deterministic AWS KMS compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure KMS($alias, $label="", $descr="")
+AWSIcon($alias, KMS, $label, $descr)
+!endprocedure

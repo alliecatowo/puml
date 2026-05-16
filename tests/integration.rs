@@ -3737,3 +3737,248 @@ fn state_basic_render_produces_valid_svg() {
     assert!(svg.starts_with("<svg"), "expected SVG output");
     assert!(svg.contains("Active"), "expected state name in SVG");
 }
+
+// === stdlib catalog expansion tests ===
+
+fn stdlib_root() -> String {
+    env!("CARGO_MANIFEST_DIR").to_string()
+}
+
+#[test]
+fn stdlib_catalog_c4_context_extended_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_c4_context_extended.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_c4_container_extended_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_c4_container_extended.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_c4_component_extended_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_c4_component_extended.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_c4_dynamic_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_c4_dynamic.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_c4_deployment_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_c4_deployment.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_aws_compute_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_aws_compute.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_aws_storage_database_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_aws_storage_database.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_aws_networking_security_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_aws_networking_security.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_azure_services_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_azure_services.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_gcp_services_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_gcp_services.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_material_icons_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_material_icons.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_tupadr3_devicons_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_tupadr3_devicons.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_tupadr3_fa5_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_tupadr3_fa5.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_office_icons_resolves_and_checks() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--include-root",
+            &stdlib_root(),
+            &fixture("stdlib_catalog/valid_office_icons.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_catalog_all_fixtures_pass_check_with_include_root() {
+    let catalog_dir = format!("{}/tests/fixtures/stdlib_catalog", env!("CARGO_MANIFEST_DIR"));
+    let root = stdlib_root();
+    let entries = std::fs::read_dir(&catalog_dir)
+        .expect("stdlib_catalog fixtures dir should exist")
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path()
+                .extension()
+                .map(|x| x == "puml")
+                .unwrap_or(false)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !entries.is_empty(),
+        "expected at least one .puml fixture in stdlib_catalog"
+    );
+    for entry in entries {
+        let path = entry.path();
+        let path_str = path.to_str().unwrap();
+        Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--check", "--include-root", &root, path_str])
+            .assert()
+            .success();
+    }
+}

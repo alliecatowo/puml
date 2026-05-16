@@ -1,0 +1,6 @@
+' Deterministic AWS RDS compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure RDS($alias, $label="", $descr="")
+AWSIcon($alias, RDS, $label, $descr)
+!endprocedure

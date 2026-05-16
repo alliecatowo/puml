@@ -1,0 +1,12 @@
+@startuml
+!include <C4/C4_Context>
+Person(user, "User", "A person using the system")
+Person_Ext(ext_user, "External User", "An external user")
+System(webapp, "Web Application", "Main application")
+System_Ext(external, "External API", "Third-party API")
+SystemDb(db, "Database", "Primary database")
+SystemQueue(queue, "Message Queue", "Async messaging")
+Rel(user, webapp, "uses", "HTTPS")
+Rel_Back(webapp, external, "calls back")
+BiRel(webapp, db, "reads/writes")
+@enduml

@@ -1,0 +1,6 @@
+' Deterministic Material folder icon stub.
+!include <material/common>
+
+!procedure MA_FOLDER($alias, $label="folder", $descr="")
+MaterialIcon($alias, folder, $label, $descr)
+!endprocedure

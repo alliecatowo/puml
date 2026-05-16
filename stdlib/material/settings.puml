@@ -1,0 +1,6 @@
+' Deterministic Material settings icon stub.
+!include <material/common>
+
+!procedure MA_SETTINGS($alias, $label="settings", $descr="")
+MaterialIcon($alias, settings, $label, $descr)
+!endprocedure

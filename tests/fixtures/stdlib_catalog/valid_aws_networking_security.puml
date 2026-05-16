@@ -1,0 +1,19 @@
+@startuml
+!include <awslib14/Networking/VPC>
+!include <awslib14/Networking/Route53>
+!include <awslib14/Networking/CloudFront>
+!include <awslib14/Networking/APIGateway>
+!include <awslib14/Networking/ELB>
+!include <awslib14/Security/IAM>
+!include <awslib14/Security/KMS>
+VPC(vpc, "Main VPC", "10.0.0.0/16")
+Route53(dns, "DNS", "Hosted Zone")
+CloudFront(cdn, "CDN", "Distribution")
+APIGateway(gw, "API Gateway", "REST API")
+ELB(elb, "Load Balancer", "ALB")
+IAM(iam, "IAM Roles", "Policies")
+KMS(kms, "Encryption", "CMK")
+dns -> cdn : resolves to
+cdn -> gw : forwards to
+gw -> elb : routes
+@enduml

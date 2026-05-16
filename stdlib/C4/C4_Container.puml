@@ -5,3 +5,18 @@
 participant $alias
 $alias -> $alias : [C4 Container] $label
 !endprocedure
+
+!procedure ContainerDb($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 ContainerDb] $label
+!endprocedure
+
+!procedure ContainerQueue($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 ContainerQueue] $label
+!endprocedure
+
+!procedure Container_Ext($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 Container_Ext] $label
+!endprocedure

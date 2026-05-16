@@ -1,0 +1,6 @@
+' Deterministic Material devices icon stub.
+!include <material/common>
+
+!procedure MA_DEVICES($alias, $label="devices", $descr="")
+MaterialIcon($alias, devices, $label, $descr)
+!endprocedure

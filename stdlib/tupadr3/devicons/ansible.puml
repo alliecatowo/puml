@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons ansible stub.
+!include <tupadr3/common>
+
+!procedure DEV_ANSIBLE($alias, $label="ansible", $descr="")
+FontAwesomeIcon($alias, devicons_ansible, $label, $descr)
+!endprocedure

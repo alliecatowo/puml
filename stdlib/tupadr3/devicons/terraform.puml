@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons terraform stub.
+!include <tupadr3/common>
+
+!procedure DEV_TERRAFORM($alias, $label="terraform", $descr="")
+FontAwesomeIcon($alias, devicons_terraform, $label, $descr)
+!endprocedure

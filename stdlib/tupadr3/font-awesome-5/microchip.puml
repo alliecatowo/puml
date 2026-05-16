@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 microchip icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_MICROCHIP($alias, $label="microchip", $descr="")
+FontAwesomeIcon($alias, fa5_microchip, $label, $descr)
+!endprocedure

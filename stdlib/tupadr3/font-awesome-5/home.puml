@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 home icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_HOME($alias, $label="home", $descr="")
+FontAwesomeIcon($alias, fa5_home, $label, $descr)
+!endprocedure

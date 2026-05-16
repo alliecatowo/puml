@@ -1,0 +1,6 @@
+' Deterministic Azure Kubernetes Service compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureKubernetesService($alias, $label="", $descr="")
+AzureIcon($alias, AzureKubernetesService, $label, $descr)
+!endprocedure

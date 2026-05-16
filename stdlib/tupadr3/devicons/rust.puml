@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons rust stub.
+!include <tupadr3/common>
+
+!procedure DEV_RUST($alias, $label="rust", $descr="")
+FontAwesomeIcon($alias, devicons_rust, $label, $descr)
+!endprocedure

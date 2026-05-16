@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 cogs icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_COGS($alias, $label="cogs", $descr="")
+FontAwesomeIcon($alias, fa5_cogs, $label, $descr)
+!endprocedure

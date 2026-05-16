@@ -1,0 +1,6 @@
+' Deterministic Material router icon stub.
+!include <material/common>
+
+!procedure MA_ROUTER($alias, $label="router", $descr="")
+MaterialIcon($alias, router, $label, $descr)
+!endprocedure

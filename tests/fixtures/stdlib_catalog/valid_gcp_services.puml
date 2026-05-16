@@ -1,0 +1,21 @@
+@startuml
+!include <gcp/ComputeEngine>
+!include <gcp/CloudStorage>
+!include <gcp/BigQuery>
+!include <gcp/CloudSQL>
+!include <gcp/CloudFunctions>
+!include <gcp/GKE>
+!include <gcp/PubSub>
+!include <gcp/CloudLoadBalancing>
+ComputeEngine(vm, "App VM", "n1-standard-2")
+CloudStorage(gcs, "Data Lake", "Standard")
+BigQuery(bq, "Analytics", "On-demand")
+CloudSQL(sql, "App DB", "PostgreSQL 15")
+CloudFunctions(fn, "Thumbnail Gen", "Python 3.11")
+GKE(gke, "Services Cluster", "Autopilot")
+PubSub(ps, "Event Bus", "Standard")
+CloudLoadBalancing(lb, "Global LB", "HTTP(S)")
+lb -> gke : forwards
+gke -> sql : queries
+fn -> gcs : writes
+@enduml

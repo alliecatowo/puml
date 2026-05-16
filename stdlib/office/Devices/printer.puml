@@ -1,0 +1,6 @@
+' Deterministic Office printer device icon stub.
+!include <office/common>
+
+!procedure OFF_PRINTER($alias, $label="printer", $descr="")
+OfficeIcon($alias, Devices_printer, $label, $descr)
+!endprocedure

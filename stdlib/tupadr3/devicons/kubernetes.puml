@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons kubernetes stub.
+!include <tupadr3/common>
+
+!procedure DEV_KUBERNETES($alias, $label="kubernetes", $descr="")
+FontAwesomeIcon($alias, devicons_kubernetes, $label, $descr)
+!endprocedure
