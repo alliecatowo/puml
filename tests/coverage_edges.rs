@@ -212,6 +212,44 @@ fn render_state_svg_emits_expected_primitives_for_history_and_composite_regions(
 }
 
 #[test]
+fn normalize_state_accepts_metadata_and_region_dividers_without_side_effects() {
+    let src = "@startuml\ntitle State Title\nheader State Header\nfooter State Footer\ncaption State Caption\nlegend State Legend\nskinparam ArrowColor #112233\n!theme plain\n!pragma teoz true\nstate A\nstate B\nA --> B : next\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state should normalize");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+    assert_eq!(model.title.as_deref(), Some("State Title"));
+    assert_eq!(model.header.as_deref(), Some("State Header"));
+    assert_eq!(model.footer.as_deref(), Some("State Footer"));
+    assert_eq!(model.caption.as_deref(), Some("State Caption"));
+    assert_eq!(model.legend.as_deref(), Some("State Legend"));
+    assert!(model.nodes.iter().any(|n| n.name == "A"));
+    assert!(model.nodes.iter().any(|n| n.name == "B"));
+    assert!(model
+        .transitions
+        .iter()
+        .any(|t| t.from == "A" && t.to == "B" && t.label.as_deref() == Some("next")));
+}
+
+#[test]
+fn normalize_state_rejects_mixed_family_statements_with_deterministic_code() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::State,
+        statements: vec![puml::ast::Statement {
+            span: puml::source::Span::new(0, 5),
+            kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
+                name: "User".to_string(),
+                alias: None,
+                members: Vec::new(),
+            }),
+        }],
+    };
+    let err = normalize_family(doc).expect_err("mixed state+class should fail");
+    assert!(err.message.contains("E_STATE_MIXED"));
+}
+
+#[test]
 fn normalize_family_rejects_unknown_family_with_deterministic_code() {
     let src = "@startuml\nthis is not supported\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
