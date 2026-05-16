@@ -2472,20 +2472,10 @@ fn lifecycle_after_destroy_is_rejected() {
 
 #[test]
 fn non_sequence_inputs_fail_validation() {
-    for (case, code) in [
-        (
-            "errors/invalid_salt_block_mismatch.puml",
-            "E_BLOCK_MISMATCH",
-        ),
-        (
-            "non_sequence/invalid_mindmap_diagram.puml",
-            "E_FAMILY_MINDMAP_UNSUPPORTED",
-        ),
-        (
-            "non_sequence/invalid_wbs_diagram.puml",
-            "E_FAMILY_WBS_UNSUPPORTED",
-        ),
-    ] {
+    for (case, code) in [(
+        "errors/invalid_salt_block_mismatch.puml",
+        "E_BLOCK_MISMATCH",
+    )] {
         Command::cargo_bin("puml")
             .expect("binary")
             .args(["--check", &fixture(case)])

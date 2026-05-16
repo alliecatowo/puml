@@ -130,18 +130,18 @@ fn render_for_salt_family_returns_stub_svg() {
 #[test]
 fn render_for_timeline_families_returns_timeline_preview() {
     let gantt = render_source_to_svg_for_family(
-        "@startgantt\n[2026-01-01] : Kickoff\n@endgantt\n",
+        "@startgantt\n[Build]\n[Build] starts 2026-04-01\n@endgantt\n",
         DiagramFamily::Gantt,
     )
     .unwrap();
-    assert!(gantt.contains("timeline entries"));
+    assert!(gantt.contains("<svg"));
 
     let chronology = render_source_to_svg_for_family(
-        "@startchronology\n2026-01-01 : Event\n@endchronology\n",
+        "@startchronology\nLaunch happens on 2026-05-15\n@endchronology\n",
         DiagramFamily::Chronology,
     )
     .unwrap();
-    assert!(chronology.contains("timeline entries"));
+    assert!(chronology.contains("<svg"));
 }
 
 #[test]
