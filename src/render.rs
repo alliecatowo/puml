@@ -497,8 +497,6 @@ fn family_kind_label(kind: DiagramKind) -> &'static str {
         DiagramKind::Timing => "timing",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
-        DiagramKind::Gantt => "gantt",
-        DiagramKind::Chronology => "chronology",
         DiagramKind::Sequence => "sequence",
         DiagramKind::Unknown => "unknown",
     }
