@@ -148,3 +148,20 @@ This log records intentional contract deviations and updates adopted in the curr
   - Mermaid `sequenceDiagram` inputs using the above constructs now pass through adaptation into the PlantUML shared parser path.
   - Unsupported Mermaid sequence block/control constructs now emit deterministic construct-class codes (`E_MERMAID_BLOCK_UNSUPPORTED`, `E_MERMAID_CREATE_UNSUPPORTED`, `E_MERMAID_LINK_UNSUPPORTED`) instead of only generic unsupported-construct diagnostics.
   - Generic unsupported Mermaid sequence constructs still emit `E_MERMAID_CONSTRUCT_UNSUPPORTED`.
+
+### D-022: Multi-worktree merge of six diagram-family expansion branches
+- Decision: Sequentially merged six concurrent worktree branches (preprocessor builtins, sequence/Mermaid/CLI parity, class/object/usecase real renderers + timeline, Component/Deployment/State/Activity/Timing families, JSON/YAML/nwdiag/Archimate families, Regex/EBNF/Math/SDL/Ditaa/Chart families) into `main` via additive enum union and side-by-side function preservation.
+- Rationale: All six branches diverged from the same baseline and touched overlapping enums (`DiagramKind`, `BlockKind`, `FamilyNodeKind`, `DiagramFamily`, `NormalizedDocument`). Sequential merge preserved every variant and function rather than picking one branch's view.
+- Impact:
+  - `DiagramKind`/`DiagramFamily` now span ~22 variants (Sequence + 5 wave-1 families + 5 component-family + Salt + MindMap + Wbs + 4 data families + 6 specialty families + Gantt/Chronology + Unknown).
+  - `FamilyNodeKind` spans 30+ variants covering class/object/usecase/salt/mindmap/wbs/component/deployment/state/activity/timing.
+  - `NormalizedDocument` carries 10 variants (Sequence, Family, Timeline, Json, Yaml, Nwdiag, Archimate, Regex, Ebnf, Math, Sdl, Ditaa, Chart).
+  - Both `RawBlockContent` (HEAD) and `RawBody` (worktree) statement variants retained; both raw-body block flag functions kept (`is_raw_body_block` for JSON/YAML/nwdiag/Archimate, `block_kind_is_raw_body` for Regex/EBNF/Math/SDL/Ditaa/Chart).
+  - `render_pages_from_model` in `src/main.rs` dispatches to family-specific renderers (`render_class_svg`, `render_family_tree_svg`, `render_component_svg`, etc.).
+- Spec/implementation contradiction and resolution: The merged tree includes redundant raw-body handling paths and two depth/label fields on FamilyNode. This is intentional for the merge; a follow-up should consolidate to a single raw-body variant.
+
+#### TODO (follow-ups from D-022)
+- Consolidate `StatementKind::RawBlockContent`/`RawBody` into a single variant (parser currently emits `RawBody` only; tests/normalize accept either).
+- Consolidate `is_raw_body_block`/`block_kind_is_raw_body` into one function covering all 10 raw-body block kinds.
+- Dead-code cleanup of `family_kind_label`, `TOPLINE_FONT_SIZE`, `chars` binding, mutable `chars` declaration in `render.rs`.
+- Restore content marker assertion ("name") in `json_family_renders_deterministic_svg`; currently fixture parses but the marker only appears as a JSON key — needs render to actually embed key names.
