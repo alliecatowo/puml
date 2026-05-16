@@ -396,6 +396,7 @@ fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
             assert_eq!(model.relations.len(), 0, "no relations expected");
         }
         NormalizedDocument::Sequence(_) => panic!("expected salt family model"),
+        NormalizedDocument::Timeline(_) => panic!("expected salt family model"),
     }
 }
 
