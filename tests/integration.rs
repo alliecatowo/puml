@@ -350,6 +350,29 @@ fn non_sequence_timing_reports_deterministic_family_code() {
 }
 
 #[test]
+fn non_sequence_mindmap_reports_deterministic_family_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("non_sequence/invalid_mindmap_diagram.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_FAMILY_MINDMAP_UNSUPPORTED]"));
+}
+
+#[test]
+fn non_sequence_wbs_reports_deterministic_family_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("non_sequence/invalid_wbs_diagram.puml")])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("[E_FAMILY_WBS_UNSUPPORTED]"));
+}
+
+#[test]
 fn check_mode_passes_for_additional_valid_fixtures() {
     for case in [
         "single_valid.puml",
@@ -2126,6 +2149,14 @@ fn non_sequence_inputs_fail_validation() {
         (
             "non_sequence/invalid_timing_diagram.puml",
             "E_FAMILY_TIMING_UNSUPPORTED",
+        ),
+        (
+            "non_sequence/invalid_mindmap_diagram.puml",
+            "E_FAMILY_MINDMAP_UNSUPPORTED",
+        ),
+        (
+            "non_sequence/invalid_wbs_diagram.puml",
+            "E_FAMILY_WBS_UNSUPPORTED",
         ),
     ] {
         Command::cargo_bin("puml")

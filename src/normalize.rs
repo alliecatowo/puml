@@ -36,13 +36,15 @@ pub fn normalize_family_with_options(
         DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
-        DiagramKind::Component
+        DiagramKind::MindMap
+        | DiagramKind::Wbs
+        | DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::State
         | DiagramKind::Activity
         | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
         DiagramKind::Unknown => Err(Diagnostic::error(
-            "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase syntax",
+            "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/mindmap/wbs syntax",
         )),
     }
 }
@@ -168,6 +170,8 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Class => "class",
         DiagramKind::Object => "object",
         DiagramKind::UseCase => "usecase",
+        DiagramKind::MindMap => "mindmap",
+        DiagramKind::Wbs => "wbs",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -729,6 +733,8 @@ fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
         DiagramKind::State => ("E_FAMILY_STATE_UNSUPPORTED", "state"),
         DiagramKind::Activity => ("E_FAMILY_ACTIVITY_UNSUPPORTED", "activity"),
         DiagramKind::Timing => ("E_FAMILY_TIMING_UNSUPPORTED", "timing"),
+        DiagramKind::MindMap => ("E_FAMILY_MINDMAP_UNSUPPORTED", "mindmap"),
+        DiagramKind::Wbs => ("E_FAMILY_WBS_UNSUPPORTED", "wbs"),
         _ => ("E_FAMILY_UNSUPPORTED", "unknown"),
     };
 

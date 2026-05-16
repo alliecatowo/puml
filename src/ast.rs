@@ -12,6 +12,8 @@ pub enum DiagramKind {
     Class,
     Object,
     UseCase,
+    MindMap,
+    Wbs,
     Component,
     Deployment,
     State,

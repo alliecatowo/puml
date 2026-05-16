@@ -100,6 +100,8 @@ fn diagram_family_as_str_covers_all_variants() {
     assert_eq!(DiagramFamily::Deployment.as_str(), "deployment");
     assert_eq!(DiagramFamily::UseCase.as_str(), "usecase");
     assert_eq!(DiagramFamily::Object.as_str(), "object");
+    assert_eq!(DiagramFamily::MindMap.as_str(), "mindmap");
+    assert_eq!(DiagramFamily::Wbs.as_str(), "wbs");
     assert_eq!(DiagramFamily::Unknown.as_str(), "unknown");
 }
 
@@ -144,6 +146,16 @@ fn render_for_unsupported_families_reports_specific_codes() {
             "@startuml\nclock clk\n@enduml\n",
             DiagramFamily::Timing,
             "E_RENDER_TIMING_UNSUPPORTED",
+        ),
+        (
+            "@startmindmap\n* Root\n@endmindmap\n",
+            DiagramFamily::MindMap,
+            "E_RENDER_MINDMAP_UNSUPPORTED",
+        ),
+        (
+            "@startwbs\n* Scope\n@endwbs\n",
+            DiagramFamily::Wbs,
+            "E_RENDER_WBS_UNSUPPORTED",
         ),
         (
             "@startuml\nfoo bar\n@enduml\n",
@@ -203,6 +215,8 @@ fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
 fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     let sequence = "@startuml\nA -> B: hi\n@enduml\n";
     let component = "@startuml\ncomponent API\n@enduml\n";
+    let mindmap = "@startmindmap\n* Root\n@endmindmap\n";
+    let wbs = "@startwbs\n* Scope\n@endwbs\n";
 
     assert_eq!(
         detect_diagram_family(sequence).expect("sequence family"),
@@ -211,6 +225,14 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     assert_eq!(
         detect_diagram_family(component).expect("component family"),
         DiagramFamily::Component
+    );
+    assert_eq!(
+        detect_diagram_family(mindmap).expect("mindmap family"),
+        DiagramFamily::MindMap
+    );
+    assert_eq!(
+        detect_diagram_family(wbs).expect("wbs family"),
+        DiagramFamily::Wbs
     );
 
     let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";

@@ -27,6 +27,8 @@ pub enum DiagramFamily {
     Deployment,
     UseCase,
     Object,
+    MindMap,
+    Wbs,
     Unknown,
 }
 
@@ -42,6 +44,8 @@ impl DiagramFamily {
             Self::Deployment => "deployment",
             Self::UseCase => "usecase",
             Self::Object => "object",
+            Self::MindMap => "mindmap",
+            Self::Wbs => "wbs",
             Self::Unknown => "unknown",
         }
     }
@@ -217,6 +221,8 @@ fn render_document_for_family(
         | DiagramFamily::State
         | DiagramFamily::Activity
         | DiagramFamily::Timing
+        | DiagramFamily::MindMap
+        | DiagramFamily::Wbs
         | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
     }
 }
@@ -228,6 +234,8 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
         DiagramFamily::State => "E_RENDER_STATE_UNSUPPORTED",
         DiagramFamily::Activity => "E_RENDER_ACTIVITY_UNSUPPORTED",
         DiagramFamily::Timing => "E_RENDER_TIMING_UNSUPPORTED",
+        DiagramFamily::MindMap => "E_RENDER_MINDMAP_UNSUPPORTED",
+        DiagramFamily::Wbs => "E_RENDER_WBS_UNSUPPORTED",
         _ => "E_RENDER_FAMILY_UNSUPPORTED",
     };
     Diagnostic::error_code(
@@ -245,6 +253,8 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::Class => DiagramFamily::Class,
         ast::DiagramKind::Object => DiagramFamily::Object,
         ast::DiagramKind::UseCase => DiagramFamily::UseCase,
+        ast::DiagramKind::MindMap => DiagramFamily::MindMap,
+        ast::DiagramKind::Wbs => DiagramFamily::Wbs,
         ast::DiagramKind::Component => DiagramFamily::Component,
         ast::DiagramKind::Deployment => DiagramFamily::Deployment,
         ast::DiagramKind::State => DiagramFamily::State,

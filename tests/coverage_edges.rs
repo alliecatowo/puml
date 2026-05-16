@@ -203,6 +203,11 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
             "@startuml\nscale 1 as 1\n@enduml\n",
             puml::ast::DiagramKind::Timing,
         ),
+        (
+            "@startmindmap\n* Root\n@endmindmap\n",
+            puml::ast::DiagramKind::MindMap,
+        ),
+        ("@startwbs\n* Scope\n@endwbs\n", puml::ast::DiagramKind::Wbs),
     ];
 
     for (src, expected_kind) in cases {
@@ -266,6 +271,11 @@ fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes(
             "@startuml\nclock clk\n@enduml\n",
             "E_FAMILY_TIMING_UNSUPPORTED",
         ),
+        (
+            "@startmindmap\n* Root\n@endmindmap\n",
+            "E_FAMILY_MINDMAP_UNSUPPORTED",
+        ),
+        ("@startwbs\n* Scope\n@endwbs\n", "E_FAMILY_WBS_UNSUPPORTED"),
     ];
 
     for (src, code) in cases {
