@@ -1,0 +1,15 @@
+' PicoUML stdlib stub — Azure Common macros
+
+!procedure AzureIcon($alias, $label, $technology="azure")
+object $label as $alias <<azure-$technology>>
+!endprocedure
+
+!procedure AzureGroupColoring($groupDefinition, $bgColor, $fontColor, $borderColor)
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
+!endprocedure

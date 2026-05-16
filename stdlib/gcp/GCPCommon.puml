@@ -1,0 +1,15 @@
+' PicoUML stdlib stub — GCP Common macros
+
+!procedure GCPIcon($alias, $label, $technology="gcp")
+object $label as $alias <<gcp-$technology>>
+!endprocedure
+
+!procedure GCPGroupColoring($groupDefinition, $bgColor, $fontColor, $borderColor)
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
+!endprocedure

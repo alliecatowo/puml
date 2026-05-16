@@ -1,0 +1,10 @@
+@startuml
+!include <C4/C4_Context>
+
+!Person(u, "User")
+!System(s, "Software System")
+!System_Ext(ext, "External System")
+
+!Rel(u, s, "Uses")
+!Rel(s, ext, "Calls")
+@enduml
