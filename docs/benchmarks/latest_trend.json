@@ -1,23 +1,13 @@
 {
   "baseline": {
     "available": true,
-    "mode_match": true,
-    "timestamp_utc": "2026-05-15T20:30:48Z"
+    "timestamp_utc": "2026-05-15T20:16:56Z"
   },
-  "baseline_source": "/home/Allie/develop/puml/docs/benchmarks/.baseline.previous.json",
   "binary": {
     "limit_bytes": 2000000,
     "path": "/home/Allie/develop/puml/target/release/puml",
-    "size_bytes": 1835328,
+    "size_bytes": 1832984,
     "within_limit": true
-  },
-  "environment": {
-    "arch": "x86_64",
-    "host": "pink-allie-cat",
-    "kernel": "6.18.10-200.fc43.x86_64",
-    "os": "Linux",
-    "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
-    "timing_tool": "python-perf-counter"
   },
   "gates": {
     "absolute_mean_ms_limit": 250.0,
@@ -31,48 +21,48 @@
   },
   "scenarios": [
     {
-      "current_mean_ms": 92.6,
-      "delta_ms": 2.713,
-      "delta_pct": 3.018,
+      "current_mean_ms": 140.0,
+      "delta_ms": 28.0,
+      "delta_pct": 25.0,
       "name": "cold_start_help",
-      "previous_mean_ms": 89.887
+      "previous_mean_ms": 112.0
     },
     {
-      "current_mean_ms": 91.876,
-      "delta_ms": 1.258,
-      "delta_pct": 1.388,
+      "current_mean_ms": 136.0,
+      "delta_ms": 40.0,
+      "delta_pct": 41.667,
       "name": "parser_check",
-      "previous_mean_ms": 90.618
+      "previous_mean_ms": 96.0
     },
     {
-      "current_mean_ms": 92.135,
-      "delta_ms": -0.404,
-      "delta_pct": -0.437,
+      "current_mean_ms": 134.0,
+      "delta_ms": 36.0,
+      "delta_pct": 36.735,
       "name": "parser_dump_scene",
-      "previous_mean_ms": 92.539
+      "previous_mean_ms": 98.0
     },
     {
-      "current_mean_ms": 92.788,
-      "delta_ms": -0.146,
-      "delta_pct": -0.157,
+      "current_mean_ms": 112.0,
+      "delta_ms": 14.0,
+      "delta_pct": 14.286,
       "name": "render_file",
-      "previous_mean_ms": 92.934
+      "previous_mean_ms": 98.0
     },
     {
-      "current_mean_ms": 91.366,
-      "delta_ms": 1.299,
-      "delta_pct": 1.442,
+      "current_mean_ms": 88.0,
+      "delta_ms": -12.0,
+      "delta_pct": -12.0,
       "name": "render_stdin",
-      "previous_mean_ms": 90.067
+      "previous_mean_ms": 100.0
     },
     {
-      "current_mean_ms": 89.507,
-      "delta_ms": -1.595,
-      "delta_pct": -1.751,
+      "current_mean_ms": 90.0,
+      "delta_ms": -10.0,
+      "delta_pct": -10.0,
       "name": "render_stdin_multi",
-      "previous_mean_ms": 91.102
+      "previous_mean_ms": 100.0
     }
   ],
-  "source": "/home/Allie/develop/puml/docs/benchmarks/latest.json",
-  "timestamp_utc": "2026-05-15T20:38:14Z"
+  "source": "docs/benchmarks/latest.json",
+  "timestamp_utc": "2026-05-15T20:17:06Z"
 }

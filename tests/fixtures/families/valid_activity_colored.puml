@@ -1,0 +1,6 @@
+@startuml
+(*) --> "Start"
+#red:Error Action;
+#green:Success Action;
+"Start" --> (*)
+@enduml

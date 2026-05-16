@@ -1,20 +1,20 @@
 {
-  "timestamp_utc": "2026-05-15T20:17:06Z",
+  "timestamp_utc": "2026-05-15T20:16:56Z",
   "binary": "/home/Allie/develop/puml/target/release/puml",
   "mode": "full",
   "scenarios": [
     {
       "name": "cold_start_help",
       "tool": "time",
-      "mean_ms": 140.000,
-      "stddev_ms": 6.325,
+      "mean_ms": 112.000,
+      "stddev_ms": 39.192,
       "runs": 5
     }
     ,
     {
       "name": "parser_check",
       "tool": "time",
-      "mean_ms": 136.000,
+      "mean_ms": 96.000,
       "stddev_ms": 4.899,
       "runs": 5
     }
@@ -22,31 +22,31 @@
     {
       "name": "parser_dump_scene",
       "tool": "time",
-      "mean_ms": 134.000,
-      "stddev_ms": 4.899,
+      "mean_ms": 98.000,
+      "stddev_ms": 4.000,
       "runs": 5
     }
     ,
     {
       "name": "render_file",
       "tool": "time",
-      "mean_ms": 112.000,
-      "stddev_ms": 16.000,
+      "mean_ms": 98.000,
+      "stddev_ms": 4.000,
       "runs": 5
     }
     ,
     {
       "name": "render_stdin",
       "tool": "time",
-      "mean_ms": 88.000,
-      "stddev_ms": 4.000,
+      "mean_ms": 100.000,
+      "stddev_ms": 0.000,
       "runs": 5
     }
     ,
     {
       "name": "render_stdin_multi",
       "tool": "time",
-      "mean_ms": 90.000,
+      "mean_ms": 100.000,
       "stddev_ms": 0.000,
       "runs": 5
     }
