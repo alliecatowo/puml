@@ -1,0 +1,9 @@
+@startuml
+hide unlinked
+participant Alice
+participant Bob
+participant Unlinked
+
+Alice -> Bob: hello
+Bob --> Alice: ok
+@enduml

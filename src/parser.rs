@@ -29,6 +29,71 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
     parse_with_options(source, &ParseOptions::default())
 }
 
+/// Parse PicoUML canonical surface syntax.
+///
+/// PicoUML uses `@startpicouml`/`@endpicouml` block markers and maps to the
+/// shared PlantUML-compatible sequence model. Participant declarations, messages
+/// with PlantUML-style arrows, and notes are all supported. Mixed marker forms
+/// (both `@startpicouml` and `@startuml` in the same input) are rejected.
+///
+/// This function normalizes canonical markers to PlantUML markers, then runs
+/// the standard parse pipeline.
+pub fn parse_picouml(source: &str) -> Result<Document, Diagnostic> {
+    parse_picouml_with_options(source, &ParseOptions::default())
+}
+
+pub fn parse_picouml_with_options(
+    source: &str,
+    options: &ParseOptions,
+) -> Result<Document, Diagnostic> {
+    let adapted = adapt_picouml_source(source)?;
+    parse_with_options(&adapted, options)
+}
+
+fn adapt_picouml_source(source: &str) -> Result<String, Diagnostic> {
+    let mut out = String::new();
+    let mut saw_picouml_markers = false;
+    let mut saw_uml_markers = false;
+
+    for raw_line in source.lines() {
+        let trimmed = raw_line.trim();
+        let lower = trimmed.to_ascii_lowercase();
+
+        if lower.starts_with("@startpicouml") {
+            let rest = &trimmed["@startpicouml".len()..];
+            if rest.is_empty() || rest.starts_with(char::is_whitespace) {
+                saw_picouml_markers = true;
+                let suffix = rest;
+                out.push_str(&format!("@startuml{suffix}\n"));
+                continue;
+            }
+        }
+        if lower.starts_with("@endpicouml") {
+            let rest = &trimmed["@endpicouml".len()..];
+            if rest.is_empty() || rest.starts_with(char::is_whitespace) {
+                saw_picouml_markers = true;
+                let suffix = rest;
+                out.push_str(&format!("@enduml{suffix}\n"));
+                continue;
+            }
+        }
+        if lower.starts_with("@startuml") || lower.starts_with("@enduml") {
+            saw_uml_markers = true;
+        }
+        out.push_str(raw_line);
+        out.push('\n');
+    }
+
+    if saw_picouml_markers && saw_uml_markers {
+        return Err(crate::diagnostic::Diagnostic::error_code(
+            "E_PICOUML_MARKER_MIXED",
+            "picouml frontend does not allow mixing `@startpicouml/@endpicouml` with `@startuml/@enduml` markers",
+        ));
+    }
+
+    Ok(out)
+}
+
 pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Document, Diagnostic> {
     let mut state = PreprocState::default();
     let mut include_stack = Vec::new();
@@ -2076,6 +2141,7 @@ fn family_for_declaration(kind: &StatementKind) -> DiagramKind {
         StatementKind::ClassDecl(_) => DiagramKind::Class,
         StatementKind::ObjectDecl(_) => DiagramKind::Object,
         StatementKind::UseCaseDecl(_) => DiagramKind::UseCase,
+        StatementKind::JsonProjection { .. } => DiagramKind::Class,
         _ => DiagramKind::Unknown,
     }
 }
@@ -2142,6 +2208,13 @@ fn parse_family_declaration(
             },
         )));
     }
+    // json AliasName { ... } — JSON projection block
+    if let Some((alias, end_idx, body)) = parse_json_projection_decl(lines, start, line) {
+        return Ok(Some((
+            StatementKind::JsonProjection { alias, body },
+            end_idx,
+        )));
+    }
     Ok(None)
 }
 
@@ -2205,6 +2278,59 @@ fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
         }
     }
     start
+}
+
+/// Parse `json AliasName { ... }` block.
+/// Returns (alias, end_line_index, body_string) or None.
+fn parse_json_projection_decl(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Option<(String, usize, String)> {
+    let lower = line.to_ascii_lowercase();
+    if !lower.starts_with("json ") && lower != "json" {
+        return None;
+    }
+    let rest = line["json".len()..].trim();
+    if rest.is_empty() {
+        return None;
+    }
+    // Must end with '{' to open a block
+    let alias_part = if rest.ends_with('{') {
+        rest.trim_end_matches('{').trim()
+    } else {
+        return None;
+    };
+    let alias = if alias_part.is_empty() {
+        return None;
+    } else {
+        clean_ident(alias_part)
+    };
+    if alias.is_empty() {
+        return None;
+    }
+    // Collect body lines until matching '}'
+    let mut depth = 1i32;
+    let mut body_lines = Vec::new();
+    let mut end_idx = start;
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
+        let trimmed = raw.trim();
+        for ch in trimmed.chars() {
+            if ch == '{' {
+                depth += 1;
+            } else if ch == '}' {
+                depth -= 1;
+            }
+        }
+        if depth <= 0 {
+            end_idx = idx;
+            break;
+        }
+        body_lines.push(*raw);
+        end_idx = idx;
+    }
+    let body = format!("{{\n{}\n}}", body_lines.join("\n"));
+    Some((alias, end_idx, body))
 }
 
 fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
@@ -2631,6 +2757,9 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     }
     if lower == "show footbox" {
         return Some(StatementKind::Footbox(true));
+    }
+    if lower == "hide unlinked" {
+        return Some(StatementKind::HideUnlinked);
     }
 
     let note_kw = if lower.starts_with("note ") {

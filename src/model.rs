@@ -50,10 +50,17 @@ pub struct TimelineChronologyEvent {
 }
 
 #[derive(Debug, Clone)]
+pub struct JsonNode {
+    pub alias: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
     pub nodes: Vec<FamilyNode>,
     pub relations: Vec<FamilyRelation>,
+    pub json_nodes: Vec<JsonNode>,
     pub title: Option<String>,
     pub header: Option<String>,
     pub footer: Option<String>,
@@ -97,6 +104,7 @@ pub struct SequenceDocument {
     pub skinparams: Vec<(String, String)>,
     pub style: SequenceStyle,
     pub footbox_visible: bool,
+    pub hide_unlinked: bool,
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -112,6 +120,7 @@ pub struct SequencePage {
     pub skinparams: Vec<(String, String)>,
     pub style: SequenceStyle,
     pub footbox_visible: bool,
+    pub hide_unlinked: bool,
     pub warnings: Vec<Diagnostic>,
 }
 

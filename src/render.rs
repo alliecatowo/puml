@@ -1,6 +1,6 @@
 use crate::ast::DiagramKind;
 use crate::model::{
-    FamilyDocument, FamilyNodeKind, ParticipantRole, TimelineDocument, VirtualEndpointKind,
+    FamilyDocument, FamilyNodeKind, JsonNode, ParticipantRole, TimelineDocument, VirtualEndpointKind,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 
@@ -250,8 +250,13 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
         .map(|n| n.members.len() as i32)
         .sum::<i32>();
     let relation_rows = document.relations.len() as i32;
-    let height =
-        140 + (body_rows * 42) + (member_rows * 16) + (relation_rows * 20) + (title_lines * 24);
+    let json_rows = document.json_nodes.len() as i32;
+    let height = 140
+        + (body_rows * 42)
+        + (member_rows * 16)
+        + (relation_rows * 20)
+        + (title_lines * 24)
+        + (json_rows * 50);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -346,7 +351,48 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
         }
     }
 
+    // Render JSON projection nodes
+    if !document.json_nodes.is_empty() {
+        out.push_str(&format!(
+            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#334155\">JSON Projections</text>",
+            y + 6
+        ));
+        y += 24;
+        for jnode in &document.json_nodes {
+            out.push_str(&render_json_node_svg(jnode, 40, y, 680));
+            y += 50;
+        }
+    }
+
     out.push_str("</svg>");
+    out
+}
+
+fn render_json_node_svg(node: &JsonNode, x: i32, y: i32, width: i32) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"40\" rx=\"4\" ry=\"4\" fill=\"#fefce8\" stroke=\"#ca8a04\" stroke-width=\"1\"/>",
+        x, y - 14, width
+    ));
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#78350f\">json {}</text>",
+        x + 8,
+        y + 2,
+        escape_text(&node.alias)
+    ));
+    // Render first line of body as a preview
+    let preview = node
+        .body
+        .lines()
+        .find(|l| !l.trim().is_empty() && l.trim() != "{" && l.trim() != "}")
+        .map(|l| l.trim())
+        .unwrap_or("{}");
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#92400e\">{}</text>",
+        x + 8,
+        y + 18,
+        escape_text(preview)
+    ));
     out
 }
 

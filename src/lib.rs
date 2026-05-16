@@ -107,6 +107,10 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
     parser::parse(source)
 }
 
+pub fn parse_picouml(source: &str) -> Result<Document, Diagnostic> {
+    parser::parse_picouml(source)
+}
+
 pub fn parse_with_pipeline_options(
     source: &str,
     options: &ParsePipelineOptions,
@@ -123,8 +127,7 @@ pub fn parse_with_pipeline_options(
             parser::parse_with_options(&adapted, &parser_options)
         }
         FrontendSelection::Picouml => {
-            let adapted = adapt_picouml_to_plantuml(source)?;
-            parser::parse_with_options(&adapted, &parser_options)
+            parser::parse_picouml_with_options(source, &parser_options)
         }
     }
 }
@@ -378,70 +381,6 @@ fn is_plantuml_family_fence_lang(lang: &str) -> bool {
         || lang.eq_ignore_ascii_case("uml")
         || lang.eq_ignore_ascii_case("puml-sequence")
         || lang.eq_ignore_ascii_case("uml-sequence")
-}
-
-fn adapt_picouml_to_plantuml(source: &str) -> Result<String, Diagnostic> {
-    let mut out = String::new();
-    let mut saw_picouml_markers = false;
-    let mut saw_uml_markers = false;
-    for raw_line in source.lines() {
-        let trimmed = raw_line.trim();
-        if matches_prefixed_uml_marker(trimmed, "@startpicouml") {
-            saw_picouml_markers = true;
-            let converted = replace_prefixed_marker(raw_line, "@startpicouml", "@startuml");
-            out.push_str(&converted);
-            out.push('\n');
-            continue;
-        }
-        if matches_prefixed_uml_marker(trimmed, "@endpicouml") {
-            saw_picouml_markers = true;
-            let converted = replace_prefixed_marker(raw_line, "@endpicouml", "@enduml");
-            out.push_str(&converted);
-            out.push('\n');
-            continue;
-        }
-        if matches_prefixed_uml_marker(trimmed, "@startuml")
-            || matches_prefixed_uml_marker(trimmed, "@enduml")
-        {
-            saw_uml_markers = true;
-        }
-        out.push_str(raw_line);
-        out.push('\n');
-    }
-
-    if saw_picouml_markers && saw_uml_markers {
-        return Err(Diagnostic::error_code(
-            "E_PICOUML_MARKER_MIXED",
-            "picouml frontend does not allow mixing `@startpicouml/@endpicouml` with `@startuml/@enduml` markers",
-        ));
-    }
-
-    Ok(out)
-}
-
-fn replace_prefixed_marker(line: &str, marker: &str, replacement: &str) -> String {
-    let lower = line.to_ascii_lowercase();
-    let marker_len = marker.len();
-    if !lower.trim_start().starts_with(marker) {
-        return line.to_string();
-    }
-    let leading_ws = line.len() - line.trim_start().len();
-    let rest_start = leading_ws + marker_len;
-    let mut out = String::new();
-    out.push_str(&line[..leading_ws]);
-    out.push_str(replacement);
-    out.push_str(line.get(rest_start..).unwrap_or_default());
-    out
-}
-
-fn matches_prefixed_uml_marker(line: &str, marker: &str) -> bool {
-    let lower = line.to_ascii_lowercase();
-    let marker_len = marker.len();
-    if !lower.starts_with(marker) {
-        return false;
-    }
-    let rest = &line[marker_len..];
-    rest.is_empty() || rest.starts_with(char::is_whitespace)
 }
 
 fn adapt_mermaid_to_plantuml(source: &str) -> Result<String, Diagnostic> {

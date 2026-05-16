@@ -1,6 +1,5 @@
 ---
 source: tests/integration.rs
-assertion_line: 516
 expression: json
 ---
 {
@@ -47,6 +46,7 @@ expression: json
   "footbox_visible": true,
   "footer": null,
   "header": null,
+  "hide_unlinked": false,
   "legend": null,
   "participants": [
     {

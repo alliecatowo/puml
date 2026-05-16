@@ -67,6 +67,11 @@ pub enum StatementKind {
     Theme(String),
     Pragma(String),
     Footbox(bool),
+    HideUnlinked,
+    JsonProjection {
+        alias: String,
+        body: String,
+    },
     Delay(Option<String>),
     Divider(Option<String>),
     Separator(Option<String>),

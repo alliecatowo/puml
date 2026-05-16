@@ -48,6 +48,11 @@ Acceptance criteria:
 Fixture plan:
 - No new fixtures required.
 
+### Oracle Scaffolding: Differential Oracle (#88) — Done
+
+- `scripts/oracle.sh` implemented: exits 0 with `skipped:true` when `plantuml.jar` is absent; byte-compares SVG outputs when `PUML_ORACLE_JAR` is set.
+- `tests/oracle_smoke.rs` (`cargo test --test oracle_smoke`) verifies script exits 0 in CI (no JAR) path.
+
 ### Stage 1: Syntax Compatibility Unblockers (P1)
 
 Items:

@@ -1,0 +1,9 @@
+@startpicouml
+participant Service
+participant Client
+
+Client -> Service: request
+note right of Service: processing
+Service --> Client: response
+note over Client: done
+@endpicouml

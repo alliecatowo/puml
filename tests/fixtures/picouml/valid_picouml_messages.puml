@@ -1,0 +1,10 @@
+@startpicouml
+participant Alice
+participant Bob
+actor Charlie
+
+Alice -> Bob: hello
+Bob --> Alice: reply
+Alice -> Charlie: forward
+note over Bob: processing
+@endpicouml

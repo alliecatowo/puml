@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
+    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation, JsonNode,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
     TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
@@ -133,6 +133,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
 
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
+    let mut json_nodes = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -197,12 +198,16 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::JsonProjection { alias, body } => {
+                json_nodes.push(JsonNode { alias, body });
+            }
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
-            | StatementKind::Undef(_) => {}
+            | StatementKind::Undef(_)
+            | StatementKind::HideUnlinked => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
@@ -224,6 +229,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         kind: family_kind,
         nodes,
         relations,
+        json_nodes,
         title,
         header,
         footer,
@@ -287,6 +293,7 @@ fn page_from(
         skinparams: document.skinparams.clone(),
         style: document.style.clone(),
         footbox_visible: document.footbox_visible,
+        hide_unlinked: document.hide_unlinked,
         warnings: document.warnings.clone(),
     }
 }
@@ -318,6 +325,7 @@ pub fn normalize_with_options(
     let mut legend = None;
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
+    let mut hide_unlinked = false;
     let mut style = SequenceStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
@@ -582,6 +590,10 @@ pub fn normalize_with_options(
                 mark_group_content(&mut group_stack);
                 footbox_visible = v
             }
+            StatementKind::HideUnlinked => {
+                mark_group_content(&mut group_stack);
+                hide_unlinked = true;
+            }
             StatementKind::Delay(v) => {
                 mark_group_content(&mut group_stack);
                 events.push(SequenceEvent {
@@ -753,7 +765,8 @@ pub fn normalize_with_options(
             | StatementKind::GanttTaskDecl { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
-            | StatementKind::ChronologyHappensOn { .. } => {
+            | StatementKind::ChronologyHappensOn { .. }
+            | StatementKind::JsonProjection { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )
@@ -780,6 +793,52 @@ pub fn normalize_with_options(
         .with_span(open.span));
     }
 
+    // Apply hide unlinked filter: drop participants that never appear in any event.
+    if hide_unlinked {
+        let mut referenced: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for ev in &events {
+            match &ev.kind {
+                SequenceEventKind::Message { from, to, .. } => {
+                    referenced.insert(from.clone());
+                    referenced.insert(to.clone());
+                }
+                SequenceEventKind::Note { target, .. } => {
+                    if let Some(t) = target {
+                        referenced.insert(t.clone());
+                    }
+                }
+                SequenceEventKind::Activate(id)
+                | SequenceEventKind::Deactivate(id)
+                | SequenceEventKind::Destroy(id)
+                | SequenceEventKind::Create(id) => {
+                    referenced.insert(id.clone());
+                }
+                SequenceEventKind::Return { from, to, .. } => {
+                    if let Some(f) = from {
+                        referenced.insert(f.clone());
+                    }
+                    if let Some(t) = to {
+                        referenced.insert(t.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        let filtered: Vec<String> = participants
+            .iter()
+            .filter(|p| !referenced.contains(&p.id))
+            .map(|p| p.id.clone())
+            .collect();
+        if !filtered.is_empty() {
+            warnings.push(Diagnostic::warning(format!(
+                "[W_HIDE_UNLINKED_FILTERED] hide unlinked removed {} participant(s): {}",
+                filtered.len(),
+                filtered.join(", ")
+            )));
+        }
+        participants.retain(|p| referenced.contains(&p.id));
+    }
+
     warnings.sort_by(|a, b| {
         let sa = a.span.map(|s| s.start).unwrap_or_default();
         let sb = b.span.map(|s| s.start).unwrap_or_default();
@@ -797,6 +856,7 @@ pub fn normalize_with_options(
         skinparams,
         style,
         footbox_visible,
+        hide_unlinked,
         warnings,
     })
 }

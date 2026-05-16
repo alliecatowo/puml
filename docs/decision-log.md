@@ -139,3 +139,20 @@ This log records intentional contract deviations and updates adopted in the curr
   - Mermaid `sequenceDiagram` inputs using the above constructs now pass through adaptation into the PlantUML shared parser path.
   - Unsupported Mermaid sequence block/control constructs now emit deterministic construct-class codes (`E_MERMAID_BLOCK_UNSUPPORTED`, `E_MERMAID_CREATE_UNSUPPORTED`, `E_MERMAID_LINK_UNSUPPORTED`) instead of only generic unsupported-construct diagnostics.
   - Generic unsupported Mermaid sequence constructs still emit `E_MERMAID_CONSTRUCT_UNSUPPORTED`.
+
+### D-022: `hide unlinked` implemented as participant filter with diagnostic (#87)
+- Decision: Implement `hide unlinked` as a real participant filter that removes participants not referenced in any event (Message from/to, Note target, Activate/Deactivate/Destroy/Create target, Return from/to). Filtered participants emit a stable `W_HIDE_UNLINKED_FILTERED` warning listing removed IDs.
+- Rationale: Previous behavior silently emitted `W_SKINPARAM_UNSUPPORTED` which was misleading. The filter is applied after normalization, so lifecycle events (activate/deactivate/create/destroy/return) continue to count as references.
+- Impact: Participants that appear only in explicit declarations but never in any event are removed from the rendered sequence layout. The `hide_unlinked` flag is stored on `SequenceDocument` and `SequencePage` for downstream use.
+
+### D-023: JSON projection (`json AliasName { ... }`) parsed into AST and rendered in class/object diagrams (#103)
+- Decision: Parse `json AliasName { ... }` blocks in `@startuml` contexts as `StatementKind::JsonProjection { alias, body }`. Route them through family normalization into `FamilyDocument.json_nodes: Vec<JsonNode>`. Render each `JsonNode` as a labeled yellow rectangle in the family stub SVG renderer.
+- Rationale: Closes a parity gap for PlantUML's JSON embedding feature. Full serde_json parsing of the body is deferred (D-024) — body is stored as a raw string for now.
+- Impact: Class/object diagrams with `json` blocks parse and render without error. The body is stored as a raw string and a one-line preview is shown in SVG output.
+- Spec/implementation contradiction and resolution: Full JSON tree visualization (nested key/value rendering) is deferred to a follow-up slice.
+
+### D-024: PicoUML canonical parser is the real first-class route (#128)
+- Decision: Move `FrontendSelection::Picouml` to call `parser::parse_picouml_with_options` (implemented in `src/parser.rs`) instead of the old `adapt_picouml_to_plantuml` adapter in `lib.rs`. The canonical parser validates mixed-marker constraints and normalizes `@startpicouml`/`@endpicouml` to PlantUML markers before parsing. Remove the dead adapter code from `lib.rs`.
+- Rationale: Promotes PicoUML from an adapter shim to a real first-class language surface with its own parse entry point, consistent with D-010.
+- Impact: `--dialect picouml` and markdown `picouml` fence blocks now route through the canonical parser. Extended PicoUML-specific syntax validation (beyond marker and mixed-marker enforcement) is deferred to future slices as the spec is expanded.
+- Deferred: Advanced PicoUML-specific syntax constraints beyond markers (e.g., PicoUML-only keywords, dialect-specific arrow forms) are not yet implemented. The current canonical parser accepts the same syntax as the PlantUML pipeline after marker normalization.

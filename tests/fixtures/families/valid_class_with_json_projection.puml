@@ -1,0 +1,11 @@
+@startuml
+class User {
+  +name: String
+  +email: String
+}
+json UserPayload {
+  "id": 1,
+  "name": "Alice"
+}
+User --> UserPayload
+@enduml

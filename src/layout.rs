@@ -947,6 +947,7 @@ mod tests {
             skinparams: vec![],
             style: SequenceStyle::default(),
             footbox_visible: true,
+            hide_unlinked: false,
             warnings: vec![],
         };
         let scene = layout(&doc, LayoutOptions::default());

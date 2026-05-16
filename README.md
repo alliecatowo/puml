@@ -162,7 +162,7 @@ Modes:
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
   `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
   `mermaid`: supports a first-class `sequenceDiagram` subset (participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, and `%%` comments), with deterministic compatibility diagnostics for unsupported constructs
-  `picouml`: canonical first-class language surface; explicit frontend selection is currently not implemented and returns a deterministic diagnostic
+  `picouml`: canonical first-class language surface; supports `@startpicouml`/`@endpicouml` markers, participant declarations (`participant`, `actor`), PlantUML-style message arrows, and notes; mixed marker forms are rejected with `E_PICOUML_MARKER_MIXED`
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
   `extended`: when `--include-root` is omitted, stdin `!include` falls back to current working directory
@@ -231,6 +231,7 @@ Artifacts:
 - deterministic trend report: `docs/benchmarks/latest_trend.{md,json}`
 - mode baselines: `docs/benchmarks/baseline_{full,quick}.json`
 - no-Java oracle placeholder baseline: `docs/benchmarks/parity_latest.json`
+- differential oracle scaffold: `scripts/oracle.sh` (exits 0 with `skipped:true` when no JAR present; byte-compares SVG outputs when `PUML_ORACLE_JAR` is set)
 
 ## Feature Matrix
 
@@ -244,6 +245,8 @@ Artifacts:
 | Notes, groups, separators | Supported | Includes `alt`, `else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `end`, plus `...`, `||`, `newpage`. |
 | Lifecycle/control statements | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber`. |
 | Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
+| `hide unlinked` | Supported | Filters unreferenced participants from the sequence layout; emits `W_HIDE_UNLINKED_FILTERED` info diagnostic listing removed participants. |
+| JSON projection (`json AliasName { ... }`) | Supported | Parses JSON nodes embedded in class/object diagrams into `JsonProjection` AST nodes; rendered as labeled rectangles in SVG output. |
 | `skinparam` sequence styling subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor` (and unprefixed alias), `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (each also supports `Sequence...` alias). Color values are deterministic-safe tokens only: hex (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or alphabetic names (canonicalized to lowercase). |
 | Other `skinparam` keys | Accepted with warning | Deterministic `W_SKINPARAM_UNSUPPORTED`/`W_SKINPARAM_UNSUPPORTED_VALUE` warning; continues execution. |
 | `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |

@@ -1283,6 +1283,10 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
             json!({"SkinParam": {"key": key, "value": value}})
         }
         StatementKind::Footbox(v) => json!({"Footbox": v}),
+        StatementKind::HideUnlinked => json!("HideUnlinked"),
+        StatementKind::JsonProjection { alias, body } => {
+            json!({"JsonProjection": {"alias": alias, "body": body}})
+        }
         StatementKind::Delay(v) => json!({"Delay": v}),
         StatementKind::Divider(v) => json!({"Divider": v}),
         StatementKind::Separator(v) => json!({"Separator": v}),
@@ -1383,7 +1387,8 @@ fn model_to_json(model: &SequenceDocument) -> Value {
         "caption": model.caption,
         "legend": model.legend,
         "skinparams": model.skinparams,
-        "footbox_visible": model.footbox_visible
+        "footbox_visible": model.footbox_visible,
+        "hide_unlinked": model.hide_unlinked
     })
 }
 
@@ -1431,6 +1436,11 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
                     "label": r.label
                 })
             })
+            .collect::<Vec<_>>(),
+        "json_nodes": model
+            .json_nodes
+            .iter()
+            .map(|j| json!({"alias": j.alias, "body": j.body}))
             .collect::<Vec<_>>(),
         "title": model.title,
         "header": model.header,

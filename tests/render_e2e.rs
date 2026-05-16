@@ -259,6 +259,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
         skinparams: vec![],
         style: SequenceStyle::default(),
         footbox_visible: true,
+        hide_unlinked: false,
         warnings: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
