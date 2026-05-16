@@ -2336,6 +2336,12 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     if rest.is_empty() {
         return Some(StatementKind::GanttTaskDecl { name: subject });
     }
+    let rest = rest.trim();
+    if let Some(rest) = rest.strip_prefix(':') {
+        return Some(StatementKind::GanttTaskDecl {
+            name: rest.trim().to_string(),
+        });
+    }
     let lower = rest.to_ascii_lowercase();
     if lower.starts_with("happens") {
         return Some(StatementKind::GanttMilestoneDecl { name: subject });
