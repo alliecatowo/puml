@@ -1,0 +1,5 @@
+@startpicouml
+participant Alice
+participant Bob
+Alice -> Bob: canonical-picouml
+@endpicouml

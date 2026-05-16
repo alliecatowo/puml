@@ -221,18 +221,28 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
 }
 
 #[test]
-fn picouml_pipeline_selection_fails_deterministically_in_library_api() {
+fn picouml_pipeline_selection_routes_deterministically_in_library_api() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Picouml,
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
     };
-    let err = parse_with_pipeline_options("@startuml\nA -> B\n@enduml\n", &options)
-        .expect_err("picouml should be unimplemented");
-    assert!(err
-        .message
-        .contains("frontend 'picouml' is not implemented yet"));
+    parse_with_pipeline_options("@startpicouml\nA -> B\n@endpicouml\n", &options)
+        .expect("picouml should route via shared model parser");
+}
+
+#[test]
+fn picouml_pipeline_rejects_mixed_marker_forms_deterministically() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let err = parse_with_pipeline_options("@startpicouml\nA -> B\n@enduml\n", &options)
+        .expect_err("mixed picouml/uml markers should be rejected");
+    assert!(err.message.contains("E_PICOUML_MARKER_MIXED"));
 }
 
 #[test]
