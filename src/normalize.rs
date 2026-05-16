@@ -12,8 +12,10 @@ use crate::model::{
     VirtualEndpointSide,
 };
 use crate::theme::{
-    classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
-    SequenceSkinParamValue, SequenceStyle,
+    classify_activity_skinparam, classify_class_skinparam, classify_gantt_skinparam,
+    classify_sequence_skinparam, classify_state_skinparam, resolve_sequence_theme_preset,
+    FamilySkinParamSupport, FamilySkinParamValue, FamilyStyle, SequenceSkinParamSupport,
+    SequenceSkinParamValue, SequenceStyle, StateStyle, TimelineStyle,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -65,6 +67,8 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut style = TimelineStyle::default();
+    let mut warnings = Vec::new();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -89,9 +93,37 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::SkinParam { .. }
-            | StatementKind::Theme(_)
-            | StatementKind::Pragma(_) => {}
+            StatementKind::SkinParam { key, value } => {
+                let support = if document.kind == DiagramKind::Activity {
+                    classify_activity_skinparam(&key, &value)
+                } else {
+                    classify_gantt_skinparam(&key, &value)
+                };
+                match support {
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(v)) => {
+                        style.row_background_color = v;
+                    }
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(v)) => {
+                        style.row_border_color = v;
+                    }
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::FontSize(_)) => {}
+                    FamilySkinParamSupport::UnsupportedValue => warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                            value, key
+                        ))
+                        .with_span(stmt.span),
+                    ),
+                    FamilySkinParamSupport::UnsupportedKey => warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                            key
+                        ))
+                        .with_span(stmt.span),
+                    ),
+                }
+            }
+            StatementKind::Theme(_) | StatementKind::Pragma(_) => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }
@@ -116,7 +148,8 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         footer,
         caption,
         legend,
-        warnings: Vec::new(),
+        style,
+        warnings,
     })
 }
 
@@ -140,6 +173,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut style = FamilyStyle::default();
+    let mut warnings = Vec::new();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -199,8 +234,34 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::SkinParam { .. }
-            | StatementKind::Theme(_)
+            StatementKind::SkinParam { key, value } => {
+                match classify_class_skinparam(&key, &value) {
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(v)) => {
+                        style.background_color = v;
+                    }
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(v)) => {
+                        style.border_color = v;
+                    }
+                    FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::FontSize(v)) => {
+                        style.font_size = v;
+                    }
+                    FamilySkinParamSupport::UnsupportedValue => warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                            value, key
+                        ))
+                        .with_span(stmt.span),
+                    ),
+                    FamilySkinParamSupport::UnsupportedKey => warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                            key
+                        ))
+                        .with_span(stmt.span),
+                    ),
+                }
+            }
+            StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -231,7 +292,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         footer,
         caption,
         legend,
-        warnings: Vec::new(),
+        style,
+        warnings,
     })
 }
 
@@ -243,6 +305,8 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut style = StateStyle::default();
+    let mut warnings = Vec::new();
 
     for stmt in &document.statements {
         match &stmt.kind {
@@ -300,8 +364,34 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
             StatementKind::Footer(v) => footer = Some(v.clone()),
             StatementKind::Caption(v) => caption = Some(v.clone()),
             StatementKind::Legend(v) => legend = Some(v.clone()),
-            StatementKind::SkinParam { .. }
-            | StatementKind::Theme(_)
+            StatementKind::SkinParam { key, value } => match classify_state_skinparam(key, value) {
+                FamilySkinParamSupport::SupportedWithValue(
+                    FamilySkinParamValue::BackgroundColor(v),
+                ) => {
+                    style.background_color = v;
+                }
+                FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(
+                    v,
+                )) => {
+                    style.border_color = v;
+                }
+                FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::FontSize(_)) => {}
+                FamilySkinParamSupport::UnsupportedValue => warnings.push(
+                    Diagnostic::warning(format!(
+                        "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                        value, key
+                    ))
+                    .with_span(stmt.span),
+                ),
+                FamilySkinParamSupport::UnsupportedKey => warnings.push(
+                    Diagnostic::warning(format!(
+                        "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                        key
+                    ))
+                    .with_span(stmt.span),
+                ),
+            },
+            StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -332,7 +422,8 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
         footer,
         caption,
         legend,
-        warnings: Vec::new(),
+        style,
+        warnings,
     })
 }
 

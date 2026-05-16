@@ -1,7 +1,7 @@
 use crate::ast::DiagramKind;
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
-use crate::theme::SequenceStyle;
+use crate::theme::{FamilyStyle, SequenceStyle, StateStyle, TimelineStyle};
 
 // ─── State diagram model ──────────────────────────────────────────────────────
 
@@ -15,6 +15,7 @@ pub struct StateDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    pub style: StateStyle,
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -81,6 +82,7 @@ pub struct TimelineDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    pub style: TimelineStyle,
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -117,6 +119,7 @@ pub struct FamilyDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    pub style: FamilyStyle,
     pub warnings: Vec<Diagnostic>,
 }
 
