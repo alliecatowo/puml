@@ -3598,3 +3598,189 @@ fn markdown_mdown_extension_auto_extracts_fenced_diagrams_without_flag() {
         .success()
         .stderr(predicate::str::is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// Creole inline formatting tests (#168)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn creole_bold_italic_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("conformance/valid_creole_message_bold_italic.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn creole_bold_italic_svg_contains_tspan_formatting() {
+    let src =
+        fs::read_to_string(fixture("conformance/valid_creole_message_bold_italic.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render");
+    assert!(
+        svg.contains("font-weight=\"bold\""),
+        "expected bold tspan in SVG"
+    );
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "expected italic tspan in SVG"
+    );
+}
+
+#[test]
+fn creole_note_link_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("conformance/valid_creole_note_link.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn creole_note_link_svg_contains_hyperlink() {
+    let src =
+        fs::read_to_string(fixture("conformance/valid_creole_note_link.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render");
+    assert!(
+        svg.contains("xlink:href=\"https://example.com\""),
+        "expected hyperlink href in SVG"
+    );
+    assert!(
+        svg.contains("fill=\"blue\""),
+        "expected blue fill on link span"
+    );
+    assert!(
+        svg.contains("text-decoration=\"underline\""),
+        "expected underline on link span"
+    );
+}
+
+#[test]
+fn creole_color_size_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("conformance/valid_creole_color_size.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn creole_color_size_svg_contains_color_and_size_attributes() {
+    let src =
+        fs::read_to_string(fixture("conformance/valid_creole_color_size.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render");
+    assert!(
+        svg.contains("fill=\"red\""),
+        "expected red fill in SVG for <color:red>"
+    );
+    assert!(
+        svg.contains("font-size=\"14\""),
+        "expected font-size=\"14\" in SVG for <size:14>"
+    );
+}
+
+#[test]
+fn creole_newlines_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("conformance/valid_creole_newlines.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn creole_inline_bold_produces_tspan_in_message_label() {
+    let src = "@startuml\nAlice -> Bob: **hello**\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    assert!(
+        svg.contains("font-weight=\"bold\""),
+        "expected bold tspan for **hello**"
+    );
+    assert!(
+        svg.contains(">hello<"),
+        "expected label text in tspan"
+    );
+}
+
+#[test]
+fn creole_inline_mono_produces_monospace_tspan() {
+    let src = "@startuml\nAlice -> Bob: \"\"code\"\"\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    // mono spans set font-family=monospace on the inner tspan
+    assert!(
+        svg.contains("font-family=\"monospace\""),
+        "expected monospace tspan for \"\"code\"\""
+    );
+}
+
+#[test]
+fn creole_inline_underline_produces_text_decoration() {
+    let src = "@startuml\nAlice -> Bob: __ul__\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    assert!(
+        svg.contains("text-decoration=\"underline\""),
+        "expected underline tspan for __ul__"
+    );
+}
+
+#[test]
+fn creole_inline_strikethrough_produces_line_through() {
+    let src = "@startuml\nAlice -> Bob: --strike--\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    assert!(
+        svg.contains("text-decoration=\"line-through\""),
+        "expected line-through tspan for --strike--"
+    );
+}
+
+#[test]
+fn creole_html_b_tag_produces_bold_tspan() {
+    let src = "@startuml\nAlice -> Bob: <b>bold</b>\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    assert!(
+        svg.contains("font-weight=\"bold\""),
+        "expected bold tspan for <b>bold</b>"
+    );
+}
+
+#[test]
+fn creole_html_i_tag_produces_italic_tspan() {
+    let src = "@startuml\nAlice -> Bob: <i>italic</i>\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "expected italic tspan for <i>italic</i>"
+    );
+}
+
+#[test]
+fn creole_plain_label_uses_fast_path_without_tspan_wrapper() {
+    let src = "@startuml\nAlice -> Bob: plain\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    // Plain text should NOT wrap in tspan at all — fast path
+    let plain_text_pattern = ">plain<";
+    assert!(
+        svg.contains(plain_text_pattern),
+        "expected direct text content for plain label"
+    );
+}

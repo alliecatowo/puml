@@ -1,4 +1,5 @@
 use crate::ast::DiagramKind;
+use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::model::{
     FamilyDocument, FamilyNodeKind, ParticipantRole, TimelineDocument, VirtualEndpointKind,
 };
@@ -16,11 +17,12 @@ pub fn render_svg(scene: &Scene) -> String {
 
     if let Some(title) = &scene.title {
         for (idx, line) in title.lines.iter().enumerate() {
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+            out.push_str(&creole_text(
                 title.x,
                 title.y + (idx as i32 * 24),
-                escape_text(line)
+                "font-family=\"monospace\" font-size=\"18\" font-weight=\"600\"",
+                line,
+                "black",
             ));
         }
     }
@@ -53,20 +55,24 @@ pub fn render_svg(scene: &Scene) -> String {
 
         if let Some(label) = &g.label {
             let header = label.lines().next().unwrap_or("");
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\">{}</text>",
+            let header_full = format!("{} {}", g.kind, header);
+            let header_trimmed = header_full.trim();
+            out.push_str(&creole_text(
                 g.x + 8,
                 g.y + 16,
-                escape_text(format!("{} {}", g.kind, header).trim())
+                "font-family=\"monospace\" font-size=\"12\" font-weight=\"600\"",
+                header_trimmed,
+                "black",
             ));
             if g.kind.eq_ignore_ascii_case("ref") {
                 let mut y = g.y + 32;
                 for line in label.lines().skip(1) {
-                    out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    out.push_str(&creole_text(
                         g.x + 8,
                         y,
-                        escape_text(line)
+                        "font-family=\"monospace\" font-size=\"12\"",
+                        line,
+                        "black",
                     ));
                     y += 16;
                 }
@@ -83,11 +89,12 @@ pub fn render_svg(scene: &Scene) -> String {
                 scene.style.group_border_color
             ));
             if let Some(label) = &sep.label {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#333\">{}</text>",
+                out.push_str(&creole_text(
                     g.x + 8,
                     sep.y - 6,
-                    escape_text(label)
+                    "font-family=\"monospace\" font-size=\"11\" fill=\"#333\"",
+                    label,
+                    "#333",
                 ));
             }
         }
@@ -139,21 +146,23 @@ pub fn render_svg(scene: &Scene) -> String {
             let tx = ((m.x1 + m.x2) / 2) + 2;
             let start_y = m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP);
             for (idx, line) in m.label_lines.iter().enumerate() {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                out.push_str(&creole_text(
                     tx,
                     start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
-                    escape_text(line)
+                    "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\"",
+                    line,
+                    "black",
                 ));
             }
         } else if let Some(label) = &m.label {
             let tx = ((m.x1 + m.x2) / 2) + 2;
             let ty = m.y - 8;
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+            out.push_str(&creole_text(
                 tx,
                 ty,
-                escape_text(label)
+                "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\"",
+                label,
+                "black",
             ));
         }
     }
@@ -166,11 +175,12 @@ pub fn render_svg(scene: &Scene) -> String {
 
         let mut text_y = n.y + 20;
         for line in n.text.lines() {
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+            out.push_str(&creole_text(
                 n.x + 8,
                 text_y,
-                escape_text(line)
+                "font-family=\"monospace\" font-size=\"12\"",
+                line,
+                "black",
             ));
             text_y += 16;
         }
@@ -184,11 +194,12 @@ pub fn render_svg(scene: &Scene) -> String {
                     s.x1, s.y, s.x2, s.y
                 ));
                 if let Some(label) = &s.label {
-                    out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#444\">{}</text>",
+                    out.push_str(&creole_text(
                         (s.x1 + s.x2) / 2,
                         s.y - 6,
-                        escape_text(label)
+                        "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#444\"",
+                        label,
+                        "#444",
                     ));
                 }
             }
@@ -198,11 +209,12 @@ pub fn render_svg(scene: &Scene) -> String {
                     s.x1, s.y, s.x2, s.y
                 ));
                 if let Some(label) = &s.label {
-                    out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#333\">{}</text>",
+                    out.push_str(&creole_text(
                         (s.x1 + s.x2) / 2,
                         s.y - 6,
-                        escape_text(label)
+                        "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#333\"",
+                        label,
+                        "#333",
                     ));
                 }
             }
@@ -216,11 +228,12 @@ pub fn render_svg(scene: &Scene) -> String {
                 } else {
                     "== ==".to_string()
                 };
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#222\">{}</text>",
+                out.push_str(&creole_text(
                     (s.x1 + s.x2) / 2,
                     s.y - 6,
-                    escape_text(&label)
+                    "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#222\"",
+                    &label,
+                    "#222",
                 ));
             }
             StructureKind::Spacer => {}
@@ -483,6 +496,63 @@ fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: Virtua
     }
 }
 
+/// Emit a `<text>` element with Creole-formatted content.
+///
+/// If the text has a single line and no Creole markup, this is equivalent to
+/// the old `escape_text` path. Multi-line content uses `<tspan dy="1.2em">`.
+fn creole_text(
+    x: i32,
+    y: i32,
+    extra_attrs: &str,
+    label: &str,
+    base_color: &str,
+) -> String {
+    let lines = tokenize_creole(label);
+    let has_markup = label.contains("**")
+        || label.contains("//")
+        || label.contains("\"\"")
+        || label.contains("__")
+        || label.contains("--")
+        || label.contains("[[")
+        || label.contains("<color")
+        || label.contains("<size")
+        || label.contains("<b>")
+        || label.contains("<B>")
+        || label.contains("<i>")
+        || label.contains("<I>")
+        || label.contains("<u>")
+        || label.contains("<U>")
+        || label.contains("<&");
+
+    if !has_markup && lines.len() == 1 {
+        // Fast path — no markup, no multi-line: keep old behavior.
+        return format!(
+            "<text x=\"{}\" y=\"{}\"{}>{}",
+            x,
+            y,
+            if extra_attrs.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", extra_attrs)
+            },
+            escape_text(label)
+        ) + "</text>";
+    }
+
+    let inner = render_creole_to_svg_tspans(&lines, x, base_color);
+    format!(
+        "<text x=\"{}\" y=\"{}\"{}>{}",
+        x,
+        y,
+        if extra_attrs.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", extra_attrs)
+        },
+        inner
+    ) + "</text>"
+}
+
 fn escape_text(input: &str) -> String {
     let mut escaped = String::with_capacity(input.len());
     for ch in input.chars() {
@@ -674,11 +744,12 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
     }
 
     for (idx, line) in display_lines.iter().enumerate() {
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\">{}</text>",
+        out.push_str(&creole_text(
             cx,
             y + 21 + (idx as i32 * 16),
-            escape_text(line)
+            "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\"",
+            line,
+            "black",
         ));
     }
 }
