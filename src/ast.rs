@@ -67,18 +67,21 @@ pub enum StatementKind {
 pub struct ClassDecl {
     pub name: String,
     pub alias: Option<String>,
+    pub members: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ObjectDecl {
     pub name: String,
     pub alias: Option<String>,
+    pub members: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UseCaseDecl {
     pub name: String,
     pub alias: Option<String>,
+    pub members: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

@@ -999,11 +999,15 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        if let Some(kind) = parse_family_declaration(line) {
+        if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
             let family = family_for_declaration(&kind);
             detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
-            statements.push(Statement { span, kind });
-            i += 1;
+            let block_span = Span::new(span.start, lines[end_idx].1.end);
+            statements.push(Statement {
+                span: block_span,
+                kind,
+            });
+            i = end_idx + 1;
             continue;
         }
 
@@ -1198,20 +1202,72 @@ fn family_for_declaration(kind: &StatementKind) -> DiagramKind {
     }
 }
 
-fn parse_family_declaration(line: &str) -> Option<StatementKind> {
-    if let Some((name, alias)) = parse_named_family_decl(line, "class") {
-        return Some(StatementKind::ClassDecl(ClassDecl { name, alias }));
+fn parse_family_declaration(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "class") {
+        let members = if has_block {
+            parse_family_decl_members(lines, start, "class", &name)?
+        } else {
+            Vec::new()
+        };
+        return Ok(Some((
+            StatementKind::ClassDecl(ClassDecl {
+                name,
+                alias,
+                members,
+            }),
+            if has_block {
+                find_family_decl_end(lines, start)
+            } else {
+                start
+            },
+        )));
     }
-    if let Some((name, alias)) = parse_named_family_decl(line, "object") {
-        return Some(StatementKind::ObjectDecl(ObjectDecl { name, alias }));
+    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "object") {
+        let members = if has_block {
+            parse_family_decl_members(lines, start, "object", &name)?
+        } else {
+            Vec::new()
+        };
+        return Ok(Some((
+            StatementKind::ObjectDecl(ObjectDecl {
+                name,
+                alias,
+                members,
+            }),
+            if has_block {
+                find_family_decl_end(lines, start)
+            } else {
+                start
+            },
+        )));
     }
-    if let Some((name, alias)) = parse_named_family_decl(line, "usecase") {
-        return Some(StatementKind::UseCaseDecl(UseCaseDecl { name, alias }));
+    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "usecase") {
+        let members = if has_block {
+            parse_family_decl_members(lines, start, "usecase", &name)?
+        } else {
+            Vec::new()
+        };
+        return Ok(Some((
+            StatementKind::UseCaseDecl(UseCaseDecl {
+                name,
+                alias,
+                members,
+            }),
+            if has_block {
+                find_family_decl_end(lines, start)
+            } else {
+                start
+            },
+        )));
     }
-    None
+    Ok(None)
 }
 
-fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<String>)> {
+fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<String>, bool)> {
     if !line.starts_with(keyword) {
         return None;
     }
@@ -1220,10 +1276,12 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<
         return None;
     }
 
-    let mut trimmed = rest.trim_end_matches('{').trim();
-    if trimmed.is_empty() {
-        trimmed = rest;
-    }
+    let has_block = rest.ends_with('{');
+    let trimmed = if has_block {
+        rest.trim_end_matches('{').trim()
+    } else {
+        rest
+    };
 
     let (name_raw, alias_raw) = if let Some((lhs, rhs)) = trimmed.split_once(" as ") {
         (lhs.trim(), Some(rhs.trim()))
@@ -1236,7 +1294,39 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<
         return None;
     }
     let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
-    Some((name, alias))
+    Some((name, alias, has_block))
+}
+
+fn parse_family_decl_members(
+    lines: &[(&str, Span)],
+    start: usize,
+    keyword: &str,
+    name: &str,
+) -> Result<Vec<String>, Diagnostic> {
+    let end_idx = find_family_decl_end(lines, start);
+    if end_idx == start {
+        return Err(Diagnostic::error(format!(
+            "[E_FAMILY_DECL_BLOCK_UNCLOSED] unclosed {keyword} declaration block for `{name}`: missing `}}`",
+        ))
+        .with_span(lines[start].1));
+    }
+    let mut members = Vec::new();
+    for (raw, _) in lines.iter().take(end_idx).skip(start + 1) {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            members.push(trimmed.to_string());
+        }
+    }
+    Ok(members)
+}
+
+fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
+        if raw.trim() == "}" {
+            return idx;
+        }
+    }
+    start
 }
 
 fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
@@ -2691,6 +2781,36 @@ mod tests {
         )
         .unwrap();
         assert_eq!(usecase_doc.kind, DiagramKind::UseCase);
+    }
+
+    #[test]
+    fn parses_family_declaration_blocks_with_members() {
+        let doc = parse_with_options(
+            "class User {\n  +id: UUID\n  +name: String\n}\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        match &doc.statements[0].kind {
+            StatementKind::ClassDecl(decl) => {
+                assert_eq!(decl.name, "User");
+                assert_eq!(
+                    decl.members,
+                    vec!["+id: UUID".to_string(), "+name: String".to_string()]
+                );
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unclosed_family_declaration_block_reports_deterministic_error() {
+        let err = parse_with_options(
+            "object Config {\nkey = \"value\"\n",
+            &ParseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_FAMILY_DECL_BLOCK_UNCLOSED"));
     }
 
     #[test]

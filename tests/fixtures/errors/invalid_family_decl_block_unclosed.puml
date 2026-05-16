@@ -1,0 +1,4 @@
+@startuml
+class User {
+  +id: UUID
+@enduml

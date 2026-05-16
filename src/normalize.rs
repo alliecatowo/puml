@@ -82,6 +82,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     kind: FamilyNodeKind::Class,
                     name: decl.name,
                     alias: decl.alias,
+                    members: decl.members,
                 });
             }
             StatementKind::ObjectDecl(decl) => {
@@ -96,6 +97,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     kind: FamilyNodeKind::Object,
                     name: decl.name,
                     alias: decl.alias,
+                    members: decl.members,
                 });
             }
             StatementKind::UseCaseDecl(decl) => {
@@ -110,6 +112,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     kind: FamilyNodeKind::UseCase,
                     name: decl.name,
                     alias: decl.alias,
+                    members: decl.members,
                 });
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {

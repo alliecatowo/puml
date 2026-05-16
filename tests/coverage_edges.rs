@@ -284,6 +284,7 @@ fn normalize_family_rejects_mixed_bootstrap_declaration_kinds() {
             kind: puml::ast::StatementKind::ObjectDecl(puml::ast::ObjectDecl {
                 name: "Obj".to_string(),
                 alias: None,
+                members: Vec::new(),
             }),
         }],
     };
@@ -348,6 +349,7 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
                 kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
                     name: "User".to_string(),
                     alias: Some("U".to_string()),
+                    members: vec!["+id: UUID".to_string(), "+name: String".to_string()],
                 }),
             },
             puml::ast::Statement {
@@ -371,6 +373,7 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
             assert_eq!(model.caption.as_deref(), Some("Family Caption"));
             assert_eq!(model.legend.as_deref(), Some("Family Legend"));
             assert_eq!(model.nodes.len(), 1);
+            assert_eq!(model.nodes[0].members.len(), 2);
             assert_eq!(model.relations.len(), 1);
             assert!(model.warnings.is_empty());
         }

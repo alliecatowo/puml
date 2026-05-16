@@ -2044,6 +2044,9 @@ fn class_object_usecase_bootstrap_inputs_pass_check() {
         "families/valid_class_bootstrap.puml",
         "families/valid_object_bootstrap.puml",
         "families/valid_usecase_bootstrap.puml",
+        "families/valid_class_members_block.puml",
+        "families/valid_object_members_block.puml",
+        "families/valid_usecase_members_block.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -2067,6 +2070,18 @@ fn class_object_usecase_bootstrap_render_stubs_are_deterministic() {
         ),
         (
             "families/valid_usecase_bootstrap.puml",
+            "Bootstrap stub for usecase diagrams",
+        ),
+        (
+            "families/valid_class_members_block.puml",
+            "Bootstrap stub for class diagrams",
+        ),
+        (
+            "families/valid_object_members_block.puml",
+            "Bootstrap stub for object diagrams",
+        ),
+        (
+            "families/valid_usecase_members_block.puml",
             "Bootstrap stub for usecase diagrams",
         ),
     ] {
@@ -2097,6 +2112,61 @@ fn class_object_usecase_bootstrap_render_stubs_are_deterministic() {
         let svg = String::from_utf8(first).unwrap();
         assert!(svg.contains(marker), "missing family marker for {case}");
     }
+}
+
+#[test]
+fn family_member_block_render_snapshot_is_deterministic() {
+    let svg = Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("-")
+        .write_stdin(
+            fs::read_to_string(fixture("families/valid_class_members_block.puml")).unwrap(),
+        )
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_snapshot!(
+        "family_member_block_render_snapshot_is_deterministic",
+        String::from_utf8(svg).unwrap()
+    );
+}
+
+#[test]
+fn family_member_blocks_are_preserved_in_ast_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("families/valid_class_members_block.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let members = json["statements"][0]["kind"]["ClassDecl"]["members"]
+        .as_array()
+        .expect("members should be present");
+    assert_eq!(members.len(), 3);
+    assert_eq!(members[0], "+id: UUID");
+}
+
+#[test]
+fn unclosed_family_declaration_block_reports_deterministic_error() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("errors/invalid_family_decl_block_unclosed.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_FAMILY_DECL_BLOCK_UNCLOSED"))
+        .stderr(predicate::str::contains("missing `}`"));
 }
 
 #[test]
