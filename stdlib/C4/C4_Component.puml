@@ -1,0 +1,7 @@
+' Deterministic C4 Component compatibility stub.
+!include <C4/C4_Container>
+
+!procedure Component($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 Component] $label
+!endprocedure

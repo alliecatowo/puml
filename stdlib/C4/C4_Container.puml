@@ -1,0 +1,7 @@
+' Deterministic C4 Container compatibility stub.
+!include <C4/C4>
+
+!procedure Container($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 Container] $label
+!endprocedure

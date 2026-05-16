@@ -1,0 +1,5 @@
+' Deterministic Office icon stdlib compatibility stub.
+!procedure OfficeIcon($alias, $icon, $label="", $descr="")
+participant $alias
+$alias -> $alias : [Office $icon] $label
+!endprocedure

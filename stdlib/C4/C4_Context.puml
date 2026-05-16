@@ -1,0 +1,2 @@
+' Deterministic C4 Context compatibility stub.
+!include <C4/C4>

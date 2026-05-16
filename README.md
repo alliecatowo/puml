@@ -246,10 +246,10 @@ Artifacts:
 | Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
 | `skinparam` sequence styling subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor` (and unprefixed alias), `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (each also supports `Sequence...` alias). Color values are deterministic-safe tokens only: hex (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or alphabetic names (canonicalized to lowercase). |
 | Other `skinparam` keys | Accepted with warning | Deterministic `W_SKINPARAM_UNSUPPORTED`/`W_SKINPARAM_UNSUPPORTED_VALUE` warning; continues execution. |
-| `!include`, `!define`, `!undef` | Supported (scoped) | Relative includes, simple define/undef substitution, cycle/depth guards. |
+| `!include`, `!import`, `!define`, `!undef` | Supported (scoped) | Relative includes + stdlib catalog includes (`<...>`), stdlib imports, simple define/undef substitution, cycle/depth guards. |
 | `!if` / `!elseif` / `!else` / `!endif`, `!ifdef`, `!ifndef` | Supported (scoped) | Simple deterministic conditional evaluation (`defined()`, `==`, `!=`, numeric/bool literals). |
 | `!while` / `!endwhile` | Supported (bounded) | Simple deterministic loop evaluation with bounded iterations (`E_PREPROC_WHILE_LIMIT`). |
-| `!procedure`, `!function`, and advanced preprocessor surface | Unsupported (deterministic) | Explicit `E_PREPROC_UNSUPPORTED` diagnostics for unsupported preprocessor directives. |
+| `!procedure`, `!function`, and advanced preprocessor surface | Partial (deterministic subset) | Definition + invocation subset supported (including bare macro calls like `Container(...)` once imported); dynamic invocation/builtin `%...` and JSON preprocessing remain unsupported. |
 | Multi-diagram input | Guarded support | Requires explicit `--multi`. |
 
 ## LSP Baseline

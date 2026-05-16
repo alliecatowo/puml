@@ -1,0 +1,5 @@
+' Deterministic Material icon stdlib compatibility stub.
+!procedure MaterialIcon($alias, $icon, $label="", $descr="")
+participant $alias
+$alias -> $alias : [Material $icon] $label
+!endprocedure

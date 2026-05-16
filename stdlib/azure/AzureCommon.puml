@@ -1,0 +1,5 @@
+' Deterministic Azure stdlib compatibility stub.
+!procedure AzureIcon($alias, $service, $label="", $descr="")
+participant $alias
+$alias -> $alias : [Azure $service] $label
+!endprocedure

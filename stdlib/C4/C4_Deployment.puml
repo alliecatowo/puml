@@ -1,0 +1,7 @@
+' Deterministic C4 Deployment compatibility stub.
+!include <C4/C4_Container>
+
+!procedure Deployment_Node($alias, $label, $technology="", $descr="")
+participant $alias
+$alias -> $alias : [C4 Deployment_Node] $label
+!endprocedure

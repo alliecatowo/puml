@@ -1,0 +1,6 @@
+' Deterministic AWS EC2 compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure EC2($alias, $label="", $descr="")
+AWSIcon($alias, EC2, $label, $descr)
+!endprocedure

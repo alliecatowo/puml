@@ -1,0 +1,5 @@
+' Deterministic Font Awesome (tupadr3) stdlib compatibility stub.
+!procedure FontAwesomeIcon($alias, $icon, $label="", $descr="")
+participant $alias
+$alias -> $alias : [FA $icon] $label
+!endprocedure
