@@ -1622,8 +1622,6 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     DiagramKind::State => "State",
                     DiagramKind::Activity => "Activity",
                     DiagramKind::Timing => "Timing",
-                    DiagramKind::Gantt => "Gantt",
-                    DiagramKind::Chronology => "Chronology",
                     DiagramKind::Sequence => "Sequence",
                     DiagramKind::Unknown => "Unknown",
                 },
