@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::ast::{DiagramKind, Document, ParticipantRole as AstRole, StatementKind};
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
+    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation, JsonNode,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind, SequencePage, StateDocument,
     StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
@@ -134,6 +134,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     };
 
     let mut nodes = Vec::new();
+    let mut json_nodes = Vec::new();
     let mut relations = Vec::new();
     let mut title = None;
     let mut header = None;
@@ -188,6 +189,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     members: decl.members,
                 });
             }
+            StatementKind::JsonProjection { alias, body } => {
+                json_nodes.push(JsonNode { alias, body });
+            }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
                 from: rel.from,
                 to: rel.to,
@@ -225,6 +229,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     Ok(FamilyDocument {
         kind: family_kind,
         nodes,
+        json_nodes,
         relations,
         title,
         header,
@@ -543,6 +548,7 @@ pub fn normalize_with_options(
     let mut legend = None;
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
+    let mut hide_unlinked = false;
     let mut style = SequenceStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
@@ -550,6 +556,8 @@ pub fn normalize_with_options(
     let mut group_stack: Vec<GroupFrame> = Vec::new();
     let mut last_message: Option<(String, String)> = None;
     let mut ignore_newpage = false;
+    // Track which participant ids are referenced in events
+    let mut referenced_ids: BTreeMap<String, bool> = BTreeMap::new();
 
     for stmt in document.statements {
         match stmt.kind {
@@ -567,8 +575,18 @@ pub fn normalize_with_options(
                 )
                 .map_err(|e| Diagnostic::error(e).with_span(stmt.span))?;
             }
+            StatementKind::HideUnlinked => {
+                hide_unlinked = true;
+            }
             StatementKind::Message(m) => {
                 mark_group_content(&mut group_stack);
+                // Track references for hide_unlinked filtering
+                if !is_virtual_endpoint(&m.from) {
+                    referenced_ids.insert(m.from.clone(), true);
+                }
+                if !is_virtual_endpoint(&m.to) {
+                    referenced_ids.insert(m.to.clone(), true);
+                }
                 let parsed_arrow = parse_message_arrow(&m.arrow).ok_or_else(|| {
                     Diagnostic::error(format!(
                         "[E_ARROW_INVALID] malformed sequence arrow syntax: `{}`",
@@ -632,6 +650,10 @@ pub fn normalize_with_options(
             }
             StatementKind::Note(n) => {
                 mark_group_content(&mut group_stack);
+                // Track note targets for hide_unlinked filtering
+                if let Some(ref target) = n.target {
+                    referenced_ids.insert(target.clone(), true);
+                }
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Note {
@@ -865,6 +887,7 @@ pub fn normalize_with_options(
             }
             StatementKind::Activate(id) => {
                 mark_group_content(&mut group_stack);
+                referenced_ids.insert(id.clone(), true);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if !is_alive(&alive_by_id, &id) {
                     return Err(Diagnostic::error(format!(
@@ -889,6 +912,7 @@ pub fn normalize_with_options(
             }
             StatementKind::Deactivate(id) => {
                 mark_group_content(&mut group_stack);
+                referenced_ids.insert(id.clone(), true);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if !is_alive(&alive_by_id, &id) {
                     return Err(Diagnostic::error(format!(
@@ -924,6 +948,7 @@ pub fn normalize_with_options(
             }
             StatementKind::Destroy(id) => {
                 mark_group_content(&mut group_stack);
+                referenced_ids.insert(id.clone(), true);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if !is_alive(&alive_by_id, &id) {
                     return Err(Diagnostic::error(format!(
@@ -947,6 +972,7 @@ pub fn normalize_with_options(
             }
             StatementKind::Create(id) => {
                 mark_group_content(&mut group_stack);
+                referenced_ids.insert(id.clone(), true);
                 ensure_implicit(&mut participants, &mut participant_ix, &id);
                 if alive_by_id.get(&id).copied() == Some(true) {
                     return Err(Diagnostic::error(format!(
@@ -975,6 +1001,7 @@ pub fn normalize_with_options(
             | StatementKind::ObjectDecl(_)
             | StatementKind::UseCaseDecl(_)
             | StatementKind::FamilyRelation(_)
+            | StatementKind::JsonProjection { .. }
             | StatementKind::StateDecl(_)
             | StatementKind::StateTransition(_)
             | StatementKind::StateInternalAction(_)
@@ -1010,6 +1037,32 @@ pub fn normalize_with_options(
         .with_span(open.span));
     }
 
+    // Apply hide_unlinked filter: remove explicit participants not referenced in events
+    if hide_unlinked {
+        let before_count = participants.len();
+        let mut removed_names: Vec<String> = Vec::new();
+        participants.retain(|p| {
+            if !p.explicit {
+                // Implicit participants were added because they appear in messages; keep them
+                return true;
+            }
+            if referenced_ids.contains_key(&p.id) {
+                return true;
+            }
+            removed_names.push(p.id.clone());
+            false
+        });
+        let removed_count = before_count - participants.len();
+        if removed_count > 0 {
+            removed_names.sort();
+            warnings.push(Diagnostic::warning(format!(
+                "[I_HIDE_UNLINKED_FILTERED] removed {} unreferenced participants: {}",
+                removed_count,
+                removed_names.join(", ")
+            )));
+        }
+    }
+
     warnings.sort_by(|a, b| {
         let sa = a.span.map(|s| s.start).unwrap_or_default();
         let sb = b.span.map(|s| s.start).unwrap_or_default();
@@ -1027,6 +1080,7 @@ pub fn normalize_with_options(
         skinparams,
         style,
         footbox_visible,
+        hide_unlinked,
         warnings,
     })
 }

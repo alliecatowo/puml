@@ -2161,6 +2161,8 @@ fn family_for_declaration(kind: &StatementKind) -> DiagramKind {
         StatementKind::ClassDecl(_) => DiagramKind::Class,
         StatementKind::ObjectDecl(_) => DiagramKind::Object,
         StatementKind::UseCaseDecl(_) => DiagramKind::UseCase,
+        // JSON projection nodes belong to the class/object family namespace
+        StatementKind::JsonProjection { .. } => DiagramKind::Class,
         _ => DiagramKind::Unknown,
     }
 }
@@ -2227,7 +2229,51 @@ fn parse_family_declaration(
             },
         )));
     }
+
+    // JSON projection: `json AliasName {` ... `}`
+    if let Some(json_result) = parse_json_projection(lines, start, line)? {
+        return Ok(Some(json_result));
+    }
+
     Ok(None)
+}
+
+fn parse_json_projection(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    let lower = line.to_ascii_lowercase();
+    if !lower.starts_with("json ") {
+        return Ok(None);
+    }
+    let rest = line["json ".len()..].trim();
+    if rest.is_empty() {
+        return Ok(None);
+    }
+    // Must end with `{` to be a block declaration
+    let has_block = rest.ends_with('{');
+    let alias_raw = if has_block {
+        rest.trim_end_matches('{').trim()
+    } else {
+        rest
+    };
+    if alias_raw.is_empty() {
+        return Ok(None);
+    }
+    let alias = alias_raw.to_string();
+
+    let end_idx = find_family_decl_end(lines, start);
+    let mut body_lines = Vec::new();
+    for (raw, _) in lines.iter().take(end_idx).skip(start + 1) {
+        body_lines.push(raw.trim().to_string());
+    }
+    let body = body_lines.join("\n");
+
+    Ok(Some((
+        StatementKind::JsonProjection { alias, body },
+        end_idx,
+    )))
 }
 
 fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<String>, bool)> {
@@ -3023,6 +3069,9 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     }
     if lower == "show footbox" {
         return Some(StatementKind::Footbox(true));
+    }
+    if lower == "hide unlinked" {
+        return Some(StatementKind::HideUnlinked);
     }
 
     let note_kw = if lower.starts_with("note ") {

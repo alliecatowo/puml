@@ -12,7 +12,7 @@ pub mod theme;
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
 pub use model::{
-    FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, StateDocument,
+    FamilyDocument, JsonNode, NormalizedDocument, SequenceDocument, SequencePage, StateDocument,
     TimelineDocument,
 };
 

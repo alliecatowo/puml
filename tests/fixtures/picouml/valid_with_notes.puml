@@ -1,0 +1,7 @@
+@startpicouml
+participant Alice
+participant Bob
+Alice -> Bob: request
+note right of Bob: processing
+Bob --> Alice: response
+@endpicouml

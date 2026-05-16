@@ -251,8 +251,17 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
         .map(|n| n.members.len() as i32)
         .sum::<i32>();
     let relation_rows = document.relations.len() as i32;
-    let height =
-        140 + (body_rows * 42) + (member_rows * 16) + (relation_rows * 20) + (title_lines * 24);
+    let json_rows = document
+        .json_nodes
+        .iter()
+        .map(|j| 2 + j.body.lines().count() as i32)
+        .sum::<i32>();
+    let height = 140
+        + (body_rows * 42)
+        + (member_rows * 16)
+        + (relation_rows * 20)
+        + (title_lines * 24)
+        + (json_rows * 16);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -345,6 +354,32 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
             ));
             y += 20;
         }
+    }
+
+    // Render JSON projection nodes as yellow-tinted rectangles
+    for json_node in &document.json_nodes {
+        let body_line_count = json_node.body.lines().count() as i32;
+        let box_height = 32 + (body_line_count * 16);
+        out.push_str(&format!(
+            "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#fefce8\" stroke=\"#ca8a04\" stroke-width=\"1\"/>",
+            y, box_height
+        ));
+        y += 16;
+        out.push_str(&format!(
+            "<text x=\"36\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#713f12\">json {}</text>",
+            y,
+            escape_text(&json_node.alias)
+        ));
+        y += 16;
+        for line in json_node.body.lines() {
+            out.push_str(&format!(
+                "<text x=\"48\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#92400e\">{}</text>",
+                y,
+                escape_text(line)
+            ));
+            y += 16;
+        }
+        y += 8;
     }
 
     out.push_str("</svg>");

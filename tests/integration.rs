@@ -3737,3 +3737,102 @@ fn state_basic_render_produces_valid_svg() {
     assert!(svg.starts_with("<svg"), "expected SVG output");
     assert!(svg.contains("Active"), "expected state name in SVG");
 }
+
+// ── Item 1: hide unlinked (#87) ───────────────────────────────────────────────
+
+#[test]
+fn hide_unlinked_filters_unused_participants_from_svg() {
+    let src = fs::read_to_string(fixture("styling/valid_hide_unlinked.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("hide unlinked fixture should render");
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    // Alice and Bob are referenced in messages — they must appear
+    assert!(svg.contains("Alice"), "Alice should appear in SVG");
+    assert!(svg.contains("Bob"), "Bob should appear in SVG");
+    // UnusedCharlie and UnusedDave have no messages — they must be filtered
+    assert!(
+        !svg.contains("UnusedCharlie"),
+        "UnusedCharlie should be filtered by hide unlinked"
+    );
+    assert!(
+        !svg.contains("UnusedDave"),
+        "UnusedDave should be filtered by hide unlinked"
+    );
+}
+
+#[test]
+fn hide_unlinked_check_mode_passes() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("styling/valid_hide_unlinked.puml")])
+        .assert()
+        .success();
+}
+
+// ── Item 2: JSON projection (#103) ───────────────────────────────────────────
+
+#[test]
+fn json_projection_class_diagram_renders_alias_and_key() {
+    let src = fs::read_to_string(fixture("families/valid_class_with_json_projection.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("class+json fixture should render");
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    assert!(svg.contains("User"), "expected json alias 'User' in SVG");
+    assert!(svg.contains("name"), "expected json key 'name' in SVG");
+}
+
+#[test]
+fn json_projection_check_mode_passes() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("families/valid_class_with_json_projection.puml")])
+        .assert()
+        .success();
+}
+
+// ── Item 4: PicoUML canonical parser (#128) ───────────────────────────────────
+
+#[test]
+fn picouml_valid_basic_check_succeeds() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "picouml",
+            "--check",
+            &fixture("picouml/valid_basic.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn picouml_valid_with_notes_check_succeeds() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "picouml",
+            "--check",
+            &fixture("picouml/valid_with_notes.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn picouml_mixed_markers_rejected_with_deterministic_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dialect",
+            "picouml",
+            "--check",
+            &fixture("picouml/invalid_mixed_markers.picouml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PICOUML_MARKER_MIXED"));
+}

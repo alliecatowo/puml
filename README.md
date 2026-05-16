@@ -245,6 +245,10 @@ Artifacts:
 | Notes, groups, separators | Supported | Includes `alt`, `else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `end`, plus `...`, `||`, `newpage`. |
 | Lifecycle/control statements | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber`. |
 | Metadata statements | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
+| `hide unlinked` | Supported | Filters unreferenced explicit participants from the rendered diagram; emits `I_HIDE_UNLINKED_FILTERED` warning with removed ids. |
+| JSON projection (`json AliasName { ... }`) | Supported | Parses `json` blocks inside class/object diagrams and renders them as yellow-tinted nodes listing JSON keys. |
+| PicoUML canonical parser (`@startpicouml`/`@endpicouml`) | Supported (canonical subset) | Translates PicoUML markers to standard PlantUML; rejects mixed markers with `E_PICOUML_MARKER_MIXED`. |
+| Differential oracle scaffolding | Supported (scaffolding) | `scripts/oracle.sh` + `tests/oracle_smoke.rs`; exits 0 with `{"skipped":true}` when `PUML_ORACLE_JAR` absent; runs parity checks against reference JAR when present. |
 | `skinparam` sequence styling subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor` (and unprefixed alias), `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (each also supports `Sequence...` alias). Color values are deterministic-safe tokens only: hex (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or alphabetic names (canonicalized to lowercase). |
 | Other `skinparam` keys | Accepted with warning | Deterministic `W_SKINPARAM_UNSUPPORTED`/`W_SKINPARAM_UNSUPPORTED_VALUE` warning; continues execution. |
 | `!include`, `!import`, `!define`, `!undef` | Supported (scoped) | Relative includes + stdlib catalog includes (`<...>`), stdlib imports, simple define/undef substitution, cycle/depth guards. |

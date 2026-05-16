@@ -1,0 +1,8 @@
+@startuml
+json User {
+  "name": "Alice",
+  "id": 42
+}
+class Account
+Account --> User
+@enduml

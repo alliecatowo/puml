@@ -1064,6 +1064,7 @@ fn layout_handles_return_without_caller() {
         skinparams: vec![],
         style: SequenceStyle::default(),
         footbox_visible: true,
+        hide_unlinked: false,
         warnings: vec![],
     };
 
@@ -1099,6 +1100,7 @@ fn render_escapes_text_in_labels_and_titles() {
         skinparams: vec![],
         style: SequenceStyle::default(),
         footbox_visible: true,
+        hide_unlinked: false,
         warnings: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
@@ -1172,6 +1174,7 @@ fn layout_wraps_participant_labels_and_grows_boxes_by_default() {
         skinparams: vec![],
         style: SequenceStyle::default(),
         footbox_visible: true,
+        hide_unlinked: false,
         warnings: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
@@ -1207,6 +1210,7 @@ fn layout_uses_ellipsis_for_single_line_overflow_policy() {
         skinparams: vec![],
         style: SequenceStyle::default(),
         footbox_visible: true,
+        hide_unlinked: false,
         warnings: vec![],
     };
     let options = LayoutOptions {
@@ -1287,6 +1291,7 @@ fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
         skinparams: vec![],
         style: SequenceStyle::default(),
         footbox_visible: true,
+        hide_unlinked: false,
         warnings: vec![],
     };
     let options = LayoutOptions::default();
@@ -1378,6 +1383,7 @@ fn layout_offsets_virtual_endpoints_for_overlap_cases() {
         skinparams: vec![],
         style: SequenceStyle::default(),
         footbox_visible: true,
+        hide_unlinked: false,
         warnings: vec![],
     };
     let scene = layout::layout(&doc, LayoutOptions::default());

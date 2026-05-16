@@ -139,3 +139,18 @@ This log records intentional contract deviations and updates adopted in the curr
   - Mermaid `sequenceDiagram` inputs using the above constructs now pass through adaptation into the PlantUML shared parser path.
   - Unsupported Mermaid sequence block/control constructs now emit deterministic construct-class codes (`E_MERMAID_BLOCK_UNSUPPORTED`, `E_MERMAID_CREATE_UNSUPPORTED`, `E_MERMAID_LINK_UNSUPPORTED`) instead of only generic unsupported-construct diagnostics.
   - Generic unsupported Mermaid sequence constructs still emit `E_MERMAID_CONSTRUCT_UNSUPPORTED`.
+
+### D-022: `hide unlinked` sequence layout filter (#87)
+- Decision: Implement `hide unlinked` as a live participant filter in `normalize_with_options`: after all events are processed, remove explicit participants whose ids are not referenced by any Message, Note target, or lifecycle event (Activate/Deactivate/Destroy/Create). Emit a `I_HIDE_UNLINKED_FILTERED` warning listing removed participant ids.
+- Rationale: Mirrors PlantUML semantics for `hide unlinked` without introducing non-deterministic layout behavior.
+- Impact: Explicit participants with no message/note references are silently removed from the rendered layout when `hide unlinked` is present. Implicit participants (auto-created by messages) are never filtered.
+
+### D-023: JSON projection support (#103)
+- Decision: Add `json AliasName { ... }` as a first-class participant/node type in class diagrams. The parser detects `json <alias> {` blocks, accumulates the body until `}`, and emits `StatementKind::JsonProjection`. Normalizer routes these into `FamilyDocument.json_nodes`. Renderer draws them as yellow-tinted rectangles.
+- Rationale: PlantUML supports `json` blocks inside class diagrams as data-model annotation; implementing the parse+render path closes this gap with minimal complexity.
+- Impact: `json` blocks in class-family diagrams are parsed, normalized into `JsonNode` model objects, and rendered as distinct yellow nodes. JSON body is rendered as raw text lines without full JSON parsing.
+
+### D-024: PicoUML canonical parser baseline (#128)
+- Decision: The PicoUML canonical parser is already fully implemented as a translation layer: `adapt_picouml_to_plantuml` maps `@startpicouml`/`@endpicouml` to standard `@startuml`/`@enduml` and rejects mixed markers with `E_PICOUML_MARKER_MIXED`. No additional parser layer was needed; the existing pipeline is the canonical path.
+- Rationale: The original issue #128 requested a "real parser" but the translation approach is already canonical: it validates marker presence/absence, performs deterministic mapping, and shares the full downstream pipeline. The `parse_picouml` function was found to already exist as `adapt_picouml_to_plantuml` in `src/lib.rs`.
+- Impact: No blocker. PicoUML fixtures (`valid_basic.puml`, `valid_with_notes.puml`) and integration tests confirm the canonical path works end-to-end.

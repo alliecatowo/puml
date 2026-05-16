@@ -92,6 +92,11 @@ pub enum StatementKind {
         value: Option<String>,
     },
     Undef(String),
+    HideUnlinked,
+    JsonProjection {
+        alias: String,
+        body: String,
+    },
     Unknown(String),
 }
 
