@@ -1,0 +1,14 @@
+@startuml
+state fork1 <<fork>>
+state join1 <<join>>
+state choice1 <<choice>>
+state end1 <<end>>
+[*] --> fork1
+fork1 --> A
+fork1 --> B
+A --> join1
+B --> join1
+join1 --> choice1
+choice1 --> end1 : done
+choice1 --> A : retry
+@enduml

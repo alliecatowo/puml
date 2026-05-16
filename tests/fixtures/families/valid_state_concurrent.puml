@@ -1,0 +1,9 @@
+@startuml
+state Concurrent {
+  state A
+  ||
+  state B
+}
+[*] --> Concurrent
+Concurrent --> [*]
+@enduml

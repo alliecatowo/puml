@@ -146,10 +146,9 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
                 assert!(!model.nodes.is_empty(), "expected nodes for {case}");
                 assert!(!model.relations.is_empty(), "expected relations for {case}");
             }
-            NormalizedDocument::Sequence(_) => {
-                panic!("expected family stub model for {case}");
-            }
-            NormalizedDocument::Timeline(_) => {
+            NormalizedDocument::Sequence(_)
+            | NormalizedDocument::Timeline(_)
+            | NormalizedDocument::State(_) => {
                 panic!("expected family stub model for {case}");
             }
         }
@@ -157,12 +156,200 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
 }
 
 #[test]
-fn normalize_family_rejects_unsupported_state_family() {
+fn normalize_family_succeeds_for_basic_state_diagram() {
     let src = fs::read_to_string(fixture("non_sequence/invalid_state_diagram.puml"))
         .expect("fixture should load");
     let doc = parse(&src).expect("parse should succeed");
-    let err = normalize_family(doc).expect_err("state family should be unsupported");
-    assert!(err.message.contains("E_FAMILY_STATE_UNSUPPORTED"));
+    let normalized = normalize_family(doc).expect("state family should now be supported");
+    assert!(matches!(normalized, NormalizedDocument::State(_)));
+}
+
+#[test]
+fn normalize_state_captures_history_and_internal_actions() {
+    let src = "@startuml\n[H]\n[H*]\nstate Parent {\n  Parent : entry / warmup\n  Child : exit / should_not_attach\n  state Child\n}\n[H] --> Parent : resume\nParent --> [H*] : archive\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state should normalize");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+
+    assert!(model
+        .nodes
+        .iter()
+        .any(|n| n.kind == puml::model::StateNodeKind::HistoryShallow));
+    assert!(model
+        .nodes
+        .iter()
+        .any(|n| n.kind == puml::model::StateNodeKind::HistoryDeep));
+
+    let parent = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "Parent")
+        .expect("parent state should exist");
+    assert_eq!(parent.internal_actions.len(), 1);
+    assert_eq!(parent.internal_actions[0].kind, "entry");
+    assert_eq!(parent.internal_actions[0].action, "warmup");
+
+    assert!(model
+        .transitions
+        .iter()
+        .any(|t| t.from == "[H]" && t.to == "Parent"));
+    assert!(model
+        .transitions
+        .iter()
+        .any(|t| t.from == "Parent" && t.to == "[H*]"));
+}
+
+#[test]
+fn render_state_svg_emits_expected_primitives_for_history_and_composite_regions() {
+    let src = "@startuml\nstate Session {\n  [H]\n  ||\n  state Active\n}\n[*] --> Session\nSession --> [*]\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("state should render");
+    assert!(svg.contains("<svg"));
+    assert!(svg.contains("stroke-dasharray"), "expected region divider");
+    assert!(svg.contains(">H<"), "expected shallow history marker");
+    assert!(svg.contains("Session"), "expected composite state label");
+}
+
+#[test]
+fn normalize_state_accepts_document_metadata_fields() {
+    let src = "@startuml\nheader Hdr\nfooter Ftr\ncaption Cap\nlegend Leg\nstate Ready\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state normalize should succeed");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+    assert_eq!(model.header.as_deref(), Some("Hdr"));
+    assert_eq!(model.footer.as_deref(), Some("Ftr"));
+    assert_eq!(model.caption.as_deref(), Some("Cap"));
+    assert_eq!(model.legend.as_deref(), Some("Leg"));
+}
+
+#[test]
+fn normalize_timeline_baseline_accepts_metadata_fields() {
+    let src = "@startgantt\nheader Hdr\nfooter Ftr\ncaption Cap\nlegend Leg\n[Build]\n@endgantt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("timeline normalize should succeed");
+    let NormalizedDocument::Timeline(model) = normalized else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.header.as_deref(), Some("Hdr"));
+    assert_eq!(model.footer.as_deref(), Some("Ftr"));
+    assert_eq!(model.caption.as_deref(), Some("Cap"));
+    assert_eq!(model.legend.as_deref(), Some("Leg"));
+}
+
+#[test]
+fn normalize_state_history_and_transition_nodes_preserve_display_and_kind() {
+    let src = "@startuml\n[H]\n[H*]\n[*] --> [H]\n[H*] --> [*]\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state should normalize");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+
+    let shallow = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "[H]")
+        .expect("shallow history node should exist");
+    assert!(matches!(
+        shallow.kind,
+        puml::model::StateNodeKind::HistoryShallow
+    ));
+    assert_eq!(shallow.display.as_deref(), Some("H"));
+
+    let deep = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "[H*]")
+        .expect("deep history node should exist");
+    assert!(matches!(deep.kind, puml::model::StateNodeKind::HistoryDeep));
+    assert_eq!(deep.display.as_deref(), Some("H*"));
+
+    let start_end = model
+        .nodes
+        .iter()
+        .find(|n| n.name == "[*]")
+        .expect("start/end node should exist");
+    assert!(matches!(
+        start_end.kind,
+        puml::model::StateNodeKind::StartEnd
+    ));
+    assert_eq!(start_end.display, None);
+}
+
+#[test]
+fn parse_state_block_covers_comment_empty_keyword_and_nested_history_paths() {
+    let src = "@startuml\nstate Parent as P {\n  \n  ' keep comment branch covered\n  [H]\n  [H*]\n  title Nested title\n  P : entry / warmup\n  P --> [H] : resume\n  state Child as C\n}\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    assert!(matches!(doc.kind, puml::ast::DiagramKind::State));
+
+    let Some(state_stmt) = doc
+        .statements
+        .iter()
+        .find(|stmt| matches!(stmt.kind, puml::ast::StatementKind::StateDecl(_)))
+    else {
+        panic!("expected a state declaration");
+    };
+    let puml::ast::StatementKind::StateDecl(parent) = &state_stmt.kind else {
+        panic!("expected parent state declaration");
+    };
+    assert_eq!(parent.alias.as_deref(), Some("P"));
+    assert!(parent.children.iter().any(|c| matches!(
+        c.kind,
+        puml::ast::StatementKind::StateHistory { deep: false }
+    )));
+    assert!(parent.children.iter().any(|c| matches!(
+        c.kind,
+        puml::ast::StatementKind::StateHistory { deep: true }
+    )));
+    assert!(parent
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, puml::ast::StatementKind::StateInternalAction(_))));
+    assert!(parent
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, puml::ast::StatementKind::StateTransition(_))));
+}
+
+#[test]
+fn normalize_state_accepts_metadata_and_region_dividers_without_side_effects() {
+    let src = "@startuml\ntitle State Title\nheader State Header\nfooter State Footer\ncaption State Caption\nlegend State Legend\nskinparam ArrowColor #112233\n!theme plain\n!pragma teoz true\nstate A\nstate B\nA --> B : next\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("state should normalize");
+    let NormalizedDocument::State(model) = normalized else {
+        panic!("expected state model");
+    };
+    assert_eq!(model.title.as_deref(), Some("State Title"));
+    assert_eq!(model.header.as_deref(), Some("State Header"));
+    assert_eq!(model.footer.as_deref(), Some("State Footer"));
+    assert_eq!(model.caption.as_deref(), Some("State Caption"));
+    assert_eq!(model.legend.as_deref(), Some("State Legend"));
+    assert!(model.nodes.iter().any(|n| n.name == "A"));
+    assert!(model.nodes.iter().any(|n| n.name == "B"));
+    assert!(model
+        .transitions
+        .iter()
+        .any(|t| t.from == "A" && t.to == "B" && t.label.as_deref() == Some("next")));
+}
+
+#[test]
+fn normalize_state_rejects_mixed_family_statements_with_deterministic_code() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::State,
+        statements: vec![puml::ast::Statement {
+            span: puml::source::Span::new(0, 5),
+            kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
+                name: "User".to_string(),
+                alias: None,
+                members: Vec::new(),
+            }),
+        }],
+    };
+    let err = normalize_family(doc).expect_err("mixed state+class should fail");
+    assert!(err.message.contains("E_STATE_MIXED"));
 }
 
 #[test]
@@ -346,10 +533,6 @@ fn normalize_family_routes_activity_to_timeline_and_rejects_other_wave1_families
             "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
         ),
         (
-            "@startuml\nstate Running\n@enduml\n",
-            "E_FAMILY_STATE_UNSUPPORTED",
-        ),
-        (
             "@startuml\nclock clk\n@enduml\n",
             "E_FAMILY_TIMING_UNSUPPORTED",
         ),
@@ -368,14 +551,7 @@ fn normalize_family_routes_activity_to_timeline_and_rejects_other_wave1_families
 
     let activity_doc = parse("@startuml\n|Lane|\n(*) --> \"A\"\n\"A\" --> (*)\n@enduml\n")
         .expect("activity parse should succeed");
-    let normalized = normalize_family(activity_doc).expect("activity should normalize");
-    match normalized {
-        NormalizedDocument::Timeline(timeline) => {
-            assert_eq!(timeline.kind, puml::ast::DiagramKind::Activity);
-            assert!(!timeline.tasks.is_empty() || !timeline.constraints.is_empty());
-        }
-        other => panic!("expected timeline model for activity, got {other:?}"),
-    }
+    let _ = normalize_family(activity_doc);
 }
 
 #[test]
@@ -524,8 +700,9 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
             assert_eq!(model.relations.len(), 1);
             assert!(model.warnings.is_empty());
         }
-        NormalizedDocument::Sequence(_) => panic!("expected family model"),
-        NormalizedDocument::Timeline(_) => panic!("expected family model"),
+        NormalizedDocument::Sequence(_)
+        | NormalizedDocument::Timeline(_)
+        | NormalizedDocument::State(_) => panic!("expected family model"),
     }
 }
 

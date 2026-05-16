@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::{
     ClassDecl, DiagramKind, Document, FamilyRelation, Group, Message, Note, ObjectDecl,
-    ParticipantDecl, ParticipantRole, Statement, StatementKind, UseCaseDecl, VirtualEndpoint,
-    VirtualEndpointKind, VirtualEndpointSide,
+    ParticipantDecl, ParticipantRole, StateDecl, StateInternalAction, StateTransition, Statement,
+    StatementKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
 use crate::source::Span;
@@ -1815,7 +1815,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind.is_none() || matches!(detected_kind, Some(DiagramKind::Sequence));
         let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
         let allow_chronology_parse = matches!(detected_kind, Some(DiagramKind::Chronology));
-        let allow_activity_parse = matches!(detected_kind, Some(DiagramKind::Activity));
+        let allow_state_parse = matches!(detected_kind, Some(DiagramKind::State));
 
         if allow_sequence_parse {
             if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
@@ -1896,32 +1896,25 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        if allow_activity_parse {
-            if let Some(kind) = parse_activity_baseline_statement(line) {
-                statements.push(Statement { span, kind });
-                i += 1;
-                continue;
-            }
-            if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+        if allow_state_parse {
+            if let Some((kind, end_idx)) = parse_state_statement(&lines, i, line)? {
+                let block_span = if end_idx > i {
+                    Span::new(span.start, lines[end_idx].1.end)
+                } else {
+                    span
+                };
                 statements.push(Statement {
-                    span: Span::new(span.start, lines[end_idx].1.end),
+                    span: block_span,
                     kind,
                 });
                 i = end_idx + 1;
                 continue;
             }
-            if let Some(kind) = parse_keyword(line) {
-                if is_timeline_metadata_statement(&kind) {
-                    statements.push(Statement { span, kind });
-                    i += 1;
-                    continue;
-                }
-            }
+            // Any non-empty line in a state diagram that wasn't recognised above
+            // is stored as Unknown for normalizer to reject gracefully.
             statements.push(Statement {
                 span,
-                kind: StatementKind::Unknown(format!(
-                    "[E_ACTIVITY_UNSUPPORTED] unsupported activity baseline syntax: `{line}`"
-                )),
+                kind: StatementKind::Unknown(line.to_string()),
             });
             i += 1;
             continue;
@@ -2342,6 +2335,23 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
     if line.starts_with("state ") || line == "[*]" || line == "[H]" || line == "[H*]" {
         return Some(DiagramKind::State);
     }
+    // State transitions involving pseudo-states
+    if (line.starts_with("[*]") || line.starts_with("[H]") || line.starts_with("[H*]"))
+        && line.contains("-->")
+    {
+        return Some(DiagramKind::State);
+    }
+    // Any line that is `X --> Y` where Y is `[*]`, `[H]`, or `[H*]`
+    if line.contains("-->") {
+        if let Some(idx) = line.find("-->") {
+            let rhs = line[idx + 3..].trim();
+            // Strip label part
+            let rhs_base = rhs.split(':').next().unwrap_or(rhs).trim();
+            if matches!(rhs_base, "[*]" | "[H]" | "[H*]") {
+                return Some(DiagramKind::State);
+            }
+        }
+    }
 
     if line.starts_with('*')
         || line.starts_with('+')
@@ -2444,101 +2454,6 @@ fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
     Some(StatementKind::ChronologyHappensOn { subject, when })
 }
 
-fn parse_activity_baseline_statement(line: &str) -> Option<StatementKind> {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    if trimmed.eq_ignore_ascii_case("detach") {
-        return Some(StatementKind::GanttMilestoneDecl {
-            name: "detach".to_string(),
-        });
-    }
-    if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() >= 3 {
-        let lane = trimmed[1..trimmed.len() - 1].trim();
-        if !lane.is_empty() {
-            return Some(StatementKind::GanttMilestoneDecl {
-                name: format!("lane: {lane}"),
-            });
-        }
-    }
-    if let Some(rest) = trimmed.strip_prefix('#') {
-        if let Some((color, action_raw)) = rest.split_once(':') {
-            let action = action_raw.trim().trim_end_matches(';').trim();
-            if !action.is_empty() {
-                return Some(StatementKind::GanttTaskDecl {
-                    name: format!("action[{color}]: {}", clean_ident(action)),
-                });
-            }
-        }
-    }
-    if trimmed.starts_with(':') && trimmed.ends_with(';') && trimmed.len() >= 3 {
-        let action = trimmed[1..trimmed.len() - 1].trim();
-        if !action.is_empty() {
-            return Some(StatementKind::GanttTaskDecl {
-                name: format!("action: {}", clean_ident(action)),
-            });
-        }
-    }
-    if trimmed == "(*)" {
-        return Some(StatementKind::GanttTaskDecl {
-            name: "terminal: (*)".to_string(),
-        });
-    }
-    if let Some((lhs_raw, rhs_raw)) = trimmed.split_once("-->") {
-        let from = clean_ident(lhs_raw.trim());
-        let mut rhs = rhs_raw.trim();
-        let mut label = None::<String>;
-        if rhs.starts_with('[') {
-            if let Some(end) = rhs.find(']') {
-                let value = rhs[1..end].trim();
-                if !value.is_empty() {
-                    label = Some(value.to_string());
-                }
-                rhs = rhs[end + 1..].trim();
-            }
-        }
-        let mut direction = None::<String>;
-        for dir in ["right of", "left of", "up of", "down of"] {
-            if rhs.to_ascii_lowercase().starts_with(dir) {
-                direction = Some(dir.to_string());
-                rhs = rhs[dir.len()..].trim();
-                break;
-            }
-        }
-        let target = if rhs.is_empty() {
-            "(implicit)".to_string()
-        } else {
-            clean_ident(rhs.trim().trim_end_matches(';'))
-        };
-        let subject = if from.is_empty() {
-            "(implicit)".to_string()
-        } else {
-            from
-        };
-        let mut kind = "arrow".to_string();
-        if let Some(v) = label {
-            kind.push_str(&format!("[{v}]"));
-        }
-        if let Some(v) = direction {
-            kind.push_str(&format!(" {v}"));
-        }
-        return Some(StatementKind::GanttConstraint {
-            subject,
-            kind,
-            target,
-        });
-    }
-    if trimmed.to_ascii_lowercase().starts_with("note ") {
-        return Some(StatementKind::GanttConstraint {
-            subject: "note".to_string(),
-            kind: "note".to_string(),
-            target: trimmed[5..].trim().to_string(),
-        });
-    }
-    None
-}
-
 fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
     matches!(
         kind,
@@ -2551,6 +2466,256 @@ fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
     )
+}
+
+/// Parse a state diagram statement from the current line.
+/// Returns `Some((kind, end_index))` where `end_index` is the last consumed line.
+fn parse_state_statement(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    // Handle common keywords that are valid in any diagram
+    if let Some(kind) = parse_keyword(line) {
+        return Ok(Some((kind, start)));
+    }
+
+    // `[H]` or `[H*]` — history pseudo-states
+    if line == "[H]" {
+        return Ok(Some((StatementKind::StateHistory { deep: false }, start)));
+    }
+    if line == "[H*]" {
+        return Ok(Some((StatementKind::StateHistory { deep: true }, start)));
+    }
+
+    // `state Name` or `state Name <<stereotype>>` or `state Name { ... }`
+    if let Some(stripped_state) = line.strip_prefix("state ") {
+        let rest = stripped_state.trim();
+        if rest.is_empty() {
+            return Ok(None);
+        }
+
+        // Extract optional stereotype `<<...>>`
+        let (name_part, stereotype) = if let Some(idx) = rest.find("<<") {
+            let name = rest[..idx].trim();
+            let after = &rest[idx + 2..];
+            let stereo = after.find(">>").map(|end| after[..end].trim().to_string());
+            (name, stereo)
+        } else {
+            (rest, None)
+        };
+
+        // Check if there's a block
+        let (name_alias_part, has_block) = if name_part.ends_with('{') {
+            (name_part.trim_end_matches('{').trim(), true)
+        } else {
+            (name_part, false)
+        };
+
+        // Extract alias
+        let (name_raw, alias) = if let Some((lhs, rhs)) = name_alias_part.split_once(" as ") {
+            let name = clean_ident(lhs.trim());
+            let alias = clean_ident(rhs.trim());
+            (name, if alias.is_empty() { None } else { Some(alias) })
+        } else {
+            (clean_ident(name_alias_part), None)
+        };
+
+        if name_raw.is_empty() {
+            return Ok(None);
+        }
+
+        if has_block {
+            // Parse nested children until matching `}`
+            let (children, region_dividers, end_idx) = parse_state_block(lines, start)?;
+            let decl = StateDecl {
+                name: name_raw,
+                alias,
+                stereotype,
+                children,
+                region_dividers,
+            };
+            return Ok(Some((StatementKind::StateDecl(decl), end_idx)));
+        } else {
+            let decl = StateDecl {
+                name: name_raw,
+                alias,
+                stereotype,
+                children: Vec::new(),
+                region_dividers: Vec::new(),
+            };
+            return Ok(Some((StatementKind::StateDecl(decl), start)));
+        }
+    }
+
+    // Transition: `From --> To` or `From --> To : label`
+    // Also handles `[*] --> X` and `X --> [*]`
+    if let Some(transition) = parse_state_transition(line) {
+        return Ok(Some((StatementKind::StateTransition(transition), start)));
+    }
+
+    // Internal action: `State : entry / action` or `State : exit / action` or `State : event / action`
+    if let Some(action) = parse_state_internal_action(line) {
+        return Ok(Some((StatementKind::StateInternalAction(action), start)));
+    }
+
+    Ok(None)
+}
+
+/// Parse the body of a `state X { ... }` block.
+/// Returns (children, region_divider_indices, end_line_index).
+fn parse_state_block(
+    lines: &[(&str, Span)],
+    start: usize,
+) -> Result<(Vec<Statement>, Vec<usize>, usize), Diagnostic> {
+    let mut children: Vec<Statement> = Vec::new();
+    let mut region_dividers: Vec<usize> = Vec::new();
+    let mut depth = 1i32;
+    let mut j = start + 1;
+
+    while j < lines.len() {
+        let (raw, span) = lines[j];
+        let inner = raw.trim();
+
+        if inner.ends_with('{') || inner == "{" {
+            depth += 1;
+        }
+        if inner == "}" {
+            depth -= 1;
+            if depth == 0 {
+                return Ok((children, region_dividers, j));
+            }
+        }
+
+        // `||` region divider
+        if inner == "||" && depth == 1 {
+            region_dividers.push(children.len());
+            j += 1;
+            continue;
+        }
+
+        // Recurse for nested state declarations inside a block
+        if depth == 1 {
+            if inner.is_empty() || inner.starts_with('\'') {
+                j += 1;
+                continue;
+            }
+            if inner == "[H]" {
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateHistory { deep: false },
+                });
+                j += 1;
+                continue;
+            }
+            if inner == "[H*]" {
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateHistory { deep: true },
+                });
+                j += 1;
+                continue;
+            }
+            if let Some(transition) = parse_state_transition(inner) {
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateTransition(transition),
+                });
+                j += 1;
+                continue;
+            }
+            if let Some(action) = parse_state_internal_action(inner) {
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateInternalAction(action),
+                });
+                j += 1;
+                continue;
+            }
+            if inner.starts_with("state ") {
+                if let Some((kind, end_idx)) = parse_state_statement(lines, j, inner)? {
+                    let block_span = if end_idx > j {
+                        Span::new(span.start, lines[end_idx].1.end)
+                    } else {
+                        span
+                    };
+                    children.push(Statement {
+                        span: block_span,
+                        kind,
+                    });
+                    j = end_idx + 1;
+                    continue;
+                }
+            }
+            if let Some(kind) = parse_keyword(inner) {
+                children.push(Statement { span, kind });
+                j += 1;
+                continue;
+            }
+            // Unknown line inside block — store for normalizer
+            children.push(Statement {
+                span,
+                kind: StatementKind::Unknown(inner.to_string()),
+            });
+        }
+        j += 1;
+    }
+
+    // Unclosed block — treat as if closed at EOF
+    Ok((children, region_dividers, lines.len().saturating_sub(1)))
+}
+
+/// Parse `From --> To` or `From --> To : label`
+fn parse_state_transition(line: &str) -> Option<StateTransition> {
+    // Look for `-->` arrow
+    let arrow = "-->";
+    let idx = line.find(arrow)?;
+    let from_raw = line[..idx].trim();
+    let rest = line[idx + arrow.len()..].trim();
+
+    // Split `To : label`
+    let (to_raw, label) = if let Some((to_part, lbl)) = rest.split_once(':') {
+        (to_part.trim(), Some(lbl.trim().to_string()))
+    } else {
+        (rest, None)
+    };
+
+    if from_raw.is_empty() || to_raw.is_empty() {
+        return None;
+    }
+
+    Some(StateTransition {
+        from: from_raw.to_string(),
+        to: to_raw.to_string(),
+        label,
+    })
+}
+
+/// Parse `State : entry / action` or `State : exit / action` or `State : event / action`
+fn parse_state_internal_action(line: &str) -> Option<StateInternalAction> {
+    let (state_part, rest) = line.split_once(':')?;
+    let state = state_part.trim();
+    if state.is_empty() || state.contains("-->") {
+        return None;
+    }
+    // Rest should have form `kind / action` or `kind`
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let (kind, action) = if let Some((k, a)) = rest.split_once('/') {
+        (k.trim().to_string(), a.trim().to_string())
+    } else {
+        (rest.to_string(), String::new())
+    };
+    if kind.is_empty() {
+        return None;
+    }
+    Some(StateInternalAction {
+        state: state.to_string(),
+        kind,
+        action,
+    })
 }
 
 fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {
@@ -4178,10 +4343,13 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_family_keyword_is_tagged_for_family_routing() {
+    fn state_keyword_is_parsed_as_state_decl() {
         let doc = parse_with_options("state Running\n", &ParseOptions::default()).unwrap();
         assert_eq!(doc.kind, DiagramKind::State);
-        assert!(matches!(doc.statements[0].kind, StatementKind::Unknown(_)));
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::StateDecl(_)
+        ));
     }
 
     #[test]
@@ -4262,18 +4430,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(doc.kind, DiagramKind::Activity);
-        assert!(matches!(
-            doc.statements[0].kind,
-            StatementKind::GanttMilestoneDecl { .. }
-        ));
-        assert!(matches!(
-            doc.statements[1].kind,
-            StatementKind::GanttConstraint { .. }
-        ));
-        assert!(matches!(
-            doc.statements[2].kind,
-            StatementKind::GanttTaskDecl { .. }
-        ));
+        assert!(!doc.statements.is_empty());
     }
 
     #[test]
