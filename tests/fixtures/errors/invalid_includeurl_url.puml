@@ -1,0 +1,3 @@
+@startuml
+!includeurl https://example.com/root.puml
+@enduml

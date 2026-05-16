@@ -1028,13 +1028,7 @@ fn write_markdown_output_files(
 
 fn write_output_files(base: &Path, svgs: &[String]) -> Result<(), (u8, String)> {
     if svgs.len() == 1 {
-        fs::write(base, &svgs[0]).map_err(|e| {
-            (
-                EXIT_IO,
-                format!("failed to write '{}': {e}", base.display()),
-            )
-        })?;
-        return Ok(());
+        return write_files_transactionally(vec![(base.to_path_buf(), svgs[0].clone())]);
     }
 
     let stem = base.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
@@ -1079,12 +1073,19 @@ fn write_files_transactionally(files: Vec<(PathBuf, String)>) -> Result<(), (u8,
     let mut staged_writes = Vec::with_capacity(files.len());
 
     for (idx, (target, contents)) in files.into_iter().enumerate() {
+        if target.is_dir() {
+            cleanup_staged_artifacts(&staged_writes);
+            return Err((
+                EXIT_IO,
+                format!("failed to write '{}': target is a directory", target.display()),
+            ));
+        }
         let staged = staging_path_for(&target, "stage", pid, idx);
         fs::write(&staged, contents).map_err(|e| {
             cleanup_staged_artifacts(&staged_writes);
             (
                 EXIT_IO,
-                format!("failed to stage output for '{}': {e}", target.display()),
+                format!("failed to write '{}': {e}", target.display()),
             )
         })?;
         staged_writes.push(StagedWrite {

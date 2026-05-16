@@ -1705,7 +1705,9 @@ fn include_variants_url_policy_is_rejected_deterministically() {
     for (case, directive) in [
         ("errors/invalid_include_url.puml", "!include"),
         ("errors/invalid_include_once_url.puml", "!include_once"),
+        ("errors/invalid_include_many_url.puml", "!include_many"),
         ("errors/invalid_includesub_url.puml", "!includesub"),
+        ("errors/invalid_includeurl_url.puml", "!includeurl"),
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -2469,6 +2471,28 @@ fn multipage_file_output_failure_does_not_leave_partial_writes() {
         "stable-original-content".to_string()
     );
     assert!(!tmp.path().join("diagram-2.svg").exists());
+}
+
+#[test]
+fn single_file_output_failure_does_not_overwrite_existing_file() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single.puml");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+    let output = tmp.path().join("diagram.svg");
+    fs::write(&output, "stable-single-content").unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .env("PUML_FAIL_OUTPUT_AFTER", "0")
+        .args(["-o", output.to_str().unwrap(), input.to_str().unwrap()])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("failed to write"));
+
+    assert_eq!(
+        fs::read_to_string(&output).unwrap(),
+        "stable-single-content".to_string()
+    );
 }
 
 #[test]
