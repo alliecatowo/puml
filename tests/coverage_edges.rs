@@ -1215,6 +1215,35 @@ fn layout_group_else_separator_and_ref_min_height_are_deterministic() {
 }
 
 #[test]
+fn layout_ref_advanced_forms_stay_above_footboxes() {
+    let src = fs::read_to_string(fixture("groups/valid_ref_advanced_forms.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    assert!(!scene.footboxes.is_empty(), "expected footboxes");
+    let footbox_top = scene
+        .footboxes
+        .iter()
+        .map(|b| b.y)
+        .min()
+        .expect("expected a footbox");
+    let refs = scene
+        .groups
+        .iter()
+        .filter(|g| g.kind.eq_ignore_ascii_case("ref"))
+        .collect::<Vec<_>>();
+    assert!(!refs.is_empty(), "expected ref groups from fixture");
+    for reference in refs {
+        assert!(
+            reference.y + reference.height <= footbox_top,
+            "ref group bottom should stay above footbox top"
+        );
+    }
+}
+
+#[test]
 fn layout_overflow_bounds_keep_multi_target_note_and_over_group_in_view() {
     let src = "@startuml\nparticipant AlphaParticipantWithLongName\nparticipant BetaParticipantWithLongName\nparticipant GammaParticipantWithLongName\nnote right of AlphaParticipantWithLongName, BetaParticipantWithLongName: right note with a very long unbroken token AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\ngroup over AlphaParticipantWithLongName, GammaParticipantWithLongName : over Alpha/Gamma\nAlphaParticipantWithLongName -> GammaParticipantWithLongName : ping\nend\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");

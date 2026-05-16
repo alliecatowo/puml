@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-15T22:04:15Z",
+  "generated_at_utc": "2026-05-16T03:36:55Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml-wave6",
+    "cwd": "/home/Allie/develop/puml-issue-158",
     "quick_mode": false
   },
   "oracle": {
