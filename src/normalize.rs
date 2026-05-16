@@ -252,6 +252,156 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
     }
 }
 
+fn normalize_timeline(document: Document) -> Result<crate::model::TimelineDocument, Diagnostic> {
+    let mut entries = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+    let mut warnings = Vec::new();
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::Unknown(line) => {
+                let entry = line.trim();
+                if !entry.is_empty() {
+                    if looks_like_timeline_sequence_syntax(entry) {
+                        return Err(Diagnostic::error(format!(
+                            "[E_FAMILY_STUB_UNSUPPORTED] unsupported timeline syntax in {} diagram",
+                            family_kind_name(document.kind)
+                        ))
+                        .with_span(stmt.span));
+                    }
+                    entries.push(entry.to_string());
+                }
+            }
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_) => {}
+            StatementKind::ClassDecl(_)
+            | StatementKind::ObjectDecl(_)
+            | StatementKind::UseCaseDecl(_)
+            | StatementKind::FamilyRelation(_) => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
+                ))
+                .with_span(stmt.span));
+            }
+            StatementKind::Participant(_)
+            | StatementKind::Message(_)
+            | StatementKind::Note(_)
+            | StatementKind::Group(_)
+            | StatementKind::Delay(_)
+            | StatementKind::Divider(_)
+            | StatementKind::Separator(_)
+            | StatementKind::Spacer
+            | StatementKind::NewPage(_)
+            | StatementKind::IgnoreNewPage
+            | StatementKind::Autonumber(_)
+            | StatementKind::Activate(_)
+            | StatementKind::Deactivate(_)
+            | StatementKind::Destroy(_)
+            | StatementKind::Create(_)
+            | StatementKind::Return(_)
+            | StatementKind::Footbox(_) => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_STUB_UNSUPPORTED] unsupported timeline syntax in {} diagram",
+                    family_kind_name(document.kind)
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    if entries.is_empty() {
+        warnings.push(Diagnostic::warning(format!(
+            "[W_TIMELINE_EMPTY] timeline diagram does not contain any entries"
+        )));
+    }
+
+    Ok(crate::model::TimelineDocument {
+        kind: document.kind,
+        entries,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        warnings,
+    })
+}
+
+fn looks_like_timeline_sequence_syntax(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    if lower.is_empty() {
+        return false;
+    }
+
+    if ["participant ", "actor ", "boundary ", "control ", "entity ", "database ", "collections ", "queue "]
+        .iter()
+        .any(|keyword| lower.starts_with(keyword))
+    {
+        return true;
+    }
+
+    if lower == "newpage"
+        || lower.starts_with("newpage ")
+        || lower == "ignore newpage"
+        || lower.starts_with("autonumber")
+        || lower.starts_with("activate ")
+        || lower.starts_with("deactivate ")
+        || lower.starts_with("destroy ")
+        || lower.starts_with("create ")
+        || lower == "return"
+        || lower.starts_with("return ")
+    {
+        return true;
+    }
+
+    if lower == "note" || lower.starts_with("note ") || lower.starts_with("hnote ") || lower.starts_with("rnote ") {
+        return true;
+    }
+    if lower.starts_with("ref ") {
+        return true;
+    }
+
+    if lower == "end" || lower.starts_with("end ")
+        || lower == "else"
+        || lower.starts_with("else ")
+    {
+        return true;
+    }
+
+    if lower == "..." || (lower.starts_with("...") && lower.ends_with("...") && lower.len() >= 6) {
+        return true;
+    }
+    if lower == "||" || lower.starts_with("||") {
+        return true;
+    }
+    if lower.starts_with("==") && lower.ends_with("==") && lower.len() >= 4 {
+        return true;
+    }
+
+    for keyword in ["alt", "opt", "loop", "par", "critical", "break", "group"] {
+        if lower == keyword || lower.starts_with(&format!("{} ", keyword)) {
+            return true;
+        }
+    }
+
+    ["->", "<->", "<-", "-->", "<--", "->>", "<>>", "<<", "--", "<<-", ">>", "-->"].iter().any(|token| {
+        lower.contains(token)
+    })
+}
+
 pub fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {
     let mut pages = Vec::new();
     let mut page_events = Vec::new();

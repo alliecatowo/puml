@@ -286,6 +286,14 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
             puml::ast::DiagramKind::MindMap,
         ),
         ("@startwbs\n* Scope\n@endwbs\n", puml::ast::DiagramKind::Wbs),
+        (
+            "@startgantt\n[2026-01-01] : Kickoff\n@endgantt\n",
+            puml::ast::DiagramKind::Gantt,
+        ),
+        (
+            "@startchronology\n2026-01-01 : Event\n@endchronology\n",
+            puml::ast::DiagramKind::Chronology,
+        ),
     ];
 
     for (src, expected_kind) in cases {
@@ -361,6 +369,40 @@ fn normalize_family_rejects_all_wave1_non_sequence_families_with_specific_codes(
         let err = normalize_family(doc).expect_err("family should be unsupported in this slice");
         assert!(err.message.contains(code), "missing code {code}");
     }
+}
+
+#[test]
+fn normalize_family_accepts_gantt_and_chronology_timelines() {
+    let cases = [
+        ("non_sequence/valid_gantt_diagram.puml", puml::ast::DiagramKind::Gantt, 3),
+        (
+            "non_sequence/valid_chronology_diagram.puml",
+            puml::ast::DiagramKind::Chronology,
+            3,
+        ),
+    ];
+
+    for (path, expected_kind, expected_entries) in cases {
+        let src = fs::read_to_string(fixture(path)).expect("fixture should load");
+        let doc = parse(&src).expect("parse should succeed");
+        assert_eq!(doc.kind, expected_kind);
+        let normalized = normalize_family(doc).expect("timeline normalize should succeed");
+        match normalized {
+            NormalizedDocument::Timeline(model) => {
+                assert_eq!(model.entries.len(), expected_entries);
+                assert_eq!(model.title.as_deref(), Some("Timeline Overview"));
+            }
+            other => panic!("expected timeline model, got {:?}", other),
+        }
+    }
+}
+
+#[test]
+fn normalize_family_rejects_sequence_only_syntax_in_timeline_slice() {
+    let src = "@startgantt\nparticipant A\nA -> B\n@endgantt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize_family(doc).expect_err("mixed timeline/sequence syntax should fail");
+    assert!(err.message.contains("E_FAMILY_STUB_UNSUPPORTED"));
 }
 
 #[test]

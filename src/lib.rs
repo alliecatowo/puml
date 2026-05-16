@@ -11,9 +11,8 @@ pub mod theme;
 
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
-pub use model::{
-    FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, TimelineDocument,
-};
+pub use model::{FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, TimelineDocument};
+
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
 use std::path::PathBuf;
@@ -22,8 +21,6 @@ use std::path::PathBuf;
 pub enum DiagramFamily {
     Sequence,
     Class,
-    Gantt,
-    Chronology,
     State,
     Activity,
     Timing,
@@ -33,6 +30,8 @@ pub enum DiagramFamily {
     Object,
     MindMap,
     Wbs,
+    Gantt,
+    Chronology,
     Unknown,
 }
 
@@ -52,6 +51,8 @@ impl DiagramFamily {
             Self::Object => "object",
             Self::MindMap => "mindmap",
             Self::Wbs => "wbs",
+            Self::Gantt => "gantt",
+            Self::Chronology => "chronology",
             Self::Unknown => "unknown",
         }
     }
@@ -222,6 +223,19 @@ fn render_document_for_family(
                 )),
                 model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
                     "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family stub render",
+                )),
+            }
+        }
+        DiagramFamily::Gantt | DiagramFamily::Chronology => {
+            match normalize::normalize_family(document)? {
+                model::NormalizedDocument::Timeline(timeline) => {
+                    Ok(vec![render::render_timeline_svg(&timeline)])
+                }
+                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during timeline render",
+                )),
+                model::NormalizedDocument::Family(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected family model during timeline render",
                 )),
             }
         }

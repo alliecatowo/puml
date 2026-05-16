@@ -12,6 +12,8 @@ pub enum DiagramKind {
     Class,
     Object,
     UseCase,
+    Gantt,
+    Chronology,
     MindMap,
     Wbs,
     Gantt,

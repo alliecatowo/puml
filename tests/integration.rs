@@ -482,6 +482,8 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_procedure_call_args.puml",
         "preprocessor/valid_import_stdlib_core.puml",
         "preprocessor/valid_import_stdlib_nested_no_ext.puml",
+        "non_sequence/valid_gantt_diagram.puml",
+        "non_sequence/valid_chronology_diagram.puml",
     ] {
         Command::cargo_bin("puml")
             .expect("binary")

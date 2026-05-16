@@ -2289,6 +2289,14 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         return Some(DiagramKind::Timing);
     }
 
+    if line.starts_with("gantt ") {
+        return Some(DiagramKind::Gantt);
+    }
+
+    if line.starts_with("chronology ") {
+        return Some(DiagramKind::Chronology);
+    }
+
     None
 }
 
@@ -3936,6 +3944,23 @@ mod tests {
     }
 
     #[test]
+    fn start_end_timeline_markers_accept_optional_block_suffixes() {
+        let gantt = parse_with_options(
+            "@startgantt \"Gantt\"\n[2026-01] : one\n@endgantt anything\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(gantt.kind, DiagramKind::Gantt);
+
+        let chronology = parse_with_options(
+            "@startchronology\nEvent\n@endchronology now\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(chronology.kind, DiagramKind::Chronology);
+    }
+
+    #[test]
     fn startmindmap_and_startwbs_markers_set_family_kind() {
         let mindmap = parse_with_options(
             "@startmindmap\n* Root\n** Child\n@endmindmap\n",
@@ -3947,6 +3972,20 @@ mod tests {
         let wbs =
             parse_with_options("@startwbs\n* Scope\n@endwbs\n", &ParseOptions::default()).unwrap();
         assert_eq!(wbs.kind, DiagramKind::Wbs);
+
+        let gantt = parse_with_options(
+            "@startgantt\n[2026-01-01] : Kickoff\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(gantt.kind, DiagramKind::Gantt);
+
+        let chronology = parse_with_options(
+            "@startchronology\n2026-01-01 : Event\n@endchronology\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(chronology.kind, DiagramKind::Chronology);
     }
 
     #[test]
