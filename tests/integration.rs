@@ -352,7 +352,8 @@ fn non_sequence_activity_oldstyle_baseline_renders_with_activity_timeline_labels
     match render_source_to_svg(&src) {
         Ok(svg) => assert!(svg.contains("ACTIVITY timeline entries")),
         Err(err) => assert!(
-            err.message.contains("E_RENDER_ACTIVITY_UNSUPPORTED") || err.message.contains("|Build|"),
+            err.message.contains("E_RENDER_ACTIVITY_UNSUPPORTED")
+                || err.message.contains("|Build|"),
             "unexpected activity render error: {}",
             err.message
         ),
@@ -2366,7 +2367,10 @@ fn non_sequence_inputs_fail_validation() {
 
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--check", &fixture("non_sequence/invalid_activity_diagram.puml")])
+        .args([
+            "--check",
+            &fixture("non_sequence/invalid_activity_diagram.puml"),
+        ])
         .assert()
         .code(1)
         .stderr(
