@@ -49,6 +49,13 @@ pub enum StatementKind {
     ObjectDecl(ObjectDecl),
     UseCaseDecl(UseCaseDecl),
     FamilyRelation(FamilyRelation),
+    StateDecl(StateDecl),
+    StateTransition(StateTransition),
+    StateInternalAction(StateInternalAction),
+    StateRegionDivider,
+    StateHistory {
+        deep: bool,
+    },
     GanttTaskDecl {
         name: String,
     },
@@ -66,11 +73,6 @@ pub enum StatementKind {
     },
     ComponentDecl {
         kind: ComponentNodeKind,
-        name: String,
-        alias: Option<String>,
-        label: Option<String>,
-    },
-    StateDecl {
         name: String,
         alias: Option<String>,
         label: Option<String>,
@@ -134,6 +136,33 @@ pub enum StatementKind {
     },
     HideOption(String),
     Unknown(String),
+}
+
+/// A state declaration: `state Name` or `state Name { ... }` or `state Name <<stereotype>>`
+#[derive(Debug, Clone)]
+pub struct StateDecl {
+    pub name: String,
+    pub alias: Option<String>,
+    pub stereotype: Option<String>,
+    pub children: Vec<Statement>,
+    pub region_dividers: Vec<usize>, // indices into children where `||` appeared
+}
+
+/// A state transition: `From --> To` or `From --> To : label`
+#[derive(Debug, Clone)]
+pub struct StateTransition {
+    pub from: String,
+    pub to: String,
+    pub label: Option<String>,
+}
+
+/// An internal action or entry/exit: `State : entry / action` or `State : exit / action`
+/// or `State : event / action` (internal transition)
+#[derive(Debug, Clone)]
+pub struct StateInternalAction {
+    pub state: String,
+    pub kind: String,   // "entry", "exit", or event name
+    pub action: String,
 }
 
 #[derive(Debug, Clone)]

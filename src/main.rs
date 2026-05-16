@@ -13,7 +13,8 @@ use puml::ast::{
 use puml::layout;
 use puml::model::{
     Participant, ParticipantRole as ModelParticipantRole, SequenceDocument, SequenceEvent,
-    SequenceEventKind, TimelineDocument, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    SequenceEventKind, StateDocument, TimelineDocument, VirtualEndpoint, VirtualEndpointKind,
+    VirtualEndpointSide,
 };
 use puml::scene::LayoutOptions;
 use puml::source::Span;
@@ -868,6 +869,7 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Sequence(sequence) => &sequence.warnings,
         NormalizedDocument::Family(family) => &family.warnings,
         NormalizedDocument::Timeline(timeline) => &timeline.warnings,
+        NormalizedDocument::State(state) => &state.warnings,
         NormalizedDocument::Json(doc) => &doc.warnings,
         NormalizedDocument::Yaml(doc) => &doc.warnings,
         NormalizedDocument::Nwdiag(doc) => &doc.warnings,
@@ -894,12 +896,12 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
             DiagramKind::MindMap | DiagramKind::Wbs => render::render_family_tree_svg(family),
             DiagramKind::Component => render::render_component_svg(family),
             DiagramKind::Deployment => render::render_deployment_svg(family),
-            DiagramKind::State => render::render_state_svg(family),
             DiagramKind::Activity => render::render_activity_svg(family),
             DiagramKind::Timing => render::render_timing_svg(family),
             _ => render::render_family_stub_svg(family),
         }],
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
+        NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
         NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
         NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
         NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
@@ -1410,6 +1412,17 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::FamilyRelation(v) => {
             json!({"FamilyRelation": {"from": v.from, "to": v.to, "arrow": v.arrow, "label": v.label}})
         }
+        StatementKind::StateDecl(v) => {
+            json!({"StateDecl": {"name": v.name, "alias": v.alias, "stereotype": v.stereotype}})
+        }
+        StatementKind::StateTransition(v) => {
+            json!({"StateTransition": {"from": v.from, "to": v.to, "label": v.label}})
+        }
+        StatementKind::StateInternalAction(v) => {
+            json!({"StateInternalAction": {"state": v.state, "kind": v.kind, "action": v.action}})
+        }
+        StatementKind::StateRegionDivider => json!("StateRegionDivider"),
+        StatementKind::StateHistory { deep } => json!({"StateHistory": {"deep": deep}}),
         StatementKind::GanttTaskDecl { name } => json!({"GanttTaskDecl": {"name": name}}),
         StatementKind::GanttMilestoneDecl { name } => {
             json!({"GanttMilestoneDecl": {"name": name}})
@@ -1477,12 +1490,8 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
                 "label": label,
             }
         }),
-        StatementKind::StateDecl {
-            name,
-            alias,
-            label,
-        } => json!({
-            "StateDecl": {"name": name, "alias": alias, "label": label}
+        StatementKind::StateDecl(decl) => json!({
+            "StateDecl": {"name": decl.name, "alias": decl.alias, "stereotype": decl.stereotype}
         }),
         StatementKind::ActivityStep(step) => json!({
             "ActivityStep": {"kind": format!("{:?}", step.kind), "label": step.label}
@@ -1569,6 +1578,7 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Sequence(sequence) => model_to_json(sequence),
         NormalizedDocument::Family(family) => family_model_to_json(family),
         NormalizedDocument::Timeline(timeline) => timeline_model_to_json(timeline),
+        NormalizedDocument::State(state) => state_model_to_json(state),
         NormalizedDocument::Json(doc) => json!({
             "kind": "Json",
             "title": doc.title,
@@ -1643,6 +1653,37 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
             "warnings": doc.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
         }),
     }
+}
+
+fn state_model_to_json(model: &StateDocument) -> Value {
+    json!({
+        "kind": "State",
+        "nodes": model.nodes.iter().map(|n| json!({
+            "name": n.name,
+            "display": n.display,
+            "kind": match n.kind {
+                puml::model::StateNodeKind::Normal => "Normal",
+                puml::model::StateNodeKind::StartEnd => "StartEnd",
+                puml::model::StateNodeKind::HistoryShallow => "HistoryShallow",
+                puml::model::StateNodeKind::HistoryDeep => "HistoryDeep",
+                puml::model::StateNodeKind::Fork => "Fork",
+                puml::model::StateNodeKind::Join => "Join",
+                puml::model::StateNodeKind::Choice => "Choice",
+                puml::model::StateNodeKind::End => "End",
+            },
+            "internal_actions": n.internal_actions.iter().map(|a| json!({
+                "kind": a.kind,
+                "action": a.action
+            })).collect::<Vec<_>>()
+        })).collect::<Vec<_>>(),
+        "transitions": model.transitions.iter().map(|t| json!({
+            "from": t.from,
+            "to": t.to,
+            "label": t.label
+        })).collect::<Vec<_>>(),
+        "title": model.title,
+        "warnings": model.warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+    })
 }
 
 fn model_to_json(model: &SequenceDocument) -> Value {
@@ -1998,6 +2039,15 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+            })
+        }
+        NormalizedDocument::State(state) => {
+            let svg = render::render_state_svg(state);
+            json!({
+                "kind": "StateDiagram",
+                "nodes": state.nodes.len(),
+                "transitions": state.transitions.len(),
+                "svg_preview": svg
             })
         }
         NormalizedDocument::Json(doc) => {

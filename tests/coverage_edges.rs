@@ -148,10 +148,9 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
                 assert!(!model.nodes.is_empty(), "expected nodes for {case}");
                 assert!(!model.relations.is_empty(), "expected relations for {case}");
             }
-            NormalizedDocument::Sequence(_) => {
-                panic!("expected family stub model for {case}");
-            }
-            NormalizedDocument::Timeline(_) => {
+            NormalizedDocument::Sequence(_)
+            | NormalizedDocument::Timeline(_)
+            | NormalizedDocument::State(_) => {
                 panic!("expected family stub model for {case}");
             }
             _ => panic!("expected family stub model for {case}"),
@@ -160,17 +159,12 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
 }
 
 #[test]
-fn normalize_family_accepts_state_family() {
+fn normalize_family_succeeds_for_basic_state_diagram() {
     let src = fs::read_to_string(fixture("non_sequence/invalid_state_diagram.puml"))
         .expect("fixture should load");
     let doc = parse(&src).expect("parse should succeed");
-    let normalized = normalize_family(doc).expect("state family should now normalize");
-    match normalized {
-        NormalizedDocument::Family(model) => {
-            assert!(!model.nodes.is_empty());
-        }
-        other => panic!("expected family model, got {other:?}"),
-    }
+    let normalized = normalize_family(doc).expect("state family should now be supported");
+    assert!(matches!(normalized, NormalizedDocument::State(_)));
 }
 
 #[test]
@@ -370,7 +364,6 @@ fn normalize_family_accepts_wave1_implemented_families() {
     let cases = [
         ("@startuml\ncomponent API\n@enduml\n", DiagramKind::Component),
         ("@startuml\nnode web\n@enduml\n", DiagramKind::Deployment),
-        ("@startuml\nstate Running\n@enduml\n", DiagramKind::State),
         (
             "@startuml\nstart\n:step;\nstop\n@enduml\n",
             DiagramKind::Activity,
@@ -490,8 +483,9 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
             assert_eq!(model.relations.len(), 1);
             assert!(model.warnings.is_empty());
         }
-        NormalizedDocument::Sequence(_) => panic!("expected family model"),
-        NormalizedDocument::Timeline(_) => panic!("expected family model"),
+        NormalizedDocument::Sequence(_)
+        | NormalizedDocument::Timeline(_)
+        | NormalizedDocument::State(_) => panic!("expected family model"),
         _ => panic!("expected family model"),
     }
 }

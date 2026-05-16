@@ -309,7 +309,7 @@ fn deployment_family_now_passes_validation() {
 }
 
 #[test]
-fn state_family_now_passes_validation() {
+fn state_diagram_basic_check_succeeds() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -2446,6 +2446,14 @@ fn lifecycle_after_destroy_is_rejected() {
 fn non_sequence_inputs_fail_validation() {
     for (case, code) in [
         ("errors/invalid_salt_block_mismatch.puml", "E_BLOCK_MISMATCH"),
+        (
+            "non_sequence/invalid_mindmap_diagram.puml",
+            "E_FAMILY_MINDMAP_UNSUPPORTED",
+        ),
+        (
+            "non_sequence/invalid_wbs_diagram.puml",
+            "E_FAMILY_WBS_UNSUPPORTED",
+        ),
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
@@ -3806,6 +3814,19 @@ fn mermaid_loops_and_groups_fixture_validates_cleanly() {
 // Creole inline formatting tests (#168)
 // ---------------------------------------------------------------------------
 
+// ─── State diagram advanced feature tests ────────────────────────────────────
+
+#[test]
+fn state_concurrent_regions_renders_svg_with_dashed_divider() {
+    let src = fs::read_to_string(fixture("families/valid_state_concurrent.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render state concurrent SVG");
+    assert!(svg.contains("<svg"), "expected SVG output");
+    assert!(
+        svg.contains("stroke-dasharray"),
+        "expected dashed divider in concurrent state SVG"
+    );
+}
+
 #[test]
 fn creole_bold_italic_fixture_checks_cleanly() {
     Command::cargo_bin("puml")
@@ -4371,6 +4392,17 @@ fn gantt_render_emits_horizontal_bars_and_milestone_diamond() {
 }
 
 #[test]
+fn state_concurrent_renders_dashed_divider() {
+    let src = fs::read_to_string(fixture("families/valid_state_concurrent.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render state concurrent SVG");
+    assert!(svg.contains("<svg"), "expected SVG output");
+    assert!(
+        svg.contains("stroke-dasharray"),
+        "expected dashed divider in concurrent state SVG"
+    );
+}
+
+#[test]
 fn chronology_render_emits_vertical_timeline_with_event_bullets() {
     let src = fs::read_to_string(fixture("timeline/valid_chronology_render.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("chronology svg should render");
@@ -4557,6 +4589,16 @@ fn stdlib_angle_bracket_include_is_idempotent_when_included_twice() {
 }
 
 #[test]
+fn state_history_shallow_renders_h_circle() {
+    let src = fs::read_to_string(fixture("families/valid_state_history.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render history state SVG");
+    assert!(
+        svg.contains(">H<"),
+        "expected 'H' label in shallow history node"
+    );
+}
+
+#[test]
 fn creole_color_size_fixture_checks_cleanly() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -4582,6 +4624,26 @@ fn creole_color_size_svg_contains_color_and_size_attributes() {
     assert!(
         svg.contains("font-size=\"14\""),
         "expected font-size=\"14\" in SVG for <size:14>"
+    );
+}
+
+#[test]
+fn state_history_renders_h_circle() {
+    let src = fs::read_to_string(fixture("families/valid_state_history.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render history state SVG");
+    assert!(
+        svg.contains(">H<"),
+        "expected 'H' label in shallow history node"
+    );
+}
+
+#[test]
+fn state_history_deep_renders_hstar_circle() {
+    let src = fs::read_to_string(fixture("families/valid_state_history.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render history state SVG");
+    assert!(
+        svg.contains(">H*<"),
+        "expected 'H*' label in deep history node"
     );
 }
 
@@ -4700,6 +4762,20 @@ fn creole_plain_label_uses_fast_path_without_tspan_wrapper() {
 }
 
 #[test]
+fn state_entry_exit_renders_italic_action_text() {
+    let src = fs::read_to_string(fixture("families/valid_state_entry_exit.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render entry/exit state SVG");
+    assert!(
+        svg.contains("font-style=\"italic\""),
+        "expected italic text for entry/exit actions"
+    );
+    assert!(
+        svg.contains("entry"),
+        "expected entry action label in SVG"
+    );
+}
+
+#[test]
 fn class_together_group_member_ids_are_recorded_in_model() {
     use puml::normalize_family;
     use puml::parser::parse;
@@ -4732,4 +4808,34 @@ fn class_hide_options_are_recorded_in_model() {
     };
     assert!(family.hide_options.contains("circle"));
     assert!(family.hide_options.contains("stereotype"));
-    assert!(family.hide_options.contains("empty members"));}
+    assert!(family.hide_options.contains("empty members"));
+}
+
+#[test]
+fn state_fork_join_choice_end_renders_stereotyped_shapes() {
+    let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render fork/join/choice/end SVG");
+    assert!(svg.contains("<rect"), "expected rect element for fork/join bar");
+    assert!(svg.contains("<polygon"), "expected polygon for choice diamond");
+    let circle_count = svg.matches("<circle").count();
+    assert!(
+        circle_count >= 2,
+        "expected at least 2 circle elements, got {circle_count}"
+    );
+}
+
+#[test]
+fn state_transition_labels_appear_in_svg() {
+    let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("should render SVG");
+    assert!(svg.contains("done"), "expected 'done' transition label in SVG");
+    assert!(svg.contains("retry"), "expected 'retry' transition label in SVG");
+}
+
+#[test]
+fn state_basic_render_produces_valid_svg() {
+    let src = "@startuml\nstate Active\n[*] --> Active\nActive --> [*]\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("basic state should render");
+    assert!(svg.starts_with("<svg"), "expected SVG output");
+    assert!(svg.contains("Active"), "expected state name in SVG");
+}

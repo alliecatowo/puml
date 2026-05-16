@@ -14,7 +14,7 @@ pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
 pub use model::{
     FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
-    SequenceDocument, SequencePage, TimelineDocument,
+    SequenceDocument, SequencePage, StateDocument, TimelineDocument,
 };
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
@@ -241,11 +241,10 @@ fn render_document_for_family(
                 model::NormalizedDocument::Family(family_doc) => {
                     Ok(vec![render::render_class_svg(&family_doc)])
                 }
-                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family render",
-                )),
-                model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
-                    "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family render",
+                model::NormalizedDocument::Sequence(_)
+                | model::NormalizedDocument::Timeline(_)
+                | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
                 )),
                 _ => Err(Diagnostic::error(
                     "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
@@ -257,20 +256,23 @@ fn render_document_for_family(
                 model::NormalizedDocument::Timeline(timeline) => {
                     Ok(vec![render::render_timeline_svg(&timeline)])
                 }
-                model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
-                    "[E_TIMELINE_INTERNAL] unexpected sequence model during timeline render",
-                )),
-                model::NormalizedDocument::Family(_) => Err(Diagnostic::error(
-                    "[E_TIMELINE_INTERNAL] unexpected family model during timeline render",
-                )),
                 _ => Err(Diagnostic::error(
                     "[E_TIMELINE_INTERNAL] unexpected model during timeline render",
                 )),
             }
         }
+        DiagramFamily::State => {
+            match normalize::normalize_family(document)? {
+                model::NormalizedDocument::State(state_doc) => {
+                    Ok(vec![render::render_state_svg(&state_doc)])
+                }
+                _ => Err(Diagnostic::error(
+                    "[E_STATE_INTERNAL] unexpected model variant during state render",
+                )),
+            }
+        }
         DiagramFamily::Component => render_family_with(document, render::render_component_svg),
         DiagramFamily::Deployment => render_family_with(document, render::render_deployment_svg),
-        DiagramFamily::State => render_family_with(document, render::render_state_svg),
         DiagramFamily::Activity => render_family_with(document, render::render_activity_svg),
         DiagramFamily::Timing => render_family_with(document, render::render_timing_svg),
         DiagramFamily::Json => match normalize::normalize_family(document)? {
@@ -363,7 +365,6 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
     let code = match family {
         DiagramFamily::Component => "E_RENDER_COMPONENT_UNSUPPORTED",
         DiagramFamily::Deployment => "E_RENDER_DEPLOYMENT_UNSUPPORTED",
-        DiagramFamily::State => "E_RENDER_STATE_UNSUPPORTED",
         DiagramFamily::Activity => "E_RENDER_ACTIVITY_UNSUPPORTED",
         DiagramFamily::Timing => "E_RENDER_TIMING_UNSUPPORTED",
         DiagramFamily::MindMap => "E_RENDER_MINDMAP_UNSUPPORTED",
