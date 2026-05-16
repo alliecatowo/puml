@@ -1,0 +1,39 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "caption": null,
+  "chronology_events": [],
+  "constraints": [
+    {
+      "kind": "starts",
+      "subject": "Build",
+      "target": "starts 2026-05-02"
+    },
+    {
+      "kind": "requires",
+      "subject": "Build",
+      "target": "requires [Design]"
+    }
+  ],
+  "footer": null,
+  "header": null,
+  "kind": "Gantt",
+  "legend": null,
+  "milestones": [
+    {
+      "name": "Kickoff"
+    }
+  ],
+  "tasks": [
+    {
+      "name": "Design"
+    },
+    {
+      "name": "Build"
+    }
+  ],
+  "title": null,
+  "warnings": []
+}

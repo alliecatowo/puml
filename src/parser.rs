@@ -1778,6 +1778,8 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         let allow_sequence_parse =
             detected_kind.is_none() || matches!(detected_kind, Some(DiagramKind::Sequence));
+        let allow_gantt_parse = matches!(detected_kind, Some(DiagramKind::Gantt));
+        let allow_chronology_parse = matches!(detected_kind, Some(DiagramKind::Chronology));
 
         if allow_sequence_parse {
             if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
@@ -1794,6 +1796,38 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i = end_idx + 1;
                 continue;
             }
+        }
+
+        if allow_gantt_parse {
+            if let Some(kind) = parse_gantt_baseline_statement(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            statements.push(Statement {
+                span,
+                kind: StatementKind::Unknown(format!(
+                    "[E_GANTT_UNSUPPORTED] unsupported gantt baseline syntax: `{line}`"
+                )),
+            });
+            i += 1;
+            continue;
+        }
+
+        if allow_chronology_parse {
+            if let Some(kind) = parse_chronology_baseline_statement(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            statements.push(Statement {
+                span,
+                kind: StatementKind::Unknown(format!(
+                    "[E_CHRONOLOGY_UNSUPPORTED] unsupported chronology baseline syntax: `{line}`"
+                )),
+            });
+            i += 1;
+            continue;
         }
 
         if allow_sequence_parse {
@@ -1913,6 +1947,8 @@ enum BlockKind {
     Uml,
     MindMap,
     Wbs,
+    Gantt,
+    Chronology,
 }
 
 fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
@@ -1930,12 +1966,16 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@startuml", BlockKind::Uml),
             ("@startmindmap", BlockKind::MindMap),
             ("@startwbs", BlockKind::Wbs),
+            ("@startgantt", BlockKind::Gantt),
+            ("@startchronology", BlockKind::Chronology),
         ]
     } else {
         [
             ("@enduml", BlockKind::Uml),
             ("@endmindmap", BlockKind::MindMap),
             ("@endwbs", BlockKind::Wbs),
+            ("@endgantt", BlockKind::Gantt),
+            ("@endchronology", BlockKind::Chronology),
         ]
     };
     for (marker, kind) in markers {
@@ -1954,6 +1994,8 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Uml => None,
         BlockKind::MindMap => Some(DiagramKind::MindMap),
         BlockKind::Wbs => Some(DiagramKind::Wbs),
+        BlockKind::Gantt => Some(DiagramKind::Gantt),
+        BlockKind::Chronology => Some(DiagramKind::Chronology),
     }
 }
 
@@ -1962,6 +2004,8 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Uml => "uml",
         BlockKind::MindMap => "mindmap",
         BlockKind::Wbs => "wbs",
+        BlockKind::Gantt => "gantt",
+        BlockKind::Chronology => "chronology",
     }
 }
 
@@ -2011,6 +2055,8 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::UseCase => "usecase",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
+        DiagramKind::Gantt => "gantt",
+        DiagramKind::Chronology => "chronology",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -2239,6 +2285,52 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
     }
 
     None
+}
+
+fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    let (subject, rest) = parse_bracket_subject(trimmed)?;
+    if rest.is_empty() {
+        return Some(StatementKind::GanttTaskDecl { name: subject });
+    }
+    let lower = rest.to_ascii_lowercase();
+    if lower.starts_with("happens") {
+        return Some(StatementKind::GanttMilestoneDecl { name: subject });
+    }
+    for kind in ["starts", "ends", "requires"] {
+        if lower.starts_with(kind) {
+            return Some(StatementKind::GanttConstraint {
+                subject,
+                kind: kind.to_string(),
+                target: rest.to_string(),
+            });
+        }
+    }
+    None
+}
+
+fn parse_chronology_baseline_statement(line: &str) -> Option<StatementKind> {
+    let lower = line.to_ascii_lowercase();
+    let marker = " happens on ";
+    let idx = lower.find(marker)?;
+    let subject = line[..idx].trim().trim_matches('"').to_string();
+    let when = line[idx + marker.len()..].trim().to_string();
+    if subject.is_empty() || when.is_empty() {
+        return None;
+    }
+    Some(StatementKind::ChronologyHappensOn { subject, when })
+}
+
+fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {
+    let trimmed = line.trim();
+    let stripped = trimmed.strip_prefix('[')?;
+    let end = stripped.find(']')?;
+    let name = stripped[..end].trim().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let rest = stripped[end + 1..].trim();
+    Some((name, rest))
 }
 fn parse_multiline_keyword_block(
     lines: &[(&str, Span)],
@@ -3742,6 +3834,42 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_FAMILY_DECL_BLOCK_UNCLOSED"));
+    }
+
+    #[test]
+    fn parses_gantt_baseline_statements() {
+        let doc = parse_with_options(
+            "@startgantt\n[Build]\n[Milestone] happens on 2026-05-01\n[Build] starts 2026-04-01\n[Build] requires [Design]\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Gantt);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::GanttTaskDecl { .. }
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttMilestoneDecl { .. }
+        ));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::GanttConstraint { .. }
+        ));
+    }
+
+    #[test]
+    fn parses_chronology_happens_on_baseline_statement() {
+        let doc = parse_with_options(
+            "@startchronology\nRelease happens on 2026-05-15\n@endchronology\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Chronology);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::ChronologyHappensOn { .. }
+        ));
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 Date: 2026-05-15
 Scope: official PlantUML non-UML families + special diagrams for parity planning.
-Runtime baseline in this repo: `puml` fully supports sequence, plus bootstrap parser/model/stub-render routing for class/object/usecase families; other families remain unsupported with deterministic diagnostics.
+Runtime baseline in this repo: `puml` fully supports sequence, plus bootstrap parser/model/stub-render routing for class/object/usecase families. Gantt/chronology now have a parser+normalized-model baseline slice (tasks/milestones/starts/ends/requires and chronology `happens on`), while full layout/render parity remains unsupported with deterministic diagnostics.
 
 ## Gantt
 Official source: https://plantuml.com/gantt-diagram

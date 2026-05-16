@@ -5,7 +5,8 @@ use crate::diagnostic::Diagnostic;
 use crate::model::{
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyRelation as ModelFamilyRelation,
     NormalizedDocument, Participant, ParticipantRole, SequenceDocument, SequenceEvent,
-    SequenceEventKind, SequencePage, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
+    SequenceEventKind, SequencePage, TimelineChronologyEvent, TimelineConstraint, TimelineDocument,
+    TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::theme::{
     classify_sequence_skinparam, resolve_sequence_theme_preset, SequenceSkinParamSupport,
@@ -36,6 +37,9 @@ pub fn normalize_family_with_options(
         DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
+        DiagramKind::Gantt | DiagramKind::Chronology => {
+            normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
+        }
         DiagramKind::MindMap
         | DiagramKind::Wbs
         | DiagramKind::Component
@@ -44,9 +48,74 @@ pub fn normalize_family_with_options(
         | DiagramKind::Activity
         | DiagramKind::Timing => Err(unsupported_family_diagnostic(document.kind)),
         DiagramKind::Unknown => Err(Diagnostic::error(
-            "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/mindmap/wbs syntax",
+            "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
         )),
     }
+}
+
+fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, Diagnostic> {
+    let mut tasks = Vec::new();
+    let mut milestones = Vec::new();
+    let mut constraints = Vec::new();
+    let mut chronology_events = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::GanttTaskDecl { name } => tasks.push(TimelineTask { name }),
+            StatementKind::GanttMilestoneDecl { name } => {
+                milestones.push(TimelineMilestone { name })
+            }
+            StatementKind::GanttConstraint {
+                subject,
+                kind,
+                target,
+            } => constraints.push(TimelineConstraint {
+                subject,
+                kind,
+                target,
+            }),
+            StatementKind::ChronologyHappensOn { subject, when } => {
+                chronology_events.push(TimelineChronologyEvent { subject, when })
+            }
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_) => {}
+            StatementKind::Unknown(line) => {
+                return Err(Diagnostic::error(line).with_span(stmt.span));
+            }
+            _ => {
+                let family = family_kind_name(document.kind);
+                return Err(Diagnostic::error(format!(
+                    "[E_TIMELINE_BASELINE_UNSUPPORTED] unsupported {family} syntax in baseline slice"
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    Ok(TimelineDocument {
+        kind: document.kind,
+        tasks,
+        milestones,
+        constraints,
+        chronology_events,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        warnings: Vec::new(),
+    })
 }
 
 fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
@@ -172,6 +241,8 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::UseCase => "usecase",
         DiagramKind::MindMap => "mindmap",
         DiagramKind::Wbs => "wbs",
+        DiagramKind::Gantt => "gantt",
+        DiagramKind::Chronology => "chronology",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -678,7 +749,11 @@ pub fn normalize_with_options(
             StatementKind::ClassDecl(_)
             | StatementKind::ObjectDecl(_)
             | StatementKind::UseCaseDecl(_)
-            | StatementKind::FamilyRelation(_) => {
+            | StatementKind::FamilyRelation(_)
+            | StatementKind::GanttTaskDecl { .. }
+            | StatementKind::GanttMilestoneDecl { .. }
+            | StatementKind::GanttConstraint { .. }
+            | StatementKind::ChronologyHappensOn { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )
@@ -735,6 +810,8 @@ fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
         DiagramKind::Timing => ("E_FAMILY_TIMING_UNSUPPORTED", "timing"),
         DiagramKind::MindMap => ("E_FAMILY_MINDMAP_UNSUPPORTED", "mindmap"),
         DiagramKind::Wbs => ("E_FAMILY_WBS_UNSUPPORTED", "wbs"),
+        DiagramKind::Gantt => ("E_FAMILY_GANTT_UNSUPPORTED", "gantt"),
+        DiagramKind::Chronology => ("E_FAMILY_CHRONOLOGY_UNSUPPORTED", "chronology"),
         _ => ("E_FAMILY_UNSUPPORTED", "unknown"),
     };
 

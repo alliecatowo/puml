@@ -1,0 +1,26 @@
+---
+source: tests/integration.rs
+expression: json
+---
+{
+  "caption": null,
+  "chronology_events": [
+    {
+      "subject": "Phase 1",
+      "when": "2026-05-10"
+    },
+    {
+      "subject": "Phase 2",
+      "when": "2026-06-01"
+    }
+  ],
+  "constraints": [],
+  "footer": null,
+  "header": null,
+  "kind": "Chronology",
+  "legend": null,
+  "milestones": [],
+  "tasks": [],
+  "title": null,
+  "warnings": []
+}

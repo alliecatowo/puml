@@ -11,7 +11,9 @@ pub mod theme;
 
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
-pub use model::{FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage};
+pub use model::{
+    FamilyDocument, NormalizedDocument, SequenceDocument, SequencePage, TimelineDocument,
+};
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
 use std::path::PathBuf;
@@ -20,6 +22,8 @@ use std::path::PathBuf;
 pub enum DiagramFamily {
     Sequence,
     Class,
+    Gantt,
+    Chronology,
     State,
     Activity,
     Timing,
@@ -37,6 +41,8 @@ impl DiagramFamily {
         match self {
             Self::Sequence => "sequence",
             Self::Class => "class",
+            Self::Gantt => "gantt",
+            Self::Chronology => "chronology",
             Self::State => "state",
             Self::Activity => "activity",
             Self::Timing => "timing",
@@ -214,6 +220,9 @@ fn render_document_for_family(
                 model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
                     "[E_FAMILY_STUB_INTERNAL] unexpected sequence model during family stub render",
                 )),
+                model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family stub render",
+                )),
             }
         }
         DiagramFamily::Component
@@ -223,6 +232,8 @@ fn render_document_for_family(
         | DiagramFamily::Timing
         | DiagramFamily::MindMap
         | DiagramFamily::Wbs
+        | DiagramFamily::Gantt
+        | DiagramFamily::Chronology
         | DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
     }
 }
@@ -236,6 +247,8 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
         DiagramFamily::Timing => "E_RENDER_TIMING_UNSUPPORTED",
         DiagramFamily::MindMap => "E_RENDER_MINDMAP_UNSUPPORTED",
         DiagramFamily::Wbs => "E_RENDER_WBS_UNSUPPORTED",
+        DiagramFamily::Gantt => "E_RENDER_GANTT_UNSUPPORTED",
+        DiagramFamily::Chronology => "E_RENDER_CHRONOLOGY_UNSUPPORTED",
         _ => "E_RENDER_FAMILY_UNSUPPORTED",
     };
     Diagnostic::error_code(
@@ -255,6 +268,8 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::UseCase => DiagramFamily::UseCase,
         ast::DiagramKind::MindMap => DiagramFamily::MindMap,
         ast::DiagramKind::Wbs => DiagramFamily::Wbs,
+        ast::DiagramKind::Gantt => DiagramFamily::Gantt,
+        ast::DiagramKind::Chronology => DiagramFamily::Chronology,
         ast::DiagramKind::Component => DiagramFamily::Component,
         ast::DiagramKind::Deployment => DiagramFamily::Deployment,
         ast::DiagramKind::State => DiagramFamily::State,
