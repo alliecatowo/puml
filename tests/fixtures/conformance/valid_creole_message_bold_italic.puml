@@ -1,0 +1,4 @@
+@startuml
+Alice -> Bob: **bold** and //italic// text
+Bob -> Alice: plain label
+@enduml

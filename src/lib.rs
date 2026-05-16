@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod creole;
 pub mod diagnostic;
 pub mod layout;
 pub mod model;
