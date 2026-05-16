@@ -1454,6 +1454,8 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::RawBlockContent(v) => json!({"RawBlockContent": v}),
         StatementKind::RawBody(v) => json!({"RawBody": v}),
+        StatementKind::Scale(v) => json!({"Scale": v}),
+        StatementKind::LegendPos(v) => json!({"LegendPos": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
         StatementKind::ComponentDecl {
             kind,

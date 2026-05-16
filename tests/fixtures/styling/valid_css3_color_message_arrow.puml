@@ -1,0 +1,7 @@
+@startuml
+skinparam arrowColor rebeccapurple
+skinparam participantBackgroundColor aliceblue
+skinparam participantBorderColor navy
+Alice -> Bob : hello in rebeccapurple
+Bob --> Alice : reply
+@enduml

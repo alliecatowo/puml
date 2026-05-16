@@ -3296,7 +3296,10 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("clock ")
         || line.starts_with("binary ")
         || line.starts_with('@')
-        || line.starts_with("scale ")
+        // Timing-specific scale syntax: "scale N as N" (maps clock units to pixels).
+        // Plain "scale 1.5" / "scale 800*600" / "scale max N" is the output-scale
+        // directive and should not be classified as a timing diagram.
+        || (line.starts_with("scale ") && line.contains(" as "))
     {
         return Some(DiagramKind::Timing);
     }
@@ -3721,9 +3724,30 @@ fn parse_multiline_keyword_block(
     start: usize,
     line: &str,
 ) -> Option<(StatementKind, usize)> {
-    let key = ["title", "header", "footer", "caption", "legend"]
-        .into_iter()
-        .find(|k| line.eq_ignore_ascii_case(k))?;
+    let lower = line.to_ascii_lowercase();
+    // Check for "legend" (alone or with positioning qualifiers: "legend left", etc.)
+    let (key, legend_pos) = if lower == "legend" {
+        ("legend", None)
+    } else if lower.starts_with("legend ") {
+        // Collect any position tokens after "legend"
+        let pos_part = line[7..].trim();
+        let pos_lower = pos_part.to_ascii_lowercase();
+        // Verify all tokens are valid positioning keywords
+        let all_pos = pos_lower
+            .split_whitespace()
+            .all(|t| matches!(t, "left" | "right" | "center" | "top" | "bottom"));
+        if all_pos && !pos_part.is_empty() {
+            ("legend", Some(pos_part.to_string()))
+        } else {
+            return None;
+        }
+    } else {
+        let k = ["title", "header", "footer", "caption"]
+            .into_iter()
+            .find(|k| lower.as_str().eq(*k))?;
+        (k, None)
+    };
+
     let end_marker = format!("end {key}");
     let mut body = Vec::new();
 
@@ -3736,8 +3760,29 @@ fn parse_multiline_keyword_block(
                 "header" => StatementKind::Header(text),
                 "footer" => StatementKind::Footer(text),
                 "caption" => StatementKind::Caption(text),
+                "legend" => {
+                    // Emit Legend first; if there's position info emit LegendPos separately.
+                    // We return the Legend text here; the LegendPos is handled by returning
+                    // the Legend kind with position info embedded for the caller.
+                    // Since we can only return one StatementKind, we pack the pos into the
+                    // legend_pos field and handle it via a special kind.
+                    let _ = legend_pos; // used below
+                    StatementKind::Legend(text)
+                }
                 _ => StatementKind::Legend(text),
             };
+            // If there was a position qualifier alongside the legend text, we need to
+            // emit both. We return the Legend kind (which the caller will handle) and
+            // separately emit a LegendPos. But since we can only return one statement,
+            // we encode the position in a specially-prefixed Legend value when present.
+            // Convention: if legend_pos is Some, we prefix the text with "LEGEND_POS:<pos>\n".
+            // The normalizer detects and splits this prefix.
+            if key == "legend" {
+                if let Some(ref pos) = legend_pos {
+                    let packed = format!("LEGEND_POS:{}\n{}", pos, body.join("\n"));
+                    return Some((StatementKind::Legend(packed), idx));
+                }
+            }
             return Some((kind, idx));
         }
         body.push(trimmed.to_string());
@@ -4020,6 +4065,13 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             value: "true".to_string(),
         });
     }
+
+    // scale directive: "scale <factor>", "scale <w>*<h>", "scale max <n>"
+    if lower.starts_with("scale ") {
+        let body = line[6..].trim();
+        return Some(StatementKind::Scale(body.to_string()));
+    }
+
 
     let note_kw = if lower.starts_with("note ") {
         Some("note")

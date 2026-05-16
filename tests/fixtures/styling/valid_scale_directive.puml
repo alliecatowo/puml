@@ -1,0 +1,5 @@
+@startuml
+scale 1.5
+Alice -> Bob : scaled by 1.5
+Bob --> Alice : ok
+@enduml

@@ -121,6 +121,8 @@ pub enum StatementKind {
     Undef(String),
     RawBlockContent(String),
     RawBody(String),
+    Scale(String),
+    LegendPos(String),
     Unknown(String),
 }
 
