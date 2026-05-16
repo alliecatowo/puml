@@ -1,0 +1,11 @@
+@startuml
+object myUser <<User>> {
+  id = 7
+  name = Bob
+}
+object mySession <<Session>> {
+  token = abc123
+  active = true
+}
+myUser --> mySession : hasSession
+@enduml

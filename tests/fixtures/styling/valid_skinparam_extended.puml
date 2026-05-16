@@ -1,0 +1,16 @@
+@startuml
+skinparam participantPadding 20
+skinparam boxPadding 10
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam sequenceLifelineThickness 2
+skinparam sequenceMessageLineColor #3366cc
+skinparam sequenceReferenceBackgroundColor #eef6ff
+skinparam sequenceReferenceBorderColor #4488cc
+skinparam sequenceGroupHeaderFontColor #cc3300
+skinparam sequenceGroupHeaderFontStyle bold
+participant Alice
+participant Bob
+Alice -> Bob: request
+Bob --> Alice: response
+@enduml

@@ -1,0 +1,8 @@
+@startuml
+!theme superhero
+title Superhero Theme
+Hero -> Villain: challenge
+Villain -> Minion: attack
+Minion --> Villain: fail
+Villain --> Hero: retreat
+@enduml

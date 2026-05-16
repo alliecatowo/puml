@@ -1,0 +1,10 @@
+@startuml
+' New-style activity fork (not yet supported)
+start
+fork
+  :branch A;
+fork again
+  :branch B;
+end fork
+stop
+@enduml

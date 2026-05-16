@@ -1,0 +1,14 @@
+' Deterministic AWS ELB/ALB/NLB compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure ELB($alias, $label="", $descr="")
+AWSIcon($alias, ELB, $label, $descr)
+!endprocedure
+
+!procedure ALB($alias, $label="", $descr="")
+AWSIcon($alias, ALB, $label, $descr)
+!endprocedure
+
+!procedure NLB($alias, $label="", $descr="")
+AWSIcon($alias, NLB, $label, $descr)
+!endprocedure

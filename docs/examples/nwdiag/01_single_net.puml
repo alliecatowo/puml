@@ -1,0 +1,9 @@
+@startnwdiag
+nwdiag {
+  network dmz {
+    address = "192.168.0.x/24"
+    web01;
+    web02;
+  }
+}
+@endnwdiag

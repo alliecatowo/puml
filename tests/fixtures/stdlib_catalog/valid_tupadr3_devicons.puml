@@ -1,0 +1,18 @@
+@startuml
+!include <tupadr3/devicons/git>
+!include <tupadr3/devicons/docker>
+!include <tupadr3/devicons/kubernetes>
+!include <tupadr3/devicons/python>
+!include <tupadr3/devicons/postgresql>
+!include <tupadr3/devicons/redis>
+DEV_GIT(repo, "Source Repository")
+DEV_DOCKER(container, "Container Image")
+DEV_KUBERNETES(cluster, "K8s Cluster")
+DEV_PYTHON(app, "Python App")
+DEV_POSTGRESQL(db, "PostgreSQL")
+DEV_REDIS(cache, "Redis Cache")
+repo -> container : builds
+container -> cluster : deploys to
+app -> db : reads
+app -> cache : caches via
+@enduml

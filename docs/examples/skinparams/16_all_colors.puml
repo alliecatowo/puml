@@ -1,0 +1,17 @@
+@startuml
+skinparam backgroundColor #1a1a2e
+skinparam arrowColor #e94560
+skinparam lifelineBorderColor #0f3460
+skinparam participantBackgroundColor #16213e
+skinparam participantBorderColor #e94560
+skinparam noteBackgroundColor #0f3460
+skinparam noteBorderColor #e94560
+skinparam groupBackgroundColor #0f3460
+skinparam groupBorderColor #e94560
+title Dark Cinematic Theme
+Alice -> Bob: action
+note right of Bob
+  plot twist
+end note
+Bob --> Alice: reaction
+@enduml

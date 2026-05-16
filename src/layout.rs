@@ -394,6 +394,10 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         groups,
         structures,
         style: document.style.clone(),
+        scale: document.scale.clone(),
+        legend_text: document.legend.clone(),
+        legend_halign: document.legend_halign,
+        legend_valign: document.legend_valign,
     }
 }
 
@@ -920,7 +924,6 @@ mod tests {
         Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
     };
     use crate::source::Span;
-    use crate::theme::SequenceStyle;
 
     #[test]
     fn return_event_with_ids_is_laid_out_with_default_centers_for_unknown_participants() {
@@ -939,15 +942,7 @@ mod tests {
                     to: Some("missing-to".to_string()),
                 },
             }],
-            title: None,
-            header: None,
-            footer: None,
-            caption: None,
-            legend: None,
-            skinparams: vec![],
-            style: SequenceStyle::default(),
-            footbox_visible: true,
-            warnings: vec![],
+            ..SequenceDocument::default()
         };
         let scene = layout(&doc, LayoutOptions::default());
         assert_eq!(scene.messages.len(), 1);

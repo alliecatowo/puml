@@ -1,0 +1,5 @@
+@startuml
+!theme not-so-funny
+Alice -> Bob: High contrast
+Bob --> Alice: Response
+@enduml

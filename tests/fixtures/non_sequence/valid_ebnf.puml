@@ -1,0 +1,8 @@
+@startebnf
+title Tiny Grammar
+expr = term { "+" term } ;
+term = factor { "*" factor } ;
+factor = number | "(" expr ")" ;
+number = digit { digit } ;
+digit = "0" | "1" | "2" ;
+@endebnf

@@ -1,0 +1,13 @@
+@startuml
+skinparam StateBackgroundColor #fef3c7
+skinparam StateBorderColor #d97706
+skinparam StateArrowColor #b45309
+skinparam StateStartColor #1c1917
+skinparam StateFontSize 12
+
+[*] --> Idle
+Idle --> Running : start
+Running --> Paused : pause
+Paused --> Running : resume
+Running --> [*] : stop
+@enduml

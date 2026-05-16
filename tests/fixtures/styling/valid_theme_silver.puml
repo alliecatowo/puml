@@ -1,0 +1,5 @@
+@startuml
+!theme silver
+Alice -> Bob: Light gray neutral
+Bob --> Alice: Silver response
+@enduml

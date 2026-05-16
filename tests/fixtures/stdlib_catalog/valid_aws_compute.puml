@@ -1,0 +1,14 @@
+@startuml
+!include <awslib14/Compute/EC2>
+!include <awslib14/Compute/Lambda>
+!include <awslib14/Compute/ECS>
+!include <awslib14/Compute/EKS>
+!include <awslib14/Compute/Fargate>
+EC2(ec2, "Web Server", "t3.medium")
+Lambda(fn, "Auth Function", "Node.js")
+ECS(ecs, "Container Service", "Task Definition")
+EKS(eks, "Kubernetes", "v1.28")
+Fargate(fg, "Fargate Task", "0.25 vCPU")
+ec2 -> fn : invokes
+fn -> ecs : triggers
+@enduml

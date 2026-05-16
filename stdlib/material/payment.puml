@@ -1,0 +1,6 @@
+' Deterministic Material payment icon stub.
+!include <material/common>
+
+!procedure MA_PAYMENT($alias, $label="payment", $descr="")
+MaterialIcon($alias, payment, $label, $descr)
+!endprocedure

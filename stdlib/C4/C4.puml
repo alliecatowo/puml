@@ -1,28 +1,78 @@
-' Deterministic C4 stdlib compatibility stub surface.
+' Merged deterministic C4 stdlib compatibility surface.
+' Supports both legacy deterministic stubs and object-style C4 macro aliases.
+
 !procedure Person($alias, $label, $descr="")
-participant $alias
-$alias -> $alias : [C4 Person] $label
+object $label as $alias <<person>>
 !endprocedure
 
 !procedure Person_Ext($alias, $label, $descr="")
-participant $alias
-$alias -> $alias : [C4 Person_Ext] $label
+object $label as $alias <<external-person>>
 !endprocedure
 
 !procedure System($alias, $label, $descr="")
-participant $alias
-$alias -> $alias : [C4 System] $label
+object $label as $alias <<system>>
 !endprocedure
 
 !procedure System_Ext($alias, $label, $descr="")
-participant $alias
-$alias -> $alias : [C4 System_Ext] $label
+object $label as $alias <<external-system>>
+!endprocedure
+
+!procedure Container($alias, $label, $technology="", $description="")
+object $label as $alias <<container>>
+!endprocedure
+
+!procedure Container_Ext($alias, $label, $technology="", $description="")
+object $label as $alias <<external-container>>
+!endprocedure
+
+!procedure Component($alias, $label, $technology="", $description="")
+object $label as $alias <<c4-component>>
+!endprocedure
+
+!procedure Component_Ext($alias, $label, $technology="", $description="")
+object $label as $alias <<external-c4-component>>
+!endprocedure
+
+!procedure Boundary($alias, $label)
+!endprocedure
+
+!procedure Enterprise_Boundary($alias, $label)
+!endprocedure
+
+!procedure System_Boundary($alias, $label)
+!endprocedure
+
+!procedure Container_Boundary($alias, $label)
 !endprocedure
 
 !procedure Rel($from, $to, $label, $tech="")
-$from -> $to : [C4 Rel] $label
+$from --> $to : $label
 !endprocedure
 
 !procedure Rel_U($from, $to, $label, $tech="")
-$from -> $to : [C4 Rel_U] $label
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_D($from, $to, $label, $tech="")
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_L($from, $to, $label, $tech="")
+$from --> $to : $label
+!endprocedure
+
+!procedure Rel_R($from, $to, $label, $tech="")
+$from --> $to : $label
+!endprocedure
+
+!procedure UpdateRelStyle($from, $to, $textColor, $lineColor)
+!endprocedure
+
+!procedure UpdateElementStyle($alias, $bgColor, $fontColor, $borderColor)
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
+!endprocedure
+
+!procedure LAYOUT_AS_SKETCH()
 !endprocedure

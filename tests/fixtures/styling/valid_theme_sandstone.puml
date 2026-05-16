@@ -1,0 +1,5 @@
+@startuml
+!theme sandstone
+Alice -> Bob: Warm beige
+Bob --> Alice: Sandstone response
+@enduml

@@ -1,0 +1,16 @@
+@startgantt
+title Q1 2026 Roadmap
+[Feature A]
+[Feature B]
+[Feature C]
+[Bug Fixes]
+[Performance]
+[Feature A] starts 2026-01-05
+[Feature B] starts 2026-01-05
+[Feature A] requires [Feature B]
+[Feature C] starts 2026-02-01
+[Bug Fixes] starts 2026-01-12
+[Performance] starts 2026-03-01
+[Performance] requires [Feature A]
+[Performance] requires [Feature C]
+@endgantt

@@ -1,0 +1,7 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+title Font Customization
+Alice -> Bob: custom font
+Bob --> Alice: response
+@enduml

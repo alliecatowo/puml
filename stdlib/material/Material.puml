@@ -1,0 +1,13 @@
+' PicoUML stdlib stub — Material Design icon macros
+
+!procedure MATERIAL_ICON($alias, $label, $icon="material")
+object $label as $alias <<material-$icon>>
+!endprocedure
+
+!procedure MA_ICON($alias, $label, $icon="material")
+object $label as $alias <<material-$icon>>
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure

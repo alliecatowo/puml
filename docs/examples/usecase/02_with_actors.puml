@@ -1,0 +1,7 @@
+@startuml
+usecase BrowseProducts as UC1
+usecase PlaceOrder as UC2
+usecase ManageInventory as UC3
+UC1 --> UC2 : leads to
+UC2 --> UC3 : triggers
+@enduml

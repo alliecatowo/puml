@@ -1,0 +1,4 @@
+@startuml
+!$nl = %newline()
+A -> B : line1
+@enduml

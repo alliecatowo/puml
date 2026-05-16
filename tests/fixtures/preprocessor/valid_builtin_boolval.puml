@@ -1,0 +1,5 @@
+@startuml
+A -> B : %boolval("yes")
+A -> B : %not("yes")
+A -> B : %boolval("0")
+@enduml

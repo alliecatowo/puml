@@ -1,0 +1,170 @@
+name: Oracle — Differential Conformance vs Java PlantUML
+
+on:
+  pull_request:
+    paths:
+      - "src/parser.rs"
+      - "src/normalize.rs"
+      - "src/render.rs"
+      - "tests/fixtures/**"
+
+concurrency:
+  group: oracle-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  oracle:
+    name: differential-svg-oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      RUST_BACKTRACE: 1
+      PLANTUML_VERSION: "1.2024.7"
+      PLANTUML_JAR: plantuml-1.2024.7.jar
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache PlantUML JAR
+        id: cache-jar
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLANTUML_JAR }}
+          key: plantuml-jar-${{ env.PLANTUML_VERSION }}
+
+      - name: Download PlantUML JAR
+        if: steps.cache-jar.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL \
+            "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/${PLANTUML_JAR}" \
+            -o "${PLANTUML_JAR}"
+
+      - name: Verify JAR integrity
+        run: |
+          if [[ ! -f "${PLANTUML_JAR}" ]]; then
+            echo "ERROR: JAR not found after download step" >&2
+            exit 1
+          fi
+          JAR_SIZE=$(stat -c%s "${PLANTUML_JAR}")
+          echo "[oracle] JAR size: ${JAR_SIZE} bytes"
+          java -jar "${PLANTUML_JAR}" -version
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: oracle-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Run oracle conformance suite
+        id: oracle
+        env:
+          PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
+        run: |
+          set +e
+          ./scripts/oracle.sh
+          ORACLE_EXIT=$?
+          set -e
+
+          echo "exit_code=${ORACLE_EXIT}" >> "${GITHUB_OUTPUT}"
+
+          if [[ -f docs/benchmarks/oracle_report.json ]]; then
+            # Extract summary fields for the PR comment
+            TOTAL=$(jq  '.summary.total'      docs/benchmarks/oracle_report.json)
+            MATCH=$(jq  '.summary.match'      docs/benchmarks/oracle_report.json)
+            DRIFT=$(jq  '.summary.drift'      docs/benchmarks/oracle_report.json)
+            PONLY=$(jq  '.summary.puml_only'  docs/benchmarks/oracle_report.json)
+            JONLY=$(jq  '.summary.jar_only'   docs/benchmarks/oracle_report.json)
+            BFAIL=$(jq  '.summary.both_fail'  docs/benchmarks/oracle_report.json)
+            JVER=$(jq -r '.jar_version'       docs/benchmarks/oracle_report.json)
+
+            if [[ "${TOTAL}" -gt 0 ]]; then
+              MATCH_PCT=$(( MATCH * 100 / TOTAL ))
+            else
+              MATCH_PCT=0
+            fi
+
+            {
+              echo "total=${TOTAL}"
+              echo "match=${MATCH}"
+              echo "drift=${DRIFT}"
+              echo "puml_only=${PONLY}"
+              echo "jar_only=${JONLY}"
+              echo "both_fail=${BFAIL}"
+              echo "match_pct=${MATCH_PCT}"
+              echo "jar_version=${JVER}"
+            } >> "${GITHUB_OUTPUT}"
+          fi
+
+          # Propagate meaningful exit: 0 or 1 are soft failures (comment-only)
+          # exit 2 (<50% match) is a hard CI failure
+          if [[ "${ORACLE_EXIT}" -eq 2 ]]; then
+            echo "[oracle] HARD FAIL: match% < 50%" >&2
+            exit 2
+          fi
+          exit 0
+
+      - name: Upload oracle report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-report-${{ github.run_number }}
+          path: docs/benchmarks/oracle_report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Comment on PR with oracle summary
+        if: github.event_name == 'pull_request' && steps.oracle.outputs.total != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXIT_CODE="${{ steps.oracle.outputs.exit_code }}"
+          MATCH_PCT="${{ steps.oracle.outputs.match_pct }}"
+
+          if [[ "${EXIT_CODE}" -eq 0 ]]; then
+            STATUS_ICON="✅"
+            STATUS_TEXT="PASS (≥80% match)"
+          elif [[ "${EXIT_CODE}" -eq 1 ]]; then
+            STATUS_ICON="⚠️"
+            STATUS_TEXT="WARN (50–79% match)"
+          else
+            STATUS_ICON="❌"
+            STATUS_TEXT="FAIL (<50% match)"
+          fi
+
+          BODY="## ${STATUS_ICON} Oracle Conformance Report — ${STATUS_TEXT}
+
+| Metric | Value |
+|---|---|
+| JAR version | \`${{ steps.oracle.outputs.jar_version }}\` |
+| Total fixtures | ${{ steps.oracle.outputs.total }} |
+| Match (≤10% drift) | ${{ steps.oracle.outputs.match }} |
+| Drift (>10% on any metric) | ${{ steps.oracle.outputs.drift }} |
+| puml-only (we render; JAR fails) | ${{ steps.oracle.outputs.puml_only }} |
+| jar-only (JAR renders; we fail) | ${{ steps.oracle.outputs.jar_only }} |
+| both-fail | ${{ steps.oracle.outputs.both_fail }} |
+| **Match %** | **${MATCH_PCT}%** |
+
+Full report available in the [oracle-report-${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) artifact.
+"
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "${BODY}" \
+            --repo "${{ github.repository }}"

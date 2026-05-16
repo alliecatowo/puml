@@ -1,0 +1,5 @@
+@startuml
+!theme carbon-gray
+Alice -> Bob: Dark carbon
+Bob --> Alice: Gray response
+@enduml

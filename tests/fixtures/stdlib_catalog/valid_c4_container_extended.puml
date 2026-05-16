@@ -1,0 +1,9 @@
+@startuml
+!include <C4/C4_Container>
+Container(api, "API", "Rust", "REST API")
+ContainerDb(db, "Database", "PostgreSQL", "Persistent storage")
+ContainerQueue(mq, "Message Queue", "RabbitMQ", "Async messaging")
+Container_Ext(ext, "External Service", "HTTP", "Third party")
+Rel(api, db, "reads/writes")
+Rel(api, mq, "publishes to")
+@enduml

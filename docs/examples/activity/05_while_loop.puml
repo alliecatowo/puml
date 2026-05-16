@@ -1,0 +1,11 @@
+@startuml
+title While Loop
+start
+:Initialize Counter;
+while (counter < 10?) is (yes)
+  :Process Item;
+  :Increment;
+endwhile
+:Finished;
+stop
+@enduml

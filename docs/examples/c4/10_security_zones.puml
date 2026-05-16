@@ -1,0 +1,12 @@
+@startuml
+!include <C4/C4_Context>
+title Security Zones
+!Person(user, "Internet User")
+!Person_Ext(attacker, "Threat Actor")
+!System(dmz, "DMZ (WAF+LB)")
+!System(app, "App Tier")
+!System_Ext(ext_api, "External API")
+!Rel(user, dmz, "HTTP/S")
+!Rel(dmz, app, "Filtered traffic")
+!Rel(app, ext_api, "API calls")
+@enduml

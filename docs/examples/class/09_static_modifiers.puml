@@ -1,0 +1,13 @@
+@startuml
+class MathUtils {
+  +{static} PI: Float
+  +{static} E: Float
+  +{static} sqrt(x: Float): Float
+  +{static} abs(x: Float): Float
+}
+class Singleton {
+  -{static} instance: Singleton
+  +{static} getInstance(): Singleton
+  -Singleton()
+}
+@enduml

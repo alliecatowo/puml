@@ -1,0 +1,23 @@
+@startuml
+title Order Processing Flow
+start
+:Receive Order;
+if (In Stock?) then (yes)
+  fork
+    :Reserve Inventory;
+  fork again
+    :Charge Payment;
+  end fork
+  if (Payment OK?) then (yes)
+    :Pack Order;
+    :Ship Order;
+    :Send Confirmation;
+  else (no)
+    :Release Inventory;
+    :Notify Customer;
+  endif
+else (no)
+  :Notify Out of Stock;
+endif
+stop
+@enduml

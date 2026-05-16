@@ -1,0 +1,5 @@
+@startuml
+Alice -> Bob: **bold message** and //italic text//
+note right of Bob: __underline__ and --strikethrough--
+Bob --> Alice: normal reply
+@enduml

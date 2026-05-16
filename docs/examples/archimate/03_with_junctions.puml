@@ -1,0 +1,6 @@
+@startuml
+' ArchiMate junctions (not yet supported)
+archimate #Application "Service A" <<application-service>>
+archimate #Application "Service B" <<application-service>>
+archimate #Application "Service C" <<application-service>>
+@enduml

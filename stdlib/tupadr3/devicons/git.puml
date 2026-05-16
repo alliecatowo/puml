@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons git stub.
+!include <tupadr3/common>
+
+!procedure DEV_GIT($alias, $label="git", $descr="")
+FontAwesomeIcon($alias, devicons_git, $label, $descr)
+!endprocedure

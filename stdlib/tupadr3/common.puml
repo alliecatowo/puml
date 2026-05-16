@@ -1,5 +1,21 @@
-' Deterministic Font Awesome (tupadr3) stdlib compatibility stub.
+' Merged tupadr3 / FontAwesome stdlib compatibility surface.
+
 !procedure FontAwesomeIcon($alias, $icon, $label="", $descr="")
-participant $alias
-$alias -> $alias : [FA $icon] $label
+object $label as $alias <<fa-$icon>>
+!endprocedure
+
+!procedure FA_ICON($alias, $label, $icon="fa")
+object $label as $alias <<fa-$icon>>
+!endprocedure
+
+!procedure FONT_AWESOME($alias, $label, $icon="fa")
+object $label as $alias <<fa-$icon>>
+!endprocedure
+
+!procedure DEV_ICON($alias, $label, $icon="dev")
+object $label as $alias <<dev-$icon>>
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
 !endprocedure

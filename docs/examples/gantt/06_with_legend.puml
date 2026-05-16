@@ -1,0 +1,9 @@
+@startgantt
+title Annual Project Plan
+[Phase 1: Research] starts 2026-01-01
+[Phase 2: Development] starts 2026-03-01
+[Phase 2: Development] requires [Phase 1: Research]
+[Phase 3: Testing] starts 2026-06-01
+[Phase 3: Testing] requires [Phase 2: Development]
+[Phase 4: Launch] happens on 2026-09-01
+@endgantt

@@ -1,0 +1,11 @@
+@startuml
+title Autonumber with Custom Format
+autonumber
+Alice -> Bob: message 1
+Bob --> Alice: response 1
+autonumber stop
+Alice -> Bob: unnumbered
+autonumber resume
+Alice -> Bob: message 3
+Bob --> Alice: response 3
+@enduml

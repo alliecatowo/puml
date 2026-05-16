@@ -1,0 +1,6 @@
+@startregex
+title Regex Demo
+a(b|c)*d?
+[a-z]+
+\d+
+@endregex

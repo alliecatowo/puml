@@ -1,0 +1,9 @@
+@startuml
+component API
+interface REST
+interface GraphQL
+API --> REST : provides
+API --> GraphQL : provides
+component Client
+Client --> REST : uses
+@enduml

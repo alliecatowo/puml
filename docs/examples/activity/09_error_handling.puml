@@ -1,0 +1,17 @@
+@startuml
+title Error Handling Flow
+start
+:Start Operation;
+repeat
+  :Try Action;
+  if (Success?) then (yes)
+    :Complete;
+    stop
+  else (no)
+    :Log Error;
+    :Increment Retry;
+  endif
+repeat while (retry < 3?) is (yes)
+:Fatal Error;
+stop
+@enduml

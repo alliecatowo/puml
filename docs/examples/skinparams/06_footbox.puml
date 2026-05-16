@@ -1,0 +1,5 @@
+@startuml
+skinparam footbox hide
+Alice -> Bob: no footbox
+Bob --> Alice: clean layout
+@enduml

@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 sitemap icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_SITEMAP($alias, $label="sitemap", $descr="")
+FontAwesomeIcon($alias, fa5_sitemap, $label, $descr)
+!endprocedure

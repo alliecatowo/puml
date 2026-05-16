@@ -1,0 +1,6 @@
+' Deterministic Material api icon stub.
+!include <material/common>
+
+!procedure MA_API($alias, $label="api", $descr="")
+MaterialIcon($alias, api, $label, $descr)
+!endprocedure

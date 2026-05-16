@@ -1,0 +1,6 @@
+' Deterministic Office smartphone device icon stub.
+!include <office/common>
+
+!procedure OFF_SMARTPHONE($alias, $label="smartphone", $descr="")
+OfficeIcon($alias, Devices_smartphone, $label, $descr)
+!endprocedure

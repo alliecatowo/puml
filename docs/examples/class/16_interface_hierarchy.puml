@@ -1,0 +1,21 @@
+@startuml
+title Collection Hierarchy
+class Iterable {
+  +iterator()
+}
+class Collection {
+  +add(e): boolean
+  +size(): int
+}
+class List {
+  +get(i: int)
+}
+class ArrayList {
+  +add(e): boolean
+  +get(i: int)
+  +size(): int
+}
+Collection <|-- Iterable
+List <|-- Collection
+ArrayList <|-- List
+@enduml

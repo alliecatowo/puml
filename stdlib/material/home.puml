@@ -1,0 +1,6 @@
+' Deterministic Material home icon stub.
+!include <material/common>
+
+!procedure MA_HOME($alias, $label="home", $descr="")
+MaterialIcon($alias, home, $label, $descr)
+!endprocedure

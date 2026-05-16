@@ -1,0 +1,6 @@
+' Deterministic GCP Pub/Sub compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure PubSub($alias, $label="", $descr="")
+GCPIcon($alias, PubSub, $label, $descr)
+!endprocedure

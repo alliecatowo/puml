@@ -1,0 +1,12 @@
+@startuml
+title Divider Styles
+Alice -> Bob: initial request
+== Authentication Phase ==
+Alice -> Auth: login
+Auth --> Alice: token
+== Processing Phase ==
+Alice -> Bob: process with token
+Bob --> Alice: result
+== Cleanup Phase ==
+Alice -> Alice: cleanup
+@enduml

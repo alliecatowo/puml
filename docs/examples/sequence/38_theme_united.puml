@@ -1,0 +1,8 @@
+@startuml
+!theme united
+title United Theme
+Frontend -> Backend: API call
+Backend -> DB: query
+DB --> Backend: result
+Backend --> Frontend: response
+@enduml

@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons python stub.
+!include <tupadr3/common>
+
+!procedure DEV_PYTHON($alias, $label="python", $descr="")
+FontAwesomeIcon($alias, devicons_python, $label, $descr)
+!endprocedure

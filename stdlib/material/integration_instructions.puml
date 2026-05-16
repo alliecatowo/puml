@@ -1,0 +1,6 @@
+' Deterministic Material integration_instructions icon stub.
+!include <material/common>
+
+!procedure MA_INTEGRATION_INSTRUCTIONS($alias, $label="integration_instructions", $descr="")
+MaterialIcon($alias, integration_instructions, $label, $descr)
+!endprocedure

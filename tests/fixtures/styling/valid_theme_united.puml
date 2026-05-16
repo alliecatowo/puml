@@ -1,0 +1,5 @@
+@startuml
+!theme united
+Alice -> Bob: Purple and orange
+Bob --> Alice: United response
+@enduml

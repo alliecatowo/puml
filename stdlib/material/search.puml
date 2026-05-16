@@ -1,0 +1,6 @@
+' Deterministic Material search icon stub.
+!include <material/common>
+
+!procedure MA_SEARCH($alias, $label="search", $descr="")
+MaterialIcon($alias, search, $label, $descr)
+!endprocedure

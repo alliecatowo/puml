@@ -1,0 +1,7 @@
+@startuml
+node WebServer
+node AppServer
+node DBServer
+WebServer --> AppServer : HTTP
+AppServer --> DBServer : TCP
+@enduml

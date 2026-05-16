@@ -1,0 +1,6 @@
+' Deterministic Material table_chart icon stub.
+!include <material/common>
+
+!procedure MA_TABLE_CHART($alias, $label="table_chart", $descr="")
+MaterialIcon($alias, table_chart, $label, $descr)
+!endprocedure

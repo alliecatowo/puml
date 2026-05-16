@@ -1,0 +1,7 @@
+@startchart
+title Pie Demo
+pie
+"Cats" 40
+"Dogs" 35
+"Birds" 25
+@endchart

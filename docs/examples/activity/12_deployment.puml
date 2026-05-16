@@ -1,0 +1,25 @@
+@startuml
+title Deployment Pipeline
+start
+:Code Push;
+:Run Tests;
+if (Tests pass?) then (yes)
+  :Build Artifact;
+  :Push to Registry;
+  :Deploy to Staging;
+  if (Staging OK?) then (yes)
+    :Promote to Prod;
+    :Smoke Tests;
+    if (Smoke OK?) then (yes)
+      :Done;
+    else (no)
+      :Rollback;
+    endif
+  else (no)
+    :Rollback;
+  endif
+else (no)
+  :Notify Dev;
+endif
+stop
+@enduml

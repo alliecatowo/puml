@@ -1,0 +1,48 @@
+@startuml
+title E-Commerce Domain Model
+
+class BaseEntity {
+  +id: UUID
+  +createdAt: DateTime
+  +updatedAt: DateTime
+}
+
+class User {
+  +email: String
+  +name: String
+  +register()
+}
+
+class Order {
+  +status: String
+  +total: Decimal
+  +place()
+  +cancel()
+}
+
+class OrderItem {
+  +quantity: Int
+  +unitPrice: Decimal
+}
+
+class Product {
+  +name: String
+  +price: Decimal
+  +stock: Int
+}
+
+class Address {
+  +street: String
+  +city: String
+  +country: String
+}
+
+BaseEntity <|-- User
+BaseEntity <|-- Order
+BaseEntity <|-- Product
+User --> Order : places
+Order *-- OrderItem : contains
+OrderItem --> Product : references
+User --> Address : has
+Order --> Address : ships to
+@enduml

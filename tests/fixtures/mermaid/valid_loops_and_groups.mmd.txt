@@ -1,0 +1,25 @@
+sequenceDiagram
+participant A
+participant B
+loop poll
+A->>B: ping
+end
+opt maybe
+A->>B: oops
+end
+par
+A->>B: leg1
+and
+A->>B: leg2
+end
+rect rgb(200,200,255)
+A->>B: rectangled
+end
+break failure
+A->>B: abort
+end
+critical normal
+A->>B: try
+option fallback
+A->>B: recover
+end

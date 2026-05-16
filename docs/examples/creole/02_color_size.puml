@@ -1,0 +1,5 @@
+@startuml
+Alice -> Bob: <color:red>red text</color> and <size:14>bigger</size>
+note right of Bob: <b>bold</b> <i>italic</i> <u>underlined</u>
+Bob --> Alice: reply
+@enduml

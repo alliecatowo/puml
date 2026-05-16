@@ -1,0 +1,5 @@
+@startuml
+!theme reddress-darkgreen
+Alice -> Bob: Red dress dark green
+Bob --> Alice: Response
+@enduml

@@ -1,0 +1,6 @@
+' Deterministic Material storage icon stub.
+!include <material/common>
+
+!procedure MA_STORAGE($alias, $label="storage", $descr="")
+MaterialIcon($alias, storage, $label, $descr)
+!endprocedure

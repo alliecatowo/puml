@@ -1,0 +1,11 @@
+@startuml
+Alice -> Bob: start parallel work
+par fetch data
+  Bob -> DB: query
+  DB --> Bob: rows
+else send email
+  Bob -> Mail: notify
+  Mail --> Bob: sent
+end
+Bob --> Alice: done
+@enduml

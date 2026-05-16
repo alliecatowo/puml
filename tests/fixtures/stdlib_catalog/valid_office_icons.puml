@@ -1,0 +1,15 @@
+@startuml
+!include <office/Servers/web_server>
+!include <office/Servers/database_server>
+!include <office/Servers/mail_server>
+!include <office/Devices/laptop>
+!include <office/Devices/smartphone>
+OFF_LAPTOP(user, "Developer Laptop")
+OFF_WEB_SERVER(web, "Web Server")
+OFF_DATABASE_SERVER(db, "Database Server")
+OFF_MAIL_SERVER(mail, "Mail Server")
+OFF_SMARTPHONE(mobile, "Mobile Client")
+user -> web : deploys to
+user -> db : administers
+mobile -> mail : sends via
+@enduml

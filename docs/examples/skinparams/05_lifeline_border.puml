@@ -1,0 +1,5 @@
+@startuml
+skinparam lifelineBorderColor #9c27b0
+Alice -> Bob: message
+Bob --> Alice: reply
+@enduml

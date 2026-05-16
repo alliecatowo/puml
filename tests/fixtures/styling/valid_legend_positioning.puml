@@ -1,0 +1,7 @@
+@startuml
+legend top left
+This is the legend
+end legend
+Alice -> Bob : message
+Bob --> Alice : response
+@enduml

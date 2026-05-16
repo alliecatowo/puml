@@ -1,0 +1,6 @@
+' Deterministic GCP Cloud Storage compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure CloudStorage($alias, $label="", $descr="")
+GCPIcon($alias, CloudStorage, $label, $descr)
+!endprocedure

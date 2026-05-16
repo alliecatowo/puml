@@ -1,0 +1,15 @@
+@startuml
+package "Frontend" {
+  component WebApp
+  component MobileApp
+}
+package "Backend" {
+  component AuthService
+  component OrderService
+  component NotificationService
+}
+WebApp --> AuthService
+WebApp --> OrderService
+MobileApp --> AuthService
+OrderService --> NotificationService
+@enduml

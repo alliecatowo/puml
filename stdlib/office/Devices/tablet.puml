@@ -1,0 +1,6 @@
+' Deterministic Office tablet device icon stub.
+!include <office/common>
+
+!procedure OFF_TABLET($alias, $label="tablet", $descr="")
+OfficeIcon($alias, Devices_tablet, $label, $descr)
+!endprocedure

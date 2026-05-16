@@ -1,0 +1,7 @@
+@startuml
+component Gateway
+component UserService
+component ProductService
+Gateway --> UserService
+Gateway --> ProductService
+@enduml

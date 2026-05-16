@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 stream icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_STREAM($alias, $label="stream", $descr="")
+FontAwesomeIcon($alias, fa5_stream, $label, $descr)
+!endprocedure

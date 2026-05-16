@@ -102,6 +102,7 @@ fn diagram_family_as_str_covers_all_variants() {
     assert_eq!(DiagramFamily::Deployment.as_str(), "deployment");
     assert_eq!(DiagramFamily::UseCase.as_str(), "usecase");
     assert_eq!(DiagramFamily::Object.as_str(), "object");
+    assert_eq!(DiagramFamily::Salt.as_str(), "salt");
     assert_eq!(DiagramFamily::MindMap.as_str(), "mindmap");
     assert_eq!(DiagramFamily::Wbs.as_str(), "wbs");
     assert_eq!(DiagramFamily::Gantt.as_str(), "gantt");
@@ -113,24 +114,34 @@ fn diagram_family_as_str_covers_all_variants() {
 fn render_for_class_family_returns_stub_svg() {
     let src = "@startuml\nclass User\n@enduml\n";
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Class).unwrap();
-    assert!(svg.contains("Bootstrap stub for class diagrams"));
+    assert!(svg.starts_with("<svg"));
+    assert!(svg.contains("User"));
+    assert!(svg.contains("<rect"));
+}
+
+#[test]
+fn render_for_salt_family_returns_stub_svg() {
+    let src = "@startsalt\nwidget submit_button\n@endsalt\n";
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Salt).unwrap();
+    assert!(svg.starts_with("<svg"));
+    assert!(svg.contains("submit_button"));
 }
 
 #[test]
 fn render_for_timeline_families_returns_timeline_preview() {
     let gantt = render_source_to_svg_for_family(
-        "@startgantt\n[2026-01-01] : Kickoff\n@endgantt\n",
+        "@startgantt\n[Build]\n[Build] starts 2026-04-01\n@endgantt\n",
         DiagramFamily::Gantt,
     )
     .unwrap();
-    assert!(gantt.contains("timeline entries"));
+    assert!(gantt.contains("<svg"));
 
     let chronology = render_source_to_svg_for_family(
-        "@startchronology\n2026-01-01 : Event\n@endchronology\n",
+        "@startchronology\nLaunch happens on 2026-05-15\n@endchronology\n",
         DiagramFamily::Chronology,
     )
     .unwrap();
-    assert!(chronology.contains("timeline entries"));
+    assert!(chronology.contains("<svg"));
 }
 
 #[test]
@@ -142,47 +153,59 @@ fn render_for_mismatched_family_reports_deterministic_error() {
 
 #[test]
 fn render_for_unsupported_families_reports_specific_codes() {
-    let cases = [
-        (
-            "@startuml\ncomponent API\n@enduml\n",
-            DiagramFamily::Component,
-            "E_RENDER_COMPONENT_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nnode web\n@enduml\n",
-            DiagramFamily::Deployment,
-            "E_RENDER_DEPLOYMENT_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nstart\n:work;\nstop\n@enduml\n",
-            DiagramFamily::Activity,
-            "E_RENDER_ACTIVITY_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nclock clk\n@enduml\n",
-            DiagramFamily::Timing,
-            "E_RENDER_TIMING_UNSUPPORTED",
-        ),
-        (
-            "@startmindmap\n* Root\n@endmindmap\n",
-            DiagramFamily::MindMap,
-            "E_RENDER_MINDMAP_UNSUPPORTED",
-        ),
-        (
-            "@startwbs\n* Scope\n@endwbs\n",
-            DiagramFamily::Wbs,
-            "E_RENDER_WBS_UNSUPPORTED",
-        ),
-        (
-            "@startuml\nfoo bar\n@enduml\n",
-            DiagramFamily::Unknown,
-            "E_RENDER_FAMILY_UNSUPPORTED",
-        ),
-    ];
+    // MindMap and WBS are now implemented; only Unknown should error.
+    let cases = [(
+        "@startuml\nfoo bar\n@enduml\n",
+        DiagramFamily::Unknown,
+        "E_RENDER_FAMILY_UNSUPPORTED",
+    )];
 
     for (src, family, code) in cases {
         let err = render_source_to_svg_for_family(src, family).expect_err("unsupported family");
         assert!(err.message.contains(code), "missing code {code}");
+    }
+
+    // MindMap and WBS now render successfully.
+    let mindmap_svg = render_source_to_svg_for_family(
+        "@startmindmap\n* Root\n@endmindmap\n",
+        DiagramFamily::MindMap,
+    )
+    .expect("mindmap should render");
+    assert!(
+        mindmap_svg.contains("<svg"),
+        "expected SVG output from mindmap"
+    );
+
+    let wbs_svg =
+        render_source_to_svg_for_family("@startwbs\n* Scope\n@endwbs\n", DiagramFamily::Wbs)
+            .expect("wbs should render");
+    assert!(wbs_svg.contains("<svg"), "expected SVG output from wbs");
+}
+
+#[test]
+fn render_for_implemented_families_produces_svg() {
+    let cases = [
+        (
+            "@startuml\ncomponent API\n@enduml\n",
+            DiagramFamily::Component,
+        ),
+        ("@startuml\nnode web\n@enduml\n", DiagramFamily::Deployment),
+        ("@startuml\nstate Running\n@enduml\n", DiagramFamily::State),
+        (
+            "@startuml\nstart\n:work;\nstop\n@enduml\n",
+            DiagramFamily::Activity,
+        ),
+        ("@startuml\nclock clk\n@enduml\n", DiagramFamily::Timing),
+    ];
+
+    for (src, family) in cases {
+        let svg = render_source_to_svg_for_family(src, family)
+            .unwrap_or_else(|e| panic!("render failed for {}: {}", family.as_str(), e.message));
+        assert!(
+            svg.contains("<svg") && svg.contains("</svg>"),
+            "expected svg envelope for {}",
+            family.as_str()
+        );
     }
 }
 
@@ -260,6 +283,10 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
         detect_diagram_family(chronology).expect("chronology family"),
         DiagramFamily::Chronology
     );
+    assert_eq!(
+        detect_diagram_family("@startsalt\nwidget\n@endsalt\n").expect("salt family"),
+        DiagramFamily::Salt
+    );
 
     let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";
     let err = render_source_to_svg(multipage).expect_err("single-page API should reject multipage");
@@ -317,7 +344,7 @@ fn mermaid_pipeline_supports_notes_lifecycle_and_inline_comments() {
 }
 
 #[test]
-fn mermaid_pipeline_reports_specific_code_for_unsupported_blocks() {
+fn mermaid_pipeline_accepts_supported_block_constructs() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
@@ -325,8 +352,12 @@ fn mermaid_pipeline_reports_specific_code_for_unsupported_blocks() {
         include_root: None,
     };
     let src = "sequenceDiagram\nloop retry\nA->>B: hi\nend\n";
-    let err = parse_with_pipeline_options(src, &options).unwrap_err();
-    assert!(err.message.contains("E_MERMAID_BLOCK_UNSUPPORTED"));
+    let doc = parse_with_pipeline_options(src, &options)
+        .expect("loop/end mermaid blocks should adapt to plantuml groups");
+    assert!(
+        !doc.statements.is_empty(),
+        "expected statements for supported mermaid block construct"
+    );
 }
 
 #[test]
@@ -343,7 +374,7 @@ fn mermaid_pipeline_supports_note_sides_and_destroy_lifecycle() {
 }
 
 #[test]
-fn mermaid_pipeline_reports_specific_codes_for_create_and_link_constructs() {
+fn mermaid_pipeline_accepts_create_and_link_constructs() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,
         compat: CompatMode::Strict,
@@ -352,12 +383,16 @@ fn mermaid_pipeline_reports_specific_codes_for_create_and_link_constructs() {
     };
 
     let create = "sequenceDiagram\ncreate A\n";
-    let create_err = parse_with_pipeline_options(create, &options).unwrap_err();
-    assert!(create_err.message.contains("E_MERMAID_CREATE_UNSUPPORTED"));
+    parse_with_pipeline_options(create, &options)
+        .expect("`create X` should adapt to plantuml `create X`");
+
+    let create_participant = "sequenceDiagram\ncreate participant Worker\n";
+    parse_with_pipeline_options(create_participant, &options)
+        .expect("`create participant X` should adapt to plantuml `create X`");
 
     let link = "sequenceDiagram\nlink A: https://example.test\n";
-    let link_err = parse_with_pipeline_options(link, &options).unwrap_err();
-    assert!(link_err.message.contains("E_MERMAID_LINK_UNSUPPORTED"));
+    parse_with_pipeline_options(link, &options)
+        .expect("`link` lines should adapt to a benign plantuml comment placeholder");
 }
 
 #[test]

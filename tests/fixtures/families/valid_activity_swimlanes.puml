@@ -1,0 +1,8 @@
+@startuml
+|Lane A|
+(*) --> "Start"
+"Start" --> "Process"
+|Lane B|
+"Process" --> "End"
+"End" --> (*)
+@enduml

@@ -1,0 +1,6 @@
+' Deterministic Office mail_server icon stub.
+!include <office/common>
+
+!procedure OFF_MAIL_SERVER($alias, $label="mail_server", $descr="")
+OfficeIcon($alias, Servers_mail_server, $label, $descr)
+!endprocedure

@@ -1,0 +1,10 @@
+@startuml
+skinparam groupBackgroundColor #e8f5e9
+skinparam groupBorderColor #2e7d32
+Alice -> Bob: start
+loop 3 times
+  Bob -> Charlie: work
+  Charlie --> Bob: done
+end
+Bob --> Alice: complete
+@enduml

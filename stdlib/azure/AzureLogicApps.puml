@@ -1,0 +1,6 @@
+' Deterministic Azure Logic Apps compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureLogicApps($alias, $label="", $descr="")
+AzureIcon($alias, AzureLogicApps, $label, $descr)
+!endprocedure

@@ -1,0 +1,10 @@
+@startuml
+' New-style activity if/else (not yet supported)
+start
+if (condition?) then (yes)
+  :action A;
+else (no)
+  :action B;
+endif
+stop
+@enduml

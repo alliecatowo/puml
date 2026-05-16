@@ -1,0 +1,5 @@
+@startuml
+usecase Login
+usecase Register
+Login --> Register : leads to
+@enduml

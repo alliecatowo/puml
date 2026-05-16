@@ -1,0 +1,6 @@
+' Deterministic Material monitor icon stub.
+!include <material/common>
+
+!procedure MA_MONITOR($alias, $label="monitor", $descr="")
+MaterialIcon($alias, monitor, $label, $descr)
+!endprocedure

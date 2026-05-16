@@ -1,0 +1,4 @@
+@startuml
+Alice -> Bob: <color:red>red</color>
+Bob -> Alice: <size:14>big</size>
+@enduml

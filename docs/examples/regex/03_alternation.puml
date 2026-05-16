@@ -1,0 +1,5 @@
+@startregex
+' Regex alternation (not yet supported)
+cat|dog
+(foo|bar)+
+@endregex

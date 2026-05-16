@@ -1,0 +1,21 @@
+@startuml
+title Class Members with Modifiers
+
+class Shape {
+  {field} +name: String
+  {method} +draw(): void
+  {abstract} #area(): Float
+  {static} MAX_SIZE: Int
+  {class} DEFAULT_COLOR: String
+}
+
+class Rectangle {
+  +width: Float {field}
+  +height: Float {field}
+  +getArea(): Float {method}
+  +rotate(): void <<abstract>>
+  UNIT: String <<static>>
+}
+
+Shape <|-- Rectangle
+@enduml

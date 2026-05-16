@@ -1,0 +1,16 @@
+@startuml
+participant Client
+participant Server
+!define COUNT 3
+!while COUNT != 0
+Client -> Server: retry COUNT
+!if COUNT == 3
+!define COUNT 2
+!elseif COUNT == 2
+!define COUNT 1
+!else
+!define COUNT 0
+!endif
+!endwhile
+Server --> Client: done
+@enduml

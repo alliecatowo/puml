@@ -1,0 +1,6 @@
+' Deterministic Material person icon stub.
+!include <material/common>
+
+!procedure MA_PERSON($alias, $label="person", $descr="")
+MaterialIcon($alias, person, $label, $descr)
+!endprocedure

@@ -1,0 +1,26 @@
+@startuml
+skinparam ClassBackgroundColor #e0f2fe
+skinparam ClassBorderColor #0369a1
+skinparam ClassHeaderBackgroundColor #bfdbfe
+skinparam ClassMemberFontColor #1e3a5f
+skinparam ClassArrowColor #0284c7
+skinparam ClassFontSize 13
+skinparam ClassFontName Arial
+
+class Vehicle {
+  +make: String
+  +model: String
+  +speed(): Float
+}
+
+class Car {
+  +doors: Int
+}
+
+class Truck {
+  +payload: Float
+}
+
+Vehicle <|-- Car
+Vehicle <|-- Truck
+@enduml

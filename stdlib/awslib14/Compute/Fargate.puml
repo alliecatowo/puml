@@ -1,0 +1,6 @@
+' Deterministic AWS Fargate compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Fargate($alias, $label="", $descr="")
+AWSIcon($alias, Fargate, $label, $descr)
+!endprocedure

@@ -1,0 +1,18 @@
+@startuml
+!include <material/cloud>
+!include <material/security>
+!include <material/storage>
+!include <material/person>
+!include <material/server>
+!include <material/lock>
+MA_PERSON(user, "User")
+MA_CLOUD(cloud, "Cloud Service")
+MA_SECURITY(sec, "Security Layer")
+MA_STORAGE(store, "Storage")
+MA_SERVER(srv, "App Server")
+MA_LOCK(lock, "Auth")
+user -> cloud : accesses
+cloud -> sec : validates via
+sec -> lock : enforces
+lock -> store : permits
+@enduml

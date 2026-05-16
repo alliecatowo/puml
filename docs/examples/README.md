@@ -2,6 +2,24 @@
 
 This markdown is the canonical top-layer docs parity source for `scripts/parity_harness.py`.
 
+## Gallery
+
+- **[GALLERY.md](GALLERY.md)** — 148 canonical example diagrams across all 24+ diagram families
+- **[KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)** — Families/syntax not yet supported
+
+## Coverage Summary
+
+| Category | Files | SVG Renders |
+|---|---|---|
+| Sequence | 15 | 15 |
+| Class/Object/UseCase | 18 | 18 (stub SVG) |
+| State | 8 | 8 |
+| Gantt/Chronology | 9 | 9 |
+| Component/Deployment/Activity/Timing/MindMap/WBS | 28 | 0 (parse only) |
+| Salt/JSON/YAML/NwDiag/ArchiMate/Regex/EBNF/Chart/Math/SDL/Ditaa | 30 | 0 (not supported) |
+| Themes/Skinparams/Preprocessor/Creole | 28 | 28 |
+| **Total** | **148** | **78** |
+
 ## Canonical Pages
 
 - [Top-level corpus](README.md)

@@ -300,6 +300,64 @@ Slice integration:
 
 ## Track Status
 
+### Parity Blitz Completion (2026-05-15)
+
+All diagram families and preprocessor surface areas have landed. 438 tests pass. Summary:
+
+#### Diagram Families — Done (2026-05-15)
+
+| Family | Status | Closed Issue |
+|---|---|---|
+| Sequence | Supported — full parity | #111 |
+| Class / Object / UseCase | Supported — real renderers | #146 |
+| Component / Deployment | Supported — real renderers | #109 |
+| State / Activity / Timing | Supported — real renderers | #110 |
+| Salt (wireframe) | Supported — real tree render | #98, #99 |
+| MindMap / WBS | Supported — hierarchical layout | #96, #97 |
+| Gantt / Chronology | Supported — timeline render | #94, #95 |
+| JSON / YAML | Supported | #102 |
+| nwdiag | Supported | #101 |
+| Archimate | Supported | #100 |
+| Regex / EBNF | Supported (railroad SVG) | #104 |
+| Math / SDL / Ditaa | Supported (deterministic stub) | #105 |
+| Chart | Supported (bar/line/pie) | #106 |
+
+#### Preprocessor — Done (2026-05-15)
+
+| Area | Status | Closed Issue |
+|---|---|---|
+| `!function`/`!procedure`/`!return` + all builtins | Supported | #147 |
+| `!include_many`/`!include_once`/`!includesub` | Supported | #115 |
+| `!import` / stdlib resolution | Supported | #116 |
+| `!theme` local catalog | Supported | #117 |
+| JSON variable assignment | Supported | #135 |
+| URL include rejection | Rejected (deterministic) | #115 |
+
+#### Sequence Parity — Done (2026-05-15)
+
+- All sequence partial/missing parity rows from `parity_gap_core.csv` closed: #111.
+- Mermaid sequence frontend parity: all supported constructs route through shared pipeline.
+- PicoUML canonical baseline routing: #128.
+- PlantUML frontend conformance matrix: #130.
+
+#### CLI / Runtime — Partially Done (keep #87 open)
+
+Landed (2026-05-15): `--check`, `--dump`, `--multi`, `--from-markdown`, `--diagnostics`, `--include-root`, `--output`, `--overwrite`, `--fail-on-warn`, `--charset`, `--duration`, `--quiet`, `--verbose`, `--format`, `--dialect`, `--compat`, `--determinism`, `--lint-input`, `--lint-glob`, `--lint-report`.
+
+Remaining open items under #87:
+- `hide unlinked` is currently a warning/hint only — not yet a layout filter. Tracked as a known gap.
+- `--format png` is a deterministic rejection (no raster output support).
+
+#### Differential Oracle — Deferred (keep #88 open)
+
+Scaffolding script and automated cross-run parity report are not yet implemented. `docs/benchmarks/parity_latest.json` baseline exists from parity harness but Java-based PlantUML comparison rows remain TODO.
+
+#### JSON Projection Adapters — Deferred (keep #103 open)
+
+JSON data projection into UML contexts (class/object/deployment/state) is not yet implemented. Tracked in #103.
+
+---
+
 - Sequence parity epic closure status (2026-05-15):
   - Sequence parity fixtures/tests in active contract suites are green:
     - `cargo test --test integration --test render_e2e --test virtual_endpoint_fidelity`

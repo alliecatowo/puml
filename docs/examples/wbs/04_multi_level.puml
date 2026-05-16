@@ -1,0 +1,17 @@
+@startwbs
+* Software Development
+** Requirements
+*** Functional
+**** User stories
+**** Acceptance criteria
+*** Non-Functional
+**** Performance
+**** Security
+** Design
+*** Architecture
+*** UI/UX
+** Implementation
+*** Frontend
+*** Backend
+*** Database
+@endwbs

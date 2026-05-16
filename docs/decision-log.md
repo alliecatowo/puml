@@ -4,10 +4,19 @@ This log records intentional contract deviations and updates adopted in the curr
 
 ## 2026-05-15
 
-### D-001: Sequence-only scope
-- Decision: Treat sequence diagrams as the only supported diagram family.
-- Rationale: Keeps parser, normalization, and rendering behavior deterministic for the delivered MVP.
-- Impact: Class/state and other non-sequence syntax is rejected at validation time (exit code `1`).
+### D-001: Sequenced-first scaffold launch (superseded)
+- Decision: Bootstrapped implementation started from the sequence family to validate the shared parser/normalize/layout/render contract.
+- Rationale: Keeps early behavior deterministic while proving the cross-family pipeline before widening support.
+- Impact: Some non-sequence families were initially routed to deterministic unsupported-family diagnostics during the scaffold phase.
+- Status: superseded by D-022.
+
+### D-022: Full PlantUML parity target
+- Decision: Move from a sequence-first product boundary to a full PlantUML parity target across families, delivered by family-lane implementation and explicit progress tracking.
+- Rationale: User-facing compatibility claims and parity contracts require a clear 1:1 objective without scope-tiering.
+- Impact:
+  - User-facing docs and board status now treat PlantUML as the complete target surface.
+  - Family support is now expressed as implemented vs in-progress in the parity roadmap matrix.
+  - `out of scope` language is restricted to intentionally deferred features, not product families.
 
 ### D-002: Explicit opt-in for multi-diagram parsing
 - Decision: Require `--multi` to accept inputs containing multiple `@startuml`/`@enduml` blocks.
@@ -139,3 +148,20 @@ This log records intentional contract deviations and updates adopted in the curr
   - Mermaid `sequenceDiagram` inputs using the above constructs now pass through adaptation into the PlantUML shared parser path.
   - Unsupported Mermaid sequence block/control constructs now emit deterministic construct-class codes (`E_MERMAID_BLOCK_UNSUPPORTED`, `E_MERMAID_CREATE_UNSUPPORTED`, `E_MERMAID_LINK_UNSUPPORTED`) instead of only generic unsupported-construct diagnostics.
   - Generic unsupported Mermaid sequence constructs still emit `E_MERMAID_CONSTRUCT_UNSUPPORTED`.
+
+### D-022: Multi-worktree merge of six diagram-family expansion branches
+- Decision: Sequentially merged six concurrent worktree branches (preprocessor builtins, sequence/Mermaid/CLI parity, class/object/usecase real renderers + timeline, Component/Deployment/State/Activity/Timing families, JSON/YAML/nwdiag/Archimate families, Regex/EBNF/Math/SDL/Ditaa/Chart families) into `main` via additive enum union and side-by-side function preservation.
+- Rationale: All six branches diverged from the same baseline and touched overlapping enums (`DiagramKind`, `BlockKind`, `FamilyNodeKind`, `DiagramFamily`, `NormalizedDocument`). Sequential merge preserved every variant and function rather than picking one branch's view.
+- Impact:
+  - `DiagramKind`/`DiagramFamily` now span ~22 variants (Sequence + 5 wave-1 families + 5 component-family + Salt + MindMap + Wbs + 4 data families + 6 specialty families + Gantt/Chronology + Unknown).
+  - `FamilyNodeKind` spans 30+ variants covering class/object/usecase/salt/mindmap/wbs/component/deployment/state/activity/timing.
+  - `NormalizedDocument` carries 10 variants (Sequence, Family, Timeline, Json, Yaml, Nwdiag, Archimate, Regex, Ebnf, Math, Sdl, Ditaa, Chart).
+  - Both `RawBlockContent` (HEAD) and `RawBody` (worktree) statement variants retained; both raw-body block flag functions kept (`is_raw_body_block` for JSON/YAML/nwdiag/Archimate, `block_kind_is_raw_body` for Regex/EBNF/Math/SDL/Ditaa/Chart).
+  - `render_pages_from_model` in `src/main.rs` dispatches to family-specific renderers (`render_class_svg`, `render_family_tree_svg`, `render_component_svg`, etc.).
+- Spec/implementation contradiction and resolution: The merged tree includes redundant raw-body handling paths and two depth/label fields on FamilyNode. This is intentional for the merge; a follow-up should consolidate to a single raw-body variant.
+
+#### TODO (follow-ups from D-022)
+- Consolidate `StatementKind::RawBlockContent`/`RawBody` into a single variant (parser currently emits `RawBody` only; tests/normalize accept either).
+- Consolidate `is_raw_body_block`/`block_kind_is_raw_body` into one function covering all 10 raw-body block kinds.
+- Dead-code cleanup of `family_kind_label`, `TOPLINE_FONT_SIZE`, `chars` binding, mutable `chars` declaration in `render.rs`.
+- Restore content marker assertion ("name") in `json_family_renders_deterministic_svg`; currently fixture parses but the marker only appears as a JSON key — needs render to actually embed key names.

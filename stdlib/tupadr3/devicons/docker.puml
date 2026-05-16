@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons docker stub.
+!include <tupadr3/common>
+
+!procedure DEV_DOCKER($alias, $label="docker", $descr="")
+FontAwesomeIcon($alias, devicons_docker, $label, $descr)
+!endprocedure

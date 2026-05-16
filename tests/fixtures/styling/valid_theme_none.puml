@@ -1,0 +1,5 @@
+@startuml
+!theme _none_
+Alice -> Bob: No styling explicit reset
+Bob --> Alice: Response
+@enduml

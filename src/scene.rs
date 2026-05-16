@@ -1,5 +1,4 @@
-use crate::model::ParticipantRole;
-use crate::model::VirtualEndpoint;
+use crate::model::{LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, VirtualEndpoint};
 use crate::theme::SequenceStyle;
 
 #[derive(Debug, Clone)]
@@ -15,6 +14,10 @@ pub struct Scene {
     pub groups: Vec<GroupBox>,
     pub structures: Vec<StructureLine>,
     pub style: SequenceStyle,
+    pub scale: Option<ScaleSpec>,
+    pub legend_text: Option<String>,
+    pub legend_halign: LegendHAlign,
+    pub legend_valign: LegendVAlign,
 }
 
 #[derive(Debug, Clone)]

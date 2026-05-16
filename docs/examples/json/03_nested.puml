@@ -1,0 +1,12 @@
+@startjson
+{
+  "user": {
+    "name": "Bob",
+    "roles": ["admin", "editor"]
+  },
+  "settings": {
+    "theme": "dark",
+    "locale": "en-US"
+  }
+}
+@endjson

@@ -1,0 +1,20 @@
+@startuml
+title Production Deployment
+
+node "CDN" as CDN
+node "Load Balancer" as LB
+node "Web Server 1" as WS1
+node "Web Server 2" as WS2
+database "Primary DB" as PDB
+database "Replica DB" as RDB
+artifact "Cache" as Cache
+
+CDN --> LB
+LB --> WS1
+LB --> WS2
+WS1 --> PDB
+WS2 --> PDB
+WS1 --> Cache
+WS2 --> Cache
+PDB --> RDB
+@enduml

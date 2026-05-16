@@ -1,0 +1,13 @@
+@startuml
+skinparam ComponentBackgroundColor #f0fdf4
+skinparam ComponentBorderColor #16a34a
+skinparam InterfaceBackgroundColor #dcfce7
+skinparam ComponentArrowColor #15803d
+
+component "Auth Service" as auth
+component "API Gateway" as gateway
+interface "REST API" as rest
+
+gateway --> rest
+rest --> auth
+@enduml

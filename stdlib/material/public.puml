@@ -1,0 +1,6 @@
+' Deterministic Material public icon stub.
+!include <material/common>
+
+!procedure MA_PUBLIC($alias, $label="public", $descr="")
+MaterialIcon($alias, public, $label, $descr)
+!endprocedure

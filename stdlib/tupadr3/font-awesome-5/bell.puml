@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 bell icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_BELL($alias, $label="bell", $descr="")
+FontAwesomeIcon($alias, fa5_bell, $label, $descr)
+!endprocedure

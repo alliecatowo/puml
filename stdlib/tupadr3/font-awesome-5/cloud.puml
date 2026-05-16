@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 cloud icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_CLOUD($alias, $label="cloud", $descr="")
+FontAwesomeIcon($alias, fa5_cloud, $label, $descr)
+!endprocedure

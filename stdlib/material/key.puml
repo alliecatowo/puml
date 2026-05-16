@@ -1,0 +1,6 @@
+' Deterministic Material key icon stub.
+!include <material/common>
+
+!procedure MA_KEY($alias, $label="key", $descr="")
+MaterialIcon($alias, key, $label, $descr)
+!endprocedure

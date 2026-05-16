@@ -1,0 +1,6 @@
+' Deterministic Azure Active Directory compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureActiveDirectory($alias, $label="", $descr="")
+AzureIcon($alias, AzureActiveDirectory, $label, $descr)
+!endprocedure

@@ -1,0 +1,7 @@
+@startuml
+json $user {
+  "name": "Alice",
+  "role": "admin",
+  "age": 30
+}
+@enduml

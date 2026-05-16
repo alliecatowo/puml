@@ -1,0 +1,8 @@
+@startuml
+!theme blueprint
+title Blueprint Theme
+User -> API: GET /data
+API -> DB: SELECT
+DB --> API: rows
+API --> User: JSON
+@enduml

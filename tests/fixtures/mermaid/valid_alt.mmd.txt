@@ -1,0 +1,8 @@
+sequenceDiagram
+participant A
+participant B
+alt happy
+A->>B: hi
+else sad
+A->>B: bye
+end

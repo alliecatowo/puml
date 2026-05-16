@@ -1,0 +1,17 @@
+@startuml
+clock clk with period 1
+binary "Enable" as EN
+@0
+EN is low
+clk is low
+@1
+clk is high
+@2
+EN is high
+clk is low
+@3
+clk is high
+@4
+EN is low
+clk is low
+@enduml

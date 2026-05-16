@@ -1,0 +1,9 @@
+@startuml
+node AppServer
+database PostgreSQL
+database Redis
+node BackupServer
+AppServer --> PostgreSQL : reads/writes
+AppServer --> Redis : caches
+PostgreSQL --> BackupServer : backup
+@enduml

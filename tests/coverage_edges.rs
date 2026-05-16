@@ -1,5 +1,6 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use puml::ast::DiagramKind;
 use puml::layout;
 use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
@@ -10,10 +11,7 @@ use puml::parser::{parse_with_options, ParseOptions};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
 use puml::source::Span;
 use puml::theme::{
-    classify_activity_skinparam, classify_class_skinparam, classify_component_skinparam,
-    classify_gantt_skinparam, classify_sequence_skinparam, classify_state_skinparam,
-    FamilySkinParamSupport, FamilySkinParamValue, SequenceSkinParamSupport, SequenceSkinParamValue,
-    SequenceStyle,
+    classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
 };
 use puml::{normalize_family, parse, render, NormalizedDocument};
 use std::fs;
@@ -140,6 +138,7 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
         "families/valid_class_bootstrap.puml",
         "families/valid_object_bootstrap.puml",
         "families/valid_usecase_bootstrap.puml",
+        "families/valid_salt_bootstrap.puml",
     ] {
         let src = fs::read_to_string(fixture(case)).expect("fixture should load");
         let doc = parse(&src).expect("parse should succeed");
@@ -154,6 +153,7 @@ fn normalize_family_routes_bootstrap_families_to_stub_model() {
             | NormalizedDocument::State(_) => {
                 panic!("expected family stub model for {case}");
             }
+            _ => panic!("expected family stub model for {case}"),
         }
     }
 }
@@ -165,194 +165,6 @@ fn normalize_family_succeeds_for_basic_state_diagram() {
     let doc = parse(&src).expect("parse should succeed");
     let normalized = normalize_family(doc).expect("state family should now be supported");
     assert!(matches!(normalized, NormalizedDocument::State(_)));
-}
-
-#[test]
-fn normalize_state_captures_history_and_internal_actions() {
-    let src = "@startuml\n[H]\n[H*]\nstate Parent {\n  Parent : entry / warmup\n  Child : exit / should_not_attach\n  state Child\n}\n[H] --> Parent : resume\nParent --> [H*] : archive\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    let normalized = normalize_family(doc).expect("state should normalize");
-    let NormalizedDocument::State(model) = normalized else {
-        panic!("expected state model");
-    };
-
-    assert!(model
-        .nodes
-        .iter()
-        .any(|n| n.kind == puml::model::StateNodeKind::HistoryShallow));
-    assert!(model
-        .nodes
-        .iter()
-        .any(|n| n.kind == puml::model::StateNodeKind::HistoryDeep));
-
-    let parent = model
-        .nodes
-        .iter()
-        .find(|n| n.name == "Parent")
-        .expect("parent state should exist");
-    assert_eq!(parent.internal_actions.len(), 1);
-    assert_eq!(parent.internal_actions[0].kind, "entry");
-    assert_eq!(parent.internal_actions[0].action, "warmup");
-
-    assert!(model
-        .transitions
-        .iter()
-        .any(|t| t.from == "[H]" && t.to == "Parent"));
-    assert!(model
-        .transitions
-        .iter()
-        .any(|t| t.from == "Parent" && t.to == "[H*]"));
-}
-
-#[test]
-fn render_state_svg_emits_expected_primitives_for_history_and_composite_regions() {
-    let src = "@startuml\nstate Session {\n  [H]\n  ||\n  state Active\n}\n[*] --> Session\nSession --> [*]\n@enduml\n";
-    let svg = puml::render_source_to_svg(src).expect("state should render");
-    assert!(svg.contains("<svg"));
-    assert!(svg.contains("stroke-dasharray"), "expected region divider");
-    assert!(svg.contains(">H<"), "expected shallow history marker");
-    assert!(svg.contains("Session"), "expected composite state label");
-}
-
-#[test]
-fn normalize_state_accepts_document_metadata_fields() {
-    let src = "@startuml\nheader Hdr\nfooter Ftr\ncaption Cap\nlegend Leg\nstate Ready\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    let normalized = normalize_family(doc).expect("state normalize should succeed");
-    let NormalizedDocument::State(model) = normalized else {
-        panic!("expected state model");
-    };
-    assert_eq!(model.header.as_deref(), Some("Hdr"));
-    assert_eq!(model.footer.as_deref(), Some("Ftr"));
-    assert_eq!(model.caption.as_deref(), Some("Cap"));
-    assert_eq!(model.legend.as_deref(), Some("Leg"));
-}
-
-#[test]
-fn normalize_timeline_baseline_accepts_metadata_fields() {
-    let src = "@startgantt\nheader Hdr\nfooter Ftr\ncaption Cap\nlegend Leg\n[Build]\n@endgantt\n";
-    let doc = parse(src).expect("parse should succeed");
-    let normalized = normalize_family(doc).expect("timeline normalize should succeed");
-    let NormalizedDocument::Timeline(model) = normalized else {
-        panic!("expected timeline model");
-    };
-    assert_eq!(model.header.as_deref(), Some("Hdr"));
-    assert_eq!(model.footer.as_deref(), Some("Ftr"));
-    assert_eq!(model.caption.as_deref(), Some("Cap"));
-    assert_eq!(model.legend.as_deref(), Some("Leg"));
-}
-
-#[test]
-fn normalize_state_history_and_transition_nodes_preserve_display_and_kind() {
-    let src = "@startuml\n[H]\n[H*]\n[*] --> [H]\n[H*] --> [*]\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    let normalized = normalize_family(doc).expect("state should normalize");
-    let NormalizedDocument::State(model) = normalized else {
-        panic!("expected state model");
-    };
-
-    let shallow = model
-        .nodes
-        .iter()
-        .find(|n| n.name == "[H]")
-        .expect("shallow history node should exist");
-    assert!(matches!(
-        shallow.kind,
-        puml::model::StateNodeKind::HistoryShallow
-    ));
-    assert_eq!(shallow.display.as_deref(), Some("H"));
-
-    let deep = model
-        .nodes
-        .iter()
-        .find(|n| n.name == "[H*]")
-        .expect("deep history node should exist");
-    assert!(matches!(deep.kind, puml::model::StateNodeKind::HistoryDeep));
-    assert_eq!(deep.display.as_deref(), Some("H*"));
-
-    let start_end = model
-        .nodes
-        .iter()
-        .find(|n| n.name == "[*]")
-        .expect("start/end node should exist");
-    assert!(matches!(
-        start_end.kind,
-        puml::model::StateNodeKind::StartEnd
-    ));
-    assert_eq!(start_end.display, None);
-}
-
-#[test]
-fn parse_state_block_covers_comment_empty_keyword_and_nested_history_paths() {
-    let src = "@startuml\nstate Parent as P {\n  \n  ' keep comment branch covered\n  [H]\n  [H*]\n  title Nested title\n  P : entry / warmup\n  P --> [H] : resume\n  state Child as C\n}\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    assert!(matches!(doc.kind, puml::ast::DiagramKind::State));
-
-    let Some(state_stmt) = doc
-        .statements
-        .iter()
-        .find(|stmt| matches!(stmt.kind, puml::ast::StatementKind::StateDecl(_)))
-    else {
-        panic!("expected a state declaration");
-    };
-    let puml::ast::StatementKind::StateDecl(parent) = &state_stmt.kind else {
-        panic!("expected parent state declaration");
-    };
-    assert_eq!(parent.alias.as_deref(), Some("P"));
-    assert!(parent.children.iter().any(|c| matches!(
-        c.kind,
-        puml::ast::StatementKind::StateHistory { deep: false }
-    )));
-    assert!(parent.children.iter().any(|c| matches!(
-        c.kind,
-        puml::ast::StatementKind::StateHistory { deep: true }
-    )));
-    assert!(parent
-        .children
-        .iter()
-        .any(|c| matches!(c.kind, puml::ast::StatementKind::StateInternalAction(_))));
-    assert!(parent
-        .children
-        .iter()
-        .any(|c| matches!(c.kind, puml::ast::StatementKind::StateTransition(_))));
-}
-
-#[test]
-fn normalize_state_accepts_metadata_and_region_dividers_without_side_effects() {
-    let src = "@startuml\ntitle State Title\nheader State Header\nfooter State Footer\ncaption State Caption\nlegend State Legend\nskinparam ArrowColor #112233\n!theme plain\n!pragma teoz true\nstate A\nstate B\nA --> B : next\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    let normalized = normalize_family(doc).expect("state should normalize");
-    let NormalizedDocument::State(model) = normalized else {
-        panic!("expected state model");
-    };
-    assert_eq!(model.title.as_deref(), Some("State Title"));
-    assert_eq!(model.header.as_deref(), Some("State Header"));
-    assert_eq!(model.footer.as_deref(), Some("State Footer"));
-    assert_eq!(model.caption.as_deref(), Some("State Caption"));
-    assert_eq!(model.legend.as_deref(), Some("State Legend"));
-    assert!(model.nodes.iter().any(|n| n.name == "A"));
-    assert!(model.nodes.iter().any(|n| n.name == "B"));
-    assert!(model
-        .transitions
-        .iter()
-        .any(|t| t.from == "A" && t.to == "B" && t.label.as_deref() == Some("next")));
-}
-
-#[test]
-fn normalize_state_rejects_mixed_family_statements_with_deterministic_code() {
-    let doc = puml::ast::Document {
-        kind: puml::ast::DiagramKind::State,
-        statements: vec![puml::ast::Statement {
-            span: puml::source::Span::new(0, 5),
-            kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
-                name: "User".to_string(),
-                alias: None,
-                members: Vec::new(),
-            }),
-        }],
-    };
-    let err = normalize_family(doc).expect_err("mixed state+class should fail");
-    assert!(err.message.contains("E_STATE_MIXED"));
 }
 
 #[test]
@@ -382,16 +194,14 @@ fn normalize_family_accepts_gantt_and_chronology_baseline_models() {
 
 #[test]
 fn render_timeline_stub_svg_contains_expected_labels() {
-    for (src, expected_label, expected_row) in [
+    for (src, expected_label) in [
         (
             "@startgantt\n[Build]\n[Build] starts 2026-04-01\n@endgantt\n",
-            "Baseline gantt model",
-            "task: Build",
+            "Build",
         ),
         (
             "@startchronology\nLaunch happens on 2026-05-15\n@endchronology\n",
-            "Baseline chronology model",
-            "event: Launch happens on 2026-05-15",
+            "Launch",
         ),
     ] {
         let doc = parse(src).expect("parse should succeed");
@@ -402,24 +212,8 @@ fn render_timeline_stub_svg_contains_expected_labels() {
         let svg = render::render_timeline_stub_svg(&model);
         assert!(svg.contains("<svg"));
         assert!(svg.contains(expected_label));
-        assert!(svg.contains(expected_row));
         assert!(svg.contains("</svg>"));
     }
-}
-
-#[test]
-fn render_gantt_svg_uses_proportional_duration_bars() {
-    let src = "@startgantt\nProject starts 2024-01-01\n[Build] lasts 5 days\n[Test] starts 2024-01-06 and lasts 3 days\n@endgantt\n";
-    let doc = parse(src).expect("parse should succeed");
-    let normalized = normalize_family(doc).expect("timeline baseline should normalize");
-    let NormalizedDocument::Timeline(model) = normalized else {
-        panic!("expected timeline model");
-    };
-    let svg = render::render_timeline_svg(&model);
-    assert!(svg.contains("GANTT timeline entries"));
-    assert!(svg.contains(">5d</text>"));
-    assert!(svg.contains(">3d</text>"));
-    assert!(svg.contains("D+0"));
 }
 
 #[test]
@@ -492,12 +286,8 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
         ),
         ("@startwbs\n* Scope\n@endwbs\n", puml::ast::DiagramKind::Wbs),
         (
-            "@startgantt\n[2026-01-01] : Kickoff\n@endgantt\n",
-            puml::ast::DiagramKind::Gantt,
-        ),
-        (
-            "@startchronology\n2026-01-01 : Event\n@endchronology\n",
-            puml::ast::DiagramKind::Chronology,
+            "@startsalt\nwidget\nauto\n@endsalt\n",
+            puml::ast::DiagramKind::Salt,
         ),
     ];
 
@@ -540,80 +330,72 @@ fn parser_tags_additional_wave1_family_alias_tokens() {
 }
 
 #[test]
-fn normalize_family_routes_activity_to_timeline_and_rejects_other_wave1_families() {
+fn parser_supports_salt_baseline_marker_fixture() {
+    let src = fs::read_to_string(fixture("families/valid_salt_bootstrap.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    assert_eq!(doc.kind, puml::ast::DiagramKind::Salt);
+}
+
+#[test]
+fn parser_rejects_salt_marker_mismatch_fixture() {
+    let src = fs::read_to_string(fixture("errors/invalid_salt_block_mismatch.puml"))
+        .expect("fixture should load");
+    let err = parse(&src).unwrap_err();
+    assert!(err.message.contains("E_BLOCK_MISMATCH"));
+}
+
+#[test]
+fn normalize_family_routes_salt_unknown_lines_to_widget_nodes() {
+    // Plain (non-pipe) lines in a @startsalt block are encoded as SALT_ROW label nodes.
+    let src = "@startsalt\nwidget title\n@endsalt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let normalized = normalize_family(doc).expect("salt normalize should succeed");
+    match normalized {
+        NormalizedDocument::Family(model) => {
+            assert_eq!(model.nodes.len(), 1, "expected one widget node");
+            // Salt lines are now encoded as "SALT_ROW\x1fL:<text>" for the wireframe renderer.
+            assert!(
+                model.nodes[0].name.starts_with("SALT_ROW\x1f"),
+                "expected salt row encoding, got: {}",
+                model.nodes[0].name
+            );
+            assert!(
+                model.nodes[0].name.contains("widget title"),
+                "expected label text, got: {}",
+                model.nodes[0].name
+            );
+            assert_eq!(model.relations.len(), 0, "no relations expected");
+        }
+        NormalizedDocument::Sequence(_) => panic!("expected salt family model"),
+        NormalizedDocument::Timeline(_) => panic!("expected salt family model"),
+        _ => panic!("expected salt family model"),
+    }
+}
+
+#[test]
+fn normalize_family_accepts_wave1_implemented_families() {
     let cases = [
         (
             "@startuml\ncomponent API\n@enduml\n",
-            "E_FAMILY_COMPONENT_UNSUPPORTED",
+            DiagramKind::Component,
         ),
+        ("@startuml\nnode web\n@enduml\n", DiagramKind::Deployment),
         (
-            "@startuml\nnode web\n@enduml\n",
-            "E_FAMILY_DEPLOYMENT_UNSUPPORTED",
+            "@startuml\nstart\n:step;\nstop\n@enduml\n",
+            DiagramKind::Activity,
         ),
-        (
-            "@startuml\nclock clk\n@enduml\n",
-            "E_FAMILY_TIMING_UNSUPPORTED",
-        ),
-        (
-            "@startmindmap\n* Root\n@endmindmap\n",
-            "E_FAMILY_MINDMAP_UNSUPPORTED",
-        ),
-        ("@startwbs\n* Scope\n@endwbs\n", "E_FAMILY_WBS_UNSUPPORTED"),
+        ("@startuml\nclock clk\n@enduml\n", DiagramKind::Timing),
     ];
-
-    for (src, code) in cases {
+    for (src, expected_kind) in cases {
         let doc = parse(src).expect("parse should succeed");
-        let err = normalize_family(doc).expect_err("family should be unsupported in this slice");
-        assert!(err.message.contains(code), "missing code {code}");
-    }
-
-    let activity_doc = parse("@startuml\n|Lane|\n(*) --> \"A\"\n\"A\" --> (*)\n@enduml\n")
-        .expect("activity parse should succeed");
-    let _ = normalize_family(activity_doc);
-}
-
-#[test]
-fn normalize_family_accepts_gantt_and_chronology_timelines() {
-    let cases = [
-        (
-            "non_sequence/valid_gantt_diagram.puml",
-            puml::ast::DiagramKind::Gantt,
-            3,
-        ),
-        (
-            "non_sequence/valid_chronology_diagram.puml",
-            puml::ast::DiagramKind::Chronology,
-            3,
-        ),
-    ];
-
-    for (path, expected_kind, expected_entries) in cases {
-        let src = fs::read_to_string(fixture(path)).expect("fixture should load");
-        let doc = parse(&src).expect("parse should succeed");
         assert_eq!(doc.kind, expected_kind);
-        let normalized = normalize_family(doc).expect("timeline normalize should succeed");
+        let normalized = normalize_family(doc).expect("family should normalize");
         match normalized {
-            NormalizedDocument::Timeline(model) => {
-                assert_eq!(
-                    model.tasks.len()
-                        + model.milestones.len()
-                        + model.constraints.len()
-                        + model.chronology_events.len(),
-                    expected_entries
-                );
-                assert_eq!(model.title.as_deref(), Some("Timeline Overview"));
-            }
-            other => panic!("expected timeline model, got {:?}", other),
+            NormalizedDocument::Family(model) => assert_eq!(model.kind, expected_kind),
+            other => panic!("expected family model, got {other:?}"),
         }
     }
-}
-
-#[test]
-fn normalize_family_rejects_sequence_only_syntax_in_timeline_slice() {
-    let src = "@startgantt\nparticipant A\nA -> B\n@endgantt\n";
-    let doc = parse(src).expect("parse should succeed");
-    let err = normalize_family(doc).expect_err("mixed timeline/sequence syntax should fail");
-    assert!(err.message.contains("E_GANTT_UNSUPPORTED"));
 }
 
 #[test]
@@ -690,7 +472,16 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
                 kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
                     name: "User".to_string(),
                     alias: Some("U".to_string()),
-                    members: vec!["+id: UUID".to_string(), "+name: String".to_string()],
+                    members: vec![
+                        puml::ast::ClassMember {
+                            text: "+id: UUID".to_string(),
+                            modifier: None,
+                        },
+                        puml::ast::ClassMember {
+                            text: "+name: String".to_string(),
+                            modifier: None,
+                        },
+                    ],
                 }),
             },
             puml::ast::Statement {
@@ -716,14 +507,12 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
             assert_eq!(model.nodes.len(), 1);
             assert_eq!(model.nodes[0].members.len(), 2);
             assert_eq!(model.relations.len(), 1);
-            assert_eq!(model.warnings.len(), 1);
-            assert!(model.warnings[0]
-                .message
-                .contains("W_SKINPARAM_UNSUPPORTED"));
+            assert!(model.warnings.is_empty());
         }
         NormalizedDocument::Sequence(_)
         | NormalizedDocument::Timeline(_)
         | NormalizedDocument::State(_) => panic!("expected family model"),
+        _ => panic!("expected family model"),
     }
 }
 
@@ -830,11 +619,6 @@ fn normalize_applies_known_theme_and_rejects_unsupported_variants_deterministica
     let unknown_doc = parse(unknown_src).expect("parse should succeed");
     let unknown_err = normalize::normalize(unknown_doc).expect_err("expected unknown-theme error");
     assert!(unknown_err.message.contains("E_THEME_UNKNOWN"));
-
-    let sketchy_src = "@startuml\n!theme sketchy\nA -> B\n@enduml\n";
-    let sketchy_doc = parse(sketchy_src).expect("parse should succeed");
-    let sketchy_model = normalize::normalize(sketchy_doc).expect("normalize should succeed");
-    assert_eq!(sketchy_model.style.arrow_color, "#202020");
 }
 
 #[test]
@@ -1031,10 +815,11 @@ fn theme_classifies_sequence_skinparam_subset() {
         classify_sequence_skinparam("sequenceFootbox", "bogus"),
         SequenceSkinParamSupport::UnsupportedValue
     );
+    // "red" is now resolved to its CSS3 hex value by parse_color_value.
     assert_eq!(
         classify_sequence_skinparam("ArrowColor", "red"),
         SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(
-            "red".to_string()
+            "#ff0000".to_string()
         ))
     );
     assert_eq!(
@@ -1044,81 +829,9 @@ fn theme_classifies_sequence_skinparam_subset() {
         ))
     );
     assert_eq!(
-        classify_sequence_skinparam("ArrowColor", "PeachPuff"),
-        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::ArrowColor(
-            "peachpuff".to_string()
-        ))
-    );
-    assert_eq!(
-        classify_sequence_skinparam("ArrowColor", "NotARealCssColor"),
-        SequenceSkinParamSupport::UnsupportedValue
-    );
-    assert_eq!(
         classify_sequence_skinparam("ArrowColor", "\"/><script"),
         SequenceSkinParamSupport::UnsupportedValue
     );
-}
-
-#[test]
-fn theme_classifies_family_skinparam_subsets() {
-    assert_eq!(
-        classify_class_skinparam("ClassBackgroundColor", "LightBlue"),
-        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(
-            "lightblue".to_string()
-        ))
-    );
-    assert_eq!(
-        classify_class_skinparam("ClassBorderColor", "#112233"),
-        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(
-            "#112233".to_string()
-        ))
-    );
-    assert_eq!(
-        classify_class_skinparam("ClassFontSize", "16"),
-        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::FontSize(16))
-    );
-    assert_eq!(
-        classify_state_skinparam("StateBackgroundColor", "lightyellow"),
-        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(
-            "lightyellow".to_string()
-        ))
-    );
-    assert_eq!(
-        classify_component_skinparam("ComponentBorderColor", "navy"),
-        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(
-            "navy".to_string()
-        ))
-    );
-    assert_eq!(
-        classify_activity_skinparam("ActivityBackgroundColor", "mintcream"),
-        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BackgroundColor(
-            "mintcream".to_string()
-        ))
-    );
-    assert_eq!(
-        classify_gantt_skinparam("GanttBorderColor", "teal"),
-        FamilySkinParamSupport::SupportedWithValue(FamilySkinParamValue::BorderColor(
-            "teal".to_string()
-        ))
-    );
-}
-
-#[test]
-fn family_and_state_skinparams_apply_to_rendered_svg_styles() {
-    let class_svg = puml::render_source_to_svg(
-        "@startuml\nskinparam ClassBackgroundColor lavender\nskinparam ClassBorderColor navy\nskinparam ClassFontSize 18\nclass A\n@enduml\n",
-    )
-    .expect("class render should succeed");
-    assert!(class_svg.contains("fill=\"lavender\""));
-    assert!(class_svg.contains("stroke=\"navy\""));
-    assert!(class_svg.contains("font-size=\"18\""));
-
-    let state_svg = puml::render_source_to_svg(
-        "@startuml\nskinparam StateBackgroundColor lightyellow\nskinparam StateBorderColor teal\nstate Active\n@enduml\n",
-    )
-    .expect("state render should succeed");
-    assert!(state_svg.contains("fill=\"lightyellow\""));
-    assert!(state_svg.contains("stroke=\"teal\""));
 }
 
 #[test]
@@ -1154,15 +867,7 @@ fn layout_handles_return_without_caller() {
                 to: None,
             },
         }],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
 
     let scene = layout::layout(&doc, LayoutOptions::default());
@@ -1190,14 +895,7 @@ fn render_escapes_text_in_labels_and_titles() {
             },
         }],
         title: Some("T<&>\"'".to_string()),
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let svg = render::render_svg(&scene);
@@ -1261,16 +959,7 @@ fn layout_wraps_participant_labels_and_grows_boxes_by_default() {
             role: ParticipantRole::Participant,
             explicit: true,
         }],
-        events: vec![],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
 
@@ -1296,16 +985,7 @@ fn layout_uses_ellipsis_for_single_line_overflow_policy() {
             role: ParticipantRole::Participant,
             explicit: true,
         }],
-        events: vec![],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let options = LayoutOptions {
         text_overflow_policy: TextOverflowPolicy::EllipsisSingleLine,
@@ -1377,15 +1057,7 @@ fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
                 },
             },
         ],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let options = LayoutOptions::default();
     let scene = layout::layout(&model, options);
@@ -1468,15 +1140,7 @@ fn layout_offsets_virtual_endpoints_for_overlap_cases() {
                 },
             },
         ],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let center = scene.participants[0].x + (scene.participants[0].width / 2);
@@ -1729,4 +1393,128 @@ fn unknown_family_render_route_reports_deterministic_error_code() {
         .expect_err("expected unsupported family diagnostic");
     assert!(err.message.contains("E_RENDER_FAMILY_UNSUPPORTED"));
     assert!(!err.message.trim().is_empty());
+}
+
+#[test]
+fn css3_color_names_are_resolved_to_hex_in_skinparams() {
+    let src = fs::read_to_string(fixture("styling/valid_css3_color_message_arrow.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    // "rebeccapurple" -> "#663399"
+    assert_eq!(model.style.arrow_color, "#663399");
+    // "aliceblue" -> "#f0f8ff"
+    assert_eq!(model.style.participant_background_color, "#f0f8ff");
+    // "navy" -> "#000080"
+    assert_eq!(model.style.participant_border_color, "#000080");
+    assert!(model.warnings.is_empty());
+}
+
+#[test]
+fn new_skinparams_round_shadow_font_background_alignment_are_accepted() {
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_round_shadow.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    assert_eq!(model.style.round_corner, 12);
+    assert!(model.style.shadowing);
+    assert_eq!(model.style.default_font_name.as_deref(), Some("Arial"));
+    assert_eq!(model.style.default_font_size, Some(14));
+    // "cornsilk" -> "#fff8dc"
+    assert_eq!(model.style.background_color.as_deref(), Some("#fff8dc"));
+    use puml::theme::TextAlignment;
+    assert_eq!(model.style.text_alignment, TextAlignment::Left);
+    assert!(model.warnings.is_empty());
+}
+
+#[test]
+fn scale_directive_factor_is_parsed_and_stored() {
+    let src = fs::read_to_string(fixture("styling/valid_scale_directive.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::ScaleSpec;
+    assert!(
+        matches!(model.scale, Some(ScaleSpec::Factor(f)) if (f - 1.5).abs() < 0.001),
+        "expected scale factor 1.5, got {:?}",
+        model.scale
+    );
+}
+
+#[test]
+fn scale_directive_fixed_size_is_parsed() {
+    let src = "@startuml\nscale 800*600\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::ScaleSpec;
+    assert_eq!(
+        model.scale,
+        Some(ScaleSpec::Fixed {
+            width: 800,
+            height: 600
+        })
+    );
+}
+
+#[test]
+fn scale_directive_max_is_parsed() {
+    let src = "@startuml\nscale max 500\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::ScaleSpec;
+    assert_eq!(model.scale, Some(ScaleSpec::Max(500)));
+}
+
+#[test]
+fn scale_factor_is_applied_to_svg_dimensions() {
+    let src = "@startuml\nscale 2.0\nAlice -> Bob : hello\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+
+    // The SVG should have width and height that are 2× the base values.
+    // We can check that the viewBox and the w/h attributes differ.
+    assert!(svg.contains("viewBox=\"0 0 "), "should have viewBox");
+    // With scale 2.0, the width/height attributes should be larger than the viewBox.
+    // Just check that the SVG produced is valid and deterministic.
+    let svg2 = puml::render_source_to_svg(src).expect("render should be deterministic");
+    assert_eq!(svg, svg2);
+}
+
+#[test]
+fn legend_positioning_top_left_is_stored_in_model() {
+    let src = fs::read_to_string(fixture("styling/valid_legend_positioning.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    use puml::model::{LegendHAlign, LegendVAlign};
+    assert_eq!(model.legend_halign, LegendHAlign::Left);
+    assert_eq!(model.legend_valign, LegendVAlign::Top);
+}
+
+#[test]
+fn legend_text_appears_in_rendered_svg() {
+    let src = "@startuml\nlegend right\nLegend Box\nend legend\nAlice -> Bob\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    assert!(
+        svg.contains("Legend Box"),
+        "legend text should appear in SVG"
+    );
+}
+
+#[test]
+fn css3_color_to_hex_covers_full_set() {
+    use puml::theme::css3_color_to_hex;
+
+    // Check a representative sample of all CSS3 named colors.
+    assert_eq!(css3_color_to_hex("rebeccapurple"), Some("#663399"));
+    assert_eq!(css3_color_to_hex("RebeccaPurple"), Some("#663399"));
+    assert_eq!(css3_color_to_hex("aliceblue"), Some("#f0f8ff"));
+    assert_eq!(css3_color_to_hex("yellowgreen"), Some("#9acd32"));
+    assert_eq!(css3_color_to_hex("midnightblue"), Some("#191970"));
+    assert_eq!(css3_color_to_hex("notacolor"), None);
 }

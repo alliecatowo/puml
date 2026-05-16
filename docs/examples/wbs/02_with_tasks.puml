@@ -1,0 +1,15 @@
+@startwbs
+* E-Commerce Platform
+** Frontend
+*** Design System
+*** Product Pages
+*** Cart
+*** Checkout
+** Backend
+*** Auth API
+*** Product API
+*** Order API
+** Infrastructure
+*** CI/CD
+*** Monitoring
+@endwbs

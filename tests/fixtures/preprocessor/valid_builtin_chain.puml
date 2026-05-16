@@ -1,0 +1,3 @@
+@startuml
+A -> B : %upper(%substr("plantuml", 0, 5))-%intval("12abc")-%dec2hex(255)
+@enduml

@@ -1,0 +1,20 @@
+@startuml
+title Package Structure
+package "domain" {
+  class User
+  class Product
+  class Order
+}
+package "service" {
+  class UserService
+  class ProductService
+}
+package "repository" {
+  class UserRepo
+  class ProductRepo
+}
+UserService --> User
+ProductService --> Product
+UserRepo --> User
+ProductRepo --> Product
+@enduml
