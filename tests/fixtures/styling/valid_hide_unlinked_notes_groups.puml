@@ -1,0 +1,12 @@
+@startuml
+hide unlinked
+participant Alice
+participant Bob
+participant Carol
+participant Unused
+
+box Team
+Alice -> Bob: hello
+note over Carol: observer note
+end box
+@enduml

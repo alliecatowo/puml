@@ -4466,7 +4466,7 @@ fn verbose_flag_emits_stage_timings_to_stderr() {
 
 #[test]
 fn quiet_flag_suppresses_warnings_on_stderr() {
-    // hideUnlinked is recognized but currently emits a W_SKINPARAM_UNSUPPORTED-style warning.
+    // Unsupported skinparams still warn normally, and --quiet suppresses that output.
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--quiet", "--check", "-"])
@@ -6362,12 +6362,90 @@ fn hide_unlinked_removes_unreferenced_participant_from_svg() {
 }
 
 #[test]
+fn hide_unlinked_records_hidden_participants_without_warning() {
+    let src = "@startuml\nhide unlinked\nparticipant Alice\nparticipant Bob\nparticipant Unused\nAlice -> Bob: hello\n@enduml\n";
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    let ids = model
+        .participants
+        .iter()
+        .map(|p| p.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["Alice", "Bob"]);
+    assert_eq!(model.hidden_participants, vec!["Unused"]);
+    assert!(
+        model.warnings.is_empty(),
+        "hide unlinked should not warn when it filters participants"
+    );
+}
+
+#[test]
+fn hide_unlinked_preserves_explicit_participants_used_by_messages() {
+    let src = "@startuml\nhide unlinked\nparticipant User\nparticipant UI\nparticipant Controller\nparticipant Jobs\nUser -> UI: open\nUI -> Controller: dispatch\n@enduml\n";
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    let ids = model
+        .participants
+        .iter()
+        .map(|p| p.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["User", "UI", "Controller"]);
+    assert_eq!(model.hidden_participants, vec!["Jobs"]);
+
+    let svg = render_source_to_svg(src).expect("hide unlinked participants should render");
+    assert!(svg.contains("User"));
+    assert!(svg.contains("UI"));
+    assert!(svg.contains("Controller"));
+    assert!(!svg.contains("Jobs"));
+}
+
+#[test]
+fn hide_unlinked_keeps_note_targets_inside_groups() {
+    let src = fs::read_to_string(fixture("styling/valid_hide_unlinked_notes_groups.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    let ids = model
+        .participants
+        .iter()
+        .map(|p| p.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["Alice", "Bob", "Carol"]);
+    assert_eq!(model.hidden_participants, vec!["Unused"]);
+
+    let svg = render_source_to_svg(&src).expect("hide unlinked note/group should render");
+    assert!(svg.contains("Carol"));
+    assert!(!svg.contains("Unused"));
+}
+
+#[test]
+fn sequence_without_hide_unlinked_keeps_declared_unused_participants() {
+    let src = "@startuml\nparticipant Alice\nparticipant Bob\nparticipant Unused\nAlice -> Bob: hello\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+
+    let ids = model
+        .participants
+        .iter()
+        .map(|p| p.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["Alice", "Bob", "Unused"]);
+    assert!(!model.hide_unlinked);
+    assert!(model.hidden_participants.is_empty());
+}
+
+#[test]
 fn hide_unlinked_fixture_validates_cleanly() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--check", &fixture("styling/valid_hide_unlinked.puml")])
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]
