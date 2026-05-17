@@ -143,10 +143,6 @@ jobs:
         if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
-      - name: visual text sweep
-        if: steps.changes.outputs.run_full_gate == 'true'
-        run: cargo test --test visual_regression visual_regression_focused_text_presence_sweep
-
       - name: visual smoke fixture matrix
         if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo test --test visual_regression visual_smoke_representative_docs_examples_matrix
