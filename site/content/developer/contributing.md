@@ -80,5 +80,9 @@ The branch-protection contract is documented in [`docs/branch-protection.md`](ht
 
 ## Where to ask questions
 
-- Open an issue at <https://github.com/alliecatowo/puml/issues>.
-- Tag with the relevant family or area (`area/sequence`, `area/cli`, `area/wasm`).
+- Start a discussion at <https://github.com/alliecatowo/puml/discussions> for usage questions, early ideas, showcases, parity reports that need shaping, and AI-swarm workflow notes.
+- Open an issue at <https://github.com/alliecatowo/puml/issues> when there is a reproducible bug, scoped compatibility gap, docs task, tooling task, or regression.
+- Tag issues with the relevant family or area (`area/sequence`, `area/cli`, `area/wasm`).
+
+The full issue-vs-discussion routing guide lives in the repository at
+[`docs/discussions.md`](https://github.com/alliecatowo/puml/blob/main/docs/discussions.md).
