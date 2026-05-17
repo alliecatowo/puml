@@ -733,6 +733,10 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_retrieve_procedure_return.puml",
         "preprocessor/valid_function_exists.puml",
         "preprocessor/valid_variable_exists.puml",
+        "preprocessor/valid_json_dot_bracket_access.puml",
+        "preprocessor/valid_splitstr_regex.puml",
+        "preprocessor/valid_macro_concat_body.puml",
+        "preprocessor/valid_unsafe_builtin_policy.puml",
         // MindMap/WBS hardening fixtures
         "families/valid_mindmap_palette.puml",
         "families/valid_wbs_progress.puml",
@@ -1809,6 +1813,25 @@ fn multi_mode_reports_enduml_without_startuml() {
             "unmatched @startuml/@enduml boundary",
         ))
         .stderr(predicate::str::contains("without a preceding @startuml"));
+}
+
+#[test]
+fn sequence_hnote_and_rnote_render_distinct_shapes() {
+    let svg = render_source_to_svg(
+        "@startuml\nAlice -> Bob: hi\nhnote over Alice\nhex note\nendhnote\nrnote over Bob\nrect note\nendrnote\n@enduml\n",
+    )
+    .expect("sequence hnote/rnote should render");
+
+    assert!(svg.contains("hex note"));
+    assert!(svg.contains("rect note"));
+    assert!(
+        svg.contains("<polygon"),
+        "hnote should render as a hexagonal polygon"
+    );
+    assert!(
+        svg.contains("rx=\"0\" ry=\"0\""),
+        "rnote should render as a square-corner rectangle"
+    );
 }
 
 #[test]
@@ -4496,6 +4519,99 @@ fn preprocessor_color_math_builtins_expand_deterministically() {
         .as_str()
         .unwrap();
     assert_eq!(label, "7 true #ffffff #7f7f7f #000000");
+}
+
+#[test]
+fn preprocessor_json_dot_and_bracket_access_expands_native_variable_paths() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_json_dot_bracket_access.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(label, "Ada|uml|1");
+}
+
+#[test]
+fn preprocessor_splitstr_regex_splits_on_lightweight_delimiter_patterns() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_splitstr_regex.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(label, "alpha|beta|gamma");
+}
+
+#[test]
+fn preprocessor_macro_concat_expands_inside_safe_procedure_body_lines() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_macro_concat_body.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let msg = &json["statements"][0]["kind"]["Message"];
+    assert_eq!(msg["from"].as_str().unwrap(), "Alice");
+    assert_eq!(msg["label"].as_str().unwrap(), "Alice");
+}
+
+#[test]
+fn preprocessor_unsafe_time_env_random_helpers_follow_deterministic_policy() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_unsafe_builtin_policy.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(label, "date=[] env=[] rand=[0]");
+}
+
+#[test]
+fn preprocessor_unsafe_io_helpers_reject_with_stable_policy_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\nA -> B : %load_json(\"/tmp/state.json\")\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_UNSAFE_BUILTIN"));
 }
 
 #[test]

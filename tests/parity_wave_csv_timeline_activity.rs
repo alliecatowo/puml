@@ -1,3 +1,6 @@
+use puml::parser::{parse_with_options, ParseOptions};
+use puml::NormalizedDocument;
+
 #[test]
 fn gantt_places_milestone_using_constraint_day_or_task_reference() {
     let src = r#"@startgantt
@@ -57,6 +60,70 @@ sundays are closed
         svg.contains("2026-05-05"),
         "two working days from Friday with a closed weekend should span through Tuesday"
     );
+}
+
+#[test]
+fn gantt_closed_date_ranges_extend_workload_and_render_calendar_band() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+saturday are closed
+sundays are closed
+2026-05-04 to 2026-05-05 is closed
+[Build] requires 2 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("2026-05-04 to 2026-05-05"));
+    assert!(svg.contains("class=\"gantt-closed-range\""));
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.closed_ranges.len(), 1);
+    assert_eq!(model.tasks[0].duration_days, 6);
+}
+
+#[test]
+fn gantt_task_reference_starts_constraint_places_dependent_task() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+[Design] requires 3 days
+[Build] starts 2026-05-01 and requires 2 days
+[Build] starts at [Design]'s end
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("marker-end=\"url(#gantt-arrow)\""));
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    let design = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Design")
+        .expect("design task");
+    let build = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Build")
+        .expect("build task");
+    assert_eq!(build.start_day, design.start_day + design.duration_days);
+}
+
+#[test]
+fn gantt_resource_allocation_is_visible_on_task_bar() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+[Build] on {Bob:50%} requires 3 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("class=\"gantt-resource-pill\""));
+    assert!(svg.contains("class=\"gantt-resource\""));
+    assert!(svg.contains("Bob:50%"));
 }
 
 #[test]

@@ -1473,6 +1473,15 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::GanttCalendarClosed { day } => {
             json!({"GanttCalendarClosed": {"day": day}})
         }
+        StatementKind::GanttCalendarClosedDateRange {
+            start_date,
+            end_date,
+        } => json!({
+            "GanttCalendarClosedDateRange": {
+                "start_date": start_date,
+                "end_date": end_date
+            }
+        }),
         StatementKind::ChronologyHappensOn { subject, when } => {
             json!({"ChronologyHappensOn": {"subject": subject, "when": when}})
         }
@@ -1710,6 +1719,12 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             .iter()
             .map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target}))
             .collect::<Vec<_>>(),
+        "closed_weekdays": model.closed_weekdays,
+        "closed_ranges": model
+            .closed_ranges
+            .iter()
+            .map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day}))
+            .collect::<Vec<_>>(),
         "chronology_events": model
             .chronology_events
             .iter()
@@ -1776,11 +1791,12 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
             json!({"Message": message})
         }
         SequenceEventKind::Note {
+            kind,
             position,
             target,
             text,
         } => {
-            json!({"Note": {"position": position, "target": target, "text": text}})
+            json!({"Note": {"kind": format!("{:?}", kind), "position": position, "target": target, "text": text}})
         }
         SequenceEventKind::GroupStart { kind, label } => {
             json!({"GroupStart": {"kind": kind, "label": label}})
@@ -1910,6 +1926,8 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                     .collect::<Vec<_>>(),
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name, "happens_on": m.happens_on})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
+                "closed_weekdays": timeline.closed_weekdays,
+                "closed_ranges": timeline.closed_ranges.iter().map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
                 "project_start": timeline.project_start,
                 "project_start_day": timeline.project_start_day,

@@ -1,0 +1,3 @@
+@startuml
+A -> B : date=[%date("yyyy-MM-dd")] env=[%getenv("HOME")] rand=[%random()]
+@enduml

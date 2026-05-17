@@ -6,6 +6,8 @@ expression: json
 {
   "caption": null,
   "chronology_events": [],
+  "closed_ranges": [],
+  "closed_weekdays": [],
   "constraints": [
     {
       "kind": "happens",
