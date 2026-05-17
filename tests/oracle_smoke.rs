@@ -402,3 +402,23 @@ fn oracle_drift_threshold_documented() {
         "scripts/oracle.sh must encode the 50% threshold"
     );
 }
+
+#[test]
+fn oracle_script_renders_ours_to_temp_outputs_without_overwrite() {
+    let script = repo_path("scripts/oracle.sh");
+    let script_contents =
+        std::fs::read_to_string(&script).expect("scripts/oracle.sh must be readable");
+
+    assert!(
+        script_contents.contains("--output \"${OUR_SVG}\""),
+        "oracle.sh must render puml output into its temp oracle path"
+    );
+    assert!(
+        !script_contents.contains("--overwrite"),
+        "oracle.sh must not mutate checked-in fixture/example SVGs with --overwrite"
+    );
+    assert!(
+        !script_contents.contains("CANDIDATE_SVG=\"${F%.puml}.svg\""),
+        "oracle.sh must not read renderer output back from fixture-adjacent SVG files"
+    );
+}

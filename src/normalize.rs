@@ -630,13 +630,21 @@ fn normalize_sdl(document: Document) -> Result<SdlDocument, Diagnostic> {
     let mut states = Vec::new();
     let mut transitions = Vec::new();
     let warnings: Vec<Diagnostic> = Vec::new();
-    let mut seen = std::collections::BTreeSet::new();
+    let mut state_index: BTreeMap<String, usize> = BTreeMap::new();
     let record_state = |name: &str,
                         kind: SdlStateKind,
-                        seen: &mut std::collections::BTreeSet<String>,
+                        state_index: &mut BTreeMap<String, usize>,
                         states: &mut Vec<SdlState>| {
-        if !seen.contains(name) {
-            seen.insert(name.to_string());
+        let name = name.trim();
+        if name.is_empty() {
+            return;
+        }
+        if let Some(idx) = state_index.get(name).copied() {
+            if states[idx].kind == SdlStateKind::State && kind != SdlStateKind::State {
+                states[idx].kind = kind;
+            }
+        } else {
+            state_index.insert(name.to_string(), states.len());
             states.push(SdlState {
                 name: name.to_string(),
                 kind,
@@ -650,55 +658,37 @@ fn normalize_sdl(document: Document) -> Result<SdlDocument, Diagnostic> {
         }
         // Recognized forms:
         //   state <name>
-        //   start <name>            (alias: declares <name> with Start kind)
-        //   stop <name>
+        //   state <from> -> <to> : <signal>
+        //   start/input/output/decision/stop <name>
+        //   state <name> <<start|input|output|decision|stop>>
         //   <from> -> <to> : <signal>
         //   <from> -> <to>
         let lower = line.to_ascii_lowercase();
-        if let Some(rest) = lower.strip_prefix("state ") {
-            let name = line[6..].trim();
-            let _ = rest;
-            record_state(name, SdlStateKind::State, &mut seen, &mut states);
+        let without_state_keyword = if lower.starts_with("state ") {
+            Some(line[6..].trim())
+        } else {
+            None
+        };
+        let transition_line = without_state_keyword.unwrap_or(line);
+        if let Some((from, to, signal)) = parse_sdl_transition(transition_line) {
+            record_state(&from, SdlStateKind::State, &mut state_index, &mut states);
+            record_state(&to, SdlStateKind::State, &mut state_index, &mut states);
+            transitions.push(SdlTransition { from, to, signal });
             continue;
         }
-        if let Some(_rest) = lower.strip_prefix("start ") {
-            let name = line[6..].trim();
-            record_state(name, SdlStateKind::Start, &mut seen, &mut states);
+        if let Some(raw) = without_state_keyword {
+            let (name, kind) = parse_sdl_state_decl(raw, SdlStateKind::State);
+            record_state(&name, kind, &mut state_index, &mut states);
             continue;
         }
-        if let Some(_rest) = lower.strip_prefix("stop ") {
-            let name = line[5..].trim();
-            record_state(name, SdlStateKind::Stop, &mut seen, &mut states);
-            continue;
-        }
-        if let Some((core, signal)) = line.split_once(':') {
-            if let Some((from, to)) = core.split_once("->") {
-                let from = from.trim().to_string();
-                let to = to.trim().to_string();
-                record_state(&from, SdlStateKind::State, &mut seen, &mut states);
-                record_state(&to, SdlStateKind::State, &mut seen, &mut states);
-                transitions.push(SdlTransition {
-                    from,
-                    to,
-                    signal: Some(signal.trim().to_string()),
-                });
-                continue;
-            }
-        }
-        if let Some((from, to)) = line.split_once("->") {
-            let from = from.trim().to_string();
-            let to = to.trim().to_string();
-            record_state(&from, SdlStateKind::State, &mut seen, &mut states);
-            record_state(&to, SdlStateKind::State, &mut seen, &mut states);
-            transitions.push(SdlTransition {
-                from,
-                to,
-                signal: None,
-            });
+        if let Some((keyword, name)) = split_sdl_keyword_decl(line) {
+            let (name, kind) = parse_sdl_state_decl(name, keyword);
+            record_state(&name, kind, &mut state_index, &mut states);
             continue;
         }
         // Otherwise treat as a state declaration.
-        record_state(line, SdlStateKind::State, &mut seen, &mut states);
+        let (name, kind) = parse_sdl_state_decl(line, SdlStateKind::State);
+        record_state(&name, kind, &mut state_index, &mut states);
     }
     Ok(SdlDocument {
         title,
@@ -706,6 +696,86 @@ fn normalize_sdl(document: Document) -> Result<SdlDocument, Diagnostic> {
         transitions,
         warnings,
     })
+}
+
+fn parse_sdl_transition(line: &str) -> Option<(String, String, Option<String>)> {
+    let (core, signal) = if let Some((core, signal)) = line.split_once(':') {
+        let signal = signal.trim();
+        (
+            core.trim(),
+            if signal.is_empty() {
+                None
+            } else {
+                Some(signal.to_string())
+            },
+        )
+    } else {
+        (line.trim(), None)
+    };
+    let (from, to) = core.split_once("->")?;
+    let from = from.trim();
+    let to = to.trim();
+    if from.is_empty() || to.is_empty() {
+        return None;
+    }
+    Some((from.to_string(), to.to_string(), signal))
+}
+
+fn split_sdl_keyword_decl(line: &str) -> Option<(SdlStateKind, &str)> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    for (keyword, kind) in [
+        ("start", SdlStateKind::Start),
+        ("input", SdlStateKind::Input),
+        ("output", SdlStateKind::Output),
+        ("decision", SdlStateKind::Decision),
+        ("stop", SdlStateKind::Stop),
+        ("end", SdlStateKind::Stop),
+    ] {
+        if lower == keyword {
+            return Some((kind, ""));
+        }
+        if lower.starts_with(keyword)
+            && lower[keyword.len()..]
+                .chars()
+                .next()
+                .is_some_and(char::is_whitespace)
+        {
+            return Some((kind, trimmed[keyword.len()..].trim()));
+        }
+    }
+    None
+}
+
+fn parse_sdl_state_decl(raw: &str, default_kind: SdlStateKind) -> (String, SdlStateKind) {
+    let mut text = raw.trim().to_string();
+    let mut kind = default_kind;
+    if let (Some(start), Some(end)) = (text.find("<<"), text.find(">>")) {
+        if start < end {
+            kind = match text[start + 2..end].trim().to_ascii_lowercase().as_str() {
+                "start" | "*" => SdlStateKind::Start,
+                "input" => SdlStateKind::Input,
+                "output" => SdlStateKind::Output,
+                "choice" | "decision" => SdlStateKind::Decision,
+                "end" | "stop" => SdlStateKind::Stop,
+                _ => default_kind,
+            };
+            text = format!("{}{}", text[..start].trim(), text[end + 2..].trim());
+            text = text.trim().to_string();
+        }
+    }
+    if text.is_empty() {
+        text = match kind {
+            SdlStateKind::Start => "Start",
+            SdlStateKind::Input => "Input",
+            SdlStateKind::Output => "Output",
+            SdlStateKind::Decision => "Decision",
+            SdlStateKind::State => "State",
+            SdlStateKind::Stop => "Stop",
+        }
+        .to_string();
+    }
+    (text, kind)
 }
 
 fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
@@ -1357,16 +1427,11 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         })
         .map(|c| c.target.clone());
     let project_start_day = project_start.as_deref().and_then(parse_iso_date_day);
+    let inferred_gantt_anchor_day =
+        infer_gantt_anchor_day(project_start_day, &tasks, &milestones, &constraints);
 
     if document.kind == DiagramKind::Gantt && !tasks.is_empty() {
-        let fallback_anchor = project_start_day.unwrap_or_else(|| {
-            tasks
-                .iter()
-                .filter(|t| t.start_day > 0)
-                .map(|t| t.start_day)
-                .min()
-                .unwrap_or(0)
-        });
+        let fallback_anchor = inferred_gantt_anchor_day.unwrap_or(0);
         let mut cursor = fallback_anchor;
         for task in &mut tasks {
             if task.start_day == 0 {
@@ -1428,6 +1493,43 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         legend,
         warnings: Vec::new(),
     })
+}
+
+fn infer_gantt_anchor_day(
+    project_start_day: Option<u32>,
+    tasks: &[TimelineTask],
+    milestones: &[TimelineMilestone],
+    constraints: &[TimelineConstraint],
+) -> Option<u32> {
+    let task_starts = tasks
+        .iter()
+        .filter(|task| task.start_day > 0)
+        .map(|task| task.start_day);
+    let milestone_dates = milestones
+        .iter()
+        .filter_map(|milestone| milestone.happens_on.as_deref())
+        .filter_map(parse_iso_date_day);
+    let constraint_dates = constraints
+        .iter()
+        .flat_map(|constraint| gantt_constraint_absolute_days(&constraint.target));
+
+    project_start_day
+        .into_iter()
+        .chain(task_starts)
+        .chain(milestone_dates)
+        .chain(constraint_dates)
+        .min()
+}
+
+fn gantt_constraint_absolute_days(target: &str) -> Vec<u32> {
+    let mut days = Vec::new();
+    if let Some(day) = parse_iso_date_day(target) {
+        days.push(day);
+    }
+    if let Some((start_day, _)) = parse_gantt_baseline_target(target) {
+        days.push(start_day);
+    }
+    days
 }
 
 fn parse_iso_date_day(raw: &str) -> Option<u32> {
@@ -2226,10 +2328,10 @@ fn normalize_archimate_document(document: Document) -> Result<ArchimateDocument,
 fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
     // expect: "Name" as alias <<layer>>  OR  Name <<layer>>  OR  "Name" <<layer>>
     let mut s = rest.trim().to_string();
-    let mut layer = "business".to_string();
+    let mut stereotype = "business".to_string();
     if let Some(open) = s.find("<<") {
         if let Some(close) = s[open + 2..].find(">>") {
-            layer = s[open + 2..open + 2 + close].trim().to_string();
+            stereotype = s[open + 2..open + 2 + close].trim().to_string();
             s = format!("{} {}", &s[..open], &s[open + 2 + close + 2..]);
         }
     }
@@ -2251,10 +2353,13 @@ fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
         (name, alias)
     };
     let (name, fill) = split_archimate_inline_color(name);
+    let layer = archimate_layer_from_stereotype(&stereotype);
+    let kind = archimate_kind_from_stereotype(&stereotype);
     Some(ArchimateElement {
         name,
         alias,
-        layer,
+        layer: layer.to_string(),
+        kind,
         fill,
         stroke: None,
     })
@@ -2263,7 +2368,7 @@ fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
 fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
     let open = line.find('(')?;
     let macro_name = line[..open].trim();
-    let layer = archimate_layer_from_macro(macro_name)?;
+    let (layer, kind) = archimate_layer_and_kind_from_macro(macro_name)?;
     let inside = line[open + 1..].trim_end_matches([')', ' ', '\t']);
     let args = split_csv_args(inside);
     let alias = args.first()?.trim().trim_matches('"').to_string();
@@ -2283,30 +2388,71 @@ fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
         name,
         alias: Some(alias),
         layer: layer.to_string(),
+        kind,
         fill,
         stroke: None,
     })
 }
 
-fn archimate_layer_from_macro(name: &str) -> Option<&'static str> {
+fn archimate_layer_and_kind_from_macro(name: &str) -> Option<(&'static str, String)> {
     let lower = name.to_ascii_lowercase();
-    if lower.starts_with("strategy_") {
-        Some("strategy")
+    let layer = if lower.starts_with("strategy_") {
+        "strategy"
     } else if lower.starts_with("business_") {
-        Some("business")
-    } else if lower.starts_with("application_") {
-        Some("application")
+        "business"
+    } else if lower.starts_with("application_") || lower.starts_with("data_") {
+        "application"
     } else if lower.starts_with("technology_") || lower.starts_with("physical_") {
-        Some("technology")
+        "technology"
     } else if lower.starts_with("motivation_") {
-        Some("motivation")
+        "motivation"
     } else if lower.starts_with("junction_") {
-        Some("junction")
+        "junction"
     } else if lower.starts_with("implementation_") || lower.starts_with("migration_") {
-        Some("strategy")
+        "strategy"
     } else {
-        None
+        return None;
+    };
+    Some((layer, archimate_kind_from_macro_name(name)))
+}
+
+fn archimate_kind_from_macro_name(name: &str) -> String {
+    let lower = name.to_ascii_lowercase();
+    if lower.starts_with("data_") {
+        return lower.replace('_', "-");
     }
+    name.split_once('_')
+        .map(|(_, suffix)| suffix)
+        .unwrap_or(name)
+        .trim_matches('_')
+        .replace('_', "-")
+        .to_ascii_lowercase()
+}
+
+fn archimate_layer_from_stereotype(stereotype: &str) -> String {
+    let lower = stereotype.to_ascii_lowercase().replace('_', "-");
+    if lower.starts_with("strategy")
+        || lower.starts_with("implementation")
+        || lower.starts_with("migration")
+    {
+        "strategy".to_string()
+    } else if lower.starts_with("business") {
+        "business".to_string()
+    } else if lower.starts_with("application") || lower.starts_with("data") {
+        "application".to_string()
+    } else if lower.starts_with("technology") || lower.starts_with("physical") {
+        "technology".to_string()
+    } else if lower.starts_with("motivation") {
+        "motivation".to_string()
+    } else if lower.starts_with("junction") {
+        "junction".to_string()
+    } else {
+        lower
+    }
+}
+
+fn archimate_kind_from_stereotype(stereotype: &str) -> String {
+    stereotype.trim().replace('_', "-").to_ascii_lowercase()
 }
 
 fn archimate_rel_kind_from_macro(name: &str) -> Option<&'static str> {
@@ -4459,6 +4605,7 @@ fn page_from(
     SequencePage {
         participants: document.participants.clone(),
         events: events.to_vec(),
+        teoz: document.teoz,
         title,
         header: document.header.clone(),
         footer: document.footer.clone(),
@@ -4482,6 +4629,19 @@ fn cleaned_title(value: &Option<String>) -> Option<String> {
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .map(ToOwned::to_owned)
+}
+
+fn parse_teoz_pragma(lower: &str) -> Option<bool> {
+    let mut parts = lower.split_whitespace();
+    if parts.next()? != "teoz" {
+        return None;
+    }
+    match parts.next() {
+        None => Some(true),
+        Some("true" | "on" | "yes") => Some(true),
+        Some("false" | "off" | "no") => Some(false),
+        Some(_) => Some(true),
+    }
 }
 
 pub fn normalize_with_options(
@@ -4509,6 +4669,7 @@ pub fn normalize_with_options(
     let mut legend_halign = LegendHAlign::default();
     let mut legend_valign = LegendVAlign::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut teoz = false;
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
     let mut group_stack: Vec<GroupFrame> = Vec::new();
@@ -4850,7 +5011,7 @@ pub fn normalize_with_options(
                 let trimmed = value.trim();
                 let lower = trimmed.to_ascii_lowercase();
                 if lower.starts_with("teoz ") || lower == "teoz" {
-                    // Accept teoz pragma as a deterministic no-op compatibility hint.
+                    teoz = parse_teoz_pragma(&lower).unwrap_or(true);
                 } else if lower == "sequencemessagespan true"
                     || lower == "sequence message span true"
                 {
@@ -5202,6 +5363,7 @@ pub fn normalize_with_options(
     Ok(SequenceDocument {
         participants,
         events,
+        teoz,
         title,
         header,
         footer,

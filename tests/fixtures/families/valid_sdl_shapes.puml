@@ -1,0 +1,15 @@
+@startsdl
+title SDL Shapes
+start Idle
+input Request
+state Processing
+decision Valid?
+output Reply
+stop Done
+Idle -> Request : receive
+Request -> Processing : parse
+Processing -> Valid? : check
+Valid? -> Reply : yes
+Valid? -> Idle : no
+Reply -> Done : complete
+@endsdl

@@ -117,6 +117,62 @@ fn render_core_uml_nested_scopes_lollipops_and_relation_annotations() {
 }
 
 #[test]
+fn render_activity_if_else_branches_use_distinct_columns() {
+    let svg = puml::render_source_to_svg(include_str!(
+        "../docs/examples/activity/02_if_then_else.puml"
+    ))
+    .expect("activity if/else example should render");
+    let texts = parse_svg_texts(&svg);
+    let text_x = |needle: &str| -> i32 {
+        texts
+            .iter()
+            .find(|text| text.text == needle)
+            .unwrap_or_else(|| panic!("missing text `{needle}`"))
+            .x
+    };
+
+    let then_x = text_x("Return 200");
+    let else_x = text_x("Return 401");
+    assert_ne!(
+        then_x, else_x,
+        "then and else actions should occupy distinct branch columns"
+    );
+    assert!(
+        else_x > then_x,
+        "else branch should be horizontally offset from the then branch"
+    );
+}
+
+#[test]
+fn render_activity_nested_if_else_reserves_outer_else_column_after_inner_branch() {
+    let svg =
+        puml::render_source_to_svg(include_str!("../docs/examples/activity/03_nested_if.puml"))
+            .expect("nested activity if/else example should render");
+    let texts = parse_svg_texts(&svg);
+    let text_x = |needle: &str| -> i32 {
+        texts
+            .iter()
+            .find(|text| text.text == needle)
+            .unwrap_or_else(|| panic!("missing text `{needle}`"))
+            .x
+    };
+
+    let execute_x = text_x("Execute");
+    let inner_else_x = text_x("Return 403");
+    let outer_else_x = text_x("Return 400");
+    let branch_xs = HashSet::from([execute_x, inner_else_x, outer_else_x]);
+
+    assert!(
+        branch_xs.len() >= 3,
+        "nested if/else should use separate columns for then, inner else, and outer else: {branch_xs:?}"
+    );
+    assert!(
+        execute_x < inner_else_x && inner_else_x < outer_else_x,
+        "outer else should be placed beyond the inner else branch"
+    );
+}
+
+#[test]
 fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
     let src = "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n@enduml\n";
     let svg = puml::render_source_to_svg(src).expect("decorated sequence render");
@@ -200,6 +256,46 @@ fn render_sequence_dotted_parallel_edges_share_teoz_row_deterministically() {
     assert!(svg.contains("stroke-dasharray=\"2 4\""));
     assert_snapshot!(
         "render_sequence_dotted_parallel_edges_share_teoz_row_deterministically",
+        svg
+    );
+}
+
+#[test]
+fn render_sequence_teoz_overlapping_parallel_routes_get_distinct_lanes() {
+    let src = fixture("arrows/valid_teoz_overlapping_routes.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    assert!(doc.teoz);
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    assert_eq!(scene.messages.len(), 5);
+    let shared_row_y = scene.messages[0].y;
+    assert!(
+        scene.messages[..4]
+            .iter()
+            .all(|message| message.y == shared_row_y),
+        "Teoz `&` messages stay attached to the initiating row"
+    );
+    let route_lanes = scene.messages[..4]
+        .iter()
+        .map(|message| message.route_y)
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        route_lanes.len(),
+        4,
+        "overlapping Teoz messages should not collapse onto one rendered route"
+    );
+    assert!(
+        scene.messages[4].y > *route_lanes.iter().max().unwrap(),
+        "the following row should clear the routed parallel lanes"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("duplicate route"));
+    assert!(svg.contains("self audit"));
+    assert!(svg.contains("route labels stay readable"));
+    assert_snapshot!(
+        "render_sequence_teoz_overlapping_parallel_routes_get_distinct_lanes",
         svg
     );
 }

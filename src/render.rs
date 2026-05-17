@@ -242,6 +242,7 @@ pub fn render_svg(scene: &Scene) -> String {
             .map(f32::from)
             .unwrap_or(1.5)
             .clamp(1.0, 8.0);
+        let line_y = m.route_y;
         if m.x1 == m.x2 {
             let loop_w = 46;
             let loop_h = 26;
@@ -250,17 +251,17 @@ pub fn render_svg(scene: &Scene) -> String {
             out.push_str(&format!(
                 "<path d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
                 m.x1,
-                m.y,
+                line_y,
                 x2,
-                m.y,
+                line_y,
                 x2,
-                m.y + loop_h,
+                line_y + loop_h,
                 m.x1,
-                m.y + loop_h,
+                line_y + loop_h,
                 x2,
-                m.y + loop_h * 2,
+                line_y + loop_h * 2,
                 m.x1,
-                m.y + loop_h * 2,
+                line_y + loop_h * 2,
                 stroke_color,
                 stroke_width,
                 stroke_dash,
@@ -269,16 +270,16 @@ pub fn render_svg(scene: &Scene) -> String {
         } else {
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
-                m.x1, m.y, m.x2, m.y, stroke_color, stroke_width, stroke_dash, hidden
+                m.x1, line_y, m.x2, line_y, stroke_color, stroke_width, stroke_dash, hidden
             ));
         }
         render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, stroke_width, hidden);
 
         if let Some(virtual_ep) = m.from_virtual {
-            render_virtual_endpoint_marker(&mut out, m.x1, m.y, virtual_ep.kind);
+            render_virtual_endpoint_marker(&mut out, m.x1, line_y, virtual_ep.kind);
         }
         if let Some(virtual_ep) = m.to_virtual {
-            render_virtual_endpoint_marker(&mut out, m.x2, m.y, virtual_ep.kind);
+            render_virtual_endpoint_marker(&mut out, m.x2, line_y, virtual_ep.kind);
         }
 
         if !m.label_lines.is_empty() {
@@ -293,9 +294,9 @@ pub fn render_svg(scene: &Scene) -> String {
                 0
             };
             let start_y = if m.style.parallel || below {
-                m.y + 16 + lane_offset
+                line_y + 16 + lane_offset
             } else {
-                m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
+                line_y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
             };
             for (idx, line) in m.label_lines.iter().enumerate() {
                 out.push_str(&creole_text(
@@ -309,9 +310,9 @@ pub fn render_svg(scene: &Scene) -> String {
         } else if let Some(label) = &m.label {
             let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
             let ty = if scene.style.response_message_below_arrow && m.arrow.starts_with('<') {
-                m.y + 16
+                line_y + 16
             } else {
-                m.y - 8
+                line_y - 8
             };
             out.push_str(&creole_text(
                 tx,
@@ -515,7 +516,7 @@ fn render_sequence_arrow_heads(
         render_arrow_head(
             out,
             ArrowHeadRender {
-                point: (m.x1, m.y),
+                point: (m.x1, m.route_y),
                 from_to_x: (m.x2, m.x1),
                 open: open_head,
                 slant: left_slant,
@@ -529,7 +530,7 @@ fn render_sequence_arrow_heads(
         render_arrow_head(
             out,
             ArrowHeadRender {
-                point: (m.x2, m.y),
+                point: (m.x2, m.route_y),
                 from_to_x: (m.x1, m.x2),
                 open: open_head,
                 slant: right_slant,
@@ -540,10 +541,26 @@ fn render_sequence_arrow_heads(
         );
     }
     if let Some(marker) = left_marker {
-        render_arrow_endpoint_marker(out, m.x1, m.y, marker, stroke_color, stroke_width, hidden);
+        render_arrow_endpoint_marker(
+            out,
+            m.x1,
+            m.route_y,
+            marker,
+            stroke_color,
+            stroke_width,
+            hidden,
+        );
     }
     if let Some(marker) = right_marker {
-        render_arrow_endpoint_marker(out, m.x2, m.y, marker, stroke_color, stroke_width, hidden);
+        render_arrow_endpoint_marker(
+            out,
+            m.x2,
+            m.route_y,
+            marker,
+            stroke_color,
+            stroke_width,
+            hidden,
+        );
     }
 }
 
@@ -5961,6 +5978,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         diamond_next_slot: i32, // first slot_y inside the branches
         // then-branch: accumulated while in_else==false
         then_cx: i32,
+        then_rightmost_cx: i32,
         then_end_next_slot: i32, // current_slot_y saved at "Else" time
         // else-branch: accumulated while in_else==true
         in_else: bool,
@@ -5987,12 +6005,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
 
     for (i, meta) in metas.iter().enumerate() {
         let base_cx = lane_center_x(&meta.lane_name);
-        let in_else_branch = if_stack.last().map(|f| f.in_else).unwrap_or(false);
-        let cx = if in_else_branch {
-            if_stack.last().map(|f| f.else_cx).unwrap_or(base_cx)
-        } else {
-            base_cx
-        };
+        let cx = if_stack
+            .last()
+            .map(|f| if f.in_else { f.else_cx } else { f.then_cx })
+            .unwrap_or(base_cx);
 
         match meta.step_kind.as_str() {
             "IfStart" => {
@@ -6011,11 +6027,17 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     diamond_arrow_out: arrow_out_y,
                     diamond_next_slot: next_slot_y,
                     then_cx: cx,
+                    then_rightmost_cx: cx,
                     then_end_next_slot: next_slot_y, // updated at "Else"
                     in_else: false,
                     else_cx,
                     else_start_slot: next_slot_y, // updated at "Else"
                 });
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                    }
+                }
                 current_slot_y = next_slot_y;
             }
             "Else" => {
@@ -6024,16 +6046,26 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 let frame = if_stack.last_mut().expect("else without if");
                 frame.then_cx = cx; // cx at end of then-branch (same lane)
                 frame.then_end_next_slot = then_end_next_slot;
-                // Else marker is placed at diamond_next_slot y, else_cx x
-                let else_cx = frame.else_cx;
+                // Else marker is placed beside all columns already used by
+                // the then-branch, so nested branches do not collide with it.
+                let else_cx = (frame.diamond_cx + branch_x_offset)
+                    .max(frame.then_rightmost_cx + branch_x_offset);
+                frame.else_cx = else_cx;
+                let diamond_cx = frame.diamond_cx;
+                let diamond_arrow_out = frame.diamond_arrow_out;
                 let slot_y = frame.diamond_next_slot;
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
                 frame.else_start_slot = slot_y;
                 frame.in_else = true;
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(else_cx);
+                    }
+                }
                 // Suppress standard prev→cur; add diamond→Else arrow
                 suppress_prev_arrow.insert(i);
-                extra_arrows.push((frame.diamond_cx, frame.diamond_arrow_out, else_cx, slot_y));
+                extra_arrows.push((diamond_cx, diamond_arrow_out, else_cx, slot_y));
                 node_layouts.push(NodeLayout {
                     cx: else_cx,
                     slot_y,
@@ -6064,6 +6096,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     arrow_out_y,
                     next_slot_y,
                 });
+                for parent in &mut if_stack {
+                    if !parent.in_else {
+                        parent.then_rightmost_cx =
+                            parent.then_rightmost_cx.max(frame.then_rightmost_cx);
+                    }
+                }
                 current_slot_y = next_slot_y;
             }
             _ => {
@@ -6076,6 +6114,11 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     arrow_out_y,
                     next_slot_y,
                 });
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                    }
+                }
                 current_slot_y = next_slot_y;
             }
         }
@@ -7444,14 +7487,14 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         "junction",
     ];
     let lane_height = 80;
-    let height = 80 + (layers.len() as i32) * lane_height + (document.relations.len() as i32) * 18;
+    let height = 80 + (layers.len() as i32) * lane_height;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
         width, height, width, height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
-    render_relation_marker_defs(&mut out, "#475569");
+    render_archimate_relation_marker_defs(&mut out, "#475569");
     let mut y = 28;
     out.push_str(&format!(
         "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
@@ -7459,7 +7502,8 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         escape_text(document.title.as_deref().unwrap_or("Archimate"))
     ));
     y += 16;
-    let mut element_positions: BTreeMap<String, (i32, i32)> = BTreeMap::new();
+    let mut element_bounds: BTreeMap<String, (i32, i32, i32, i32)> = BTreeMap::new();
+    let mut element_markup = String::new();
     for layer in layers.iter() {
         let layer_y = y;
         let bg = match *layer {
@@ -7484,27 +7528,24 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         for elem in document.elements.iter().filter(|e| e.layer == *layer) {
             let fill = elem.fill.as_deref().unwrap_or("white");
             let stroke = elem.stroke.as_deref().unwrap_or("#334155");
-            out.push_str(&format!(
-                "<rect class=\"archimate-element\" data-archimate-layer=\"{}\" data-archimate-alias=\"{}\" x=\"{}\" y=\"{}\" width=\"140\" height=\"40\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                escape_text(&elem.layer),
-                escape_text(elem.alias.as_deref().unwrap_or("")),
+            let elem_y = layer_y + 22;
+            render_archimate_element_shape(
+                &mut element_markup,
+                &elem.layer,
+                &elem.kind,
+                elem.alias.as_deref().unwrap_or(""),
                 x,
-                layer_y + 22,
-                escape_text(fill),
-                escape_text(stroke)
-            ));
-            element_positions.insert(elem.name.clone(), (x + 70, layer_y + 42));
+                elem_y,
+                140,
+                40,
+                fill,
+                stroke,
+            );
+            element_bounds.insert(elem.name.clone(), (x, elem_y, 140, 40));
             if let Some(alias) = &elem.alias {
-                element_positions.insert(alias.clone(), (x + 70, layer_y + 42));
+                element_bounds.insert(alias.clone(), (x, elem_y, 140, 40));
             }
-            if elem.layer == "junction" {
-                out.push_str(&format!(
-                    "<circle class=\"archimate-junction\" cx=\"{}\" cy=\"{}\" r=\"8\" fill=\"#334155\"/>",
-                    x + 122,
-                    layer_y + 34
-                ));
-            }
-            out.push_str(&format!(
+            element_markup.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
                 x + 8,
                 layer_y + 46,
@@ -7518,32 +7559,16 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         y += lane_height;
     }
     for rel in &document.relations {
-        let Some(&(x1, y1)) = element_positions.get(&rel.from) else {
+        let Some(&from) = element_bounds.get(&rel.from) else {
             continue;
         };
-        let Some(&(x2, y2)) = element_positions.get(&rel.to) else {
+        let Some(&to) = element_bounds.get(&rel.to) else {
             continue;
         };
-        let color = rel
-            .style
-            .as_deref()
-            .filter(|style| style.starts_with('#') || style.starts_with('$'))
-            .unwrap_or("#475569");
-        let dashed = rel
-            .style
-            .as_deref()
-            .is_some_and(|style| style.to_ascii_lowercase().contains("dashed"));
-        let width = if rel
-            .style
-            .as_deref()
-            .is_some_and(|style| style.to_ascii_lowercase().contains("bold"))
-        {
-            2.5
-        } else {
-            1.5
-        };
+        let (x1, y1, x2, y2) = compute_edge_anchors_tuple(from, to);
+        let relation_style = archimate_relation_style(rel.kind.as_str(), rel.style.as_deref());
         out.push_str(&format!(
-            "<line class=\"archimate-relation-edge\" data-archimate-kind=\"{}\" data-archimate-direction=\"{}\" data-archimate-style=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{} marker-end=\"url(#arrow-open)\"/>",
+            "<line class=\"archimate-relation-edge\" data-archimate-kind=\"{}\" data-archimate-direction=\"{}\" data-archimate-style=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} />",
             escape_text(&rel.kind),
             escape_text(rel.direction.as_deref().unwrap_or("")),
             escape_text(rel.style.as_deref().unwrap_or("")),
@@ -7551,52 +7576,254 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
             y1,
             x2,
             y2,
-            escape_text(color),
-            width,
-            if dashed { " stroke-dasharray=\"5 3\"" } else { "" }
+            escape_text(relation_style.color),
+            relation_style.stroke_width,
+            relation_style.dash,
+            relation_style.marker_start,
+            relation_style.marker_end
         ));
-    }
-    if !document.relations.is_empty() {
-        y += 12;
-        out.push_str(&format!(
-            "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#334155\">Relations</text>",
-            y
-        ));
-        y += 18;
-        for rel in &document.relations {
-            let label = rel
-                .label
-                .as_deref()
-                .map(|l| format!(" : {l}"))
-                .unwrap_or_default();
-            let direction = rel
-                .direction
-                .as_deref()
-                .map(|d| format!(" direction={d}"))
-                .unwrap_or_default();
-            let style = rel
-                .style
-                .as_deref()
-                .map(|s| format!(" style={s}"))
-                .unwrap_or_default();
+        if let Some(label) = rel.label.as_deref().filter(|label| !label.is_empty()) {
             out.push_str(&format!(
-                "<text class=\"archimate-relation\" data-archimate-kind=\"{}\" data-archimate-direction=\"{}\" data-archimate-style=\"{}\" x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} -[{}{}{}]-&gt; {}{}</text>",
+                "<text class=\"archimate-relation-label\" data-archimate-kind=\"{}\" x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">{}</text>",
                 escape_text(&rel.kind),
-                escape_text(rel.direction.as_deref().unwrap_or("")),
-                escape_text(rel.style.as_deref().unwrap_or("")),
-                y,
-                escape_text(&rel.from),
-                escape_text(&rel.kind),
-                escape_text(&direction),
-                escape_text(&style),
-                escape_text(&rel.to),
-                escape_text(&label)
+                (x1 + x2) / 2 + 6,
+                (y1 + y2) / 2 - 4,
+                escape_text(label)
             ));
-            y += 18;
         }
     }
+    out.push_str(&element_markup);
     out.push_str("</svg>");
     out
+}
+
+struct ArchimateRelationStyle<'a> {
+    color: &'a str,
+    stroke_width: f64,
+    dash: &'static str,
+    marker_start: &'static str,
+    marker_end: &'static str,
+}
+
+fn archimate_relation_style<'a>(
+    kind: &str,
+    inline_style: Option<&'a str>,
+) -> ArchimateRelationStyle<'a> {
+    let lower_style = inline_style.unwrap_or("").to_ascii_lowercase();
+    let color = inline_style
+        .filter(|style| style.starts_with('#') || style.starts_with('$'))
+        .unwrap_or("#475569");
+    let bold = lower_style.contains("bold");
+    let dashed = lower_style.contains("dashed")
+        || matches!(
+            kind,
+            "access" | "flow" | "influence" | "realization" | "used_by"
+        );
+    let marker_start = match kind {
+        "aggregation" => " marker-start=\"url(#arrow-diamond-open)\"",
+        "composition" => " marker-start=\"url(#arrow-diamond-filled)\"",
+        "assignment" => " marker-start=\"url(#archimate-assignment)\"",
+        _ => "",
+    };
+    let marker_end = match kind {
+        "association" => "",
+        "realization" | "specialization" => " marker-end=\"url(#arrow-triangle)\"",
+        _ => " marker-end=\"url(#arrow-open)\"",
+    };
+    ArchimateRelationStyle {
+        color,
+        stroke_width: if bold { 2.5 } else { 1.5 },
+        dash: if dashed {
+            " stroke-dasharray=\"5 3\""
+        } else {
+            ""
+        },
+        marker_start,
+        marker_end,
+    }
+}
+
+fn render_archimate_element_shape(
+    out: &mut String,
+    layer: &str,
+    kind: &str,
+    alias: &str,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    fill: &str,
+    stroke: &str,
+) {
+    out.push_str(&format!(
+        "<g class=\"archimate-element\" data-archimate-layer=\"{}\" data-archimate-kind=\"{}\" data-archimate-alias=\"{}\">",
+        escape_text(layer),
+        escape_text(kind),
+        escape_text(alias)
+    ));
+    match archimate_shape_for(layer, kind) {
+        "junction" => {
+            out.push_str(&format!(
+                "<circle class=\"archimate-junction\" cx=\"{}\" cy=\"{}\" r=\"10\" fill=\"#334155\"/>",
+                x + w / 2,
+                y + h / 2
+            ));
+        }
+        "component" => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x,
+                y,
+                w,
+                h,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"15\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x - 4,
+                y + 10,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"15\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x - 4,
+                y + h - 18,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+        }
+        "service" | "process" => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"18\" ry=\"18\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x,
+                y,
+                w,
+                h,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+        }
+        "node" => {
+            out.push_str(&format!(
+                "<path d=\"M{x},{front_y} H{front_right} L{right},{top} V{back_bottom} L{front_right},{bottom} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                escape_text(fill),
+                escape_text(stroke),
+                front_y = y + 8,
+                front_right = x + w - 12,
+                right = x + w,
+                top = y,
+                back_bottom = y + h - 8,
+                bottom = y + h
+            ));
+            out.push_str(&format!(
+                "<path d=\"M{} {} V{} M{} {} L{} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + w - 12,
+                y + 8,
+                y + h,
+                x + w - 12,
+                y + 8,
+                x + w,
+                y,
+                escape_text(stroke)
+            ));
+        }
+        "data-object" => {
+            out.push_str(&format!(
+                "<path d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x + w - 18,
+                x + w,
+                y + 18,
+                y + h,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+            out.push_str(&format!(
+                "<path d=\"M{} {y} V{} H{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + w - 18,
+                y + 18,
+                x + w,
+                escape_text(stroke)
+            ));
+        }
+        "motivation" => {
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x + 14,
+                y,
+                x + w - 14,
+                y,
+                x + w,
+                y + h / 2,
+                x + w - 14,
+                y + h,
+                x + 14,
+                y + h,
+                x,
+                y + h / 2,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+        }
+        "strategy" => {
+            out.push_str(&format!(
+                "<path d=\"M{x},{y} H{} L{} {} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x + w - 18,
+                x + w,
+                y + h,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+        }
+        _ => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x,
+                y,
+                w,
+                h,
+                escape_text(fill),
+                escape_text(stroke)
+            ));
+        }
+    }
+    out.push_str("</g>");
+}
+
+fn archimate_shape_for(layer: &str, kind: &str) -> &'static str {
+    let lower = kind.to_ascii_lowercase();
+    if layer == "junction" || lower.starts_with("and") || lower.starts_with("or") {
+        "junction"
+    } else if lower.contains("component") {
+        "component"
+    } else if lower.contains("service") {
+        "service"
+    } else if lower.contains("process") || lower.contains("function") || lower.contains("event") {
+        "process"
+    } else if lower.contains("node")
+        || lower.contains("device")
+        || lower.contains("system-software")
+    {
+        "node"
+    } else if lower.contains("data-object") || lower.contains("artifact") {
+        "data-object"
+    } else if layer == "motivation" {
+        "motivation"
+    } else if layer == "strategy" {
+        "strategy"
+    } else {
+        "box"
+    }
+}
+
+fn render_archimate_relation_marker_defs(out: &mut String, arrow_stroke: &str) {
+    render_relation_marker_defs(out, arrow_stroke);
+    out.push_str(&format!(
+        "<defs><marker id=\"archimate-assignment\" viewBox=\"0 0 10 10\" refX=\"1\" refY=\"5\" markerWidth=\"8\" markerHeight=\"8\" orient=\"auto-start-reverse\"><circle cx=\"5\" cy=\"5\" r=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/></marker></defs>",
+        escape_text(arrow_stroke),
+        escape_text(arrow_stroke)
+    ));
 }
 
 pub fn render_regex_svg(document: &RegexDocument) -> String {
@@ -7992,13 +8219,15 @@ pub fn render_ditaa_svg(document: &DitaaDocument) -> String {
 }
 
 pub fn render_sdl_svg(document: &SdlDocument) -> String {
-    let width = 820;
-    let col_w = 160;
-    let row_h = 90;
     let state_count = document.states.len().max(1) as i32;
-    let cols = ((width - 80) / col_w).max(1);
+    let cols = state_count.min(2).max(1);
+    let col_w = 260;
+    let row_h = 96;
+    let margin_x = 40;
+    let header_h = if document.title.is_some() { 64 } else { 40 };
     let rows = (state_count + cols - 1) / cols;
-    let height = 120 + rows * row_h + (document.transitions.len() as i32 * 18);
+    let width = margin_x * 2 + cols * col_w;
+    let height = header_h + rows * row_h + 48;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
@@ -8006,69 +8235,250 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
         h = height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
-    let mut y = 32;
+    out.push_str(
+        "<defs><marker id=\"sdl-arrow\" markerWidth=\"10\" markerHeight=\"10\" refX=\"8\" refY=\"3\" orient=\"auto\"><path d=\"M0,0 L0,6 L9,3 z\" fill=\"#334155\"/></marker></defs>",
+    );
+    let mut y = 28;
     if let Some(title) = &document.title {
         out.push_str(&format!(
-            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" fill=\"#0f172a\">{}</text>",
             escape_text(title)
         ));
         y += 24;
     }
     out.push_str(&format!(
-        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">SDL state machine</text>"
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">SDL diagram</text>"
     ));
-    y += 16;
-    let grid_top = y;
+    let grid_top = header_h;
+    let mut positions: BTreeMap<&str, SdlNodeBox> = BTreeMap::new();
     for (idx, state) in document.states.iter().enumerate() {
         let col = (idx as i32) % cols;
         let row = (idx as i32) / cols;
-        let sx = 40 + col * col_w;
-        let sy = grid_top + row * row_h + 20;
-        let (fill, stroke) = match state.kind {
-            SdlStateKind::Start => ("#dcfce7", "#16a34a"),
-            SdlStateKind::Stop => ("#fee2e2", "#dc2626"),
-            SdlStateKind::State => ("#e0e7ff", "#4f46e5"),
-        };
-        out.push_str(&format!(
-            "<rect x=\"{sx}\" y=\"{sy}\" width=\"{w}\" height=\"40\" rx=\"18\" ry=\"18\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-            sx = sx,
-            sy = sy,
-            w = col_w - 16
-        ));
-        out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}: {}</text>",
-            sdl_state_kind_label(state.kind),
-            escape_text(&state.name),
-            tx = sx + 8,
-            ty = sy + 24
-        ));
+        let node = sdl_node_box(
+            margin_x + col * col_w + (col_w - SDL_NODE_W) / 2,
+            grid_top + row * row_h + 12,
+            state.kind,
+        );
+        positions.insert(&state.name, node);
     }
-    let mut ty = grid_top + rows * row_h + 16;
-    out.push_str(&format!(
-        "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#334155\">Transitions</text>"
-    ));
-    ty += 18;
+
     for tr in &document.transitions {
-        let sig = tr
-            .signal
-            .as_deref()
-            .map(|s| format!(" : {s}"))
-            .unwrap_or_default();
-        out.push_str(&format!(
-            "<text x=\"36\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} -&gt; {}{}</text>",
-            escape_text(&tr.from),
-            escape_text(&tr.to),
-            escape_text(&sig)
-        ));
-        ty += 18;
+        let Some(from) = positions.get(tr.from.as_str()) else {
+            continue;
+        };
+        let Some(to) = positions.get(tr.to.as_str()) else {
+            continue;
+        };
+        render_sdl_transition(&mut out, tr, *from, *to);
+    }
+
+    for state in &document.states {
+        if let Some(node) = positions.get(state.name.as_str()) {
+            render_sdl_node(&mut out, state, *node);
+        }
     }
     out.push_str("</svg>");
     out
 }
 
+const SDL_NODE_W: i32 = 168;
+const SDL_NODE_H: i32 = 48;
+
+#[derive(Debug, Clone, Copy)]
+struct SdlNodeBox {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+}
+
+fn sdl_node_box(x: i32, y: i32, kind: SdlStateKind) -> SdlNodeBox {
+    match kind {
+        SdlStateKind::Start | SdlStateKind::Stop => SdlNodeBox {
+            x: x + 44,
+            y,
+            w: 80,
+            h: 56,
+        },
+        SdlStateKind::Decision => SdlNodeBox {
+            x: x + 12,
+            y: y - 8,
+            w: 144,
+            h: 72,
+        },
+        SdlStateKind::Input | SdlStateKind::Output | SdlStateKind::State => SdlNodeBox {
+            x,
+            y,
+            w: SDL_NODE_W,
+            h: SDL_NODE_H,
+        },
+    }
+}
+
+fn render_sdl_transition(
+    out: &mut String,
+    tr: &crate::model::SdlTransition,
+    from: SdlNodeBox,
+    to: SdlNodeBox,
+) {
+    let (x1, y1, x2, y2) = sdl_transition_endpoints(from, to);
+    if from.x == to.x && from.y == to.y {
+        let cx = from.x + from.w;
+        let cy = from.y + from.h / 2;
+        out.push_str(&format!(
+            "<path class=\"sdl-transition\" data-sdl-from=\"{}\" data-sdl-to=\"{}\" d=\"M {cx} {cy} C {} {}, {} {}, {cx} {}\" fill=\"none\" stroke=\"#334155\" stroke-width=\"1.5\" marker-end=\"url(#sdl-arrow)\"/>",
+            escape_text(&tr.from),
+            escape_text(&tr.to),
+            cx + 46,
+            cy - 24,
+            cx + 46,
+            cy + 34,
+            cy + 10,
+        ));
+    } else {
+        out.push_str(&format!(
+            "<line class=\"sdl-transition\" data-sdl-from=\"{}\" data-sdl-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#334155\" stroke-width=\"1.5\" marker-end=\"url(#sdl-arrow)\"/>",
+            escape_text(&tr.from),
+            escape_text(&tr.to),
+        ));
+    }
+    if let Some(label) = &tr.signal {
+        let lx = (x1 + x2) / 2;
+        let ly = (y1 + y2) / 2 - 8;
+        out.push_str(&format!(
+            "<text class=\"sdl-transition-label\" x=\"{lx}\" y=\"{ly}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" fill=\"#475569\">{}</text>",
+            escape_text(label)
+        ));
+    }
+}
+
+fn sdl_transition_endpoints(from: SdlNodeBox, to: SdlNodeBox) -> (i32, i32, i32, i32) {
+    let fcx = from.x + from.w / 2;
+    let fcy = from.y + from.h / 2;
+    let tcx = to.x + to.w / 2;
+    let tcy = to.y + to.h / 2;
+    let dx = tcx - fcx;
+    let dy = tcy - fcy;
+    if dx.abs() >= dy.abs() {
+        if dx >= 0 {
+            (from.x + from.w, fcy, to.x, tcy)
+        } else {
+            (from.x, fcy, to.x + to.w, tcy)
+        }
+    } else if dy >= 0 {
+        (fcx, from.y + from.h, tcx, to.y)
+    } else {
+        (fcx, from.y, tcx, to.y + to.h)
+    }
+}
+
+fn render_sdl_node(out: &mut String, state: &crate::model::SdlState, node: SdlNodeBox) {
+    let kind = sdl_state_kind_label(state.kind);
+    out.push_str(&format!(
+        "<g class=\"sdl-node sdl-{kind}\" data-sdl-kind=\"{kind}\" data-sdl-name=\"{}\">",
+        escape_text(&state.name)
+    ));
+    match state.kind {
+        SdlStateKind::Start => {
+            let cx = node.x + node.w / 2;
+            let cy = node.y + 18;
+            out.push_str(&format!(
+                "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"13\" fill=\"#111827\"/>"
+            ));
+            render_sdl_label(out, &state.name, cx, node.y + 50, "#111827");
+        }
+        SdlStateKind::Stop => {
+            let cx = node.x + node.w / 2;
+            let cy = node.y + 18;
+            out.push_str(&format!(
+                "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"15\" fill=\"none\" stroke=\"#111827\" stroke-width=\"2\"/><circle cx=\"{cx}\" cy=\"{cy}\" r=\"9\" fill=\"#111827\"/>"
+            ));
+            render_sdl_label(out, &state.name, cx, node.y + 50, "#111827");
+        }
+        SdlStateKind::Decision => {
+            let cx = node.x + node.w / 2;
+            let cy = node.y + node.h / 2;
+            out.push_str(&format!(
+                "<polygon points=\"{cx},{} {},{cy} {cx},{} {},{cy}\" fill=\"#fef3c7\" stroke=\"#b45309\" stroke-width=\"1.5\"/>",
+                node.y,
+                node.x + node.w,
+                node.y + node.h,
+                node.x,
+            ));
+            render_sdl_label(out, &state.name, cx, cy + 4, "#78350f");
+        }
+        SdlStateKind::Input => {
+            let slant = 16;
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#e0f2fe\" stroke=\"#0284c7\" stroke-width=\"1.5\"/>",
+                node.x + slant,
+                node.y,
+                node.x + node.w,
+                node.y,
+                node.x + node.w - slant,
+                node.y + node.h,
+                node.x,
+                node.y + node.h,
+            ));
+            render_sdl_label(
+                out,
+                &state.name,
+                node.x + node.w / 2,
+                node.y + node.h / 2 + 4,
+                "#075985",
+            );
+        }
+        SdlStateKind::Output => {
+            let slant = 16;
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#dcfce7\" stroke=\"#16a34a\" stroke-width=\"1.5\"/>",
+                node.x,
+                node.y,
+                node.x + node.w - slant,
+                node.y,
+                node.x + node.w,
+                node.y + node.h,
+                node.x + slant,
+                node.y + node.h,
+            ));
+            render_sdl_label(
+                out,
+                &state.name,
+                node.x + node.w / 2,
+                node.y + node.h / 2 + 4,
+                "#166534",
+            );
+        }
+        SdlStateKind::State => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#e0e7ff\" stroke=\"#4f46e5\" stroke-width=\"1.5\"/>",
+                node.x, node.y, node.w, node.h
+            ));
+            render_sdl_label(
+                out,
+                &state.name,
+                node.x + node.w / 2,
+                node.y + node.h / 2 + 4,
+                "#312e81",
+            );
+        }
+    }
+    out.push_str("</g>");
+}
+
+fn render_sdl_label(out: &mut String, text: &str, x: i32, y: i32, fill: &str) {
+    out.push_str(&format!(
+        "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{fill}\">{}</text>",
+        escape_text(text)
+    ));
+}
+
 fn sdl_state_kind_label(kind: SdlStateKind) -> &'static str {
     match kind {
         SdlStateKind::Start => "start",
+        SdlStateKind::Input => "input",
+        SdlStateKind::Output => "output",
+        SdlStateKind::Decision => "decision",
         SdlStateKind::Stop => "stop",
         SdlStateKind::State => "state",
     }
