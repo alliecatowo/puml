@@ -1,67 +1,57 @@
 # puml
 
-Rust-native, deterministic diagram rendering for people, docs, and agents.
+Fast, no-Java diagram rendering for PlantUML-compatible docs, CI, editors, and agents.
 
+[![main gate](https://github.com/alliecatowo/puml/actions/workflows/main-gate.yml/badge.svg)](https://github.com/alliecatowo/puml/actions/workflows/main-gate.yml)
+[![PR gate](https://github.com/alliecatowo/puml/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/alliecatowo/puml/actions/workflows/pr-gate.yml)
+[![docs site](https://github.com/alliecatowo/puml/actions/workflows/pages.yml/badge.svg)](https://github.com/alliecatowo/puml/actions/workflows/pages.yml)
 [![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)](Cargo.toml)
 [![Rust 2021](https://img.shields.io/badge/rust-2021-f97316)](Cargo.toml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
-[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-16a34a)](https://alliecatowo.github.io/puml/)
-[![PlantUML compatibility target](https://img.shields.io/badge/PlantUML-compatible%20target-14b8a6)](docs/audits/plantuml_parity_source_of_truth.md)
-[![deterministic SVG](https://img.shields.io/badge/output-deterministic%20SVG-0f766e)](docs/benchmarks/README.md)
+[![docs](https://img.shields.io/badge/docs-alliecatowo.github.io%2Fpuml-16a34a)](https://alliecatowo.github.io/puml/)
 
-`puml` is the Rust renderer binary and engine: a no-Java, PlantUML-compatible diagram renderer. It parses diagram sources, lowers them through deterministic compiler stages, and emits SVG or PNG from a single CLI without needing a JVM, Graphviz install, or rendering server.
+`puml` is a Rust renderer and CLI for turning diagram source into deterministic SVG or PNG. The goal is simple: make PlantUML-compatible rendering feel like a normal compiler tool, with no JVM, no Graphviz install, no browser runtime, and no rendering server required at runtime.
 
-PlantUML is the compatibility target. PicoUML is our own language surface and superset path for diagrams that need to stay easy to author, diff, validate, and render in automation. Mermaid support is a frontend adapter for selected families, not a JavaScript runtime dependency.
+PlantUML is the compatibility target. `picouml` is this project's ergonomic superset path: a smaller, project-owned language surface that stays easy to write, diff, validate, and repair. Mermaid input already routes through adapter frontends for supported families, and the same architecture is intended to host future Markdown/HTML-facing frontends without moving rendering into JavaScript.
 
-```plantuml
-@startuml
-Alice -> Bob: Hello
-Bob --> Alice: Ack
-@enduml
+<p>
+  <a href="docs/examples/groups_notes.puml"><img src="docs/examples/groups_notes.svg" alt="Sequence diagram with groups and notes" width="48%"></a>
+  <a href="docs/examples/component/06_with_arrows.puml"><img src="docs/examples/component/06_with_arrows.svg" alt="Component diagram with arrows" width="48%"></a>
+</p>
+<p>
+  <a href="docs/examples/gantt/05_multi_task.puml"><img src="docs/examples/gantt/05_multi_task.svg" alt="Gantt chart" width="48%"></a>
+  <a href="docs/examples/json/03_nested.puml"><img src="docs/examples/json/03_nested.svg" alt="Nested JSON projection" width="48%"></a>
+</p>
+
+## Why puml?
+
+Diagrams belong in source control. They should be quick to render locally, boring to run in CI, easy for editors to validate, and deterministic enough that humans and AI agents can safely collaborate on them.
+
+`puml` is built around that compiler-shaped workflow:
+
+- Native Rust binary: install one CLI and render offline.
+- Deterministic output: committed SVG fixtures can act as real regression evidence.
+- PlantUML compatibility: broad current coverage, tracked honestly as an ongoing target.
+- Multiple frontends: PlantUML-compatible source, first-class `picouml`, selected Mermaid adapters, and a path for future Markdown/HTML surfaces.
+- Automation-friendly diagnostics: `--check`, JSON diagnostics, markdown fence extraction, metadata, and pipeline dumps for bots, editors, and review tools.
+
+## Quick Start
+
+Install from GitHub:
+
+```bash
+cargo install --git https://github.com/alliecatowo/puml --bin puml
 ```
 
-![Basic Hello](docs/examples/basic_hello.svg)
-
-## Why
-
-Diagrams are still weirdly hard to keep in a codebase. PlantUML has the ecosystem and vocabulary, but the Java runtime, optional Graphviz dependency, and server-shaped workflows are friction for small tools, CI, WASM, and editor integrations. Mermaid is everywhere, but it is JavaScript-first and can be awkward for agents or non-browser tooling to validate with confidence.
-
-`puml` exists to make diagram rendering feel like a normal compiler tool:
-
-| Goal | What it means |
-|---|---|
-| Fast local loop | Rust CLI, deterministic output, no JVM or daemon required at runtime. |
-| PlantUML-compatible path | Substantial current support, with broad compatibility as the mission rather than a finished drop-in claim. |
-| Agent-readable diagnostics | Stable check, lint, markdown, dump, and diagnostics modes for automation and code review. |
-| PicoUML home base | A smaller language surface that belongs to this project and can evolve around human and AI editing. |
-| Docs-as-tests | `254` committed `.puml` sources and `258` committed `.svg` artifacts are used as regression evidence. |
-
-## Install
-
-Install from a checkout:
+Or from a checkout:
 
 ```bash
 git clone https://github.com/alliecatowo/puml.git
 cd puml
-cargo install --path .
+cargo install --path . --bin puml
 ```
 
-Or install directly from GitHub:
-
-```bash
-cargo install --git https://github.com/alliecatowo/puml.git
-```
-
-For development, run the repo setup once:
-
-```bash
-./scripts/setup.sh
-./scripts/install-hooks.sh
-```
-
-## Quick Start
-
-Render a diagram file to `hello.svg`:
+Render your first diagram:
 
 ```bash
 cat > hello.puml <<'PUML'
@@ -72,172 +62,138 @@ Bob --> Alice: Ack
 PUML
 
 puml hello.puml
+# wrote hello.svg
 ```
 
-Check without rendering:
+Validate without rendering:
 
 ```bash
 puml --check hello.puml
 ```
 
-Render from stdin:
+Render from stdin or choose PNG:
 
 ```bash
 cat hello.puml | puml - > hello.svg
+puml --format png --dpi 192 hello.puml -o hello@2x.png
 ```
 
-Emit machine-readable pipeline data:
+Try the same pipeline on markdown fences:
 
 ```bash
+puml --from-markdown --check docs/examples/sequence/README.md
+puml --from-markdown docs/examples/sequence/README.md
+```
+
+## What Works Today
+
+`puml` already renders a wide corpus of sequence, class, object, use-case, component, deployment, state, activity, timing, Gantt, chronology, mindmap, WBS, nwdiag, Archimate, C4-style, JSON, YAML, EBNF, regex, math, SDL, Ditaa, chart, theme, skinparam, preprocessor, and Creole examples.
+
+The project is not claiming perfect PlantUML parity. Compatibility is a serious target, but the honest workflow is: run `puml --check`, compare output when a construct matters, and file or fix gaps with a small fixture.
+
+- Browse the [example gallery](docs/examples/GALLERY.md) or the [site gallery](https://alliecatowo.github.io/puml/gallery/).
+- Check current limits in [known limitations](docs/examples/KNOWN_LIMITATIONS.md).
+- Read the detailed compatibility evidence in the [PlantUML parity source of truth](docs/audits/plantuml_parity_source_of_truth.md), [frontend conformance matrix](docs/plantuml_frontend_conformance_matrix.md), and [oracle threshold notes](docs/oracle-thresholds.md).
+
+<details>
+<summary>More CLI examples</summary>
+
+```bash
+# Dialects and determinism controls
+puml --dialect plantuml --compat strict --determinism strict hello.puml
+puml --dialect picouml --check design.picouml
+puml --dialect mermaid input.mmd
+
+# Pipeline inspection
 puml --dump ast hello.puml
 puml --dump model hello.puml
 puml --dump scene hello.puml
 puml --metadata hello.puml
-```
 
-`--metadata` writes structured JSON to stdout after parse and normalization. It
-includes the diagram family, title when present, warning records, detected
-themes and skinparams, page metadata for sequence diagrams, and family-specific
-counts such as sequence participants/messages/notes/groups or class
-classes/relations. With `--from-markdown`, it emits one metadata object per
-supported embedded diagram fence; multiple fences are returned as a JSON array.
-
-Use compatibility controls when you need them:
-
-```bash
-puml --dialect plantuml --compat strict --determinism strict hello.puml
-puml --check design.picouml
-puml --format png --dpi 192 hello.puml -o hello@2x.png
+# Text output modes
 puml -txt hello.puml
 puml --format utxt hello.puml -o hello.utxt
-puml --from-markdown --check docs/examples/README.md
+
+# Markdown linting
+puml --from-markdown --check docs/examples/sequence/README.md
 puml --check --lint-glob 'docs/**/*.md' --lint-report json
+
+# Security posture for includes
 puml --no-url-includes --check hello.puml
-```
 
-Format PlantUML source in place, check formatting in CI, or inspect a diff:
-
-```bash
+# Formatting
 puml format hello.puml
 puml format --check hello.puml
 puml format --diff hello.puml
 ```
 
-## What Works Today
-
-`puml` already supports a broad set of diagram families and CLI workflows. It is not perfect PlantUML parity yet; compatibility is tracked conservatively and tested continuously.
-
-| Area | Current shape |
-|---|---|
-| Sequence diagrams | Broad support for participants, arrows, groups, notes, lifecycle, autonumber, metadata, and selected styling. |
-| Core UML families | Class, object, use-case, component, deployment, state, activity, and timing render paths with partial PlantUML parity. |
-| Planning and structure | Gantt, chronology, mindmap, WBS, nwdiag, Archimate, C4-style examples, and more. |
-| Data and text families | JSON, YAML, EBNF, regex, math/LaTeX, SDL, Ditaa, and chart renderers. |
-| Preprocessor | Deterministic support for many PlantUML preprocessor forms, includes, URL includes by default, macros, functions, loops, assertions, and stdlib imports. |
-| Frontends | PlantUML is the compatibility target; `.picouml` files and `--dialect picouml` route through PicoUML; Mermaid support exists for selected families. |
-| Outputs | Deterministic SVG by default; PNG rasterization is available through the same scene pipeline. `txt`, `atxt`, and `utxt` modes emit deterministic structural text for normalized diagram models. |
-| Tool surfaces | CLI is primary; WASM and LSP integrations are emerging and kept close to the same parser/render pipeline. |
-
-### Text Output Modes
-
-PlantUML-style `-txt`, `-atxt`, and `-utxt` flags are accepted as aliases for `--format txt`, `--format atxt`, and `--format utxt`. The first version is intentionally structural rather than pixel-perfect PlantUML ASCII art: it lists metadata, participants or nodes, relations, events, and family-specific records from the normalized model. `txt` and `atxt` force ASCII-safe output for labels; `utxt` preserves Unicode labels and uses Unicode tree markers.
-
-Remaining gaps: text mode does not yet reproduce PlantUML's exact ASCII-art layout, styling is summarized only when it carries model semantics, and SVG-only specialized pre-render shortcuts are bypassed in favor of normalized structural output.
-
-For the detailed truth table, see the [PlantUML parity source of truth](docs/audits/plantuml_parity_source_of_truth.md), [frontend conformance matrix](docs/plantuml_frontend_conformance_matrix.md), and [oracle threshold notes](docs/oracle-thresholds.md).
-
-## Examples
-
-More examples live in the [example gallery](docs/examples/GALLERY.md) and on the [docs site](https://alliecatowo.github.io/puml/gallery/). The SVGs below are committed artifacts from this repository.
-
-<details>
-<summary>Sequence: groups and notes</summary>
-
-Source: [`docs/examples/groups_notes.puml`](docs/examples/groups_notes.puml)
-
-![Groups and Notes](docs/examples/groups_notes.svg)
-
 </details>
 
 <details>
-<summary>Sequence: lifecycle and autonumber</summary>
+<summary>Frontend notes</summary>
 
-Source: [`docs/examples/lifecycle_autonumber.puml`](docs/examples/lifecycle_autonumber.puml)
+PlantUML-compatible source is the default compatibility lane.
 
-![Lifecycle Autonumber](docs/examples/lifecycle_autonumber.svg)
+`picouml` files, `@startpicouml` blocks, `--dialect picouml`, and `picouml` fenced code blocks route through the PicoUML adapter and then into the shared parser, model, layout, and render pipeline. See the [PicoUML language baseline](docs/specs/picouml-language.md).
 
-</details>
-
-<details>
-<summary>Component diagram</summary>
-
-Source: [`docs/examples/component/06_with_arrows.puml`](docs/examples/component/06_with_arrows.puml)
-
-![Component With Arrows](docs/examples/component/06_with_arrows.svg)
-
-</details>
-
-<details>
-<summary>Gantt chart</summary>
-
-Source: [`docs/examples/gantt/05_multi_task.puml`](docs/examples/gantt/05_multi_task.puml)
-
-![Gantt Multi Task](docs/examples/gantt/05_multi_task.svg)
-
-</details>
-
-<details>
-<summary>JSON projection</summary>
-
-Source: [`docs/examples/json/03_nested.puml`](docs/examples/json/03_nested.puml)
-
-![Nested JSON](docs/examples/json/03_nested.svg)
+Mermaid support is an adapter path, not a JavaScript runtime dependency. Supported Mermaid inputs are normalized into the same shared pipeline; unsupported constructs should fail with deterministic diagnostics rather than silently falling back.
 
 </details>
 
 ## Documentation
 
-| Link | Use it for |
-|---|---|
-| [Docs site](https://alliecatowo.github.io/puml/) | Guides, gallery, and the browser-based docs experience. |
-| [Getting started guide](https://alliecatowo.github.io/puml/guide/getting-started/) | First run, common CLI flows, and basic examples. |
-| [CLI guide](https://alliecatowo.github.io/puml/guide/cli/) | Runtime flags and command patterns. |
-| [Syntax guide](https://alliecatowo.github.io/puml/guide/syntax/) | Supported language surface. |
-| [Example corpus](docs/examples/README.md) | Committed examples used as executable documentation. |
-| [Known limitations](docs/examples/KNOWN_LIMITATIONS.md) | Rough edges and feature-depth limits. |
-| [Benchmarks](docs/benchmarks/README.md) | Performance gates and trend artifacts. |
-| [Troubleshooting](docs/troubleshooting.md) | Diagnostics and common failure modes. |
-| [Discussions setup](docs/discussions.md) | How to choose between issues and discussions. |
+- [Docs site](https://alliecatowo.github.io/puml/) for the polished guide and browser experience.
+- [Getting started](https://alliecatowo.github.io/puml/guide/getting-started/) for first render, browser editor, editor setup, and markdown fences.
+- [CLI reference](https://alliecatowo.github.io/puml/guide/cli/) for modes, flags, dialects, includes, outputs, and exit codes.
+- [Syntax primer](https://alliecatowo.github.io/puml/guide/syntax/) for the supported language surface.
+- [All diagram families](https://alliecatowo.github.io/puml/guide/families/) for the current family map.
+- [In-browser renderer](https://alliecatowo.github.io/puml/developer/renderer/) for the WASM bridge used by the site.
+- [Developer guide](https://alliecatowo.github.io/puml/developer/) for architecture, pipeline, contributing, and specs.
+- [Troubleshooting](docs/troubleshooting.md) for diagnostics and common failure modes.
 
 ## Development
 
-Useful local commands:
+One-time setup:
 
 ```bash
-./scripts/dev.sh              # fmt + clippy + tests
+./scripts/setup.sh
+./scripts/install-hooks.sh
+```
+
+Useful local loops:
+
+```bash
+./scripts/dev.sh
 ./scripts/check-all.sh --quick
-./scripts/check-all.sh        # full quality gate
-./scripts/branch-protection.sh verify
-./scripts/bench.sh --update-baseline
+./scripts/check-all.sh
 cargo run -- --help
 cargo run -- --check docs/examples/basic_hello.puml
 cargo run -- docs/examples/basic_hello.puml
 ```
 
-Regenerate docs examples after renderer changes:
+Before release or branch-policy changes, verify the protected-main checks:
+
+```bash
+./scripts/branch-protection.sh verify
+```
+
+Regenerate committed example SVGs after renderer changes:
 
 ```bash
 for f in docs/examples/*.puml; do cargo run -- "$f"; done
 for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/contributing.md](docs/contributing.md) for the full workflow.
+The static docs site lives in [site/](site/README.md). It mirrors `docs/examples/` into the gallery and mirrors `docs/specs/` into the developer reference pages.
+
+<details>
+<summary>Agent and swarm development context</summary>
 
 ## Autonomy Harness
 
-This repo is intentionally set up for human plus agent development. The harness
-commands below validate the agent pack, MCP smoke tests, docs gallery drift, and
-the broader autonomous quality chain:
+This repo is deliberately friendly to human plus AI-agent development. The point is not novelty for its own sake; it is to make diagram work measurable enough that parallel contributors can add fixtures, tighten diagnostics, improve layout, and update docs without guessing.
+
+Useful harnesses:
 
 ```bash
 ./scripts/harness-check.sh --quick
@@ -247,27 +203,21 @@ the broader autonomous quality chain:
 python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
 ```
 
-The detailed runbooks live in [docs/codex-workflow.md](docs/codex-workflow.md)
-and [docs/autonomous-workflow-cookbook.md](docs/autonomous-workflow-cookbook.md).
+Runbooks live in [docs/codex-workflow.md](docs/codex-workflow.md) and [docs/autonomous-workflow-cookbook.md](docs/autonomous-workflow-cookbook.md).
 
-## Project Status
-
-This project is young, ambitious, and intentionally transparent. Some parts are polished; some are still sharp. PlantUML compatibility is a serious target with substantial implemented support, but the honest answer for any advanced construct is: check the audit table, try `puml --check`, and file the gap if it surprises you.
-
-The repo has also been developed with heavy AI-agent assistance and swarm-style parallel work. That is part of the experiment: make the renderer deterministic enough that humans and agents can safely iterate on diagrams, docs, tests, and compatibility evidence together. Expect some rough edges in wording and organization as the project grows, and please help sand them down.
+</details>
 
 ## Contributing
 
-Forks, PRs, issues, and [discussions](https://github.com/alliecatowo/puml/discussions) are welcome. Good contributions include:
+Open-source help is welcome: forks, PRs, issues, discussions, small docs fixes, tiny compatibility fixtures, renderer fixes, LSP/editor work, WASM/site improvements, and benchmark evidence all count.
 
-| Contribution | Examples |
-|---|---|
-| Compatibility fixtures | Small `.puml` examples that expose a PlantUML gap. |
-| Renderer fixes | Layout, SVG fidelity, text bounds, styling, or deterministic output improvements. |
-| Docs | Clearer examples, migration notes, troubleshooting, or gallery coverage. |
-| Tooling | CLI ergonomics, LSP behavior, editor integration, WASM/site work, or benchmark improvements. |
+- Use [open issues](https://github.com/alliecatowo/puml/issues?q=is%3Aissue%20is%3Aopen) for bugs, compatibility gaps, and scoped tasks.
+- Use [discussions](https://github.com/alliecatowo/puml/discussions) for questions, ideas, showcases, parity reports that need shaping, and development-workflow notes.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/contributing.md](docs/contributing.md) before larger changes.
+- Open an issue before broad compatibility pushes so the work can be sliced clearly.
+- Send small docs and fixture PRs without ceremony; fork PRs are very welcome.
 
-Open an issue before large compatibility pushes so the work can be sliced cleanly. Start a discussion for questions, early ideas, showcases, parity reports that still need shaping, or AI-swarm workflow notes. Small docs and fixture PRs are very welcome without ceremony.
+This project is young, ambitious, and intentionally transparent. Some parts are polished; some edges are still sharp. Good reports and small reproducible examples are especially valuable.
 
 ## License
 
