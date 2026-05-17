@@ -48,7 +48,8 @@ jobs:
     name: sync-project-v2-fields
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.PUML_PROJECT_TOKEN != '' && secrets.PUML_PROJECT_TOKEN || github.token }}
+      GH_TOKEN: ${{ secrets.PUML_PROJECT_TOKEN }}
+      HAS_PROJECT_TOKEN: ${{ secrets.PUML_PROJECT_TOKEN != '' }}
       PROJECT_OWNER: alliecatowo
       PROJECT_NUMBER: "3"
       PROJECT_ID: PVT_kwHOBdlpmc4BX1zk
@@ -65,12 +66,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Skip when project token is unavailable
+        if: env.HAS_PROJECT_TOKEN != 'true'
+        run: |
+          echo "::warning title=Project sync skipped::PUML_PROJECT_TOKEN is not configured or is unavailable for this event. User-owned Projects v2 boards cannot be edited with the repository GITHUB_TOKEN."
+
       - name: Sync issue or pull request to PUML project
-        if: github.event_name != 'workflow_dispatch'
+        if: env.HAS_PROJECT_TOKEN == 'true' && github.event_name != 'workflow_dispatch'
         run: ./scripts/project-v2-event-sync.sh
 
       - name: Manual project sync
-        if: github.event_name == 'workflow_dispatch'
+        if: env.HAS_PROJECT_TOKEN == 'true' && github.event_name == 'workflow_dispatch'
         run: >
           ./scripts/project-v2-event-sync.sh
           --content-url "${{ inputs.content_url }}"

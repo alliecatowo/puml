@@ -72,10 +72,11 @@ Behavior:
 - closing issues referenced by a merged PR -> `Status: Done`
 - labels named `P0`, `P1`, or `P2` -> matching `Priority`
 
-The workflow uses `secrets.PUML_PROJECT_TOKEN` when present, falling back to
-`GITHUB_TOKEN`. For user-owned Projects v2 boards, a PAT with `project` scope is
-the most reliable token because repository `GITHUB_TOKEN` permissions may not be
-allowed to write user project fields.
+The workflow uses `secrets.PUML_PROJECT_TOKEN`. For user-owned Projects v2
+boards, a PAT with `project` scope is required in practice because repository
+`GITHUB_TOKEN` cannot add or edit items on the user project. If the secret is
+missing or unavailable for an event, the workflow exits successfully with a
+warning instead of failing unrelated PRs.
 
 The older sweep can still be run as a scheduled workflow or manually:
 
