@@ -5,14 +5,15 @@ Canonical status artifact for machine/human parity review.
 
 ## Contract
 
-- This markdown table is the canonical parity source of truth.
+- This markdown table is the canonical human/planning parity source of truth.
 - Status vocabulary is strict: `implemented`, `partial`, `missing`.
 - `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` are secondary aligned exports for tooling compatibility.
 - `docs/audits/post_blitz_gap_table.md` is the post-blitz planning companion for remaining partial rows, exact evidence, GitHub project status, and next implementation slices.
-- Examples, closed issues, merged PRs, and oracle reports are evidence inputs only; they do not override this table.
+- **Measured parity evidence**: `docs/benchmarks/oracle_report.json` is the per-fixture oracle comparison report produced on every PR by `.github/workflows/oracle.yml`. It runs fixture-by-fixture SVG diff against PlantUML JAR v1.2024.7 (Temurin JDK 17). This is the authoritative measured source of truth for "what is actually matching at parse/render level". Download the `oracle-report-<run>` CI artifact for the latest numbers.
+- Examples, closed issues, and merged PRs are evidence inputs only; they do not override this table.
 - Be conservative: do not mark as `implemented` where evidence only shows baseline or partial depth.
 - Project board checks are advisory for review flow only; do not close issues from this artifact unless the implementation commits are merged into the branch being audited.
-- Oracle reports are comparison-only conformance evidence. The Java PlantUML oracle is never part of the `puml` runtime contract.
+- Oracle reports are comparison-only conformance evidence. The Java PlantUML oracle is never a runtime or build dependency of `puml`; local `cargo test` always passes without Java or a JAR.
 
 ## Core UML + Preprocessor
 

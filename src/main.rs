@@ -896,6 +896,8 @@ fn render_family_document_svg(family: &puml::FamilyDocument) -> String {
         DiagramKind::Deployment => render::render_deployment_svg(family),
         DiagramKind::Activity => render::render_activity_svg(family),
         DiagramKind::Timing => render::render_timing_svg(family),
+        DiagramKind::MindMap => render::render_mindmap_svg(family),
+        DiagramKind::Wbs => render::render_wbs_svg(family),
         _ => render::render_family_stub_svg(family),
     }
 }
