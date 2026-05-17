@@ -4,9 +4,31 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'src/**'
+      - 'crates/**'
+      - 'tests/fixtures/**'
+      - 'tests/oracle_smoke.rs'
+      - 'docs/examples/**'
+      - 'stdlib/**'
+      - 'scripts/oracle.sh'
+      - '.github/workflows/oracle.yml'
   push:
     branches:
       - main
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'src/**'
+      - 'crates/**'
+      - 'tests/fixtures/**'
+      - 'tests/oracle_smoke.rs'
+      - 'docs/examples/**'
+      - 'stdlib/**'
+      - 'scripts/oracle.sh'
+      - '.github/workflows/oracle.yml'
   workflow_dispatch:
 
 concurrency:
