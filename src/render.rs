@@ -3182,13 +3182,84 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         y_cursor + 2
     ));
 
-    let cx = width / 2;
-    let box_w = 220;
-    let mut last_y: Option<i32> = None;
+    let mut lanes: Vec<String> = Vec::new();
+    for node in &doc.nodes {
+        if let Some(alias) = &node.alias {
+            if let Some(meta) = alias.strip_prefix("activity::") {
+                for part in meta.split('|') {
+                    if let Some(lane) = part.strip_prefix("lane=") {
+                        if lane != "default" && !lanes.iter().any(|l| l == lane) {
+                            lanes.push(lane.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if lanes.is_empty() {
+        lanes.push("default".to_string());
+    }
+
+    let lane_area_x = 32i32;
+    let lane_area_w = width - 64;
+    let lane_w = (lane_area_w / (lanes.len() as i32)).max(120);
+    let lane_index = |name: &str| -> i32 {
+        lanes
+            .iter()
+            .position(|l| l == name)
+            .map(|i| i as i32)
+            .unwrap_or(0)
+    };
+    let lane_center = |idx: i32| -> i32 { lane_area_x + idx * lane_w + lane_w / 2 };
+    let lane_left = |idx: i32| -> i32 { lane_area_x + idx * lane_w };
+
+    for (idx, lane) in lanes.iter().enumerate() {
+        let lx = lane_left(idx as i32);
+        let bg = if idx % 2 == 0 { "#f8fafc" } else { "#f1f5f9" };
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+            lx,
+            header_h - 8,
+            lane_w,
+            height - header_h - 20,
+            bg
+        ));
+        if lane != "default" {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                lx + lane_w / 2,
+                header_h + 10,
+                escape_text(lane)
+            ));
+        }
+    }
+
+    let box_w = (lane_w - 24).clamp(120, 220);
+    let mut last_point: Option<(i32, i32)> = None;
+    let mut fork_anchor: Option<(i32, i32)> = None;
 
     for (idx, node) in doc.nodes.iter().enumerate() {
         let y = header_h + (idx as i32) * step_h;
         let label = node.label.clone().unwrap_or_default();
+        let mut lane_name = "default".to_string();
+        let mut step_kind = String::new();
+        let mut fork_branch = 0usize;
+        if let Some(alias) = &node.alias {
+            if let Some(meta) = alias.strip_prefix("activity::") {
+                for (pi, part) in meta.split('|').enumerate() {
+                    if pi == 0 {
+                        step_kind = part.to_string();
+                        continue;
+                    }
+                    if let Some(v) = part.strip_prefix("lane=") {
+                        lane_name = v.to_string();
+                    } else if let Some(v) = part.strip_prefix("fork_branch=") {
+                        fork_branch = v.parse::<usize>().unwrap_or(0);
+                    }
+                }
+            }
+        }
+        let cx = lane_center(lane_index(&lane_name));
         match node.kind {
             FamilyNodeKind::ActivityStart => {
                 out.push_str(&format!(
@@ -3253,13 +3324,28 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 ));
             }
             FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
+                let bar_w = box_w;
                 out.push_str(&format!(
                     "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
-                    cx - box_w / 2,
+                    cx - bar_w / 2,
                     y + 24,
-                    box_w,
+                    bar_w,
                     act_style.fork_color
                 ));
+                if step_kind.contains("ForkAgain") {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">branch {}</text>",
+                        cx,
+                        y + 20,
+                        fork_branch + 1
+                    ));
+                }
+                if step_kind.contains("Fork") && !step_kind.contains("ForkAgain") {
+                    fork_anchor = Some((cx, y + 28));
+                }
+                if step_kind.contains("EndFork") {
+                    fork_anchor = None;
+                }
             }
             FamilyNodeKind::ActivityMerge => {
                 out.push_str(&format!(
@@ -3271,7 +3357,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
             FamilyNodeKind::ActivityPartition => {
                 out.push_str(&format!(
-                    "<rect x=\"24\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"4\" ry=\"4\" fill=\"#f1f5f9\" stroke=\"#475569\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+                    "<rect x=\"24\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"4\" ry=\"4\" fill=\"#e2e8f0\" stroke=\"#475569\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
                     y + 4,
                     width - 48
                 ));
@@ -3292,11 +3378,11 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
         }
         // arrow from previous
-        if let Some(prev_y) = last_y {
+        if let Some((px, py)) = last_point {
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                cx,
-                prev_y + 42,
+                px,
+                py,
                 cx,
                 y,
                 act_style.arrow_color
@@ -3312,7 +3398,19 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 act_style.arrow_color
             ));
         }
-        last_y = Some(y);
+        if let Some((fx, fy)) = fork_anchor {
+            if step_kind.contains("ForkAgain") || fork_branch > 0 {
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.25\" stroke-dasharray=\"4 2\"/>",
+                    fx,
+                    fy,
+                    cx,
+                    y,
+                    act_style.arrow_color
+                ));
+            }
+        }
+        last_point = Some((cx, y + 42));
     }
 
     out.push_str("</svg>");
@@ -3364,6 +3462,25 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         .nodes
         .iter()
         .filter(|n| matches!(n.kind, FamilyNodeKind::TimingEvent))
+        .collect();
+    let global_events: Vec<(i64, String)> = events
+        .iter()
+        .filter_map(|e| {
+            if e.alias.is_some() {
+                return None;
+            }
+            let t = e.name.parse::<i64>().ok()?;
+            let txt = e
+                .label
+                .clone()
+                .or_else(|| e.members.first().map(|m| m.text.clone()))
+                .unwrap_or_default();
+            if txt.is_empty() {
+                None
+            } else {
+                Some((t, txt))
+            }
+        })
         .collect();
 
     // ── Parse time positions (@N) ─────────────────────────────────────────────
@@ -3466,6 +3583,19 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         ));
     }
 
+    for (t, note) in &global_events {
+        let tx = time_to_x(*t);
+        out.push_str(&format!(
+            "<circle cx=\"{tx}\" cy=\"{cy}\" r=\"3\" fill=\"#0ea5e9\"/>",
+            cy = axis_top + 8
+        ));
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#0c4a6e\">{}</text>",
+            escape_text(note),
+            ty = axis_top + 10
+        ));
+    }
+
     // Minor ticks at midpoints between adjacent time positions
     for w in time_vals.windows(2) {
         let mid = (w[0] + w[1]) / 2;
@@ -3537,7 +3667,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 // HIGH=1/high, LOW=0/low; default LOW if no state.
                 let is_high = |s: &str| -> bool {
                     let l = s.to_ascii_lowercase();
-                    l == "1" || l == "high"
+                    matches!(l.as_str(), "1" | "high" | "on" | "true")
                 };
 
                 // Draw the waveform as segments between events.
@@ -3590,9 +3720,11 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             }
 
             FamilyNodeKind::TimingClock => {
-                // Clock: square wave. Use a simple period based on @N spacing.
-                // If no events, draw a default square wave.
-                let period = if time_vals.len() >= 2 {
+                // Clock: square wave. If edge events exist for this signal, use
+                // their spacing as the period baseline; otherwise fallback.
+                let period = if sig_events.len() >= 2 {
+                    (sig_events[1].0 - sig_events[0].0).max(1)
+                } else if time_vals.len() >= 2 {
                     (time_vals[1] - time_vals[0]).max(1)
                 } else {
                     t_span / 4
@@ -3602,7 +3734,13 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
                 let mut path_pts = String::new();
                 let mut cur_t = t_min;
-                let mut cur_hi = true;
+                let mut cur_hi = sig_events
+                    .first()
+                    .map(|(_, s)| {
+                        let l = s.to_ascii_lowercase();
+                        matches!(l.as_str(), "high" | "1" | "on" | "true")
+                    })
+                    .unwrap_or(true);
                 let x0 = time_to_x(cur_t);
                 let y0 = if cur_hi { wave_y_hi } else { wave_y_lo };
                 path_pts.push_str(&format!("{x0},{y0}"));
@@ -3850,9 +3988,13 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     for t in transitions {
         let from_coord = node_coords.get(&t.from);
         let to_coord = node_coords.get(&t.to);
-        if let (Some(&(fx, fy)), Some(&(tx, ty))) = (from_coord, to_coord) {
+        let from_node = nodes.iter().find(|n| n.name == t.from);
+        let to_node = nodes.iter().find(|n| n.name == t.to);
+        if let (Some(&(fx, fy)), Some(&(tx, ty)), Some(from_node), Some(to_node)) =
+            (from_coord, to_coord, from_node, to_node)
+        {
             // Compute start/end points at node boundaries
-            let (x1, y1, x2, y2) = transition_endpoints(fx, fy, tx, ty, nodes);
+            let (x1, y1, x2, y2) = transition_endpoints(from_node, fx, fy, to_node, tx, ty);
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
                 x1, y1, x2, y2, state_style.arrow_color
@@ -4744,21 +4886,39 @@ fn format_chart_value(v: f64) -> String {
 }
 
 /// Compute start and end points for a transition arrow between two nodes.
+fn state_node_bbox(node: &StateNode) -> (i32, i32) {
+    match node.kind {
+        StateNodeKind::Fork | StateNodeKind::Join => (STATE_NODE_W, 8),
+        StateNodeKind::Choice => (60, 40),
+        StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (40, 40),
+        StateNodeKind::StartEnd | StateNodeKind::End => (36, 36),
+        StateNodeKind::Normal => {
+            let actions_h = (node.internal_actions.len() as i32) * 14;
+            (STATE_NODE_W, STATE_NODE_H + actions_h)
+        }
+    }
+}
+
 fn transition_endpoints(
+    from_node: &StateNode,
     fx: i32,
     fy: i32,
+    to_node: &StateNode,
     tx: i32,
     ty: i32,
-    _nodes: &[StateNode],
 ) -> (i32, i32, i32, i32) {
-    let fh = STATE_NODE_H / 2;
-    let fw = STATE_NODE_W / 2;
+    let (fw_full, fh_full) = state_node_bbox(from_node);
+    let (tw_full, th_full) = state_node_bbox(to_node);
+    let fh = fh_full / 2;
+    let fw = fw_full / 2;
+    let th = th_full / 2;
+    let tw = tw_full / 2;
 
     // Center of each node
     let fcx = fx + fw;
     let fcy = fy + fh;
-    let tcx = tx + fw;
-    let tcy = ty + fh;
+    let tcx = tx + tw;
+    let tcy = ty + th;
 
     // Simple: exit from right/left/bottom/top depending on relative position
     let dx = tcx - fcx;
@@ -4767,16 +4927,16 @@ fn transition_endpoints(
     if dx.abs() >= dy.abs() {
         // Horizontal
         if dx >= 0 {
-            (fcx + fw, fcy, tcx - fw, tcy)
+            (fcx + fw, fcy, tcx - tw, tcy)
         } else {
-            (fcx - fw, fcy, tcx + fw, tcy)
+            (fcx - fw, fcy, tcx + tw, tcy)
         }
     } else {
         // Vertical
         if dy >= 0 {
-            (fcx, fcy + fh, tcx, tcy - fh)
+            (fcx, fcy + fh, tcx, tcy - th)
         } else {
-            (fcx, fcy - fh, tcx, tcy + fh)
+            (fcx, fcy - fh, tcx, tcy + th)
         }
     }
 }

@@ -2147,6 +2147,9 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut caption = None;
     let mut legend = None;
     let mut activity_step_counter: usize = 0;
+    let mut activity_active_partition: Option<String> = None;
+    let mut activity_fork_depth: usize = 0;
+    let mut activity_fork_branch: usize = 0;
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
@@ -2185,10 +2188,37 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 activity_step_counter += 1;
                 let kind = activity_step_node_kind(&step.kind);
                 let name = format!("__act_{activity_step_counter:04}");
+                match step.kind {
+                    ActivityStepKind::PartitionStart => {
+                        activity_active_partition = step.label.clone();
+                    }
+                    ActivityStepKind::PartitionEnd => {
+                        activity_active_partition = None;
+                    }
+                    ActivityStepKind::Fork => {
+                        activity_fork_depth += 1;
+                        activity_fork_branch = 0;
+                    }
+                    ActivityStepKind::ForkAgain => {
+                        activity_fork_branch += 1;
+                    }
+                    ActivityStepKind::EndFork => {
+                        activity_fork_depth = activity_fork_depth.saturating_sub(1);
+                        activity_fork_branch = 0;
+                    }
+                    _ => {}
+                }
+                let lane = activity_active_partition
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string());
+                let alias = format!(
+                    "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
+                    step.kind, lane, activity_fork_depth, activity_fork_branch
+                );
                 nodes.push(FamilyNode {
                     kind,
                     name,
-                    alias: Some(format!("{:?}", step.kind)),
+                    alias: Some(alias),
                     members: Vec::new(),
                     depth: 0,
                     label: step.label,
