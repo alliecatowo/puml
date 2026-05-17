@@ -272,6 +272,9 @@ fn render_document_for_family(
                 _ => Err(Diagnostic::error(
                     "[E_TIMELINE_INTERNAL] unexpected model during timeline render",
                 )),
+                model::NormalizedDocument::Timeline(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected timeline model during family stub render",
+                )),
             }
         }
         DiagramFamily::State => match normalize::normalize_family(document)? {
