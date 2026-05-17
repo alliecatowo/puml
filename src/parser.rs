@@ -3987,7 +3987,8 @@ fn parse_family_declaration(
         ("abstract", Some("<<abstract>>")),
         ("class", None),
     ] {
-        let Some((name, alias, has_block)) = parse_named_family_decl(line, keyword) else {
+        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
+        else {
             continue;
         };
         let members = if has_block {
@@ -4001,16 +4002,18 @@ fn parse_family_declaration(
                     },
                 );
             }
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
             members
         } else {
-            marker
-                .map(|marker| {
-                    vec![ClassMember {
-                        text: marker.to_string(),
-                        modifier: None,
-                    }]
-                })
-                .unwrap_or_default()
+            declaration_marker_members(marker, stereotypes)
         };
         return Ok(Some((
             StatementKind::ClassDecl(ClassDecl {
@@ -4027,7 +4030,8 @@ fn parse_family_declaration(
     }
 
     for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
-        let Some((name, alias, has_block)) = parse_named_family_decl(line, keyword) else {
+        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
+        else {
             continue;
         };
         let members = if has_block {
@@ -4041,16 +4045,18 @@ fn parse_family_declaration(
                     },
                 );
             }
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
             members
         } else {
-            marker
-                .map(|marker| {
-                    vec![ClassMember {
-                        text: marker.to_string(),
-                        modifier: None,
-                    }]
-                })
-                .unwrap_or_default()
+            declaration_marker_members(marker, stereotypes)
         };
         return Ok(Some((
             StatementKind::ObjectDecl(ObjectDecl {
@@ -4082,7 +4088,8 @@ fn parse_family_declaration(
     }
 
     for (keyword, marker) in [("actor", Some("<<actor>>")), ("usecase", None)] {
-        let Some((name, alias, has_block)) = parse_named_family_decl(line, keyword) else {
+        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
+        else {
             continue;
         };
         let members = if has_block {
@@ -4096,16 +4103,18 @@ fn parse_family_declaration(
                     },
                 );
             }
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
             members
         } else {
-            marker
-                .map(|marker| {
-                    vec![ClassMember {
-                        text: marker.to_string(),
-                        modifier: None,
-                    }]
-                })
-                .unwrap_or_default()
+            declaration_marker_members(marker, stereotypes)
         };
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -4123,7 +4132,10 @@ fn parse_family_declaration(
     Ok(None)
 }
 
-fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<String>, bool)> {
+fn parse_named_family_decl(
+    line: &str,
+    keyword: &str,
+) -> Option<(String, Option<String>, bool, Vec<String>)> {
     if !line.starts_with(keyword) {
         return None;
     }
@@ -4153,12 +4165,47 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<
         (trimmed, None)
     };
 
-    let name = clean_ident(name_raw);
+    let (name_without_stereotypes, stereotypes) = strip_declaration_stereotypes(name_raw);
+    let name = clean_ident(&name_without_stereotypes);
     if name.is_empty() {
         return None;
     }
     let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
-    Some((name, alias, has_block))
+    Some((name, alias, has_block, stereotypes))
+}
+
+fn declaration_marker_members(marker: Option<&str>, stereotypes: Vec<String>) -> Vec<ClassMember> {
+    let mut members = Vec::new();
+    if let Some(marker) = marker {
+        members.push(ClassMember {
+            text: marker.to_string(),
+            modifier: None,
+        });
+    }
+    for stereotype in stereotypes {
+        members.push(ClassMember {
+            text: format!("<<{stereotype}>>"),
+            modifier: None,
+        });
+    }
+    members
+}
+
+fn strip_declaration_stereotypes(input: &str) -> (String, Vec<String>) {
+    let mut remaining = input.trim().to_string();
+    let mut stereotypes = Vec::new();
+    while let Some(start) = remaining.find("<<") {
+        let Some(end_rel) = remaining[start + 2..].find(">>") else {
+            break;
+        };
+        let end = start + 2 + end_rel;
+        let value = remaining[start + 2..end].trim();
+        if !value.is_empty() {
+            stereotypes.push(value.to_string());
+        }
+        remaining.replace_range(start..end + 2, "");
+    }
+    (remaining.trim().to_string(), stereotypes)
 }
 
 fn parse_parenthesized_usecase_decl(line: &str) -> Option<(String, Option<String>, bool)> {
@@ -5287,6 +5334,61 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
     }
     // Anonymous shorthand: `[Name]` declares a component, `() Name` declares an interface.
     let trimmed = line.trim();
+    if let Some(rest) = trimmed.strip_prefix('[') {
+        if let Some(end) = rest.find(']') {
+            let inner = rest[..end].trim();
+            let suffix = rest[end + 1..].trim();
+            let alias = suffix
+                .strip_prefix("as ")
+                .map(str::trim)
+                .map(clean_ident)
+                .filter(|v| !v.is_empty());
+            if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
+                let name = alias.clone().unwrap_or_else(|| clean_ident(inner));
+                let label = alias.as_ref().map(|_| inner.to_string());
+                return Some(StatementKind::ComponentDecl {
+                    kind: ComponentNodeKind::Component,
+                    name,
+                    alias,
+                    label,
+                });
+            }
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("()") {
+        let rest = rest.trim();
+        if !rest.is_empty() {
+            let (label, rest_after_label) = if rest.starts_with('"') {
+                let stripped = rest.strip_prefix('"')?;
+                let end = stripped.find('"')?;
+                (
+                    Some(stripped[..end].to_string()),
+                    stripped[end + 1..].trim(),
+                )
+            } else {
+                (None, rest)
+            };
+            let (name_raw, alias) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
+                (label.as_deref().unwrap_or("").trim(), Some(clean_ident(alias.trim())))
+            } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
+                (lhs.trim(), Some(clean_ident(rhs.trim())))
+            } else {
+                (rest_after_label, None)
+            };
+            let name = alias
+                .clone()
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| clean_ident(name_raw));
+            if !name.is_empty() {
+                return Some(StatementKind::ComponentDecl {
+                    kind: ComponentNodeKind::Interface,
+                    name,
+                    alias: alias.filter(|v| !v.is_empty()),
+                    label,
+                });
+            }
+        }
+    }
     if let Some(inner) = trimmed.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
         if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
             return Some(StatementKind::ComponentDecl {

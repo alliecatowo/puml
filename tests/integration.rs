@@ -4692,6 +4692,51 @@ fn object_diagram_renders_underlined_header_and_rects() {
 }
 
 #[test]
+fn uml_declaration_stereotypes_and_component_shorthand_aliases_render() {
+    let class_src = "@startuml\nclass Order <<Entity>>\n@enduml\n";
+    let class_svg = render_source_to_svg(class_src).expect("stereotype svg should render");
+    assert!(
+        class_svg.contains("&lt;&lt;Entity&gt;&gt;"),
+        "class stereotype should render"
+    );
+    let object_src = "@startuml\nobject cache <<singleton>>\n@enduml\n";
+    let object_svg = render_source_to_svg(object_src).expect("object stereotype svg should render");
+    assert!(
+        object_svg.contains("&lt;&lt;singleton&gt;&gt;"),
+        "object stereotype should render"
+    );
+    let usecase_src =
+        "@startuml\nactor Shopper <<primary>> as S\nusecase Checkout <<critical>> as UC\nS --> UC : starts\n@enduml\n";
+    let usecase_svg =
+        render_source_to_svg(usecase_src).expect("usecase stereotype svg should render");
+    assert!(
+        usecase_svg.contains("&lt;&lt;primary&gt;&gt;"),
+        "actor stereotype should render"
+    );
+    assert!(
+        usecase_svg.contains("&lt;&lt;critical&gt;&gt;"),
+        "usecase stereotype should render"
+    );
+
+    let component_src =
+        "@startuml\n[Public API] as API\n() \"Gateway Port\" as Gateway\nAPI --> Gateway : exposes\n@enduml\n";
+    let component_svg =
+        render_source_to_svg(component_src).expect("component shorthand svg should render");
+    assert!(
+        component_svg.contains("Public API"),
+        "component shorthand label should render"
+    );
+    assert!(
+        component_svg.contains("Gateway Port"),
+        "interface shorthand label should render"
+    );
+    assert!(
+        component_svg.contains(">exposes<"),
+        "aliased shorthand relation should render"
+    );
+}
+
+#[test]
 fn creole_note_link_svg_contains_hyperlink() {
     let src = fs::read_to_string(fixture("conformance/valid_creole_note_link.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("render");
