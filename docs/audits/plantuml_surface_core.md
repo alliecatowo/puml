@@ -10,6 +10,8 @@ Legend:
 - `missing`: not implemented in current `puml`
 
 Current `puml` baseline used for parity status:
+
+Staleness note, 2026-05-17: this surface inventory is retained as historical planning input and contains older row-level baseline language. Use `docs/audits/plantuml_parity_source_of_truth.md` as the canonical current status, with `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` as aligned exports.
 - Sequence parsing/rendering is implemented.
 - Class/object/usecase families now have bootstrap parser + model + deterministic stub SVG routing.
 - Non-bootstrap families (`component`, `deployment`, `state`, `activity`, `timing`) return deterministic unsupported-family diagnostics with explicit family codes.

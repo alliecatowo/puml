@@ -2,7 +2,7 @@
 
 Date: 2026-05-15
 Scope: official PlantUML non-UML families + special diagrams for parity planning.
-Runtime baseline in this repo: `puml` fully supports sequence, plus bootstrap parser/model/stub-render routing for class/object/usecase families. Gantt/chronology now have a parser+normalized-model baseline slice (tasks/milestones/starts/ends/requires and chronology `happens on`), plus initial real-date/duration semantics for Gantt task bars (`Project starts YYYY-MM-DD`, `lasts N days|weeks`, `starts YYYY-MM-DD and lasts ...`) with proportional-width rendering.
+Runtime baseline in this repo: this inventory is historical planning input. Current canonical status lives in `docs/audits/plantuml_parity_source_of_truth.md`, with aligned CSV exports in `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv`.
 
 ## Gantt
 Official source: https://plantuml.com/gantt-diagram
@@ -141,7 +141,7 @@ Grouped features:
 - Version gate: documented as available starting PlantUML `1.2026.0`.
 
 ## Parity Implication For `puml`
-Given current sequence-only runtime scope, all families above are currently **missing** at parser+model+render levels. Primary implementation workstreams are:
+This historical inventory should no longer be read as a current missing-family list. Current implementation and partial-depth tracking lives in `docs/audits/plantuml_parity_source_of_truth.md`; primary implementation workstreams are:
 - Family-specific parser frontends and AST nodes.
 - Family-specific layout/render engines (or adapters where appropriate).
 - Conformance fixtures + deterministic snapshot contract per family.

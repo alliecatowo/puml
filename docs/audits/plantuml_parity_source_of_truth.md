@@ -9,6 +9,7 @@ Canonical status artifact for machine/human parity review.
 - Status vocabulary is strict: `implemented`, `partial`, `missing`.
 - `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` are secondary aligned exports for tooling compatibility.
 - Be conservative: do not mark as `implemented` where evidence only shows baseline or partial depth.
+- Project board checks are advisory for review flow only; do not close issues from this artifact unless `origin/main` already contains the implementation commits.
 
 ## Core UML + Preprocessor
 
@@ -52,7 +53,7 @@ Canonical status artifact for machine/human parity review.
 | nwdiag | advanced | Full network topology semantics | partial | `docs/examples/nwdiag/01_single_net.svg` | https://plantuml.com/nwdiag |
 | json | core | @startjson standalone family | implemented | `tests/fixtures/non_sequence/valid_json.puml` | https://plantuml.com/json |
 | yaml | core | @startyaml standalone family | implemented | `tests/fixtures/non_sequence/valid_yaml.puml` | https://plantuml.com/yaml |
-| json+yaml | advanced | Cross-diagram projection adapters | missing | no dedicated projection-adapter evidence shipped in current baseline | https://plantuml.com/yaml |
+| json+yaml | advanced | Cross-diagram projection adapters | partial | `tests/fixtures/families/valid_yaml_projection.puml` | https://plantuml.com/yaml |
 | archimate | core | Archimate parser + baseline render | implemented | `tests/fixtures/non_sequence/valid_archimate.puml` | https://plantuml.com/archimate-diagram |
 | archimate | advanced | Full relation/style breadth | partial | `docs/examples/archimate/01_layered.svg` | https://plantuml.com/archimate-diagram |
 | regex | core | @startregex baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_regex.puml` | https://plantuml.com/regex |
@@ -63,3 +64,8 @@ Canonical status artifact for machine/human parity review.
 | ditaa | core | @startditaa baseline support | implemented | `tests/fixtures/non_sequence/valid_ditaa.puml` | https://plantuml.com/ditaa |
 | chart | core | @startchart baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_chart_bar.puml`, `tests/fixtures/non_sequence/valid_chart_pie.puml` | https://plantuml.com/chart-diagram |
 | chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg` | https://plantuml.com/chart-diagram |
+
+## Board / Issue Consistency Checks
+
+- 2026-05-17: `gh issue view 103 --json number,title,state,projectItems,url` verified tracking issue `#103` is on the `PUML` project with status `Human Review`.
+- No issue closure was performed during this audit.
