@@ -55,7 +55,7 @@ Canonical status artifact for machine/human parity review.
 | yaml | core | @startyaml standalone family | implemented | `tests/fixtures/non_sequence/valid_yaml.puml` | https://plantuml.com/yaml |
 | json+yaml | advanced | Cross-diagram projection adapters | partial | `tests/fixtures/families/valid_yaml_projection.puml` | https://plantuml.com/yaml |
 | archimate | core | Archimate parser + baseline render | implemented | `tests/fixtures/non_sequence/valid_archimate.puml` | https://plantuml.com/archimate-diagram |
-| archimate | advanced | Full relation/style breadth | partial | `docs/examples/archimate/01_layered.svg` | https://plantuml.com/archimate-diagram |
+| archimate | advanced | Full relation/style breadth | partial | `docs/examples/archimate/01_layered.svg`, `tests/integration.rs` | https://plantuml.com/archimate-diagram |
 | regex | core | @startregex baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_regex.puml` | https://plantuml.com/regex |
 | regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg` | https://plantuml.com/regex |
 | ebnf | core | @startebnf baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_ebnf.puml` | https://plantuml.com/ebnf |

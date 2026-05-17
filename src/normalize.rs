@@ -1051,6 +1051,14 @@ fn normalize_archimate_document(document: Document) -> Result<ArchimateDocument,
                 continue;
             }
         }
+        // ArchiMate stdlib-style declarations:
+        // Business_Actor(customer, "Customer")
+        // Application_Component(service, "Order Service")
+        // Technology_Node(host, "Runtime")
+        if let Some(elem) = parse_archimate_macro_element(trimmed) {
+            elements.push(elem);
+            continue;
+        }
         // Relation macros: Rel_Association(a, b, "label"), Rel_Realization(a, b)
         if let Some(open) = trimmed.find('(') {
             let macro_name = trimmed[..open].trim();
@@ -1119,15 +1127,63 @@ fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
     Some(ArchimateElement { name, alias, layer })
 }
 
+fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
+    let open = line.find('(')?;
+    let macro_name = line[..open].trim();
+    let layer = archimate_layer_from_macro(macro_name)?;
+    let inside = line[open + 1..].trim_end_matches([')', ' ', '\t']);
+    let args = split_csv_args(inside);
+    let alias = args.first()?.trim().trim_matches('"').to_string();
+    if alias.is_empty() {
+        return None;
+    }
+    let name = args
+        .get(1)
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| alias.clone());
+    Some(ArchimateElement {
+        name,
+        alias: Some(alias),
+        layer: layer.to_string(),
+    })
+}
+
+fn archimate_layer_from_macro(name: &str) -> Option<&'static str> {
+    let lower = name.to_ascii_lowercase();
+    if lower.starts_with("strategy_") {
+        Some("strategy")
+    } else if lower.starts_with("business_") {
+        Some("business")
+    } else if lower.starts_with("application_") {
+        Some("application")
+    } else if lower.starts_with("technology_") {
+        Some("technology")
+    } else if lower.starts_with("physical_") {
+        Some("technology")
+    } else if lower.starts_with("motivation_") {
+        Some("motivation")
+    } else if lower.starts_with("implementation_") || lower.starts_with("migration_") {
+        Some("strategy")
+    } else {
+        None
+    }
+}
+
 fn archimate_rel_kind_from_macro(name: &str) -> Option<&'static str> {
     match name {
+        "Rel_Access" => Some("access"),
+        "Rel_Aggregation" => Some("aggregation"),
         "Rel_Association" => Some("association"),
+        "Rel_Assignment" => Some("assignment"),
+        "Rel_Composition" => Some("composition"),
+        "Rel_Flow" => Some("flow"),
+        "Rel_Influence" => Some("influence"),
         "Rel_Realization" => Some("realization"),
         "Rel_Serving" => Some("serving"),
-        "Rel_Composition" => Some("composition"),
-        "Rel_Aggregation" => Some("aggregation"),
+        "Rel_Specialization" => Some("specialization"),
+        "Rel_Triggering" => Some("triggering"),
         "Rel_Used_By" => Some("used_by"),
-        "Rel_Flow" => Some("flow"),
         _ => None,
     }
 }

@@ -5872,6 +5872,34 @@ fn non_uml_advanced_ditaa_diagonal_connectors_shadow_and_background_options_rend
     assert!(svg.contains("<line"));
 }
 
+#[test]
+fn non_uml_advanced_math_scripts_accents_and_fences_render() {
+    let src = "@startmath\n\\left( \\hat{x}_{i}^{2} + \\vec{v} \\right) = \\sqrt{\\frac{a_1^2}{b}}\n@endmath\n";
+    let svg = render_source_to_svg(src).expect("advanced math expression should render");
+    assert!(svg.contains("id=\"math-arrow\""));
+    assert!(svg.contains("<path d=\"M"));
+    assert!(svg.contains("marker-end=\"url(#math-arrow)\""));
+    assert!(svg.contains("&quot;") || svg.contains("("));
+    assert!(svg.contains("<line"));
+}
+
+#[test]
+fn non_uml_advanced_ditaa_junctions_and_diagonal_arrowheads_render() {
+    let src = "@startditaa\n\
++---+   +---+\n\
+| A |---+-->B\n\
++---+  /    \\\n\
+      <      v\n\
+@endditaa\n";
+    let svg = render_source_to_svg(src).expect("ditaa junctions and diagonal heads should render");
+    assert!(svg.contains("marker-end=\"url(#da)\""));
+    assert!(svg.contains("marker-start=\"url(#dah)\""));
+    assert!(
+        svg.matches("<line").count() >= 3,
+        "junction and diagonal connectors should emit several line segments"
+    );
+}
+
 fn extract_svg_width_attr(svg: &str) -> Option<i32> {
     let key = "width=\"";
     let start = svg.find(key)? + key.len();
@@ -5890,6 +5918,25 @@ fn salt_advanced_widgets_render_tree_menu_tab_scroll_and_table() {
     assert!(svg.contains("data-salt-widget=\"scrollbar\""));
     assert!(svg.contains("Leaf"));
     assert!(svg.contains("Search"));
+}
+
+#[test]
+fn archimate_stdlib_element_and_relation_macros_render() {
+    let src = "@startarchimate\n\
+Business_Actor(customer, \"Customer\")\n\
+Application_Component(service, \"Order Service\")\n\
+Technology_Node(runtime, \"Runtime\")\n\
+Rel_Assignment(customer, service, \"places order\")\n\
+Rel_Access(service, runtime, \"uses\")\n\
+@endarchimate\n";
+    let svg = render_source_to_svg(src).expect("archimate stdlib macros should render");
+    assert!(svg.contains("Customer"));
+    assert!(svg.contains("Order Service"));
+    assert!(svg.contains("Runtime"));
+    assert!(svg.contains("-[assignment]-&gt;"));
+    assert!(svg.contains("-[access]-&gt;"));
+    assert!(svg.contains("places order"));
+    assert!(svg.contains("uses"));
 }
 
 // ── skinparam classify: class/state/component/activity (#202) ─────────────────
