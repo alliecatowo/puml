@@ -25,6 +25,13 @@ python3 scripts/differential_oracle_smoke.py --dry-run --quiet --output docs/ben
 
 # optional live differential oracle evidence when PlantUML is installed
 python3 scripts/differential_oracle_smoke.py --quick --strict --quiet --output docs/benchmarks/oracle_smoke_latest.json
+
+# summarize a JAR-backed oracle_report.json for CI/Pages artifacts
+python3 scripts/oracle_report_summary.py \
+  --input docs/benchmarks/oracle_report.json \
+  --markdown docs/benchmarks/oracle_report.md \
+  --json docs/benchmarks/oracle_report_summary.json \
+  --pages-dir target/oracle-report-pages
 ```
 
 ## Artifacts
@@ -37,6 +44,9 @@ python3 scripts/differential_oracle_smoke.py --quick --strict --quiet --output d
 - `docs/benchmarks/baseline_full.json`
 - `docs/benchmarks/baseline_quick.json`
 - `docs/benchmarks/parity_latest.json`
+- `docs/benchmarks/oracle_report.json`
+- `docs/benchmarks/oracle_report.md` (generated in CI from live JAR evidence)
+- `docs/benchmarks/oracle_report_summary.json` (generated in CI from live JAR evidence)
 - `docs/benchmarks/oracle_smoke_latest.json`
 
 All benchmark artifacts are deterministic in structure and key ordering. Value fields like timestamps, host metadata, and measured timings are expected to change run-to-run.
@@ -72,6 +82,7 @@ or optimization plan instead of blocking all main merges on the pre-URL-include 
 
 - PlantUML oracle comparison is opt-in and remains skip-sentinel based unless `PUML_ORACLE_JAR` is set.
 - `parity_latest.json`, `latest_trend.json`, and `oracle_report.json` may include explicit oracle placeholder or skip metadata.
+- CI-generated `oracle_report.md` and `oracle_report_summary.json` are derived from the live JAR-backed `oracle_report.json`; they are uploaded as artifacts and, on `main`, as a named Pages artifact directory.
 - Oracle artifacts are comparison evidence only. They are not runtime inputs and do not imply that Java/PlantUML is used by the `puml` CLI or library.
 - Do not remove placeholders until Java/oracle execution is intentionally enabled for the relevant workflow.
 
