@@ -330,6 +330,17 @@ fn picouml_frontend_routes_canonical_surface_to_shared_model() {
 }
 
 #[test]
+fn picouml_extension_routes_canonical_surface_in_auto_dialect() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", &fixture("picouml/valid_canonical.picouml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
 fn picouml_frontend_rejects_mixed_marker_forms_deterministically() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -4121,7 +4132,9 @@ fn clap_help_exits_successfully() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("PicoUML polymorphic sequence CLI"))
+        .stdout(predicate::str::contains(
+            "Rust-native PlantUML-compatible diagram renderer",
+        ))
         .stdout(predicate::str::contains(
             "Permit multiple stdin render outputs",
         ))

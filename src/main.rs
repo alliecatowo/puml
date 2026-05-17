@@ -236,7 +236,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.dialect,
             cli.compat,
             cli.determinism,
-            None,
+            frontend_hint_for_path(Some(path.as_path())),
             cli.no_url_includes,
         )
         .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
@@ -256,12 +256,18 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         .clone()
         .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
     let from_markdown = should_extract_markdown(cli.from_markdown, input_path);
+    let file_frontend_hint = frontend_hint_for_path(input_path);
     let markdown_name_prefix = input_path
         .and_then(|path| path.file_stem())
         .and_then(|stem| stem.to_str())
         .map(|stem| stem.to_string());
-    let diagrams = split_diagrams(&raw, from_markdown, markdown_name_prefix.as_deref())
-        .map_err(|d| diag_err_with_source(&raw, d, cli.diagnostics))?;
+    let diagrams = split_diagrams(
+        &raw,
+        from_markdown,
+        markdown_name_prefix.as_deref(),
+        file_frontend_hint,
+    )
+    .map_err(|d| diag_err_with_source(&raw, d, cli.diagnostics))?;
 
     if diagrams.is_empty() {
         if from_markdown {
@@ -577,7 +583,13 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
             .and_then(|stem| stem.to_str())
             .map(|stem| stem.to_string());
 
-        let diagrams = match split_diagrams(&raw, from_markdown, markdown_name_prefix.as_deref()) {
+        let file_frontend_hint = frontend_hint_for_path(Some(path.as_path()));
+        let diagrams = match split_diagrams(
+            &raw,
+            from_markdown,
+            markdown_name_prefix.as_deref(),
+            file_frontend_hint,
+        ) {
             Ok(diagrams) => diagrams,
             Err(d) => {
                 acc.errors += 1;
@@ -837,7 +849,7 @@ fn lsp_capabilities_manifest() -> Value {
       "server": "puml-lsp",
       "protocol": "3.17",
       "languageId": "puml",
-      "extensions": [".puml", ".plantuml", ".iuml", ".pu"],
+      "extensions": [".puml", ".plantuml", ".iuml", ".pu", ".picouml"],
       "lifecycle": ["initialize", "initialized", "shutdown", "exit"],
       "textSync": ["didOpen", "didChange", "didSave", "didClose"],
       "languageFeatures": [
@@ -1047,10 +1059,20 @@ fn should_extract_markdown(from_markdown_flag: bool, input_path: Option<&Path>) 
         .unwrap_or(false)
 }
 
+fn frontend_hint_for_path(path: Option<&Path>) -> Option<FrontendSelection> {
+    path.and_then(|path| path.extension())
+        .and_then(|ext| ext.to_str())
+        .and_then(|ext| match ext.to_ascii_lowercase().as_str() {
+            "picouml" => Some(FrontendSelection::Picouml),
+            _ => None,
+        })
+}
+
 fn split_diagrams(
     raw: &str,
     from_markdown: bool,
     markdown_name_prefix: Option<&str>,
+    file_frontend_hint: Option<FrontendSelection>,
 ) -> Result<Vec<InputDiagram>, Diagnostic> {
     if from_markdown {
         let diagrams = extract_markdown_diagrams(raw)
@@ -1120,7 +1142,7 @@ fn split_diagrams(
                 blocks.push(InputDiagram {
                     source: current.join("\n").trim().to_string(),
                     source_span: None,
-                    frontend_hint: None,
+                    frontend_hint: file_frontend_hint,
                     output_name_hint: None,
                 });
                 current.clear();
@@ -1141,7 +1163,7 @@ fn split_diagrams(
     Ok(vec![InputDiagram {
         source: trimmed.to_string(),
         source_span: None,
-        frontend_hint: None,
+        frontend_hint: file_frontend_hint,
         output_name_hint: None,
     }])
 }

@@ -1,17 +1,29 @@
 # Parity Roadmap
 
-Date: 2026-05-15
+Date: 2026-05-17
+
+## Reading This Roadmap
+
+This file records the parity mission, historical closure notes, and future
+execution slices. It is not the measured parity scoreboard. Current support
+status lives in `docs/audits/plantuml_parity_source_of_truth.md`, and measured
+oracle evidence comes from JAR-backed `oracle-report-<run>` CI artifacts or a
+fresh local `PUML_ORACLE_JAR` run.
+
+The committed `docs/benchmarks/oracle_report.json` may be a skip sentinel from
+a Java-free local run. A skip sentinel means "comparison not run"; it is useful
+for deterministic local workflows but is not measured parity evidence.
 
 Closure update (Epic #30, 2026-05-15):
-- Final parity closure pass is green across `./scripts/check-all.sh`, `./scripts/check-all.sh --quick`, and `./scripts/harness-check.sh`.
-- Docs-example parity is now an enforced contract in `tests/svg_bounds_audit.rs` (`doc_examples.summary.failed == 0`).
+- Final closure pass for the staged sequence-parity epic was green across `./scripts/check-all.sh`, `./scripts/check-all.sh --quick`, and `./scripts/harness-check.sh` at the time of that audit.
+- Docs-example drift checks are enforced in `tests/svg_bounds_audit.rs` (`doc_examples.summary.failed == 0`).
 - `scripts/parity_harness.py` canonicalizes trailing SVG newlines to prevent false doc parity failures between stdin-rendered SVG and checked-in artifacts.
 
-This roadmap tracks high-impact sequence-diagram parity work relative to PlantUML behavior and defines execution order, measurable done criteria, and fixture-first delivery.
+This roadmap tracks high-impact parity work relative to PlantUML behavior and defines execution order, measurable done criteria, and fixture-first delivery.
 
 Product language policy baseline:
 - PicoUML is the first-class canonical language for the engine.
-- PlantUML is a first-class 1:1 compatibility target.
+- PlantUML is a first-class compatibility target and long-term mission, not a blanket claim that every official PlantUML construct currently matches.
 - Mermaid is a first-class supported frontend for scoped sequence coverage.
 
 ## Source Inputs
@@ -151,7 +163,8 @@ Acceptance criteria:
   - Error messages reference line/construct where available and remain snapshot-stable.
   - `--multi` behavior and file emission semantics documented with examples.
 - UX/docs:
-  - README and docs include a concise "PlantUML parity status" table with supported/partial/unsupported tags.
+  - README remains product-oriented and links to the audit table instead of carrying a large parity wall.
+  - Detailed docs expose supported/partial/unsupported status through the parity source-of-truth audit and aligned CSV exports.
   - At least one troubleshooting entry per major failure class introduced in stages 1-3.
 
 Fixture-first plan:
@@ -164,14 +177,14 @@ This section defines family-by-family execution slices for the shared IR + layou
 ### Slice A: Sequence hardening baseline
 
 Scope:
-1. Keep sequence as the only fully enabled family.
-2. Move sequence onto shared family routing boundary without behavior drift.
+1. Preserve sequence as the deepest compatibility lane while other families continue breadth/depth hardening.
+2. Keep sequence on the shared family routing boundary without behavior drift.
 3. Add deterministic tests for family-aware routing.
 
 Done criteria:
 - Existing sequence fixtures remain green.
 - New family-routing API is additive and stable.
-- Non-sequence families remain explicit deterministic rejections.
+- Unsupported constructs in any family remain explicit deterministic rejections.
 - Mermaid frontend baseline for `sequenceDiagram` subset routes through the same first-class shared parse pipeline entrypoint.
 - Unsupported Mermaid families/constructs fail with deterministic compatibility diagnostics.
 
@@ -305,13 +318,18 @@ Slice integration:
 
 ### Parity Blitz Completion (2026-05-15)
 
-All diagram families and preprocessor surface areas have landed. 438 tests pass. Summary:
+Baseline render/parser lanes for all tracked diagram families and broad preprocessor
+surface areas landed during the blitz. That milestone closed bring-up work; it did
+not mean full PlantUML semantic or pixel parity for every advanced row. The
+current measured/planning status remains the audit table.
+
+Historical blitz summary:
 
 #### Diagram Families — Done (2026-05-15)
 
 | Family | Status | Closed Issue |
 |---|---|---|
-| Sequence | Supported — full parity | #111 |
+| Sequence | Supported — deepest lane; advanced breadth still audited conservatively | #111 |
 | Class / Object / UseCase | Supported — real renderers | #146 |
 | Component / Deployment | Supported — real renderers | #109 |
 | State / Activity / Timing | Supported — real renderers | #110 |
@@ -358,12 +376,17 @@ The deterministic Java-free oracle smoke report is available at
 `docs/benchmarks/oracle_smoke_latest.json`, and CI has a differential oracle
 smoke workflow with optional live PlantUML execution. `scripts/oracle.sh` can
 produce `docs/benchmarks/oracle_report.json` when `PUML_ORACLE_JAR` is set.
-This is comparison evidence only: the generic benchmark trend can still show
-no-Java TODO placeholders, and full semantic/pixel parity remains deferred.
+This is comparison evidence only. The checked-in `oracle_report.json` may be a
+skip sentinel when generated without `PUML_ORACLE_JAR`; the latest CI artifact
+or a fresh JAR-backed local report is the measured evidence to use. The generic
+benchmark trend can still show no-Java TODO placeholders, and full semantic/pixel
+parity remains deferred.
 
-#### JSON Projection Adapters — Deferred (keep #103 open)
+#### JSON Projection Adapters — Follow-Up Breadth
 
-JSON data projection into UML contexts (class/object/deployment/state) is not yet implemented. Tracked in #103.
+JSON/YAML projection work has landed and tracking issue #103 is closed/Done.
+Broader cross-diagram projection breadth remains audited as partial in the source
+of truth until additional fixture and oracle evidence supports promotion.
 
 ---
 

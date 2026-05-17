@@ -67,9 +67,9 @@ This log records intentional contract deviations and updates adopted in the curr
 - Spec/implementation contradiction and resolution: PlantUML offers broader preprocessing convenience; this implementation exposes explicit compatibility profiles while preserving deterministic behavior and a single shared parser pipeline.
 
 ### D-010: First-class polymorphic language policy
-- Decision: Treat PicoUML, PlantUML, and Mermaid as first-class product surfaces; position PicoUML as canonical language, PlantUML as first-class 1:1 compatibility target, and Mermaid as first-class supported frontend.
+- Decision: Treat PicoUML, PlantUML, and Mermaid as first-class product surfaces; position PicoUML as canonical language, PlantUML as the broad compatibility target, and Mermaid as a supported adapter frontend for scoped families.
 - Rationale: Prevents hierarchy framing where one surface is presented as "extended mode" or second-class, and keeps product/docs contracts aligned with a single polymorphic engine architecture.
-- Impact: User-facing docs and CLI help should describe language surfaces as first-class and compatibility/determinism as policy controls rather than product tiering.
+- Impact: User-facing docs and CLI help should describe language surfaces as first-class and compatibility/determinism as policy controls rather than product tiering. Do not use this decision as a blanket claim that all official PlantUML syntax has current semantic or pixel parity; current status remains governed by the parity source-of-truth audit.
 
 ### D-011: Batch lint/check mode contract for docs pipelines
 - Decision: Add explicit batch check inputs via `--lint-input` (repeatable paths) and `--lint-glob` (repeatable patterns), with deterministic target ordering and a mandatory lint summary report on `stdout`.
