@@ -28,13 +28,18 @@ Source-of-truth hierarchy:
 
 ## Install And Dev
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow, local hook setup, and agent checklist.
+
 ```bash
 # clone + enter
 git clone <your-fork-or-repo-url>
 cd puml
 
-# one-time dev setup
+# one-time dev setup (Rust toolchain components)
 ./scripts/setup.sh
+
+# install lefthook git hooks (opt-in; strongly recommended for contributors)
+./scripts/install-hooks.sh
 
 # fast local loop (fmt + clippy + test)
 ./scripts/dev.sh

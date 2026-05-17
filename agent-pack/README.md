@@ -29,3 +29,29 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | agent-pa
 ./scripts/harness-check.sh --quick
 ./scripts/harness-check.sh
 ```
+
+## Agent pre-PR checklist
+
+Before opening a PR, **always** run:
+
+```bash
+cargo fmt
+cargo clippy --all-targets -- -D warnings
+cargo test --quiet
+```
+
+Checklist:
+
+- [ ] `cargo fmt` — no formatting violations (CI rejects unformatted code; see issues #253)
+- [ ] `cargo clippy --all-targets -- -D warnings` — zero warnings
+- [ ] `cargo test --quiet` — all tests pass
+- [ ] PR body references the relevant issue (`Closes #NNN`)
+
+Agents working in a local checkout can optionally install lefthook hooks that
+enforce these checks automatically on `git commit` and `git push`:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for full details.
