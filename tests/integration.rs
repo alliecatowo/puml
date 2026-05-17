@@ -4488,6 +4488,41 @@ fn component_relations_with_cardinalities_render_endpoint_labels() {
 }
 
 #[test]
+fn class_relations_with_roles_render_endpoint_role_labels() {
+    let src = fs::read_to_string(fixture("families/valid_class_with_relation_roles.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("class svg should render");
+    assert!(svg.contains(">buyer<"), "left role label should render");
+    assert!(svg.contains(">items<"), "right role label should render");
+    assert!(svg.contains(">1<"), "left cardinality should render");
+    assert!(svg.contains(">0..*<"), "right cardinality should render");
+}
+
+#[test]
+fn component_and_deployment_edges_render_advanced_markers_and_dashes() {
+    let component_src = "@startuml\ncomponent API\ninterface Gateway\nport Ingress\nAPI o-- Gateway : exposes\nIngress <|-- API : binds\n@enduml\n";
+    let component_svg = render_source_to_svg(component_src).expect("component svg should render");
+    assert!(
+        component_svg.contains("arrow-diamond-open"),
+        "aggregation marker should render for component edges"
+    );
+    assert!(
+        component_svg.contains("arrow-triangle"),
+        "triangle marker should render for generalization edges"
+    );
+    assert!(
+        component_svg.contains(">exposes<") && component_svg.contains(">binds<"),
+        "component relation labels should render"
+    );
+
+    let deployment_src = "@startuml\nnode Web\nartifact App\ndatabase Store\nWeb --> App : hosts\nApp *-- Store : data\n@enduml\n";
+    let deployment_svg = render_source_to_svg(deployment_src).expect("deployment svg should render");
+    assert!(
+        deployment_svg.contains("arrow-diamond-filled"),
+        "composition marker should render for deployment edges"
+    );
+}
+
+#[test]
 fn object_diagram_renders_underlined_header_and_rects() {
     let src = fs::read_to_string(fixture("families/valid_object_members_block.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("object svg should render");
