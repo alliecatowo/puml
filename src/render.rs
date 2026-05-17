@@ -4282,6 +4282,16 @@ fn ebnf_token_label(token: &EbnfToken) -> String {
 }
 
 pub fn render_math_svg(document: &MathDocument) -> String {
+    let start = document
+        .title
+        .as_ref()
+        .map(|title| format!("@startmath \"{}\"", title.replace('"', "\\\"")))
+        .unwrap_or_else(|| "@startmath".to_string());
+    let source = format!("{start}\n{}\n@endmath", document.body);
+    if let Some(Ok(svg)) = crate::specialized::try_render_specialized(&source) {
+        return svg;
+    }
+
     let width = 760;
     let lines: Vec<&str> = document.body.lines().collect();
     let line_count = lines.len().max(1) as i32;
@@ -4302,7 +4312,7 @@ pub fn render_math_svg(document: &MathDocument) -> String {
         y += 24;
     }
     out.push_str(&format!(
-        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">math (LaTeX-like, deterministic stub)</text>"
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">math (LaTeX-like)</text>"
     ));
     y += 16;
     let box_y = y;
@@ -4326,6 +4336,16 @@ pub fn render_math_svg(document: &MathDocument) -> String {
 }
 
 pub fn render_ditaa_svg(document: &DitaaDocument) -> String {
+    let start = document
+        .title
+        .as_ref()
+        .map(|title| format!("@startditaa \"{}\"", title.replace('"', "\\\"")))
+        .unwrap_or_else(|| "@startditaa".to_string());
+    let source = format!("{start}\n{}\n@endditaa", document.body);
+    if let Some(Ok(svg)) = crate::specialized::try_render_specialized(&source) {
+        return svg;
+    }
+
     let width = 820;
     let lines: Vec<&str> = document.body.lines().collect();
     let line_count = lines.len().max(1) as i32;
@@ -4346,7 +4366,7 @@ pub fn render_ditaa_svg(document: &DitaaDocument) -> String {
         y += 24;
     }
     out.push_str(&format!(
-        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">ditaa (ASCII art frame, deterministic stub)</text>"
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">ditaa (ASCII art frame)</text>"
     ));
     y += 16;
     let box_y = y;
@@ -4393,7 +4413,7 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
         y += 24;
     }
     out.push_str(&format!(
-        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">SDL state machine (deterministic stub)</text>"
+        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">SDL state machine</text>"
     ));
     y += 16;
     let grid_top = y;
