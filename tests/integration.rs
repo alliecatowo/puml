@@ -687,14 +687,14 @@ fn check_mode_passes_for_additional_valid_fixtures() {
 }
 
 #[test]
-fn check_mode_pragma_teoz_emits_deterministic_warning_and_succeeds() {
+fn check_mode_pragma_teoz_is_accepted_as_compatibility_noop() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--check", &fixture("basic/valid_pragma_directives.puml")])
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
-        .stderr(predicate::str::contains("[W_PRAGMA_TEOZ_UNSUPPORTED]"));
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]
@@ -4515,7 +4515,8 @@ fn component_and_deployment_edges_render_advanced_markers_and_dashes() {
     );
 
     let deployment_src = "@startuml\nnode Web\nartifact App\ndatabase Store\nWeb --> App : hosts\nApp *-- Store : data\n@enduml\n";
-    let deployment_svg = render_source_to_svg(deployment_src).expect("deployment svg should render");
+    let deployment_svg =
+        render_source_to_svg(deployment_src).expect("deployment svg should render");
     assert!(
         deployment_svg.contains("arrow-diamond-filled"),
         "composition marker should render for deployment edges"

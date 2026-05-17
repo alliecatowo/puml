@@ -108,7 +108,10 @@ fn parity_gap_csv_statuses_are_machine_readable_and_non_blank() {
 fn parity_source_of_truth_markdown_statuses_are_machine_readable() {
     let allowed: BTreeSet<&str> = ["implemented", "partial", "missing"].into_iter().collect();
     let rows = markdown_table_rows("docs/audits/plantuml_parity_source_of_truth.md");
-    assert!(!rows.is_empty(), "source-of-truth table should not be empty");
+    assert!(
+        !rows.is_empty(),
+        "source-of-truth table should not be empty"
+    );
 
     // First encountered row is header in this parser output.
     let header = &rows[0];

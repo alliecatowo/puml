@@ -3873,9 +3873,9 @@ fn parse_relation_side_annotations(
                     }
                 }
             }
-            if t.ends_with('"') {
-                if let Some(start_quote) = t[..t.len() - 1].rfind('"') {
-                    let value = t[start_quote + 1..t.len() - 1].trim();
+            if let Some(stripped) = t.strip_suffix('"') {
+                if let Some(start_quote) = stripped.rfind('"') {
+                    let value = stripped[start_quote + 1..].trim();
                     let endpoint = t[..start_quote].trim_end();
                     if !value.is_empty() && !endpoint.is_empty() {
                         if cardinality.is_none() {
