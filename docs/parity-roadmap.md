@@ -314,7 +314,7 @@ All diagram families and preprocessor surface areas have landed. 438 tests pass.
 | State / Activity / Timing | Supported — real renderers | #110 |
 | Salt (wireframe) | Supported — real tree render | #98, #99 |
 | MindMap / WBS | Supported — hierarchical layout | #96, #97 |
-| Gantt / Chronology | Supported — timeline render | #94, #95 |
+| Gantt / Chronology | Supported — timeline render with project date axes and Gantt closed-weekday calendar notes | #94, #95 |
 | JSON / YAML | Supported | #102 |
 | nwdiag | Supported | #101 |
 | Archimate | Supported | #100 |

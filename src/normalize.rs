@@ -755,6 +755,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
     let mut milestones = Vec::new();
     let mut constraints = Vec::new();
     let mut chronology_events = Vec::new();
+    let mut closed_weekdays = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -797,6 +798,11 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                 kind,
                 target,
             }),
+            StatementKind::GanttCalendarClosed { day } => {
+                if !closed_weekdays.iter().any(|existing| existing == &day) {
+                    closed_weekdays.push(day);
+                }
+            }
             StatementKind::ChronologyHappensOn { subject, when } => {
                 chronology_events.push(TimelineChronologyEvent { subject, when })
             }
@@ -864,6 +870,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         milestones,
         constraints,
         chronology_events,
+        closed_weekdays,
         project_start,
         project_start_day,
         title,
@@ -3444,6 +3451,7 @@ pub fn normalize_with_options(
             | StatementKind::GanttTaskDecl { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
+            | StatementKind::GanttCalendarClosed { .. }
             | StatementKind::ChronologyHappensOn { .. }
             | StatementKind::ComponentDecl { .. }
             | StatementKind::ActivityStep(_)

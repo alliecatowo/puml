@@ -72,6 +72,9 @@ pub enum StatementKind {
         kind: String,
         target: String,
     },
+    GanttCalendarClosed {
+        day: String,
+    },
     ChronologyHappensOn {
         subject: String,
         when: String,

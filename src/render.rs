@@ -2551,9 +2551,14 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .as_deref()
         .map(|t| 8 + (t.lines().count() as i32) * 22)
         .unwrap_or(0);
+    let calendar_h = if document.closed_weekdays.is_empty() {
+        0
+    } else {
+        18
+    };
 
     let row_count = (document.tasks.len() + document.milestones.len()) as i32;
-    let chart_top = 40 + title_h + header_h;
+    let chart_top = 40 + title_h + calendar_h + header_h;
     let chart_h = (row_count.max(1)) * (bar_height + row_gap) + 20;
     let total_h = chart_top + chart_h + 40;
 
@@ -2581,6 +2586,20 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         out.push_str(&format!(
             "<text x=\"{x}\" y=\"28\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">Gantt</text>",
             x = margin_x
+        ));
+    }
+    if !document.closed_weekdays.is_empty() {
+        let label = document
+            .closed_weekdays
+            .iter()
+            .map(|day| title_case_ascii(day))
+            .collect::<Vec<_>>()
+            .join(", ");
+        out.push_str(&format!(
+            "<text class=\"gantt-calendar\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#92400e\">Calendar: closed {label}</text>",
+            x = margin_x,
+            y = 42 + title_h,
+            label = escape_text(&label)
         ));
     }
 
@@ -2875,6 +2894,17 @@ fn resource_lane_label(task: &TimelineTask) -> String {
     } else {
         task.resources.join(", ")
     }
+}
+
+fn title_case_ascii(raw: &str) -> String {
+    let mut chars = raw.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    let mut out = String::new();
+    out.push(first.to_ascii_uppercase());
+    out.push_str(chars.as_str());
+    out
 }
 
 fn parse_relative_day(raw: &str) -> Option<u32> {

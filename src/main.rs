@@ -1470,6 +1470,9 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         } => {
             json!({"GanttConstraint": {"subject": subject, "kind": kind, "target": target}})
         }
+        StatementKind::GanttCalendarClosed { day } => {
+            json!({"GanttCalendarClosed": {"day": day}})
+        }
         StatementKind::ChronologyHappensOn { subject, when } => {
             json!({"ChronologyHappensOn": {"subject": subject, "when": when}})
         }

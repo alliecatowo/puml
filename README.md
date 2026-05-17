@@ -290,7 +290,7 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | Salt / wireframe (`@startsalt`) | Supported | Widget/grid/menu/tab/tree/table primitives, nested structures, scrolling markers, and metadata blocks. |
 | MindMap (`@startmindmap`) | Supported | Hierarchical OrgMode-style tree, directional controls, boxless markers, color/style hooks, deterministic layout. |
 | WBS (`@startwbs`) | Supported | Work-breakdown structure trees with orientation, style, and deterministic geometry. |
-| Gantt (`@startgantt`) | Supported | Task/milestone declarations, starts/ends/requires constraints, scale/calendar, resource lanes, deterministic SVG timeline. |
+| Gantt (`@startgantt`) | Supported | Task/milestone declarations, starts/ends/requires constraints, project date axis, closed weekday calendar notes, resource lanes, deterministic SVG timeline. |
 | Chronology (`@startchronology`) | Supported | `happens on` event statements, timestamp placement, deterministic timeline render. |
 | JSON family (`@startjson`) | Supported | Parses body as JSON via `serde_json`; flattens object/array/value tree into deterministic indented SVG node tree (falls back to raw line list on parse error). |
 | YAML family (`@startyaml`) | Supported | Indentation-based two-space mapping/sequence tree; rendered as a deterministic indented SVG node tree. |

@@ -323,6 +323,7 @@ pub struct TimelineDocument {
     pub milestones: Vec<TimelineMilestone>,
     pub constraints: Vec<TimelineConstraint>,
     pub chronology_events: Vec<TimelineChronologyEvent>,
+    pub closed_weekdays: Vec<String>,
     pub project_start: Option<String>,
     pub project_start_day: Option<u32>,
     pub title: Option<String>,
