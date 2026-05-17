@@ -19,6 +19,19 @@ weight = 100
 | `uml-sequence`   | PlantUML sequence family           |
 | `mermaid`        | Mermaid adaptation                 |
 
+## Inline preview
+
+On this site, supported diagram fences get a small preview control that renders locally in your browser with the same WASM renderer as the studio editor.
+
+```puml
+@startuml
+actor Writer
+participant Docs
+Writer -> Docs: open Markdown page
+Docs --> Writer: inline SVG preview
+@enduml
+```
+
 ## Example
 
 ````markdown

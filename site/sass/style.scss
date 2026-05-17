@@ -687,6 +687,120 @@ blockquote {
 .tok-stereo { color: #93c5fd; }
 .tok-bracket { color: var(--text-mute); }
 
+// ---------- Inline Markdown fence previews ----------
+.puml-fence-preview {
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.puml-fence-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
+}
+
+.puml-fence-toggle {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 28px;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+
+.puml-fence-toggle:hover,
+.puml-fence-toggle:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.puml-fence-body {
+  min-width: 0;
+}
+
+.puml-fence-preview pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.puml-fence-preview.is-open .puml-fence-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.92fr);
+  align-items: stretch;
+}
+
+.puml-fence-preview.is-open pre {
+  border-right: 1px solid var(--line);
+}
+
+.puml-fence-render {
+  min-height: 180px;
+  padding: 14px;
+  background: #ffffff;
+  color: #0b1020;
+  overflow: auto;
+}
+
+.puml-fence-render[hidden] {
+  display: none;
+}
+
+.puml-fence-pages {
+  display: grid;
+  place-items: center;
+  gap: 18px;
+  min-height: 100%;
+}
+
+.puml-fence-pages svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.puml-fence-message,
+.puml-fence-diagnostic {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  min-height: 150px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.puml-fence-diagnostic {
+  color: #4a1d1d;
+}
+
+.puml-fence-diagnostic .pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.puml-fence-diagnostic p {
+  max-width: 46ch;
+  margin: 8px 0 0;
+  color: inherit;
+  line-height: 1.45;
+}
+
 // ---------- Docs layout ----------
 .docs {
   display: grid;
@@ -822,6 +936,11 @@ footer.site-footer a:hover { color: var(--text); }
   .editor-shell { grid-template-columns: 1fr; }
   .docs { grid-template-columns: 1fr; }
   .docs .sidebar { position: static; max-height: none; }
+  .puml-fence-preview.is-open .puml-fence-body { grid-template-columns: 1fr; }
+  .puml-fence-preview.is-open pre {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
 }
 @media (max-width: 600px) {
   .container { padding: 0 16px; }
