@@ -808,7 +808,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "arrows/invalid_malformed_arrows.puml",
         "arrows/invalid_endpoint_variants.puml",
         "errors/invalid_malformed_note_ref.puml",
-        "notes/invalid_note_position_target_required.puml",
         "structure/invalid_malformed_divider_delay.puml",
         "groups/invalid_else_without_open_group.puml",
         "groups/invalid_end_without_open_group.puml",
@@ -6309,6 +6308,30 @@ fn skinparam_component_colors_appear_in_svg() {
         svg.contains("#15803d"),
         "ComponentArrowColor #15803d should appear in SVG"
     );
+}
+
+#[test]
+fn family_notes_render_for_core_uml_families() {
+    let cases = [
+        (
+            "@startuml\nclass Order\nnote right of Order: validates totals\n@enduml\n",
+            "validates totals",
+        ),
+        (
+            "@startuml\ncomponent API\nnote right of API: public facade\n@enduml\n",
+            "public facade",
+        ),
+        (
+            "@startuml\nstart\n:Build;\nnote top: lane detail\nstop\n@enduml\n",
+            "lane detail",
+        ),
+    ];
+
+    for (src, note_text) in cases {
+        let svg = render_source_to_svg(src).expect("family note svg should render");
+        assert!(svg.contains("#fff8c4"), "note card fill should render");
+        assert!(svg.contains(note_text), "note text should render");
+    }
 }
 
 #[test]

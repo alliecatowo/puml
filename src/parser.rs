@@ -3443,6 +3443,28 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        if let Some(kind) = parse_keyword(line) {
+            let multiline_note_head =
+                matches!(&kind, StatementKind::Note(_)) && note_block_continues(&lines, i, line);
+            let multiline_text_head = matches!(
+                &kind,
+                StatementKind::Title(_)
+                    | StatementKind::Header(_)
+                    | StatementKind::Footer(_)
+                    | StatementKind::Caption(_)
+                    | StatementKind::Legend(_)
+            ) && text_block_continues(&lines, i, line);
+            if detected_kind.is_some()
+                && is_family_common_keyword(&kind)
+                && !multiline_note_head
+                && !multiline_text_head
+            {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
         if matches!(
             detected_kind,
             Some(DiagramKind::Component | DiagramKind::Deployment)
@@ -6823,10 +6845,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         }
         let (head, text) = tail.split_once(':').unwrap_or((tail, ""));
         let (pos, target) = parse_note_head(head);
-        if pos.eq_ignore_ascii_case("of")
-            || !is_valid_note_position(&pos)
-            || (matches!(pos.to_ascii_lowercase().as_str(), "left" | "right") && target.is_none())
-        {
+        if pos.eq_ignore_ascii_case("of") || !is_valid_note_position(&pos) {
             return Some(StatementKind::Unknown(format!(
                 "[E_NOTE_INVALID] malformed note syntax: `{}`",
                 line
@@ -6994,7 +7013,7 @@ fn parse_note_head(head: &str) -> (String, Option<String>) {
 fn is_valid_note_position(position: &str) -> bool {
     matches!(
         position.to_ascii_lowercase().as_str(),
-        "left" | "right" | "over" | "across"
+        "left" | "right" | "top" | "bottom" | "over" | "across"
     )
 }
 
@@ -7358,8 +7377,7 @@ fn looks_like_arrow_syntax(line: &str) -> bool {
 fn is_sequence_keyword(kind: &StatementKind) -> bool {
     matches!(
         kind,
-        StatementKind::Note(_)
-            | StatementKind::Group(_)
+        StatementKind::Group(_)
             | StatementKind::Footbox(_)
             | StatementKind::Delay(_)
             | StatementKind::Divider(_)
@@ -7373,6 +7391,69 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Destroy(_)
             | StatementKind::Create(_)
             | StatementKind::Return(_)
+    )
+}
+
+fn note_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool {
+    let lower = line.trim().to_ascii_lowercase();
+    if !(lower.starts_with("note ") || lower.starts_with("hnote ") || lower.starts_with("rnote ")) {
+        return false;
+    }
+    for (candidate, _) in lines.iter().skip(idx + 1) {
+        let trimmed = candidate.trim();
+        if trimmed.eq_ignore_ascii_case("end note") || trimmed.eq_ignore_ascii_case("endnote") {
+            return true;
+        }
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with('@') {
+            return false;
+        }
+    }
+    !line.contains(':')
+}
+
+fn text_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool {
+    let lower = line.trim().to_ascii_lowercase();
+    let keyword = ["title", "header", "footer", "caption", "legend"]
+        .into_iter()
+        .find(|keyword| lower.starts_with(&format!("{keyword} ")));
+    let Some(keyword) = keyword else {
+        return false;
+    };
+    let end_marker = format!("end {keyword}");
+    for (candidate, _) in lines.iter().skip(idx + 1) {
+        let trimmed = candidate.trim();
+        if trimmed.eq_ignore_ascii_case(&end_marker) {
+            return true;
+        }
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with('@') {
+            return false;
+        }
+    }
+    false
+}
+
+fn is_family_common_keyword(kind: &StatementKind) -> bool {
+    matches!(
+        kind,
+        StatementKind::Note(_)
+            | StatementKind::Title(_)
+            | StatementKind::Caption(_)
+            | StatementKind::Header(_)
+            | StatementKind::Footer(_)
+            | StatementKind::Legend(_)
+            | StatementKind::LegendPos(_)
+            | StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Scale(_)
+            | StatementKind::SetOption { .. }
+            | StatementKind::HideOption(_)
+            | StatementKind::Pragma(_)
     )
 }
 

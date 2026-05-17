@@ -499,6 +499,7 @@ pub enum FamilyNodeKind {
     ActivityForkEnd,
     ActivityMerge,
     ActivityPartition,
+    Note,
     // Timing family
     TimingConcise,
     TimingRobust,
