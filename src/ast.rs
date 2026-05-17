@@ -343,8 +343,17 @@ pub struct Message {
     pub to: String,
     pub arrow: String,
     pub label: Option<String>,
+    pub style: MessageStyle,
     pub from_virtual: Option<VirtualEndpoint>,
     pub to_virtual: Option<VirtualEndpoint>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MessageStyle {
+    pub color: Option<String>,
+    pub hidden: bool,
+    pub dashed: bool,
+    pub dotted: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

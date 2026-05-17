@@ -105,6 +105,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 to,
                 arrow,
                 label,
+                style,
                 from_virtual,
                 to_virtual,
             } => {
@@ -129,6 +130,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     arrow: arrow.clone(),
                     label,
                     label_lines,
+                    style: style.clone(),
                     from_virtual: *from_virtual,
                     to_virtual: *to_virtual,
                 });
@@ -157,6 +159,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         arrow: "-->".to_string(),
                         label,
                         label_lines,
+                        style: Default::default(),
                         from_virtual: None,
                         to_virtual: None,
                     });

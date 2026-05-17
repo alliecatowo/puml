@@ -1761,6 +1761,7 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
             to,
             arrow,
             label,
+            style: _,
             from_virtual,
             to_virtual,
         } => {

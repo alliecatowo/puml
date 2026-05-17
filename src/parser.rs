@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::{
     ActivityStep, ActivityStepKind, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind,
-    Document, FamilyRelation, Group, MemberModifier, Message, Note, ObjectDecl, ParticipantDecl,
-    ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition, Statement,
-    StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
+    Document, FamilyRelation, Group, MemberModifier, Message, MessageStyle, Note, ObjectDecl,
+    ParticipantDecl, ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition,
+    Statement, StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
     VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
@@ -6167,6 +6167,7 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
 fn parse_message(line: &str) -> Option<StatementKind> {
     let (core, label) = split_message_label(line);
     let (lhs_raw, arrow, rhs_raw) = split_arrow(core)?;
+    let style = parse_arrow_style(arrow);
     let parsed_arrow = parse_arrow(arrow)?;
     let (from_id_raw, from_modifier) = split_lifecycle_modifier(lhs_raw);
     let (to_id_raw, to_modifier) = split_lifecycle_modifier(rhs_raw);
@@ -6209,9 +6210,49 @@ fn parse_message(line: &str) -> Option<StatementKind> {
         to,
         arrow: arrow_encoded,
         label,
+        style,
         from_virtual,
         to_virtual,
     }))
+}
+
+fn parse_arrow_style(arrow: &str) -> MessageStyle {
+    let mut style = MessageStyle::default();
+    let mut chars = arrow.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '[' {
+            continue;
+        }
+        let mut body = String::new();
+        for inner in chars.by_ref() {
+            if inner == ']' {
+                break;
+            }
+            body.push(inner);
+        }
+        for token in body.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            let lower = token.to_ascii_lowercase();
+            match lower.as_str() {
+                "hidden" => style.hidden = true,
+                "dashed" => style.dashed = true,
+                "dotted" => style.dotted = true,
+                _ if token.starts_with('#')
+                    && matches!(token.len(), 4 | 5 | 7 | 9)
+                    && token[1..].bytes().all(|b| b.is_ascii_hexdigit()) =>
+                {
+                    style.color = Some(format!("#{}", token[1..].to_ascii_lowercase()));
+                }
+                _ if token.starts_with('#') && token[1..].bytes().all(|b| b.is_ascii_alphabetic()) => {
+                    style.color = Some(token[1..].to_ascii_lowercase());
+                }
+                _ if token.bytes().all(|b| b.is_ascii_alphabetic()) => {
+                    style.color = Some(lower);
+                }
+                _ => {}
+            }
+        }
+    }
+    style
 }
 
 fn ast_virtual_endpoint_from_id(id: &str, is_from: bool) -> Option<VirtualEndpoint> {

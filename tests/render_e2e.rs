@@ -104,7 +104,9 @@ fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
     assert!(svg.contains("styled"));
     assert!(svg.contains("hidden"));
     assert!(svg.contains("<polygon points=\""));
+    assert!(svg.contains("stroke=\"#ff0000\""));
     assert!(svg.contains("stroke-dasharray=\"6 4\""));
+    assert!(svg.contains("visibility=\"hidden\""));
 }
 
 #[test]
@@ -272,6 +274,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("found".to_string()),
+                    style: Default::default(),
                     from_virtual: Some(puml::model::VirtualEndpoint {
                         side: puml::model::VirtualEndpointSide::Left,
                         kind: puml::model::VirtualEndpointKind::Filled,
@@ -286,6 +289,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("self".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: None,
                 },
@@ -297,6 +301,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "[*]".to_string(),
                     arrow: "->".to_string(),
                     label: Some("lost".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: Some(puml::model::VirtualEndpoint {
                         side: puml::model::VirtualEndpointSide::Right,
@@ -311,6 +316,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "B".to_string(),
                     arrow: "-->".to_string(),
                     label: Some("modifier-syntax-safe".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: None,
                 },

@@ -635,6 +635,7 @@ pub enum SequenceEventKind {
         to: String,
         arrow: String,
         label: Option<String>,
+        style: SequenceMessageStyle,
         from_virtual: Option<VirtualEndpoint>,
         to_virtual: Option<VirtualEndpoint>,
     },
@@ -669,6 +670,14 @@ pub enum SequenceEventKind {
         value: Option<String>,
     },
     UndefPlaceholder(String),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SequenceMessageStyle {
+    pub color: Option<String>,
+    pub hidden: bool,
+    pub dashed: bool,
+    pub dotted: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
