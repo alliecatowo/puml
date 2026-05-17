@@ -393,26 +393,20 @@ fn render_sequence_arrow_heads(
     if left_arrow {
         render_arrow_head(
             out,
-            m.x1,
-            m.y,
-            m.x2,
-            m.x1,
+            (m.x1, m.y),
+            (m.x2, m.x1),
             open_head,
-            stroke_color,
-            fill_color,
+            (stroke_color, fill_color),
             hidden,
         );
     }
     if right_arrow {
         render_arrow_head(
             out,
-            m.x2,
-            m.y,
-            m.x1,
-            m.x2,
+            (m.x2, m.y),
+            (m.x1, m.x2),
             open_head,
-            stroke_color,
-            fill_color,
+            (stroke_color, fill_color),
             hidden,
         );
     }
@@ -426,15 +420,15 @@ fn render_sequence_arrow_heads(
 
 fn render_arrow_head(
     out: &mut String,
-    x: i32,
-    y: i32,
-    from_x: i32,
-    to_x: i32,
+    point: (i32, i32),
+    from_to_x: (i32, i32),
     open: bool,
-    stroke_color: &str,
-    fill_color: &str,
+    colors: (&str, &str),
     hidden: &str,
 ) {
+    let (x, y) = point;
+    let (from_x, to_x) = from_to_x;
+    let (stroke_color, fill_color) = colors;
     let dir = if to_x >= from_x { 1 } else { -1 };
     let back = x - (dir * 8);
     if open {

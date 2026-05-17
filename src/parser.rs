@@ -3460,24 +3460,21 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
             if let Some(kind) = parse_component_decl(line) {
                 let family = match &kind {
-                    StatementKind::ComponentDecl { kind, .. }
-                        if matches!(
-                            kind,
+                    StatementKind::ComponentDecl {
+                        kind:
                             ComponentNodeKind::Node
-                                | ComponentNodeKind::Artifact
-                                | ComponentNodeKind::Cloud
-                                | ComponentNodeKind::Frame
-                                | ComponentNodeKind::Storage
-                                | ComponentNodeKind::Database
-                                | ComponentNodeKind::Package
-                                | ComponentNodeKind::Rectangle
-                                | ComponentNodeKind::Folder
-                                | ComponentNodeKind::File
-                                | ComponentNodeKind::Card
-                        ) =>
-                    {
-                        DiagramKind::Deployment
-                    }
+                            | ComponentNodeKind::Artifact
+                            | ComponentNodeKind::Cloud
+                            | ComponentNodeKind::Frame
+                            | ComponentNodeKind::Storage
+                            | ComponentNodeKind::Database
+                            | ComponentNodeKind::Package
+                            | ComponentNodeKind::Rectangle
+                            | ComponentNodeKind::Folder
+                            | ComponentNodeKind::File
+                            | ComponentNodeKind::Card,
+                        ..
+                    } => DiagramKind::Deployment,
                     _ => DiagramKind::Component,
                 };
                 detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
