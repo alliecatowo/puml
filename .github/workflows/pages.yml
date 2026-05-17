@@ -89,6 +89,9 @@ jobs:
         working-directory: site
         run: zola build
 
+      - name: Site graph toggle smoke
+        run: node site/scripts/smoke-inline-fence-preview.mjs site --require-wasm
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
