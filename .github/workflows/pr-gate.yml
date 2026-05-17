@@ -238,8 +238,8 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
-      - name: visual smoke fixture matrix
-        run: cargo test --test visual_regression visual_smoke_representative_docs_examples_matrix
+      - name: visual full text fixture matrix
+        run: cargo test --test visual_regression visual_regression_all_fixtures
 
       - name: Upload visual smoke artifacts
         if: always()
