@@ -13,15 +13,20 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
 jobs:
-  gate:
-    name: fmt-clippy-test-coverage-quick
+  changes:
+    name: classify changed files
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_INCREMENTAL: 0
-      RUST_BACKTRACE: 1
+    timeout-minutes: 10
+    outputs:
+      run_full_gate: ${{ steps.changes.outputs.run_full_gate }}
+      docs_examples_changed: ${{ steps.changes.outputs.docs_examples_changed }}
+      run_site_smoke: ${{ steps.changes.outputs.run_site_smoke }}
 
     steps:
       - name: Checkout
@@ -91,88 +96,81 @@ jobs:
           echo "Docs-only change set detected outside docs/examples; skipping Rust, coverage, wasm, visual, and docs-example drift gates."
           echo "Site graph-toggle smoke will still run when documentation/site files can affect rendered docs."
 
+  fmt:
+    name: fmt
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Rust toolchain
-        if: steps.changes.outputs.run_full_gate == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
-          components: rustfmt, clippy, llvm-tools-preview
-
-      - name: Set up Node
-        if: steps.changes.outputs.run_site_smoke == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+          components: rustfmt
 
       - name: Cache Rust build artifacts
-        if: steps.changes.outputs.run_full_gate == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
-      - name: Install cargo-llvm-cov
-        if: steps.changes.outputs.run_full_gate == 'true'
-        run: cargo install cargo-llvm-cov --locked
-
-      - name: Install Zola
-        if: steps.changes.outputs.run_site_smoke == 'true'
-        run: |
-          set -euo pipefail
-          ZOLA_VERSION=0.19.2
-          mkdir -p "${RUNNER_TEMP}/zola"
-          curl -fsSL -o /tmp/zola.tar.gz \
-            "https://github.com/getzola/zola/releases/download/v${ZOLA_VERSION}/zola-v${ZOLA_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
-          tar -xzf /tmp/zola.tar.gz -C "${RUNNER_TEMP}/zola"
-          echo "${RUNNER_TEMP}/zola" >> "${GITHUB_PATH}"
-          "${RUNNER_TEMP}/zola/zola" --version
-
       - name: fmt gate
-        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo fmt --check
 
+  clippy:
+    name: clippy
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
       - name: clippy gate
-        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+  test:
+    name: test
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
       - name: test gate
-        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo test
 
-      - name: wasm check
-        if: steps.changes.outputs.run_full_gate == 'true'
-        run: cargo check --target wasm32-unknown-unknown -p puml-wasm
-
-      - name: visual smoke fixture matrix
-        if: steps.changes.outputs.run_full_gate == 'true'
-        run: cargo test --test visual_regression visual_smoke_representative_docs_examples_matrix
-
-      - name: coverage gate
-        if: steps.changes.outputs.run_full_gate == 'true'
-        run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|render)/.*\.rs'
-
-      - name: docs examples drift gate
-        if: steps.changes.outputs.run_full_gate == 'true'
-        run: python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
-
-      - name: site graph toggle smoke
-        if: steps.changes.outputs.run_site_smoke == 'true'
-        run: ./scripts/site-smoke.sh
-
-      - name: Upload visual/site smoke artifacts
-        if: always() && (steps.changes.outputs.run_full_gate == 'true' || steps.changes.outputs.run_site_smoke == 'true')
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr-visual-site-smoke-${{ github.run_number }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: |
-            target/visual-diff
-            target/site-smoke
-            site/public
-
       - name: Upload benchmark artifacts
-        if: always() && steps.changes.outputs.run_full_gate == 'true'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pr-benchmarks-${{ github.run_number }}
@@ -184,3 +182,232 @@ jobs:
             docs/benchmarks/latest.json
             docs/benchmarks/latest_trend.md
             docs/benchmarks/latest_trend.json
+
+  wasm:
+    name: wasm
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: wasm check
+        run: cargo check --target wasm32-unknown-unknown -p puml-wasm
+
+  visual_smoke:
+    name: visual smoke fixture matrix
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: visual smoke fixture matrix
+        run: cargo test --test visual_regression visual_smoke_representative_docs_examples_matrix
+
+      - name: Upload visual smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-visual-smoke-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: target/visual-diff
+
+  coverage:
+    name: coverage
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: coverage gate
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|render)/.*\.rs'
+
+  docs_examples_drift:
+    name: docs examples drift
+    needs: changes
+    if: needs.changes.outputs.run_full_gate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: docs examples drift gate
+        run: python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
+
+  site_smoke:
+    name: site graph toggle smoke
+    needs: changes
+    if: needs.changes.outputs.run_site_smoke == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Zola
+        run: |
+          set -euo pipefail
+          ZOLA_VERSION=0.19.2
+          mkdir -p "${RUNNER_TEMP}/zola"
+          curl -fsSL -o /tmp/zola.tar.gz \
+            "https://github.com/getzola/zola/releases/download/v${ZOLA_VERSION}/zola-v${ZOLA_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf /tmp/zola.tar.gz -C "${RUNNER_TEMP}/zola"
+          echo "${RUNNER_TEMP}/zola" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/zola/zola" --version
+
+      - name: site graph toggle smoke
+        run: ./scripts/site-smoke.sh
+
+      - name: Upload site smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-site-smoke-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            target/site-smoke
+            site/public
+
+  required_check:
+    name: fmt-clippy-test-coverage-quick
+    needs:
+      - changes
+      - fmt
+      - clippy
+      - test
+      - wasm
+      - visual_smoke
+      - coverage
+      - docs_examples_drift
+      - site_smoke
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RUN_FULL_GATE: ${{ needs.changes.outputs.run_full_gate }}
+      RUN_SITE_SMOKE: ${{ needs.changes.outputs.run_site_smoke }}
+      CHANGES_RESULT: ${{ needs.changes.result }}
+      FMT_RESULT: ${{ needs.fmt.result }}
+      CLIPPY_RESULT: ${{ needs.clippy.result }}
+      TEST_RESULT: ${{ needs.test.result }}
+      WASM_RESULT: ${{ needs.wasm.result }}
+      VISUAL_RESULT: ${{ needs.visual_smoke.result }}
+      COVERAGE_RESULT: ${{ needs.coverage.result }}
+      DOCS_EXAMPLES_RESULT: ${{ needs.docs_examples_drift.result }}
+      SITE_SMOKE_RESULT: ${{ needs.site_smoke.result }}
+
+    steps:
+      - name: Summarize PR gate shards
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "changes=${CHANGES_RESULT}"
+          echo "run_full_gate=${RUN_FULL_GATE}"
+          echo "run_site_smoke=${RUN_SITE_SMOKE}"
+          echo "fmt=${FMT_RESULT}"
+          echo "clippy=${CLIPPY_RESULT}"
+          echo "test=${TEST_RESULT}"
+          echo "wasm=${WASM_RESULT}"
+          echo "visual=${VISUAL_RESULT}"
+          echo "coverage=${COVERAGE_RESULT}"
+          echo "docs_examples=${DOCS_EXAMPLES_RESULT}"
+          echo "site_smoke=${SITE_SMOKE_RESULT}"
+
+          failures=()
+
+          require_success() {
+            local label="$1"
+            local result="$2"
+            if [[ "${result}" != "success" ]]; then
+              failures+=("${label} expected success, got ${result}")
+            fi
+          }
+
+          require_success "changes" "${CHANGES_RESULT}"
+
+          if [[ "${RUN_FULL_GATE}" == "true" ]]; then
+            require_success "fmt" "${FMT_RESULT}"
+            require_success "clippy" "${CLIPPY_RESULT}"
+            require_success "test" "${TEST_RESULT}"
+            require_success "wasm" "${WASM_RESULT}"
+            require_success "visual" "${VISUAL_RESULT}"
+            require_success "coverage" "${COVERAGE_RESULT}"
+            require_success "docs examples" "${DOCS_EXAMPLES_RESULT}"
+          fi
+
+          if [[ "${RUN_SITE_SMOKE}" == "true" ]]; then
+            require_success "site smoke" "${SITE_SMOKE_RESULT}"
+          fi
+
+          if (( ${#failures[@]} > 0 )); then
+            printf 'PR gate failed:\n' >&2
+            printf '  - %s\n' "${failures[@]}" >&2
+            exit 1
+          fi
+
+          echo "PR gate passed."
