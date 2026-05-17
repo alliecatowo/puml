@@ -5287,6 +5287,58 @@ fn gantt_render_emits_horizontal_bars_and_milestone_diamond() {
 }
 
 #[test]
+fn gantt_task_decl_split_across_lines_produces_one_bar_per_task() {
+    // Regression test for #241: when a task is declared bare on one line and
+    // then constrained (e.g. "[Design] starts 2026-01-02") on a subsequent
+    // line, the normalizer must merge them into a single task rather than
+    // creating a duplicate, which would result in ghost rows with no bars.
+    let src = "\
+@startgantt\n\
+title Project Timeline\n\
+[Design]\n\
+[Build]\n\
+[Test]\n\
+[Kickoff] happens on 2026-01-01\n\
+[Design] starts 2026-01-02\n\
+[Build] starts 2026-01-15\n\
+[Build] requires [Design]\n\
+[Test] starts 2026-02-01\n\
+[Test] requires [Build]\n\
+@endgantt\n";
+    let svg = render_source_to_svg(src).expect("gantt should render");
+    assert!(svg.starts_with("<svg"), "should produce SVG");
+    // Count gantt-task rect elements — must equal 3 (one per unique task).
+    let bar_count = svg.matches("class=\"gantt-task\"").count();
+    assert_eq!(
+        bar_count, 3,
+        "expected exactly 3 task bars (Design, Build, Test), got {bar_count}; \
+         likely duplicate task rows caused by split declarations"
+    );
+    // Row labels should appear exactly once each.
+    for name in ["Design", "Build", "Test"] {
+        assert!(svg.contains(name), "task label {name} missing");
+    }
+    // Milestone row for Kickoff.
+    assert!(svg.contains("<polygon"), "milestone diamond missing");
+    // Bars must be positioned after the chart's left axis (x > 100).
+    let bar_x_vals: Vec<i32> = svg
+        .split("class=\"gantt-task\"")
+        .skip(1)
+        .filter_map(|chunk| {
+            let x_part = chunk.split("x=\"").nth(1)?;
+            x_part.split('"').next()?.parse().ok()
+        })
+        .collect();
+    assert_eq!(bar_x_vals.len(), 3, "should have 3 bar x coordinates");
+    for &x in &bar_x_vals {
+        assert!(
+            x > 100,
+            "bar x={x} is unexpectedly small (left of label column)"
+        );
+    }
+}
+
+#[test]
 fn state_concurrent_renders_dashed_divider() {
     let src = fs::read_to_string(fixture("families/valid_state_concurrent.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("should render state concurrent SVG");
