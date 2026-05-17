@@ -1487,3 +1487,104 @@ fn lifelines_start_below_wrapped_participant_headers() {
         "lifeline should start at participant box bottom"
     );
 }
+
+/// Regression test for issue #238: text labels must be visible (non-empty `<text>` elements)
+/// across all diagram families. Specifically, this covers the MindMap and WBS families
+/// which were incorrectly routed through the class diagram renderer instead of their
+/// dedicated renderers, causing the wrong visual structure (flat grid instead of tree).
+#[test]
+fn render_text_labels_present_across_multi_family_regression() {
+    // Each entry: (family name, source, expected text substrings in SVG)
+    let cases: &[(&str, &str, &[&str])] = &[
+        (
+            "sequence",
+            "@startuml\nparticipant Alice\nparticipant Bob\nAlice -> Bob : Hello World\n@enduml\n",
+            &["Alice", "Bob", "Hello World"],
+        ),
+        (
+            "class",
+            "@startuml\nclass Vehicle\nclass Car\nVehicle --> Car : uses\n@enduml\n",
+            &["Vehicle", "Car", "uses"],
+        ),
+        (
+            "gantt",
+            "@startgantt\nProject starts 2026-01-01\n[TaskAlpha] lasts 3 days\n[TaskBeta] lasts 2 days\n@endgantt\n",
+            &["TaskAlpha", "TaskBeta"],
+        ),
+        (
+            "mindmap",
+            "@startmindmap\n* CentralRoot\n** BranchLeft\n** BranchRight\n@endmindmap\n",
+            // text labels AND dedicated renderer data attributes (not class diagram attributes)
+            &["CentralRoot", "BranchLeft", "BranchRight", "data-mindmap-orientation"],
+        ),
+        (
+            "wbs",
+            "@startwbs\n* ProjectAlpha\n** DeliverableOne\n** DeliverableTwo\n@endwbs\n",
+            // text labels AND dedicated renderer data attributes (not class diagram attributes)
+            &["ProjectAlpha", "DeliverableOne", "DeliverableTwo", "data-wbs-orientation"],
+        ),
+        (
+            "activity",
+            "@startuml\nstart\n:StepAlpha;\n:StepBeta;\nstop\n@enduml\n",
+            &["StepAlpha", "StepBeta"],
+        ),
+        (
+            "state",
+            "@startuml\n[*] --> StateIdle\nStateIdle --> StateRunning : start event\nStateRunning --> [*]\n@enduml\n",
+            &["StateIdle", "StateRunning", "start event"],
+        ),
+    ];
+
+    for (name, src, expected_substrings) in cases {
+        let svg = puml::render_source_to_svg(src).unwrap_or_else(|err| {
+            panic!(
+                "{name}: render should succeed but got error: {}",
+                err.message
+            )
+        });
+
+        // Must be valid SVG
+        assert!(
+            svg.starts_with("<svg"),
+            "{name}: output should be an SVG document"
+        );
+
+        // Must have at least one non-empty <text> element
+        assert!(
+            svg.contains("<text"),
+            "{name}: SVG must contain at least one <text> element (text labels are missing)"
+        );
+
+        // Each expected label/attribute must appear in the SVG
+        for needle in *expected_substrings {
+            assert!(
+                svg.contains(needle),
+                "{name}: SVG should contain `{needle}` but it was absent — possible text label regression"
+            );
+        }
+
+        // MindMap must NOT use the class diagram renderer (regression check)
+        if *name == "mindmap" {
+            assert!(
+                !svg.contains("class=\"uml-relation\""),
+                "mindmap must use the dedicated mindmap renderer, not the class diagram renderer"
+            );
+            assert!(
+                svg.contains("mindmap-node"),
+                "mindmap SVG must contain mindmap-node class elements"
+            );
+        }
+
+        // WBS must NOT use the class diagram renderer (regression check)
+        if *name == "wbs" {
+            assert!(
+                !svg.contains("class=\"uml-relation\""),
+                "wbs must use the dedicated WBS renderer, not the class diagram renderer"
+            );
+            assert!(
+                svg.contains("wbs-node"),
+                "WBS SVG must contain wbs-node class elements"
+            );
+        }
+    }
+}

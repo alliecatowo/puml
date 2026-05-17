@@ -7045,3 +7045,94 @@ fn preprocessor_unsafe_io_aliases_and_malformed_collections_report_stable_codes(
         .expect_err("unbalanced collection argument should fail");
     assert!(syntax_err.message.contains("E_PREPROC_CALL_SYNTAX"));
 }
+
+/// Regression test for issue #238: the CLI must route MindMap and WBS diagrams
+/// to their dedicated renderers (not the generic class diagram renderer).
+/// Before the fix, `render_family_document_svg` in `src/main.rs` was missing
+/// the MindMap and WBS arms, causing both to fall through to `render_family_stub_svg`
+/// (= `render_class_svg`), producing flat grid output instead of tree output.
+#[test]
+fn cli_mindmap_uses_dedicated_renderer_not_class_renderer() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("test.puml");
+    fs::write(
+        &input,
+        "@startmindmap\n* CentralRoot\n** BranchAlpha\n** BranchBeta\n@endmindmap\n",
+    )
+    .unwrap();
+    let output = tmp.path().join("test.svg");
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([input.to_str().unwrap(), "--output", output.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let svg = fs::read_to_string(&output).expect("output SVG should exist");
+
+    // Must be SVG
+    assert!(svg.starts_with("<svg"), "output should be SVG");
+
+    // Must contain node labels
+    assert!(svg.contains("CentralRoot"), "mindmap SVG must contain root label");
+    assert!(svg.contains("BranchAlpha"), "mindmap SVG must contain branch label");
+    assert!(svg.contains("BranchBeta"), "mindmap SVG must contain branch label");
+
+    // Must use dedicated mindmap renderer (data-mindmap-* attrs), NOT class renderer
+    assert!(
+        svg.contains("data-mindmap-orientation"),
+        "mindmap must use dedicated mindmap renderer (data-mindmap-* attrs expected)"
+    );
+    assert!(
+        svg.contains("mindmap-node"),
+        "mindmap must use dedicated mindmap renderer (mindmap-node class expected)"
+    );
+    assert!(
+        !svg.contains("class=\"uml-relation\""),
+        "mindmap must NOT fall through to class diagram renderer"
+    );
+}
+
+/// Regression test for issue #238: the CLI must route WBS diagrams to their
+/// dedicated WBS renderer (not the generic class diagram renderer).
+#[test]
+fn cli_wbs_uses_dedicated_renderer_not_class_renderer() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("test.puml");
+    fs::write(
+        &input,
+        "@startwbs\n* ProjectScope\n** PhaseAlpha\n** PhaseBeta\n@endwbs\n",
+    )
+    .unwrap();
+    let output = tmp.path().join("test.svg");
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([input.to_str().unwrap(), "--output", output.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let svg = fs::read_to_string(&output).expect("output SVG should exist");
+
+    // Must be SVG
+    assert!(svg.starts_with("<svg"), "output should be SVG");
+
+    // Must contain node labels
+    assert!(svg.contains("ProjectScope"), "WBS SVG must contain root label");
+    assert!(svg.contains("PhaseAlpha"), "WBS SVG must contain child label");
+    assert!(svg.contains("PhaseBeta"), "WBS SVG must contain child label");
+
+    // Must use dedicated WBS renderer (data-wbs-* attrs), NOT class renderer
+    assert!(
+        svg.contains("data-wbs-orientation"),
+        "WBS must use dedicated WBS renderer (data-wbs-* attrs expected)"
+    );
+    assert!(
+        svg.contains("wbs-node"),
+        "WBS must use dedicated WBS renderer (wbs-node class expected)"
+    );
+    assert!(
+        !svg.contains("class=\"uml-relation\""),
+        "WBS must NOT fall through to class diagram renderer"
+    );
+}
