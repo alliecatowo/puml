@@ -76,8 +76,10 @@ checking untrusted files or when a no-network run is required; remote targets
 then fail with `E_INCLUDE_URL_DISABLED`.
 
 Embedded surfaces are stricter by design. The LSP does not fetch remote includes
-while publishing diagnostics or previews, and the WASM/browser renderer rejects
-filesystem and URL includes. See the [URL include policy](https://github.com/alliecatowo/puml/blob/main/docs/url-includes.md)
+while publishing diagnostics or previews, the WASM/browser renderer rejects
+filesystem and URL includes, and bundled MCP/agent tools pass `--no-url-includes`
+unless a tool call explicitly sets `allow_url_includes: true`. See the
+[URL include policy](https://github.com/alliecatowo/puml/blob/main/docs/url-includes.md)
 for the surface-by-surface contract.
 
 ## Output paths

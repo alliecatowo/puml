@@ -11,7 +11,7 @@ embedded/editor surfaces avoid surprise network access.
 | CLI / native library with default features | Enabled by default for `!include https://...`, `!includeurl`, URL `!include_many`, and URL `!import`; pass `--no-url-includes` or set `ParsePipelineOptions::no_url_includes = true` to reject remote targets. |
 | LSP (`puml-lsp`) | Disabled for diagnostics, hover, semantic features, and preview commands. Opening a document should never fetch a remote URL as an editor side effect. |
 | WASM / browser studio | Unsupported because the WASM crate builds without URL include dependencies and has no filesystem resolver. URL targets return deterministic diagnostics. |
-| Agent / automation surfaces | Prefer explicit policy: use the CLI default when you are intentionally checking PlantUML compatibility, and use `--no-url-includes` for untrusted inputs or no-network audit runs. |
+| Agent / automation surfaces | Disabled by default for the bundled MCP tools. Pass `allow_url_includes: true` in a tool call only when remote fetching is intentional. Use the native CLI default when you are deliberately checking PlantUML compatibility outside an agent tool surface. |
 
 ## Cache And Diagnostics
 

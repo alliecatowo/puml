@@ -45,4 +45,9 @@ call_svg=$(printf '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name
 expect_contains "$call_svg" '"isError": false' "tools/call puml_render_svg returned isError=true"
 expect_contains "$call_svg" '<svg' "tools/call puml_render_svg missing svg payload"
 
+echo "[mcp-smoke] URL includes disabled by default"
+call_remote=$(printf '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"puml_check","arguments":{"text":"@startuml\\n!include https://example.com/lib.puml\\n@enduml"}}}\n' | "$MCP_BIN")
+expect_contains "$call_remote" '"isError": true' "remote include should fail by default"
+expect_contains "$call_remote" 'E_INCLUDE_URL_DISABLED' "remote include did not use disabled diagnostic"
+
 echo "[mcp-smoke] complete"

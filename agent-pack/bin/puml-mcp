@@ -39,6 +39,8 @@ def puml_check(params):
     text, path = _validate_one_source(params)
     include_root = params.get("include_root")
     args = ["--check"]
+    if not params.get("allow_url_includes", False):
+        args += ["--no-url-includes"]
     if include_root:
         args += ["--include-root", include_root]
     if path:
@@ -54,6 +56,8 @@ def puml_render_svg(params):
     text, path = _validate_one_source(params)
     include_root = params.get("include_root")
     args = []
+    if not params.get("allow_url_includes", False):
+        args += ["--no-url-includes"]
     if include_root:
         args += ["--include-root", include_root]
     if path:
@@ -88,6 +92,8 @@ def puml_render_file(params):
     out_abs = _safe_rel(output_path)
     out_abs.parent.mkdir(parents=True, exist_ok=True)
     args = ["-o", str(out_abs)]
+    if not params.get("allow_url_includes", False):
+        args = ["--no-url-includes"] + args
     if include_root:
         args = ["--include-root", include_root] + args
     if path:
@@ -119,6 +125,7 @@ TOOL_LIST = [
                 "path": {"type": "string"},
                 "text": {"type": "string"},
                 "include_root": {"type": "string"},
+                "allow_url_includes": {"type": "boolean"},
             },
             "additionalProperties": False,
         },
@@ -132,6 +139,7 @@ TOOL_LIST = [
                 "path": {"type": "string"},
                 "text": {"type": "string"},
                 "include_root": {"type": "string"},
+                "allow_url_includes": {"type": "boolean"},
             },
             "additionalProperties": False,
         },
@@ -147,6 +155,7 @@ TOOL_LIST = [
                 "text": {"type": "string"},
                 "output_path": {"type": "string"},
                 "include_root": {"type": "string"},
+                "allow_url_includes": {"type": "boolean"},
             },
             "additionalProperties": False,
         },
