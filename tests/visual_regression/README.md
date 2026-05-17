@@ -5,10 +5,12 @@ This directory holds the fixture manifest and committed PNG baselines for the
 
 ## What it checks
 
-### Text-content sweep (`visual_regression_all_fixtures`)
+### Text-content sweeps
 
-For every fixture in `manifest.json`, the test renders the diagram to SVG via
-the `puml` binary and asserts:
+The focused PR-gate sweep (`visual_regression_focused_text_presence_sweep`) and
+the full manifest sweep (`visual_regression_all_fixtures`) render diagrams to
+SVG via the `puml` binary using stdin/stdout, so tracked `docs/examples/*.svg`
+artifacts are not rewritten, and assert:
 
 1. **No empty `<text>` elements.** Catches the family of bugs where the
    renderer emits `<text></text>` (i.e. labels are missing). This was the
@@ -43,10 +45,13 @@ broken, swimlanes collapsed, etc.
 ## Running locally
 
 ```sh
-# Run only the fast unit tests (text extractor, pixel-diff helpers).
+# Run the default visual tests, including the focused text sweep.
 cargo test --test visual_regression
 
-# Run the full text-content sweep (currently #[ignore] until #238 is fixed).
+# Run only the focused text-content sweep used by PR Gate.
+cargo test --test visual_regression visual_regression_focused_text_presence_sweep
+
+# Run the full text-content sweep.
 cargo test --test visual_regression -- --ignored visual_regression_all_fixtures
 
 # Run the full PNG baseline sweep (currently #[ignore] until #238 is fixed
@@ -151,18 +156,17 @@ the same render produce identical files.
 
 ## CI integration
 
-> **TODO(post-#238):** add `visual_regression_all_fixtures` and
-> `png_regression_all_fixtures` to the PR Gate workflow once the
-> missing-label renderer bug is fixed and real baselines exist.
-
-Both sweeps are currently `#[ignore]`'d. The PR Gate should run:
+The PR Gate runs the default Rust test suite and a named focused text-content
+sweep:
 
 ```sh
-cargo test --test visual_regression
-# (unit tests only, no --ignored)
+cargo test
+cargo test --test visual_regression visual_regression_focused_text_presence_sweep
 ```
 
-After `#238` lands, add a second step:
+The full text sweep and PNG sweep are still `#[ignore]`'d. Once all manifest
+fixtures satisfy their expected text and real PNG baselines are committed, add
+them to the PR Gate as:
 
 ```sh
 cargo test --test visual_regression -- --ignored visual_regression_all_fixtures

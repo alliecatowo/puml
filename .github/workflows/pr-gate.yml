@@ -54,6 +54,9 @@ jobs:
       - name: wasm check
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
+      - name: visual text sweep
+        run: cargo test --test visual_regression visual_regression_focused_text_presence_sweep
+
       - name: coverage gate
         run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|normalize|render|specialized)\.rs'
 
