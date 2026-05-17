@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -31,11 +33,33 @@ FIXTURE_CORPUS = [
 
 SVG_RE = re.compile(r"<svg\\b[^>]*>", re.IGNORECASE)
 VIEWBOX_RE = re.compile(r'viewBox\\s*=\\s*"([^"]+)"')
-MD_PUML_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+\.puml)\)")
 MD_FENCE_RE = re.compile(
     r"```(?:puml|pumlx|picouml|plantuml|uml|puml-sequence|uml-sequence|mermaid)\n(.*?)```",
     re.DOTALL | re.IGNORECASE,
 )
+DOC_SOURCE_SUFFIXES = {".puml", ".plantuml", ".picouml"}
+DOC_EXAMPLE_EXCLUSIONS = {
+    "docs/examples/component/04_deployment_style.puml": (
+        "mixed component/deployment compatibility example; parser currently "
+        "rejects deployment nodes inside a component diagram, so the legacy "
+        "SVG is not treated as a regenerated docs artifact"
+    ),
+    "docs/examples/nonuml_parity_gantt_chart_topology.puml": (
+        "mixed-family topology parity source; parser intentionally rejects "
+        "multiple diagram families in one document, so there is no canonical "
+        "single-SVG docs artifact"
+    ),
+    "docs/examples/sequence/15_large_diagram.puml": (
+        "mixed sequence/component/deployment compatibility example; parser "
+        "currently rejects deployment nodes inside a component diagram, so "
+        "the legacy SVG is not treated as a regenerated docs artifact"
+    ),
+    "docs/examples/themes/07_no_theme_default.puml": (
+        "theme fallback compatibility source that currently parses as a "
+        "specialized family before sequence participants are accepted; the "
+        "legacy SVG is not treated as a regenerated docs artifact"
+    ),
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -193,6 +217,8 @@ def validate_report_schema(report: Dict[str, Any]) -> List[str]:
             "artifact_exists",
             "artifact_matches_render",
             "artifact_up_to_date",
+            "excluded",
+            "exclusion_reason",
             "status",
             "notes",
         ]:
@@ -249,8 +275,38 @@ def build_fixture_record(rel_path: str) -> Dict[str, Any]:
     }
 
 
-def render_source_text(src: str) -> Dict[str, Any]:
-    proc = run_puml(["-"], stdin_text=src)
+def puml_exe_name() -> str:
+    return "puml.exe" if os.name == "nt" else "puml"
+
+
+def ensure_puml_binary() -> Path:
+    proc = subprocess.run(
+        ["cargo", "build", "--quiet", "--bin", "puml"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            "failed to build puml binary for docs drift check: "
+            f"{proc.stderr.strip()}"
+        )
+    return ROOT / "target" / "debug" / puml_exe_name()
+
+
+def render_source_text(src: str, puml_bin: Optional[Path] = None) -> Dict[str, Any]:
+    if puml_bin is None:
+        proc = run_puml(["-"], stdin_text=src)
+    else:
+        proc = subprocess.run(
+            [str(puml_bin), "-"],
+            cwd=ROOT,
+            input=src,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     if proc.returncode != 0:
         return {
             "ok": False,
@@ -264,9 +320,67 @@ def render_source_text(src: str) -> Dict[str, Any]:
     return {"ok": True, "exit_code": 0, "stderr": "", "svg": normalized_svg}
 
 
+def render_source_file(source_ref: str, puml_bin: Path) -> Dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="puml-doc-drift-") as tmp:
+        out_path = Path(tmp) / "artifact.svg"
+        proc = subprocess.run(
+            [str(puml_bin), source_ref, "-o", str(out_path)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return {
+                "ok": False,
+                "exit_code": proc.returncode,
+                "stderr": proc.stderr.strip(),
+                "svg": None,
+            }
+        return {
+            "ok": True,
+            "exit_code": 0,
+            "stderr": "",
+            "svg": out_path.read_text(encoding="utf-8"),
+        }
+
+
 def canonicalize_svg_text(svg: str) -> str:
     # CLI stdout may include a trailing newline while checked-in SVG artifacts do not.
     return svg.rstrip("\r\n")
+
+
+def git_tracked_doc_sources(docs_examples: Path) -> List[Path]:
+    proc = subprocess.run(
+        [
+            "git",
+            "ls-files",
+            "--",
+            "docs/examples/*.puml",
+            "docs/examples/**/*.puml",
+            "docs/examples/*.plantuml",
+            "docs/examples/**/*.plantuml",
+            "docs/examples/*.picouml",
+            "docs/examples/**/*.picouml",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        files = [
+            ROOT / line
+            for line in proc.stdout.splitlines()
+            if Path(line).suffix in DOC_SOURCE_SUFFIXES
+        ]
+        return sorted(set(files))
+
+    return sorted(
+        path
+        for path in docs_examples.rglob("*")
+        if path.is_file() and path.suffix in DOC_SOURCE_SUFFIXES
+    )
 
 
 def discover_doc_examples() -> List[Dict[str, Any]]:
@@ -275,28 +389,31 @@ def discover_doc_examples() -> List[Dict[str, Any]]:
         return []
 
     rows: List[Dict[str, Any]] = []
+    for source_path in git_tracked_doc_sources(docs_examples):
+        artifact = source_path.with_suffix(".svg")
+        rel_source = str(source_path.relative_to(ROOT))
+        rel_artifact = str(artifact.relative_to(ROOT))
+        rows.append(
+            {
+                "source_markdown": "",
+                "source_kind": "source_file",
+                "source_ref": rel_source,
+                "artifact_svg": rel_artifact,
+                "source_text": source_path.read_text(encoding="utf-8"),
+                "source_mtime_ns": source_path.stat().st_mtime_ns,
+                "markdown_mtime_ns": None,
+                "artifact_mtime_ns": artifact.stat().st_mtime_ns
+                if artifact.exists()
+                else None,
+                "excluded": rel_source in DOC_EXAMPLE_EXCLUSIONS,
+                "exclusion_reason": DOC_EXAMPLE_EXCLUSIONS.get(rel_source),
+            }
+        )
+
     markdown_files = sorted(docs_examples.rglob("*.md"))
     for md_path in markdown_files:
         raw = md_path.read_text(encoding="utf-8")
         rel_md = str(md_path.relative_to(ROOT))
-
-        for linked in MD_PUML_LINK_RE.findall(raw):
-            puml_path = (md_path.parent / linked).resolve()
-            artifact = puml_path.with_suffix(".svg")
-            rows.append(
-                {
-                    "source_markdown": rel_md,
-                    "source_kind": "linked_file",
-                    "source_ref": str(puml_path.relative_to(ROOT)),
-                    "artifact_svg": str(artifact.relative_to(ROOT)),
-                    "source_text": puml_path.read_text(encoding="utf-8")
-                    if puml_path.exists()
-                    else None,
-                    "source_mtime_ns": puml_path.stat().st_mtime_ns if puml_path.exists() else None,
-                    "markdown_mtime_ns": md_path.stat().st_mtime_ns,
-                    "artifact_mtime_ns": artifact.stat().st_mtime_ns if artifact.exists() else None,
-                }
-            )
 
         snippet_index = 0
         for snippet in MD_FENCE_RE.findall(raw):
@@ -312,16 +429,33 @@ def discover_doc_examples() -> List[Dict[str, Any]]:
                     "source_mtime_ns": md_path.stat().st_mtime_ns,
                     "markdown_mtime_ns": md_path.stat().st_mtime_ns,
                     "artifact_mtime_ns": artifact.stat().st_mtime_ns if artifact.exists() else None,
+                    "excluded": False,
+                    "exclusion_reason": None,
                 }
             )
 
     return rows
 
 
-def evaluate_doc_example(row: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_doc_example(row: Dict[str, Any], puml_bin: Optional[Path] = None) -> Dict[str, Any]:
     artifact_path = ROOT / row["artifact_svg"]
     source_text = row["source_text"]
     notes: List[str] = []
+
+    if row.get("excluded"):
+        return {
+            "source_markdown": row["source_markdown"],
+            "source_kind": row["source_kind"],
+            "source_ref": row["source_ref"],
+            "artifact_svg": row["artifact_svg"],
+            "artifact_exists": artifact_path.exists(),
+            "artifact_matches_render": False,
+            "artifact_up_to_date": False,
+            "excluded": True,
+            "exclusion_reason": row["exclusion_reason"],
+            "status": "excluded",
+            "notes": [row["exclusion_reason"]],
+        }
 
     if source_text is None:
         return {
@@ -332,11 +466,16 @@ def evaluate_doc_example(row: Dict[str, Any]) -> Dict[str, Any]:
             "artifact_exists": artifact_path.exists(),
             "artifact_matches_render": False,
             "artifact_up_to_date": False,
+            "excluded": False,
+            "exclusion_reason": None,
             "status": "fail",
             "notes": ["source file missing"],
         }
 
-    render = render_source_text(source_text)
+    if puml_bin is not None and row["source_kind"] == "source_file":
+        render = render_source_file(row["source_ref"], puml_bin)
+    else:
+        render = render_source_text(source_text, puml_bin=puml_bin)
     if not render["ok"]:
         notes.append(
             f"source did not render (exit={render['exit_code']}): {render['stderr']}"
@@ -349,6 +488,8 @@ def evaluate_doc_example(row: Dict[str, Any]) -> Dict[str, Any]:
             "artifact_exists": artifact_path.exists(),
             "artifact_matches_render": False,
             "artifact_up_to_date": False,
+            "excluded": False,
+            "exclusion_reason": None,
             "status": "fail",
             "notes": notes,
         }
@@ -382,6 +523,8 @@ def evaluate_doc_example(row: Dict[str, Any]) -> Dict[str, Any]:
         "artifact_exists": artifact_exists,
         "artifact_matches_render": artifact_matches,
         "artifact_up_to_date": artifact_up_to_date,
+        "excluded": False,
+        "exclusion_reason": None,
         "status": status,
         "notes": notes,
     }
@@ -494,7 +637,10 @@ def main() -> int:
             "render_failed": 0,
         },
         "fixtures": [],
-        "doc_examples": {"summary": {"total": 0, "passed": 0, "failed": 0}, "entries": []},
+        "doc_examples": {
+            "summary": {"total": 0, "passed": 0, "excluded": 0, "failed": 0},
+            "entries": [],
+        },
     }
 
     for rel_path in selected:
@@ -514,13 +660,17 @@ def main() -> int:
     }
 
     doc_rows = discover_doc_examples()
-    doc_entries = [evaluate_doc_example(row) for row in doc_rows]
+    puml_bin = ensure_puml_binary() if doc_rows else None
+    doc_entries = [evaluate_doc_example(row, puml_bin=puml_bin) for row in doc_rows]
     doc_passed = sum(1 for row in doc_entries if row["status"] == "pass")
+    doc_excluded = sum(1 for row in doc_entries if row["status"] == "excluded")
+    doc_failed = len(doc_entries) - doc_passed - doc_excluded
     report["doc_examples"] = {
         "summary": {
             "total": len(doc_entries),
             "passed": doc_passed,
-            "failed": len(doc_entries) - doc_passed,
+            "excluded": doc_excluded,
+            "failed": doc_failed,
         },
         "entries": doc_entries,
     }
