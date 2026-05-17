@@ -28,8 +28,8 @@ Legend:
 |---|---|---|---|---|
 | Sequence scope | Sequence diagrams plus many other UML families | `Differentiator` | `src/normalize.rs`, `docs/decision-log.md` D-001 | `puml` is intentionally sequence-only; non-sequence input rejected. |
 | `@startuml`/`@enduml` blocks | Standard source delimiters | `Supported` | `src/parser.rs`, `tests/fixtures/basic/valid_start_end.puml` | Also tolerates plain single-diagram text input. |
-| Basic messages (`->`, `-->`, `<-`, etc.) | Rich arrow forms | `Partial` | `src/parser.rs` `VALID_ARROWS` list | Core arrows supported, but many PlantUML variants are missing (e.g., slanted/top-half syntaxes shown in docs). |
-| Inline message arrow styling (`-[#red,dashed]>`, `-[hidden]->`) | Supported | `Partial` | `src/parser.rs`, `src/render.rs`, `tests/render_e2e.rs` | Decorated sequence arrows are parsed and now render per-message color, dashed/dotted strokes, and hidden arrow visibility. |
+| Basic messages (`->`, `-->`, `<-`, `..>`, etc.) | Rich arrow forms | `Partial` | `src/parser.rs` arrow parser, `tests/fixtures/arrows/valid_dotted_parallel_sequence_edges.puml` | Core arrows plus slanted/top-half and dotted compatibility forms are supported; full PlantUML arrow grammar remains broader. |
+| Inline message arrow styling (`-[#red,dashed]>`, `-[hidden]->`) | Supported | `Partial` | `src/parser.rs`, `src/render.rs`, `tests/render_e2e.rs` | Decorated sequence arrows are parsed and now render per-message color, dashed/dotted strokes, hidden arrow visibility, and dotted `..>` portability forms. |
 | Bidirectional arrows (`<->`) | Supported | `Partial` | `src/normalize.rs` (`bidirectional` split) | Expanded into two one-way events; rendering semantics differ from native PlantUML style nuances. |
 | Participant auto-creation from messages | Supported | `Supported` | `src/normalize.rs` `ensure_implicit` | Participants inferred if not declared. |
 | Participant declarations (`participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`) | Supported (+ `queue`) | `Partial` | `src/parser.rs` role list | Missing `queue` role explicitly documented by PlantUML. |
@@ -47,6 +47,7 @@ Legend:
 | Incoming/outgoing messages via bracket endpoints (`[`, `]`, `[*]`) | Supported | `Partial` | `src/parser.rs` `normalize_virtual_endpoint`, `src/layout.rs` virtual endpoint bounds | Virtual endpoints collapsed to `[*]`; nuanced side-specific PlantUML shapes are simplified. |
 | Footbox controls (`hide/show footbox`) | Supported | `Partial` | `src/parser.rs`, `src/normalize.rs` | Parsed and modeled, but rendering currently does not visibly vary by footbox flag. |
 | `skinparam` breadth | Extensive | `Differentiator` | `docs/decision-log.md` D-004, `src/normalize.rs` | Only `skinparam maxmessagesize` allowed; others raise warning->error behavior. |
+| Teoz parallel messages (`&`) | Supported under teoz layout | `Partial` | `src/parser.rs`, `src/layout.rs`, `tests/fixtures/arrows/valid_dotted_parallel_sequence_edges.puml` | Accepted deterministically and laid out on the previous message row; advanced teoz collision routing remains out of scope. |
 | `!theme` | Supported in PlantUML | `Unsupported` (parse-only warning) | `src/parser.rs`, `src/normalize.rs` | Captured as warning then fails normalization contract. |
 | Preprocessor (`!include`, `!define`, `!undef`) | Supported | `Partial` + `Differentiator` | `src/parser.rs`, `docs/decision-log.md` D-003/D-005 | Preprocess expansion exists with guards; contract intentionally fail-fast for directives at normalization boundary. |
 | Multi-diagram sources | Supported | `Differentiator` | `docs/decision-log.md` D-002, `tests/integration.rs` | Requires explicit `--multi` opt-in in CLI contract. |

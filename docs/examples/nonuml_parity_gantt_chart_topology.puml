@@ -1,0 +1,23 @@
+@startgantt
+Project starts 2026-05-01
+printscale weekly
+saturdays are closed
+sundays are closed
+[Build] on {Alice, Bob} requires 2 days
+@endgantt
+
+@startchart
+pie chart
+palette #111827 #f97316 #22c55e
+"Alpha" : 40
+"Beta" : 35
+"Gamma" : 25
+@endchart
+
+@startnwdiag
+nwdiag {
+  network edge {
+    lb [address = "10.0.0.2", description = "Load Balancer", shape = "roundedbox", style = "dashed"];
+  }
+}
+@endnwdiag

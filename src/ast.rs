@@ -369,6 +369,7 @@ pub struct MessageStyle {
     pub dashed: bool,
     pub dotted: bool,
     pub thickness: Option<u8>,
+    pub parallel: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

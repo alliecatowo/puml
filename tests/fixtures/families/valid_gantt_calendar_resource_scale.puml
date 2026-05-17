@@ -1,0 +1,11 @@
+@startgantt
+title Calendar, Resource, and Scale Parity
+Project starts 2026-05-01
+printscale weekly
+saturdays are closed
+sundays are closed
+2026-05-06 is closed
+[Design] on {Alice} requires 2 days
+[Build] on {Bob, Cara} starts 2026-05-05 and requires 1 week
+[Release] happens on [Build]'s end
+@endgantt

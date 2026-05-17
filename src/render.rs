@@ -281,7 +281,7 @@ pub fn render_svg(scene: &Scene) -> String {
         if !m.label_lines.is_empty() {
             let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
             let below = scene.style.response_message_below_arrow && m.arrow.starts_with('<');
-            let start_y = if below {
+            let start_y = if m.style.parallel || below {
                 m.y + 16
             } else {
                 m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
@@ -3483,6 +3483,22 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             h = chart_h
         ));
     }
+    if !document.closed_weekdays.is_empty() {
+        let mut day = min_day;
+        while day < max_day_exclusive {
+            if is_gantt_closed_weekday_number(day, &document.closed_weekdays) {
+                let x = day_to_x(day);
+                let w = (day_to_x(day.saturating_add(1)) - x).max(2);
+                out.push_str(&format!(
+                    "<rect class=\"gantt-closed-weekday\" data-gantt-day=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#f8fafc\" opacity=\"0.82\"/>",
+                    escape_text(&format_gantt_axis_label(day, min_day, date_axis)),
+                    y = chart_top,
+                    h = chart_h
+                ));
+            }
+            day = day.saturating_add(1);
+        }
+    }
     if let Some(day) = project_end_day {
         if (min_day..=max_day_exclusive).contains(&day) {
             let x = day_to_x(day);
@@ -3539,7 +3555,10 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         ));
         let (bx, bw) = bar_geom(task);
         out.push_str(&format!(
-            "<rect x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1\"/>",
+            "<rect class=\"gantt-task\" data-gantt-start=\"{}\" data-gantt-duration=\"{}\" data-gantt-resources=\"{}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1\"/>",
+            escape_text(&format_gantt_axis_label(task.start_day, min_day, date_axis)),
+            task.duration_days,
+            escape_text(&task.resources.join(", ")),
             bh = bar_height
         ));
         if !task.resources.is_empty() {
@@ -3721,6 +3740,19 @@ fn format_gantt_axis_label(day: u32, min_day: u32, date_axis: bool) -> String {
     } else {
         format!("D+{}", day.saturating_sub(min_day))
     }
+}
+
+fn is_gantt_closed_weekday_number(day: u32, closed_weekdays: &[String]) -> bool {
+    let weekday = match (day + 3) % 7 {
+        0 => "monday",
+        1 => "tuesday",
+        2 => "wednesday",
+        3 => "thursday",
+        4 => "friday",
+        5 => "saturday",
+        _ => "sunday",
+    };
+    closed_weekdays.iter().any(|closed| closed == weekday)
 }
 
 fn parse_iso_date_tuple(raw: &str) -> Option<(i32, i32, i32)> {
@@ -4687,11 +4719,12 @@ fn render_family_node_shape_styled(
             let pw = 24;
             let ph = 24;
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"#f8fafc\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 cx - pw / 2,
                 cy - ph / 2,
                 pw,
                 ph,
+                comp_style.interface_color,
                 comp_style.border_color
             ));
         }
@@ -5963,10 +5996,29 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             y += 26;
             for node in &net.nodes {
                 let node_fill = node.color.as_deref().unwrap_or("white");
+                let shape = node.shape.as_deref().unwrap_or("box");
+                let style = node.style.as_deref().unwrap_or("solid");
+                let dashed = if style.eq_ignore_ascii_case("dashed") {
+                    " stroke-dasharray=\"5 3\""
+                } else {
+                    ""
+                };
+                let radius = if shape.eq_ignore_ascii_case("roundedbox")
+                    || shape.eq_ignore_ascii_case("cloud")
+                {
+                    10
+                } else {
+                    3
+                };
                 out.push_str(&format!(
-                    "<rect class=\"nwdiag-node\" x=\"56\" y=\"{}\" width=\"680\" height=\"20\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+                    "<rect class=\"nwdiag-node\" data-nwdiag-shape=\"{}\" data-nwdiag-style=\"{}\" x=\"56\" y=\"{}\" width=\"680\" height=\"20\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{}/>",
+                    escape_text(shape),
+                    escape_text(style),
                     y,
-                    escape_text(node_fill)
+                    radius,
+                    radius,
+                    escape_text(node_fill),
+                    dashed
                 ));
                 let display = node.label.as_deref().unwrap_or(&node.name);
                 let lbl = match &node.address {
@@ -6190,8 +6242,9 @@ fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i3
     for label in &labels {
         let box_w = (label.len().max(1) as i32) * 8 + 18;
         let box_w = box_w.min(width - x - 60);
+        let (class_name, fill, stroke) = regex_label_style(label);
         out.push_str(&format!(
-            "<rect x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"22\" rx=\"4\" ry=\"4\" fill=\"#e0f2fe\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+            "<rect class=\"regex-token {class_name}\" x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"22\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
             x = x,
             ry = baseline - 11,
             w = box_w
@@ -6212,6 +6265,24 @@ fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i3
         x = (width - 36),
         by = baseline
     ));
+}
+
+fn regex_label_style(label: &str) -> (&'static str, &'static str, &'static str) {
+    if label.contains("alt(") {
+        ("regex-alt", "#fef3c7", "#d97706")
+    } else if label.contains('{')
+        || label.ends_with('?')
+        || label.ends_with('*')
+        || label.ends_with('+')
+    {
+        ("regex-repeat", "#dcfce7", "#16a34a")
+    } else if label.starts_with('[') {
+        ("regex-class", "#ede9fe", "#7c3aed")
+    } else if label == "^" || label == "$" {
+        ("regex-anchor", "#fee2e2", "#dc2626")
+    } else {
+        ("regex-literal", "#e0f2fe", "#0284c7")
+    }
 }
 
 fn regex_tokens_to_labels(tokens: &[RegexToken]) -> Vec<String> {
@@ -6306,18 +6377,9 @@ pub fn render_ebnf_svg(document: &EbnfDocument) -> String {
             let labels = ebnf_tokens_to_labels(&rule.tokens);
             for label in &labels {
                 let box_w = ((label.len() as i32) * 8).clamp(36, width - x - 60);
-                let fill = if label.starts_with('\'') || label.starts_with('"') {
-                    "#fef3c7"
-                } else {
-                    "#e0e7ff"
-                };
-                let stroke = if label.starts_with('\'') || label.starts_with('"') {
-                    "#d97706"
-                } else {
-                    "#4f46e5"
-                };
+                let (class_name, fill, stroke) = ebnf_label_style(label);
                 out.push_str(&format!(
-                    "<rect x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"22\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+                    "<rect class=\"ebnf-token {class_name}\" x=\"{x}\" y=\"{ry}\" width=\"{w}\" height=\"22\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
                     x = x,
                     ry = baseline - 11,
                     w = box_w
@@ -6347,6 +6409,26 @@ pub fn render_ebnf_svg(document: &EbnfDocument) -> String {
 
 fn ebnf_tokens_to_labels(tokens: &[EbnfToken]) -> Vec<String> {
     tokens.iter().map(ebnf_token_label).collect()
+}
+
+fn ebnf_label_style(label: &str) -> (&'static str, &'static str, &'static str) {
+    if label.starts_with('"') || label.starts_with('\'') {
+        ("ebnf-terminal", "#fef3c7", "#d97706")
+    } else if label.starts_with('[') {
+        ("ebnf-optional", "#dcfce7", "#16a34a")
+    } else if label.starts_with('{') {
+        ("ebnf-repetition", "#ede9fe", "#7c3aed")
+    } else if label.contains(" | ") {
+        ("ebnf-alt", "#fee2e2", "#dc2626")
+    } else if label.contains('{')
+        || label.ends_with('?')
+        || label.ends_with('*')
+        || label.ends_with('+')
+    {
+        ("ebnf-repeat", "#e0f2fe", "#0284c7")
+    } else {
+        ("ebnf-nonterminal", "#e0e7ff", "#4f46e5")
+    }
 }
 
 fn ebnf_token_label(token: &EbnfToken) -> String {
@@ -6655,6 +6737,7 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             render_chart_line(&mut out, document, &series, &categories, plot, style)
         }
         ChartSubtype::Pie => render_chart_pie(
+            document,
             &mut out,
             &document.data,
             width / 2,
@@ -6882,6 +6965,7 @@ fn render_chart_horizontal_bars(
 }
 
 fn render_chart_pie(
+    document: &ChartDocument,
     out: &mut String,
     data: &[crate::model::ChartPoint],
     cx: i32,
@@ -6917,11 +7001,17 @@ fn render_chart_pie(
         } else {
             0
         };
-        let color = if idx == 0 {
-            style.series_color.as_str()
-        } else {
-            CHART_PALETTE[idx % CHART_PALETTE.len()]
-        };
+        let color = document
+            .palette
+            .get(idx)
+            .map(String::as_str)
+            .unwrap_or_else(|| {
+                if idx == 0 {
+                    style.series_color.as_str()
+                } else {
+                    CHART_PALETTE[idx % CHART_PALETTE.len()]
+                }
+            });
         out.push_str(&format!(
             "<path d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
             style.pie_border_color,

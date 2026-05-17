@@ -99,7 +99,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     }
 
     let events_top = participant_top + participant_height + 24;
-    let mut messages = Vec::new();
+    let mut messages: Vec<MessageLine> = Vec::new();
     let mut activations = Vec::new();
     let mut lifecycle_markers = Vec::new();
     let mut activation_stack: Vec<OpenActivation> = Vec::new();
@@ -121,7 +121,15 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 from_virtual,
                 to_virtual,
             } => {
-                let y = events_top + (event_rows * options.message_row_height);
+                let is_parallel = style.parallel && !messages.is_empty();
+                let y = if is_parallel {
+                    messages
+                        .last()
+                        .map(|message| message.y)
+                        .unwrap_or(events_top + (event_rows * options.message_row_height))
+                } else {
+                    events_top + (event_rows * options.message_row_height)
+                };
                 let (x1, x2) = message_x_bounds(
                     from,
                     to,
@@ -146,7 +154,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     from_virtual: *from_virtual,
                     to_virtual: *to_virtual,
                 });
-                event_rows += row_units;
+                if !is_parallel {
+                    event_rows += row_units;
+                }
             }
             SequenceEventKind::Return { label, from, to } => {
                 if let (Some(from_id), Some(to_id)) = (from.as_ref(), to.as_ref()) {

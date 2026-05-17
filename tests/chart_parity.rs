@@ -154,3 +154,23 @@ legend bottom left background #f8fafc border #0f172a text #111827
     assert_eq!(model.legend.border_color.as_deref(), Some("#0f172a"));
     assert_eq!(model.legend.text_color.as_deref(), Some("#111827"));
 }
+
+#[test]
+fn chart_pie_uses_explicit_palette_for_slices() {
+    let src = "@startchart
+pie chart
+palette #111827 #f97316 #22c55e
+\"Alpha\" : 40
+\"Beta\" : 35
+\"Gamma\" : 25
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("pie palette chart should render");
+    assert!(svg.contains("data-chart-type=\"pie\""));
+    assert!(svg.contains("data-chart-palette=\"#111827 #f97316 #22c55e\""));
+    assert!(svg.contains("fill=\"#111827\""));
+    assert!(svg.contains("fill=\"#f97316\""));
+    assert!(svg.contains("fill=\"#22c55e\""));
+}

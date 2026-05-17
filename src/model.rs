@@ -164,6 +164,8 @@ pub struct NwdiagNode {
     pub address: Option<String>,
     pub label: Option<String>,
     pub color: Option<String>,
+    pub shape: Option<String>,
+    pub style: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -774,6 +776,7 @@ pub struct SequenceMessageStyle {
     pub dashed: bool,
     pub dotted: bool,
     pub thickness: Option<u8>,
+    pub parallel: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

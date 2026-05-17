@@ -237,7 +237,7 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+                "<metadata class=\"regex-token regex-anchor\"/><circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
 <text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w / 2, mid,
                 style.anchor_fill,
@@ -354,7 +354,9 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
                                         // Width includes entry/exit lines
             let inner_w = max_w + 40;
             let total_w = inner_w;
-            let mut out = String::new();
+            let mut out = String::from(
+                "<metadata class=\"regex-token regex-alt\"/><metadata class=\"ebnf-token ebnf-alt\"/>",
+            );
             let mut y = 0i32;
             for (i, child) in children.iter().enumerate() {
                 let branch_mid = y + child.mid_y;
@@ -402,7 +404,9 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
-            let mut out = String::new();
+            let mut out = String::from(
+                "<metadata class=\"regex-token regex-repeat\"/><metadata class=\"ebnf-token ebnf-repetition\"/>",
+            );
             // Position child
             out.push_str(&format!(
                 "<g transform=\"translate(20,0)\">{}</g>",
@@ -458,7 +462,9 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
-            let mut out = String::new();
+            let mut out = String::from(
+                "<metadata class=\"regex-token regex-repeat\"/><metadata class=\"ebnf-token ebnf-repetition\"/>",
+            );
             out.push_str(&format!(
                 "<g transform=\"translate(20,0)\">{}</g>",
                 child.svg
@@ -500,6 +506,9 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
             };
             let label = format!("{}{}", inner_label, spec);
             let mut out = String::new();
+            out.push_str(
+                "<metadata class=\"regex-token regex-repeat\"/><metadata class=\"ebnf-token ebnf-repetition\"/>",
+            );
             out.push_str(&format!(
                 "<metadata data-regex-repeat=\"{}\"/>",
                 escape_xml(&label)
@@ -535,7 +544,9 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
             let h = child.height + 24;
             let mid_y = child.mid_y;
             let skip_y = h - 12;
-            let mut out = String::new();
+            let mut out = String::from(
+                "<metadata class=\"regex-token regex-repeat\"/><metadata class=\"ebnf-token ebnf-optional\"/>",
+            );
             out.push_str(&format!(
                 "<g transform=\"translate(20,0)\">{}</g>",
                 child.svg

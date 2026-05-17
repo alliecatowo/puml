@@ -2,6 +2,9 @@ use assert_cmd::Command;
 use image::GenericImageView;
 use insta::{assert_json_snapshot, assert_snapshot};
 use predicates::prelude::*;
+use puml::model::SequenceEventKind;
+use puml::normalize;
+use puml::parser::parse;
 use puml::render_source_to_svg;
 use serde_json::Value;
 use std::fs;
@@ -679,6 +682,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/valid_arrow_slash_portability.puml",
         "arrows/valid_arrow_variant_tokenization.puml",
         "arrows/valid_rare_arrow_styles.puml",
+        "arrows/valid_dotted_parallel_sequence_edges.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -6732,4 +6736,49 @@ fn chart_skinparam_colors_are_accepted_and_rendered() {
     .expect("chart pie skinparam svg should render");
     assert!(pie_svg.contains("#0f766e"));
     assert!(pie_svg.contains("#431407"));
+}
+
+#[test]
+fn preprocessor_scoped_globals_range_and_safe_aliases_expand() {
+    let src = "@startuml\n!$status = outer\n!procedure Update($name)\n!local $status = local\n!global $shared = %map_set(%map(\"name\", $name), \"tags\", %range(1, 3))\nA -> B : $status\n!endprocedure\n!Update(Ada)\nA -> B : $status/%join(%dict_get($shared, \"tags\"), \"-\")/%dict_get($shared, \"name\", \"missing\")/%json_contains_key($shared, \"tags\")/%now()/%random_int()/%uuid()\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let labels = model
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            SequenceEventKind::Message { label, .. } => label.clone(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        vec![
+            "local",
+            "outer/1-2-3/Ada/true//0/00000000-0000-0000-0000-000000000000",
+        ]
+    );
+}
+
+#[test]
+fn preprocessor_recursive_macro_expansion_is_depth_guarded() {
+    let src = "@startuml\n!define WHO Alice\n!define TARGET WHO\nTARGET -> Bob : hi\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    assert_eq!(model.participants[0].id, "Alice");
+
+    let err = parse("@startuml\n!define A A A\nA -> B : loop\n@enduml\n")
+        .expect_err("recursive macro growth should be bounded");
+    assert!(err.message.contains("E_PREPROC_MACRO_DEPTH"));
+}
+
+#[test]
+fn preprocessor_unsafe_io_aliases_and_malformed_collections_report_stable_codes() {
+    let unsafe_err = parse("@startuml\nA -> B : %file_exists(\"secret.txt\")\n@enduml\n")
+        .expect_err("filesystem-sensitive builtin should be rejected");
+    assert!(unsafe_err.message.contains("E_PREPROC_UNSAFE_BUILTIN"));
+
+    let syntax_err = parse("@startuml\nA -> B : %list_get([\"a\", 0)\n@enduml\n")
+        .expect_err("unbalanced collection argument should fail");
+    assert!(syntax_err.message.contains("E_PREPROC_CALL_SYNTAX"));
 }

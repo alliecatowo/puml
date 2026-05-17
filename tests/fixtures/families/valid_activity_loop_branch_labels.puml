@@ -1,0 +1,11 @@
+@startuml
+skinparam swimlaneBorderColor teal
+start
+while (healthy?) is (yes)
+:poll;
+endwhile
+repeat
+:retry;
+repeat while (more work?) is (yes) not (no)
+stop
+@enduml

@@ -1324,6 +1324,16 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 ))
             }
         }
+        "classstereotypefontcolor"
+        | "classstereotypefontsize"
+        | "classstereotypefontname"
+        | "classattributefontcolor"
+        | "classattributefontsize"
+        | "classmethodfontcolor"
+        | "classmethodfontsize"
+        | "objectfontcolor"
+        | "usecasefontcolor"
+        | "actorfontcolor" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
@@ -1383,6 +1393,13 @@ pub fn classify_state_skinparam(key: &str, value: &str) -> SkinParamSupport<Stat
                 SkinParamSupport::UnsupportedValue
             }
         }
+        "statefontcolor"
+        | "statefontname"
+        | "statestereotypefontcolor"
+        | "statestereotypefontsize"
+        | "statestereotypefontname"
+        | "stateattributefontcolor"
+        | "stateattributefontsize" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
@@ -1448,6 +1465,11 @@ pub fn classify_component_skinparam(
                 })
                 .unwrap_or(SkinParamSupport::UnsupportedValue)
         }
+        "portbackgroundcolor" | "portcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::InterfaceColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
         "arrowcolor" | "componentarrowcolor" | "deploymentarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
@@ -1456,7 +1478,17 @@ pub fn classify_component_skinparam(
         | "componentfontsize"
         | "deploymentfontsize"
         | "componentfontname"
-        | "deploymentfontname" => SkinParamSupport::SupportedNoop,
+        | "deploymentfontname"
+        | "componentstyle"
+        | "componentstereotypefontcolor"
+        | "componentstereotypefontsize"
+        | "componentstereotypefontname"
+        | "deploymentstereotypefontcolor"
+        | "deploymentstereotypefontsize"
+        | "deploymentstereotypefontname"
+        | "portfontcolor"
+        | "portfontsize"
+        | "portfontname" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
@@ -1507,7 +1539,10 @@ pub fn classify_activity_skinparam(
                 })
                 .unwrap_or(SkinParamSupport::UnsupportedValue)
         }
-        "bordercolor" | "activitybordercolor" => parse_color_value(value)
+        "bordercolor"
+        | "activitybordercolor"
+        | "activitypartitionbordercolor"
+        | "swimlanebordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "activitydiamondbackgroundcolor" | "activitydiamondcolor" => parse_color_value(value)
@@ -1523,9 +1558,14 @@ pub fn classify_activity_skinparam(
         "arrowcolor" | "activityarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "activityfontcolor" | "activityfontsize" | "activityfontname" => {
-            SkinParamSupport::SupportedNoop
-        }
+        "activityfontcolor"
+        | "activityfontsize"
+        | "activityfontname"
+        | "activityborderthickness"
+        | "activitypartitionfontcolor"
+        | "activitypartitionfontsize"
+        | "swimlanefontcolor"
+        | "swimlanefontsize" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
