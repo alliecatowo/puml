@@ -8,7 +8,10 @@ use crate::theme::SequenceStyle;
 pub struct Scene {
     pub width: i32,
     pub height: i32,
+    pub header: Option<Label>,
     pub title: Option<Label>,
+    pub caption: Option<Label>,
+    pub footer: Option<Label>,
     pub participants: Vec<ParticipantBox>,
     pub footboxes: Vec<ParticipantBox>,
     pub lifelines: Vec<Lifeline>,

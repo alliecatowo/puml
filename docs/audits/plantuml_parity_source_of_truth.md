@@ -35,7 +35,7 @@ Canonical status artifact for machine/human parity review.
 | activity | core | Legacy/old-style activity baseline | implemented | `tests/fixtures/families/valid_activity_old_style.puml` | https://plantuml.com/activity-diagram-legacy |
 | activity | advanced | New-style activity breadth | partial | `tests/fixtures/families/valid_activity_colored_lane.puml`, `tests/fixtures/styling/valid_skinparam_activity.puml`, `tests/integration.rs::family_notes_render_for_core_uml_families` | https://plantuml.com/activity-diagram-beta |
 | timing | core | Timing participants/state transitions baseline | implemented | `tests/fixtures/families/valid_timing.puml` | https://plantuml.com/timing-diagram |
-| timing | advanced | Full timing semantics breadth | partial | `tests/fixtures/families/valid_timing_waveform.puml`, `tests/parity_state_activity_timing_depth.rs` | https://plantuml.com/timing-diagram |
+| timing | advanced | Full timing semantics breadth | partial | `tests/fixtures/families/valid_timing_waveform.puml`, `tests/parity_state_activity_timing_depth.rs` including relative time, range/highlight, and braced state evidence | https://plantuml.com/timing-diagram |
 | preprocessor | core | include/define/undef/conditionals/loops/functions/procedures | implemented | `tests/fixtures/preprocessor/valid_if_elseif_else.puml` | https://plantuml.com/preprocessing |
 | preprocessor | advanced | Dynamic invocation and full expression/data-helper breadth | partial | `tests/fixtures/errors/invalid_preproc_concat_unsupported.puml`, `tests/integration.rs::preproc_nested_json_mutation_and_projection_helpers_expand` | https://plantuml.com/preprocessing |
 | preprocessor | policy | URL include/remote source behavior | partial | `tests/fixtures/errors/invalid_include_url.puml` | https://plantuml.com/preprocessing |
@@ -47,18 +47,18 @@ Canonical status artifact for machine/human parity review.
 | Family | Slice | Feature | Status | Evidence | PlantUML Reference |
 |---|---|---|---|---|---|
 | gantt+chronology | core | Parser/semantic model baseline | implemented | `tests/fixtures/timeline/valid_gantt_baseline.puml`, `tests/fixtures/timeline/valid_chronology_baseline.puml` | https://plantuml.com/gantt-diagram |
-| gantt+chronology | advanced | Full scale/resource semantics | partial | `tests/fixtures/timeline/valid_gantt_render.puml`, `tests/fixtures/timeline/valid_gantt_dates_proportional.puml`, `tests/fixtures/timeline/valid_chronology_render.puml`, `tests/parity_wave_csv_timeline_activity.rs` | https://plantuml.com/chronology-diagram |
+| gantt+chronology | advanced | Full scale/resource semantics | partial | `tests/fixtures/timeline/valid_gantt_render.puml`, `tests/fixtures/timeline/valid_gantt_dates_proportional.puml`, `tests/fixtures/timeline/valid_chronology_render.puml`, `tests/parity_wave_csv_timeline_activity.rs` including scale, single-day calendar closure, and multi-resource evidence | https://plantuml.com/chronology-diagram |
 | mindmap+wbs | core | Family parsing and baseline rendering | implemented | `tests/fixtures/non_sequence/invalid_mindmap_diagram.puml`, `tests/fixtures/non_sequence/invalid_wbs_diagram.puml` | https://plantuml.com/mindmap-diagram |
 | mindmap+wbs | advanced | Orientation/styling parity depth | partial | `docs/examples/mindmap/01_basic.svg`, `docs/examples/wbs/01_basic.svg` | https://plantuml.com/wbs-diagram |
 | salt | core | Salt parser + baseline widget render | implemented | `tests/fixtures/families/valid_salt_bootstrap.puml` | https://plantuml.com/salt |
 | salt | advanced | Full Salt widget/style breadth | partial | `tests/fixtures/families/valid_salt_login_form.puml`, `tests/integration.rs`; supports label/input/button/combo/checkbox/radio rows, prefix-label rows, separators, tree/menu/tab/scroll/table widgets, header cells, and deterministic Salt color/font style directives, but advanced styling remains partial | https://plantuml.com/salt |
 | nwdiag | core | Network grammar + baseline render | implemented | `tests/fixtures/non_sequence/valid_nwdiag.puml` | https://plantuml.com/nwdiag |
-| nwdiag | advanced | Full network topology semantics | partial | `docs/examples/nwdiag/01_single_net.svg` | https://plantuml.com/nwdiag |
+| nwdiag | advanced | Full network topology semantics | partial | `docs/examples/nwdiag/01_single_net.svg`, `tests/nonuml_topology_depth.rs` for groups and address/color/label attributes | https://plantuml.com/nwdiag |
 | json | core | @startjson standalone family | implemented | `tests/fixtures/non_sequence/valid_json.puml` | https://plantuml.com/json |
 | yaml | core | @startyaml standalone family | implemented | `tests/fixtures/non_sequence/valid_yaml.puml` | https://plantuml.com/yaml |
 | json+yaml | advanced | Cross-diagram projection adapters | partial | `tests/fixtures/families/valid_yaml_projection.puml` | https://plantuml.com/yaml |
 | archimate | core | Archimate parser + baseline render | implemented | `tests/fixtures/non_sequence/valid_archimate.puml` | https://plantuml.com/archimate-diagram |
-| archimate | advanced | Full relation/style breadth | partial | `docs/examples/archimate/01_layered.svg`, `tests/integration.rs` | https://plantuml.com/archimate-diagram |
+| archimate | advanced | Full relation/style breadth | partial | `docs/examples/archimate/01_layered.svg`, `tests/integration.rs`, `tests/nonuml_topology_depth.rs` for junctions plus relation direction/style evidence | https://plantuml.com/archimate-diagram |
 | regex | core | @startregex baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_regex.puml` | https://plantuml.com/regex |
 | regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg`, `tests/integration.rs`; includes localized labels and exact/ranged counted quantifier evidence, but broader Unicode/category semantics remain partial | https://plantuml.com/regex |
 | ebnf | core | @startebnf baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_ebnf.puml` | https://plantuml.com/ebnf |
@@ -71,9 +71,10 @@ Canonical status artifact for machine/human parity review.
 
 ## Board / Issue Consistency Checks
 
-- 2026-05-17: `gh issue view 103 --json number,title,state,projectItems,url` verified tracking issue `#103` is on the `PUML` project with status `Human Review`.
+- 2026-05-17: `gh issue view 103 --json number,title,state,projectItems,url` verified tracking issue `#103` is closed as completed and on the `PUML` project with status `Done`.
 - 2026-05-17: `#197`, `#202`, `#205`, `#206`, and `#208` were closed as completed from branch evidence and moved to `Done` on the `PUML` project.
 - 2026-05-17: Branch-local evidence now covers `#207` deterministic LaTeX-ish math rendering with matrices/environments, Greek/operators/symbols, text constructs, and big-operator layout on `origin/codex/local-parity-blitz-20260516`; `#207` was closed as completed and moved to `Done`.
 - 2026-05-17: Branch-local evidence plus `gh issue view 105` confirms SDL is implemented as a special-adapter baseline under closed/Done issue `#105`; deeper activity-beta parity remains represented by the existing `activity,advanced` partial row.
 - 2026-05-17: Latest pushed commit `13f92c0` strengthens partial evidence for Salt, regex, EBNF, and chart advanced rows; those rows remain `partial` because the official PlantUML surface is still wider than the current deterministic subset.
 - 2026-05-16: PR `#224` was merged as commit `c68b2a701953c0a018cef1847448334377933cf3` (`Merge pull request #224 from alliecatowo/parity/swarm-gap-wave-b2e311d`). Treat this as landed progress for the rows evidenced above, not as a blanket full-parity claim.
+- 2026-05-17: PR `#228` was merged as commit `753858fcfe8bc694e4141cd64ba63382852e4ee9` (`feat: deepen sequence core UML timeline and Salt parity`). It landed sequence participant order controls, core UML relation stereotype/include-extend preservation, Gantt project-end markers, WBS orientation metadata, and Salt style/header handling. These strengthen existing partial rows but do not convert the remaining advanced PlantUML breadth rows to `implemented`.

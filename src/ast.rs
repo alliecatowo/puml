@@ -142,6 +142,7 @@ pub enum StatementKind {
         kind: String,
         label: Option<String>,
         members: Vec<String>,
+        relations: Vec<FamilyRelation>,
     },
     SetOption {
         key: String,
@@ -324,6 +325,8 @@ pub struct FamilyRelation {
     pub dashed: bool,
     pub hidden: bool,
     pub thickness: Option<u8>,
+    pub left_lollipop: bool,
+    pub right_lollipop: bool,
 }
 
 #[derive(Debug, Clone)]

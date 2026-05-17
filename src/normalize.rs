@@ -12,13 +12,14 @@ use crate::model::{
     EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind,
     FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode,
     LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NormalizedDocument, NwdiagDocument,
-    NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument, RegexPattern,
-    RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind, SdlTransition,
-    SequenceDocument, SequenceEvent, SequenceEventKind, SequenceMessageStyle, SequencePage,
-    StateDocument, StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
-    StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineClosedRange,
-    TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
-    VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
+    NwdiagGroup, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument,
+    RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind,
+    SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequenceMessageStyle,
+    SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction, StateNode,
+    StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
+    TimelineClosedRange, TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask,
+    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument,
+    YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
@@ -1067,6 +1068,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
     let mut chronology_events = Vec::new();
     let mut closed_weekdays = Vec::new();
     let mut closed_ranges = Vec::new();
+    let mut scale = None;
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -1104,11 +1106,17 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                 subject,
                 kind,
                 target,
-            } => constraints.push(TimelineConstraint {
-                subject,
-                kind,
-                target,
-            }),
+            } => {
+                if subject.eq_ignore_ascii_case("Project") && kind.eq_ignore_ascii_case("scale") {
+                    scale = Some(target);
+                } else {
+                    constraints.push(TimelineConstraint {
+                        subject,
+                        kind,
+                        target,
+                    });
+                }
+            }
             StatementKind::GanttCalendarClosed { day } => {
                 if !closed_weekdays.iter().any(|existing| existing == &day) {
                     closed_weekdays.push(day);
@@ -1149,10 +1157,14 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             StatementKind::Legend(v) => {
                 legend = Some(strip_legend_pos_prefix(&v));
             }
+            StatementKind::Scale(v) => {
+                if document.kind == DiagramKind::Gantt {
+                    scale = Some(v);
+                }
+            }
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
-            | StatementKind::Scale(_)
             | StatementKind::LegendPos(_)
             | StatementKind::SetOption { .. }
             | StatementKind::HideOption(_) => {}
@@ -1217,6 +1229,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         chronology_events,
         closed_weekdays,
         closed_ranges,
+        scale,
         project_start,
         project_start_day,
         title,
@@ -1486,10 +1499,17 @@ fn normalize_yaml_document(document: Document) -> Result<YamlDocument, Diagnosti
 fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagnostic> {
     let (raw, title) = collect_raw_block(&document);
     let mut networks: Vec<NwdiagNetwork> = Vec::new();
+    let mut groups: Vec<NwdiagGroup> = Vec::new();
     let mut current: Option<NwdiagNetwork> = None;
+    let mut current_group: Option<NwdiagGroup> = None;
     for line in raw.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        if trimmed.is_empty()
+            || trimmed == "nwdiag {"
+            || trimmed == "{"
+            || trimmed.starts_with('#')
+            || trimmed.starts_with("//")
+        {
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix("network ") {
@@ -1497,10 +1517,38 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
             if let Some(net) = current.take() {
                 networks.push(net);
             }
+            if let Some(group) = current_group.take() {
+                groups.push(group);
+            }
             let name = rest.trim_end_matches('{').trim().to_string();
             current = Some(NwdiagNetwork {
                 name,
                 address: None,
+                color: None,
+                nodes: Vec::new(),
+            });
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("group") {
+            if let Some(net) = current.take() {
+                networks.push(net);
+            }
+            if let Some(group) = current_group.take() {
+                groups.push(group);
+            }
+            let name = rest
+                .trim()
+                .trim_end_matches('{')
+                .trim()
+                .trim_matches('"')
+                .to_string();
+            current_group = Some(NwdiagGroup {
+                name: if name.is_empty() {
+                    "group".to_string()
+                } else {
+                    name
+                },
+                color: None,
                 nodes: Vec::new(),
             });
             continue;
@@ -1508,6 +1556,8 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
         if trimmed == "}" {
             if let Some(net) = current.take() {
                 networks.push(net);
+            } else if let Some(group) = current_group.take() {
+                groups.push(group);
             }
             continue;
         }
@@ -1522,34 +1572,100 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
                 net.address = Some(value);
                 continue;
             }
-            // NodeName [address = "..."] or NodeName
-            let (name_part, attrs) = match trimmed.split_once('[') {
-                Some((n, rest)) => (n.trim().to_string(), Some(rest.trim_end_matches(']'))),
-                None => (trimmed.to_string(), None),
-            };
-            let mut node_address: Option<String> = None;
-            if let Some(attrs) = attrs {
-                for kv in attrs.split(',') {
-                    if let Some((k, v)) = kv.split_once('=') {
-                        if k.trim() == "address" {
-                            node_address = Some(v.trim().trim_matches('"').to_string());
-                        }
-                    }
+            if let Some(rest) = trimmed.strip_prefix("color") {
+                net.color = Some(
+                    rest.trim_start_matches([' ', '='])
+                        .trim()
+                        .trim_matches('"')
+                        .to_string(),
+                );
+                continue;
+            }
+            for entry in split_nwdiag_entries(trimmed) {
+                if let Some(node) = parse_nwdiag_node_entry(&entry) {
+                    net.nodes.push(node);
                 }
             }
-            net.nodes.push(NwdiagNode {
-                name: name_part,
-                address: node_address,
-            });
+            continue;
+        }
+        if let Some(group) = current_group.as_mut() {
+            if let Some(rest) = trimmed.strip_prefix("color") {
+                group.color = Some(
+                    rest.trim_start_matches([' ', '='])
+                        .trim()
+                        .trim_matches('"')
+                        .to_string(),
+                );
+                continue;
+            }
+            for entry in split_nwdiag_entries(trimmed) {
+                let name = entry
+                    .split_once('[')
+                    .map(|(name, _)| name)
+                    .unwrap_or(entry.as_str())
+                    .trim()
+                    .trim_matches('"');
+                if !name.is_empty() && !group.nodes.iter().any(|n| n == name) {
+                    group.nodes.push(name.to_string());
+                }
+            }
         }
     }
     if let Some(net) = current.take() {
         networks.push(net);
     }
+    if let Some(group) = current_group.take() {
+        groups.push(group);
+    }
     Ok(NwdiagDocument {
         networks,
+        groups,
         title,
         warnings: Vec::new(),
+    })
+}
+
+fn split_nwdiag_entries(line: &str) -> Vec<String> {
+    line.split(';')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn parse_nwdiag_node_entry(entry: &str) -> Option<NwdiagNode> {
+    let (name_part, attrs) = match entry.split_once('[') {
+        Some((n, rest)) => (
+            n.trim().trim_matches('"').to_string(),
+            Some(rest.trim_end_matches(']')),
+        ),
+        None => (entry.trim().trim_matches('"').to_string(), None),
+    };
+    if name_part.is_empty() {
+        return None;
+    }
+    let mut node_address: Option<String> = None;
+    let mut label: Option<String> = None;
+    let mut color: Option<String> = None;
+    if let Some(attrs) = attrs {
+        for kv in split_csv_args(attrs) {
+            if let Some((k, v)) = kv.split_once('=') {
+                let key = k.trim();
+                let value = v.trim().trim_matches('"').to_string();
+                match key {
+                    "address" => node_address = Some(value),
+                    "description" | "label" => label = Some(value),
+                    "color" => color = Some(value),
+                    _ => {}
+                }
+            }
+        }
+    }
+    Some(NwdiagNode {
+        name: name_part,
+        address: node_address,
+        label,
+        color,
     })
 }
 
@@ -1596,6 +1712,15 @@ fn normalize_archimate_document(document: Document) -> Result<ArchimateDocument,
                         to,
                         kind: kind.to_string(),
                         label,
+                        direction: archimate_rel_direction_from_macro(macro_name),
+                        style: args.iter().skip(3).find_map(|arg| {
+                            let value = arg.trim().trim_matches('"');
+                            if value.contains("dashed") || value.contains("bold") {
+                                Some(value.to_string())
+                            } else {
+                                parse_archimate_color_arg(arg)
+                            }
+                        }),
                     });
                     continue;
                 }
@@ -1643,7 +1768,14 @@ fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
         };
         (name, alias)
     };
-    Some(ArchimateElement { name, alias, layer })
+    let (name, fill) = split_archimate_inline_color(name);
+    Some(ArchimateElement {
+        name,
+        alias,
+        layer,
+        fill,
+        stroke: None,
+    })
 }
 
 fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
@@ -1661,10 +1793,16 @@ fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
         .map(|s| s.trim().trim_matches('"').to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| alias.clone());
+    let fill = args
+        .iter()
+        .skip(2)
+        .find_map(|arg| parse_archimate_color_arg(arg));
     Some(ArchimateElement {
         name,
         alias: Some(alias),
         layer: layer.to_string(),
+        fill,
+        stroke: None,
     })
 }
 
@@ -1680,6 +1818,8 @@ fn archimate_layer_from_macro(name: &str) -> Option<&'static str> {
         Some("technology")
     } else if lower.starts_with("motivation_") {
         Some("motivation")
+    } else if lower.starts_with("junction_") {
+        Some("junction")
     } else if lower.starts_with("implementation_") || lower.starts_with("migration_") {
         Some("strategy")
     } else {
@@ -1688,7 +1828,8 @@ fn archimate_layer_from_macro(name: &str) -> Option<&'static str> {
 }
 
 fn archimate_rel_kind_from_macro(name: &str) -> Option<&'static str> {
-    match name {
+    let base = archimate_rel_macro_base(name);
+    match base.as_str() {
         "Rel_Access" => Some("access"),
         "Rel_Aggregation" => Some("aggregation"),
         "Rel_Association" => Some("association"),
@@ -1702,6 +1843,65 @@ fn archimate_rel_kind_from_macro(name: &str) -> Option<&'static str> {
         "Rel_Triggering" => Some("triggering"),
         "Rel_Used_By" => Some("used_by"),
         _ => None,
+    }
+}
+
+fn archimate_rel_macro_base(name: &str) -> String {
+    let mut base = name.to_string();
+    for suffix in [
+        "_Down", "_Up", "_Left", "_Right", "_D", "_U", "_L", "_R", "_d", "_u", "_l", "_r",
+    ] {
+        if base.ends_with(suffix) {
+            base.truncate(base.len().saturating_sub(suffix.len()));
+            break;
+        }
+    }
+    base
+}
+
+fn archimate_rel_direction_from_macro(name: &str) -> Option<String> {
+    for (suffix, direction) in [
+        ("_Down", "down"),
+        ("_D", "down"),
+        ("_d", "down"),
+        ("_Up", "up"),
+        ("_U", "up"),
+        ("_u", "up"),
+        ("_Left", "left"),
+        ("_L", "left"),
+        ("_l", "left"),
+        ("_Right", "right"),
+        ("_R", "right"),
+        ("_r", "right"),
+    ] {
+        if name.ends_with(suffix) {
+            return Some(direction.to_string());
+        }
+    }
+    None
+}
+
+fn parse_archimate_color_arg(arg: &str) -> Option<String> {
+    let value = arg.trim().trim_matches('"');
+    if value.starts_with('#') || value.starts_with("$") {
+        Some(value.to_string())
+    } else {
+        None
+    }
+}
+
+fn split_archimate_inline_color(name: String) -> (String, Option<String>) {
+    let mut parts = name.split_whitespace().collect::<Vec<_>>();
+    let fill = parts
+        .last()
+        .copied()
+        .filter(|part| part.starts_with('#') || part.starts_with("$"))
+        .map(str::to_string);
+    if fill.is_some() {
+        parts.pop();
+        (parts.join(" "), fill)
+    } else {
+        (name, None)
     }
 }
 
@@ -1742,6 +1942,15 @@ fn parse_archimate_arrow(line: &str) -> Option<ArchimateRelation> {
                 to: rhs.to_string(),
                 kind: "uses".to_string(),
                 label,
+                direction: match arrow {
+                    "<--" | "<-" => Some("left".to_string()),
+                    _ => Some("right".to_string()),
+                },
+                style: if arrow.contains("--") {
+                    Some("dashed".to_string())
+                } else {
+                    None
+                },
             });
         }
     }
@@ -1949,6 +2158,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 dashed: rel.dashed,
                 hidden: rel.hidden,
                 thickness: rel.thickness,
+                left_lollipop: rel.left_lollipop,
+                right_lollipop: rel.right_lollipop,
             }),
             StatementKind::Note(note) => {
                 note_counter += 1;
@@ -1958,6 +2169,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 kind,
                 label,
                 members,
+                relations: group_relations,
             } => {
                 // Auto-create nodes for members declared inside a package/namespace block
                 // if they haven't already been declared as top-level statements.
@@ -2018,6 +2230,25 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     label,
                     member_ids: group_member_ids,
                 });
+                for rel in group_relations {
+                    relations.push(ModelFamilyRelation {
+                        from: rel.from,
+                        to: rel.to,
+                        arrow: rel.arrow,
+                        label: rel.label,
+                        stereotype: rel.stereotype,
+                        left_cardinality: rel.left_cardinality,
+                        right_cardinality: rel.right_cardinality,
+                        left_role: rel.left_role,
+                        right_role: rel.right_role,
+                        line_color: rel.line_color,
+                        dashed: rel.dashed,
+                        hidden: rel.hidden,
+                        thickness: rel.thickness,
+                        left_lollipop: rel.left_lollipop,
+                        right_lollipop: rel.right_lollipop,
+                    });
+                }
             }
             StatementKind::SetOption { key, value } => {
                 if key.eq_ignore_ascii_case("namespaceSeparator") {
@@ -2757,6 +2988,8 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
                 dashed: false,
                 hidden: false,
                 thickness: None,
+                left_lollipop: false,
+                right_lollipop: false,
             });
         }
         parents.push(idx);
@@ -3027,8 +3260,10 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 let effective_time = if time.is_empty() {
                     timing_current_time.clone().unwrap_or_default()
                 } else {
-                    timing_current_time = Some(time.clone());
-                    time
+                    let normalized_time =
+                        normalize_timing_time(&time, timing_current_time.as_deref());
+                    timing_current_time = Some(normalized_time.clone());
+                    normalized_time
                 };
                 let display = match (&signal, &state, &note) {
                     (Some(s), Some(st), _) => format!("{s} is {st}"),
@@ -3070,6 +3305,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 dashed: rel.dashed,
                 hidden: rel.hidden,
                 thickness: rel.thickness,
+                left_lollipop: rel.left_lollipop,
+                right_lollipop: rel.right_lollipop,
             }),
             StatementKind::Note(note) => {
                 note_counter += 1;
@@ -3079,10 +3316,21 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 kind,
                 label,
                 members,
+                relations: group_relations,
             } => {
+                let mut group_member_ids = Vec::with_capacity(members.len());
                 for member_id in &members {
+                    let mut parts = member_id.split('\t');
+                    let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
+                    let display_label = parts.next().map(str::to_string);
+                    let unscoped_alias = node_id
+                        .rsplit("::")
+                        .next()
+                        .filter(|alias| *alias != node_id)
+                        .map(str::to_string);
+                    group_member_ids.push(node_id.clone());
                     let already_exists = nodes.iter().any(|n: &FamilyNode| {
-                        n.name == *member_id || n.alias.as_deref() == Some(member_id.as_str())
+                        n.name == node_id || n.alias.as_deref() == Some(node_id.as_str())
                     });
                     if !already_exists {
                         let fallback_kind = match family_kind {
@@ -3092,11 +3340,11 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                         };
                         nodes.push(FamilyNode {
                             kind: fallback_kind,
-                            name: member_id.clone(),
-                            alias: None,
+                            name: node_id,
+                            alias: unscoped_alias,
                             members: Vec::new(),
                             depth: 0,
-                            label: None,
+                            label: display_label,
                             mindmap_side: MindMapSide::Right,
                             wbs_checkbox: None,
                         });
@@ -3105,8 +3353,27 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 groups.push(FamilyGroup {
                     kind,
                     label,
-                    member_ids: members,
+                    member_ids: group_member_ids,
                 });
+                for rel in group_relations {
+                    relations.push(ModelFamilyRelation {
+                        from: rel.from,
+                        to: rel.to,
+                        arrow: rel.arrow,
+                        label: rel.label,
+                        stereotype: rel.stereotype,
+                        left_cardinality: rel.left_cardinality,
+                        right_cardinality: rel.right_cardinality,
+                        left_role: rel.left_role,
+                        right_role: rel.right_role,
+                        line_color: rel.line_color,
+                        dashed: rel.dashed,
+                        hidden: rel.hidden,
+                        thickness: rel.thickness,
+                        left_lollipop: rel.left_lollipop,
+                        right_lollipop: rel.right_lollipop,
+                    });
+                }
             }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
@@ -3350,6 +3617,25 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
     })
+}
+
+fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
+    let trimmed = raw.trim().trim_start_matches('@');
+    if let Some(delta) = trimmed
+        .strip_prefix('+')
+        .and_then(|v| v.parse::<i64>().ok())
+    {
+        let base = current.and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+        return base.saturating_add(delta).to_string();
+    }
+    if let Some(delta) = trimmed
+        .strip_prefix('-')
+        .and_then(|v| v.parse::<i64>().ok())
+    {
+        let base = current.and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+        return base.saturating_sub(delta).to_string();
+    }
+    trimmed.to_string()
 }
 
 fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {

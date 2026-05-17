@@ -97,6 +97,26 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
 }
 
 #[test]
+fn render_core_uml_nested_scopes_lollipops_and_relation_annotations() {
+    let class_src = "@startuml\nskinparam ArrowColor #225588\nset namespaceSeparator .\npackage Domain {\n  namespace Core {\n    class Api\n    class Repo\n    Api \"1\" -[#green,dashed,thickness=3]-> \"0..*\" Repo : owns:cache\n  }\n}\n@enduml\n";
+    let class_svg = puml::render_source_to_svg(class_src).expect("class scope render");
+    assert!(class_svg.contains("class Domain.Core.Api"));
+    assert!(class_svg.contains("class Domain.Core.Repo"));
+    assert!(class_svg.contains("owns:cache"));
+    assert!(class_svg.contains("0..*"));
+    assert!(class_svg.contains("#008000"));
+    assert!(class_svg.contains("stroke-dasharray"));
+
+    let component_src = "@startuml\nskinparam ComponentArrowColor #884400\nnamespace Edge {\n  component API\n  interface Orders\n  API --() Orders : provides\n}\n@enduml\n";
+    let component_svg = puml::render_source_to_svg(component_src).expect("component scope render");
+    assert!(component_svg.contains("Edge::API"));
+    assert!(component_svg.contains("Edge::Orders"));
+    assert!(component_svg.contains("provides"));
+    assert!(component_svg.contains("uml-lollipop"));
+    assert!(component_svg.contains("#884400"));
+}
+
+#[test]
 fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
     let src = "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n@enduml\n";
     let svg = puml::render_source_to_svg(src).expect("decorated sequence render");
@@ -281,6 +301,38 @@ fn render_source_to_svgs_supports_newpage_with_title_override() {
     assert_eq!(pages.len(), 2);
     assert!(pages[0].contains(">Base<"));
     assert!(pages[1].contains(">Page Two<"));
+}
+
+#[test]
+fn render_svg_sequence_header_footer_and_caption_have_visible_lifecycle() {
+    let src = "@startuml\nheader Trace Header\ncaption\nAudit trail\npage 1\nend caption\nfooter Rendered Footer\nA -> B : hello\n@enduml\n";
+    let ast = puml::parse(src).expect("parse should succeed");
+    let doc = puml::normalize(ast).expect("normalize should succeed");
+    assert_eq!(doc.header.as_deref(), Some("Trace Header"));
+    assert_eq!(doc.caption.as_deref(), Some("Audit trail\npage 1"));
+    assert_eq!(doc.footer.as_deref(), Some("Rendered Footer"));
+
+    let scene = layout::layout(&doc, LayoutOptions::default());
+    assert!(scene.header.is_some(), "header should reach the scene");
+    assert!(scene.caption.is_some(), "caption should reach the scene");
+    assert!(scene.footer.is_some(), "footer should reach the scene");
+    assert!(
+        scene.header.as_ref().expect("header label").y < scene.participants[0].y,
+        "header should reserve vertical space before participants"
+    );
+    assert!(
+        scene.caption.as_ref().expect("caption label").y > scene.footboxes[0].y,
+        "caption should render after the sequence body"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("class=\"sequence-header\""));
+    assert!(svg.contains("class=\"sequence-caption\""));
+    assert!(svg.contains("class=\"sequence-footer\""));
+    assert!(svg.contains(">Trace Header<"));
+    assert!(svg.contains(">Audit trail<"));
+    assert!(svg.contains(">page 1<"));
+    assert!(svg.contains(">Rendered Footer<"));
 }
 
 #[test]
