@@ -1,0 +1,107 @@
+{
+  "_comment": "Visual regression manifest. Each fixture is rendered to SVG and checked for: (1) all expected_text substrings appear, (2) no <text> element is empty. Add new fixtures here as the renderer gains coverage. Run: cargo test --test visual_regression",
+  "fixtures": [
+    {
+      "path": "docs/examples/sequence/01_basic.puml",
+      "family": "sequence",
+      "expected_text": ["Alice", "Bob", "Hello"],
+      "min_text_elements": 3
+    },
+    {
+      "path": "docs/examples/sequence/05_alt_opt_loop.puml",
+      "family": "sequence",
+      "expected_text": ["alt", "else", "opt", "loop"],
+      "min_text_elements": 4
+    },
+    {
+      "path": "docs/examples/class/01_basic.puml",
+      "family": "class",
+      "expected_text": ["Animal", "Dog"],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/class/02_inheritance.puml",
+      "family": "class",
+      "expected_text": ["Animal", "Dog", "Cat"],
+      "min_text_elements": 3
+    },
+    {
+      "path": "docs/examples/activity/01_simple_flow.puml",
+      "family": "activity",
+      "expected_text": [],
+      "min_text_elements": 1
+    },
+    {
+      "path": "docs/examples/activity/02_if_then_else.puml",
+      "family": "activity",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/state/01_basic.puml",
+      "family": "state",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/usecase/01_basic.puml",
+      "family": "usecase",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/component/01_basic.puml",
+      "family": "component",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/object/01_basic.puml",
+      "family": "object",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/deployment/01_nodes.puml",
+      "family": "deployment",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/gantt/01_basic.puml",
+      "family": "gantt",
+      "expected_text": [],
+      "min_text_elements": 1
+    },
+    {
+      "path": "docs/examples/mindmap/01_basic.puml",
+      "family": "mindmap",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/wbs/01_basic.puml",
+      "family": "wbs",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/c4/01_context.puml",
+      "family": "c4",
+      "expected_text": [],
+      "min_text_elements": 2
+    },
+    {
+      "path": "docs/examples/json/01_object.puml",
+      "family": "json",
+      "expected_text": [],
+      "min_text_elements": 1
+    },
+    {
+      "path": "docs/examples/chart/01_bar.puml",
+      "family": "chart",
+      "expected_text": [],
+      "min_text_elements": 0
+    }
+  ]
+}
