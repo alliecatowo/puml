@@ -6,7 +6,8 @@
 #
 # Environment:
 #   PUML_ORACLE_JAR   Absolute path to plantuml.jar.
-#                     If unset or empty, exits 0 with a skip-sentinel JSON (CI-safe).
+#                     If unset or empty, falls back to ./oracle/plantuml.jar when present.
+#                     If neither is available, exits 0 with a skip-sentinel JSON (CI-safe).
 #   PUML_ORACLE_JAVA  Path to java binary (falls back to "java" on PATH).
 #
 # Output (stdout): newline-terminated JSON object (sentinel or full report).
@@ -74,23 +75,28 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ---------------------------------------------------------------------------
-# Skip sentinel: PUML_ORACLE_JAR not set
+# Resolve oracle JAR: explicit env first, then repo-local fallback.
 # ---------------------------------------------------------------------------
 if [[ -z "${PUML_ORACLE_JAR:-}" ]]; then
-  SENTINEL='{"skipped":true,"reason":"PUML_ORACLE_JAR not set"}'
-  printf '%s\n' "${SENTINEL}"
-  mkdir -p "$(dirname "${REPORT_FILE}")"
-  printf '%s\n' "${SENTINEL}" > "${REPORT_FILE}"
-  exit 0
+  FALLBACK_JAR="${ROOT_DIR}/oracle/plantuml.jar"
+  if [[ -f "${FALLBACK_JAR}" ]]; then
+    JAR="${FALLBACK_JAR}"
+  else
+    SENTINEL='{"oracle_version":"1","skipped":true,"reason":"PUML_ORACLE_JAR not set and ./oracle/plantuml.jar not found","skip_reason":"PUML_ORACLE_JAR not set and ./oracle/plantuml.jar not found","total":0,"identical":0,"diff_count":0,"diffs":[]}'
+    printf '%s\n' "${SENTINEL}"
+    mkdir -p "$(dirname "${REPORT_FILE}")"
+    printf '%s\n' "${SENTINEL}" > "${REPORT_FILE}"
+    exit 0
+  fi
+else
+  JAR="${PUML_ORACLE_JAR}"
 fi
-
-JAR="${PUML_ORACLE_JAR}"
 
 # ---------------------------------------------------------------------------
 # Skip sentinel: JAR file not found
 # ---------------------------------------------------------------------------
 if [[ ! -f "${JAR}" ]]; then
-  SENTINEL="$(printf '{"skipped":true,"reason":"JAR file not found: %s"}' "${JAR}")"
+  SENTINEL="$(printf '{"oracle_version":"1","skipped":true,"reason":"JAR file not found: %s","skip_reason":"JAR file not found: %s","total":0,"identical":0,"diff_count":0,"diffs":[]}' "${JAR}" "${JAR}")"
   printf '%s\n' "${SENTINEL}"
   mkdir -p "$(dirname "${REPORT_FILE}")"
   printf '%s\n' "${SENTINEL}" > "${REPORT_FILE}"
@@ -101,7 +107,7 @@ fi
 # Skip sentinel: java not available
 # ---------------------------------------------------------------------------
 if ! command -v "${JAVA_BIN}" >/dev/null 2>&1; then
-  SENTINEL="$(printf '{"skipped":true,"reason":"java binary not found: %s"}' "${JAVA_BIN}")"
+  SENTINEL="$(printf '{"oracle_version":"1","skipped":true,"reason":"java binary not found: %s","skip_reason":"java binary not found: %s","total":0,"identical":0,"diff_count":0,"diffs":[]}' "${JAVA_BIN}" "${JAVA_BIN}")"
   printf '%s\n' "${SENTINEL}"
   mkdir -p "$(dirname "${REPORT_FILE}")"
   printf '%s\n' "${SENTINEL}" > "${REPORT_FILE}"
@@ -175,6 +181,9 @@ extract_color_set() {
     | tr '\n' ',' \
     | sed 's/,$//'
 }
+
+# Escape strings for JSON (basic)
+safe_json() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
 # Compute absolute percentage drift between two integers (avoids div-by-zero)
 pct_drift() {
@@ -327,9 +336,6 @@ for F in "${PUML_FILES[@]}"; do
     CATEGORY="drift"
   fi
 
-  # Escape strings for JSON (basic)
-  safe_json() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-
   ENTRY="$(printf \
     '{"path":"%s","category":"%s","metrics":{"elem_count":{"ours":%s,"ref":%s,"drift_pct":%s},"viewbox":{"ours":"%s","ref":"%s","w_drift_pct":%s,"h_drift_pct":%s},"text_set":{"match":%s},"color_set":{"match":%s}}}' \
     "${REL}" \
@@ -348,6 +354,7 @@ MATCH_PCT=0
 if [[ "${TOTAL}" -gt 0 ]]; then
   MATCH_PCT=$(( (N_MATCH * 100) / TOTAL ))
 fi
+DIFF_COUNT=$(( TOTAL - N_MATCH ))
 
 # ---------------------------------------------------------------------------
 # ISO-8601 UTC timestamp
@@ -358,15 +365,23 @@ TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 # Build report JSON
 # ---------------------------------------------------------------------------
 REPORT="$(printf \
-  '{"schema_version":"1.0","timestamp":"%s","jar_version":"%s","summary":{"total":%d,"match":%d,"drift":%d,"puml_only":%d,"jar_only":%d,"both_fail":%d},"fixtures":[%s]}' \
+  '{"schema_version":"1.0","oracle_version":"1","timestamp":"%s","jar_version":"%s","jar_path":"%s","total":%d,"identical":%d,"diff_count":%d,"summary":{"total":%d,"match":%d,"identical":%d,"diff":%d,"diff_count":%d,"drift":%d,"puml_only":%d,"jar_only":%d,"both_fail":%d},"fixtures":[%s],"diffs":[%s]}' \
   "${TIMESTAMP}" \
   "${JAR_VERSION}" \
+  "$(safe_json "${JAR_ABS}")" \
   "${TOTAL}" \
   "${N_MATCH}" \
+  "${DIFF_COUNT}" \
+  "${TOTAL}" \
+  "${N_MATCH}" \
+  "${N_MATCH}" \
+  "${DIFF_COUNT}" \
+  "${DIFF_COUNT}" \
   "${N_DRIFT}" \
   "${N_PUML_ONLY}" \
   "${N_JAR_ONLY}" \
   "${N_BOTH_FAIL}" \
+  "${FIXTURES_JSON}" \
   "${FIXTURES_JSON}")"
 
 printf '%s\n' "${REPORT}"

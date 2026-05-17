@@ -20,6 +20,10 @@
 # corpus parity baseline report (oracle placeholders kept intentionally)
 python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
 
+# corpus parity report with active PlantUML oracle when PUML_ORACLE_JAR or
+# ./oracle/plantuml.jar is available
+python3 scripts/parity_harness.py --oracle --output docs/benchmarks/parity_latest.json
+
 # differential oracle smoke report (PlantUML runtime required)
 python3 scripts/differential_oracle_smoke.py --quick --strict --output docs/benchmarks/oracle_smoke_latest.json
 ```
@@ -61,9 +65,9 @@ If no matching mode baseline exists, regression checks are skipped and absolute/
 
 ## No-Java Baseline
 
-- PlantUML oracle remains placeholder-only (`todo`) for this repo baseline.
-- `parity_latest.json` and `latest_trend.json` include explicit oracle placeholder metadata.
-- Do not remove placeholders until Java/oracle execution is intentionally enabled.
+- PlantUML oracle remains placeholder-only (`todo`) when no JAR is available.
+- Active oracle reports expose `total`, `identical`, and `diff_count` aliases for harness consumers.
+- `parity_latest.json` and `latest_trend.json` include explicit oracle metadata in both placeholder and active modes.
 
 ## Differential Oracle Smoke
 

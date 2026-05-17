@@ -160,12 +160,13 @@ PUML_ORACLE_JAR=/tmp/plantuml-1.2024.7.jar \
 
 ### Skip the oracle entirely
 
-Unset `PUML_ORACLE_JAR` (or just don't set it).  The script exits 0 and
-writes the skip sentinel to the report file — safe to call unconditionally
-from any CI pipeline.
+Unset `PUML_ORACLE_JAR` (or just don't set it).  The script first checks for a
+repo-local fallback at `./oracle/plantuml.jar`.  If that fallback is absent, the
+script exits 0 and writes the skip sentinel to the report file — safe to call
+unconditionally from any CI pipeline.
 
 ## CI integration
 
-The oracle runs automatically on PRs that touch `src/parser.rs`,
-`src/normalize.rs`, `src/render.rs`, or any file under `tests/fixtures/`.
-See `.github/workflows/oracle.yml` for the full pipeline definition.
+The oracle runs automatically on PRs that touch renderer/parser code, oracle
+infrastructure, oracle docs, `tests/fixtures/`, or `docs/examples/`.  See
+`.github/workflows/oracle.yml` for the full pipeline definition.

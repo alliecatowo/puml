@@ -106,10 +106,20 @@ jobs:
       - name: Run oracle differential script
         id: oracle
         run: |
+          set +e
+          set -o pipefail
           bash ./scripts/oracle.sh \
             --corpus-dir tests/fixtures \
             | tee /tmp/oracle_stdout.json
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          ORACLE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${ORACLE_EXIT}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${ORACLE_EXIT}" -eq 2 ]]; then
+            echo "[oracle] HARD FAIL: match% < 50%" >&2
+            exit 2
+          fi
+          exit 0
 
       - name: Upload oracle report
         if: always()

@@ -15,11 +15,17 @@ fn repo_path(rel: &str) -> PathBuf {
 // oracle_skip_sentinel
 // ---------------------------------------------------------------------------
 
-/// When `PUML_ORACLE_JAR` is not set the script must exit 0 and emit a JSON
-/// object with `"skipped": true` and a `"reason"` that mentions `PUML_ORACLE_JAR`.
+/// When `PUML_ORACLE_JAR` is not set and the repo-local fallback JAR is absent,
+/// the script must exit 0 and emit a JSON object with `"skipped": true` and a
+/// `"reason"` that mentions `PUML_ORACLE_JAR`.
 /// This test is always deterministic regardless of environment.
 #[test]
 fn oracle_skip_sentinel() {
+    if repo_path("oracle/plantuml.jar").exists() {
+        eprintln!("oracle/plantuml.jar present; skip sentinel path is intentionally inactive");
+        return;
+    }
+
     let output = Command::new("bash")
         .arg(oracle_script())
         .env_remove("PUML_ORACLE_JAR")
@@ -56,20 +62,26 @@ fn oracle_skip_sentinel() {
 // oracle_report_schema_is_stable
 // ---------------------------------------------------------------------------
 
-/// When `PUML_ORACLE_JAR` is set and valid, the report JSON must contain all
-/// required top-level fields matching schema_version "1.0".
+/// When `PUML_ORACLE_JAR` is set and valid, or `./oracle/plantuml.jar` exists,
+/// the report JSON must contain all required top-level fields matching
+/// schema_version "1.0".
 ///
-/// Gated with `#[ignore]` — run with:
-///   PUML_ORACLE_JAR=/path/to/plantuml.jar cargo test -- --ignored oracle_report_schema_is_stable
+/// Run with:
+///   PUML_ORACLE_JAR=/path/to/plantuml.jar cargo test oracle_report_schema_is_stable
 #[test]
-#[ignore]
 fn oracle_report_schema_is_stable() {
-    let jar = match std::env::var("PUML_ORACLE_JAR") {
-        Ok(v) if !v.is_empty() => v,
-        _ => {
-            eprintln!("PUML_ORACLE_JAR not set; skipping oracle_report_schema_is_stable");
+    let jar = std::env::var("PUML_ORACLE_JAR")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| {
+            let fallback = repo_path("oracle/plantuml.jar");
+            fallback.exists().then(|| fallback.to_string_lossy().into_owned())
+        });
+    let Some(jar) = jar else {
+            eprintln!(
+                "PUML_ORACLE_JAR not set and oracle/plantuml.jar absent; skipping oracle_report_schema_is_stable"
+            );
             return;
-        }
     };
 
     let fixtures_dir = repo_path("tests/fixtures");
@@ -116,6 +128,8 @@ fn oracle_report_schema_is_stable() {
     for field in &[
         "total",
         "match",
+        "identical",
+        "diff_count",
         "drift",
         "puml_only",
         "jar_only",
@@ -131,6 +145,10 @@ fn oracle_report_schema_is_stable() {
     assert!(
         v["fixtures"].is_array(),
         "report must have 'fixtures' array"
+    );
+    assert!(
+        v["total"].is_number() && v["identical"].is_number() && v["diff_count"].is_number(),
+        "report must expose top-level total/identical/diff_count aliases"
     );
 
     // Each fixture entry must have path, category, and metrics

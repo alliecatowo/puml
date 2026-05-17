@@ -451,6 +451,26 @@ def run_oracle() -> Dict[str, Any]:
             "diffs": [],
         }
 
+    summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
+    total = result.get("total", summary.get("total", 0))
+    identical = result.get(
+        "identical",
+        summary.get("identical", summary.get("match", 0)),
+    )
+    diff_count = result.get(
+        "diff_count",
+        summary.get("diff_count", summary.get("diff", None)),
+    )
+    if diff_count is None:
+        try:
+            diff_count = int(total) - int(identical)
+        except (TypeError, ValueError):
+            diff_count = 0
+
+    result["total"] = total
+    result["identical"] = identical
+    result["diff_count"] = diff_count
+    result.setdefault("diffs", [])
     return result
 
 

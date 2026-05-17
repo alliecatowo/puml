@@ -3,10 +3,20 @@ name: Oracle — Differential Conformance vs Java PlantUML
 on:
   pull_request:
     paths:
+      - ".github/workflows/oracle.yml"
       - "src/parser.rs"
       - "src/normalize.rs"
       - "src/render.rs"
+      - "scripts/oracle.sh"
+      - "scripts/parity_harness.py"
+      - "scripts/bench_gate.py"
       - "tests/fixtures/**"
+      - "tests/oracle_smoke.rs"
+      - "docs/oracle-thresholds.md"
+      - "docs/benchmarks/README.md"
+      - "docs/examples/**"
+      - "oracle/**"
+  workflow_dispatch:
 
 concurrency:
   group: oracle-${{ github.event.pull_request.number || github.ref }}
@@ -80,6 +90,7 @@ jobs:
           PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
         run: |
           set +e
+          set -o pipefail
           ./scripts/oracle.sh
           ORACLE_EXIT=$?
           set -e
