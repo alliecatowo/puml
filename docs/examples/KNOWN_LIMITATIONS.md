@@ -19,7 +19,7 @@ that diagram families are unsupported overall.
 ### Sequence
 
 - `hide unlinked` is accepted as a hint/warning path; behavior is narrower than full PlantUML filtering semantics.
-- Teoz/parallel-message semantics are not fully equivalent to PlantUML teoz behavior.
+- Teoz/parallel-message pragmas are accepted as compatibility boundaries, but layout remains the standard deterministic sequence layout rather than PlantUML teoz-specific placement.
 - Some uncommon arrow/style combinations remain narrower than full PlantUML surface.
 
 ### Preprocessor / stdlib
@@ -31,5 +31,5 @@ that diagram families are unsupported overall.
 ### Family depth (not family availability)
 
 - Families are implemented end-to-end, but feature depth still varies by family.
-- Some advanced constructs in component/deployment/state/activity/timing/class/object/usecase are partial relative to PlantUML breadth.
+- Core UML broad partials include class-like declarations, object maps, use-case actors, component/deployment primitives, state pseudostate basics, and activity branch/split/control tokens, but advanced semantic layout and styling remain partial relative to PlantUML breadth.
 - Non-UML families (salt/json/yaml/nwdiag/archimate/regex/ebnf/chart/math/sdl/ditaa) are implemented with deterministic render paths, but advanced semantics are still being expanded.

@@ -288,11 +288,7 @@ fn preprocess_text(
                         }
                         let var_name = parts[0].trim().trim_start_matches('$').to_string();
                         let rhs = expand_preprocessor_text(parts[1].trim(), state, 0)?;
-                        let items: Vec<String> = rhs
-                            .split(',')
-                            .map(|s| s.trim().trim_matches('"').to_string())
-                            .filter(|s| !s.is_empty())
-                            .collect();
+                        let items = preprocessor_list_items(&rhs);
                         let block = lines[i + 1..endfor].join("\n");
                         let prev = state.vars.get(&var_name).cloned();
                         for item in items {
@@ -1423,12 +1419,13 @@ fn eval_int_expr(expr: &str) -> Option<i64> {
         let b = eval_int_expr(rhs)?;
         return Some(if op == '+' { a + b } else { a - b });
     }
-    if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['*', '/']) {
+    if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['*', '/', '%']) {
         let a = eval_int_expr(lhs)?;
         let b = eval_int_expr(rhs)?;
         return match op {
             '*' => Some(a * b),
             '/' if b != 0 => Some(a / b),
+            '%' if b != 0 => Some(a % b),
             _ => None,
         };
     }
@@ -1453,7 +1450,7 @@ fn split_top_level_arithmetic<'a>(expr: &'a str, ops: &[char]) -> Option<(&'a st
             _ if depth == 0 && ops.contains(&ch) => {
                 if ch == '-' {
                     let prev = expr[..idx].chars().rev().find(|c| !c.is_whitespace());
-                    if prev.is_none() || matches!(prev, Some('(' | '+' | '-' | '*' | '/')) {
+                    if prev.is_none() || matches!(prev, Some('(' | '+' | '-' | '*' | '/' | '%')) {
                         continue;
                     }
                 }
@@ -2130,6 +2127,28 @@ fn dispatch_builtin(
                 Some(s.split(sep.as_str()).collect::<Vec<&str>>().join(","))
             }
         }
+        "split" => {
+            let s = arg(0);
+            let sep = arg(1);
+            if sep.is_empty() {
+                Some(s)
+            } else {
+                Some(
+                    s.split(sep.as_str())
+                        .map(|v| format!("\"{}\"", v.replace('"', "\\\"")))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                )
+            }
+        }
+        "join" => {
+            let list = preprocessor_list_items(&arg(0));
+            Some(list.join(&arg(1)))
+        }
+        "get" => Some(preprocessor_get(&arg(0), &arg(1))),
+        "set" | "put" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
+        "keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
+        "values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "strpos" => {
             let s = arg(0);
             let sub = arg(1);
@@ -2160,7 +2179,9 @@ fn dispatch_builtin(
             Some(chars[start..end].iter().collect())
         }
         "intval" => Some(parse_int_lenient(&arg(0)).to_string()),
-        "str" => Some(arg(0)),
+        "str" | "string" => Some(arg(0)),
+        "quote" => Some(format!("\"{}\"", arg(0).replace('"', "\\\""))),
+        "unquote" => Some(strip_quotes(&arg(0))),
         "boolval" => Some(boolval(&arg(0)).to_string()),
         "true" => Some("true".to_string()),
         "false" => Some("false".to_string()),
@@ -2273,6 +2294,8 @@ fn dispatch_builtin(
             let key = arg(1);
             Some(json_contains_key(&json, &key).to_string())
         }
+        "json_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
+        "json_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "false_then_true" => {
             let key = arg(0);
             let mut counts = state.false_then_true_counts.borrow_mut();
@@ -2638,6 +2661,88 @@ fn json_contains_key(json: &str, key: &str) -> bool {
     !get_json_top_level_key(json, key).is_empty()
 }
 
+fn preprocessor_list_items(raw: &str) -> Vec<String> {
+    let trimmed = raw.trim();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if let Some(items) = value.as_array() {
+            return items.iter().map(json_value_to_preproc_string).collect();
+        }
+    }
+    trimmed
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .split(',')
+        .map(|s| strip_quotes(s.trim()))
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn preprocessor_get(container: &str, key: &str) -> String {
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
+        if let Some(idx) = key.trim().parse::<usize>().ok() {
+            return value
+                .as_array()
+                .and_then(|items| items.get(idx))
+                .map(json_value_to_preproc_string)
+                .unwrap_or_default();
+        }
+        return json_value_at_path(&value, key)
+            .map(json_value_to_preproc_string)
+            .unwrap_or_default();
+    }
+    preprocessor_list_items(container)
+        .get(key.trim().parse::<usize>().unwrap_or(usize::MAX))
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn preprocessor_set(container: &str, key: &str, replacement: &str) -> String {
+    if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
+        if let Some(obj) = value.as_object_mut() {
+            obj.insert(
+                key.to_string(),
+                serde_json::Value::String(replacement.to_string()),
+            );
+            return serde_json::Value::Object(obj.clone()).to_string();
+        }
+        if let Some(arr) = value.as_array_mut() {
+            if let Ok(idx) = key.trim().parse::<usize>() {
+                if let Some(slot) = arr.get_mut(idx) {
+                    *slot = serde_json::Value::String(replacement.to_string());
+                }
+            }
+            return serde_json::Value::Array(arr.clone()).to_string();
+        }
+    }
+    container.to_string()
+}
+
+fn preprocessor_json_keys(json: &str) -> Vec<String> {
+    serde_json::from_str::<serde_json::Value>(json.trim())
+        .ok()
+        .and_then(|value| {
+            value.as_object().map(|obj| {
+                obj.keys()
+                    .map(|key| format!("\"{}\"", key.replace('"', "\\\"")))
+                    .collect::<Vec<_>>()
+            })
+        })
+        .unwrap_or_default()
+}
+
+fn preprocessor_json_values(json: &str) -> Vec<String> {
+    serde_json::from_str::<serde_json::Value>(json.trim())
+        .ok()
+        .and_then(|value| {
+            value.as_object().map(|obj| {
+                obj.values()
+                    .map(json_value_to_preproc_string)
+                    .collect::<Vec<_>>()
+            })
+        })
+        .unwrap_or_default()
+}
+
 /// Read a JSON-ish scalar/object/array value starting at `*idx`, advancing
 /// `*idx` past the value. Returns `Some(str)` for unwrapped string scalars.
 fn read_json_value(bytes: &[u8], idx: &mut usize) -> Option<String> {
@@ -2772,12 +2877,6 @@ fn parse_callable_definition(
         ));
     }
     let params_raw = &sig[open + 1..close];
-    if params_raw.contains("##") {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_CONCAT_UNSUPPORTED",
-            "macro argument concatenation (`##`) is not supported in this deterministic subset",
-        ));
-    }
     let params = parse_params(params_raw)?;
     let callable = PreprocCallable {
         kind,
@@ -2789,7 +2888,8 @@ fn parse_callable_definition(
 
 fn parse_params(raw: &str) -> Result<Vec<PreprocParam>, Diagnostic> {
     let mut params = Vec::new();
-    for piece in split_args(raw)? {
+    let normalized = raw.replace("##", ",");
+    for piece in split_args(&normalized)? {
         let trimmed = piece.trim();
         if trimmed.is_empty() {
             continue;
@@ -2868,16 +2968,11 @@ fn bind_callable_args(
     state: &PreprocState,
     call_depth: usize,
 ) -> Result<BTreeMap<String, String>, Diagnostic> {
-    if args_raw.contains("##") {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_CONCAT_UNSUPPORTED",
-            "macro argument concatenation (`##`) is not supported in this deterministic subset",
-        ));
-    }
+    let args_normalized = args_raw.replace("##", ",");
     let mut bound = BTreeMap::new();
     let mut positional = Vec::new();
     let mut keyword = BTreeMap::new();
-    for arg in split_args(args_raw)? {
+    for arg in split_args(&args_normalized)? {
         if let Some((k, v)) = arg.split_once('=') {
             keyword.insert(
                 k.trim().trim_start_matches('$').to_string(),
@@ -3729,11 +3824,40 @@ fn parse_family_declaration(
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
-    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "class") {
+    for (keyword, marker) in [
+        ("abstract class", Some("<<abstract class>>")),
+        ("interface", Some("<<interface>>")),
+        ("enum", Some("<<enum>>")),
+        ("annotation", Some("<<annotation>>")),
+        ("protocol", Some("<<protocol>>")),
+        ("struct", Some("<<struct>>")),
+        ("abstract", Some("<<abstract>>")),
+        ("class", None),
+    ] {
+        let Some((name, alias, has_block)) = parse_named_family_decl(line, keyword) else {
+            continue;
+        };
         let members = if has_block {
-            parse_family_decl_members(lines, start, "class", &name)?
+            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            if let Some(marker) = marker {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            members
         } else {
-            Vec::new()
+            marker
+                .map(|marker| {
+                    vec![ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    }]
+                })
+                .unwrap_or_default()
         };
         return Ok(Some((
             StatementKind::ClassDecl(ClassDecl {
@@ -3748,11 +3872,32 @@ fn parse_family_declaration(
             },
         )));
     }
-    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "object") {
+
+    for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
+        let Some((name, alias, has_block)) = parse_named_family_decl(line, keyword) else {
+            continue;
+        };
         let members = if has_block {
-            parse_family_decl_members(lines, start, "object", &name)?
+            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            if let Some(marker) = marker {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            members
         } else {
-            Vec::new()
+            marker
+                .map(|marker| {
+                    vec![ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    }]
+                })
+                .unwrap_or_default()
         };
         return Ok(Some((
             StatementKind::ObjectDecl(ObjectDecl {
@@ -3767,11 +3912,47 @@ fn parse_family_declaration(
             },
         )));
     }
-    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "usecase") {
+
+    if let Some((name, alias, has_block)) = parse_parenthesized_usecase_decl(line) {
+        return Ok(Some((
+            StatementKind::UseCaseDecl(UseCaseDecl {
+                name,
+                alias,
+                members: Vec::new(),
+            }),
+            if has_block {
+                find_family_decl_end(lines, start)
+            } else {
+                start
+            },
+        )));
+    }
+
+    for (keyword, marker) in [("actor", Some("<<actor>>")), ("usecase", None)] {
+        let Some((name, alias, has_block)) = parse_named_family_decl(line, keyword) else {
+            continue;
+        };
         let members = if has_block {
-            parse_family_decl_members(lines, start, "usecase", &name)?
+            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            if let Some(marker) = marker {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            members
         } else {
-            Vec::new()
+            marker
+                .map(|marker| {
+                    vec![ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    }]
+                })
+                .unwrap_or_default()
         };
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -3791,6 +3972,14 @@ fn parse_family_declaration(
 
 fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<String>, bool)> {
     if !line.starts_with(keyword) {
+        return None;
+    }
+    if line.len() > keyword.len()
+        && !line[keyword.len()..]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+    {
         return None;
     }
     let rest = line[keyword.len()..].trim();
@@ -3817,6 +4006,31 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<
     }
     let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
     Some((name, alias, has_block))
+}
+
+fn parse_parenthesized_usecase_decl(line: &str) -> Option<(String, Option<String>, bool)> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('(') {
+        return None;
+    }
+    let close = trimmed.find(')')?;
+    let name_raw = trimmed[1..close].trim();
+    if name_raw.is_empty() {
+        return None;
+    }
+    let rest = trimmed[close + 1..].trim();
+    let has_block = rest.ends_with('{');
+    let rest = if has_block {
+        rest.trim_end_matches('{').trim()
+    } else {
+        rest
+    };
+    let alias = rest
+        .strip_prefix("as ")
+        .map(str::trim)
+        .map(clean_ident)
+        .filter(|v| !v.is_empty());
+    Some((clean_ident(name_raw), alias, has_block))
 }
 
 fn parse_family_decl_members(
@@ -4569,6 +4783,9 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             });
         }
     }
+    if let Some(day) = parse_gantt_closed_weekday(trimmed) {
+        return Some(StatementKind::GanttCalendarClosed { day });
+    }
     let (subject, rest) = parse_bracket_subject(trimmed)?;
     if rest.is_empty() {
         return Some(StatementKind::GanttTaskDecl {
@@ -4659,6 +4876,26 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
         }
     }
     None
+}
+
+fn parse_gantt_closed_weekday(line: &str) -> Option<String> {
+    let lower = line.trim().to_ascii_lowercase();
+    let day = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]
+    .into_iter()
+    .find(|day| {
+        lower == format!("{day} is closed")
+            || lower == format!("{day} are closed")
+            || lower == format!("{day}s are closed")
+    })?;
+    Some(day.to_string())
 }
 
 fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
@@ -4971,6 +5208,24 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
             label: None,
         }));
     }
+    if trimmed == "split" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Fork,
+            label: Some("split".to_string()),
+        }));
+    }
+    if trimmed == "split again" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::ForkAgain,
+            label: Some("split again".to_string()),
+        }));
+    }
+    if trimmed == "end split" || trimmed == "endsplit" || trimmed == "end merge" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndFork,
+            label: Some("end split".to_string()),
+        }));
+    }
     if trimmed == "endwhile" || trimmed == "end while" {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::EndWhile,
@@ -4987,6 +5242,27 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::IfStart,
             label: Some(parse_activity_if_label(rest.trim())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("switch ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::IfStart,
+            label: Some(format!(
+                "switch {}",
+                extract_paren_label(rest.trim()).unwrap_or_else(|| rest.trim().to_string())
+            )),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("case ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Else,
+            label: extract_paren_label(rest.trim()).or_else(|| Some(rest.trim().to_string())),
+        }));
+    }
+    if trimmed == "endswitch" || trimmed == "end switch" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndIf,
+            label: Some("endswitch".to_string()),
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("while ") {
@@ -5022,6 +5298,24 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::PartitionEnd,
             label: None,
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("label ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(format!("label {}", rest.trim())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("goto ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(format!("goto {}", rest.trim())),
+        }));
+    }
+    if trimmed == "kill" || trimmed == "detach" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Stop,
+            label: Some(trimmed.to_string()),
         }));
     }
     None
@@ -6516,7 +6810,7 @@ fn parse_salt_cell(text: &str) -> SaltCell {
 #[cfg(test)]
 mod tests {
     use super::{parse_with_options, ParseOptions};
-    use crate::ast::{DiagramKind, StatementKind};
+    use crate::ast::{ActivityStepKind, DiagramKind, StatementKind};
     use std::fs;
     use tempfile::tempdir;
 
@@ -6999,13 +7293,16 @@ mod tests {
     }
 
     #[test]
-    fn preprocessor_concat_and_arg_errors_are_deterministic() {
-        let concat = parse_with_options(
-            "@startuml\n!function Join($a##$b)\n!return $a\n!endfunction\nA -> B\n@enduml\n",
+    fn preprocessor_concat_signature_and_arg_errors_are_deterministic() {
+        let doc = parse_with_options(
+            "@startuml\n!function Join($a##$b)\n!return $a ## $b\n!endfunction\nA -> B: %Join(Al, ice)\n@enduml\n",
             &ParseOptions::default(),
         )
-        .unwrap_err();
-        assert!(concat.message.contains("E_PREPROC_CONCAT_UNSUPPORTED"));
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
 
         let missing = parse_with_options(
             "@startuml\n!function Need($a,$b)\n!return $a\n!endfunction\nA -> B: %Need(\"x\")\n@enduml\n",
@@ -7202,6 +7499,24 @@ mod tests {
             }
             other => panic!("unexpected statement: {other:?}"),
         }
+    }
+
+    #[test]
+    fn preprocessor_list_map_helpers_and_modulo_expand_inline() {
+        let doc = parse_with_options(
+            "@startuml\n!$cfg = { \"name\": \"Ada\", \"role\": \"core\" }\n!foreach $item in %split(\"red|blue\", \"|\")\nA -> B : $item\n!endfor\n!if 7 % 4 == 3\nA -> B : %get($cfg, \"name\")/%join([\"x\",\"y\"], \"-\")/%quote(ok)\n!endif\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        let labels = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::Message(m) => m.label.as_deref(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(labels, vec!["red", "blue", "Ada/x-y/\"ok\""]);
     }
 
     #[test]
@@ -7456,6 +7771,109 @@ mod tests {
     }
 
     #[test]
+    fn parses_core_uml_broad_partial_declaration_forms() {
+        let class_doc = parse_with_options(
+            "interface Gateway\nabstract class Shape\nannotation Trace\nstruct Payload\nGateway --> Shape : adapts\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(class_doc.kind, DiagramKind::Class);
+        match &class_doc.statements[0].kind {
+            StatementKind::ClassDecl(decl) => {
+                assert_eq!(decl.name, "Gateway");
+                assert_eq!(decl.members[0].text, "<<interface>>");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &class_doc.statements[1].kind {
+            StatementKind::ClassDecl(decl) => {
+                assert_eq!(decl.name, "Shape");
+                assert_eq!(decl.members[0].text, "<<abstract class>>");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        assert!(matches!(
+            class_doc.statements[4].kind,
+            StatementKind::FamilyRelation(_)
+        ));
+
+        let object_doc = parse_with_options(
+            "map Settings {\n  theme => light\n}\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(object_doc.kind, DiagramKind::Object);
+        match &object_doc.statements[0].kind {
+            StatementKind::ObjectDecl(decl) => {
+                assert_eq!(decl.name, "Settings");
+                assert_eq!(decl.members[0].text, "<<map>>");
+                assert_eq!(decl.members[1].text, "theme => light");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+
+        let usecase_doc = parse_with_options(
+            "actor Customer as C\n(Login) as UC1\nC --> UC1 : starts\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(usecase_doc.kind, DiagramKind::UseCase);
+        match &usecase_doc.statements[0].kind {
+            StatementKind::UseCaseDecl(decl) => {
+                assert_eq!(decl.name, "Customer");
+                assert_eq!(decl.alias.as_deref(), Some("C"));
+                assert_eq!(decl.members[0].text, "<<actor>>");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &usecase_doc.statements[1].kind {
+            StatementKind::UseCaseDecl(decl) => {
+                assert_eq!(decl.name, "Login");
+                assert_eq!(decl.alias.as_deref(), Some("UC1"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_activity_switch_split_goto_and_terminal_controls() {
+        let doc = parse_with_options(
+            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\ncase (B)\ngoto retry\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ndetach\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Activity);
+        let steps = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::ActivityStep(step) => Some(step),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::IfStart
+                && step.label.as_deref() == Some("switch kind?")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Else
+                && step.label.as_deref() == Some("A")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Fork
+                && step.label.as_deref() == Some("split")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("goto retry")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Stop
+                && step.label.as_deref() == Some("detach")));
+    }
+
+    #[test]
     fn parses_family_declaration_blocks_with_members() {
         let doc = parse_with_options(
             "class User {\n  +id: UUID\n  +name: String\n}\n",
@@ -7543,6 +7961,24 @@ mod tests {
                 duration_days: Some(14),
                 ..
             } if name == "Test" && d == "2026-05-06"
+        ));
+    }
+
+    #[test]
+    fn parses_gantt_closed_weekday_calendar_statements() {
+        let doc = parse_with_options(
+            "@startgantt\nProject starts 2026-05-01\nsaturday are closed\nsundays are closed\n[Build] lasts 2 days\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Gantt);
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttCalendarClosed { ref day } if day == "saturday"
+        ));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::GanttCalendarClosed { ref day } if day == "sunday"
         ));
     }
 

@@ -42,6 +42,54 @@ fn render_svg_pragma_teoz_boundary_keeps_sequence_render_output_stable() {
 }
 
 #[test]
+fn render_core_uml_broad_partials_surface_expected_labels() {
+    let cases = [
+        (
+            "class",
+            "@startuml\ninterface Gateway\nabstract class Shape\nGateway --> Shape : adapts\n@enduml\n",
+            vec!["Gateway", "&lt;&lt;interface&gt;&gt;", "Shape", "adapts"],
+        ),
+        (
+            "object",
+            "@startuml\nmap Settings {\n  theme => light\n}\nobject Runtime\nSettings --> Runtime : configures\n@enduml\n",
+            vec![
+                "Settings",
+                "&lt;&lt;map&gt;&gt;",
+                "theme =&gt; light",
+                "configures",
+            ],
+        ),
+        (
+            "usecase",
+            "@startuml\nactor Customer as C\n(Login) as UC1\nC --> UC1 : starts\n@enduml\n",
+            vec!["Customer", "&lt;&lt;actor&gt;&gt;", "Login", "starts"],
+        ),
+        (
+            "activity",
+            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ngoto retry\nkill\n@enduml\n",
+            vec!["switch kind?", "(else) A", "Do A", "branch 2", "goto retry"],
+        ),
+        (
+            "state",
+            "@startuml\nstate Waiting as W\nstate Choice <<choice>>\nstate Done <<end>>\n[*] --> W : begin\nW --> Choice : choose\nChoice --> Done : ok\n@enduml\n",
+            vec!["Waiting", "begin", "choose", "ok"],
+        ),
+    ];
+
+    for (name, src, expected) in cases {
+        let svg = puml::render_source_to_svg(src).unwrap_or_else(|err| {
+            panic!("{name} broad partial should render, got {}", err.message)
+        });
+        for needle in expected {
+            assert!(
+                svg.contains(needle),
+                "{name} render should contain `{needle}`"
+            );
+        }
+    }
+}
+
+#[test]
 fn render_svg_contains_expected_structure() {
     let src = fixture("e2e/deterministic_sequence.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");
