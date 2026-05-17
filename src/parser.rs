@@ -564,14 +564,6 @@ fn preprocess_text(
                         )?;
                     }
                 }
-                PreprocessDirective::IncludeUrl(raw_target) => {
-                    if active {
-                        return Err(Diagnostic::error_code(
-                            "E_INCLUDE_URL_UNSUPPORTED",
-                            format!("!includeurl URL targets are not supported: {raw_target}"),
-                        ));
-                    }
-                }
                 PreprocessDirective::Unsupported(name) => {
                     if active {
                         return Err(Diagnostic::error_code(
@@ -4092,7 +4084,6 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
         DiagramKind::Chronology => "chronology",
-        DiagramKind::Salt => "salt",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -5394,6 +5385,10 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     if let Some(rest) = rest.strip_prefix(':') {
         return Some(StatementKind::GanttTaskDecl {
             name: rest.trim().to_string(),
+            start_date: None,
+            duration_days: None,
+            depends_on: Vec::new(),
+            resources: Vec::new(),
         });
     }
     let lower = rest.to_ascii_lowercase();
@@ -8946,28 +8941,6 @@ mod tests {
         .unwrap();
         assert_eq!(doc.kind, DiagramKind::Activity);
         assert!(!doc.statements.is_empty());
-    }
-
-    #[test]
-    fn parses_activity_oldstyle_baseline_statements() {
-        let doc = parse_with_options(
-            "@startuml\n|Build|\n(*) --> \"Init\"\n#gold:Compile;\n-->[next] right of \"Test\"\n\"Test\" --> (*)\ndetach\n@enduml\n",
-            &ParseOptions::default(),
-        )
-        .unwrap();
-        assert_eq!(doc.kind, DiagramKind::Activity);
-        assert!(matches!(
-            doc.statements[0].kind,
-            StatementKind::GanttMilestoneDecl { .. }
-        ));
-        assert!(matches!(
-            doc.statements[1].kind,
-            StatementKind::GanttConstraint { .. }
-        ));
-        assert!(matches!(
-            doc.statements[2].kind,
-            StatementKind::GanttTaskDecl { .. }
-        ));
     }
 
     #[test]

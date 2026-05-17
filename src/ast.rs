@@ -17,8 +17,6 @@ pub enum DiagramKind {
     Wbs,
     Gantt,
     Chronology,
-    MindMap,
-    Wbs,
     Component,
     Deployment,
     State,
@@ -317,32 +315,6 @@ pub struct FamilyRelation {
     pub right_cardinality: Option<String>,
     pub left_role: Option<String>,
     pub right_role: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ClassDecl {
-    pub name: String,
-    pub alias: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ObjectDecl {
-    pub name: String,
-    pub alias: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct UseCaseDecl {
-    pub name: String,
-    pub alias: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FamilyRelation {
-    pub from: String,
-    pub to: String,
-    pub arrow: String,
-    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone)]

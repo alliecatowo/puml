@@ -56,7 +56,7 @@ pub fn normalize_family_with_options(
         DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase | DiagramKind::Salt => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
-        DiagramKind::Gantt | DiagramKind::Chronology | DiagramKind::Activity => {
+        DiagramKind::Gantt | DiagramKind::Chronology => {
             normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
         }
         DiagramKind::State => normalize_state(document).map(NormalizedDocument::State),
@@ -1722,6 +1722,10 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                             name: text.to_string(),
                             alias: None,
                             members: Vec::new(),
+                            depth: 0,
+                            label: None,
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
                         });
                     }
                     continue;
@@ -2875,6 +2879,37 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
             | StatementKind::Scale(_)
             | StatementKind::LegendPos(_) => {}
             StatementKind::Unknown(line) => {
+                if family_kind == DiagramKind::Activity {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    activity_step_counter += 1;
+                    if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+                        activity_active_partition =
+                            Some(trimmed.trim_matches('|').trim().to_string());
+                    }
+                    let lane = activity_active_partition
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string());
+                    nodes.push(FamilyNode {
+                        kind: if trimmed.starts_with('|') && trimmed.ends_with('|') {
+                            FamilyNodeKind::ActivityPartition
+                        } else {
+                            FamilyNodeKind::ActivityAction
+                        },
+                        name: format!("__act_{activity_step_counter:04}"),
+                        alias: Some(format!(
+                            "activity::OldStyle|lane={lane}|fork_depth={activity_fork_depth}|fork_branch={activity_fork_branch}"
+                        )),
+                        members: Vec::new(),
+                        depth: 0,
+                        label: Some(trimmed.to_string()),
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    });
+                    continue;
+                }
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
                     line
@@ -2982,7 +3017,6 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
         DiagramKind::Chronology => "chronology",
-        DiagramKind::Salt => "salt",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -3414,28 +3448,6 @@ pub fn normalize_with_options(
                 let lower = trimmed.to_ascii_lowercase();
                 if lower.starts_with("teoz ") || lower == "teoz" {
                     // Accept teoz pragma as a deterministic no-op compatibility hint.
-                } else {
-                    warnings.push(
-                        Diagnostic::warning(format!(
-                            "[W_PRAGMA_UNSUPPORTED] unsupported pragma `{}`",
-                            trimmed
-                        ))
-                        .with_span(stmt.span),
-                    );
-                }
-            }
-            StatementKind::Pragma(value) => {
-                mark_group_content(&mut group_stack);
-                let trimmed = value.trim();
-                let lower = trimmed.to_ascii_lowercase();
-                if lower.starts_with("teoz ") || lower == "teoz" {
-                    warnings.push(
-                        Diagnostic::warning(
-                            "[W_PRAGMA_TEOZ_UNSUPPORTED] !pragma teoz is not supported yet; continuing with default sequence layout semantics"
-                                .to_string(),
-                        )
-                        .with_span(stmt.span),
-                    );
                 } else {
                     warnings.push(
                         Diagnostic::warning(format!(
