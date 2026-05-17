@@ -11,7 +11,8 @@
         "properties": {
           "path": { "type": "string" },
           "text": { "type": "string" },
-          "include_root": { "type": "string" }
+          "include_root": { "type": "string" },
+          "allow_url_includes": { "type": "boolean" }
         },
         "additionalProperties": false
       }
@@ -24,7 +25,8 @@
         "properties": {
           "path": { "type": "string" },
           "text": { "type": "string" },
-          "include_root": { "type": "string" }
+          "include_root": { "type": "string" },
+          "allow_url_includes": { "type": "boolean" }
         },
         "additionalProperties": false
       }
@@ -39,7 +41,8 @@
           "path": { "type": "string" },
           "text": { "type": "string" },
           "output_path": { "type": "string" },
-          "include_root": { "type": "string" }
+          "include_root": { "type": "string" },
+          "allow_url_includes": { "type": "boolean" }
         },
         "additionalProperties": false
       }

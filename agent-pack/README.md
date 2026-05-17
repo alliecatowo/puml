@@ -18,6 +18,9 @@ Codex + Claude plugin bundle for deterministic `puml` sequence diagram authoring
 printf '{"tool":"puml_check","params":{"text":"@startuml\\nA->B: hi\\n@enduml"}}\n' | agent-pack/bin/puml-mcp
 ```
 
+URL includes are disabled by default in MCP tool calls. Pass
+`"allow_url_includes": true` only when remote fetching is intentional.
+
 ## MCP JSON-RPC example
 ```bash
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | agent-pack/bin/puml-mcp

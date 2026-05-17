@@ -4920,6 +4920,44 @@ fn class_diagram_with_relations_renders_real_svg() {
 }
 
 #[test]
+fn class_inheritance_example_renders_fixture_text_and_relations() {
+    let src = fs::read_to_string("docs/examples/class/02_inheritance.puml").unwrap();
+    let svg = render_source_to_svg(&src).expect("class inheritance svg should render");
+
+    for expected in [
+        "class Vehicle",
+        "+make: String",
+        "+model: String",
+        "+start()",
+        "class Car",
+        "+doors: Int",
+        "+drive()",
+        "class Truck",
+        "+payload: Float",
+        "+haul()",
+    ] {
+        assert!(
+            svg.contains(expected),
+            "missing class fixture text {expected}"
+        );
+    }
+
+    for (from, to) in [("Vehicle", "Car"), ("Vehicle", "Truck")] {
+        assert!(
+            svg.contains(&format!(
+                "class=\"uml-relation\" data-uml-from=\"{from}\" data-uml-to=\"{to}\""
+            )),
+            "missing inheritance relation {from} -> {to}"
+        );
+    }
+    assert!(
+        svg.contains("marker-start=\"url(#arrow-triangle)\"")
+            || svg.contains("marker-end=\"url(#arrow-triangle)\""),
+        "inheritance arrow marker missing"
+    );
+}
+
+#[test]
 fn class_diagram_with_relations_render_is_deterministic() {
     let src = fs::read_to_string(fixture("families/valid_class_with_relations.puml")).unwrap();
     let first = render_source_to_svg(&src).unwrap();

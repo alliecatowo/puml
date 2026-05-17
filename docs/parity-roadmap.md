@@ -331,7 +331,7 @@ All diagram families and preprocessor surface areas have landed. 438 tests pass.
 | `!import` / stdlib resolution | Supported | #116 |
 | `!theme` local catalog | Supported | #117 |
 | JSON variable assignment | Supported | #135 |
-| URL include rejection | Rejected (deterministic) | #115 |
+| URL include policy | Native CLI enabled by default with `--no-url-includes`; LSP/WASM no-surprise surfaces disable or reject remote fetches | #255 / #288 |
 
 #### Sequence Parity — Done (2026-05-15)
 
