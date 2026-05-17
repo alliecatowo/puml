@@ -4456,8 +4456,7 @@ fn class_diagram_with_relations_render_is_deterministic() {
 
 #[test]
 fn family_relations_with_cardinalities_render_endpoint_labels() {
-    let src =
-        fs::read_to_string(fixture("families/valid_class_with_cardinalities.puml")).unwrap();
+    let src = fs::read_to_string(fixture("families/valid_class_with_cardinalities.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("family svg should render");
     assert!(svg.contains(">1<"), "left cardinality should render");
     assert!(svg.contains(">*<"), "right cardinality should render");
@@ -4471,11 +4470,21 @@ fn family_relations_with_cardinalities_render_endpoint_labels() {
 
 #[test]
 fn component_relations_with_cardinalities_render_endpoint_labels() {
-    let src = "@startuml\ncomponent API\ncomponent DB\nAPI \"1\" --> \"n\" DB : depends-on\n@enduml\n";
+    let src =
+        "@startuml\ncomponent API\ncomponent DB\nAPI \"1\" --> \"n\" DB : depends-on\n@enduml\n";
     let svg = render_source_to_svg(src).expect("component svg should render");
-    assert!(svg.contains(">1<"), "component left cardinality should render");
-    assert!(svg.contains(">n<"), "component right cardinality should render");
-    assert!(svg.contains("depends-on"), "component relation label should render");
+    assert!(
+        svg.contains(">1<"),
+        "component left cardinality should render"
+    );
+    assert!(
+        svg.contains(">n<"),
+        "component right cardinality should render"
+    );
+    assert!(
+        svg.contains("depends-on"),
+        "component relation label should render"
+    );
 }
 
 #[test]
