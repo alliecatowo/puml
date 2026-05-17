@@ -46,8 +46,6 @@ pub fn render_json_svg(document: &JsonDocument) -> String {
 
 // ─── State diagram renderer ──────────────────────────────────────────────────
 
-/// Layout constants for state SVG rendering.
-
 pub fn render_yaml_svg(document: &YamlDocument) -> String {
     let width = 760;
     let height = 80 + (document.nodes.len().max(1) as i32) * 22;
