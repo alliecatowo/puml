@@ -236,7 +236,7 @@ The LSP must understand every supported primitive:
 - includes
 - simple `!define` / `!undef` substitution
 - `newpage`
-- sequence-only rejection for class/activity/state/component/deployment diagrams
+- deterministic diagnostics or preview routing for non-sequence families according to the current runtime support table
 
 If the renderer supports a primitive, the LSP supports parsing, diagnostics, tokens, completion, hover, and tests for that primitive.
 
