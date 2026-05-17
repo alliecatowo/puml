@@ -626,10 +626,7 @@ fn normalize_emits_deterministic_pragma_warnings() {
     let teoz_src = "@startuml\n!pragma teoz true\nA -> B: hi\n@enduml\n";
     let teoz_doc = parse(teoz_src).expect("parse should succeed");
     let teoz_model = normalize::normalize(teoz_doc).expect("normalize should succeed");
-    assert_eq!(teoz_model.warnings.len(), 1);
-    assert!(teoz_model.warnings[0]
-        .message
-        .contains("W_PRAGMA_TEOZ_UNSUPPORTED"));
+    assert_eq!(teoz_model.warnings.len(), 0);
 
     let generic_src = "@startuml\n!pragma foo bar\nA -> B: hi\n@enduml\n";
     let generic_doc = parse(generic_src).expect("parse should succeed");
@@ -831,6 +828,18 @@ fn theme_classifies_sequence_skinparam_subset() {
     assert_eq!(
         classify_sequence_skinparam("ArrowColor", "\"/><script"),
         SequenceSkinParamSupport::UnsupportedValue
+    );
+    assert_eq!(
+        classify_sequence_skinparam("SequenceResponseMessageBelowArrow", "true"),
+        SequenceSkinParamSupport::SupportedWithValue(
+            SequenceSkinParamValue::ResponseMessageBelowArrow(true)
+        )
+    );
+    assert_eq!(
+        classify_sequence_skinparam("MessageLineColor", "blue"),
+        SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::MessageLineColor(
+            "#0000ff".to_string()
+        ))
     );
 }
 
