@@ -142,8 +142,10 @@ JAR_VERSION="${JAR_VERSION//\"/\'}"   # escape double-quotes for JSON
 # Count structural SVG elements: rect, text, line, polygon, circle, path
 count_structural_elements() {
   local f="$1"
+  # grep returns exit 1 when there are no matches; || true prevents pipefail
+  # from propagating that non-zero exit through the pipeline.
   grep -oiE '<(rect|text|line|polygon|circle|path)([[:space:]]|/>|>)' "${f}" 2>/dev/null \
-    | wc -l | tr -d ' '
+    | wc -l | tr -d ' ' || true
 }
 
 # Extract "W H" from viewBox (first occurrence); returns "" if absent
@@ -163,6 +165,7 @@ extract_viewbox_dims() {
 # Extract sorted, unique text-node content (very rough: strip tags, squish whitespace)
 extract_text_set() {
   local f="$1"
+  # || true prevents pipefail from failing the parent script when grep has no matches
   grep -o '<text[^>]*>[^<]*</text>' "${f}" 2>/dev/null \
     | sed 's/<[^>]*>//g' \
     | tr '[:space:]' ' ' \
@@ -170,18 +173,19 @@ extract_text_set() {
     | tr ',' '\n' \
     | sort -u \
     | tr '\n' ',' \
-    | sed 's/,$//'
+    | sed 's/,$//' || true
 }
 
 # Extract sorted unique fill/stroke hex colours
 extract_color_set() {
   local f="$1"
+  # || true prevents pipefail from failing the parent script when grep has no matches
   grep -oiE '(fill|stroke)="#[0-9a-fA-F]{3,8}"' "${f}" 2>/dev/null \
     | grep -oiE '#[0-9a-fA-F]{3,8}' \
     | tr '[:upper:]' '[:lower:]' \
     | sort -u \
     | tr '\n' ',' \
-    | sed 's/,$//'
+    | sed 's/,$//' || true
 }
 
 # Compute absolute percentage drift between two integers (avoids div-by-zero)
