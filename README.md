@@ -171,6 +171,12 @@ cargo run -- --check docs/examples/basic_hello.puml
 cargo run -- docs/examples/basic_hello.puml
 ```
 
+Before release or branch-policy changes, verify the protected-main checks:
+
+```bash
+./scripts/branch-protection.sh verify
+```
+
 Regenerate committed example SVGs after renderer changes:
 
 ```bash
