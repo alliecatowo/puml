@@ -22,6 +22,7 @@ PRIORITY_FIELD_ID="${PRIORITY_FIELD_ID:-PVTSSF_lAHOBdlpmc4BX1zkzhS_7FE}"
 PRIORITY_P0_ID="${PRIORITY_P0_ID:-5f502b32}"
 PRIORITY_P1_ID="${PRIORITY_P1_ID:-e87779b3}"
 PRIORITY_P2_ID="${PRIORITY_P2_ID:-011502f5}"
+PRIORITY_P3_ID="${PRIORITY_P3_ID:-e085bc1a}"
 
 DRY_RUN=false
 CONTENT_URL=""
@@ -33,7 +34,7 @@ usage() {
   cat <<'USAGE'
 Usage:
   scripts/project-v2-event-sync.sh
-  scripts/project-v2-event-sync.sh --content-url URL [--status todo|in-progress|merging|done|none] [--priority P0|P1|P2|none]
+  scripts/project-v2-event-sync.sh --content-url URL [--status todo|in-progress|merging|done|none] [--priority P0|P1|P2|P3|none]
 
 Environment:
   GH_TOKEN or GITHUB_TOKEN must be able to read/write the user Project v2 board.
@@ -119,6 +120,7 @@ priority_option_id() {
     P0|p0) printf '%s\n' "${PRIORITY_P0_ID}" ;;
     P1|p1) printf '%s\n' "${PRIORITY_P1_ID}" ;;
     P2|p2) printf '%s\n' "${PRIORITY_P2_ID}" ;;
+    P3|p3) printf '%s\n' "${PRIORITY_P3_ID}" ;;
     none|"") printf '\n' ;;
     *)
       echo "[project-sync] unsupported priority: $1" >&2
@@ -134,6 +136,7 @@ priority_from_labels() {
     | if any(. == "P0") then "P0"
       elif any(. == "P1") then "P1"
       elif any(. == "P2") then "P2"
+      elif any(. == "P3") then "P3"
       else "none"
       end
   '
