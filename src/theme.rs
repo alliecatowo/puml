@@ -293,6 +293,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         border_color: style.participant_border_color.clone(),
         header_color: style.group_background_color.clone(),
         member_color: style.arrow_color.clone(),
+        font_color: style.arrow_color.clone(),
         arrow_color: style.arrow_color.clone(),
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
@@ -305,6 +306,7 @@ pub fn state_style_from_sequence_theme(style: &SequenceStyle) -> StateStyle {
         border_color: style.participant_border_color.clone(),
         arrow_color: style.arrow_color.clone(),
         start_color: style.arrow_color.clone(),
+        font_color: style.arrow_color.clone(),
         font_size: style.default_font_size,
     }
 }
@@ -314,6 +316,7 @@ pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentSt
         background_color: style.participant_background_color.clone(),
         border_color: style.participant_border_color.clone(),
         interface_color: style.note_background_color.clone(),
+        font_color: style.arrow_color.clone(),
         arrow_color: style.arrow_color.clone(),
     }
 }
@@ -324,6 +327,7 @@ pub fn activity_style_from_sequence_theme(style: &SequenceStyle) -> ActivityStyl
         border_color: style.participant_border_color.clone(),
         diamond_color: style.note_background_color.clone(),
         fork_color: style.arrow_color.clone(),
+        font_color: style.arrow_color.clone(),
         arrow_color: style.arrow_color.clone(),
     }
 }
@@ -1249,6 +1253,7 @@ pub struct ClassStyle {
     pub border_color: String,
     pub header_color: String,
     pub member_color: String,
+    pub font_color: String,
     pub arrow_color: String,
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
@@ -1261,6 +1266,7 @@ impl Default for ClassStyle {
             border_color: "#1e293b".to_string(),
             header_color: "#dbeafe".to_string(),
             member_color: "#334155".to_string(),
+            font_color: "#0f172a".to_string(),
             arrow_color: "#1e293b".to_string(),
             font_size: None,
             font_name: None,
@@ -1274,6 +1280,7 @@ pub enum ClassSkinParamValue {
     BorderColor(String),
     HeaderBackgroundColor(String),
     MemberFontColor(String),
+    FontColor(String),
     ArrowColor(String),
     FontSize(u32),
     FontName(String),
@@ -1290,10 +1297,15 @@ pub enum SkinParamSupport<V> {
 pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<ClassSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "backgroundcolor" | "classbackgroundcolor" => parse_color_value(value)
+        "backgroundcolor"
+        | "classbackgroundcolor"
+        | "objectbackgroundcolor"
+        | "usecasebackgroundcolor"
+        | "actorbackgroundcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::BackgroundColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "bordercolor" | "classbordercolor" => parse_color_value(value)
+        "bordercolor" | "classbordercolor" | "objectbordercolor" | "usecasebordercolor"
+        | "actorbordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "classheaderbackgroundcolor" => parse_color_value(value)
@@ -1301,20 +1313,30 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 SkinParamSupport::SupportedWithValue(ClassSkinParamValue::HeaderBackgroundColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "fontcolor" | "classfontcolor" | "classmemberfontcolor" => parse_color_value(value)
-            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::MemberFontColor(c)))
+        "classmemberfontcolor" | "classattributefontcolor" | "classmethodfontcolor" => {
+            parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(ClassSkinParamValue::MemberFontColor(c))
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue)
+        }
+        "fontcolor" | "classfontcolor" | "objectfontcolor" | "usecasefontcolor"
+        | "actorfontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::FontColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "arrowcolor" | "classarrowcolor" => parse_color_value(value)
-            .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ArrowColor(c)))
-            .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "fontsize" | "classfontsize" => {
+        "arrowcolor" | "classarrowcolor" | "objectarrowcolor" | "usecasearrowcolor" => {
+            parse_color_value(value)
+                .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ArrowColor(c)))
+                .unwrap_or(SkinParamSupport::UnsupportedValue)
+        }
+        "fontsize" | "classfontsize" | "objectfontsize" | "usecasefontsize" | "actorfontsize" => {
             if let Ok(n) = value.trim().parse::<u32>() {
                 SkinParamSupport::SupportedWithValue(ClassSkinParamValue::FontSize(n))
             } else {
                 SkinParamSupport::UnsupportedValue
             }
         }
-        "classfontname" => {
+        "classfontname" | "objectfontname" | "usecasefontname" | "actorfontname" => {
             let name = value.trim();
             if name.is_empty() {
                 SkinParamSupport::UnsupportedValue
@@ -1327,13 +1349,13 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
         "classstereotypefontcolor"
         | "classstereotypefontsize"
         | "classstereotypefontname"
-        | "classattributefontcolor"
         | "classattributefontsize"
-        | "classmethodfontcolor"
         | "classmethodfontsize"
-        | "objectfontcolor"
-        | "usecasefontcolor"
-        | "actorfontcolor" => SkinParamSupport::SupportedNoop,
+        | "objectstereotypefontcolor"
+        | "usecasestereotypefontcolor"
+        | "actorstereotypefontcolor"
+        | "roundcorner"
+        | "shadowing" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
@@ -1347,6 +1369,7 @@ pub struct StateStyle {
     pub border_color: String,
     pub arrow_color: String,
     pub start_color: String,
+    pub font_color: String,
     pub font_size: Option<u32>,
 }
 
@@ -1357,6 +1380,7 @@ impl Default for StateStyle {
             border_color: "#1e293b".to_string(),
             arrow_color: "#1e293b".to_string(),
             start_color: "#0f172a".to_string(),
+            font_color: "#0f172a".to_string(),
             font_size: None,
         }
     }
@@ -1368,6 +1392,7 @@ pub enum StateSkinParamValue {
     BorderColor(String),
     ArrowColor(String),
     StartColor(String),
+    FontColor(String),
     FontSize(u32),
 }
 
@@ -1386,6 +1411,9 @@ pub fn classify_state_skinparam(key: &str, value: &str) -> SkinParamSupport<Stat
         "statestartcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::StartColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "fontcolor" | "statefontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::FontColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
         "fontsize" | "statefontsize" => {
             if let Ok(n) = value.trim().parse::<u32>() {
                 SkinParamSupport::SupportedWithValue(StateSkinParamValue::FontSize(n))
@@ -1393,8 +1421,7 @@ pub fn classify_state_skinparam(key: &str, value: &str) -> SkinParamSupport<Stat
                 SkinParamSupport::UnsupportedValue
             }
         }
-        "statefontcolor"
-        | "statefontname"
+        "statefontname"
         | "statestereotypefontcolor"
         | "statestereotypefontsize"
         | "statestereotypefontname"
@@ -1412,6 +1439,7 @@ pub struct ComponentStyle {
     pub background_color: String,
     pub border_color: String,
     pub interface_color: String,
+    pub font_color: String,
     pub arrow_color: String,
 }
 
@@ -1421,6 +1449,7 @@ impl Default for ComponentStyle {
             background_color: "#f0f4f8".to_string(),
             border_color: "#1e293b".to_string(),
             interface_color: "#e2e8f0".to_string(),
+            font_color: "#0f172a".to_string(),
             arrow_color: "#1e293b".to_string(),
         }
     }
@@ -1431,6 +1460,7 @@ pub enum ComponentSkinParamValue {
     BackgroundColor(String),
     BorderColor(String),
     InterfaceColor(String),
+    FontColor(String),
     ArrowColor(String),
 }
 
@@ -1470,15 +1500,29 @@ pub fn classify_component_skinparam(
                 SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::InterfaceColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "fontcolor"
+        | "componentfontcolor"
+        | "deploymentfontcolor"
+        | "nodefontcolor"
+        | "artifactfontcolor"
+        | "databasefontcolor"
+        | "portfontcolor"
+        | "interfacefontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::FontColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
         "arrowcolor" | "componentarrowcolor" | "deploymentarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "componentfontcolor"
-        | "deploymentfontcolor"
-        | "componentfontsize"
+        "componentfontsize"
         | "deploymentfontsize"
         | "componentfontname"
         | "deploymentfontname"
+        | "nodefontsize"
+        | "nodefontname"
+        | "artifactfontsize"
+        | "artifactfontname"
+        | "databasefontsize"
+        | "databasefontname"
         | "componentstyle"
         | "componentstereotypefontcolor"
         | "componentstereotypefontsize"
@@ -1486,7 +1530,6 @@ pub fn classify_component_skinparam(
         | "deploymentstereotypefontcolor"
         | "deploymentstereotypefontsize"
         | "deploymentstereotypefontname"
-        | "portfontcolor"
         | "portfontsize"
         | "portfontname" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
@@ -1502,6 +1545,7 @@ pub struct ActivityStyle {
     pub border_color: String,
     pub diamond_color: String,
     pub fork_color: String,
+    pub font_color: String,
     pub arrow_color: String,
 }
 
@@ -1512,6 +1556,7 @@ impl Default for ActivityStyle {
             border_color: "#047857".to_string(),
             diamond_color: "#fef9c3".to_string(),
             fork_color: "#0f172a".to_string(),
+            font_color: "#0f172a".to_string(),
             arrow_color: "#0f172a".to_string(),
         }
     }
@@ -1523,6 +1568,7 @@ pub enum ActivitySkinParamValue {
     BorderColor(String),
     DiamondBackgroundColor(String),
     BarColor(String),
+    FontColor(String),
     ArrowColor(String),
 }
 
@@ -1555,16 +1601,17 @@ pub fn classify_activity_skinparam(
         "activitybarcolor" | "activitystartcolor" | "activityendcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BarColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "fontcolor" | "activityfontcolor" | "swimlanefontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::FontColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
         "arrowcolor" | "activityarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "activityfontcolor"
-        | "activityfontsize"
+        "activityfontsize"
         | "activityfontname"
         | "activityborderthickness"
         | "activitypartitionfontcolor"
         | "activitypartitionfontsize"
-        | "swimlanefontcolor"
         | "swimlanefontsize" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
@@ -1695,30 +1742,33 @@ pub enum ChartSkinParamValue {
 pub fn classify_chart_skinparam(key: &str, value: &str) -> SkinParamSupport<ChartSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "chartbackgroundcolor" => parse_color_value(value)
+        "backgroundcolor" | "chartbackgroundcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::BackgroundColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "chartaxiscolor" => parse_color_value(value)
+        "axiscolor" | "chartaxiscolor" | "chartaxislinecolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::AxisColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "chartgridcolor" => parse_color_value(value)
+        "gridcolor" | "chartgridcolor" | "chartgridlinecolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::GridColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "chartseriescolor" => parse_color_value(value)
+        "chartseriescolor" | "seriescolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::SeriesColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "chartbarcolor" => parse_color_value(value)
+        "chartbarcolor" | "barcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::BarColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "chartlinecolor" => parse_color_value(value)
+        "chartlinecolor" | "linecolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::LineColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "chartpiebordercolor" => parse_color_value(value)
+        "chartpiebordercolor" | "piebordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::PieBorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "chartfontcolor" => parse_color_value(value)
+        "fontcolor" | "chartfontcolor" | "chartlabelfontcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::FontColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartfontsize" | "chartfontname" | "legendfontcolor" | "legendfontsize" => {
+            SkinParamSupport::SupportedNoop
+        }
         _ => SkinParamSupport::UnsupportedKey,
     }
 }

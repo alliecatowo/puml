@@ -97,9 +97,12 @@ right side
     let svg = puml::render_source_to_svg(src).expect("mindmap render");
 
     assert!(svg.contains("class=\"mindmap-node mindmap-root\""));
+    assert!(svg.contains("data-mindmap-orientation=\"top-to-bottom\""));
     assert!(svg.contains("data-mindmap-side=\"left\""));
     assert!(svg.contains("data-mindmap-side=\"right\""));
     assert!(svg.contains("data-mindmap-depth=\"2\""));
+    assert!(svg.contains("class=\"mindmap-node mindmap-depth-2\""));
+    assert!(svg.contains("data-mindmap-fill=\"#fecaca\""));
     assert!(svg.contains("#fef3c7"));
     assert!(svg.contains("#fecaca"));
     assert!(svg.contains("#bbf7d0"));
@@ -118,8 +121,11 @@ left to right direction
     let svg = puml::render_source_to_svg(src).expect("wbs render");
 
     assert!(svg.contains("data-wbs-orientation=\"left-to-right\""));
-    assert!(svg.contains("class=\"wbs-node\""));
+    assert!(svg.contains("class=\"wbs-node wbs-depth-"));
     assert!(svg.contains("data-wbs-checkbox=\"checked\""));
     assert!(svg.contains("data-wbs-checkbox=\"progress\" data-wbs-progress=\"60\""));
     assert!(svg.contains("data-wbs-checkbox=\"unchecked\""));
+    assert!(svg.contains("class=\"wbs-node wbs-depth-1 wbs-checked\""));
+    assert!(svg.contains("data-wbs-annotation-style=\"checked\""));
+    assert!(svg.contains("class=\"wbs-progress-fill\" data-wbs-progress-fill=\"60\""));
 }

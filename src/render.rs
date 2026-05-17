@@ -975,8 +975,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 style.end_marker = Some("arrow-open");
             }
         }
-        let (x1, y1, x2, y2) =
-            compute_edge_anchors_tuple((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h));
+        let (x1, y1, x2, y2) = compute_edge_anchors_for_direction(
+            (from.x, from.y, from.w, from.h),
+            (to.x, to.y, to.w, to.h),
+            relation.direction.as_deref(),
+        );
         let relation_color = relation
             .line_color
             .as_deref()
@@ -999,8 +1002,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         if let Some(start) = style.start_marker {
             markers.push_str(&format!(" marker-start=\"url(#{start})\""));
         }
+        let direction_attr = relation
+            .direction
+            .as_deref()
+            .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
+            .unwrap_or_default();
         out.push_str(&format!(
-            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{markers}/>",
+            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
             dash = stroke_dash
         ));
         if relation.left_lollipop {
@@ -1197,6 +1205,22 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn compute_edge_anchors_for_direction(
+    from: (i32, i32, i32, i32),
+    to: (i32, i32, i32, i32),
+    direction: Option<&str>,
+) -> (i32, i32, i32, i32) {
+    let (fx, fy, fw, fh) = from;
+    let (tx, ty, tw, th) = to;
+    match direction {
+        Some("left") => (fx, fy + fh / 2, tx + tw, ty + th / 2),
+        Some("right") => (fx + fw, fy + fh / 2, tx, ty + th / 2),
+        Some("up") => (fx + fw / 2, fy, tx + tw / 2, ty + th),
+        Some("down") => (fx + fw / 2, fy + fh, tx + tw / 2, ty),
+        _ => compute_edge_anchors_tuple(from, to),
+    }
 }
 
 /// Extract deterministic display lines from a JSON/YAML projection body.
@@ -1698,12 +1722,12 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
 
     // Parse rows from the encoded node names.
     let mut rows: Vec<Vec<SaltCellRender>> = Vec::new();
-    let mut in_tree = false;
+    let mut salt_state = SaltTransformState::default();
     let mut style = SaltRenderStyle::default();
     for node in &document.nodes {
         if let Some(rest) = node.name.strip_prefix("SALT_ROW\x1f") {
             let cells: Vec<SaltCellRender> = rest.split('\x1e').map(decode_salt_cell).collect();
-            if let Some(cells) = transform_salt_row(cells, &mut in_tree, &mut style) {
+            if let Some(cells) = transform_salt_row(cells, &mut salt_state, &mut style) {
                 rows.push(cells);
             }
         }
@@ -1945,6 +1969,12 @@ fn normalize_salt_color(value: &str) -> Option<String> {
 fn apply_salt_style_directive(line: &str, style: &mut SaltRenderStyle) -> bool {
     let trimmed = line.trim();
     let lower = trimmed.to_ascii_lowercase();
+    if let Some(rest) = lower.strip_prefix("!option ") {
+        let original_rest = trimmed[trimmed.len() - rest.len()..].trim();
+        if let Some((key, value)) = original_rest.split_once(char::is_whitespace) {
+            return style.set(key.trim(), value.trim());
+        }
+    }
     if let Some(rest) = lower
         .strip_prefix("skinparam salt")
         .or_else(|| lower.strip_prefix("skinparam "))
@@ -1970,6 +2000,8 @@ fn apply_salt_style_directive(line: &str, style: &mut SaltRenderStyle) -> bool {
 enum SaltCellRender {
     Label(String),
     Header(String),
+    TableEmpty,
+    TableSpan,
     Input(String),
     Button(String),
     Combo(String),
@@ -1977,10 +2009,25 @@ enum SaltCellRender {
     CheckboxUnchecked(String),
     RadioOn(String),
     RadioOff(String),
-    TreeItem { depth: usize, label: String },
+    TreeItem {
+        depth: usize,
+        label: String,
+    },
+    TextAreaLine {
+        text: String,
+        scroll_vertical: bool,
+        scroll_horizontal: bool,
+    },
+    GroupBox(String),
     MenuBar(Vec<String>),
-    TabBar { tabs: Vec<String>, active: usize },
-    ScrollBar { vertical: bool, percent: u8 },
+    TabBar {
+        tabs: Vec<String>,
+        active: usize,
+    },
+    ScrollBar {
+        vertical: bool,
+        percent: u8,
+    },
 }
 
 impl SaltCellRender {
@@ -1995,7 +2042,11 @@ impl SaltCellRender {
             | Self::CheckboxUnchecked(t)
             | Self::RadioOn(t)
             | Self::RadioOff(t) => t,
+            Self::TableEmpty => "",
+            Self::TableSpan => "span",
             Self::TreeItem { label, .. } => label,
+            Self::TextAreaLine { text, .. } => text,
+            Self::GroupBox(label) => label,
             Self::MenuBar(items) => items.first().map(String::as_str).unwrap_or("menu"),
             Self::TabBar { tabs, .. } => tabs.first().map(String::as_str).unwrap_or("tab"),
             Self::ScrollBar { .. } => "scrollbar",
@@ -2003,20 +2054,46 @@ impl SaltCellRender {
     }
 }
 
+#[derive(Default)]
+struct SaltTransformState {
+    in_tree: bool,
+    in_text_area: bool,
+    in_style: bool,
+    table_header_pending: bool,
+}
+
 fn transform_salt_row(
     cells: Vec<SaltCellRender>,
-    in_tree: &mut bool,
+    state: &mut SaltTransformState,
     style: &mut SaltRenderStyle,
 ) -> Option<Vec<SaltCellRender>> {
     if cells.len() != 1 {
-        return Some(cells.into_iter().map(promote_salt_header_cell).collect());
+        return Some(transform_salt_grid_cells(cells, state));
     }
 
     let SaltCellRender::Label(text) = &cells[0] else {
-        return Some(cells.into_iter().map(promote_salt_header_cell).collect());
+        return Some(transform_salt_grid_cells(cells, state));
     };
     let trimmed = text.trim();
     let lower = trimmed.to_ascii_lowercase();
+
+    if lower == "<style>" {
+        state.in_style = true;
+        return None;
+    }
+    if lower == "</style>" {
+        state.in_style = false;
+        return None;
+    }
+    if state.in_style {
+        if trimmed.ends_with('{') || trimmed == "}" {
+            return None;
+        }
+        if let Some((key, value)) = trimmed.split_once(char::is_whitespace) {
+            style.set(key.trim(), value.trim());
+        }
+        return None;
+    }
 
     if apply_salt_style_directive(trimmed, style) {
         return None;
@@ -2024,13 +2101,50 @@ fn transform_salt_row(
 
     if matches!(trimmed, "{" | "}") {
         if trimmed == "}" {
-            *in_tree = false;
+            state.in_tree = false;
+            state.in_text_area = false;
+            state.table_header_pending = false;
         }
         return None;
     }
 
+    if lower.starts_with("{#") || lower.starts_with("{!") {
+        state.table_header_pending = true;
+        state.in_text_area = false;
+        return None;
+    }
+
+    if lower.starts_with("{+") {
+        state.in_text_area = true;
+        state.in_tree = false;
+        return Some(vec![SaltCellRender::TextAreaLine {
+            text: String::new(),
+            scroll_vertical: false,
+            scroll_horizontal: false,
+        }]);
+    }
+
+    if lower.starts_with("{^") {
+        state.in_text_area = false;
+        let label = trimmed
+            .trim_start_matches("{^")
+            .trim_matches('}')
+            .trim()
+            .to_string();
+        return Some(vec![SaltCellRender::GroupBox(label)]);
+    }
+
+    if state.in_text_area {
+        let text = if trimmed == "." { "" } else { trimmed };
+        return Some(vec![SaltCellRender::TextAreaLine {
+            text: text.to_string(),
+            scroll_vertical: false,
+            scroll_horizontal: false,
+        }]);
+    }
+
     if lower.starts_with("{t") || lower == "tree" || lower.starts_with("tree ") {
-        *in_tree = true;
+        state.in_tree = true;
         return None;
     }
 
@@ -2046,15 +2160,54 @@ fn transform_salt_row(
         return Some(vec![SaltCellRender::TabBar { tabs, active: 0 }]);
     }
 
+    if let Some(scroll) = parse_salt_scroll_container(trimmed) {
+        state.in_text_area = true;
+        return Some(vec![SaltCellRender::TextAreaLine {
+            text: String::new(),
+            scroll_vertical: scroll.0,
+            scroll_horizontal: scroll.1,
+        }]);
+    }
+
     if let Some((vertical, percent)) = parse_salt_scrollbar(trimmed) {
         return Some(vec![SaltCellRender::ScrollBar { vertical, percent }]);
     }
 
-    if *in_tree {
-        *in_tree = false;
+    if state.in_tree {
+        state.in_tree = false;
     }
 
-    Some(cells.into_iter().map(promote_salt_header_cell).collect())
+    Some(transform_salt_grid_cells(cells, state))
+}
+
+fn transform_salt_grid_cells(
+    cells: Vec<SaltCellRender>,
+    state: &mut SaltTransformState,
+) -> Vec<SaltCellRender> {
+    let header_row = state.table_header_pending;
+    state.table_header_pending = false;
+    cells
+        .into_iter()
+        .map(|cell| transform_salt_table_cell(cell, header_row))
+        .collect()
+}
+
+fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool) -> SaltCellRender {
+    match cell {
+        SaltCellRender::Label(text) => {
+            let trimmed = text.trim();
+            if trimmed == "." {
+                SaltCellRender::TableEmpty
+            } else if trimmed == "*" {
+                SaltCellRender::TableSpan
+            } else if header_row {
+                SaltCellRender::Header(trimmed.trim_start_matches('=').trim().to_string())
+            } else {
+                promote_salt_header_cell(SaltCellRender::Label(text))
+            }
+        }
+        other => other,
+    }
 }
 
 fn promote_salt_header_cell(cell: SaltCellRender) -> SaltCellRender {
@@ -2128,6 +2281,21 @@ fn parse_salt_scrollbar(line: &str) -> Option<(bool, u8)> {
     Some((vertical, percent))
 }
 
+fn parse_salt_scroll_container(line: &str) -> Option<(bool, bool)> {
+    let lower = line.to_ascii_lowercase();
+    if !lower.starts_with("{s") || lower.starts_with("{*") {
+        return None;
+    }
+    let marker = lower.trim_matches('{').trim_matches('}').trim();
+    if marker.starts_with("si") {
+        Some((true, false))
+    } else if marker.starts_with("s-") {
+        Some((false, true))
+    } else {
+        Some((true, true))
+    }
+}
+
 /// Decode a salt cell from the encoded string `"X:text"`.
 fn decode_salt_cell(s: &str) -> SaltCellRender {
     if let Some(rest) = s.strip_prefix("I:") {
@@ -2196,6 +2364,35 @@ fn render_salt_cell_svg(
                 style.font_family,
                 style.text_color,
                 escape_text(text)
+            ));
+        }
+        SaltCellRender::TableEmpty => {
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"table-empty\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                x + 1,
+                y + 1,
+                w - 2,
+                h - 2,
+                style.panel_fill,
+                style.grid_color
+            ));
+        }
+        SaltCellRender::TableSpan => {
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"table-span\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\" stroke-dasharray=\"4 3\"/>",
+                x + 1,
+                y + 1,
+                w - 2,
+                h - 2,
+                style.panel_fill,
+                style.grid_color
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">span</text>",
+                x + w / 2,
+                text_y,
+                style.font_family,
+                style.muted_text_color
             ));
         }
         SaltCellRender::Input(placeholder) => {
@@ -2383,6 +2580,78 @@ fn render_salt_cell_svg(
                 style.text_color,
                 escape_text(label)
             ));
+        }
+        SaltCellRender::TextAreaLine {
+            text,
+            scroll_vertical,
+            scroll_horizontal,
+        } => {
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"textarea\" data-salt-scroll-vertical=\"{}\" data-salt-scroll-horizontal=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"3\" ry=\"3\"/>",
+                scroll_vertical,
+                scroll_horizontal,
+                x + 4,
+                y + 3,
+                w - 8,
+                h - 6,
+                style.input_fill,
+                style.border_color
+            ));
+            if !text.is_empty() {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                    x + pad,
+                    text_y,
+                    style.font_family,
+                    style.text_color,
+                    escape_text(text)
+                ));
+            }
+            if *scroll_vertical {
+                let track_x = x + w - pad - 10;
+                out.push_str(&format!(
+                    "<rect data-salt-widget=\"scrollbar\" x=\"{}\" y=\"{}\" width=\"8\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    track_x,
+                    y + 6,
+                    h - 12,
+                    style.accent_fill,
+                    style.border_color
+                ));
+            }
+            if *scroll_horizontal {
+                out.push_str(&format!(
+                    "<rect data-salt-widget=\"scrollbar\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    x + pad,
+                    y + h - 10,
+                    w - pad * 2,
+                    style.accent_fill,
+                    style.border_color
+                ));
+            }
+        }
+        SaltCellRender::GroupBox(label) => {
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"groupbox\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1\" rx=\"4\" ry=\"4\"/>",
+                x + 2,
+                y + 6,
+                w - 4,
+                h - 8,
+                style.border_color
+            ));
+            if !label.is_empty() {
+                out.push_str(&format!(
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"12\" fill=\"{}\"/><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
+                    x + pad,
+                    y + 1,
+                    estimate_text_width(label) + 8,
+                    style.panel_fill,
+                    x + pad + 4,
+                    y + 11,
+                    style.font_family,
+                    style.text_color,
+                    escape_text(label)
+                ));
+            }
         }
         SaltCellRender::MenuBar(items) => {
             out.push_str(&format!(
@@ -2605,6 +2874,9 @@ fn render_class_node(
         .as_deref()
         .unwrap_or(&class_style.background_color);
     let stroke = &class_style.border_color;
+    let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
+    let title_font_size = class_style.font_size.unwrap_or(13);
+    let member_font_size = title_font_size.saturating_sub(2).max(9);
     let header_fill = match node.kind {
         FamilyNodeKind::Class => class_style.header_color.as_str(),
         FamilyNodeKind::Object => "#fef3c7",
@@ -2623,7 +2895,10 @@ fn render_class_node(
         ));
         // Name centered
         out.push_str(&format!(
-            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#0f172a\">{name}</text>",
+            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            escape_text(font_family),
+            title_font_size,
+            escape_text(&class_style.font_color),
             ty = cy + 4,
             name = escape_text(&node.name)
         ));
@@ -2638,7 +2913,9 @@ fn render_class_node(
         let mut my = y + h + 14;
         for member in &node.members {
             out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{mc}\">{m}</text>",
+                "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{mc}\">{m}</text>",
+                escape_text(font_family),
+                member_font_size,
                 tx = x + w / 2,
                 mc = class_style.member_color,
                 m = escape_text(&member.text)
@@ -2687,7 +2964,10 @@ fn render_class_node(
         ""
     };
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#0f172a\"{td}>{txt}</text>",
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\"{td}>{txt}</text>",
+        escape_text(font_family),
+        title_font_size,
+        escape_text(&class_style.font_color),
         tx = x + w / 2,
         ty = y + header_h - 9,
         td = text_decoration,
@@ -2714,16 +2994,21 @@ fn render_class_node(
             Some(MemberModifier::Method) | None => {}
         }
         // If no explicit visibility color, fall back to member_color from style
-        let effective_color = vis_color;
-        let _ = &class_style.member_color; // Available if needed for override
-                                           // Reconstruct display text: keep visibility prefix + remaining text
+        let effective_color = if vis_sym.is_some() {
+            vis_color
+        } else {
+            class_style.member_color.as_str()
+        };
+        // Reconstruct display text: keep visibility prefix + remaining text
         let display_text = if vis_sym.is_some() {
             format!("{}{}", vis_sym.unwrap_or(""), text_after_mod)
         } else {
             text_after_mod.to_string()
         };
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{my}\" font-family=\"monospace\" font-size=\"11\" fill=\"{vc}\"{sa}>{m}</text>",
+            "<text x=\"{tx}\" y=\"{my}\" font-family=\"{}\" font-size=\"{}\" fill=\"{vc}\"{sa}>{m}</text>",
+            escape_text(font_family),
+            member_font_size,
             tx = x + 10,
             vc = effective_color,
             sa = style_attrs,
@@ -4284,12 +4569,21 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let (Some(&(fx, fy, fw, fh)), Some(&(tx, ty, tw, th))) = (from_box, to_box) else {
             continue;
         };
-        let cx1 = fx + fw / 2;
-        let cy1 = fy + fh / 2;
-        let cx2 = tx + tw / 2;
-        let cy2 = ty + th / 2;
-        let (x1, y1) = clip_to_box_edge((cx1, cy1), (cx2, cy2), (fx, fy, fw, fh));
-        let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
+        let (x1, y1, x2, y2) = if rel.direction.is_some() {
+            compute_edge_anchors_for_direction(
+                (fx, fy, fw, fh),
+                (tx, ty, tw, th),
+                rel.direction.as_deref(),
+            )
+        } else {
+            let cx1 = fx + fw / 2;
+            let cy1 = fy + fh / 2;
+            let cx2 = tx + tw / 2;
+            let cy2 = ty + th / 2;
+            let (x1, y1) = clip_to_box_edge((cx1, cy1), (cx2, cy2), (fx, fy, fw, fh));
+            let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
+            (x1, y1, x2, y2)
+        };
         let style = arrow_style(&normalized_arrow);
         let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
         let stroke_width = rel.thickness.unwrap_or(2).clamp(1, 8);
@@ -4310,9 +4604,14 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         if let Some(start) = style.start_marker {
             markers.push_str(&format!(" marker-start=\"url(#{start})\""));
         }
+        let direction_attr = rel
+            .direction
+            .as_deref()
+            .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
+            .unwrap_or_default();
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} />",
-            x1, y1, x2, y2, relation_color, stroke_width, dash, visibility, markers
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+            x1, y1, x2, y2, relation_color, stroke_width, dash, visibility, direction_attr, markers
         ));
         if rel.left_lollipop {
             render_lollipop_endpoint(&mut out, x1, y1, relation_color);
@@ -5005,6 +5304,27 @@ fn render_family_node_shape_styled(
                 x - 4, y + h - 20, fill, comp_style.border_color
             ));
         }
+        FamilyNodeKind::Node
+        | FamilyNodeKind::Artifact
+        | FamilyNodeKind::Cloud
+        | FamilyNodeKind::Frame
+        | FamilyNodeKind::Storage
+        | FamilyNodeKind::Database
+        | FamilyNodeKind::Package
+        | FamilyNodeKind::Rectangle
+        | FamilyNodeKind::Folder
+        | FamilyNodeKind::File
+        | FamilyNodeKind::Card
+        | FamilyNodeKind::Actor => {
+            let fill = node
+                .fill_color
+                .as_deref()
+                .unwrap_or(&comp_style.background_color);
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x, y, w, h, fill, comp_style.border_color
+            ));
+        }
         _ => {
             // Delegate to the non-styled version for all other shapes
             render_family_node_shape(out, node, x, y, w, h);
@@ -5018,16 +5338,19 @@ fn render_family_node_shape_styled(
         _ => (cx, cy + 6),
     };
     out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\">{}</text>",
-        label_x, label_y, escape_text(&display)
+        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"{}\">{}</text>",
+        label_x,
+        label_y,
+        escape_text(&comp_style.font_color),
+        escape_text(&display)
     ));
     let kind_tag_y = match node.kind {
         FamilyNodeKind::Interface | FamilyNodeKind::Port => label_y + 14,
         _ => y + 14,
     };
     out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
-        cx, kind_tag_y, kind_label
+        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+        cx, kind_tag_y, escape_text(&comp_style.font_color), kind_label
     ));
     render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
 }
@@ -5055,22 +5378,27 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
         width, height, width, height
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&act_style.background_color)
+    ));
 
     let mut y_cursor = 28;
     if let Some(title) = &doc.title {
         for line in title.lines() {
             out.push_str(&format!(
-                "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
+                "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"{}\">{}</text>",
                 y_cursor,
+                escape_text(&act_style.font_color),
                 escape_text(line)
             ));
             y_cursor += 22;
         }
     }
     out.push_str(&format!(
-        "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">activity diagram</text>",
-        y_cursor + 2
+        "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">activity diagram</text>",
+        y_cursor + 2,
+        escape_text(&act_style.font_color)
     ));
 
     let mut lanes: Vec<String> = Vec::new();
@@ -5106,7 +5434,11 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
 
     for (idx, lane) in lanes.iter().enumerate() {
         let lx = lane_left(idx as i32);
-        let bg = if idx % 2 == 0 { "#f8fafc" } else { "#f1f5f9" };
+        let bg = if idx % 2 == 0 {
+            act_style.background_color.as_str()
+        } else {
+            "#f1f5f9"
+        };
         out.push_str(&format!(
             "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
             lx,
@@ -5117,9 +5449,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         ));
         if lane != "default" {
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
                 lx + lane_w / 2,
                 header_h + 10,
+                escape_text(&act_style.font_color),
                 escape_text(lane)
             ));
         }
@@ -5175,9 +5508,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 ));
                 if !label.is_empty() {
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
                         cx,
                         y + 44,
+                        escape_text(&act_style.font_color),
                         escape_text(&label)
                     ));
                 }
@@ -5192,9 +5526,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     act_style.border_color
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
                     cx,
                     y + 27,
+                    escape_text(&act_style.font_color),
                     escape_text(&label)
                 ));
             }
@@ -5219,23 +5554,26 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     act_style.border_color
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
                     cx,
                     y + 2 + dy + 4,
+                    escape_text(&act_style.font_color),
                     escape_text(&label)
                 ));
                 if step_kind.contains("WhileStart") {
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">while</text>",
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">while</text>",
                         cx,
-                        y + 54
+                        y + 54,
+                        escape_text(&act_style.font_color)
                     ));
                 }
                 if step_kind.contains("RepeatWhile") {
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">repeat while</text>",
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">repeat while</text>",
                         cx,
-                        y + 54
+                        y + 54,
+                        escape_text(&act_style.font_color)
                     ));
                 }
             }
@@ -5255,9 +5593,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                         format!("branch {} / {}", fork_branch + 1, label)
                     };
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
                         cx,
                         y + 20,
+                        escape_text(&act_style.font_color),
                         escape_text(&branch_label)
                     ));
                 }
@@ -5285,30 +5624,35 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     format!("(merge) {}", label)
                 };
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
                     cx,
                     y + 28,
+                    escape_text(&act_style.font_color),
                     escape_text(&merge_label)
                 ));
             }
             FamilyNodeKind::ActivityPartition => {
                 out.push_str(&format!(
-                    "<rect x=\"24\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"4\" ry=\"4\" fill=\"#e2e8f0\" stroke=\"#475569\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+                    "<rect x=\"24\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
                     y + 4,
-                    width - 48
+                    width - 48,
+                    escape_text(&act_style.background_color),
+                    escape_text(&act_style.border_color)
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#1e293b\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"{}\">{}</text>",
                     cx,
                     y + 27,
+                    escape_text(&act_style.font_color),
                     escape_text(&format!("partition: {}", label))
                 ));
             }
             _ => {
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
                     cx,
                     y + 28,
+                    escape_text(&act_style.font_color),
                     escape_text(&label)
                 ));
             }
@@ -6074,16 +6418,18 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     let mut y_header = 28i32;
     if let Some(title) = &document.title {
         out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" text-anchor=\"middle\">{}</text>",
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
             width / 2,
             y_header,
+            escape_text(&state_style.font_color),
             escape_text(title)
         ));
         y_header += 20;
     }
     out.push_str(&format!(
-        "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">state diagram</text>",
-        y_header
+        "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">state diagram</text>",
+        y_header,
+        escape_text(&state_style.font_color)
     ));
 
     let mut incoming: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
@@ -6123,8 +6469,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 let mx = (x1 + x2) / 2;
                 let my = (y1 + y2) / 2 - 6;
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#555\" text-anchor=\"middle\">{}</text>",
-                    mx, my, escape_text(label)
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
+                    mx, my, escape_text(&state_style.font_color), escape_text(label)
                 ));
             }
         }
@@ -6938,6 +7284,17 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
         "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
         escape_text(&style.background_color)
     ));
+    out.push_str(&format!(
+        "<metadata data-chart-style=\"{} {} {} {} {} {} {} {}\"/>",
+        escape_text(&style.background_color),
+        escape_text(&style.axis_color),
+        escape_text(&style.grid_color),
+        escape_text(&style.series_color),
+        escape_text(&style.bar_color),
+        escape_text(&style.line_color),
+        escape_text(&style.pie_border_color),
+        escape_text(&style.font_color)
+    ));
     let mut y = 28;
     if let Some(title) = &document.title {
         out.push_str(&format!(
@@ -7266,20 +7623,14 @@ fn render_chart_pie(
         } else {
             0
         };
-        let color = document
-            .palette
-            .get(idx)
-            .map(String::as_str)
-            .unwrap_or_else(|| {
-                if idx == 0 {
-                    style.series_color.as_str()
-                } else {
-                    CHART_PALETTE[idx % CHART_PALETTE.len()]
-                }
-            });
+        let color = chart_slice_color(document, point, idx, style.series_color.as_str());
         out.push_str(&format!(
-            "<path d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
-            style.pie_border_color,
+            "<path class=\"chart-pie-slice\" data-chart-slice=\"{}\" data-chart-value=\"{}\" data-chart-percent=\"{}\" d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            escape_text(&point.label),
+            format_chart_value(point.value),
+            format_chart_percent(v, total),
+            escape_text(&color),
+            escape_text(&style.pie_border_color),
             cx = cx,
             cy = cy,
             r = radius,
@@ -7287,16 +7638,17 @@ fn render_chart_pie(
             y1 = y1,
             x2 = x2,
             y2 = y2,
-            large = large,
-            color = color
+            large = large
         ));
         let mid = (start + end) / 2.0;
         let lx = cx as f64 + ((radius as f64) * 0.6) * mid.cos();
         let ly = cy as f64 + ((radius as f64) * 0.6) * mid.sin();
         out.push_str(&format!(
-            "<text x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-            style.font_color,
+            "<text class=\"chart-pie-label\" data-chart-slice-label=\"{}\" x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{} {}</text>",
             escape_text(&point.label),
+            escape_text(&style.font_color),
+            escape_text(&point.label),
+            format_chart_percent(v, total),
             lx = lx,
             ly = ly
         ));
@@ -7338,13 +7690,14 @@ fn render_chart_axes(
     for value in ticks {
         let y = chart_y_for_value(value, min_value, max_value, plot);
         out.push_str(&format!(
-            "<line x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            "<line class=\"chart-axis-grid chart-axis-grid-v\" x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
             escape_text(v_grid_color),
             l = plot.left,
             r = plot.right
         ));
         out.push_str(&format!(
-            "<text x=\"{x}\" y=\"{ty}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            "<text class=\"chart-axis-tick chart-axis-tick-v\" data-chart-axis-tick=\"{}\" x=\"{x}\" y=\"{ty}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            format_chart_value(value),
             escape_text(v_label_color),
             format_chart_value(value),
             x = plot.left - 8,
@@ -7407,7 +7760,7 @@ fn render_chart_axes(
         for idx in 0..categories.len() {
             let x = plot.left + ((idx as f64) * step) as i32;
             out.push_str(&format!(
-                "<line x1=\"{x}\" y1=\"{t}\" x2=\"{x}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                "<line class=\"chart-axis-grid chart-axis-grid-h\" x1=\"{x}\" y1=\"{t}\" x2=\"{x}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                 escape_text(h_grid_color),
                 t = plot.top,
                 b = plot.bottom
@@ -7425,6 +7778,31 @@ fn render_chart_legend(
     if !chart_legend_visible(document, series) {
         return;
     }
+    let pie_points;
+    let legend_items: Vec<ChartLegendItem<'_>> = if document.subtype == ChartSubtype::Pie {
+        let categories = effective_chart_categories(document, series);
+        pie_points = effective_chart_points(document, series, &categories);
+        pie_points
+            .iter()
+            .enumerate()
+            .map(|(idx, point)| ChartLegendItem {
+                name: point.label.as_str(),
+                color: chart_slice_color(document, point, idx, "#1d4ed8"),
+            })
+            .collect()
+    } else {
+        series
+            .iter()
+            .enumerate()
+            .map(|(idx, item)| ChartLegendItem {
+                name: item.name.as_str(),
+                color: chart_series_color(document, item, idx, "#1d4ed8"),
+            })
+            .collect()
+    };
+    if legend_items.is_empty() {
+        return;
+    }
     let x = match document.legend.h_align {
         crate::model::LegendHAlign::Left => 24,
         crate::model::LegendHAlign::Center => ((plot.left + plot.right) / 2) - 66,
@@ -7435,7 +7813,7 @@ fn render_chart_legend(
         crate::model::LegendVAlign::Bottom => plot.bottom + 46,
     };
     let width = 132;
-    let height = 18 + (series.len() as i32) * 18;
+    let height = 18 + (legend_items.len() as i32) * 18;
     let background = document
         .legend
         .background_color
@@ -7444,19 +7822,18 @@ fn render_chart_legend(
     let border = document.legend.border_color.as_deref().unwrap_or("#cbd5e1");
     let text_color = document.legend.text_color.as_deref().unwrap_or("#0f172a");
     out.push_str(&format!(
-        "<g data-chart-legend=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\" fill=\"{}\" stroke=\"{}\"/>",
+        "<g class=\"chart-legend\" data-chart-legend=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\" fill=\"{}\" stroke=\"{}\"/>",
         chart_legend_position(document),
         escape_text(background),
         escape_text(border)
     ));
-    for (idx, item) in series.iter().enumerate() {
+    for (idx, item) in legend_items.iter().enumerate() {
         let cy = y + 18 + (idx as i32) * 18;
-        let color = chart_series_color(document, item, idx, "#1d4ed8");
         out.push_str(&format!(
-            "<rect x=\"{x1}\" y=\"{y1}\" width=\"10\" height=\"10\" fill=\"{}\"/><text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-            escape_text(&color),
+            "<rect class=\"chart-legend-swatch\" x=\"{x1}\" y=\"{y1}\" width=\"10\" height=\"10\" fill=\"{}\"/><text class=\"chart-legend-label\" x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            escape_text(&item.color),
             escape_text(text_color),
-            escape_text(&item.name),
+            escape_text(item.name),
             x1 = x + 8,
             y1 = cy - 9,
             tx = x + 24,
@@ -7464,6 +7841,11 @@ fn render_chart_legend(
         ));
     }
     out.push_str("</g>");
+}
+
+struct ChartLegendItem<'a> {
+    name: &'a str,
+    color: String,
 }
 
 fn render_chart_annotations(out: &mut String, document: &ChartDocument, plot: ChartPlotArea) {
@@ -7548,6 +7930,7 @@ fn effective_chart_points(
                 .cloned()
                 .unwrap_or_else(|| (idx + 1).to_string()),
             value: *value,
+            color: first_series.color.clone(),
         })
         .collect()
 }
@@ -7707,8 +8090,28 @@ fn chart_series_color(
     })
 }
 
+fn chart_slice_color(
+    document: &ChartDocument,
+    point: &crate::model::ChartPoint,
+    idx: usize,
+    first_fallback: &str,
+) -> String {
+    point.color.clone().unwrap_or_else(|| {
+        document.palette.get(idx).cloned().unwrap_or_else(|| {
+            if idx == 0 {
+                first_fallback.to_string()
+            } else {
+                CHART_PALETTE[idx % CHART_PALETTE.len()].to_string()
+            }
+        })
+    })
+}
+
 fn chart_legend_visible(document: &ChartDocument, series: &[crate::model::ChartSeries]) -> bool {
-    document.legend.visible || (!document.legend.explicit && series.len() > 1)
+    document.legend.visible
+        || (!document.legend.explicit
+            && (series.len() > 1
+                || (document.subtype == ChartSubtype::Pie && document.data.len() > 1)))
 }
 
 fn chart_legend_position(document: &ChartDocument) -> &'static str {
@@ -7735,6 +8138,18 @@ fn format_chart_value(v: f64) -> String {
         format!("{}", v as i64)
     } else {
         format!("{:.2}", v)
+    }
+}
+
+fn format_chart_percent(value: f64, total: f64) -> String {
+    if total <= 0.0 {
+        return "0%".to_string();
+    }
+    let pct = value.max(0.0) / total * 100.0;
+    if (pct - pct.round()).abs() < 1e-9 {
+        format!("{}%", pct as i64)
+    } else {
+        format!("{pct:.1}%")
     }
 }
 
@@ -7839,7 +8254,7 @@ fn render_state_node_svg_styled(
             ));
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
-                cx, cy, state_style.border_color, escape_text(label)
+                cx, cy, state_style.font_color, escape_text(label)
             ));
         }
         StateNodeKind::Fork | StateNodeKind::Join => {
@@ -7856,8 +8271,8 @@ fn render_state_node_svg_styled(
                 "join"
             };
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\" text-anchor=\"middle\">{}</text>",
-                x + w / 2, y + base_h / 2 + 18, escape_text(label)
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
+                x + w / 2, y + base_h / 2 + 18, state_style.font_color, escape_text(label)
             ));
         }
         StateNodeKind::Choice => {
@@ -7897,8 +8312,8 @@ fn render_state_node_svg_styled(
                     x, y, total_w, h + 16, state_style.background_color, state_style.border_color
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#0c4a6e\">{}</text>",
-                    x + total_w / 2, y + 16, escape_text(display)
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    x + total_w / 2, y + 16, state_style.font_color, escape_text(display)
                 ));
                 let region_w = total_w / node.regions.len() as i32;
                 for ri in 1..node.regions.len() {
@@ -7930,8 +8345,8 @@ fn render_state_node_svg_styled(
                     x, y, w, h, state_style.background_color, state_style.border_color
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#0f172a\">{}</text>",
-                    x + w / 2, y + 24, escape_text(display)
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    x + w / 2, y + 24, state_style.font_color, escape_text(display)
                 ));
                 if !node.internal_actions.is_empty() {
                     out.push_str(&format!(
@@ -7946,8 +8361,8 @@ fn render_state_node_svg_styled(
                             format!("{} / {}", action.kind, action.action)
                         };
                         out.push_str(&format!(
-                            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"#334155\">{}</text>",
-                            x + 6, ay + 10, escape_text(&text)
+                            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
+                            x + 6, ay + 10, state_style.font_color, escape_text(&text)
                         ));
                     }
                 }
@@ -8405,9 +8820,10 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
 
     let mut out = String::new();
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-mindmap-orientation=\"{orientation}\">",
         w = canvas_w,
-        h = canvas_h
+        h = canvas_h,
+        orientation = wbs_orientation_attr(doc.orientation)
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
@@ -8441,7 +8857,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     let rx = root_cx - root_w / 2;
     let ry = root_cy - NODE_H / 2;
     out.push_str(&format!(
-        "<rect class=\"mindmap-node mindmap-root\" data-mindmap-depth=\"0\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
+        "<rect class=\"mindmap-node mindmap-root\" data-mindmap-depth=\"0\" data-mindmap-fill=\"{fill}\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
         rx = rx, ry = ry, rw = root_w, h = NODE_H,
         fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
     ));
@@ -8590,7 +9006,7 @@ fn draw_mindmap_subtree(
 
     // Node rectangle (rounded, pastel by depth)
     out.push_str(&format!(
-        "<rect class=\"mindmap-node\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+        "<rect class=\"mindmap-node mindmap-depth-{depth}\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" data-mindmap-fill=\"{fill}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
         depth = node.depth,
         side = if is_left { "left" } else { "right" },
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
@@ -8873,17 +9289,24 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         } else {
             "#64748b"
         };
-        let checkbox_attr = match &node.wbs_checkbox {
-            Some(WbsCheckbox::Checked) => " data-wbs-checkbox=\"checked\"".to_string(),
-            Some(WbsCheckbox::Unchecked) => " data-wbs-checkbox=\"unchecked\"".to_string(),
-            Some(WbsCheckbox::Progress(pct)) => {
-                format!(" data-wbs-checkbox=\"progress\" data-wbs-progress=\"{pct}\"")
+        let (checkbox_class, checkbox_attr) = match &node.wbs_checkbox {
+            Some(WbsCheckbox::Checked) => {
+                (" wbs-checked", " data-wbs-checkbox=\"checked\"".to_string())
             }
-            None => String::new(),
+            Some(WbsCheckbox::Unchecked) => (
+                " wbs-unchecked",
+                " data-wbs-checkbox=\"unchecked\"".to_string(),
+            ),
+            Some(WbsCheckbox::Progress(pct)) => (
+                " wbs-progress",
+                format!(" data-wbs-checkbox=\"progress\" data-wbs-progress=\"{pct}\""),
+            ),
+            None => ("", String::new()),
         };
         out.push_str(&format!(
-            "<rect class=\"wbs-node\" data-wbs-depth=\"{depth}\"{checkbox_attr} x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            "<rect class=\"wbs-node wbs-depth-{depth}{checkbox_class}\" data-wbs-depth=\"{depth}\" data-wbs-fill=\"{fill}\"{checkbox_attr} x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
             depth = node.depth,
+            checkbox_class = checkbox_class,
             checkbox_attr = checkbox_attr,
             nx = nx,
             ny = ny,
@@ -8898,7 +9321,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
             Some(WbsCheckbox::Checked) => {
                 // Checked checkbox before label
                 out.push_str(&format!(
-                    "<rect x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" rx=\"2\" ry=\"2\" fill=\"#16a34a\" stroke=\"#166534\" stroke-width=\"1\"/>",
+                    "<rect class=\"wbs-checkbox-box\" data-wbs-annotation-style=\"checked\" x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" rx=\"2\" ry=\"2\" fill=\"#16a34a\" stroke=\"#166534\" stroke-width=\"1\"/>",
                     bx = nx + NODE_PAD, by = cy - 6
                 ));
                 out.push_str(&format!(
@@ -8912,7 +9335,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
             }
             Some(WbsCheckbox::Unchecked) => {
                 out.push_str(&format!(
-                    "<rect x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" rx=\"2\" ry=\"2\" fill=\"#fff\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+                    "<rect class=\"wbs-checkbox-box\" data-wbs-annotation-style=\"unchecked\" x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" rx=\"2\" ry=\"2\" fill=\"#fff\" stroke=\"#64748b\" stroke-width=\"1\"/>",
                     bx = nx + NODE_PAD, by = cy - 6
                 ));
                 out.push_str(&format!(
@@ -8925,12 +9348,12 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
                 let bar_w = nw - 2 * NODE_PAD - 4;
                 let fill_w = (bar_w as u32 * (*pct as u32) / 100) as i32;
                 out.push_str(&format!(
-                    "<rect x=\"{bx}\" y=\"{by}\" width=\"{bar_w}\" height=\"7\" rx=\"3\" ry=\"3\" fill=\"#e2e8f0\" stroke=\"#94a3b8\" stroke-width=\"0.5\"/>",
+                    "<rect class=\"wbs-progress-track\" data-wbs-annotation-style=\"progress\" x=\"{bx}\" y=\"{by}\" width=\"{bar_w}\" height=\"7\" rx=\"3\" ry=\"3\" fill=\"#e2e8f0\" stroke=\"#94a3b8\" stroke-width=\"0.5\"/>",
                     bx = nx + NODE_PAD, by = cy + 9, bar_w = bar_w
                 ));
                 if fill_w > 0 {
                     out.push_str(&format!(
-                        "<rect x=\"{bx}\" y=\"{by}\" width=\"{fill_w}\" height=\"7\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\"/>",
+                        "<rect class=\"wbs-progress-fill\" data-wbs-progress-fill=\"{pct}\" x=\"{bx}\" y=\"{by}\" width=\"{fill_w}\" height=\"7\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\"/>",
                         bx = nx + NODE_PAD, by = cy + 9, fill_w = fill_w
                     ));
                 }

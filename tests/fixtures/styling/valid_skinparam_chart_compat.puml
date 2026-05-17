@@ -1,0 +1,10 @@
+@startchart
+skinparam backgroundColor #fff7ed
+skinparam axisColor #9a3412
+skinparam gridColor #fed7aa
+skinparam barColor #2563eb
+skinparam fontColor #7c2d12
+h-axis [Q1,Q2]
+v-axis "Score" 0 --> 10
+bar "Actual" [4,8]
+@endchart

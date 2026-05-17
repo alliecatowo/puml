@@ -851,7 +851,11 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         };
         let value_str = rest.split_whitespace().next().unwrap_or("");
         match value_str.parse::<f64>() {
-            Ok(v) => data.push(ChartPoint { label, value: v }),
+            Ok(v) => data.push(ChartPoint {
+                label,
+                value: v,
+                color: parse_chart_point_color(rest),
+            }),
             Err(_) => warnings.push(Diagnostic::warning(format!(
                 "[W_CHART_NUMERIC] could not parse numeric value `{value_str}`"
             ))),
@@ -1001,7 +1005,15 @@ fn parse_chart_legend(line: &str) -> ChartLegend {
         legend.visible = false;
         return legend;
     }
-    let mut tokens = rest.split_whitespace().peekable();
+    let mut tokens = rest
+        .split_whitespace()
+        .filter(|token| {
+            !matches!(
+                *token,
+                "at" | "position" | "pos" | "inside" | "outside" | "legend"
+            )
+        })
+        .peekable();
     while let Some(token) = tokens.next() {
         match token {
             "left" => legend.h_align = LegendHAlign::Left,
@@ -1066,6 +1078,12 @@ fn parse_chart_series(line: &str) -> Option<(ChartSubtype, ChartSeries)> {
             color,
         },
     ))
+}
+
+fn parse_chart_point_color(rest: &str) -> Option<String> {
+    rest.split_whitespace()
+        .skip(1)
+        .find_map(normalize_chart_color)
 }
 
 fn parse_optional_quoted_prefix(input: &str) -> Option<(String, &str)> {
@@ -2345,6 +2363,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                             ClassSkinParamValue::MemberFontColor(c) => {
                                 class_style.member_color = c;
                             }
+                            ClassSkinParamValue::FontColor(c) => {
+                                class_style.font_color = c;
+                            }
                             ClassSkinParamValue::ArrowColor(c) => {
                                 class_style.arrow_color = c;
                             }
@@ -2493,6 +2514,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 dashed: rel.dashed,
                 hidden: rel.hidden,
                 thickness: rel.thickness,
+                direction: rel.direction,
                 left_lollipop: rel.left_lollipop,
                 right_lollipop: rel.right_lollipop,
             }),
@@ -2582,6 +2604,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                         dashed: rel.dashed,
                         hidden: rel.hidden,
                         thickness: rel.thickness,
+                        direction: rel.direction,
                         left_lollipop: rel.left_lollipop,
                         right_lollipop: rel.right_lollipop,
                     });
@@ -2839,6 +2862,9 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
                         }
                         StateSkinParamValue::StartColor(c) => {
                             state_style.start_color = c;
+                        }
+                        StateSkinParamValue::FontColor(c) => {
+                            state_style.font_color = c;
                         }
                         StateSkinParamValue::FontSize(n) => {
                             state_style.font_size = Some(n);
@@ -3346,6 +3372,7 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
                 dashed: false,
                 hidden: false,
                 thickness: None,
+                direction: None,
                 left_lollipop: false,
                 right_lollipop: false,
             });
@@ -3697,6 +3724,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 dashed: rel.dashed,
                 hidden: rel.hidden,
                 thickness: rel.thickness,
+                direction: rel.direction,
                 left_lollipop: rel.left_lollipop,
                 right_lollipop: rel.right_lollipop,
             }),
@@ -3771,6 +3799,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                         dashed: rel.dashed,
                         hidden: rel.hidden,
                         thickness: rel.thickness,
+                        direction: rel.direction,
                         left_lollipop: rel.left_lollipop,
                         right_lollipop: rel.right_lollipop,
                     });
@@ -3805,6 +3834,9 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                                 }
                                 ComponentSkinParamValue::InterfaceColor(c) => {
                                     component_style.interface_color = c;
+                                }
+                                ComponentSkinParamValue::FontColor(c) => {
+                                    component_style.font_color = c;
                                 }
                                 ComponentSkinParamValue::ArrowColor(c) => {
                                     component_style.arrow_color = c;
@@ -3844,6 +3876,9 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                                 }
                                 ActivitySkinParamValue::BarColor(c) => {
                                     activity_style.fork_color = c;
+                                }
+                                ActivitySkinParamValue::FontColor(c) => {
+                                    activity_style.font_color = c;
                                 }
                                 ActivitySkinParamValue::ArrowColor(c) => {
                                     activity_style.arrow_color = c;

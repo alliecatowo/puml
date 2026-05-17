@@ -1,0 +1,11 @@
+@startuml
+skinparam StateBackgroundColor #fef9c3
+skinparam StateBorderColor #854d0e
+skinparam StateFontColor #1f2937
+skinparam StateStartColor #7c2d12
+[*] --> Ready : boot
+state Ready {
+  entry / setup
+}
+Ready --> [*] : done
+@enduml

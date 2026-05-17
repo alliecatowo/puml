@@ -197,3 +197,48 @@ legend off
     assert!(svg.contains("fill=\"#f97316\""));
     assert!(svg.contains("fill=\"#22c55e\""));
 }
+
+#[test]
+fn chart_pie_slice_level_labels_colors_and_legend_render() {
+    let src = "@startchart
+pie chart
+\"Frontend\" : 35 #0ea5e9
+\"Backend\" : 40 #f97316
+\"Ops\" : 25 #22c55e
+legend position bottom left background #f8fafc border #334155 text #111827
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("pie slice-level legend chart should render");
+    assert!(svg.contains("class=\"chart-pie-slice\""));
+    assert!(svg.contains("data-chart-slice=\"Frontend\""));
+    assert!(svg.contains("data-chart-value=\"35\""));
+    assert!(svg.contains("data-chart-percent=\"35%\""));
+    assert!(svg.contains("class=\"chart-pie-label\""));
+    assert!(svg.contains(">Frontend 35%</text>"));
+    assert!(svg.contains("data-chart-legend=\"bottom-left\""));
+    assert!(svg.contains("class=\"chart-legend-swatch\""));
+    assert!(svg.contains("fill=\"#0ea5e9\""));
+    assert!(svg.contains("fill=\"#f97316\""));
+    assert!(svg.contains("fill=\"#22c55e\""));
+}
+
+#[test]
+fn chart_axis_ticks_emit_semantic_classes_and_positioned_legend_aliases() {
+    let src = "@startchart
+bar chart
+h-axis \"Quarter\" [Q1,Q2,Q3] color #0f766e grid #ccfbf1 text #134e4a
+v-axis \"Score\" 0 --> 20 step 5 color #7c2d12 grid #fed7aa text #9a3412
+bar \"Actual\" [5,10,15]
+legend at top center background #f8fafc border #0f172a text #111827
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("chart axis semantic ticks should render");
+    assert!(svg.contains("class=\"chart-axis-tick chart-axis-tick-v\""));
+    assert!(svg.contains("data-chart-axis-tick=\"5\""));
+    assert!(svg.contains("class=\"chart-axis-grid chart-axis-grid-h\""));
+    assert!(svg.contains("class=\"chart-legend\" data-chart-legend=\"top\""));
+}

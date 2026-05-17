@@ -1,0 +1,9 @@
+@startuml
+skinparam TimingBackgroundColor #f8fafc
+skinparam TimingAxisColor #0f766e
+skinparam TimingGridColor #ccfbf1
+skinparam TimingFontColor #134e4a
+clock "Scheduler" as CLK with period 10
+@0 CLK is high
+@10 CLK is low
+@enduml

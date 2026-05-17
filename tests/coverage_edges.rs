@@ -545,6 +545,7 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
                     dashed: false,
                     hidden: false,
                     thickness: None,
+                    direction: None,
                     left_lollipop: false,
                     right_lollipop: false,
                 }),

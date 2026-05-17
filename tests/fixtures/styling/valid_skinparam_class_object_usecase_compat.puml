@@ -1,0 +1,13 @@
+@startuml
+skinparam objectBackgroundColor #fef3c7
+skinparam usecaseBorderColor #7c2d12
+skinparam actorFontColor #831843
+skinparam classMemberFontColor #0f766e
+skinparam classFontName FiraCode
+skinparam classFontSize 15
+class Account {
+  +id: UUID
+}
+class Ledger
+Account --> Ledger : stores
+@enduml
