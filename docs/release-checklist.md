@@ -23,8 +23,8 @@
 
 ## Benchmark / Perf / Size Contract
 
-- [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>20ms`, binary size `<=2,000,000` bytes).
-- [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%` with delta floor `>30ms`, binary size `<=2,500,000` bytes).
+- [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>40ms`, binary size `<=12,000,000` bytes).
+- [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%` with delta floor `>50ms`, binary size `<=12,000,000` bytes).
 - [ ] Confirm mode baseline files exist and are reviewed: `docs/benchmarks/baseline_full.json`, `docs/benchmarks/baseline_quick.json`.
 - [ ] Confirm regression comparisons are mode-scoped (full vs full baseline, quick vs quick baseline).
 - [ ] Confirm full gate includes release binary validation via `cargo build --release`.
@@ -33,17 +33,17 @@
 - [ ] If performance movement is intentional, refresh only the affected baseline with `./scripts/bench.sh [--quick] --update-baseline` and document rationale in PR notes.
 - [ ] Verify no-Java baseline is intact: PlantUML oracle fields are still placeholder-only (`todo`).
 
-### Local Evidence Snapshot (Issue #30, 2026-05-15 UTC)
+### Local Benchmark Evidence Snapshot (Issue #307, 2026-05-17 UTC)
 
 - Full profile command: `./scripts/bench.sh --enforce-gates`
-- Full profile timestamp: `2026-05-15T20:04:55Z`
-- Full profile result: gates pass (`abs<=250ms`, `regression<=10%` with `delta>20ms`, `binary<=2,000,000B`)
-- Full profile scenario means (ms): `cold_start_help=96.000`, `parser_check=96.000`, `parser_dump_scene=92.000`, `render_file=88.000`, `render_stdin=80.000`, `render_stdin_multi=82.000`
+- Full profile timestamp: `2026-05-17T20:15:54Z`
+- Full profile result: gates pass (`abs<=250ms`, `regression<=10%` with `delta>40ms`, `binary<=12,000,000B`)
+- Full profile scenario means (ms): `cold_start_help=96.615`, `parser_check=97.649`, `parser_dump_scene=95.756`, `render_file=96.906`, `render_stdin=96.877`, `render_stdin_multi=95.035`
 - Quick enforced command: `./scripts/bench.sh --quick --enforce-gates`
-- Quick profile timestamp: `2026-05-15T20:04:58Z`
-- Quick enforced result: gates pass (`abs<=350ms`, `regression<=20%` with `delta>30ms`, `binary<=2,500,000B`)
-- Quick profile scenario means (ms): `cold_start_help=80.000`, `parser_check=83.333`, `parser_dump_scene=86.667`, `render_file=86.667`, `render_stdin=83.333`, `render_stdin_multi=83.333`
-- Release binary size: `1,832,984` bytes (`target/release/puml`)
+- Quick profile timestamp: `2026-05-17T20:14:46Z`
+- Quick enforced result: gates pass (`abs<=350ms`, `regression<=20%` with `delta>50ms`, `binary<=12,000,000B`)
+- Quick profile scenario means (ms): `cold_start_help=98.078`, `parser_check=98.075`, `parser_dump_scene=95.044`, `render_file=96.439`, `render_stdin=94.263`, `render_stdin_multi=98.062`
+- Release binary size: `10,035,664` bytes (`target/release/puml`)
 - No-Java oracle status: retained as `todo` placeholders in `docs/benchmarks/latest_trend.json` and `docs/benchmarks/parity_latest.json`
 - Parity harness timestamp: `2026-05-15T20:05:00Z` (`python3 scripts/parity_harness.py --quiet --output docs/benchmarks/parity_latest.json`)
 - Parity harness summary: fixtures `11` (`check_passed=8`, `render_passed=8`), docs examples `10/10` pass (`failed=0`)

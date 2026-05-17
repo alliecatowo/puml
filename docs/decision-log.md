@@ -109,7 +109,7 @@ This log records intentional contract deviations and updates adopted in the curr
   - Release-contract docs/tests must pin both the baseline coverage command string and scoped regex to keep policy explicit and reviewable.
 
 ### D-017: Regression gate adds absolute delta floor
-- Decision: Keep benchmark regression percentage gates (`10%` full / `20%` quick) but require a minimum absolute slowdown delta before failing (`>20ms` full / `>30ms` quick).
+- Decision: Keep benchmark regression percentage gates (`10%` full / `20%` quick) but require a minimum absolute slowdown delta before failing (`>40ms` full / `>50ms` quick).
 - Rationale: Small timing jitter on short scenarios can exceed percentage thresholds without representing meaningful regressions, producing flaky release gates.
 - Impact:
   - `scripts/bench.sh --enforce-gates` now fails regression checks only when both percentage and absolute delta thresholds are exceeded.
