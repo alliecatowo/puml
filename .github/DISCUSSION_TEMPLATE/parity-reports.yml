@@ -1,4 +1,5 @@
 title: "[Parity] "
+labels: ["discussion: parity report", "parity"]
 body:
   - type: markdown
     attributes:

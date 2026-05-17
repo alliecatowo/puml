@@ -18,6 +18,8 @@ Live state on 2026-05-17:
 - Existing category slugs are `announcements`, `general`, `ideas`, `polls`,
   `q-a`, and `show-and-tell`.
 - `Parity reports` and `Swarm lab` still need to be created in the UI.
+- Fallback labels created through `gh label create`: `discussion: parity
+  report` and `discussion: development notes`.
 
 Available through GitHub GraphQL:
 
@@ -40,6 +42,8 @@ Those actions must be completed in the GitHub web UI.
 Discussion category forms are repo-managed files. The forms in
 `.github/DISCUSSION_TEMPLATE/` are named after the target category slugs and
 will apply once those categories exist on the default branch.
+The `parity-reports` and `swarm-lab` forms also auto-apply the fallback labels
+above after the matching categories exist.
 
 ## Target category set
 
@@ -53,7 +57,7 @@ Configure these categories in
 | Ideas | Open-ended discussion | Feature proposals, PicoUML language ideas, renderer ergonomics, and early design sketches. |
 | Show and tell | Open-ended discussion | Diagrams, integrations, benchmarks, demos, and writeups from users or contributors. |
 | Parity reports | Open-ended discussion | PlantUML compatibility gaps that need clarification before they become scoped issues. |
-| Swarm lab | Open-ended discussion | Notes and questions about the AI-assisted development process, agent workflows, and coordination experiments. |
+| Swarm lab / Development notes | Open-ended discussion | Notes and questions about the AI-assisted development process, agent workflows, development process, and coordination experiments. |
 | General | Open-ended discussion | Anything relevant to `puml` that does not fit another category. |
 
 The default Polls category is optional. Delete it if the goal is to keep the
