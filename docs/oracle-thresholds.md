@@ -10,6 +10,12 @@ compares SVG output produced by **puml** (our Rust renderer) against the
 **Java PlantUML reference JAR** on every `.puml` fixture under
 `tests/fixtures/` and `docs/examples/`.
 
+In CI, `.github/workflows/oracle.yml` downloads the pinned PlantUML release
+JAR `plantuml-1.2024.7.jar` from the official PlantUML GitHub release URL,
+caches it by version, verifies that it exists, prints `java -jar ... -version`,
+builds the release `puml` binary, and then runs `scripts/oracle.sh`. The
+workflow intentionally uses a pinned JAR; it does not use `latest`.
+
 The Java PlantUML JAR is never part of the `puml` runtime path, never a fallback
 renderer, and never required for normal CLI/library rendering. It is used only
 when an audit, local run, or CI workflow explicitly sets `PUML_ORACLE_JAR`.
@@ -133,11 +139,19 @@ otherwise                    → match
 |---|---|---|
 | `0` | `PUML_ORACLE_JAR` unset | Skip sentinel (CI-safe) |
 | `0` | match% ≥ 80 % | Conformance is good |
-| `1` | 50 % ≤ match% < 80 % | Soft warning; CI passes but PR comment warns |
+| `1` | 50 % ≤ match% < 80 % | Advisory warning; CI passes and PR comment reports `WARN` |
 | `2` | match% < 50 % | Hard failure; CI blocks the PR |
 
-Only `both-fail` and `match` count as non-failures when computing match%.
-Fixtures in `puml-only`, `jar-only`, and `drift` all reduce the match%.
+Only `match` contributes to match%. Fixtures in `drift`, `puml-only`,
+`jar-only`, and `both-fail` all reduce the match percentage because the
+denominator is the full fixture count.
+
+The GitHub Actions gate in `.github/workflows/oracle.yml` treats only exit code
+`2` as blocking. Exit codes `0` and `1` are converted to a successful workflow
+step, so SVG metric drift, JAR-only fixtures, puml-only fixtures, and parse
+failures are advisory unless the overall match percentage drops below 50%.
+The PR comment summarizes the categories so reviewers can triage regressions
+even when the gate remains advisory.
 
 ## Report format
 
@@ -237,7 +251,34 @@ does not execute Java, does not require `plantuml.jar`, and does not invoke
 
 ## CI integration
 
-The oracle comparison workflow runs automatically on PRs that touch
-`src/parser.rs`, `src/normalize.rs`, `src/render.rs`, or any file under
-`tests/fixtures/`.
+The oracle comparison workflow runs on every pull request targeting `main`,
+on pushes to `main`, and on manual `workflow_dispatch`. It is not path-filtered.
 See `.github/workflows/oracle.yml` for the full pipeline definition.
+
+The CI workflow publishes one artifact named `oracle-report-<run_number>` with:
+
+- `docs/benchmarks/oracle_report.json`
+- `/tmp/oracle_smoke_test.log`
+
+On pull requests, the workflow also posts a Markdown summary comment when
+`scripts/oracle.sh` produced a real report with a numeric fixture total.
+
+After the shell oracle, CI runs `cargo test --test oracle_smoke` without
+`--include-ignored`. That means the always-on sentinel tests run, while the
+ignored `oracle_report_schema_is_stable` integration test is skipped in CI
+because the full JAR-backed corpus run already happened in `scripts/oracle.sh`.
+This smoke-test step is `continue-on-error: true`; failures are uploaded in the
+artifact log for diagnosis but do not block the PR. The shell oracle step is the
+only blocking oracle gate, and only when it returns exit code `2`.
+
+CI does not commit or push generated reports, update baselines, or change source
+files. The generated report exists only in the job workspace and uploaded
+artifact unless a developer explicitly commits a local report update.
+
+For local investigation, prefer writing reports under `target/` when you do not
+intend to update checked-in benchmark evidence:
+
+```sh
+PUML_ORACLE_JAR=/tmp/plantuml-1.2024.7.jar \
+  ./scripts/oracle.sh --report-file target/oracle_report.json
+```
