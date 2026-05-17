@@ -4,8 +4,9 @@ This gallery indexes the docs-as-tests corpus under `docs/examples/`.
 
 ## Corpus totals
 
-- `254` source diagrams (`*.puml`)
+- `255` source diagrams (`*.puml`)
 - `258` render artifacts (`*.svg`)
+- Site gallery manifest: `248` paired family examples across `31` family directories
 - Location: `docs/examples/` and its family subdirectories
 
 ## Family directories
