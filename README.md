@@ -192,6 +192,7 @@ Useful local commands:
 ./scripts/check-all.sh --quick
 ./scripts/check-all.sh        # full quality gate
 ./scripts/branch-protection.sh verify
+./scripts/bench.sh --update-baseline
 cargo run -- --help
 cargo run -- --check docs/examples/basic_hello.puml
 cargo run -- docs/examples/basic_hello.puml
