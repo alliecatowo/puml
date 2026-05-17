@@ -35,6 +35,19 @@
 - [ ] Docs updated for command or contract changes.
 - [ ] Any intentional contract deviation logged in `docs/decision-log.md`.
 
+## Issues and discussions
+
+Use [GitHub Discussions](https://github.com/alliecatowo/puml/discussions) for
+questions, early ideas, showcases, parity reports that need discussion before
+they become scoped work, and AI-swarm workflow notes.
+
+Open an issue when there is a concrete bug, compatibility gap, docs task,
+tooling task, or regression that someone can act on. Link back to the
+discussion when a thread turns into follow-up work.
+
+See [docs/discussions.md](discussions.md) for the full routing guide and
+maintainer setup notes.
+
 ## Safety Constraints
 
 - Do not use destructive git commands in automation scripts.
