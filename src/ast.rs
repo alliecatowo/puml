@@ -299,6 +299,8 @@ pub struct FamilyRelation {
     pub to: String,
     pub arrow: String,
     pub label: Option<String>,
+    pub left_cardinality: Option<String>,
+    pub right_cardinality: Option<String>,
 }
 
 #[derive(Debug, Clone)]

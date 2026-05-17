@@ -1267,6 +1267,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 to: rel.to,
                 arrow: rel.arrow,
                 label: rel.label,
+                left_cardinality: rel.left_cardinality,
+                right_cardinality: rel.right_cardinality,
             }),
             StatementKind::ClassGroup {
                 kind,
@@ -1989,6 +1991,8 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
                 to: nodes[idx].name.clone(),
                 arrow: "->".to_string(),
                 label: None,
+                left_cardinality: None,
+                right_cardinality: None,
             });
         }
         parents.push(idx);
@@ -2242,6 +2246,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 to: rel.to,
                 arrow: rel.arrow,
                 label: rel.label,
+                left_cardinality: rel.left_cardinality,
+                right_cardinality: rel.right_cardinality,
             }),
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
