@@ -60,7 +60,7 @@ Canonical status artifact for machine/human parity review.
 | regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg`, `tests/integration.rs` | https://plantuml.com/regex |
 | ebnf | core | @startebnf baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_ebnf.puml` | https://plantuml.com/ebnf |
 | ebnf | advanced | Full railroad style breadth | partial | `docs/examples/ebnf/01_simple_grammar.svg` | https://plantuml.com/ebnf |
-| math | core+advanced | @startmath/@startlatex baseline plus LaTeX-ish fractions, roots, paired scripts, accents, fences, Greek/operators, and big-operator layout | implemented | `tests/fixtures/non_sequence/valid_math.puml`, `tests/fixtures/families/valid_math_complex.puml`, `tests/integration.rs` | https://plantuml.com/ascii-math |
+| math | core+advanced | @startmath/@startlatex baseline plus LaTeX-ish fractions, roots, paired scripts, accents, fences, matrix environments, Greek/operators/symbols, text constructs, and big-operator layout | implemented | `tests/fixtures/non_sequence/valid_math.puml`, `tests/fixtures/families/valid_math_complex.puml`, `tests/integration.rs` | https://plantuml.com/ascii-math |
 | ditaa | core+advanced | @startditaa baseline plus options, color hints, advanced box kinds, junction connectors, diagonal connectors, and arrowheads | implemented | `tests/fixtures/non_sequence/valid_ditaa.puml`, `tests/fixtures/families/valid_ditaa_complex.puml`, `tests/integration.rs` | https://plantuml.com/ditaa |
 | chart | core | @startchart baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_chart_bar.puml`, `tests/fixtures/non_sequence/valid_chart_pie.puml` | https://plantuml.com/chart-diagram |
 | chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg` | https://plantuml.com/chart-diagram |
@@ -69,6 +69,6 @@ Canonical status artifact for machine/human parity review.
 
 - 2026-05-17: `gh issue view 103 --json number,title,state,projectItems,url` verified tracking issue `#103` is on the `PUML` project with status `Human Review`.
 - 2026-05-17: `gh issue view <n> --json number,title,state,projectItems,url` for `#197`, `#202`, `#205`, `#206`, `#207`, and `#208` verified all six issues remain open and on the `PUML` project with status `Human Review`.
-- 2026-05-17: Branch-local evidence exists for `#197` PNG output, `#202` family skinparams, `#205` Gantt date/duration rendering, `#206` timing waveform rendering, and `#208` Ditaa shape rendering. `#207` remains baseline math rendering only and is not promoted to full LaTeX/math-symbol parity.
+- 2026-05-17: Branch-local evidence exists for `#197` PNG output, `#202` family skinparams, `#205` Gantt date/duration rendering, `#206` timing waveform rendering, `#207` deterministic LaTeX-ish math rendering, and `#208` Ditaa shape rendering. `#207` remains partial versus full LaTeX/math-symbol parity.
 - 2026-05-17: `git branch -r --contains 37a49d2 23e212a 4738f7c` showed the inspected issue-related commits are contained by `origin/codex/local-parity-blitz-20260516`, not `origin/main`; no issue closure was performed.
 - No issue closure was performed during this audit.

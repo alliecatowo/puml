@@ -2298,6 +2298,10 @@ enum Expr {
         inner: Box<Expr>,
     },
     Greek(char),
+    Matrix {
+        env: String,
+        rows: Vec<Vec<Expr>>,
+    },
     BigOp {
         op: char,
         sub: Box<Expr>,
@@ -2455,10 +2459,34 @@ fn command_to_expr(name: &str) -> Expr {
         "cap" => Expr::Literal("∩".to_string()),
         "forall" => Expr::Literal("∀".to_string()),
         "exists" => Expr::Literal("∃".to_string()),
+        "emptyset" | "varnothing" => Expr::Literal("∅".to_string()),
+        "land" | "wedge" => Expr::Literal("∧".to_string()),
+        "lor" | "vee" => Expr::Literal("∨".to_string()),
+        "neg" | "lnot" => Expr::Literal("¬".to_string()),
+        "therefore" => Expr::Literal("∴".to_string()),
+        "because" => Expr::Literal("∵".to_string()),
+        "equiv" => Expr::Literal("≡".to_string()),
+        "propto" => Expr::Literal("∝".to_string()),
+        "sim" => Expr::Literal("∼".to_string()),
+        "simeq" => Expr::Literal("≃".to_string()),
+        "cong" => Expr::Literal("≅".to_string()),
+        "ll" => Expr::Literal("≪".to_string()),
+        "gg" => Expr::Literal("≫".to_string()),
+        "subseteq" => Expr::Literal("⊆".to_string()),
+        "supseteq" => Expr::Literal("⊇".to_string()),
+        "oplus" => Expr::Literal("⊕".to_string()),
+        "otimes" => Expr::Literal("⊗".to_string()),
+        "perp" => Expr::Literal("⊥".to_string()),
+        "parallel" => Expr::Literal("∥".to_string()),
+        "angle" => Expr::Literal("∠".to_string()),
+        "degree" => Expr::Literal("°".to_string()),
         "lfloor" => Expr::Literal("⌊".to_string()),
         "rfloor" => Expr::Literal("⌋".to_string()),
         "lceil" => Expr::Literal("⌈".to_string()),
         "rceil" => Expr::Literal("⌉".to_string()),
+        "sin" | "cos" | "tan" | "cot" | "sec" | "csc" | "log" | "ln" | "lim" | "min"
+        | "max" | "det" | "dim" | "ker" | "Pr" => Expr::Literal(name.to_string()),
+        "," | ";" | ":" | "quad" | "qquad" => Expr::Literal(" ".to_string()),
         // Ignore decorators
         "left" | "right" | "big" | "bigg" | "Big" | "Bigg" => Expr::Literal(String::new()),
         "text" | "mathrm" | "mathit" | "mathbf" | "mathbb" | "mathcal" | "operatorname" => {
@@ -2492,6 +2520,129 @@ fn is_frac(name: &str) -> bool {
 
 fn is_sqrt(name: &str) -> bool {
     matches!(name, "sqrt" | "cbrt")
+}
+
+fn read_braced_literal(tokens: &[LatexToken], idx: &mut usize) -> Option<String> {
+    skip_spaces(tokens, idx);
+    if !matches!(tokens.get(*idx), Some(LatexToken::LBrace)) {
+        return None;
+    }
+    *idx += 1;
+    let mut out = String::new();
+    while *idx < tokens.len() {
+        match &tokens[*idx] {
+            LatexToken::RBrace => {
+                *idx += 1;
+                return Some(out);
+            }
+            LatexToken::Char(c) => {
+                out.push(*c);
+                *idx += 1;
+            }
+            LatexToken::Command(name) => {
+                out.push_str(name);
+                *idx += 1;
+            }
+            LatexToken::Space => {
+                out.push(' ');
+                *idx += 1;
+            }
+            LatexToken::Sub => {
+                out.push('_');
+                *idx += 1;
+            }
+            LatexToken::Sup => {
+                out.push('^');
+                *idx += 1;
+            }
+            LatexToken::LBrace => {
+                out.push('{');
+                *idx += 1;
+            }
+        }
+    }
+    None
+}
+
+fn peek_end_env(tokens: &[LatexToken], idx: usize, env: &str) -> Option<usize> {
+    if !matches!(tokens.get(idx), Some(LatexToken::Command(name)) if name == "end") {
+        return None;
+    }
+    let mut cursor = idx + 1;
+    let name = read_braced_literal(tokens, &mut cursor)?;
+    if name.trim() == env {
+        Some(cursor)
+    } else {
+        None
+    }
+}
+
+fn parse_cell_expr(tokens: &[LatexToken]) -> Expr {
+    let mut idx = 0;
+    Expr::Group(parse_expr_seq(tokens, &mut idx))
+}
+
+fn parse_matrix_env(tokens: &[LatexToken], idx: &mut usize, env: &str) -> Expr {
+    let mut rows: Vec<Vec<Expr>> = Vec::new();
+    let mut row: Vec<Expr> = Vec::new();
+    let mut cell: Vec<LatexToken> = Vec::new();
+    let mut depth = 0usize;
+
+    while *idx < tokens.len() {
+        if depth == 0 {
+            if let Some(end_idx) = peek_end_env(tokens, *idx, env) {
+                row.push(parse_cell_expr(&cell));
+                if !row.is_empty() {
+                    rows.push(row);
+                }
+                *idx = end_idx;
+                return Expr::Matrix {
+                    env: env.to_string(),
+                    rows,
+                };
+            }
+            match &tokens[*idx] {
+                LatexToken::Char('&') => {
+                    row.push(parse_cell_expr(&cell));
+                    cell.clear();
+                    *idx += 1;
+                    continue;
+                }
+                LatexToken::Char('\\') => {
+                    row.push(parse_cell_expr(&cell));
+                    cell.clear();
+                    rows.push(row);
+                    row = Vec::new();
+                    *idx += 1;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        match &tokens[*idx] {
+            LatexToken::LBrace => depth += 1,
+            LatexToken::RBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        cell.push(tokens[*idx].clone());
+        *idx += 1;
+    }
+
+    row.push(parse_cell_expr(&cell));
+    rows.push(row);
+    Expr::Matrix {
+        env: env.to_string(),
+        rows,
+    }
+}
+
+fn is_matrix_env(name: &str) -> bool {
+    matches!(
+        name,
+        "matrix" | "pmatrix" | "bmatrix" | "Bmatrix" | "vmatrix" | "Vmatrix" | "smallmatrix"
+            | "array" | "aligned" | "align"
+    )
 }
 
 /// Parse a sequence of LaTeX tokens into a Vec of Expr nodes.
@@ -2547,7 +2698,15 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
             LatexToken::Command(name) => {
                 let name = name.clone();
                 *idx += 1;
-                if let Some(op_char) = is_big_op(&name) {
+                if name == "begin" {
+                    if let Some(env) = read_braced_literal(tokens, idx) {
+                        if is_matrix_env(env.trim()) {
+                            exprs.push(parse_matrix_env(tokens, idx, env.trim()));
+                        } else {
+                            exprs.push(Expr::Literal(format!("\\begin{{{}}}", env)));
+                        }
+                    }
+                } else if let Some(op_char) = is_big_op(&name) {
                     // Parse optional sub and sup
                     let mut sub = Expr::Literal(String::new());
                     let mut sup = Expr::Literal(String::new());
@@ -2672,7 +2831,17 @@ fn parse_single_expr(tokens: &[LatexToken], idx: &mut usize) -> Expr {
         LatexToken::Command(name) => {
             let name = name.clone();
             *idx += 1;
-            if is_frac(&name) {
+            if name == "begin" {
+                if let Some(env) = read_braced_literal(tokens, idx) {
+                    if is_matrix_env(env.trim()) {
+                        parse_matrix_env(tokens, idx, env.trim())
+                    } else {
+                        Expr::Literal(format!("\\begin{{{}}}", env))
+                    }
+                } else {
+                    Expr::Literal("\\begin".to_string())
+                }
+            } else if is_frac(&name) {
                 skip_spaces(tokens, idx);
                 let num = parse_single_expr(tokens, idx);
                 skip_spaces(tokens, idx);
@@ -2692,6 +2861,12 @@ fn parse_single_expr(tokens: &[LatexToken], idx: &mut usize) -> Expr {
                     kind: name,
                     inner: Box::new(inner),
                 }
+            } else if matches!(
+                name.as_str(),
+                "text" | "mathrm" | "mathit" | "mathbf" | "mathbb" | "mathcal" | "operatorname"
+            ) {
+                skip_spaces(tokens, idx);
+                parse_single_expr(tokens, idx)
             } else {
                 command_to_expr(&name)
             }
@@ -2772,6 +2947,88 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 svg,
                 width,
                 height,
+                ascent,
+            }
+        }
+        Expr::Matrix { env, rows } => {
+            let cell_pad_x = font_size * 0.45;
+            let row_gap = font_size * 0.25;
+            let layouts: Vec<Vec<Layout>> = rows
+                .iter()
+                .map(|row| row.iter().map(|cell| layout_expr(cell, font_size * 0.9)).collect())
+                .collect();
+            let col_count = layouts.iter().map(|row| row.len()).max().unwrap_or(0);
+            let mut col_widths = vec![font_size * 0.6; col_count];
+            let mut row_heights = vec![font_size; layouts.len()];
+            let mut row_ascents = vec![font_size * 0.75; layouts.len()];
+            for (r, row) in layouts.iter().enumerate() {
+                for (c, cell) in row.iter().enumerate() {
+                    col_widths[c] = col_widths[c].max(cell.width);
+                    row_heights[r] = row_heights[r].max(cell.height);
+                    row_ascents[r] = row_ascents[r].max(cell.ascent);
+                }
+            }
+            let body_w = col_widths.iter().sum::<f64>() + cell_pad_x * 2.0 * col_count as f64;
+            let body_h = row_heights.iter().sum::<f64>()
+                + row_gap * layouts.len().saturating_sub(1) as f64;
+            let fence_w = if env == "matrix" || env == "smallmatrix" || env == "aligned" || env == "align" {
+                0.0
+            } else {
+                font_size * 0.45
+            };
+            let total_w = body_w + fence_w * 2.0;
+            let total_h = body_h.max(font_size);
+            let ascent = total_h * 0.58;
+            let mut svg = format!("<g data-math-env=\"{}\">", escape_xml(env));
+
+            let mut y = 0.0;
+            for (r, row) in layouts.iter().enumerate() {
+                let mut x = fence_w;
+                for (c, cell) in row.iter().enumerate() {
+                    let cell_x = x + cell_pad_x + (col_widths[c] - cell.width) / 2.0;
+                    let cell_y = y + row_ascents[r] - cell.ascent;
+                    svg.push_str(&format!(
+                        "<g transform=\"translate({},{})\">{}</g>",
+                        cell_x, cell_y, cell.svg
+                    ));
+                    x += col_widths[c] + cell_pad_x * 2.0;
+                }
+                y += row_heights[r] + row_gap;
+            }
+
+            match env.as_str() {
+                "pmatrix" => {
+                    svg.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">(</text><text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">)</text>",
+                        fence_w / 2.0, ascent, total_h * 1.15, total_w - fence_w / 2.0, ascent, total_h * 1.15
+                    ));
+                }
+                "bmatrix" => {
+                    svg.push_str(&format!(
+                        "<path d=\"M {},0 L 0,0 L 0,{} L {},{}\" fill=\"none\" stroke=\"#333\" stroke-width=\"1.4\"/><path d=\"M {},0 L {},0 L {},{} L {},{}\" fill=\"none\" stroke=\"#333\" stroke-width=\"1.4\"/>",
+                        fence_w, total_h, fence_w, total_h, total_w - fence_w, total_w, total_w, total_h, total_w - fence_w, total_h
+                    ));
+                }
+                "Bmatrix" => {
+                    svg.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">{{</text><text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">}}</text>",
+                        fence_w / 2.0, ascent, total_h * 1.15, total_w - fence_w / 2.0, ascent, total_h * 1.15
+                    ));
+                }
+                "vmatrix" | "Vmatrix" => {
+                    let sw = if env == "Vmatrix" { 2.2 } else { 1.4 };
+                    svg.push_str(&format!(
+                        "<line x1=\"{}\" y1=\"0\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"{}\"/><line x1=\"{}\" y1=\"0\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"{}\"/>",
+                        fence_w / 2.0, fence_w / 2.0, total_h, sw, total_w - fence_w / 2.0, total_w - fence_w / 2.0, total_h, sw
+                    ));
+                }
+                _ => {}
+            }
+            svg.push_str("</g>");
+            Layout {
+                svg,
+                width: total_w,
+                height: total_h,
                 ascent,
             }
         }

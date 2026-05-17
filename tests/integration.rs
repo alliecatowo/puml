@@ -5955,6 +5955,21 @@ fn non_uml_advanced_math_scripts_accents_and_fences_render() {
 }
 
 #[test]
+fn non_uml_advanced_math_matrix_symbols_and_text_constructs_render() {
+    let src = "@startlatex\n\\begin{bmatrix} \\alpha & \\beta \\\\ \\sum_{i=0}^{n} i & \\int_{0}^{\\infty} e^{-x} dx \\end{bmatrix} \\Rightarrow \\text{ok} \\subseteq \\mathbb{R}\n@endlatex\n";
+    let svg = render_source_to_svg(src).expect("matrix math expression should render");
+    assert!(svg.contains("data-math-env=\"bmatrix\""));
+    assert!(svg.contains("α"));
+    assert!(svg.contains("β"));
+    assert!(svg.contains("∑"));
+    assert!(svg.contains("∫"));
+    assert!(svg.contains("∞"));
+    assert!(svg.contains("⇒"));
+    assert!(svg.contains("⊆"));
+    assert!(svg.contains(">ok<"));
+}
+
+#[test]
 fn non_uml_advanced_ditaa_junctions_and_diagonal_arrowheads_render() {
     let src = "@startditaa\n\
 +---+   +---+\n\
