@@ -770,10 +770,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 hh = proj_header_h,
             ));
             out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#78350f\">{alias}</text>",
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#78350f\">{alias} ({format})</text>",
                 tx = proj_margin_left + 8,
                 ty = proj_y + 15,
                 alias = escape_text(&proj.alias),
+                format = escape_text(&proj.format),
             ));
             // Separator line.
             out.push_str(&format!(

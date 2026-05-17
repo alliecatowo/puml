@@ -364,6 +364,7 @@ pub struct TimelineChronologyEvent {
 pub struct JsonProjection {
     pub alias: String,
     pub body: String,
+    pub format: String,
 }
 
 /// Per-family style overrides carried through the model.

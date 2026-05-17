@@ -1378,10 +1378,18 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 }
             }
             StatementKind::JsonProjection { alias, body } => {
-                json_projections.push(crate::model::JsonProjection { alias, body });
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "json".to_string(),
+                });
             }
             StatementKind::YamlProjection { alias, body } => {
-                json_projections.push(crate::model::JsonProjection { alias, body });
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "yaml".to_string(),
+                });
             }
             StatementKind::ClassDecl(decl) => {
                 if node_kind != FamilyNodeKind::Class {

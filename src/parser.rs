@@ -1265,29 +1265,29 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
         return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
     }
 
-    if let Some((lhs, rhs)) = trimmed.split_once("==") {
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "==") {
         return Ok(normalize_expr_value(lhs) == normalize_expr_value(rhs));
     }
-    if let Some((lhs, rhs)) = trimmed.split_once("!=") {
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "!=") {
         return Ok(normalize_expr_value(lhs) != normalize_expr_value(rhs));
     }
     // Numeric comparisons: check two-char operators before one-char to avoid splitting <=/>= wrong.
-    if let Some((lhs, rhs)) = trimmed.split_once("<=") {
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "<=") {
         let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
         let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
         return Ok(a <= b);
     }
-    if let Some((lhs, rhs)) = trimmed.split_once(">=") {
+    if let Some((lhs, rhs)) = split_top_level(trimmed, ">=") {
         let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
         let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
         return Ok(a >= b);
     }
-    if let Some((lhs, rhs)) = trimmed.split_once('<') {
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "<") {
         let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
         let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
         return Ok(a < b);
     }
-    if let Some((lhs, rhs)) = trimmed.split_once('>') {
+    if let Some((lhs, rhs)) = split_top_level(trimmed, ">") {
         let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
         let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
         return Ok(a > b);
@@ -1389,12 +1389,17 @@ fn split_top_level(expr: &str, sep: &str) -> Option<(String, String)> {
 }
 
 fn normalize_expr_value(value: &str) -> String {
-    value
+    let normalized = value
         .trim()
         .trim_matches('"')
         .trim_matches('\'')
         .trim()
-        .to_string()
+        .to_string();
+    if let Some(n) = eval_int_expr(&normalized) {
+        n.to_string()
+    } else {
+        normalized
+    }
 }
 
 /// Evaluate a simple two-operand integer arithmetic expression such as "3 + 1"
@@ -1402,30 +1407,69 @@ fn normalize_expr_value(value: &str) -> String {
 /// Returns `None` if the expression is not in this form (non-integer values or
 /// more complex expressions), so the caller can fall back to the raw string.
 fn eval_simple_arithmetic(expr: &str) -> Option<i64> {
-    // Try binary operators in order (longest match first to avoid splitting "-" from negative).
-    for op in ['+', '-', '*', '/'] {
-        // Scan from the end to give subtraction the right operand precedence for simple cases.
-        let bytes = expr.as_bytes();
-        let search_from = if op == '-' { 1 } else { 0 }; // skip leading minus (negative literal)
-        if let Some(pos) = bytes[search_from..]
-            .iter()
-            .rposition(|&b| b == op as u8)
-            .map(|p| p + search_from)
-        {
-            let lhs = expr[..pos].trim();
-            let rhs = expr[pos + 1..].trim();
-            if let (Ok(a), Ok(b)) = (lhs.parse::<i64>(), rhs.parse::<i64>()) {
-                return Some(match op {
-                    '+' => a + b,
-                    '-' => a - b,
-                    '*' => a * b,
-                    '/' if b != 0 => a / b,
-                    _ => return None,
-                });
+    eval_int_expr(expr)
+}
+
+fn eval_int_expr(expr: &str) -> Option<i64> {
+    let trimmed = expr.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(inner) = strip_outer_balanced_parens(trimmed) {
+        return eval_int_expr(inner);
+    }
+    if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['+', '-']) {
+        let a = eval_int_expr(lhs)?;
+        let b = eval_int_expr(rhs)?;
+        return Some(if op == '+' { a + b } else { a - b });
+    }
+    if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['*', '/']) {
+        let a = eval_int_expr(lhs)?;
+        let b = eval_int_expr(rhs)?;
+        return match op {
+            '*' => Some(a * b),
+            '/' if b != 0 => Some(a / b),
+            _ => None,
+        };
+    }
+    trimmed.parse::<i64>().ok()
+}
+
+fn split_top_level_arithmetic<'a>(expr: &'a str, ops: &[char]) -> Option<(&'a str, char, &'a str)> {
+    let mut depth = 0i32;
+    let mut in_str = false;
+    let mut last = None;
+    for (idx, ch) in expr.char_indices() {
+        if in_str {
+            if ch == '"' {
+                in_str = false;
             }
+            continue;
+        }
+        match ch {
+            '"' => in_str = true,
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ if depth == 0 && ops.contains(&ch) => {
+                if ch == '-' {
+                    let prev = expr[..idx].chars().rev().find(|c| !c.is_whitespace());
+                    if prev.is_none() || matches!(prev, Some('(' | '+' | '-' | '*' | '/')) {
+                        continue;
+                    }
+                }
+                last = Some((idx, ch));
+            }
+            _ => {}
         }
     }
-    None
+    let (idx, op) = last?;
+    let lhs = expr[..idx].trim();
+    let rhs = expr[idx + op.len_utf8()..].trim();
+    if lhs.is_empty() || rhs.is_empty() {
+        None
+    } else {
+        Some((lhs, op, rhs))
+    }
 }
 
 fn find_matching_endwhile(lines: &[&str], while_idx: usize) -> Result<usize, Diagnostic> {
@@ -1943,8 +1987,33 @@ fn expand_preprocessor_text(
     state: &PreprocState,
     call_depth: usize,
 ) -> Result<String, Diagnostic> {
-    let substituted = substitute_tokens_and_vars(raw_line, state);
-    expand_function_invocations(&substituted, state, call_depth)
+    let substituted = collapse_macro_concat(&substitute_tokens_and_vars(raw_line, state));
+    let expanded = expand_function_invocations(&substituted, state, call_depth)?;
+    Ok(collapse_macro_concat(&expanded))
+}
+
+fn collapse_macro_concat(line: &str) -> String {
+    if !line.contains("##") {
+        return line.to_string();
+    }
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars[i] == '#' && i + 1 < chars.len() && chars[i + 1] == '#' {
+            while out.ends_with(char::is_whitespace) {
+                out.pop();
+            }
+            i += 2;
+            while i < chars.len() && chars[i].is_whitespace() {
+                i += 1;
+            }
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
 }
 
 fn expand_function_invocations(
@@ -2382,6 +2451,13 @@ fn boolval(s: &str) -> bool {
 /// not valid JSON, the path is missing, or the value is a nested
 /// object/array (callers may then pass sub-JSON to a further call).
 fn get_json_attribute(json: &str, key: &str) -> String {
+    if let Ok(root) = serde_json::from_str::<serde_json::Value>(json.trim()) {
+        if let Some(value) = json_value_at_path(&root, key) {
+            return json_value_to_preproc_string(value);
+        }
+        return String::new();
+    }
+
     // Split the key path into segments: "a.b[2].c" → ["a", "b", "[2]", "c"]
     let segments = split_json_path(key);
     let mut current = json.trim().to_string();
@@ -2399,6 +2475,35 @@ fn get_json_attribute(json: &str, key: &str) -> String {
         }
     }
     current
+}
+
+fn json_value_at_path<'a>(
+    root: &'a serde_json::Value,
+    path: &str,
+) -> Option<&'a serde_json::Value> {
+    let mut current = root;
+    for segment in split_json_path(path) {
+        if let Some(idx) = segment
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .and_then(|s| s.trim().parse::<usize>().ok())
+        {
+            current = current.as_array()?.get(idx)?;
+        } else {
+            current = current.as_object()?.get(segment.as_str())?;
+        }
+    }
+    Some(current)
+}
+
+fn json_value_to_preproc_string(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => value.to_string(),
+    }
 }
 
 /// Split a JSON path like `users[0].name` into segments `["users", "[0]", "name"]`.
@@ -2524,6 +2629,10 @@ fn json_array_index(json: &str, idx: usize) -> String {
 }
 
 fn json_contains_key(json: &str, key: &str) -> bool {
+    if let Ok(root) = serde_json::from_str::<serde_json::Value>(json.trim()) {
+        return json_value_at_path(&root, key).is_some();
+    }
+
     // Reuse the top-level key scan rather than the full path traversal so that
     // an empty-value key still reports as present (PlantUML semantics).
     !get_json_top_level_key(json, key).is_empty()
@@ -6870,6 +6979,48 @@ mod tests {
         .unwrap();
         assert_eq!(doc.statements.len(), 1);
         assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn preprocessor_conditions_support_nested_integer_arithmetic() {
+        let doc = parse_with_options(
+            "@startuml\n!if (2 + 3 * (4 - 1)) == 11\nA -> B : math\n!endif\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 1);
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("math")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_macro_concat_collapses_expanded_function_body_tokens() {
+        let doc = parse_with_options(
+            "@startuml\n!function Join($a,$b)\n!return $a ## $b\n!endfunction\nA -> B : %Join(Al, ice)\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_json_helpers_return_nested_objects_and_empty_keys() {
+        let doc = parse_with_options(
+            "@startuml\n!$cfg = { \"users\": [{ \"name\": \"Ada\", \"meta\": { \"team\": \"core\" }}], \"empty\": \"\" }\n!if %json_key_exists($cfg, \"empty\")\nA -> B : %get_json_attribute($cfg, \"users[0].meta\")\n!endif\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.label.as_deref(), Some("{\"team\":\"core\"}"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
     }
 
     #[test]
