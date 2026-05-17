@@ -6364,7 +6364,7 @@ fn hide_unlinked_removes_unreferenced_participant_from_svg() {
 #[test]
 fn hide_unlinked_records_hidden_participants_without_warning() {
     let src = "@startuml\nhide unlinked\nparticipant Alice\nparticipant Bob\nparticipant Unused\nAlice -> Bob: hello\n@enduml\n";
-    let doc = parse(&src).expect("parse should succeed");
+    let doc = parse(src).expect("parse should succeed");
     let model = normalize::normalize(doc).expect("normalize should succeed");
 
     let ids = model
@@ -6383,7 +6383,7 @@ fn hide_unlinked_records_hidden_participants_without_warning() {
 #[test]
 fn hide_unlinked_preserves_explicit_participants_used_by_messages() {
     let src = "@startuml\nhide unlinked\nparticipant User\nparticipant UI\nparticipant Controller\nparticipant Jobs\nUser -> UI: open\nUI -> Controller: dispatch\n@enduml\n";
-    let doc = parse(&src).expect("parse should succeed");
+    let doc = parse(src).expect("parse should succeed");
     let model = normalize::normalize(doc).expect("normalize should succeed");
 
     let ids = model
