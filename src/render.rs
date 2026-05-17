@@ -242,6 +242,7 @@ pub fn render_svg(scene: &Scene) -> String {
             .map(f32::from)
             .unwrap_or(1.5)
             .clamp(1.0, 8.0);
+        let style_attrs = sequence_message_line_style_attrs(m);
         let line_y = m.route_y;
         if m.x1 == m.x2 {
             let loop_w = 46;
@@ -249,7 +250,8 @@ pub fn render_svg(scene: &Scene) -> String {
             let dir = if m.arrow.starts_with('<') { -1 } else { 1 };
             let x2 = m.x1 + dir * loop_w;
             out.push_str(&format!(
-                "<path d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
+                "<path{} d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
+                style_attrs,
                 m.x1,
                 line_y,
                 x2,
@@ -269,8 +271,16 @@ pub fn render_svg(scene: &Scene) -> String {
             ));
         } else {
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
-                m.x1, line_y, m.x2, line_y, stroke_color, stroke_width, stroke_dash, hidden
+                "<line{} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
+                style_attrs,
+                m.x1,
+                line_y,
+                m.x2,
+                line_y,
+                stroke_color,
+                stroke_width,
+                stroke_dash,
+                hidden
             ));
         }
         render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, stroke_width, hidden);
@@ -475,6 +485,49 @@ fn render_sequence_metadata_label(
         ));
     }
     out.push_str("</g>");
+}
+
+fn sequence_message_line_style_attrs(m: &crate::scene::MessageLine) -> String {
+    if m.style.color.is_none()
+        && !m.style.hidden
+        && !m.style.dashed
+        && !m.style.dotted
+        && m.style.thickness.is_none()
+    {
+        return String::new();
+    }
+
+    let mut classes = Vec::new();
+    let mut styles = Vec::new();
+    let renders_dashed = m.style.dashed || (!m.style.dotted && m.arrow.contains("--"));
+    if m.style.color.is_some() {
+        classes.push("sequence-message-line-colored");
+        styles.push("color");
+    }
+    if m.style.dotted {
+        classes.push("sequence-message-line-dotted");
+        styles.push("dotted");
+    } else if renders_dashed {
+        classes.push("sequence-message-line-dashed");
+        styles.push("dashed");
+    }
+    if m.style.hidden {
+        classes.push("sequence-message-line-hidden");
+        styles.push("hidden");
+    }
+    if m.style.thickness.is_some() {
+        classes.push("sequence-message-line-thick");
+        styles.push("thickness");
+    }
+    if classes.is_empty() {
+        return String::new();
+    }
+
+    format!(
+        " class=\"sequence-message-line {}\" data-sequence-message-style=\"{}\"",
+        classes.join(" "),
+        styles.join(" ")
+    )
 }
 
 fn sequence_message_label_anchor(x1: i32, x2: i32, align: MessageAlign) -> (i32, &'static str) {
