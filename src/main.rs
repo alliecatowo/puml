@@ -20,9 +20,9 @@ use puml::model::{
 use puml::scene::LayoutOptions;
 use puml::source::Span;
 use puml::{
-    extract_markdown_diagrams, normalize_family, render, specialized, CompatMode, DeterminismMode,
-    Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument,
-    ParsePipelineOptions, TextOutputMode,
+    extract_markdown_diagrams, normalize_family, preprocess_with_pipeline_options, render,
+    specialized, CompatMode, DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput,
+    FrontendSelection, NormalizedDocument, ParsePipelineOptions, TextOutputMode,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -399,18 +399,38 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
-        // Short-circuit for specialized families (math, ditaa, etc.)
-        if cli.format.uses_svg_renderer() {
-            if let Some(result) = specialized::try_render_specialized(&source.source) {
-                let content = result
-                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-                let name_hint = source
-                    .output_name_hint
-                    .as_ref()
-                    .map(|base| format!("{base}.{}", output_extension(cli.format)));
-                all.push(RenderedOutput { name_hint, content });
-                return Ok(all);
-            }
+        // Short-circuit for specialized families (math, ditaa, etc.) after the
+        // same preprocessor pass used by check/dump routes.
+        // Text modes intentionally route through normalized models instead.
+        if cli.format.uses_svg_renderer() && specialized::is_specialized_source(&source.source) {
+            let preprocessed = preprocess_for_cli(
+                &source.source,
+                include_root.clone(),
+                cli.dialect,
+                cli.compat,
+                cli.determinism,
+                source.frontend_hint,
+                cli.no_url_includes,
+            )
+            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            let result = specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
+                (
+                    EXIT_VALIDATION,
+                    "[E_SPECIALIZED_PREPROC] preprocessed specialized source changed family"
+                        .to_string(),
+                )
+            })?;
+            let svg = result
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            let name_hint = source
+                .output_name_hint
+                .as_ref()
+                .map(|base| format!("{base}.{}", output_extension(cli.format)));
+            all.push(RenderedOutput {
+                name_hint,
+                content: svg,
+            });
+            return Ok(all);
         }
         let doc = parse_for_cli(
             &source.source,
@@ -991,6 +1011,29 @@ fn parse_for_cli(
         no_url_includes,
     };
     puml::parse_with_pipeline_options(source, &options)
+}
+
+fn preprocess_for_cli(
+    source: &str,
+    include_root: Option<PathBuf>,
+    cli_dialect: CliDialect,
+    cli_compat: CliCompatMode,
+    cli_determinism: CliDeterminismMode,
+    frontend_hint: Option<FrontendSelection>,
+    no_url_includes: bool,
+) -> Result<String, Diagnostic> {
+    let include_root = include_root.or_else(|| match cli_compat {
+        CliCompatMode::Strict => None,
+        CliCompatMode::Extended => std::env::current_dir().ok(),
+    });
+    let options = ParsePipelineOptions {
+        frontend: map_frontend(cli_dialect, frontend_hint),
+        compat: map_compat(cli_compat),
+        determinism: map_determinism(cli_determinism),
+        include_root,
+        no_url_includes,
+    };
+    preprocess_with_pipeline_options(source, &options)
 }
 
 fn map_frontend(

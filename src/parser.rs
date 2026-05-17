@@ -19,6 +19,10 @@ pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Docume
     parse_preprocessed(&expanded)
 }
 
+pub fn preprocess_with_options(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
+    preprocess(source, options)
+}
+
 fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     let mut statements = Vec::new();
     let mut lines = Vec::new();
