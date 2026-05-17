@@ -2572,8 +2572,8 @@ fn command_to_expr(name: &str) -> Expr {
         "rfloor" => Expr::Literal("⌋".to_string()),
         "lceil" => Expr::Literal("⌈".to_string()),
         "rceil" => Expr::Literal("⌉".to_string()),
-        "sin" | "cos" | "tan" | "cot" | "sec" | "csc" | "log" | "ln" | "lim" | "min"
-        | "max" | "det" | "dim" | "ker" | "Pr" => Expr::Literal(name.to_string()),
+        "sin" | "cos" | "tan" | "cot" | "sec" | "csc" | "log" | "ln" | "lim" | "min" | "max"
+        | "det" | "dim" | "ker" | "Pr" => Expr::Literal(name.to_string()),
         "," | ";" | ":" | "quad" | "qquad" => Expr::Literal(" ".to_string()),
         // Ignore decorators
         "left" | "right" | "big" | "bigg" | "Big" | "Bigg" => Expr::Literal(String::new()),
@@ -2728,8 +2728,16 @@ fn parse_matrix_env(tokens: &[LatexToken], idx: &mut usize, env: &str) -> Expr {
 fn is_matrix_env(name: &str) -> bool {
     matches!(
         name,
-        "matrix" | "pmatrix" | "bmatrix" | "Bmatrix" | "vmatrix" | "Vmatrix" | "smallmatrix"
-            | "array" | "aligned" | "align"
+        "matrix"
+            | "pmatrix"
+            | "bmatrix"
+            | "Bmatrix"
+            | "vmatrix"
+            | "Vmatrix"
+            | "smallmatrix"
+            | "array"
+            | "aligned"
+            | "align"
     )
 }
 
@@ -3069,7 +3077,11 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             let row_gap = font_size * 0.25;
             let layouts: Vec<Vec<Layout>> = rows
                 .iter()
-                .map(|row| row.iter().map(|cell| layout_expr(cell, font_size * 0.9)).collect())
+                .map(|row| {
+                    row.iter()
+                        .map(|cell| layout_expr(cell, font_size * 0.9))
+                        .collect()
+                })
                 .collect();
             let col_count = layouts.iter().map(|row| row.len()).max().unwrap_or(0);
             let mut col_widths = vec![font_size * 0.6; col_count];
@@ -3083,13 +3095,14 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 }
             }
             let body_w = col_widths.iter().sum::<f64>() + cell_pad_x * 2.0 * col_count as f64;
-            let body_h = row_heights.iter().sum::<f64>()
-                + row_gap * layouts.len().saturating_sub(1) as f64;
-            let fence_w = if env == "matrix" || env == "smallmatrix" || env == "aligned" || env == "align" {
-                0.0
-            } else {
-                font_size * 0.45
-            };
+            let body_h =
+                row_heights.iter().sum::<f64>() + row_gap * layouts.len().saturating_sub(1) as f64;
+            let fence_w =
+                if env == "matrix" || env == "smallmatrix" || env == "aligned" || env == "align" {
+                    0.0
+                } else {
+                    font_size * 0.45
+                };
             let total_w = body_w + fence_w * 2.0;
             let total_h = body_h.max(font_size);
             let ascent = total_h * 0.58;
@@ -3292,7 +3305,11 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
         }
         Expr::Accent { kind, inner } => {
             let inner_l = layout_expr(inner, font_size);
-            let top_pad = if kind == "underline" { 2.0 } else { font_size * 0.35 };
+            let top_pad = if kind == "underline" {
+                2.0
+            } else {
+                font_size * 0.35
+            };
             let bottom_pad = if kind == "underline" {
                 font_size * 0.25
             } else {

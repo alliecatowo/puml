@@ -1546,16 +1546,11 @@ pub enum TimingSkinParamValue {
     FontColor(String),
 }
 
-pub fn classify_timing_skinparam(
-    key: &str,
-    value: &str,
-) -> SkinParamSupport<TimingSkinParamValue> {
+pub fn classify_timing_skinparam(key: &str, value: &str) -> SkinParamSupport<TimingSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
         "timingbackgroundcolor" | "timingdiagrambackgroundcolor" => parse_color_value(value)
-            .map(|c| {
-                SkinParamSupport::SupportedWithValue(TimingSkinParamValue::BackgroundColor(c))
-            })
+            .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::BackgroundColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "timingaxiscolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::AxisColor(c)))

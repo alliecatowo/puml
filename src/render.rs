@@ -2788,8 +2788,8 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .into_iter()
         .chain(
             document
-        .tasks
-        .iter()
+                .tasks
+                .iter()
                 .map(|t| t.start_day.saturating_add(t.duration_days.max(1))),
         )
         .chain(milestone_day.values().map(|d| d.saturating_add(1)))
@@ -3089,10 +3089,6 @@ fn day_number_to_iso(day: u32) -> Option<String> {
     let m = mp + if mp < 10 { 3 } else { -9 };
     y += if m <= 2 { 1 } else { 0 };
     Some(format!("{y:04}-{m:02}-{d:02}"))
-}
-
-fn is_leap_year(y: i32) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
 fn render_chronology_svg(document: &TimelineDocument) -> String {
@@ -4494,8 +4490,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 }
                 out.push_str(&format!(
                     "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"/>",
-                    path.replace("M ", "").replace("L ", "")
-                    , escape_text(&style.signal_border_color)
+                    path.replace("M ", "").replace("L ", ""),
+                    escape_text(&style.signal_border_color)
                 ));
 
                 // Pulse labels

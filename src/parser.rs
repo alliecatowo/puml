@@ -5371,7 +5371,10 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
                 (None, rest)
             };
             let (name_raw, alias) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
-                (label.as_deref().unwrap_or("").trim(), Some(clean_ident(alias.trim())))
+                (
+                    label.as_deref().unwrap_or("").trim(),
+                    Some(clean_ident(alias.trim())),
+                )
             } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
                 (lhs.trim(), Some(clean_ident(rhs.trim())))
             } else {
@@ -6346,7 +6349,9 @@ fn parse_arrow_style(arrow: &str) -> MessageStyle {
                 {
                     style.color = Some(format!("#{}", token[1..].to_ascii_lowercase()));
                 }
-                _ if token.starts_with('#') && token[1..].bytes().all(|b| b.is_ascii_alphabetic()) => {
+                _ if token.starts_with('#')
+                    && token[1..].bytes().all(|b| b.is_ascii_alphabetic()) =>
+                {
                     style.color = Some(token[1..].to_ascii_lowercase());
                 }
                 _ if token.bytes().all(|b| b.is_ascii_alphabetic()) => {
