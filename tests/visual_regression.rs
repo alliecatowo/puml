@@ -357,6 +357,7 @@ struct Failure {
 const FOCUSED_TEXT_SWEEP_FIXTURES: &[&str] = &[
     "docs/examples/sequence/01_basic.puml",
     "docs/examples/class/01_basic.puml",
+    "docs/examples/class/02_inheritance.puml",
     "docs/examples/activity/01_simple_flow.puml",
     "docs/examples/state/01_basic.puml",
     "docs/examples/sdl/02_with_transitions.puml",
