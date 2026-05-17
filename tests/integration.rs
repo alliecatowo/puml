@@ -151,6 +151,20 @@ fn strict_modes_parse_and_route_without_regression() {
 }
 
 #[test]
+fn sequence_parity_vertical_slice_fixture_passes_check_mode() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("e2e/sequence_parity_vertical_slice.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
 fn default_compat_matches_explicit_strict() {
     let default = Command::cargo_bin("puml")
         .expect("binary")

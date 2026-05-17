@@ -186,6 +186,62 @@ fn render_sequence_dotted_parallel_edges_share_teoz_row_deterministically() {
 }
 
 #[test]
+fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
+    let src = fixture("e2e/sequence_parity_vertical_slice.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    assert_eq!(scene.messages.len(), 4);
+    assert_eq!(
+        scene.messages[0].y, scene.messages[1].y,
+        "teoz parallel message should share the initiating row"
+    );
+    assert_eq!(
+        scene.messages[1].y, scene.messages[2].y,
+        "multiple parallel messages should remain on the same teoz row"
+    );
+    assert!(
+        scene.messages[3].y > scene.messages[0].y + LayoutOptions::default().message_row_height,
+        "parallel labels should reserve deterministic space before the next row"
+    );
+
+    let note = scene
+        .notes
+        .iter()
+        .find(|note| note.text.contains("span **multi** target"))
+        .expect("multi-target note");
+    let a = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "A")
+        .expect("participant A");
+    let c = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "C")
+        .expect("participant C");
+    assert_eq!(note.x, a.x);
+    assert!(
+        note.width >= (c.x + c.width) - a.x,
+        "note over A,C should span the participant range"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("REQ-007"));
+    assert!(svg.contains("REQ-009"));
+    assert!(svg.contains("REQ-011"));
+    assert!(svg.contains("font-weight=\"bold\""));
+    assert!(svg.contains("font-style=\"italic\""));
+    assert!(svg.contains("fill=\"#008800\""));
+    assert!(svg.contains("xlink:href=\"https://example.com\""));
+    assert!(svg.contains("sequence-arrow-head-slash"));
+    assert!(svg.contains("sequence-arrow-head-backslash"));
+    assert!(svg.contains("<circle"));
+    assert!(svg.contains("span "));
+}
+
+#[test]
 fn render_sequence_lifecycle_shortcuts_have_visible_markers() {
     let src = fixture("lifecycle/valid_shortcuts_expansion.puml");
     let svg = puml::render_source_to_svg(&src).expect("lifecycle shortcut render");

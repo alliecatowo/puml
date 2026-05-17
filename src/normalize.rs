@@ -17,9 +17,9 @@ use crate::model::{
     SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequenceMessageStyle,
     SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction, StateNode,
     StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
-    TimelineClosedRange, TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask,
-    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument,
-    YamlTreeNode,
+    TimelineClosedRange, TimelineConstraint, TimelineDocument, TimelineMilestone,
+    TimelineOpenRange, TimelineResourceAllocation, TimelineTask, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
@@ -1030,6 +1030,8 @@ fn parse_chart_series(line: &str) -> Option<(ChartSubtype, ChartSeries)> {
         (ChartSubtype::Bar, line[3..].trim())
     } else if lower.starts_with("line ") {
         (ChartSubtype::Line, line[4..].trim())
+    } else if lower.starts_with("pie ") {
+        (ChartSubtype::Pie, line[3..].trim())
     } else {
         return None;
     };
@@ -1107,6 +1109,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
     let mut chronology_events = Vec::new();
     let mut closed_weekdays = Vec::new();
     let mut closed_ranges = Vec::new();
+    let mut open_ranges = Vec::new();
     let mut scale = None;
     let mut title = None;
     let mut header = None;
@@ -1122,15 +1125,26 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                 duration_days,
                 resources,
                 ..
-            } => tasks.push(TimelineTask {
-                name,
-                start_day: start_date
-                    .as_deref()
-                    .and_then(parse_iso_date_day)
-                    .unwrap_or(0),
-                duration_days: duration_days.unwrap_or(1).max(1),
-                resources,
-            }),
+            } => {
+                let workload_days = duration_days.unwrap_or(1).max(1);
+                let resource_allocations = parse_timeline_resource_allocations(&resources);
+                let duration_days =
+                    resource_adjusted_work_days(workload_days, &resource_allocations);
+                tasks.push(TimelineTask {
+                    name,
+                    start_day: start_date
+                        .as_deref()
+                        .and_then(parse_iso_date_day)
+                        .unwrap_or(0),
+                    workload_days,
+                    duration_days,
+                    resources,
+                    resource_allocations,
+                    baseline_start_day: None,
+                    baseline_duration_days: None,
+                    is_critical: false,
+                })
+            }
             StatementKind::GanttMilestoneDecl { name, happens_on } => {
                 if let Some(target) = &happens_on {
                     constraints.push(TimelineConstraint {
@@ -1139,7 +1153,11 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                         target: target.clone(),
                     });
                 }
-                milestones.push(TimelineMilestone { name, happens_on })
+                milestones.push(TimelineMilestone {
+                    name,
+                    happens_on,
+                    is_critical: false,
+                })
             }
             StatementKind::GanttConstraint {
                 subject,
@@ -1161,6 +1179,9 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                     closed_weekdays.push(day);
                 }
             }
+            StatementKind::GanttCalendarOpen { day } => {
+                closed_weekdays.retain(|closed| closed != &day);
+            }
             StatementKind::GanttCalendarClosedDateRange {
                 start_date,
                 end_date,
@@ -1178,6 +1199,31 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                         existing.start_day == start_day && existing.end_day == end_day
                     }) {
                         closed_ranges.push(TimelineClosedRange {
+                            start_date,
+                            end_date,
+                            start_day,
+                            end_day,
+                        });
+                    }
+                }
+            }
+            StatementKind::GanttCalendarOpenDateRange {
+                start_date,
+                end_date,
+            } => {
+                if let (Some(start_day), Some(end_day)) = (
+                    parse_iso_date_day(&start_date),
+                    parse_iso_date_day(&end_date),
+                ) {
+                    let (start_date, end_date, start_day, end_day) = if start_day <= end_day {
+                        (start_date, end_date, start_day, end_day)
+                    } else {
+                        (end_date, start_date, end_day, start_day)
+                    };
+                    if !open_ranges.iter().any(|existing: &TimelineOpenRange| {
+                        existing.start_day == start_day && existing.end_day == end_day
+                    }) {
+                        open_ranges.push(TimelineOpenRange {
                             start_date,
                             end_date,
                             start_day,
@@ -1244,19 +1290,39 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             if task.start_day == 0 {
                 task.start_day = cursor;
             }
+            task.duration_days = timeline_scheduled_span_for_task(
+                task,
+                &closed_weekdays,
+                &closed_ranges,
+                &open_ranges,
+            );
             let task_end = task.start_day.saturating_add(task.duration_days);
             if task_end > cursor {
                 cursor = task_end;
             }
         }
-        apply_gantt_task_reference_constraints(&mut tasks, &constraints);
+        apply_gantt_task_metadata(&mut tasks, &mut milestones, &constraints);
+        apply_gantt_task_reference_constraints(
+            &mut tasks,
+            &constraints,
+            &closed_weekdays,
+            &closed_ranges,
+            &open_ranges,
+        );
         for task in &mut tasks {
-            task.duration_days = scheduled_gantt_span_days(
-                task.start_day,
-                task.duration_days,
+            task.duration_days = timeline_scheduled_span_for_task(
+                task,
                 &closed_weekdays,
                 &closed_ranges,
+                &open_ranges,
             );
+        }
+        if constraints.iter().any(|c| {
+            c.subject.eq_ignore_ascii_case("Project")
+                && (c.kind.eq_ignore_ascii_case("criticalPath")
+                    || c.kind.eq_ignore_ascii_case("critical_path"))
+        }) {
+            mark_inferred_gantt_critical_path(&mut tasks, &constraints);
         }
     }
 
@@ -1268,6 +1334,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         chronology_events,
         closed_weekdays,
         closed_ranges,
+        open_ranges,
         scale,
         project_start,
         project_start_day,
@@ -1306,6 +1373,7 @@ fn scheduled_gantt_span_days(
     work_days: u32,
     closed_weekdays: &[String],
     closed_ranges: &[TimelineClosedRange],
+    open_ranges: &[TimelineOpenRange],
 ) -> u32 {
     if closed_weekdays.is_empty() && closed_ranges.is_empty() {
         return work_days.max(1);
@@ -1314,7 +1382,7 @@ fn scheduled_gantt_span_days(
     let mut remaining = work_days.max(1);
     let mut span = 0u32;
     while remaining > 0 {
-        if !is_gantt_closed_day(day, closed_weekdays, closed_ranges) {
+        if !is_gantt_closed_day(day, closed_weekdays, closed_ranges, open_ranges) {
             remaining -= 1;
         }
         day = day.saturating_add(1);
@@ -1329,11 +1397,15 @@ fn scheduled_gantt_span_days(
 fn apply_gantt_task_reference_constraints(
     tasks: &mut [TimelineTask],
     constraints: &[TimelineConstraint],
+    closed_weekdays: &[String],
+    closed_ranges: &[TimelineClosedRange],
+    open_ranges: &[TimelineOpenRange],
 ) {
     for _ in 0..tasks.len().max(1) {
         let mut changed = false;
         for constraint in constraints {
-            if !constraint.kind.eq_ignore_ascii_case("starts") {
+            let kind = constraint.kind.to_ascii_lowercase();
+            if !matches!(kind.as_str(), "starts" | "ends" | "requires") {
                 continue;
             }
             let Some(subject_idx) = tasks.iter().position(|t| t.name == constraint.subject) else {
@@ -1346,13 +1418,26 @@ fn apply_gantt_task_reference_constraints(
             let Some(target) = tasks.iter().find(|t| t.name == target_name) else {
                 continue;
             };
-            let next_start = match endpoint {
+            let target_day = match endpoint {
                 "start" => target.start_day,
                 "end" => target.start_day.saturating_add(target.duration_days),
                 _ => continue,
             };
+            let next_start = if kind == "ends" {
+                target_day.saturating_sub(tasks[subject_idx].duration_days)
+            } else if kind == "requires" {
+                tasks[subject_idx].start_day.max(target_day)
+            } else {
+                target_day
+            };
             if tasks[subject_idx].start_day != next_start {
                 tasks[subject_idx].start_day = next_start;
+                tasks[subject_idx].duration_days = timeline_scheduled_span_for_task(
+                    &tasks[subject_idx],
+                    closed_weekdays,
+                    closed_ranges,
+                    open_ranges,
+                );
                 changed = true;
             }
         }
@@ -1390,11 +1475,206 @@ fn is_gantt_closed_day(
     day: u32,
     closed_weekdays: &[String],
     closed_ranges: &[TimelineClosedRange],
+    open_ranges: &[TimelineOpenRange],
 ) -> bool {
+    if open_ranges
+        .iter()
+        .any(|range| (range.start_day..=range.end_day).contains(&day))
+    {
+        return false;
+    }
     is_gantt_closed_weekday(day, closed_weekdays)
         || closed_ranges
             .iter()
             .any(|range| (range.start_day..=range.end_day).contains(&day))
+}
+
+fn parse_timeline_resource_allocations(resources: &[String]) -> Vec<TimelineResourceAllocation> {
+    resources
+        .iter()
+        .map(|resource| {
+            let trimmed = resource.trim();
+            let (name, load_percent) = if let Some((name, load)) = trimmed.rsplit_once(':') {
+                (name.trim(), parse_load_percent(load))
+            } else {
+                (trimmed, None)
+            };
+            TimelineResourceAllocation {
+                name: if name.is_empty() {
+                    trimmed.to_string()
+                } else {
+                    name.to_string()
+                },
+                load_percent,
+            }
+        })
+        .collect()
+}
+
+fn parse_load_percent(raw: &str) -> Option<u32> {
+    let value = raw.trim().trim_end_matches('%').trim();
+    value.parse::<u32>().ok().map(|n| n.clamp(1, 1000))
+}
+
+fn resource_adjusted_work_days(
+    workload_days: u32,
+    allocations: &[TimelineResourceAllocation],
+) -> u32 {
+    let workload_days = workload_days.max(1);
+    if allocations.is_empty() {
+        return workload_days;
+    }
+    let total_load: u32 = allocations
+        .iter()
+        .map(|allocation| allocation.load_percent.unwrap_or(100).max(1))
+        .sum();
+    if total_load >= 100 {
+        workload_days
+    } else {
+        workload_days
+            .saturating_mul(100)
+            .div_ceil(total_load)
+            .max(1)
+    }
+}
+
+fn timeline_scheduled_span_for_task(
+    task: &TimelineTask,
+    closed_weekdays: &[String],
+    closed_ranges: &[TimelineClosedRange],
+    open_ranges: &[TimelineOpenRange],
+) -> u32 {
+    scheduled_gantt_span_days(
+        task.start_day,
+        resource_adjusted_work_days(task.workload_days, &task.resource_allocations),
+        closed_weekdays,
+        closed_ranges,
+        open_ranges,
+    )
+}
+
+fn apply_gantt_task_metadata(
+    tasks: &mut [TimelineTask],
+    milestones: &mut [TimelineMilestone],
+    constraints: &[TimelineConstraint],
+) {
+    for constraint in constraints {
+        if constraint.kind.eq_ignore_ascii_case("critical") {
+            if let Some(task) = tasks
+                .iter_mut()
+                .find(|task| task.name == constraint.subject)
+            {
+                task.is_critical = true;
+            }
+            if let Some(milestone) = milestones
+                .iter_mut()
+                .find(|milestone| milestone.name == constraint.subject)
+            {
+                milestone.is_critical = true;
+            }
+        }
+        if constraint.kind.eq_ignore_ascii_case("baseline") {
+            let Some((start_day, duration_days)) = parse_gantt_baseline_target(&constraint.target)
+            else {
+                continue;
+            };
+            if let Some(task) = tasks
+                .iter_mut()
+                .find(|task| task.name == constraint.subject)
+            {
+                task.baseline_start_day = Some(start_day);
+                task.baseline_duration_days = Some(duration_days);
+            }
+        }
+    }
+}
+
+fn parse_gantt_baseline_target(target: &str) -> Option<(u32, u32)> {
+    let trimmed = target.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some((start, end)) = lower.find(" to ").and_then(|idx| {
+        let start = trimmed[..idx].trim();
+        let end = trimmed[idx + " to ".len()..].trim();
+        Some((parse_iso_date_day(start)?, parse_iso_date_day(end)?))
+    }) {
+        return Some((start, end.saturating_sub(start).saturating_add(1).max(1)));
+    }
+    let (idx, marker_len) = lower
+        .find(" and lasts ")
+        .map(|idx| (idx, " and lasts ".len()))
+        .or_else(|| {
+            lower
+                .find(" and requires ")
+                .map(|idx| (idx, " and requires ".len()))
+        })?;
+    let start_clause = trimmed[..idx]
+        .trim()
+        .strip_prefix("starts ")
+        .map(str::trim)
+        .unwrap_or(trimmed[..idx].trim());
+    let start_day = parse_iso_date_day(start_clause.strip_prefix("at ").unwrap_or(start_clause))?;
+    let duration_days = parse_timeline_duration_days(&trimmed[idx + marker_len..])?;
+    Some((start_day, duration_days))
+}
+
+fn parse_timeline_duration_days(raw: &str) -> Option<u32> {
+    let clause = raw
+        .trim()
+        .strip_prefix("lasts ")
+        .or_else(|| raw.trim().strip_prefix("requires "))
+        .map(str::trim)
+        .unwrap_or(raw.trim());
+    let mut total = 0u32;
+    let mut parts = clause.split_whitespace().peekable();
+    while parts.peek().is_some() {
+        if parts.peek().copied() == Some("and") {
+            parts.next();
+            continue;
+        }
+        let n = parts.next()?.parse::<u32>().ok()?;
+        let unit = parts.next()?.to_ascii_lowercase();
+        let days = match unit.as_str() {
+            "day" | "days" => n,
+            "week" | "weeks" => n.saturating_mul(7),
+            _ => return None,
+        };
+        total = total.saturating_add(days);
+    }
+    (total > 0).then_some(total)
+}
+
+fn mark_inferred_gantt_critical_path(
+    tasks: &mut [TimelineTask],
+    constraints: &[TimelineConstraint],
+) {
+    let Some(latest_end) = tasks
+        .iter()
+        .map(|task| task.start_day.saturating_add(task.duration_days))
+        .max()
+    else {
+        return;
+    };
+    let mut stack: Vec<String> = tasks
+        .iter()
+        .filter(|task| task.start_day.saturating_add(task.duration_days) == latest_end)
+        .map(|task| task.name.clone())
+        .collect();
+    while let Some(name) = stack.pop() {
+        let Some(task) = tasks.iter_mut().find(|task| task.name == name) else {
+            continue;
+        };
+        if task.is_critical {
+            continue;
+        }
+        task.is_critical = true;
+        for dependency in constraints.iter().filter(|constraint| {
+            constraint.subject == name && constraint.kind.eq_ignore_ascii_case("requires")
+        }) {
+            if let Some((target, _)) = parse_gantt_task_reference(&dependency.target) {
+                stack.push(target);
+            }
+        }
+    }
 }
 
 fn is_gantt_closed_weekday(day: u32, closed_weekdays: &[String]) -> bool {
@@ -2128,18 +2408,20 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     ))
                     .with_span(stmt.span));
                 }
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
                         kind: FamilyNodeKind::Class,
                         name: decl.name,
                         alias: decl.alias,
-                        members: decl.members,
+                        members,
                         depth: 0,
                         label: None,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
-                        fill_color: None,
+                        fill_color,
                     },
                 );
             }
@@ -2155,18 +2437,20 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
                 let (clean_alias, c4_kind) = extract_c4_stereotype(decl.alias);
                 let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
                         kind: resolved_kind,
                         name: decl.name,
                         alias: clean_alias,
-                        members: decl.members,
+                        members,
                         depth: 0,
                         label: None,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
-                        fill_color: None,
+                        fill_color,
                     },
                 );
             }
@@ -2178,18 +2462,20 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     ))
                     .with_span(stmt.span));
                 }
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
                         kind: FamilyNodeKind::UseCase,
                         name: decl.name,
                         alias: decl.alias,
-                        members: decl.members,
+                        members,
                         depth: 0,
                         label: None,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
-                        fill_color: None,
+                        fill_color,
                     },
                 );
             }
@@ -2226,7 +2512,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 for member_id in &members {
                     let mut parts = member_id.split('\t');
                     let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
-                    let encoded_members = parts
+                    let mut encoded_members = parts
                         .map(|text| ClassMember {
                             text: text.to_string(),
                             modifier: None,
@@ -2252,6 +2538,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                             true
                         })
                         .collect::<Vec<_>>();
+                    let fill_color = extract_family_node_fill_color(&mut encoded_members);
                     group_member_ids.push(node_id.clone());
                     let already_exists = nodes.iter().any(|n: &FamilyNode| {
                         n.name == node_id || n.alias.as_deref() == Some(node_id.as_str())
@@ -2271,7 +2558,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                             label: None,
                             mindmap_side: MindMapSide::Right,
                             wbs_checkbox: None,
-                            fill_color: None,
+                            fill_color,
                         });
                     }
                 }
@@ -2446,10 +2733,27 @@ fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {
         if existing.alias.is_none() {
             existing.alias = node.alias.take();
         }
+        if existing.fill_color.is_none() {
+            existing.fill_color = node.fill_color.take();
+        }
         existing.members.append(&mut node.members);
         return;
     }
     nodes.push(node);
+}
+
+fn extract_family_node_fill_color(members: &mut Vec<ClassMember>) -> Option<String> {
+    let mut fill_color = None;
+    members.retain(|member| {
+        let Some(color) = member.text.strip_prefix("\x1fstyle:fill:") else {
+            return true;
+        };
+        if fill_color.is_none() {
+            fill_color = Some(color.trim().to_string());
+        }
+        false
+    });
+    fill_color
 }
 
 fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
@@ -3243,9 +3547,10 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 name,
                 alias,
                 label,
-                members,
+                mut members,
             } => {
                 let node_kind = component_node_kind(kind);
+                let fill_color = extract_family_node_fill_color(&mut members);
                 nodes.push(FamilyNode {
                     kind: node_kind,
                     name,
@@ -3255,7 +3560,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     label,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
-                    fill_color: None,
+                    fill_color,
                 });
             }
             StatementKind::StateDecl(decl) => nodes.push(FamilyNode {
@@ -3411,6 +3716,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
                     let display_label = parts.next().map(str::to_string);
                     let node_kind_hint = parts.next();
+                    let fill_color = parts
+                        .find_map(|part| part.strip_prefix("\x1fstyle:fill:").map(str::to_string));
                     let unscoped_alias = node_id
                         .rsplit("::")
                         .next()
@@ -3440,7 +3747,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                             label: display_label.map(strip_inline_stereotypes),
                             mindmap_side: MindMapSide::Right,
                             wbs_checkbox: None,
-                            fill_color: None,
+                            fill_color,
                         });
                     }
                 }
@@ -4520,7 +4827,9 @@ pub fn normalize_with_options(
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
             | StatementKind::GanttCalendarClosed { .. }
+            | StatementKind::GanttCalendarOpen { .. }
             | StatementKind::GanttCalendarClosedDateRange { .. }
+            | StatementKind::GanttCalendarOpenDateRange { .. }
             | StatementKind::ChronologyHappensOn { .. }
             | StatementKind::ComponentDecl { .. }
             | StatementKind::ActivityStep(_)

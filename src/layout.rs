@@ -140,6 +140,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 );
                 let label = autonumber.apply(label.clone());
                 let label_lines = message_label_lines(label.as_deref(), x1, x2, &options);
+                let has_label_lines = !label_lines.is_empty();
                 let row_units = (label_lines.len() as i32).max(1);
                 messages.push(MessageLine {
                     from_id: from.clone(),
@@ -154,7 +155,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     from_virtual: *from_virtual,
                     to_virtual: *to_virtual,
                 });
-                if !is_parallel {
+                if !is_parallel || has_label_lines {
                     event_rows += row_units;
                 }
             }
@@ -740,7 +741,10 @@ fn note_horizontal_bounds(
         } else if position.eq_ignore_ascii_case("right") {
             max_right + 12
         } else if bounds.len() > 1 {
-            min_left
+            return (
+                min_left.max(options.margin),
+                width.max(max_right - min_left),
+            );
         } else {
             mid_center - (width / 2)
         }

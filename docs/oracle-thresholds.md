@@ -17,10 +17,11 @@ Normal `cargo test`, `cargo run`, and rendering paths do not need Java and do
 not download or execute a JAR.
 
 For Java-free audits, `scripts/differential_oracle_smoke.py --dry-run` emits the
-same fixture manifest and expected comparison categories without executing the
-local renderer, PlantUML, Java, or any JAR. This makes partial PlantUML gaps
-visible as fixture-backed expected drift categories before an optional external
-oracle is available.
+same fixture manifest, expected comparison categories, ranked top drift
+categories, and next-ticket hints without executing the local renderer,
+PlantUML, Java, or any JAR. This makes partial PlantUML gaps visible as
+fixture-backed expected drift categories before an optional external oracle is
+available.
 
 Each fixture is placed into exactly one category:
 
@@ -40,7 +41,7 @@ gap; it does not enable a fallback renderer.
 
 `scripts/differential_oracle_smoke.py --dry-run` writes
 `docs/benchmarks/oracle_smoke_latest.json` by default, or a custom path via
-`--output`. Schema `1.1.0` adds `classification` metadata to every fixture:
+`--output`. Schema `1.2.0` adds `classification` metadata to every fixture:
 
 ```json
 {
@@ -49,7 +50,9 @@ gap; it does not enable a fallback renderer.
     "category": "family-partial",
     "support_status": "partial",
     "expected_oracle_category": "drift",
+    "drift_area": "Salt widget breadth",
     "drift_reason": "Salt widget breadth is intentionally narrower than the Java PlantUML reference",
+    "next_ticket": "Expand Salt widget/layout parity around form controls, menus, tables, and style propagation.",
     "plantuml_reference": "https://plantuml.com/salt"
   },
   "local": { "attempted": false },
@@ -64,9 +67,15 @@ The dry-run summary includes:
 - `by_fixture_category` — deterministic fixture category counts.
 - `by_support_status` — implemented vs partial fixture counts.
 - `by_expected_oracle_category` — expected `match`, `drift`, `jar-only`, `puml-only`, or `both-fail` counts.
+- `top_expected_drift_categories` — ranked fixture categories excluding expected matches.
+- `top_expected_drift_areas` — ranked implementation areas excluding expected matches, with representative fixtures and next-ticket hints.
 
 The report also states `comparison_only: true`, `runtime_dependency: false`,
 `build_dependency: false`, and `normal_cargo_test_uses_oracle: false`.
+Dry-run `generated_at_utc` is pinned to `1970-01-01T00:00:00Z` and `tool.cwd`
+is reported as `repo-root` so the checked-in artifact is deterministic.
+Optional live oracle runs keep a real UTC timestamp and absolute working
+directory for debugging.
 
 ## Metrics
 
@@ -224,7 +233,7 @@ python3 ./scripts/differential_oracle_smoke.py --dry-run --output target/oracle-
 
 This command is suitable for normal Rust development environments because it
 does not execute Java, does not require `plantuml.jar`, and does not invoke
-`cargo run`.
+`cargo run`. It is the preferred always-available oracle-p0 artifact path.
 
 ## CI integration
 

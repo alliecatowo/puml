@@ -174,3 +174,26 @@ palette #111827 #f97316 #22c55e
     assert!(svg.contains("fill=\"#f97316\""));
     assert!(svg.contains("fill=\"#22c55e\""));
 }
+
+#[test]
+fn chart_pie_named_series_arrays_use_axis_categories() {
+    let src = "@startchart
+pie chart
+palette #111827 #f97316 #22c55e
+h-axis [Alpha,Beta,Gamma]
+pie \"Share\" [40,35,25]
+legend off
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("pie series array chart should render");
+    assert!(svg.contains("data-chart-type=\"pie\""));
+    assert!(svg.contains("data-chart-series=\"Share\""));
+    assert!(svg.contains("Alpha"));
+    assert!(svg.contains("Beta"));
+    assert!(svg.contains("Gamma"));
+    assert!(svg.contains("fill=\"#111827\""));
+    assert!(svg.contains("fill=\"#f97316\""));
+    assert!(svg.contains("fill=\"#22c55e\""));
+}

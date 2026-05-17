@@ -5,7 +5,10 @@ printscale weekly
 saturdays are closed
 sundays are closed
 2026-05-06 is closed
-[Design] on {Alice} requires 2 days
-[Build] on {Bob, Cara} starts 2026-05-05 and requires 1 week
+2026-05-09 is open
+[Design] on {Alice:50%} requires 2 days
+[Build] on {Bob:75%, Cara} starts 2026-05-05 and requires 1 week
+[Design] baseline starts 2026-05-01 and lasts 2 days
+[Build] is critical
 [Release] happens on [Build]'s end
 @endgantt

@@ -3,7 +3,12 @@ Project starts 2026-05-01
 printscale weekly
 saturdays are closed
 sundays are closed
-[Build] on {Alice, Bob} requires 2 days
+2026-05-02 is open
+[Design] on {Alice:50%} requires 2 days
+[Build] on {Bob:75%, Cara} requires 3 days
+[Build] requires [Design]
+[Design] baseline starts 2026-05-01 and lasts 2 days
+[Build] is critical
 @endgantt
 
 @startchart

@@ -81,3 +81,45 @@ Rel_Triggering_Right(service, j1, "branches", "dashed")
     assert!(svg.contains("flow direction=down style=#2563eb"));
     assert!(svg.contains("triggering direction=right style=dashed"));
 }
+
+#[test]
+fn mindmap_left_right_side_and_color_metadata_render() {
+    let src = r##"@startmindmap
+*[#fef3c7] Platform
+left side
+**[#fecaca] Risks
+*** Mitigation
+right side
+**[#bbf7d0] Delivery
+*** Ship
+@endmindmap
+"##;
+    let svg = puml::render_source_to_svg(src).expect("mindmap render");
+
+    assert!(svg.contains("class=\"mindmap-node mindmap-root\""));
+    assert!(svg.contains("data-mindmap-side=\"left\""));
+    assert!(svg.contains("data-mindmap-side=\"right\""));
+    assert!(svg.contains("data-mindmap-depth=\"2\""));
+    assert!(svg.contains("#fef3c7"));
+    assert!(svg.contains("#fecaca"));
+    assert!(svg.contains("#bbf7d0"));
+}
+
+#[test]
+fn wbs_checkbox_progress_and_orientation_metadata_render() {
+    let src = r##"@startwbs
+left to right direction
+* Project
+** Build [x]
+** Verify [%60]
+** Release [ ]
+@endwbs
+"##;
+    let svg = puml::render_source_to_svg(src).expect("wbs render");
+
+    assert!(svg.contains("data-wbs-orientation=\"left-to-right\""));
+    assert!(svg.contains("class=\"wbs-node\""));
+    assert!(svg.contains("data-wbs-checkbox=\"checked\""));
+    assert!(svg.contains("data-wbs-checkbox=\"progress\" data-wbs-progress=\"60\""));
+    assert!(svg.contains("data-wbs-checkbox=\"unchecked\""));
+}

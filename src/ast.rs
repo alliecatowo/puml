@@ -75,7 +75,14 @@ pub enum StatementKind {
     GanttCalendarClosed {
         day: String,
     },
+    GanttCalendarOpen {
+        day: String,
+    },
     GanttCalendarClosedDateRange {
+        start_date: String,
+        end_date: String,
+    },
+    GanttCalendarOpenDateRange {
         start_date: String,
         end_date: String,
     },

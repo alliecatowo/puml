@@ -6,11 +6,12 @@ use crate::model::{
     JsonDocument, LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument,
     ParticipantRole, RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind,
     StateDocument, StateNode, StateNodeKind, TimelineChronologyEvent, TimelineDocument,
-    TimelineTask, VirtualEndpointKind, WbsCheckbox, YamlDocument,
+    TimelineMilestone, TimelineTask, VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
 use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
 use crate::theme::css3_color_to_hex;
 use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle, MessageAlign};
+use std::collections::BTreeMap;
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
 
@@ -208,6 +209,7 @@ pub fn render_svg(scene: &Scene) -> String {
         .message_line_color
         .as_deref()
         .unwrap_or(scene.style.arrow_color.as_str());
+    let mut parallel_label_lanes: BTreeMap<i32, i32> = BTreeMap::new();
     for m in &scene.messages {
         let stroke_color = m
             .style
@@ -281,8 +283,16 @@ pub fn render_svg(scene: &Scene) -> String {
         if !m.label_lines.is_empty() {
             let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
             let below = scene.style.response_message_below_arrow && m.arrow.starts_with('<');
+            let lane_offset = if m.style.parallel || below {
+                let lane = parallel_label_lanes.entry(m.y).or_insert(0);
+                let offset = *lane * MESSAGE_LABEL_LINE_GAP;
+                *lane += (m.label_lines.len() as i32).max(1);
+                offset
+            } else {
+                0
+            };
             let start_y = if m.style.parallel || below {
-                m.y + 16
+                m.y + 16 + lane_offset
             } else {
                 m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
             };
@@ -2590,7 +2600,10 @@ fn render_class_node(
         return;
     }
 
-    let fill = &class_style.background_color;
+    let fill = node
+        .fill_color
+        .as_deref()
+        .unwrap_or(&class_style.background_color);
     let stroke = &class_style.border_color;
     let header_fill = match node.kind {
         FamilyNodeKind::Class => class_style.header_color.as_str(),
@@ -3249,8 +3262,9 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .as_deref()
         .map(|t| 8 + (t.lines().count() as i32) * 22)
         .unwrap_or(0);
-    let has_calendar_notes =
-        !document.closed_weekdays.is_empty() || !document.closed_ranges.is_empty();
+    let has_calendar_notes = !document.closed_weekdays.is_empty()
+        || !document.closed_ranges.is_empty()
+        || !document.open_ranges.is_empty();
     let calendar_h = if !has_calendar_notes { 0 } else { 18 };
     let scale_h = if document.scale.is_some() { 18 } else { 0 };
 
@@ -3310,9 +3324,32 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 format!("{} to {}", range.start_date, range.end_date)
             }
         }));
-        let label = labels.join("; ");
+        let mut label = if labels.is_empty() {
+            String::new()
+        } else {
+            format!("closed {}", labels.join("; "))
+        };
+        if !document.open_ranges.is_empty() {
+            let open_label = document
+                .open_ranges
+                .iter()
+                .map(|range| {
+                    if range.start_date == range.end_date {
+                        range.start_date.clone()
+                    } else {
+                        format!("{} to {}", range.start_date, range.end_date)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            if label.is_empty() {
+                label = format!("open {open_label}");
+            } else {
+                label.push_str(&format!("; open {open_label}"));
+            }
+        }
         out.push_str(&format!(
-            "<text class=\"gantt-calendar\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#92400e\">Calendar: closed {label}</text>",
+            "<text class=\"gantt-calendar\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#92400e\">Calendar: {label}</text>",
             x = margin_x,
             y = 42 + title_h,
             label = escape_text(&label)
@@ -3350,13 +3387,16 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         row_counter += 1;
     }
 
-    let task_end_day: std::collections::BTreeMap<&str, u32> = document
+    let task_bounds: std::collections::BTreeMap<&str, (u32, u32)> = document
         .tasks
         .iter()
         .map(|t| {
             (
                 t.name.as_str(),
-                t.start_day.saturating_add(t.duration_days.max(1)),
+                (
+                    t.start_day,
+                    t.start_day.saturating_add(t.duration_days.max(1)),
+                ),
             )
         })
         .collect();
@@ -3373,7 +3413,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         if let Some(day) = ms
             .happens_on
             .as_deref()
-            .and_then(|target| resolve_gantt_milestone_day(target, milestone_anchor, &task_end_day))
+            .and_then(|target| resolve_gantt_milestone_day(target, milestone_anchor, &task_bounds))
         {
             milestone_day.insert(ms.name.as_str(), day);
             continue;
@@ -3383,7 +3423,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 continue;
             }
             if let Some(day) =
-                resolve_gantt_milestone_day(&c.target, milestone_anchor, &task_end_day)
+                resolve_gantt_milestone_day(&c.target, milestone_anchor, &task_bounds)
             {
                 milestone_day.insert(ms.name.as_str(), day);
                 break;
@@ -3422,14 +3462,8 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .max()
         .unwrap_or(min_day.saturating_add(1));
     let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
-    let tick_count = match document.scale.as_deref() {
-        Some("weekly") => total_days.div_ceil(7).clamp(1, 8),
-        Some("monthly") => total_days.div_ceil(30).clamp(1, 8),
-        Some("quarterly") => total_days.div_ceil(90).clamp(1, 8),
-        Some("yearly") => total_days.div_ceil(365).clamp(1, 8),
-        _ => total_days.clamp(1, 8),
-    };
     let date_axis = document.project_start_day.is_some() || min_day > 366;
+    let tick_offsets = gantt_tick_offsets(total_days, document.scale.as_deref());
 
     // Axis header bar
     out.push_str(&format!(
@@ -3439,8 +3473,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         w = chart_w,
         h = header_h
     ));
-    for i in 0..=tick_count {
-        let day_offset = i.saturating_mul(total_days) / tick_count;
+    for day_offset in tick_offsets {
         let x = chart_left + ((chart_w as u32 * day_offset) / total_days) as i32;
         out.push_str(&format!(
             "<line x1=\"{x}\" y1=\"{y1}\" x2=\"{x}\" y2=\"{y2}\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>",
@@ -3448,13 +3481,19 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             y2 = chart_top + chart_h
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{label}</text>",
-            tx = x + 6,
-            ty = chart_top - 10,
-            label = escape_text(&format_gantt_axis_label(
+            "<text class=\"gantt-scale-tick\" data-gantt-tick-day=\"{day}\" x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{label}</text>",
+            day = escape_text(&format_gantt_axis_label(
                 min_day.saturating_add(day_offset),
                 min_day,
-                date_axis
+                true
+            )),
+            tx = x + 6,
+            ty = chart_top - 10,
+            label = escape_text(&format_gantt_scale_axis_label(
+                min_day.saturating_add(day_offset),
+                min_day,
+                date_axis,
+                document.scale.as_deref()
             ))
         ));
     }
@@ -3479,6 +3518,25 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let w = (day_to_x(end) - x).max(2);
         out.push_str(&format!(
             "<rect class=\"gantt-closed-range\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#fef3c7\" opacity=\"0.7\"/>",
+            y = chart_top,
+            h = chart_h
+        ));
+    }
+    for range in &document.open_ranges {
+        if range.end_day < min_day || range.start_day > max_day_exclusive {
+            continue;
+        }
+        let start = range.start_day.max(min_day);
+        let end = range.end_day.saturating_add(1).min(max_day_exclusive);
+        let x = day_to_x(start);
+        let w = (day_to_x(end) - x).max(2);
+        out.push_str(&format!(
+            "<rect class=\"gantt-open-range\" data-gantt-open=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#dcfce7\" opacity=\"0.62\"/>",
+            escape_text(&format!(
+                "{} to {}",
+                format_gantt_axis_label(start, min_day, true),
+                format_gantt_axis_label(end.saturating_sub(1), min_day, true)
+            )),
             y = chart_top,
             h = chart_h
         ));
@@ -3554,11 +3612,44 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             txt = escape_text(&task.name)
         ));
         let (bx, bw) = bar_geom(task);
+        if let (Some(base_start), Some(base_duration)) =
+            (task.baseline_start_day, task.baseline_duration_days)
+        {
+            let base_offset = base_start.saturating_sub(min_day);
+            let base_x = chart_left + ((chart_w as u32 * base_offset) / total_days) as i32;
+            let base_w = (((chart_w as u32) * base_duration.max(1)) / total_days).max(8) as i32;
+            out.push_str(&format!(
+                "<rect class=\"gantt-baseline\" data-gantt-baseline-start=\"{}\" data-gantt-baseline-duration=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"4\" rx=\"2\" ry=\"2\" fill=\"#64748b\" opacity=\"0.88\"/>",
+                escape_text(&format_gantt_axis_label(base_start, min_day, true)),
+                base_duration,
+                x = base_x,
+                y = y + bar_height + 3,
+                w = base_w
+            ));
+        }
+        let resource_load = format_resource_load_metadata(task);
+        let critical_class = if task.is_critical {
+            " gantt-critical"
+        } else {
+            ""
+        };
+        let fill = if task.is_critical {
+            "#ef4444"
+        } else {
+            "#3b82f6"
+        };
+        let stroke = if task.is_critical {
+            "#991b1b"
+        } else {
+            "#1e40af"
+        };
         out.push_str(&format!(
-            "<rect class=\"gantt-task\" data-gantt-start=\"{}\" data-gantt-duration=\"{}\" data-gantt-resources=\"{}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1\"/>",
+            "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{}\" data-gantt-workload=\"{}\" data-gantt-duration=\"{}\" data-gantt-resources=\"{}\" data-gantt-load=\"{}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
             escape_text(&format_gantt_axis_label(task.start_day, min_day, date_axis)),
+            task.workload_days,
             task.duration_days,
             escape_text(&task.resources.join(", ")),
+            escape_text(&resource_load),
             bh = bar_height
         ));
         if !task.resources.is_empty() {
@@ -3572,7 +3663,8 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                     w = pill_w
                 ));
                 out.push_str(&format!(
-                    "<text class=\"gantt-resource\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"9\" fill=\"#1e40af\">{txt}</text>",
+                    "<text class=\"gantt-resource\" data-gantt-load=\"{load}\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"9\" fill=\"#1e40af\">{txt}</text>",
+                    load = escape_text(&resource_load),
                     x = bx + 10,
                     y = y + 14,
                     txt = escape_text(&resource_label)
@@ -3604,7 +3696,10 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             .unwrap_or(chart_left + chart_w / 2);
         let r = (bar_height / 2) - 2;
         out.push_str(&format!(
-            "<polygon points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"#facc15\" stroke=\"#854d0e\" stroke-width=\"1.5\"/>",
+            "<polygon class=\"gantt-milestone{}\" points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            if milestone.is_critical { " gantt-critical" } else { "" },
+            if milestone.is_critical { "#fb7185" } else { "#facc15" },
+            if milestone.is_critical { "#9f1239" } else { "#854d0e" },
             x1 = cx,
             y1 = cy - r,
             x2 = cx + r,
@@ -3627,24 +3722,54 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         // We render row-to-row arrows for `requires`-style constraints.
         // The parser includes the keyword in `target` (e.g. "requires [Design]");
         // try to extract a bracketed target name.
-        let normalized_target = extract_bracketed_name(&constraint.target)
-            .unwrap_or_else(|| constraint.target.trim().to_string());
+        let Some((normalized_target, target_endpoint)) =
+            parse_gantt_render_reference(&constraint.target)
+        else {
+            continue;
+        };
         let to_row = row_index.get(&normalized_target).copied();
         if let Some(to_row) = to_row {
-            let from_y = chart_top + from_row * (bar_height + row_gap) + row_gap / 2 + bar_height;
-            let to_y = chart_top + to_row * (bar_height + row_gap) + row_gap / 2;
+            let subject_endpoint = match constraint.kind.to_ascii_lowercase().as_str() {
+                "ends" => "end",
+                _ => "start",
+            };
+            let subject_y =
+                chart_top + from_row * (bar_height + row_gap) + row_gap / 2 + bar_height / 2;
+            let target_y =
+                chart_top + to_row * (bar_height + row_gap) + row_gap / 2 + bar_height / 2;
             let from_task = document.tasks.iter().find(|t| t.name == constraint.subject);
             let to_task = document.tasks.iter().find(|t| t.name == normalized_target);
-            let (fx, fw) = from_task.map(bar_geom).unwrap_or((chart_left, 0));
-            let (tx, tw) = to_task
-                .map(bar_geom)
-                .unwrap_or((chart_left + chart_w / 2, 0));
-            let x1 = fx + fw / 2;
-            let x2 = tx + tw / 2;
-            let y1 = from_y;
-            let y2 = to_y;
+            let x2 = timeline_entity_x(
+                from_task,
+                document
+                    .milestones
+                    .iter()
+                    .find(|milestone| milestone.name == constraint.subject),
+                &milestone_day,
+                subject_endpoint,
+                &bar_geom,
+                &day_to_x,
+                chart_left,
+            );
+            let x1 = timeline_entity_x(
+                to_task,
+                document
+                    .milestones
+                    .iter()
+                    .find(|milestone| milestone.name == normalized_target),
+                &milestone_day,
+                target_endpoint,
+                &bar_geom,
+                &day_to_x,
+                chart_left + chart_w / 2,
+            );
+            let y1 = target_y;
+            let y2 = subject_y;
             out.push_str(&format!(
-                "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#64748b\" stroke-width=\"1.25\" stroke-dasharray=\"4 3\" marker-end=\"url(#gantt-arrow)\"/>",
+                "<line class=\"gantt-dependency gantt-dependency-{}\" data-gantt-from=\"{}\" data-gantt-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#64748b\" stroke-width=\"1.25\" stroke-dasharray=\"4 3\" marker-end=\"url(#gantt-arrow)\"/>",
+                escape_text(&constraint.kind),
+                escape_text(&normalized_target),
+                escape_text(&constraint.subject)
             ));
         }
     }
@@ -3701,6 +3826,20 @@ fn resource_lane_label(task: &TimelineTask) -> String {
     }
 }
 
+fn format_resource_load_metadata(task: &TimelineTask) -> String {
+    if task.resource_allocations.is_empty() {
+        return String::new();
+    }
+    task.resource_allocations
+        .iter()
+        .map(|allocation| match allocation.load_percent {
+            Some(load) => format!("{}:{load}%", allocation.name),
+            None => allocation.name.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn title_case_ascii(raw: &str) -> String {
     let mut chars = raw.chars();
     let Some(first) = chars.next() else {
@@ -3721,11 +3860,11 @@ fn parse_relative_day(raw: &str) -> Option<u32> {
 fn resolve_gantt_milestone_day(
     target: &str,
     anchor_day: u32,
-    task_end_day: &std::collections::BTreeMap<&str, u32>,
+    task_bounds: &std::collections::BTreeMap<&str, (u32, u32)>,
 ) -> Option<u32> {
-    if let Some(task_name) = extract_bracketed_name(target) {
-        if let Some(day) = task_end_day.get(task_name.as_str()) {
-            return Some(*day);
+    if let Some((task_name, endpoint)) = parse_gantt_render_reference(target) {
+        if let Some((start, end)) = task_bounds.get(task_name.as_str()) {
+            return Some(if endpoint == "start" { *start } else { *end });
         }
     }
     if let Some(day) = parse_relative_day(target) {
@@ -3734,12 +3873,121 @@ fn resolve_gantt_milestone_day(
     parse_iso_date_day_number(target)
 }
 
+fn parse_gantt_render_reference(target: &str) -> Option<(String, &'static str)> {
+    let name = extract_bracketed_name(target)?;
+    let lower = target.to_ascii_lowercase();
+    let endpoint = if lower.contains("'s start") || lower.contains(" start") {
+        "start"
+    } else {
+        "end"
+    };
+    Some((name, endpoint))
+}
+
+fn timeline_entity_x(
+    task: Option<&TimelineTask>,
+    milestone: Option<&TimelineMilestone>,
+    milestone_day: &std::collections::BTreeMap<&str, u32>,
+    endpoint: &str,
+    bar_geom: &impl Fn(&TimelineTask) -> (i32, i32),
+    day_to_x: &impl Fn(u32) -> i32,
+    fallback: i32,
+) -> i32 {
+    if let Some(task) = task {
+        let (x, w) = bar_geom(task);
+        return if endpoint == "start" { x } else { x + w };
+    }
+    if let Some(milestone) = milestone {
+        if let Some(day) = milestone_day.get(milestone.name.as_str()) {
+            return day_to_x(*day);
+        }
+    }
+    fallback
+}
+
+fn gantt_tick_offsets(total_days: u32, scale: Option<&str>) -> Vec<u32> {
+    let step = match scale {
+        Some("weekly") => 7,
+        Some("monthly") => 30,
+        Some("quarterly") => 90,
+        Some("yearly") => 365,
+        _ => 1,
+    };
+    let mut offsets = Vec::new();
+    let mut offset = 0u32;
+    while offset < total_days {
+        offsets.push(offset);
+        offset = offset.saturating_add(step);
+        if offsets.len() >= 8 && offset < total_days {
+            let remaining = total_days.saturating_sub(offset).max(1);
+            offset = offset.saturating_add(remaining.div_ceil(8));
+        }
+    }
+    if offsets.last().copied() != Some(total_days) {
+        offsets.push(total_days);
+    }
+    offsets
+}
+
 fn format_gantt_axis_label(day: u32, min_day: u32, date_axis: bool) -> String {
     if date_axis {
         day_number_to_iso(day).unwrap_or_else(|| format!("D+{}", day.saturating_sub(min_day)))
     } else {
         format!("D+{}", day.saturating_sub(min_day))
     }
+}
+
+fn format_gantt_scale_axis_label(
+    day: u32,
+    min_day: u32,
+    date_axis: bool,
+    scale: Option<&str>,
+) -> String {
+    if !date_axis {
+        return format_gantt_axis_label(day, min_day, false);
+    }
+    let Some(iso) = day_number_to_iso(day) else {
+        return format_gantt_axis_label(day, min_day, true);
+    };
+    match scale {
+        Some("weekly") => format!("Wk {iso}"),
+        Some("monthly") => iso
+            .get(0..7)
+            .map(format_month_label)
+            .unwrap_or_else(|| iso.clone()),
+        Some("quarterly") => format_quarter_label(&iso).unwrap_or_else(|| iso.clone()),
+        Some("yearly") => iso.get(0..4).unwrap_or(&iso).to_string(),
+        _ => iso,
+    }
+}
+
+fn format_month_label(year_month: &str) -> String {
+    let Some((year, month)) = year_month.split_once('-') else {
+        return year_month.to_string();
+    };
+    let month = match month {
+        "01" => "Jan",
+        "02" => "Feb",
+        "03" => "Mar",
+        "04" => "Apr",
+        "05" => "May",
+        "06" => "Jun",
+        "07" => "Jul",
+        "08" => "Aug",
+        "09" => "Sep",
+        "10" => "Oct",
+        "11" => "Nov",
+        "12" => "Dec",
+        _ => return year_month.to_string(),
+    };
+    format!("{month} {year}")
+}
+
+fn format_quarter_label(iso: &str) -> Option<String> {
+    let year = iso.get(0..4)?;
+    let month = iso.get(5..7)?.parse::<u32>().ok()?;
+    let quarter = month.saturating_sub(1) / 3 + 1;
+    Some(format!("Q{quarter} {year}"))
 }
 
 fn is_gantt_closed_weekday_number(day: u32, closed_weekdays: &[String]) -> bool {
@@ -4438,16 +4686,18 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
             ));
         }
         FamilyNodeKind::Folder | FamilyNodeKind::Package => {
+            let fill = node.fill_color.as_deref().unwrap_or("#fef3c7");
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"60\" height=\"14\" fill=\"#fef3c7\" stroke=\"#92400e\" stroke-width=\"1\"/>",
-                x, y
+                "<rect x=\"{}\" y=\"{}\" width=\"60\" height=\"14\" fill=\"{}\" stroke=\"#92400e\" stroke-width=\"1\"/>",
+                x, y, fill
             ));
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#fef3c7\" stroke=\"#92400e\" stroke-width=\"1\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#92400e\" stroke-width=\"1\"/>",
                 x,
                 y + 14,
                 w,
-                h - 14
+                h - 14,
+                fill
             ));
         }
         FamilyNodeKind::Storage => {
@@ -4710,37 +4960,49 @@ fn render_family_node_shape_styled(
     match node.kind {
         FamilyNodeKind::Interface => {
             let r = 18;
+            let fill = node
+                .fill_color
+                .as_deref()
+                .unwrap_or(&comp_style.interface_color);
             out.push_str(&format!(
                 "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                cx, cy, r, comp_style.interface_color, comp_style.border_color
+                cx, cy, r, fill, comp_style.border_color
             ));
         }
         FamilyNodeKind::Port => {
             let pw = 24;
             let ph = 24;
+            let fill = node
+                .fill_color
+                .as_deref()
+                .unwrap_or(&comp_style.interface_color);
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 cx - pw / 2,
                 cy - ph / 2,
                 pw,
                 ph,
-                comp_style.interface_color,
+                fill,
                 comp_style.border_color
             ));
         }
         FamilyNodeKind::Component => {
+            let fill = node
+                .fill_color
+                .as_deref()
+                .unwrap_or(&comp_style.background_color);
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x, y, w, h, comp_style.background_color, comp_style.border_color
+                x, y, w, h, fill, comp_style.border_color
             ));
             // component badges (two small rectangles on the left edge)
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x - 4, y + 12, comp_style.background_color, comp_style.border_color
+                x - 4, y + 12, fill, comp_style.border_color
             ));
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x - 4, y + h - 20, comp_style.background_color, comp_style.border_color
+                x - 4, y + h - 20, fill, comp_style.border_color
             ));
         }
         _ => {
@@ -6736,14 +6998,17 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
         ChartSubtype::Line => {
             render_chart_line(&mut out, document, &series, &categories, plot, style)
         }
-        ChartSubtype::Pie => render_chart_pie(
-            document,
-            &mut out,
-            &document.data,
-            width / 2,
-            (plot_top + plot_bottom) / 2,
-            style,
-        ),
+        ChartSubtype::Pie => {
+            let points = effective_chart_points(document, &series, &categories);
+            render_chart_pie(
+                document,
+                &mut out,
+                &points,
+                width / 2,
+                (plot_top + plot_bottom) / 2,
+                style,
+            )
+        }
     }
     render_chart_annotations(&mut out, document, plot);
     render_chart_caption(&mut out, document, width, height);
@@ -7260,6 +7525,31 @@ fn effective_chart_categories(
     }
     let count = series.iter().map(|s| s.values.len()).max().unwrap_or(0);
     (1..=count).map(|idx| idx.to_string()).collect()
+}
+
+fn effective_chart_points(
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+    categories: &[String],
+) -> Vec<crate::model::ChartPoint> {
+    if !document.data.is_empty() {
+        return document.data.clone();
+    }
+    let Some(first_series) = series.first() else {
+        return Vec::new();
+    };
+    first_series
+        .values
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| crate::model::ChartPoint {
+            label: categories
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| (idx + 1).to_string()),
+            value: *value,
+        })
+        .collect()
 }
 
 fn chart_value_range(document: &ChartDocument, series: &[crate::model::ChartSeries]) -> (f64, f64) {
@@ -8151,7 +8441,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     let rx = root_cx - root_w / 2;
     let ry = root_cy - NODE_H / 2;
     out.push_str(&format!(
-        "<rect x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
+        "<rect class=\"mindmap-node mindmap-root\" data-mindmap-depth=\"0\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
         rx = rx, ry = ry, rw = root_w, h = NODE_H,
         fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
     ));
@@ -8290,7 +8580,8 @@ fn draw_mindmap_subtree(
     // Connection line from parent
     let node_attach_x = if is_left { nx + nw } else { nx };
     out.push_str(&format!(
-        "<line x1=\"{px}\" y1=\"{py}\" x2=\"{ax}\" y2=\"{ny}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+        "<line class=\"mindmap-edge\" data-mindmap-side=\"{side}\" x1=\"{px}\" y1=\"{py}\" x2=\"{ax}\" y2=\"{ny}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+        side = if is_left { "left" } else { "right" },
         px = parent_attach_x,
         py = parent_attach_y,
         ax = node_attach_x,
@@ -8299,7 +8590,9 @@ fn draw_mindmap_subtree(
 
     // Node rectangle (rounded, pastel by depth)
     out.push_str(&format!(
-        "<rect x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+        "<rect class=\"mindmap-node\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+        depth = node.depth,
+        side = if is_left { "left" } else { "right" },
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
         fill = escape_text(family_node_fill(node, mindmap_node_fill(node.depth)))
     ));
@@ -8491,7 +8784,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-wbs-orientation=\"{orientation}\">",
         w = canvas_w,
         h = canvas_h,
-        orientation = doc.orientation.as_str()
+        orientation = wbs_orientation_attr(doc.orientation)
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
@@ -8580,9 +8873,24 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         } else {
             "#64748b"
         };
+        let checkbox_attr = match &node.wbs_checkbox {
+            Some(WbsCheckbox::Checked) => " data-wbs-checkbox=\"checked\"".to_string(),
+            Some(WbsCheckbox::Unchecked) => " data-wbs-checkbox=\"unchecked\"".to_string(),
+            Some(WbsCheckbox::Progress(pct)) => {
+                format!(" data-wbs-checkbox=\"progress\" data-wbs-progress=\"{pct}\"")
+            }
+            None => String::new(),
+        };
         out.push_str(&format!(
-            "<rect x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-            nx = nx, ny = ny, nw = nw, nh = NODE_H, fill = fill, stroke = stroke
+            "<rect class=\"wbs-node\" data-wbs-depth=\"{depth}\"{checkbox_attr} x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            depth = node.depth,
+            checkbox_attr = checkbox_attr,
+            nx = nx,
+            ny = ny,
+            nw = nw,
+            nh = NODE_H,
+            fill = escape_text(fill),
+            stroke = stroke
         ));
 
         // Render checkbox annotation if present.
@@ -8682,4 +8990,13 @@ fn wbs_empty_svg(doc: &FamilyDocument) -> String {
     out.push_str("<text x=\"12\" y=\"52\" font-family=\"monospace\" font-size=\"12\" fill=\"#64748b\">(empty wbs)</text>");
     out.push_str("</svg>");
     out
+}
+
+fn wbs_orientation_attr(orientation: FamilyOrientation) -> &'static str {
+    match orientation {
+        FamilyOrientation::TopToBottom => "top-to-bottom",
+        FamilyOrientation::LeftToRight => "left-to-right",
+        FamilyOrientation::BottomToTop => "bottom-to-top",
+        FamilyOrientation::RightToLeft => "right-to-left",
+    }
 }

@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
+DRY_RUN_GENERATED_AT_UTC = "1970-01-01T00:00:00Z"
 DEFAULT_OUTPUT = ROOT / "docs" / "benchmarks" / "oracle_smoke_latest.json"
 SVG_TAG_RE = re.compile(r"<\s*([a-zA-Z][a-zA-Z0-9:_-]*)\b")
 VIEWBOX_RE = re.compile(r'viewBox\s*=\s*"([^"]+)"', re.IGNORECASE)
@@ -25,7 +26,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "sequence-core",
         "support_status": "implemented",
         "expected_oracle_category": "match",
+        "drift_area": "sequence render baseline",
         "drift_reason": "baseline sequence render should stay close to the reference SVG shape",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
         "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["Alice", "Bob", "hello"],
     },
@@ -34,7 +37,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "sequence-core",
         "support_status": "implemented",
         "expected_oracle_category": "match",
+        "drift_area": "participant aliases",
         "drift_reason": "participant aliases are part of the implemented sequence subset",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
         "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["User", "API", "request"],
     },
@@ -43,7 +48,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "sequence-fragments",
         "support_status": "implemented",
         "expected_oracle_category": "match",
+        "drift_area": "sequence fragments",
         "drift_reason": "fragment labels and branch text should survive both renderers",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
         "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["ref", "else"],
     },
@@ -52,7 +59,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "sequence-notes",
         "support_status": "implemented",
         "expected_oracle_category": "match",
+        "drift_area": "sequence notes",
         "drift_reason": "multiline notes are supported but remain useful text-presence sentinels",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
         "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["note"],
     },
@@ -61,7 +70,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "styling-partial",
         "support_status": "partial",
         "expected_oracle_category": "drift",
+        "drift_area": "unsupported skinparam styling",
         "drift_reason": "unsupported skinparam keys are accepted as deterministic warnings rather than full PlantUML styling",
+        "next_ticket": "Implement a prioritized skinparam compatibility slice or promote unsupported keys to explicit parity-gap rows.",
         "plantuml_reference": "https://plantuml.com/skinparam",
         "expect_tokens": ["Alice", "Bob"],
     },
@@ -70,7 +81,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "preprocessor-advanced",
         "support_status": "partial",
         "expected_oracle_category": "jar-only",
+        "drift_area": "dynamic preprocessor invocation",
         "drift_reason": "dynamic invocation remains outside the deterministic preprocessor subset",
+        "next_ticket": "Add a deterministic dynamic invocation subset for %invoke_procedure/%call_user_func or keep rejecting with a narrower fixture expectation.",
         "plantuml_reference": "https://plantuml.com/preprocessing",
         "expect_tokens": [],
     },
@@ -79,7 +92,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "family-partial",
         "support_status": "partial",
         "expected_oracle_category": "drift",
+        "drift_area": "Salt widget breadth",
         "drift_reason": "Salt widget breadth is intentionally narrower than the Java PlantUML reference",
+        "next_ticket": "Expand Salt widget/layout parity around form controls, menus, tables, and style propagation.",
         "plantuml_reference": "https://plantuml.com/salt",
         "expect_tokens": ["Login"],
     },
@@ -88,7 +103,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "family-partial",
         "support_status": "partial",
         "expected_oracle_category": "drift",
+        "drift_area": "chart axis legend style",
         "drift_reason": "chart axis, legend, and style semantics remain fixture-backed partial parity",
+        "next_ticket": "Close chart axis, legend positioning, palette, and style semantics against PlantUML reference output.",
         "plantuml_reference": "https://plantuml.com/chart-diagram",
         "expect_tokens": [],
     },
@@ -97,7 +114,9 @@ FIXTURES: List[Dict[str, Any]] = [
         "category": "family-partial",
         "support_status": "partial",
         "expected_oracle_category": "drift",
+        "drift_area": "mindmap orientation layout",
         "drift_reason": "mindmap orientation metadata is deterministic but not full PlantUML layout parity",
+        "next_ticket": "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement.",
         "plantuml_reference": "https://plantuml.com/mindmap-diagram",
         "expect_tokens": [],
     },
@@ -188,7 +207,9 @@ def classification_for(fixture: Dict[str, Any]) -> Dict[str, Any]:
         "category": fixture["category"],
         "support_status": fixture["support_status"],
         "expected_oracle_category": fixture["expected_oracle_category"],
+        "drift_area": fixture["drift_area"],
         "drift_reason": fixture["drift_reason"],
+        "next_ticket": fixture["next_ticket"],
         "plantuml_reference": fixture["plantuml_reference"],
     }
 
@@ -199,6 +220,81 @@ def count_by(fixtures: List[Dict[str, Any]], field: str) -> Dict[str, int]:
         value = str(row["classification"][field])
         counts[value] = counts.get(value, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def top_expected_drift_groups(
+    fixtures: List[Dict[str, Any]], field: str
+) -> List[Dict[str, Any]]:
+    groups: Dict[str, Dict[str, Any]] = {}
+    for row in fixtures:
+        classification = row["classification"]
+        expected = str(classification["expected_oracle_category"])
+        if expected == "match":
+            continue
+
+        value = str(classification[field])
+        group = groups.setdefault(
+            value,
+            {
+                field: value,
+                "fixture_count": 0,
+                "expected_oracle_categories": {},
+                "support_statuses": {},
+                "representative_fixtures": [],
+                "drift_reasons": [],
+                "next_tickets": [],
+                "plantuml_references": [],
+            },
+        )
+        group["fixture_count"] += 1
+        group["expected_oracle_categories"][expected] = (
+            group["expected_oracle_categories"].get(expected, 0) + 1
+        )
+        support_status = str(classification["support_status"])
+        group["support_statuses"][support_status] = (
+            group["support_statuses"].get(support_status, 0) + 1
+        )
+        for key, value_to_append in [
+            ("representative_fixtures", row["fixture"]),
+            ("drift_reasons", classification["drift_reason"]),
+            ("next_tickets", classification["next_ticket"]),
+            ("plantuml_references", classification["plantuml_reference"]),
+        ]:
+            if value_to_append not in group[key]:
+                group[key].append(value_to_append)
+
+    ordered = sorted(
+        groups.values(),
+        key=lambda group: (-group["fixture_count"], str(group[field])),
+    )
+    for group in ordered:
+        group["expected_oracle_categories"] = dict(
+            sorted(group["expected_oracle_categories"].items())
+        )
+        group["support_statuses"] = dict(sorted(group["support_statuses"].items()))
+        for key in [
+            "representative_fixtures",
+            "drift_reasons",
+            "next_tickets",
+            "plantuml_references",
+        ]:
+            group[key] = sorted(group[key])
+    return ordered
+
+
+def generated_at_utc(dry_run: bool) -> str:
+    if dry_run:
+        return DRY_RUN_GENERATED_AT_UTC
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def report_cwd(dry_run: bool) -> str:
+    return "repo-root" if dry_run else str(ROOT)
 
 
 def evaluate_fixture(fixture: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
@@ -313,14 +409,11 @@ def main() -> int:
 
     report = {
         "schema_version": SCHEMA_VERSION,
-        "generated_at_utc": datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z"),
+        "generated_at_utc": generated_at_utc(args.dry),
         "tool": {
             "name": "puml",
             "runner": "cargo run --quiet -- -",
-            "cwd": str(ROOT),
+            "cwd": report_cwd(args.dry),
             "quick_mode": args.quick,
             "dry_run": args.dry,
         },
@@ -349,6 +442,12 @@ def main() -> int:
             "by_fixture_category": count_by(fixtures, "category"),
             "by_support_status": count_by(fixtures, "support_status"),
             "by_expected_oracle_category": count_by(fixtures, "expected_oracle_category"),
+            "top_expected_drift_categories": top_expected_drift_groups(
+                fixtures, "category"
+            ),
+            "top_expected_drift_areas": top_expected_drift_groups(
+                fixtures, "drift_area"
+            ),
         },
         "fixtures": fixtures,
     }

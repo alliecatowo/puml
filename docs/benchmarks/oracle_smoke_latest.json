@@ -1,0 +1,574 @@
+{
+  "schema_version": "1.2.0",
+  "generated_at_utc": "1970-01-01T00:00:00Z",
+  "tool": {
+    "name": "puml",
+    "runner": "cargo run --quiet -- -",
+    "cwd": "repo-root",
+    "quick_mode": false,
+    "dry_run": true
+  },
+  "oracle": {
+    "interface_version": "1",
+    "mode": "metadata-dry-run",
+    "enabled": false,
+    "command": "plantuml -tsvg -pipe",
+    "comparison_only": true,
+    "runtime_dependency": false,
+    "build_dependency": false,
+    "normal_cargo_test_uses_oracle": false,
+    "deterministic_controls": [
+      "fixed fixture corpus ordering",
+      "fixture-backed expected oracle categories",
+      "exact token-presence checks",
+      "viewBox presence checks",
+      "structured JSON report schema"
+    ]
+  },
+  "summary": {
+    "total": 9,
+    "passed": 0,
+    "failed": 0,
+    "not_run": 9,
+    "by_fixture_category": {
+      "family-partial": 3,
+      "preprocessor-advanced": 1,
+      "sequence-core": 2,
+      "sequence-fragments": 1,
+      "sequence-notes": 1,
+      "styling-partial": 1
+    },
+    "by_support_status": {
+      "implemented": 4,
+      "partial": 5
+    },
+    "by_expected_oracle_category": {
+      "drift": 4,
+      "jar-only": 1,
+      "match": 4
+    },
+    "top_expected_drift_categories": [
+      {
+        "category": "family-partial",
+        "fixture_count": 3,
+        "expected_oracle_categories": {
+          "drift": 3
+        },
+        "support_statuses": {
+          "partial": 3
+        },
+        "representative_fixtures": [
+          "families/valid_chart_bar_quarterly.puml",
+          "families/valid_mindmap_orientation.puml",
+          "families/valid_salt_login_form.puml"
+        ],
+        "drift_reasons": [
+          "Salt widget breadth is intentionally narrower than the Java PlantUML reference",
+          "chart axis, legend, and style semantics remain fixture-backed partial parity",
+          "mindmap orientation metadata is deterministic but not full PlantUML layout parity"
+        ],
+        "next_tickets": [
+          "Close chart axis, legend positioning, palette, and style semantics against PlantUML reference output.",
+          "Expand Salt widget/layout parity around form controls, menus, tables, and style propagation.",
+          "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/chart-diagram",
+          "https://plantuml.com/mindmap-diagram",
+          "https://plantuml.com/salt"
+        ]
+      },
+      {
+        "category": "preprocessor-advanced",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "jar-only": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "errors/invalid_preproc_dynamic_invoke.puml"
+        ],
+        "drift_reasons": [
+          "dynamic invocation remains outside the deterministic preprocessor subset"
+        ],
+        "next_tickets": [
+          "Add a deterministic dynamic invocation subset for %invoke_procedure/%call_user_func or keep rejecting with a narrower fixture expectation."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/preprocessing"
+        ]
+      },
+      {
+        "category": "styling-partial",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "drift": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "styling/valid_skinparam_unsupported.puml"
+        ],
+        "drift_reasons": [
+          "unsupported skinparam keys are accepted as deterministic warnings rather than full PlantUML styling"
+        ],
+        "next_tickets": [
+          "Implement a prioritized skinparam compatibility slice or promote unsupported keys to explicit parity-gap rows."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/skinparam"
+        ]
+      }
+    ],
+    "top_expected_drift_areas": [
+      {
+        "drift_area": "Salt widget breadth",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "drift": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "families/valid_salt_login_form.puml"
+        ],
+        "drift_reasons": [
+          "Salt widget breadth is intentionally narrower than the Java PlantUML reference"
+        ],
+        "next_tickets": [
+          "Expand Salt widget/layout parity around form controls, menus, tables, and style propagation."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/salt"
+        ]
+      },
+      {
+        "drift_area": "chart axis legend style",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "drift": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "families/valid_chart_bar_quarterly.puml"
+        ],
+        "drift_reasons": [
+          "chart axis, legend, and style semantics remain fixture-backed partial parity"
+        ],
+        "next_tickets": [
+          "Close chart axis, legend positioning, palette, and style semantics against PlantUML reference output."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/chart-diagram"
+        ]
+      },
+      {
+        "drift_area": "dynamic preprocessor invocation",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "jar-only": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "errors/invalid_preproc_dynamic_invoke.puml"
+        ],
+        "drift_reasons": [
+          "dynamic invocation remains outside the deterministic preprocessor subset"
+        ],
+        "next_tickets": [
+          "Add a deterministic dynamic invocation subset for %invoke_procedure/%call_user_func or keep rejecting with a narrower fixture expectation."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/preprocessing"
+        ]
+      },
+      {
+        "drift_area": "mindmap orientation layout",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "drift": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "families/valid_mindmap_orientation.puml"
+        ],
+        "drift_reasons": [
+          "mindmap orientation metadata is deterministic but not full PlantUML layout parity"
+        ],
+        "next_tickets": [
+          "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/mindmap-diagram"
+        ]
+      },
+      {
+        "drift_area": "unsupported skinparam styling",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "drift": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "styling/valid_skinparam_unsupported.puml"
+        ],
+        "drift_reasons": [
+          "unsupported skinparam keys are accepted as deterministic warnings rather than full PlantUML styling"
+        ],
+        "next_tickets": [
+          "Implement a prioritized skinparam compatibility slice or promote unsupported keys to explicit parity-gap rows."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/skinparam"
+        ]
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "fixture": "basic/hello.puml",
+      "classification": {
+        "category": "sequence-core",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "sequence render baseline",
+        "drift_reason": "baseline sequence render should stay close to the reference SVG shape",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "participants/valid_aliases.puml",
+      "classification": {
+        "category": "sequence-core",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "participant aliases",
+        "drift_reason": "participant aliases are part of the implemented sequence subset",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "groups/valid_ref_and_else_rendering.puml",
+      "classification": {
+        "category": "sequence-fragments",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "sequence fragments",
+        "drift_reason": "fragment labels and branch text should survive both renderers",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "notes/valid_multiline_blocks.puml",
+      "classification": {
+        "category": "sequence-notes",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "sequence notes",
+        "drift_reason": "multiline notes are supported but remain useful text-presence sentinels",
+        "next_ticket": "Keep as a match sentinel; no implementation ticket while it remains green.",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "styling/valid_skinparam_unsupported.puml",
+      "classification": {
+        "category": "styling-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "unsupported skinparam styling",
+        "drift_reason": "unsupported skinparam keys are accepted as deterministic warnings rather than full PlantUML styling",
+        "next_ticket": "Implement a prioritized skinparam compatibility slice or promote unsupported keys to explicit parity-gap rows.",
+        "plantuml_reference": "https://plantuml.com/skinparam"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "errors/invalid_preproc_dynamic_invoke.puml",
+      "classification": {
+        "category": "preprocessor-advanced",
+        "support_status": "partial",
+        "expected_oracle_category": "jar-only",
+        "drift_area": "dynamic preprocessor invocation",
+        "drift_reason": "dynamic invocation remains outside the deterministic preprocessor subset",
+        "next_ticket": "Add a deterministic dynamic invocation subset for %invoke_procedure/%call_user_func or keep rejecting with a narrower fixture expectation.",
+        "plantuml_reference": "https://plantuml.com/preprocessing"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "families/valid_salt_login_form.puml",
+      "classification": {
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "Salt widget breadth",
+        "drift_reason": "Salt widget breadth is intentionally narrower than the Java PlantUML reference",
+        "next_ticket": "Expand Salt widget/layout parity around form controls, menus, tables, and style propagation.",
+        "plantuml_reference": "https://plantuml.com/salt"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "families/valid_chart_bar_quarterly.puml",
+      "classification": {
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "chart axis legend style",
+        "drift_reason": "chart axis, legend, and style semantics remain fixture-backed partial parity",
+        "next_ticket": "Close chart axis, legend positioning, palette, and style semantics against PlantUML reference output.",
+        "plantuml_reference": "https://plantuml.com/chart-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "families/valid_mindmap_orientation.puml",
+      "classification": {
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "mindmap orientation layout",
+        "drift_reason": "mindmap orientation metadata is deterministic but not full PlantUML layout parity",
+        "next_ticket": "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement.",
+        "plantuml_reference": "https://plantuml.com/mindmap-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    }
+  ]
+}

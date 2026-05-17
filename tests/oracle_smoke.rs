@@ -237,9 +237,11 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
 
     assert_eq!(
         v["schema_version"].as_str(),
-        Some("1.1.0"),
+        Some("1.2.0"),
         "dry-run schema version should capture fixture category metadata"
     );
+    assert_eq!(v["generated_at_utc"].as_str(), Some("1970-01-01T00:00:00Z"));
+    assert_eq!(v["tool"]["cwd"].as_str(), Some("repo-root"));
     assert_eq!(v["tool"]["dry_run"].as_bool(), Some(true));
     assert_eq!(v["oracle"]["enabled"].as_bool(), Some(false));
     assert_eq!(v["oracle"]["comparison_only"].as_bool(), Some(true));
@@ -268,6 +270,33 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
             >= 1,
         "expected unsupported advanced preprocessor gap to be fixture-backed"
     );
+    let top_categories = v["summary"]["top_expected_drift_categories"]
+        .as_array()
+        .expect("dry-run report should rank expected drift categories");
+    assert!(
+        top_categories.iter().any(|category| {
+            category["category"].as_str() == Some("family-partial")
+                && category["fixture_count"].as_u64().unwrap_or(0) >= 3
+        }),
+        "expected family partials to rank as a top drift category"
+    );
+    let top_areas = v["summary"]["top_expected_drift_areas"]
+        .as_array()
+        .expect("dry-run report should rank expected drift areas");
+    for expected_area in [
+        "Salt widget breadth",
+        "chart axis legend style",
+        "dynamic preprocessor invocation",
+        "mindmap orientation layout",
+        "unsupported skinparam styling",
+    ] {
+        assert!(
+            top_areas
+                .iter()
+                .any(|area| area["drift_area"].as_str() == Some(expected_area)),
+            "expected drift area should be listed in dry-run top drift areas: {expected_area}"
+        );
+    }
 
     let fixtures = v["fixtures"]
         .as_array()
