@@ -1,0 +1,1706 @@
+use super::*;
+
+pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
+    let family_kind = document.kind;
+    let node_kind = match family_kind {
+        DiagramKind::Class => FamilyNodeKind::Class,
+        DiagramKind::Object => FamilyNodeKind::Object,
+        DiagramKind::UseCase => FamilyNodeKind::UseCase,
+        DiagramKind::Salt => FamilyNodeKind::Salt,
+        _ => {
+            return Err(Diagnostic::error(
+                "[E_FAMILY_STUB_INTERNAL] invalid family for stub normalization",
+            ));
+        }
+    };
+
+    let mut nodes = Vec::new();
+    let mut relations = Vec::new();
+    let mut groups = Vec::new();
+    let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
+    let mut hide_options = std::collections::BTreeSet::new();
+    let mut namespace_separator: Option<String> = None;
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+    let mut class_style = ClassStyle::default();
+    let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut note_counter: usize = 0;
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::SkinParam { key, value } => {
+                if family_kind == DiagramKind::Salt {
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::Salt,
+                        name: format!("SALT_ROW\x1fL:saltstyle {key} {value}"),
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                    continue;
+                }
+                match classify_class_skinparam(&key, &value) {
+                    SkinParamSupport::SupportedNoop => {}
+                    SkinParamSupport::SupportedWithValue(v) => {
+                        use crate::theme::ClassSkinParamValue;
+                        match v {
+                            ClassSkinParamValue::BackgroundColor(c) => {
+                                class_style.background_color = c;
+                            }
+                            ClassSkinParamValue::BorderColor(c) => {
+                                class_style.border_color = c;
+                            }
+                            ClassSkinParamValue::HeaderBackgroundColor(c) => {
+                                class_style.header_color = c;
+                            }
+                            ClassSkinParamValue::MemberFontColor(c) => {
+                                class_style.member_color = c;
+                            }
+                            ClassSkinParamValue::FontColor(c) => {
+                                class_style.font_color = c;
+                            }
+                            ClassSkinParamValue::ArrowColor(c) => {
+                                class_style.arrow_color = c;
+                            }
+                            ClassSkinParamValue::FontSize(n) => {
+                                class_style.font_size = Some(n);
+                            }
+                            ClassSkinParamValue::FontName(n) => {
+                                class_style.font_name = Some(n);
+                            }
+                        }
+                    }
+                    SkinParamSupport::UnsupportedKey => {
+                        // Class diagrams accept generic sequence keys silently
+                        // (PlantUML applies them across all families).
+                        use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport};
+                        if !matches!(
+                            classify_sequence_skinparam(&key, &value),
+                            SequenceSkinParamSupport::UnsupportedKey
+                        ) {
+                            // Recognized sequence key — no warning.
+                        } else {
+                            warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                                    key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                    SkinParamSupport::UnsupportedValue => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                }
+            }
+            StatementKind::JsonProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "json".to_string(),
+                });
+            }
+            StatementKind::YamlProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "yaml".to_string(),
+                });
+            }
+            StatementKind::ClassDecl(decl) => {
+                if node_kind != FamilyNodeKind::Class {
+                    return Err(Diagnostic::error(format!(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported: found class declaration in {} diagram",
+                        family_kind_name(family_kind)
+                    ))
+                    .with_span(stmt.span));
+                }
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::Class,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color,
+                    },
+                );
+            }
+            StatementKind::ObjectDecl(decl) => {
+                if node_kind != FamilyNodeKind::Object {
+                    return Err(Diagnostic::error(format!(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported: found object declaration in {} diagram",
+                        family_kind_name(family_kind)
+                    ))
+                    .with_span(stmt.span));
+                }
+                // Detect and strip C4 stereotypes embedded in the alias
+                // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
+                let (clean_alias, c4_kind) = sequence::extract_c4_stereotype(decl.alias);
+                let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: resolved_kind,
+                        name: decl.name,
+                        alias: clean_alias,
+                        members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color,
+                    },
+                );
+            }
+            StatementKind::UseCaseDecl(decl) => {
+                if node_kind != FamilyNodeKind::UseCase {
+                    return Err(Diagnostic::error(format!(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported: found usecase declaration in {} diagram",
+                        family_kind_name(family_kind)
+                    ))
+                    .with_span(stmt.span));
+                }
+                let mut members = decl.members;
+                let fill_color = extract_family_node_fill_color(&mut members);
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::UseCase,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color,
+                    },
+                );
+            }
+            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
+                from: rel.from,
+                to: rel.to,
+                arrow: rel.arrow,
+                label: rel.label,
+                stereotype: rel.stereotype,
+                left_cardinality: rel.left_cardinality,
+                right_cardinality: rel.right_cardinality,
+                left_role: rel.left_role,
+                right_role: rel.right_role,
+                line_color: rel.line_color,
+                dashed: rel.dashed,
+                hidden: rel.hidden,
+                thickness: rel.thickness,
+                direction: rel.direction,
+                left_lollipop: rel.left_lollipop,
+                right_lollipop: rel.right_lollipop,
+            }),
+            StatementKind::Note(note) => {
+                note_counter += 1;
+                nodes.push(family_note_node(note_counter, note));
+            }
+            StatementKind::ClassGroup {
+                kind,
+                label,
+                members,
+                relations: group_relations,
+            } => {
+                // Auto-create nodes for members declared inside a package/namespace block
+                // if they haven't already been declared as top-level statements.
+                let mut group_member_ids = Vec::with_capacity(members.len());
+                for member_id in &members {
+                    let mut parts = member_id.split('\t');
+                    let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
+                    let mut encoded_members = parts
+                        .map(|text| ClassMember {
+                            text: text.to_string(),
+                            modifier: None,
+                        })
+                        .filter(|member| {
+                            let trimmed = member.text.trim();
+                            if hide_options.contains("stereotype")
+                                && trimmed.starts_with("<<")
+                                && trimmed.ends_with(">>")
+                            {
+                                return false;
+                            }
+                            if hide_options.contains("circle") && trimmed == "()" {
+                                return false;
+                            }
+                            if (hide_options.contains("empty members")
+                                || hide_options.contains("empty methods")
+                                || hide_options.contains("empty fields"))
+                                && (trimmed.is_empty() || trimmed == "--" || trimmed == "..")
+                            {
+                                return false;
+                            }
+                            true
+                        })
+                        .collect::<Vec<_>>();
+                    let fill_color = extract_family_node_fill_color(&mut encoded_members);
+                    group_member_ids.push(node_id.clone());
+                    let already_exists = nodes.iter().any(|n: &FamilyNode| {
+                        n.name == node_id || n.alias.as_deref() == Some(node_id.as_str())
+                    });
+                    if !already_exists {
+                        let nk = match node_kind {
+                            FamilyNodeKind::Object => FamilyNodeKind::Object,
+                            FamilyNodeKind::UseCase => FamilyNodeKind::UseCase,
+                            _ => FamilyNodeKind::Class,
+                        };
+                        nodes.push(FamilyNode {
+                            kind: nk,
+                            name: node_id,
+                            alias: None,
+                            members: encoded_members,
+                            depth: 0,
+                            label: None,
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
+                            fill_color,
+                        });
+                    }
+                }
+                groups.push(FamilyGroup {
+                    kind,
+                    label,
+                    member_ids: group_member_ids,
+                });
+                for rel in group_relations {
+                    relations.push(ModelFamilyRelation {
+                        from: rel.from,
+                        to: rel.to,
+                        arrow: rel.arrow,
+                        label: rel.label,
+                        stereotype: rel.stereotype,
+                        left_cardinality: rel.left_cardinality,
+                        right_cardinality: rel.right_cardinality,
+                        left_role: rel.left_role,
+                        right_role: rel.right_role,
+                        line_color: rel.line_color,
+                        dashed: rel.dashed,
+                        hidden: rel.hidden,
+                        thickness: rel.thickness,
+                        direction: rel.direction,
+                        left_lollipop: rel.left_lollipop,
+                        right_lollipop: rel.right_lollipop,
+                    });
+                }
+            }
+            StatementKind::SetOption { key, value } => {
+                if key.eq_ignore_ascii_case("namespaceSeparator") {
+                    namespace_separator = Some(value);
+                }
+            }
+            StatementKind::HideOption(opt) => {
+                hide_options.insert(opt.to_ascii_lowercase());
+            }
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::Theme(value) => {
+                class_style = class_style_from_sequence_theme(
+                    &resolve_sequence_theme_preset(&value)
+                        .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                        .style,
+                );
+            }
+            StatementKind::Pragma(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_) => {}
+            StatementKind::SaltGridRow { cells } => {
+                if family_kind != DiagramKind::Salt {
+                    return Err(Diagnostic::error(
+                        "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
+                    )
+                    .with_span(stmt.span));
+                }
+                // Encode the cells into the name field using a special separator
+                // so the renderer can reconstruct the grid row.
+                use crate::ast::SaltCell as SC;
+                let cell_strs: Vec<String> = cells
+                    .into_iter()
+                    .map(|c| match c {
+                        SC::Label(t) => format!("L:{t}"),
+                        SC::Input(t) => format!("I:{t}"),
+                        SC::Button(t) => format!("B:{t}"),
+                        SC::Combo(t) => format!("C:{t}"),
+                        SC::CheckboxChecked(t) => format!("CX:{t}"),
+                        SC::CheckboxUnchecked(t) => format!("CU:{t}"),
+                        SC::RadioOn(t) => format!("RO:{t}"),
+                        SC::RadioOff(t) => format!("RF:{t}"),
+                    })
+                    .collect();
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::Salt,
+                    name: format!("SALT_ROW\x1f{}", cell_strs.join("\x1e")),
+                    alias: None,
+                    members: Vec::new(),
+                    depth: 0,
+                    label: None,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
+                    fill_color: None,
+                });
+            }
+            StatementKind::Unknown(line) if family_kind == DiagramKind::Salt => {
+                if line.trim() == "---" {
+                    continue;
+                }
+                // Treat non-row unknown lines as plain label rows
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::Salt,
+                    name: format!("SALT_ROW\x1fL:{line}"),
+                    alias: None,
+                    members: Vec::new(),
+                    depth: 0,
+                    label: None,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
+                    fill_color: None,
+                });
+            }
+            StatementKind::Unknown(line) => {
+                if family_kind == DiagramKind::Salt {
+                    let text = line.trim();
+                    if !text.is_empty() {
+                        nodes.push(FamilyNode {
+                            kind: FamilyNodeKind::Salt,
+                            name: text.to_string(),
+                            alias: None,
+                            members: Vec::new(),
+                            depth: 0,
+                            label: None,
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
+                            fill_color: None,
+                        });
+                    }
+                    continue;
+                }
+                return Err(Diagnostic::error(format!(
+                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_STUB_UNSUPPORTED] unsupported {} syntax in bootstrap slice",
+                    family_kind_name(family_kind)
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    Ok(FamilyDocument {
+        kind: family_kind,
+        nodes,
+        relations,
+        groups,
+        json_projections,
+        hide_options,
+        namespace_separator,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        orientation: FamilyOrientation::TopToBottom,
+        style: SequenceStyle::default(),
+        family_style: Some(FamilyStyle::Class(class_style)),
+        text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        warnings,
+    })
+}
+
+fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {
+    let target_name = node.name.as_str();
+    let target_alias = node.alias.as_deref();
+    if let Some(existing) = nodes.iter_mut().find(|existing| {
+        existing.name == target_name
+            || existing.alias.as_deref() == Some(target_name)
+            || target_alias.is_some_and(|alias| existing.name == alias)
+            || (target_alias.is_some() && existing.alias.as_deref() == target_alias)
+    }) {
+        if existing.label.is_none() {
+            existing.label = node.label.take();
+        }
+        if existing.alias.is_none() {
+            existing.alias = node.alias.take();
+        }
+        if existing.fill_color.is_none() {
+            existing.fill_color = node.fill_color.take();
+        }
+        existing.members.append(&mut node.members);
+        return;
+    }
+    nodes.push(node);
+}
+
+fn extract_family_node_fill_color(members: &mut Vec<ClassMember>) -> Option<String> {
+    let mut fill_color = None;
+    members.retain(|member| {
+        let Some(color) = member.text.strip_prefix("\x1fstyle:fill:") else {
+            return true;
+        };
+        if fill_color.is_none() {
+            fill_color = Some(color.trim().to_string());
+        }
+        false
+    });
+    fill_color
+}
+pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
+    let mut nodes = Vec::new();
+    let mut relations = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+
+    let family_kind = document.kind;
+    let mut warnings = Vec::new();
+    let mut orientation = FamilyOrientation::TopToBottom;
+    let mut style = SequenceStyle::default();
+    let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
+    // MindMap: track whether subsequent depth-1 nodes should go on the left side.
+    let mut mindmap_left_side_mode = false;
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::SkinParam { key, value } => {
+                if handle_family_overflow_skinparam(
+                    &key,
+                    &value,
+                    &mut text_overflow_policy,
+                    &mut warnings,
+                    stmt.span,
+                ) {
+                    continue;
+                }
+                match classify_sequence_skinparam(&key, &value) {
+                    SequenceSkinParamSupport::SupportedNoop => {}
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::FootboxVisible(_),
+                    ) => {}
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ArrowColor(color),
+                    ) => {
+                        style.arrow_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineBorderColor(color),
+                    ) => {
+                        style.lifeline_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantBackgroundColor(color),
+                    ) => {
+                        style.participant_background_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantBorderColor(color),
+                    ) => {
+                        style.participant_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::NoteBackgroundColor(color),
+                    ) => {
+                        style.note_background_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::NoteBorderColor(color),
+                    ) => {
+                        style.note_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupBackgroundColor(color),
+                    ) => {
+                        style.group_background_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupBorderColor(color),
+                    ) => {
+                        style.group_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::RoundCorner(n),
+                    ) => {
+                        style.round_corner = n;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Shadowing(s),
+                    ) => {
+                        style.shadowing = s;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::DefaultFontName(name),
+                    ) => {
+                        style.default_font_name = Some(name);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::DefaultFontSize(sz),
+                    ) => {
+                        style.default_font_size = Some(sz);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::BackgroundColor(color),
+                    ) => {
+                        style.background_color = Some(color);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::DefaultTextAlignment(align),
+                    ) => {
+                        style.text_alignment = align;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantPadding(n),
+                    ) => {
+                        style.participant_padding = Some(n);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::BoxPadding(n),
+                    ) => {
+                        style.box_padding = Some(n);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageAlign(a),
+                    ) => {
+                        style.message_align = a;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ResponseMessageBelowArrow(b),
+                    ) => {
+                        style.response_message_below_arrow = b;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineThickness(n),
+                    ) => {
+                        style.lifeline_thickness = Some(n);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::MessageLineColor(c),
+                    ) => {
+                        style.message_line_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBackgroundColor(c),
+                    ) => {
+                        style.reference_background_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ReferenceBorderColor(c),
+                    ) => {
+                        style.reference_border_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontColor(c),
+                    ) => {
+                        style.group_header_font_color = Some(c);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::GroupHeaderFontStyle(s),
+                    ) => {
+                        style.group_header_font_style = s;
+                    }
+                    SequenceSkinParamSupport::UnsupportedValue => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                    SequenceSkinParamSupport::UnsupportedKey => {
+                        warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                                key
+                            ))
+                            .with_span(stmt.span),
+                        );
+                    }
+                }
+            }
+            StatementKind::Theme(value) => {
+                style = resolve_sequence_theme_preset(&value)
+                    .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                    .style;
+            }
+            StatementKind::Pragma(v) => {
+                let trimmed = v.trim();
+                let lower = trimmed.to_ascii_lowercase();
+                if lower.starts_with("teoz ") || lower == "teoz" {
+                    // Accept teoz pragma as a deterministic no-op compatibility hint.
+                } else if lower == "sequencemessagespan true"
+                    || lower == "sequence message span true"
+                {
+                    style.sequence_message_span = true;
+                } else if lower == "sequencemessagespan false"
+                    || lower == "sequence message span false"
+                {
+                    style.sequence_message_span = false;
+                } else {
+                    warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_PRAGMA_UNSUPPORTED] unsupported pragma `{}`",
+                            trimmed
+                        ))
+                        .with_span(stmt.span),
+                    );
+                }
+            }
+            StatementKind::Unknown(line) => {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Some(value) = parse_family_orientation_directive(&line) {
+                    orientation = value;
+                    continue;
+                }
+                // MindMap `left side` / `right side` keyword switches which side
+                // subsequent depth-1 nodes appear on when no explicit +/- prefix.
+                if family_kind == DiagramKind::MindMap {
+                    let lower = line.trim().to_ascii_lowercase();
+                    if lower == "left side" {
+                        mindmap_left_side_mode = true;
+                        continue;
+                    } else if lower == "right side" {
+                        mindmap_left_side_mode = false;
+                        continue;
+                    }
+                }
+                if let Some(mut node_info) = parse_mindmap_or_wbs_node(&line) {
+                    let kind = match family_kind {
+                        DiagramKind::MindMap => FamilyNodeKind::MindMap,
+                        DiagramKind::Wbs => FamilyNodeKind::Wbs,
+                        _ => FamilyNodeKind::Salt,
+                    };
+                    // Apply left-side mode: if depth >= 1 and no explicit +/-
+                    // prefix was given (we detect this by checking if the original
+                    // line had a prefix), use the current mode.
+                    if family_kind == DiagramKind::MindMap && node_info.depth >= 1 {
+                        let has_explicit = line.trim_start().starts_with('+')
+                            || line.trim_start().starts_with('-');
+                        if !has_explicit && mindmap_left_side_mode {
+                            node_info.side = MindMapSide::Left;
+                        }
+                    }
+                    nodes.push(FamilyNode {
+                        kind,
+                        name: node_info.name,
+                        alias: None,
+                        members: Vec::new(),
+                        depth: node_info.depth,
+                        label: None,
+                        mindmap_side: node_info.side,
+                        wbs_checkbox: node_info.checkbox,
+                        fill_color: node_info.fill_color,
+                    });
+                    continue;
+                }
+                return Err(Diagnostic::error(format!(
+                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_STUB_UNSUPPORTED] unsupported {} syntax in bootstrap slice",
+                    family_kind_name(family_kind)
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    build_family_tree_relations(&mut nodes, &mut relations);
+    normalize_family_tree_warnings(&mut warnings);
+
+    Ok(FamilyDocument {
+        kind: family_kind,
+        nodes,
+        relations,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        orientation,
+        style,
+        family_style: None,
+        text_overflow_policy,
+        warnings,
+        groups: Vec::new(),
+        json_projections: Vec::new(),
+        hide_options: std::collections::BTreeSet::new(),
+        namespace_separator: None,
+    })
+}
+
+fn normalize_family_tree_warnings(warnings: &mut [Diagnostic]) {
+    warnings.sort_by(|a, b| {
+        let sa = a.span.map(|s| s.start).unwrap_or_default();
+        let sb = b.span.map(|s| s.start).unwrap_or_default();
+        (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
+    });
+}
+
+fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<ModelFamilyRelation>) {
+    let mut parents: Vec<usize> = Vec::new();
+    for idx in 0..nodes.len() {
+        let depth = nodes[idx].depth;
+        while parents.len() > depth {
+            parents.pop();
+        }
+        if let Some(parent_idx) = parents.last().copied() {
+            relations.push(ModelFamilyRelation {
+                from: nodes[parent_idx].name.clone(),
+                to: nodes[idx].name.clone(),
+                arrow: "->".to_string(),
+                label: None,
+                stereotype: None,
+                left_cardinality: None,
+                right_cardinality: None,
+                left_role: None,
+                right_role: None,
+                line_color: None,
+                dashed: false,
+                hidden: false,
+                thickness: None,
+                direction: None,
+                left_lollipop: false,
+                right_lollipop: false,
+            });
+        }
+        parents.push(idx);
+    }
+}
+
+fn handle_family_overflow_skinparam(
+    key: &str,
+    value: &str,
+    policy: &mut TextOverflowPolicy,
+    warnings: &mut Vec<Diagnostic>,
+    span: crate::source::Span,
+) -> bool {
+    let normalized_key = key.trim().to_ascii_lowercase();
+    let normalized_value = value.trim().to_ascii_lowercase();
+    if normalized_key != "textoverflowpolicy" && normalized_key != "text_overflow_policy" {
+        return false;
+    }
+
+    let parsed = match normalized_value.as_str() {
+        "wrap" | "wrapandgrow" | "wrap_and_grow" | "wrapgrow" => {
+            Some(TextOverflowPolicy::WrapAndGrow)
+        }
+        "ellipsis" | "ellipsesingleline" | "ellipsissingleline" | "singleline" | "nowrap" => {
+            Some(TextOverflowPolicy::EllipsisSingleLine)
+        }
+        _ => {
+            warnings.push(
+                Diagnostic::warning(format!(
+                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                    value, key
+                ))
+                .with_span(span),
+            );
+            None
+        }
+    };
+    if let Some(parsed) = parsed {
+        *policy = parsed;
+    }
+    true
+}
+
+fn parse_family_orientation_directive(line: &str) -> Option<FamilyOrientation> {
+    let tokens = line
+        .split_whitespace()
+        .map(|t| t.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    if tokens.len() == 4 && tokens[3].as_str() == "direction" {
+        let key = [&tokens[0][..], &tokens[1][..], &tokens[2][..]].join(" ");
+        return match key.as_str() {
+            "left to right" => Some(FamilyOrientation::LeftToRight),
+            "right to left" => Some(FamilyOrientation::RightToLeft),
+            "top to bottom" => Some(FamilyOrientation::TopToBottom),
+            "bottom to top" => Some(FamilyOrientation::BottomToTop),
+            _ => None,
+        };
+    }
+    None
+}
+
+struct MindMapWbsNode {
+    depth: usize,
+    name: String,
+    side: MindMapSide,
+    checkbox: Option<WbsCheckbox>,
+    fill_color: Option<String>,
+}
+
+/// Parse a MindMap / WBS node line. Handles:
+///
+/// - `* Root`, `** Child`, `*** Grandchild` — star-depth (depth = stars - 1)
+/// - `*[#Orange] Root`, `**[#fef3c7] Child` — PlantUML-style node color tags
+/// - `** Left child` after a `left side` keyword (tracked externally)
+/// - `+** Right`, `-** Left` — explicit side prefix on first depth-2+ star
+/// - WBS annotations: `[x]` checked, `[ ]` unchecked, `[%NN]` progress
+fn parse_mindmap_or_wbs_node(line: &str) -> Option<MindMapWbsNode> {
+    let trimmed = line.trim_start();
+
+    // Detect optional side prefix: `+` = right, `-` = left (only matters at
+    // depth >= 1 in MindMap, but we parse it universally and let the renderer
+    // decide what to do with it).
+    let (side_prefix, rest) = if let Some(s) = trimmed.strip_prefix('+') {
+        (Some(MindMapSide::Right), s)
+    } else if let Some(s) = trimmed.strip_prefix('-') {
+        (Some(MindMapSide::Left), s)
+    } else {
+        (None, trimmed)
+    };
+
+    let star_prefix = rest.bytes().take_while(|c| *c == b'*').count();
+    if star_prefix == 0 {
+        return None;
+    }
+
+    let mut label = rest[star_prefix..].trim().to_string();
+    let fill_color = parse_mindmap_wbs_color_tag(&mut label);
+    if label.is_empty() {
+        return None;
+    }
+
+    // Parse WBS checkbox suffix: `[x]`, `[ ]`, `[%NN]` at end of label.
+    let checkbox = parse_wbs_checkbox(&mut label);
+
+    // Side defaults to Right unless explicitly prefixed.
+    let side = side_prefix.unwrap_or(MindMapSide::Right);
+    let depth = star_prefix.saturating_sub(1);
+
+    Some(MindMapWbsNode {
+        depth,
+        name: label,
+        side,
+        checkbox,
+        fill_color,
+    })
+}
+
+/// Parse a leading PlantUML color tag from MindMap/WBS labels.
+///
+/// PlantUML examples use tags such as `[#Orange]` and `[#lightgreen]`; SVG
+/// accepts named colors without the leading `#`, while hex colors keep it.
+fn parse_mindmap_wbs_color_tag(label: &mut String) -> Option<String> {
+    let trimmed = label.trim_start();
+    let rest = trimmed.strip_prefix('[')?;
+    let close = rest.find(']')?;
+    let raw = rest[..close].trim();
+    let value = raw.strip_prefix('#')?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let normalized =
+        if matches!(value.len(), 3 | 6 | 8) && value.chars().all(|ch| ch.is_ascii_hexdigit()) {
+            format!("#{value}")
+        } else {
+            value.to_string()
+        };
+    *label = rest[close + 1..].trim_start().to_string();
+    Some(normalized)
+}
+
+/// Try to parse a WBS checkbox annotation from the end of a label, stripping it
+/// from the label string if found.
+fn parse_wbs_checkbox(label: &mut String) -> Option<WbsCheckbox> {
+    let trimmed = label.trim_end();
+    if let Some(inner) = trimmed.strip_suffix(']') {
+        if let Some(bracket_start) = inner.rfind('[') {
+            let content = &inner[bracket_start + 1..];
+            let checkbox = if content == "x" || content == "X" {
+                Some(WbsCheckbox::Checked)
+            } else if content == " " || content.is_empty() {
+                Some(WbsCheckbox::Unchecked)
+            } else if let Some(pct_str) = content.strip_prefix('%') {
+                pct_str
+                    .trim()
+                    .parse::<u8>()
+                    .ok()
+                    .filter(|&n| n <= 100)
+                    .map(WbsCheckbox::Progress)
+            } else {
+                None
+            };
+            if checkbox.is_some() {
+                let prefix = &inner[..bracket_start].trim_end().to_string();
+                *label = prefix.to_string();
+                return checkbox;
+            }
+        }
+    }
+    None
+}
+
+pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagnostic> {
+    let family_kind = document.kind;
+    let mut nodes = Vec::new();
+    let mut relations = Vec::new();
+    let mut groups = Vec::new();
+    let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
+    let mut title = None;
+    let mut header = None;
+    let mut footer = None;
+    let mut caption = None;
+    let mut legend = None;
+    let mut activity_step_counter: usize = 0;
+    let mut activity_active_partition: Option<String> = None;
+    let mut activity_fork_depth: usize = 0;
+    let mut activity_fork_branch: usize = 0;
+    let mut timing_current_time: Option<String> = None;
+    let mut timing_current_signal: Option<String> = None;
+    let mut component_style = ComponentStyle::default();
+    let mut activity_style = ActivityStyle::default();
+    let mut timing_style = TimingStyle::default();
+    let mut ext_warnings: Vec<Diagnostic> = Vec::new();
+    let mut note_counter: usize = 0;
+
+    for stmt in document.statements {
+        match stmt.kind {
+            StatementKind::ComponentDecl {
+                kind,
+                name,
+                alias,
+                label,
+                mut members,
+            } => {
+                let node_kind = component_node_kind(kind);
+                let fill_color = extract_family_node_fill_color(&mut members);
+                nodes.push(FamilyNode {
+                    kind: node_kind,
+                    name,
+                    alias,
+                    members,
+                    depth: 0,
+                    label,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
+                    fill_color,
+                });
+            }
+            StatementKind::StateDecl(decl) => nodes.push(FamilyNode {
+                kind: FamilyNodeKind::State,
+                name: decl.name,
+                alias: decl.alias,
+                members: Vec::new(),
+                depth: 0,
+                label: None,
+                mindmap_side: MindMapSide::Right,
+                wbs_checkbox: None,
+                fill_color: None,
+            }),
+            StatementKind::ActivityStep(step) => {
+                activity_step_counter += 1;
+                let kind = activity_step_node_kind(&step.kind);
+                let name = format!("__act_{activity_step_counter:04}");
+                match step.kind {
+                    ActivityStepKind::PartitionStart => {
+                        activity_active_partition = step.label.clone();
+                    }
+                    ActivityStepKind::PartitionEnd => {
+                        activity_active_partition = None;
+                    }
+                    ActivityStepKind::Fork => {
+                        activity_fork_depth += 1;
+                        activity_fork_branch = 0;
+                    }
+                    ActivityStepKind::ForkAgain => {
+                        activity_fork_branch += 1;
+                    }
+                    ActivityStepKind::EndFork => {
+                        activity_fork_depth = activity_fork_depth.saturating_sub(1);
+                        activity_fork_branch = 0;
+                    }
+                    _ => {}
+                }
+                let lane = activity_active_partition
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string());
+                let alias = format!(
+                    "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
+                    step.kind, lane, activity_fork_depth, activity_fork_branch
+                );
+                nodes.push(FamilyNode {
+                    kind,
+                    name,
+                    alias: Some(alias),
+                    members: Vec::new(),
+                    depth: 0,
+                    label: step.label,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
+                    fill_color: None,
+                });
+            }
+            StatementKind::TimingDecl {
+                kind,
+                name,
+                label,
+                controls,
+            } => {
+                let node_kind = timing_decl_node_kind(kind);
+                nodes.push(FamilyNode {
+                    kind: node_kind,
+                    name,
+                    alias: None,
+                    members: controls
+                        .into_iter()
+                        .map(|text| crate::ast::ClassMember {
+                            text,
+                            modifier: None,
+                        })
+                        .collect(),
+                    depth: 0,
+                    label,
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
+                    fill_color: None,
+                });
+            }
+            StatementKind::TimingEvent {
+                time,
+                signal,
+                state,
+                note,
+            } => {
+                let mut signal = signal;
+                if family_kind == DiagramKind::Timing
+                    && signal.is_none()
+                    && state.is_none()
+                    && note.is_none()
+                    && !time.is_empty()
+                    && nodes.iter().any(|node: &FamilyNode| {
+                        matches!(
+                            node.kind,
+                            FamilyNodeKind::TimingConcise
+                                | FamilyNodeKind::TimingRobust
+                                | FamilyNodeKind::TimingClock
+                                | FamilyNodeKind::TimingBinary
+                        ) && node.name == time
+                    })
+                {
+                    timing_current_signal = Some(time);
+                    continue;
+                }
+                if family_kind == DiagramKind::Timing && signal.is_none() && state.is_some() {
+                    signal = timing_current_signal.clone();
+                }
+                let effective_time = if time.is_empty() || signal.as_deref() == Some(time.as_str())
+                {
+                    timing_current_time.clone().unwrap_or_default()
+                } else {
+                    let normalized_time =
+                        normalize_timing_time(&time, timing_current_time.as_deref());
+                    timing_current_time = Some(normalized_time.clone());
+                    normalized_time
+                };
+                let display = match (&signal, &state, &note) {
+                    (Some(s), Some(st), _) => format!("{s} is {st}"),
+                    (None, None, Some(n)) => n.clone(),
+                    _ => String::new(),
+                };
+                nodes.push(FamilyNode {
+                    kind: FamilyNodeKind::TimingEvent,
+                    name: effective_time,
+                    alias: signal,
+                    members: state
+                        .into_iter()
+                        .map(|s| crate::ast::ClassMember {
+                            text: s,
+                            modifier: None,
+                        })
+                        .collect(),
+                    depth: 0,
+                    label: if display.is_empty() {
+                        None
+                    } else {
+                        Some(display)
+                    },
+                    mindmap_side: MindMapSide::Right,
+                    wbs_checkbox: None,
+                    fill_color: None,
+                });
+            }
+            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
+                from: rel.from,
+                to: rel.to,
+                arrow: rel.arrow,
+                label: rel.label,
+                stereotype: rel.stereotype,
+                left_cardinality: rel.left_cardinality,
+                right_cardinality: rel.right_cardinality,
+                left_role: rel.left_role,
+                right_role: rel.right_role,
+                line_color: rel.line_color,
+                dashed: rel.dashed,
+                hidden: rel.hidden,
+                thickness: rel.thickness,
+                direction: rel.direction,
+                left_lollipop: rel.left_lollipop,
+                right_lollipop: rel.right_lollipop,
+            }),
+            StatementKind::Note(note) => {
+                note_counter += 1;
+                nodes.push(family_note_node(note_counter, note));
+            }
+            StatementKind::ClassGroup {
+                kind,
+                label,
+                members,
+                relations: group_relations,
+            } => {
+                let mut group_member_ids = Vec::with_capacity(members.len());
+                for member_id in &members {
+                    let mut parts = member_id.split('\t');
+                    let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
+                    let display_label = parts.next().map(str::to_string);
+                    let node_kind_hint = parts.next();
+                    let fill_color = parts
+                        .find_map(|part| part.strip_prefix("\x1fstyle:fill:").map(str::to_string));
+                    let unscoped_alias = node_id
+                        .rsplit("::")
+                        .next()
+                        .filter(|alias| *alias != node_id)
+                        .map(str::to_string);
+                    group_member_ids.push(node_id.clone());
+                    let already_exists = nodes.iter().any(|n: &FamilyNode| {
+                        n.name == node_id || n.alias.as_deref() == Some(node_id.as_str())
+                    });
+                    if !already_exists {
+                        let fallback_kind = node_kind_hint
+                            .and_then(scoped_component_kind_hint)
+                            .unwrap_or(match family_kind {
+                                DiagramKind::Deployment => FamilyNodeKind::Node,
+                                DiagramKind::Component => FamilyNodeKind::Component,
+                                _ => FamilyNodeKind::Component,
+                            });
+                        nodes.push(FamilyNode {
+                            kind: fallback_kind,
+                            name: node_id,
+                            alias: unscoped_alias,
+                            members: display_label
+                                .as_deref()
+                                .map(extract_inline_stereotype_members)
+                                .unwrap_or_default(),
+                            depth: 0,
+                            label: display_label.map(strip_inline_stereotypes),
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
+                            fill_color,
+                        });
+                    }
+                }
+                groups.push(FamilyGroup {
+                    kind,
+                    label,
+                    member_ids: group_member_ids,
+                });
+                for rel in group_relations {
+                    relations.push(ModelFamilyRelation {
+                        from: rel.from,
+                        to: rel.to,
+                        arrow: rel.arrow,
+                        label: rel.label,
+                        stereotype: rel.stereotype,
+                        left_cardinality: rel.left_cardinality,
+                        right_cardinality: rel.right_cardinality,
+                        left_role: rel.left_role,
+                        right_role: rel.right_role,
+                        line_color: rel.line_color,
+                        dashed: rel.dashed,
+                        hidden: rel.hidden,
+                        thickness: rel.thickness,
+                        direction: rel.direction,
+                        left_lollipop: rel.left_lollipop,
+                        right_lollipop: rel.right_lollipop,
+                    });
+                }
+            }
+            StatementKind::Title(v) => title = Some(v),
+            StatementKind::Header(v) => header = Some(v),
+            StatementKind::Footer(v) => footer = Some(v),
+            StatementKind::Caption(v) => caption = Some(v),
+            StatementKind::Legend(v) => {
+                legend = Some(sequence::strip_legend_pos_prefix(&v));
+            }
+            StatementKind::SkinParam { key, value } => {
+                let mut handled = false;
+                if matches!(
+                    family_kind,
+                    DiagramKind::Component | DiagramKind::Deployment
+                ) {
+                    use crate::theme::ComponentSkinParamValue;
+                    match classify_component_skinparam(&key, &value) {
+                        SkinParamSupport::SupportedNoop => {
+                            handled = true;
+                        }
+                        SkinParamSupport::SupportedWithValue(v) => {
+                            handled = true;
+                            match v {
+                                ComponentSkinParamValue::BackgroundColor(c) => {
+                                    component_style.background_color = c;
+                                }
+                                ComponentSkinParamValue::BorderColor(c) => {
+                                    component_style.border_color = c;
+                                }
+                                ComponentSkinParamValue::InterfaceColor(c) => {
+                                    component_style.interface_color = c;
+                                }
+                                ComponentSkinParamValue::FontColor(c) => {
+                                    component_style.font_color = c;
+                                }
+                                ComponentSkinParamValue::ArrowColor(c) => {
+                                    component_style.arrow_color = c;
+                                }
+                            }
+                        }
+                        SkinParamSupport::UnsupportedKey => {}
+                        SkinParamSupport::UnsupportedValue => {
+                            handled = true;
+                            ext_warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                    value, key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                }
+                if !handled && matches!(family_kind, DiagramKind::Activity) {
+                    use crate::theme::ActivitySkinParamValue;
+                    match classify_activity_skinparam(&key, &value) {
+                        SkinParamSupport::SupportedNoop => {
+                            handled = true;
+                        }
+                        SkinParamSupport::SupportedWithValue(v) => {
+                            handled = true;
+                            match v {
+                                ActivitySkinParamValue::BackgroundColor(c) => {
+                                    activity_style.background_color = c;
+                                }
+                                ActivitySkinParamValue::BorderColor(c) => {
+                                    activity_style.border_color = c;
+                                }
+                                ActivitySkinParamValue::DiamondBackgroundColor(c) => {
+                                    activity_style.diamond_color = c;
+                                }
+                                ActivitySkinParamValue::BarColor(c) => {
+                                    activity_style.fork_color = c;
+                                }
+                                ActivitySkinParamValue::FontColor(c) => {
+                                    activity_style.font_color = c;
+                                }
+                                ActivitySkinParamValue::ArrowColor(c) => {
+                                    activity_style.arrow_color = c;
+                                }
+                            }
+                        }
+                        SkinParamSupport::UnsupportedKey => {}
+                        SkinParamSupport::UnsupportedValue => {
+                            handled = true;
+                            ext_warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                    value, key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                }
+                if !handled && matches!(family_kind, DiagramKind::Timing) {
+                    use crate::theme::TimingSkinParamValue;
+                    match classify_timing_skinparam(&key, &value) {
+                        SkinParamSupport::SupportedNoop => {
+                            handled = true;
+                        }
+                        SkinParamSupport::SupportedWithValue(v) => {
+                            handled = true;
+                            match v {
+                                TimingSkinParamValue::BackgroundColor(c) => {
+                                    timing_style.background_color = c;
+                                }
+                                TimingSkinParamValue::AxisColor(c) => {
+                                    timing_style.axis_color = c;
+                                }
+                                TimingSkinParamValue::GridColor(c) => {
+                                    timing_style.grid_color = c;
+                                }
+                                TimingSkinParamValue::SignalBackgroundColor(c) => {
+                                    timing_style.signal_background_color = c;
+                                }
+                                TimingSkinParamValue::SignalBorderColor(c) => {
+                                    timing_style.signal_border_color = c;
+                                }
+                                TimingSkinParamValue::ArrowColor(c) => {
+                                    timing_style.arrow_color = c;
+                                }
+                                TimingSkinParamValue::FontColor(c) => {
+                                    timing_style.font_color = c;
+                                }
+                            }
+                        }
+                        SkinParamSupport::UnsupportedKey => {}
+                        SkinParamSupport::UnsupportedValue => {
+                            handled = true;
+                            ext_warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                    value, key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                }
+                if !handled {
+                    ext_warnings.push(
+                        Diagnostic::warning(format!(
+                            "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                            key
+                        ))
+                        .with_span(stmt.span),
+                    );
+                }
+            }
+            StatementKind::Theme(value) => {
+                let style = resolve_sequence_theme_preset(&value)
+                    .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                    .style;
+                match family_kind {
+                    DiagramKind::Component | DiagramKind::Deployment => {
+                        component_style = component_style_from_sequence_theme(&style);
+                    }
+                    DiagramKind::Activity => {
+                        activity_style = activity_style_from_sequence_theme(&style);
+                    }
+                    DiagramKind::Timing => {
+                        timing_style = timing_style_from_sequence_theme(&style);
+                    }
+                    _ => {}
+                }
+            }
+            StatementKind::JsonProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "json".to_string(),
+                });
+            }
+            StatementKind::YamlProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "yaml".to_string(),
+                });
+            }
+            StatementKind::Pragma(_)
+            | StatementKind::Include(_)
+            | StatementKind::Define { .. }
+            | StatementKind::Undef(_)
+            | StatementKind::Scale(_)
+            | StatementKind::LegendPos(_) => {}
+            StatementKind::Unknown(line) => {
+                if family_kind == DiagramKind::Activity {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    activity_step_counter += 1;
+                    if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+                        activity_active_partition =
+                            Some(trimmed.trim_matches('|').trim().to_string());
+                    }
+                    let lane = activity_active_partition
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string());
+                    nodes.push(FamilyNode {
+                        kind: if trimmed.starts_with('|') && trimmed.ends_with('|') {
+                            FamilyNodeKind::ActivityPartition
+                        } else {
+                            FamilyNodeKind::ActivityAction
+                        },
+                        name: format!("__act_{activity_step_counter:04}"),
+                        alias: Some(format!(
+                            "activity::OldStyle|lane={lane}|fork_depth={activity_fork_depth}|fork_branch={activity_fork_branch}"
+                        )),
+                        members: Vec::new(),
+                        depth: 0,
+                        label: Some(trimmed.to_string()),
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                    continue;
+                }
+                return Err(Diagnostic::error(format!(
+                    "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
+                    line
+                ))
+                .with_span(stmt.span));
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "[E_FAMILY_{}_UNSUPPORTED_STMT] unsupported {} syntax",
+                    family_kind_name(family_kind).to_uppercase(),
+                    family_kind_name(family_kind)
+                ))
+                .with_span(stmt.span));
+            }
+        }
+    }
+
+    let family_style = match family_kind {
+        DiagramKind::Component | DiagramKind::Deployment => {
+            Some(FamilyStyle::Component(component_style))
+        }
+        DiagramKind::Activity => Some(FamilyStyle::Activity(activity_style)),
+        DiagramKind::Timing => Some(FamilyStyle::Timing(timing_style)),
+        _ => None,
+    };
+    Ok(FamilyDocument {
+        kind: family_kind,
+        nodes,
+        relations,
+        title,
+        header,
+        footer,
+        caption,
+        legend,
+        orientation: FamilyOrientation::TopToBottom,
+        style: SequenceStyle::default(),
+        family_style,
+        text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        warnings: ext_warnings,
+        groups,
+        json_projections,
+        hide_options: std::collections::BTreeSet::new(),
+        namespace_separator: None,
+    })
+}
+
+fn extract_inline_stereotype_members(label: &str) -> Vec<crate::ast::ClassMember> {
+    let (_, stereotypes) = strip_inline_stereotypes_with_values(label);
+    declaration_stereotype_members(stereotypes)
+}
+
+fn scoped_component_kind_hint(kind: &str) -> Option<FamilyNodeKind> {
+    Some(match kind {
+        "component" => FamilyNodeKind::Component,
+        "interface" => FamilyNodeKind::Interface,
+        "port" => FamilyNodeKind::Port,
+        "node" => FamilyNodeKind::Node,
+        "artifact" => FamilyNodeKind::Artifact,
+        "cloud" => FamilyNodeKind::Cloud,
+        "frame" => FamilyNodeKind::Frame,
+        "storage" => FamilyNodeKind::Storage,
+        "database" => FamilyNodeKind::Database,
+        "package" => FamilyNodeKind::Package,
+        "rectangle" => FamilyNodeKind::Rectangle,
+        "folder" => FamilyNodeKind::Folder,
+        "file" => FamilyNodeKind::File,
+        "card" => FamilyNodeKind::Card,
+        "actor" => FamilyNodeKind::Actor,
+        _ => return None,
+    })
+}
+
+fn strip_inline_stereotypes(label: String) -> String {
+    strip_inline_stereotypes_with_values(&label).0
+}
+
+fn strip_inline_stereotypes_with_values(label: &str) -> (String, Vec<String>) {
+    let mut remaining = label.trim().to_string();
+    let mut stereotypes = Vec::new();
+    while let Some(start) = remaining.find("<<") {
+        let Some(end_rel) = remaining[start + 2..].find(">>") else {
+            break;
+        };
+        let end = start + 2 + end_rel;
+        let value = remaining[start + 2..end].trim();
+        if !value.is_empty() {
+            stereotypes.push(value.to_string());
+        }
+        remaining.replace_range(start..end + 2, "");
+    }
+    (remaining.trim().to_string(), stereotypes)
+}
+
+fn declaration_stereotype_members(stereotypes: Vec<String>) -> Vec<crate::ast::ClassMember> {
+    stereotypes
+        .into_iter()
+        .map(|stereotype| crate::ast::ClassMember {
+            text: format!("<<{stereotype}>>"),
+            modifier: None,
+        })
+        .collect()
+}
+
+fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
+    let trimmed = raw.trim().trim_start_matches('@');
+    if let Some((_, multiplier)) = trimmed.split_once('*') {
+        if let Ok(n) = multiplier.trim().parse::<i64>() {
+            return n.to_string();
+        }
+    }
+    if let Some(delta) = trimmed
+        .strip_prefix('+')
+        .and_then(|v| v.parse::<i64>().ok())
+    {
+        let base = current.and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+        return base.saturating_add(delta).to_string();
+    }
+    if let Some(delta) = trimmed
+        .strip_prefix('-')
+        .and_then(|v| v.parse::<i64>().ok())
+    {
+        let base = current.and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+        return base.saturating_sub(delta).to_string();
+    }
+    trimmed.to_string()
+}
+
+fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {
+    match kind {
+        ComponentNodeKind::Component => FamilyNodeKind::Component,
+        ComponentNodeKind::Interface => FamilyNodeKind::Interface,
+        ComponentNodeKind::Port => FamilyNodeKind::Port,
+        ComponentNodeKind::Node => FamilyNodeKind::Node,
+        ComponentNodeKind::Artifact => FamilyNodeKind::Artifact,
+        ComponentNodeKind::Cloud => FamilyNodeKind::Cloud,
+        ComponentNodeKind::Frame => FamilyNodeKind::Frame,
+        ComponentNodeKind::Storage => FamilyNodeKind::Storage,
+        ComponentNodeKind::Database => FamilyNodeKind::Database,
+        ComponentNodeKind::Package => FamilyNodeKind::Package,
+        ComponentNodeKind::Rectangle => FamilyNodeKind::Rectangle,
+        ComponentNodeKind::Folder => FamilyNodeKind::Folder,
+        ComponentNodeKind::File => FamilyNodeKind::File,
+        ComponentNodeKind::Card => FamilyNodeKind::Card,
+        ComponentNodeKind::Actor => FamilyNodeKind::Actor,
+    }
+}
+
+fn activity_step_node_kind(kind: &ActivityStepKind) -> FamilyNodeKind {
+    match kind {
+        ActivityStepKind::Start => FamilyNodeKind::ActivityStart,
+        ActivityStepKind::Stop | ActivityStepKind::End => FamilyNodeKind::ActivityStop,
+        ActivityStepKind::Action => FamilyNodeKind::ActivityAction,
+        ActivityStepKind::IfStart
+        | ActivityStepKind::WhileStart
+        | ActivityStepKind::RepeatWhile => FamilyNodeKind::ActivityDecision,
+        ActivityStepKind::Else | ActivityStepKind::EndIf | ActivityStepKind::EndWhile => {
+            FamilyNodeKind::ActivityMerge
+        }
+        ActivityStepKind::Fork | ActivityStepKind::ForkAgain => FamilyNodeKind::ActivityFork,
+        ActivityStepKind::EndFork => FamilyNodeKind::ActivityForkEnd,
+        ActivityStepKind::RepeatStart => FamilyNodeKind::ActivityMerge,
+        ActivityStepKind::PartitionStart | ActivityStepKind::PartitionEnd => {
+            FamilyNodeKind::ActivityPartition
+        }
+    }
+}
+
+fn timing_decl_node_kind(kind: TimingDeclKind) -> FamilyNodeKind {
+    match kind {
+        TimingDeclKind::Concise => FamilyNodeKind::TimingConcise,
+        TimingDeclKind::Robust => FamilyNodeKind::TimingRobust,
+        TimingDeclKind::Clock => FamilyNodeKind::TimingClock,
+        TimingDeclKind::Binary => FamilyNodeKind::TimingBinary,
+    }
+}
+
+fn family_note_node(idx: usize, note: crate::ast::Note) -> FamilyNode {
+    let mut label = note.text.trim().to_string();
+    if label.is_empty() {
+        label = "note".to_string();
+    }
+    let target = note.target.unwrap_or_default();
+    FamilyNode {
+        kind: FamilyNodeKind::Note,
+        name: format!("__note_{idx:04}"),
+        alias: Some(format!("note::{}|target={target}", note.position)),
+        members: Vec::new(),
+        depth: 0,
+        label: Some(label),
+        mindmap_side: MindMapSide::Right,
+        wbs_checkbox: None,
+        fill_color: None,
+    }
+}
+
+pub(super) fn family_kind_name(kind: DiagramKind) -> &'static str {
+    match kind {
+        DiagramKind::Sequence => "sequence",
+        DiagramKind::Class => "class",
+        DiagramKind::Object => "object",
+        DiagramKind::UseCase => "usecase",
+        DiagramKind::Salt => "salt",
+        DiagramKind::MindMap => "mindmap",
+        DiagramKind::Wbs => "wbs",
+        DiagramKind::Gantt => "gantt",
+        DiagramKind::Chronology => "chronology",
+        DiagramKind::Component => "component",
+        DiagramKind::Deployment => "deployment",
+        DiagramKind::State => "state",
+        DiagramKind::Activity => "activity",
+        DiagramKind::Timing => "timing",
+        DiagramKind::Json => "json",
+        DiagramKind::Yaml => "yaml",
+        DiagramKind::Nwdiag => "nwdiag",
+        DiagramKind::Archimate => "archimate",
+        DiagramKind::Regex => "regex",
+        DiagramKind::Ebnf => "ebnf",
+        DiagramKind::Math => "math",
+        DiagramKind::Sdl => "sdl",
+        DiagramKind::Ditaa => "ditaa",
+        DiagramKind::Chart => "chart",
+        DiagramKind::Unknown => "unknown",
+    }
+}
