@@ -14,7 +14,7 @@ Result:
 - Target: 90%
 - Margin: enforced by CI
 
-Coverage scope excludes entrypoint binaries, library facade, and high-churn parity implementation modules (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`, `src/parser.rs`, `src/preproc.rs`, `src/normalize.rs`, `src/specialized.rs`, `src/frontend/*.rs`, `src/render/*.rs`) to keep the 90% gate focused on smaller shared support/runtime modules. Parser, preprocessor, frontend adapter, normalizer, renderer, and specialized family behavior remains protected by deterministic integration, render snapshot, parity harness, SVG bounds, and oracle-smoke gates.
+Coverage scope excludes entrypoint binaries, library facade, and high-churn parity implementation modules (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`, `src/parser.rs`, `src/preproc.rs`, `src/normalize.rs`, `src/render.rs`, `src/specialized.rs`, `src/frontend/*.rs`, `src/render/*.rs`) to keep the 90% gate focused on smaller shared support/runtime modules. Parser, preprocessor, frontend adapter, normalizer, renderer, and specialized family behavior remains protected by deterministic integration, render snapshot, parity harness, SVG bounds, and oracle-smoke gates.
 
 Top in-scope modules from latest run:
 - `creole.rs`
