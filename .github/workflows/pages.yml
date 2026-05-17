@@ -17,6 +17,10 @@ on:
       - 'scripts/mirror-specs.mjs'
       - 'docs/examples/**'
       - 'docs/specs/**'
+      - 'src/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -39,6 +43,32 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Set up Rust (stable + wasm32 target)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add wasm32-unknown-unknown
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-pages-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-pages-
+
+      - name: Install wasm-pack
+        run: |
+          if ! command -v wasm-pack >/dev/null; then
+            curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+          fi
+          wasm-pack --version
+
+      - name: Build puml-wasm renderer
+        run: wasm-pack build --release --target web --out-dir ../../site/static/wasm crates/puml-wasm
 
       - name: Install Zola
         run: |

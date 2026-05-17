@@ -12,7 +12,7 @@ This section is for people who want to hack on `puml` itself, ship a new diagram
 
 - [Architecture](@/developer/architecture.md) &mdash; the five-stage pipeline and the crates around it.
 - [Compile pipeline](@/developer/pipeline.md) &mdash; how a `.puml` source becomes an SVG.
-- [WASM roadmap](@/developer/wasm-roadmap.md) &mdash; where the in-browser renderer is going.
+- [In-browser renderer](@/developer/renderer.md) &mdash; how the studio editor renders puml diagrams via the puml-wasm crate.
 - [Contributing](@/developer/contributing.md) &mdash; build, test, lint, release gates.
 
 ## Reference specs

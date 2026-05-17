@@ -54,5 +54,6 @@ Every error and warning carries a stable code (e.g. `E_PICOUML_MARKER_MIXED`). T
 
 ## What's not in-process today
 
-- WASM bindings &mdash; planned, see [WASM roadmap](@/developer/wasm-roadmap.md).
-- A standalone `puml-syntax` crate for textmate / tree-sitter grammars &mdash; tracked in the [syntax highlighting spec](@/developer/specs/syntax-highlighting.md).
+- A standalone `puml-syntax` crate for textmate / tree-sitter grammars &mdash; tracked in the [syntax highlighting spec](@/developer/specs/syntax-highlighting.md). The studio editor uses a CodeMirror `StreamLanguage` (in `site/static/js/puml-lang.js`) until that crate exists.
+
+The renderer itself is shipped end-to-end: native via the CLI and in-browser via WASM. See [In-browser renderer](@/developer/renderer.md) for the puml-wasm bridge.

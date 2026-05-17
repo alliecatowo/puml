@@ -59,7 +59,7 @@ Add `--diagnostics json` for machine-readable output, perfect for editor integra
 
 ## Try it in the browser
 
-You can skip the install entirely and use the [studio editor](@/editor.md) on this site. It loads CodeMirror with `.puml` syntax highlighting and previews against the full baked example corpus. The same editor will host live in-browser rendering once the WASM build lands &mdash; see the [WASM roadmap](@/developer/wasm-roadmap.md).
+You can skip the install entirely and use the [studio editor](@/editor.md) on this site. It loads CodeMirror with `.puml` syntax highlighting and renders diagrams live in your browser via the puml WASM bundle &mdash; see [In-browser renderer](@/developer/renderer.md) for how that bridge works.
 
 ## Wire it into your editor
 

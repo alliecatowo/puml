@@ -9,8 +9,8 @@
     <h2 style="font-size:32px; margin-top:0;">Studio editor</h2>
     <p class="sub">
       Write <code>.puml</code> source on the left, see the rendered SVG on the right.
-      Syntax highlighting is local; preview uses the baked example corpus today, with a live in-browser WASM render landing next &mdash; see the
-      <a href="{{ get_url(path='/developer/wasm-roadmap/', trailing_slash=true) }}">WASM roadmap</a>.
+      Everything runs locally in your browser &mdash; syntax highlighting via CodeMirror and rendering via the
+      <a href="{{ get_url(path='/developer/renderer/', trailing_slash=true) }}">puml WASM renderer</a>.
     </p>
 
     <div class="editor-shell">
@@ -40,13 +40,13 @@
         </header>
         <div class="preview-host" id="preview-host">
           <div class="preview-placeholder">
-            <span class="pill">getting ready</span>
-            <p>Loading the renderer&hellip;</p>
+            <span class="pill">starting up</span>
+            <p>Initializing in-browser renderer&hellip;</p>
           </div>
         </div>
         <div class="status-bar" id="preview-status">
           <span class="dot-status"></span>
-          <span id="preview-status-text">Renderer: manifest lookup (v1)</span>
+          <span id="preview-status-text">Renderer: starting&hellip;</span>
         </div>
       </section>
     </div>
