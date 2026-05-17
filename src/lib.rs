@@ -161,6 +161,28 @@ pub fn parse_with_pipeline_options(
     }
 }
 
+pub fn preprocess_with_pipeline_options(
+    source: &str,
+    options: &ParsePipelineOptions,
+) -> Result<String, Diagnostic> {
+    let parser_options = interpret_parser_contract(options)?;
+    interpret_determinism_contract(options.determinism);
+
+    match options.frontend {
+        FrontendSelection::Auto | FrontendSelection::Plantuml => {
+            parser::preprocess_with_options(source, &parser_options)
+        }
+        FrontendSelection::Mermaid => {
+            let adapted = frontend::mermaid::adapt_to_plantuml(source)?;
+            parser::preprocess_with_options(&adapted, &parser_options)
+        }
+        FrontendSelection::Picouml => {
+            let adapted = frontend::picouml::adapt_to_plantuml(source)?;
+            parser::preprocess_with_options(&adapted, &parser_options)
+        }
+    }
+}
+
 fn interpret_parser_contract(
     options: &ParsePipelineOptions,
 ) -> Result<parser::ParseOptions, Diagnostic> {
@@ -203,8 +225,16 @@ pub fn render_source_to_svg(source: &str) -> Result<String, Diagnostic> {
 }
 
 pub fn render_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
-    // Intercept specialized families before the main AST pipeline.
-    if let Some(result) = specialized::try_render_specialized(source) {
+    // Intercept specialized families before the main AST pipeline, but only
+    // after applying the same preprocessing pass used by parse/check routes.
+    if specialized::is_specialized_source(source) {
+        let preprocessed =
+            parser::preprocess_with_options(source, &parser::ParseOptions::default())?;
+        let result = specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
+            Diagnostic::error(
+                "[E_SPECIALIZED_PREPROC] preprocessed specialized source changed family",
+            )
+        })?;
         return result.map(|svg| vec![svg]);
     }
     let document = parse(source)?;
