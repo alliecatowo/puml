@@ -1033,6 +1033,8 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
 enum ChartType {
     Bar,
     Line,
+    Area,
+    Scatter,
     Pie,
     Column, // same as bar but explicit
 }
@@ -1054,6 +1056,8 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         .to_string();
     let chart_type = match chart_type_str.split_whitespace().next().unwrap_or("") {
         "line" => ChartType::Line,
+        "area" => ChartType::Area,
+        "scatter" => ChartType::Scatter,
         "pie" => ChartType::Pie,
         "column" => ChartType::Column,
         _ => ChartType::Bar, // "bar" is default
@@ -1105,6 +1109,8 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
     match chart_type {
         ChartType::Bar | ChartType::Column => render_bar_chart(&data, &title, false),
         ChartType::Line => render_line_chart(&data, &title),
+        ChartType::Area => render_area_chart(&data, &title),
+        ChartType::Scatter => render_scatter_chart(&data, &title),
         ChartType::Pie => render_pie_chart(&data, &title),
     }
 }
@@ -1306,6 +1312,154 @@ fn render_line_chart(data: &[ChartData], title: &Option<String>) -> Result<Strin
     Ok(out)
 }
 
+fn render_area_chart(data: &[ChartData], title: &Option<String>) -> Result<String, Diagnostic> {
+    let margin_left = 50i32;
+    let margin_right = 20i32;
+    let margin_top = if title.is_some() { 48 } else { 20 };
+    let margin_bottom = 40i32;
+    let chart_w = (data.len() as i32) * 60 + margin_left + margin_right;
+    let chart_h = 300i32;
+    let plot_w = chart_w - margin_left - margin_right;
+    let plot_h = chart_h - margin_top - margin_bottom;
+
+    let max_val = data.iter().map(|d| d.value).fold(0.0f64, f64::max);
+    if max_val == 0.0 {
+        return Err(Diagnostic::error(
+            "[E_CHART_ZERO] chart has all-zero values",
+        ));
+    }
+
+    let x_step = plot_w / (data.len() as i32 - 1).max(1);
+    let ax = margin_left;
+    let ay_top = margin_top;
+    let ay_bot = chart_h - margin_bottom;
+    let ax_right = chart_w - margin_right;
+
+    let mut out = String::new();
+    out.push_str(&svg_header(chart_w, chart_h));
+    out.push_str(svg_white_bg());
+    if let Some(t) = title {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"24\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#222\">{}</text>",
+            chart_w / 2, escape_xml(t)
+        ));
+    }
+
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#888\" stroke-width=\"1.5\"/>",
+        ax, ay_top, ax, ay_bot
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#888\" stroke-width=\"1.5\"/>",
+        ax, ay_bot, ax_right, ay_bot
+    ));
+
+    let points: Vec<(i32, i32)> = data
+        .iter()
+        .enumerate()
+        .map(|(i, d)| {
+            let px = ax + i as i32 * x_step;
+            let py = ay_bot - ((d.value / max_val) * plot_h as f64) as i32;
+            (px, py)
+        })
+        .collect();
+
+    if points.len() >= 2 {
+        let mut area_points = format!("{},{} ", points[0].0, ay_bot);
+        area_points.push_str(
+            &points
+                .iter()
+                .map(|(x, y)| format!("{},{}", x, y))
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+        area_points.push_str(&format!(" {},{}", points[points.len() - 1].0, ay_bot));
+        out.push_str(&format!(
+            "<polygon points=\"{}\" fill=\"#4e79a733\" stroke=\"none\"/>",
+            area_points
+        ));
+        out.push_str(&format!(
+            "<polyline points=\"{}\" fill=\"none\" stroke=\"#4e79a7\" stroke-width=\"2\"/>",
+            points
+                .iter()
+                .map(|(x, y)| format!("{},{}", x, y))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+
+    for (i, (px, py)) in points.iter().enumerate() {
+        out.push_str(&format!(
+            "<circle cx=\"{}\" cy=\"{}\" r=\"3.5\" fill=\"#4e79a7\" stroke=\"white\" stroke-width=\"1.2\"/>",
+            px, py
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"#444\">{}</text>",
+            px, ay_bot + 14, escape_xml(&data[i].label)
+        ));
+    }
+
+    out.push_str("</svg>");
+    Ok(out)
+}
+
+fn render_scatter_chart(data: &[ChartData], title: &Option<String>) -> Result<String, Diagnostic> {
+    let margin_left = 50i32;
+    let margin_right = 20i32;
+    let margin_top = if title.is_some() { 48 } else { 20 };
+    let margin_bottom = 40i32;
+    let chart_w = (data.len() as i32) * 60 + margin_left + margin_right;
+    let chart_h = 300i32;
+    let plot_w = chart_w - margin_left - margin_right;
+    let plot_h = chart_h - margin_top - margin_bottom;
+
+    let max_val = data.iter().map(|d| d.value).fold(0.0f64, f64::max);
+    if max_val == 0.0 {
+        return Err(Diagnostic::error(
+            "[E_CHART_ZERO] chart has all-zero values",
+        ));
+    }
+
+    let x_step = plot_w / (data.len() as i32 - 1).max(1);
+    let ax = margin_left;
+    let ay_top = margin_top;
+    let ay_bot = chart_h - margin_bottom;
+    let ax_right = chart_w - margin_right;
+
+    let mut out = String::new();
+    out.push_str(&svg_header(chart_w, chart_h));
+    out.push_str(svg_white_bg());
+    if let Some(t) = title {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"24\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#222\">{}</text>",
+            chart_w / 2, escape_xml(t)
+        ));
+    }
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#888\" stroke-width=\"1.5\"/>",
+        ax, ay_top, ax, ay_bot
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#888\" stroke-width=\"1.5\"/>",
+        ax, ay_bot, ax_right, ay_bot
+    ));
+    for (i, d) in data.iter().enumerate() {
+        let px = ax + i as i32 * x_step;
+        let py = ay_bot - ((d.value / max_val) * plot_h as f64) as i32;
+        let color = bar_color(i);
+        out.push_str(&format!(
+            "<circle cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"{}\" fill-opacity=\"0.85\" stroke=\"white\" stroke-width=\"1\"/>",
+            px, py, color
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" text-anchor=\"middle\" fill=\"#444\">{}</text>",
+            px, ay_bot + 14, escape_xml(&d.label)
+        ));
+    }
+    out.push_str("</svg>");
+    Ok(out)
+}
+
 fn render_pie_chart(data: &[ChartData], title: &Option<String>) -> Result<String, Diagnostic> {
     let total: f64 = data.iter().map(|d| d.value).sum();
     if total == 0.0 {
@@ -1405,6 +1559,8 @@ fn render_sdl(source: &str) -> Result<String, Diagnostic> {
     let (body, title) = strip_block(source, "@startsdl", "@endsdl");
 
     let mut states: Vec<String> = Vec::new();
+    let mut state_kinds: std::collections::BTreeMap<String, SdlStateKindLocal> =
+        std::collections::BTreeMap::new();
     let mut transitions: Vec<(String, String, Option<String>)> = Vec::new();
 
     for line in body.lines() {
@@ -1436,9 +1592,12 @@ fn render_sdl(source: &str) -> Result<String, Diagnostic> {
                 transitions.push((from, to, label));
             } else {
                 // Pure state declaration
-                let name = rest.to_string();
+                let (name, kind) = parse_sdl_state_decl(rest);
                 if !name.is_empty() && !states.contains(&name) {
-                    states.push(name);
+                    states.push(name.clone());
+                }
+                if !name.is_empty() {
+                    state_kinds.insert(name, kind);
                 }
             }
         }
@@ -1509,12 +1668,44 @@ fn render_sdl(source: &str) -> Result<String, Diagnostic> {
     // Draw SDL state nodes
     for name in &states {
         if let Some(&(x, y)) = coords.get(name) {
-            render_sdl_state_node(&mut out, name, x, y, state_w, state_h);
+            let kind = *state_kinds.get(name).unwrap_or(&SdlStateKindLocal::Normal);
+            render_sdl_state_node(&mut out, name, kind, x, y, state_w, state_h);
         }
     }
 
     out.push_str("</svg>");
     Ok(out)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SdlStateKindLocal {
+    Normal,
+    Start,
+    End,
+    Input,
+    Output,
+    Decision,
+}
+
+fn parse_sdl_state_decl(raw: &str) -> (String, SdlStateKindLocal) {
+    let mut text = raw.trim().to_string();
+    let mut kind = SdlStateKindLocal::Normal;
+    if let (Some(start), Some(end)) = (text.find("<<"), text.find(">>")) {
+        if start < end {
+            let tag = text[start + 2..end].trim().to_ascii_lowercase();
+            kind = match tag.as_str() {
+                "start" | "*" => SdlStateKindLocal::Start,
+                "end" | "stop" => SdlStateKindLocal::End,
+                "input" => SdlStateKindLocal::Input,
+                "output" => SdlStateKindLocal::Output,
+                "decision" => SdlStateKindLocal::Decision,
+                _ => SdlStateKindLocal::Normal,
+            };
+            text = format!("{}{}", text[..start].trim(), text[end + 2..].trim());
+            text = text.trim().to_string();
+        }
+    }
+    (text, kind)
 }
 
 fn sdl_transition_endpoints(
@@ -1545,16 +1736,68 @@ fn sdl_transition_endpoints(
 }
 
 /// Render an SDL state node: rounded-corner rectangle with slight color.
-fn render_sdl_state_node(out: &mut String, name: &str, x: i32, y: i32, w: i32, h: i32) {
-    // SDL uses rounded rectangles for normal states
-    out.push_str(&format!(
-        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#e8eaf6\" stroke=\"#3949ab\" stroke-width=\"2\"/>",
-        x, y, w, h
-    ));
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#1a237e\">{}</text>",
-        x + w / 2, y + h / 2, escape_xml(name)
-    ));
+fn render_sdl_state_node(
+    out: &mut String,
+    name: &str,
+    kind: SdlStateKindLocal,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+) {
+    match kind {
+        SdlStateKindLocal::Start => {
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"#1a237e\"/>",
+                x + w / 2,
+                y + h / 2
+            ));
+        }
+        SdlStateKindLocal::End => {
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"none\" stroke=\"#1a237e\" stroke-width=\"2\"/>",
+                x + w / 2,
+                y + h / 2
+            ));
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"9\" fill=\"#1a237e\"/>",
+                x + w / 2,
+                y + h / 2
+            ));
+        }
+        SdlStateKindLocal::Decision => {
+            let cx = x + w / 2;
+            let cy = y + h / 2;
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#ede7f6\" stroke=\"#5e35b1\" stroke-width=\"2\"/>",
+                cx, y, x + w, cy, cx, y + h, x, cy
+            ));
+        }
+        SdlStateKindLocal::Input => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#e3f2fd\" stroke=\"#1e88e5\" stroke-width=\"2\"/>",
+                x, y, w, h
+            ));
+        }
+        SdlStateKindLocal::Output => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#e8f5e9\" stroke=\"#43a047\" stroke-width=\"2\"/>",
+                x, y, w, h
+            ));
+        }
+        SdlStateKindLocal::Normal => {
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#e8eaf6\" stroke=\"#3949ab\" stroke-width=\"2\"/>",
+                x, y, w, h
+            ));
+        }
+    }
+    if !matches!(kind, SdlStateKindLocal::Start) {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#1a237e\">{}</text>",
+            x + w / 2, y + h / 2, escape_xml(name)
+        ));
+    }
 }
 
 // ─── Family 1: @startmath ─────────────────────────────────────────────────────
@@ -2311,6 +2554,7 @@ struct Connector {
 
 fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
     let (body, title) = strip_block(source, "@startditaa", "@endditaa");
+    let (scale, transparent) = parse_ditaa_options(source.lines().next().unwrap_or(""));
 
     if body.trim().is_empty() {
         return Err(Diagnostic::error(
@@ -2326,8 +2570,8 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         ));
     }
 
-    let cell_w = 10i32;
-    let cell_h = 16i32;
+    let cell_w = 10i32 * scale;
+    let cell_h = 16i32 * scale;
     let grid_rows = lines.len();
     let grid_cols = lines.iter().map(|r| r.len()).max().unwrap_or(0);
     let title_h = if title.is_some() { 28i32 } else { 0 };
@@ -2643,7 +2887,9 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
 
     let mut out = String::new();
     out.push_str(&svg_header(svg_w, svg_h));
-    out.push_str(svg_white_bg());
+    if !transparent {
+        out.push_str(svg_white_bg());
+    }
 
     // Arrow markers
     out.push_str(
@@ -2801,4 +3047,23 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
 
     out.push_str("</svg>");
     Ok(out)
+}
+
+fn parse_ditaa_options(first_line: &str) -> (i32, bool) {
+    let mut scale = 1i32;
+    let mut transparent = false;
+    let lower = first_line.to_ascii_lowercase();
+    if let Some(pos) = lower.find("scale=") {
+        let n: String = lower[pos + 6..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if let Ok(v) = n.parse::<i32>() {
+            scale = v.clamp(1, 4);
+        }
+    }
+    if lower.contains("transparent=true") || lower.contains("transparent=yes") {
+        transparent = true;
+    }
+    (scale, transparent)
 }

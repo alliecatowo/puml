@@ -5605,6 +5605,63 @@ fn salt_wireframe_grid_renders_button_and_input() {
     assert!(svg.contains("OK"), "expected button label in SVG");
 }
 
+#[test]
+fn chart_area_and_scatter_render_paths_are_supported() {
+    let area = "@startchart area\ntitle Area\nA: 4\nB: 7\nC: 3\n@endchart\n";
+    let area_svg = render_source_to_svg(area).expect("area chart should render");
+    assert!(
+        area_svg.contains("<polygon"),
+        "area chart should include fill polygon"
+    );
+
+    let scatter = "@startchart scatter\ntitle Scatter\nA: 2\nB: 8\nC: 5\n@endchart\n";
+    let scatter_svg = render_source_to_svg(scatter).expect("scatter chart should render");
+    assert!(
+        scatter_svg.matches("<circle").count() >= 3,
+        "scatter chart should render point circles"
+    );
+}
+
+#[test]
+fn sdl_state_stereotypes_render_special_shapes() {
+    let src = "@startsdl\nstate Start <<start>>\nstate Decide <<decision>>\nstate End <<end>>\nstate Start -> Decide : next\nstate Decide -> End : done\n@endsdl\n";
+    let svg = render_source_to_svg(src).expect("sdl stereotypes should render");
+    assert!(
+        svg.contains("<polygon points="),
+        "decision state should render diamond polygon"
+    );
+    assert!(
+        svg.matches("<circle").count() >= 2,
+        "start/end should render circular markers"
+    );
+}
+
+#[test]
+fn ditaa_scale_and_transparent_options_are_applied() {
+    let baseline = "@startditaa\n+---+\n|A  |\n+---+\n@endditaa\n";
+    let baseline_svg = render_source_to_svg(baseline).expect("baseline ditaa should render");
+    let src = "@startditaa scale=2 transparent=true\n+---+\n|A  |\n+---+\n@endditaa\n";
+    let svg = render_source_to_svg(src).expect("ditaa options should render");
+    let baseline_w = extract_svg_width_attr(&baseline_svg).unwrap_or(0);
+    let scaled_w = extract_svg_width_attr(&svg).unwrap_or(0);
+    assert!(
+        scaled_w > baseline_w,
+        "scaled ditaa should produce wider canvas: baseline={baseline_w}, scaled={scaled_w}"
+    );
+    assert!(
+        !svg.contains("fill=\"white\""),
+        "transparent=true should omit white background"
+    );
+}
+
+fn extract_svg_width_attr(svg: &str) -> Option<i32> {
+    let key = "width=\"";
+    let start = svg.find(key)? + key.len();
+    let rest = &svg[start..];
+    let end = rest.find('"')?;
+    rest[..end].parse::<i32>().ok()
+}
+
 // ── skinparam classify: class/state/component/activity (#202) ─────────────────
 
 #[test]
