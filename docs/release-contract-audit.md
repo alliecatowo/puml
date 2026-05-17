@@ -10,7 +10,7 @@ Audit date: `2026-05-15` (America/Los_Angeles)
 1. `cargo fmt --check`
 2. `cargo clippy --all-targets --all-features -- -D warnings`
 3. `cargo test`
-4. `cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|normalize|render|specialized)\.rs'`
+4. `cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|render)/.*\.rs'`
 5. `cargo build --release`
 6. `./scripts/bench.sh --enforce-gates`
 

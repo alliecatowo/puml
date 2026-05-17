@@ -39,6 +39,7 @@ deactivate Web
 `;
 
 const STORAGE_KEY = 'puml-editor.source';
+const FRONTEND_STORAGE_KEY = 'puml-editor.frontend';
 
 // Map CodeMirror highlight tags (from the StreamLanguage token names) to our
 // custom CSS classes. Each class is defined in sass/style.scss.
@@ -120,6 +121,17 @@ async function init() {
 
   document.getElementById('render-btn').addEventListener('click', render);
   document.getElementById('download-btn').addEventListener('click', downloadSvg);
+  const frontendPicker = document.getElementById('frontend-picker');
+  if (frontendPicker) {
+    const savedFrontend = localStorage.getItem(FRONTEND_STORAGE_KEY);
+    const queryFrontend = new URLSearchParams(window.location.search).get('frontend')
+      || new URLSearchParams(window.location.search).get('dialect');
+    frontendPicker.value = queryFrontend || savedFrontend || 'auto';
+    frontendPicker.addEventListener('change', () => {
+      try { localStorage.setItem(FRONTEND_STORAGE_KEY, frontendPicker.value); } catch {}
+      render();
+    });
+  }
 
   // Build the editor.
   const initial = localStorage.getItem(STORAGE_KEY) || DEFAULT_SOURCE;
@@ -207,7 +219,8 @@ async function render() {
   const previewHost = document.getElementById('preview-host');
   let result;
   try {
-    result = await engine.render(source);
+    const frontend = document.getElementById('frontend-picker')?.value || 'auto';
+    result = await engine.render(source, { frontend });
   } catch (e) {
     result = { ok: false, diagnostics: [{ severity: 'error', message: e.message || String(e) }] };
   }

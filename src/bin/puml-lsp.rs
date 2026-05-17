@@ -1,8 +1,9 @@
-use puml::ast::{ParticipantDecl, StatementKind};
+use puml::ast::{DiagramKind, ParticipantDecl, StatementKind};
 use puml::diagnostic::Severity;
 use puml::scene::LayoutOptions;
 use puml::{
-    layout, normalize, parse_with_pipeline_options, render, Document, ParsePipelineOptions,
+    layout, normalize_family, parse_with_pipeline_options, render, Document, FamilyDocument,
+    FrontendSelection, NormalizedDocument, ParsePipelineOptions,
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -368,9 +369,10 @@ fn main() {
                     .pointer("/params/textDocument/uri")
                     .and_then(Value::as_str)
                     .unwrap_or("");
+                let frontend = msg.pointer("/params").and_then(lsp_frontend_hint);
                 let result = docs
                     .get(uri)
-                    .map(|d| render_result(&d.text))
+                    .map(|d| render_result(&d.text, frontend))
                     .unwrap_or_else(|| json!({"svg":"","width":0,"height":0,"diagnostics":[]}));
                 let _ = resp(&mut w, id, result);
             }
@@ -744,6 +746,84 @@ fn completion_specs() -> &'static [CompletionSpec] {
             kind: KEYWORD,
             detail: "Pagination",
             documentation: "Split output into a new page.",
+        },
+        CompletionSpec {
+            label: "class",
+            kind: KEYWORD,
+            detail: "Class Diagram",
+            documentation: "Declare a class node.",
+        },
+        CompletionSpec {
+            label: "interface",
+            kind: KEYWORD,
+            detail: "Class Diagram",
+            documentation: "Declare an interface node.",
+        },
+        CompletionSpec {
+            label: "enum",
+            kind: KEYWORD,
+            detail: "Class Diagram",
+            documentation: "Declare an enum node.",
+        },
+        CompletionSpec {
+            label: "abstract class",
+            kind: KEYWORD,
+            detail: "Class Diagram",
+            documentation: "Declare an abstract class node.",
+        },
+        CompletionSpec {
+            label: "package",
+            kind: KEYWORD,
+            detail: "Family Diagram",
+            documentation: "Group family diagram nodes under a package.",
+        },
+        CompletionSpec {
+            label: "namespace",
+            kind: KEYWORD,
+            detail: "Family Diagram",
+            documentation: "Group family diagram nodes under a namespace.",
+        },
+        CompletionSpec {
+            label: "state",
+            kind: KEYWORD,
+            detail: "State Diagram",
+            documentation: "Declare a state node.",
+        },
+        CompletionSpec {
+            label: "[*]",
+            kind: KEYWORD,
+            detail: "State Diagram",
+            documentation: "State diagram start or end marker.",
+        },
+        CompletionSpec {
+            label: "start",
+            kind: KEYWORD,
+            detail: "Activity Diagram",
+            documentation: "Start an activity diagram flow.",
+        },
+        CompletionSpec {
+            label: "stop",
+            kind: KEYWORD,
+            detail: "Activity Diagram",
+            documentation: "Stop an activity diagram flow.",
+        },
+        CompletionSpec {
+            label: "if",
+            kind: KEYWORD,
+            detail: "Activity Diagram",
+            documentation: "Start an activity branch.",
+        },
+        CompletionSpec {
+            label: "then",
+            kind: KEYWORD,
+            detail: "Activity Diagram",
+            documentation: "Mark the positive activity branch.",
+        },
+        CompletionSpec {
+            label: "endif",
+            kind: KEYWORD,
+            detail: "Activity Diagram",
+            documentation: "End an activity branch.",
         },
         CompletionSpec {
             label: "== divider ==",
@@ -1165,7 +1245,7 @@ fn code_actions(uri: &str, d: &Doc, msg: &Value) -> Value {
         "kind":"source.format",
         "command":{"title":"Format document","command":"puml.applyFormat","arguments":[uri]}
     })];
-    if lsp_parse(&d.text).and_then(normalize).is_ok() {
+    if lsp_parse(&d.text).and_then(normalize_family).is_ok() {
         out.push(json!({
             "title":"Render SVG preview",
             "kind":"refactor.rewrite",
@@ -1200,10 +1280,13 @@ fn execute_command(msg: &Value, docs: &HashMap<String, Doc>) -> Value {
         .pointer("/params/arguments/0")
         .and_then(Value::as_str)
         .unwrap_or("");
+    let frontend = msg
+        .pointer("/params/arguments/1")
+        .and_then(lsp_frontend_hint);
     match cmd {
         "puml.renderSvg" => docs
             .get(uri)
-            .map(|d| render_result(&d.text))
+            .map(|d| render_result(&d.text, frontend))
             .unwrap_or_else(|| json!({"svg":"","width":0,"height":0,"diagnostics":[{"message":"document not open"}]})),
         "puml.applyFormat" => docs
             .get(uri)
@@ -1413,24 +1496,117 @@ fn range(src: &str, s: usize, e: usize) -> Value {
     json!({"start":pos(src,s),"end":pos(src,e.max(s+1))})
 }
 
-fn render_result(src: &str) -> Value {
-    match lsp_parse(src).and_then(normalize) {
-        Ok(m) => {
-            let s = layout::layout_pages(&m, LayoutOptions::default());
-            json!({"svg":s.first().map(render::render_svg).unwrap_or_default(),"width":0,"height":0,"diagnostics":[]})
+fn render_result(src: &str, frontend: Option<FrontendSelection>) -> Value {
+    match lsp_parse_with_frontend(src, frontend).and_then(normalize_family) {
+        Ok(model) => {
+            let pages = render_svg_pages_from_model(&model);
+            json!({
+                "svg": pages.first().cloned().unwrap_or_default(),
+                "svgs": pages,
+                "width": 0,
+                "height": 0,
+                "diagnostics": []
+            })
         }
-        Err(d) => json!({"svg":"","width":0,"height":0,"diagnostics":[{"message":d.message}]}),
+        Err(d) => json!({
+            "svg": "",
+            "svgs": [],
+            "width": 0,
+            "height": 0,
+            "diagnostics": [d.to_json_with_source(src)]
+        }),
     }
 }
 
 fn lsp_parse(src: &str) -> Result<Document, puml::Diagnostic> {
+    lsp_parse_with_frontend(src, None)
+}
+
+fn lsp_parse_with_frontend(
+    src: &str,
+    frontend: Option<FrontendSelection>,
+) -> Result<Document, puml::Diagnostic> {
     parse_with_pipeline_options(
         src,
         &ParsePipelineOptions {
+            frontend: frontend.unwrap_or(FrontendSelection::Auto),
             no_url_includes: true,
             ..ParsePipelineOptions::default()
         },
     )
+}
+
+fn lsp_frontend_hint(params: &Value) -> Option<FrontendSelection> {
+    let raw = params
+        .get("frontend")
+        .or_else(|| params.get("dialect"))
+        .or_else(|| params.get("language"))
+        .and_then(Value::as_str)?;
+    frontend_selection_from_hint(raw)
+}
+
+fn frontend_selection_from_hint(raw: &str) -> Option<FrontendSelection> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "" | "auto" | "puml" | "pumlx" => Some(FrontendSelection::Auto),
+        "plantuml" | "uml" | "puml-sequence" | "uml-sequence" => Some(FrontendSelection::Plantuml),
+        "mermaid" | "mmd" => Some(FrontendSelection::Mermaid),
+        "picouml" | "pico" => Some(FrontendSelection::Picouml),
+        _ => None,
+    }
+}
+
+fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
+    match model {
+        NormalizedDocument::Sequence(sequence) => {
+            let scenes = layout::layout_pages(sequence, LayoutOptions::default());
+            scenes.iter().map(render::render_svg).collect::<Vec<_>>()
+        }
+        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
+        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
+        NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
+        NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
+        NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
+        NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
+        NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
+        NormalizedDocument::Regex(doc) => vec![render::render_regex_svg(doc)],
+        NormalizedDocument::Ebnf(doc) => vec![render::render_ebnf_svg(doc)],
+        NormalizedDocument::Math(doc) => vec![render::render_math_svg(doc)],
+        NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
+        NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
+        NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
+    }
+}
+
+fn render_family_document_svg(family: &FamilyDocument) -> String {
+    match family.kind {
+        DiagramKind::Salt => render::render_salt_svg(family),
+        DiagramKind::Component => render::render_component_svg(family),
+        DiagramKind::Deployment => render::render_deployment_svg(family),
+        DiagramKind::Activity => render::render_activity_svg(family),
+        DiagramKind::Timing => render::render_timing_svg(family),
+        DiagramKind::MindMap => render::render_mindmap_svg(family),
+        DiagramKind::Wbs => render::render_wbs_svg(family),
+        _ => render::render_family_stub_svg(family),
+    }
+}
+
+fn normalized_warnings(model: &NormalizedDocument) -> &[puml::Diagnostic] {
+    match model {
+        NormalizedDocument::Sequence(sequence) => &sequence.warnings,
+        NormalizedDocument::Family(family) => &family.warnings,
+        NormalizedDocument::Timeline(timeline) => &timeline.warnings,
+        NormalizedDocument::State(state) => &state.warnings,
+        NormalizedDocument::Json(doc) => &doc.warnings,
+        NormalizedDocument::Yaml(doc) => &doc.warnings,
+        NormalizedDocument::Nwdiag(doc) => &doc.warnings,
+        NormalizedDocument::Archimate(doc) => &doc.warnings,
+        NormalizedDocument::Regex(doc) => &doc.warnings,
+        NormalizedDocument::Ebnf(doc) => &doc.warnings,
+        NormalizedDocument::Math(doc) => &doc.warnings,
+        NormalizedDocument::Sdl(doc) => &doc.warnings,
+        NormalizedDocument::Ditaa(doc) => &doc.warnings,
+        NormalizedDocument::Chart(doc) => &doc.warnings,
+    }
 }
 
 fn open(v: &Value) -> Option<(String, i64, String)> {
@@ -1609,6 +1785,9 @@ mod tests {
             .collect();
         assert!(labels.contains(&"@startuml".to_string()));
         assert!(labels.contains(&"participant".to_string()));
+        assert!(labels.contains(&"class".to_string()));
+        assert!(labels.contains(&"state".to_string()));
+        assert!(labels.contains(&"start".to_string()));
         assert!(labels.contains(&"autonumber stop".to_string()));
         assert!(labels.contains(&"|||".to_string()));
         assert!(labels.contains(&"-->>".to_string()));
@@ -1641,6 +1820,64 @@ mod tests {
             .as_str()
             .expect("hover markdown")
             .contains("Dashed message arrow"));
+    }
+
+    #[test]
+    fn render_result_uses_family_renderer_for_class_state_and_activity() {
+        let cases = [
+            ("@startuml\nclass User\n@enduml\n", "User"),
+            (
+                "@startuml\nstate Waiting\n[*] --> Waiting\n@enduml\n",
+                "Waiting",
+            ),
+            ("@startuml\nstart\n:Work;\nstop\n@enduml\n", "Work"),
+        ];
+
+        for (src, needle) in cases {
+            let out = render_result(src, None);
+            assert_eq!(out["diagnostics"].as_array().expect("diagnostics").len(), 0);
+            let svg = out["svg"].as_str().expect("svg");
+            assert!(svg.contains("<svg"));
+            assert!(
+                svg.contains(needle),
+                "family render output should contain {needle}: {svg}"
+            );
+        }
+    }
+
+    #[test]
+    fn render_result_honors_frontend_hint_for_mermaid_and_picouml() {
+        let mermaid = render_result(
+            "classDiagram\nclass User\nUser : +id\n",
+            Some(FrontendSelection::Mermaid),
+        );
+        assert_eq!(
+            mermaid["diagnostics"]
+                .as_array()
+                .expect("mermaid diagnostics")
+                .len(),
+            0
+        );
+        assert!(mermaid["svg"]
+            .as_str()
+            .expect("mermaid svg")
+            .contains("User"));
+
+        let picouml = render_result(
+            "@startpicouml\nAlice => Bob : request\n@endpicouml\n",
+            Some(FrontendSelection::Picouml),
+        );
+        assert_eq!(
+            picouml["diagnostics"]
+                .as_array()
+                .expect("picouml diagnostics")
+                .len(),
+            0
+        );
+        assert!(picouml["svg"]
+            .as_str()
+            .expect("picouml svg")
+            .contains("request"));
     }
 
     #[test]
@@ -1680,10 +1917,9 @@ mod tests {
     }
 }
 fn pub_diag(w: &mut impl Write, uri: &str, ver: i64, src: &str) -> io::Result<()> {
-    let ds = match lsp_parse(src).and_then(normalize) {
-        Ok(m) => m
-            .warnings
-            .into_iter()
+    let ds = match lsp_parse(src).and_then(normalize_family) {
+        Ok(m) => normalized_warnings(&m)
+            .iter()
             .map(|d| {
                 diag(
                     src,

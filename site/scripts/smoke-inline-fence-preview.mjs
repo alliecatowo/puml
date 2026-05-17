@@ -121,7 +121,7 @@ for (const [name, needle] of [
   ['creates toggle buttons', 'puml-fence-toggle'],
   ['initializes collapsed state', "aria-expanded', 'false'"],
   ['links toggles to panels', 'aria-controls'],
-  ['calls the WASM renderer', 'getEngine().render(source)'],
+  ['calls the frontend-aware WASM renderer', 'getEngine().render(source, { frontend: lang })'],
   ['inserts rendered SVG pages', 'renderSvgs(panel, result.svgs)'],
 ]) {
   assertScriptContains(script, needle, `hydrator is missing expected behavior: ${name}`);

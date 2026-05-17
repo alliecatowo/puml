@@ -24,9 +24,12 @@ export class WasmRenderer {
     return this.ready;
   }
 
-  async render(source) {
+  async render(source, options = {}) {
     await this.init();
-    const json = this.module.render_svgs_json(source);
+    const frontend = normalizeFrontendHint(options.frontend || options.dialect || options.language);
+    const json = frontend && this.module.render_svgs_json_with_frontend
+      ? this.module.render_svgs_json_with_frontend(source, frontend)
+      : this.module.render_svgs_json(source);
     let parsed;
     try {
       parsed = JSON.parse(json);
@@ -56,4 +59,14 @@ export function diagnosticLabel(diag) {
   const where = diag?.line ? `line ${diag.line}${diag.column ? `, col ${diag.column}` : ''}` : '';
   const message = diag?.message || 'Render failed.';
   return where ? `${where}: ${message}` : message;
+}
+
+export function normalizeFrontendHint(raw) {
+  const hint = String(raw || '').trim().toLowerCase();
+  if (!hint) return '';
+  if (hint === 'puml' || hint === 'pumlx' || hint === 'auto') return 'auto';
+  if (hint === 'plantuml' || hint === 'uml' || hint === 'puml-sequence' || hint === 'uml-sequence') return 'plantuml';
+  if (hint === 'picouml' || hint === 'pico') return 'picouml';
+  if (hint === 'mermaid' || hint === 'mmd') return 'mermaid';
+  return hint;
 }
