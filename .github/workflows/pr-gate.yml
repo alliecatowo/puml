@@ -143,9 +143,9 @@ jobs:
         if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
-      - name: visual smoke fixture matrix
+      - name: visual full text fixture matrix
         if: steps.changes.outputs.run_full_gate == 'true'
-        run: cargo test --test visual_regression visual_smoke_representative_docs_examples_matrix
+        run: cargo test --test visual_regression visual_regression_all_fixtures
 
       - name: coverage gate
         if: steps.changes.outputs.run_full_gate == 'true'
