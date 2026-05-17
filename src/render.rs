@@ -5,8 +5,8 @@ use crate::model::{
     FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle, JsonDocument,
     LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument, ParticipantRole,
     RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind, StateDocument,
-    StateNode, StateNodeKind, TimelineDocument, TimelineTask, VirtualEndpointKind, WbsCheckbox,
-    YamlDocument,
+    StateNode, StateNodeKind, TimelineChronologyEvent, TimelineDocument, TimelineTask,
+    VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle};
@@ -2320,6 +2320,20 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let bw = (((chart_w as u32) * task.duration_days.max(1)) / total_days).max(8) as i32;
         (bx, bw)
     };
+    let day_to_x = |day: u32| -> i32 {
+        let start_offset = day.saturating_sub(min_day);
+        chart_left + ((chart_w as u32 * start_offset) / total_days) as i32
+    };
+    let task_end_day: std::collections::BTreeMap<&str, u32> = document
+        .tasks
+        .iter()
+        .map(|t| {
+            (
+                t.name.as_str(),
+                t.start_day.saturating_add(t.duration_days.max(1)),
+            )
+        })
+        .collect();
 
     // Render tasks as horizontal bars
     for (i, task) in document.tasks.iter().enumerate() {
@@ -2339,6 +2353,31 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         ));
     }
 
+    // Render milestones as diamonds (position derived from constraints when possible)
+    let mut milestone_day: std::collections::BTreeMap<&str, u32> =
+        std::collections::BTreeMap::new();
+    for ms in &document.milestones {
+        for c in &document.constraints {
+            if c.subject != ms.name {
+                continue;
+            }
+            if let Some(task_name) = extract_bracketed_name(&c.target) {
+                if let Some(day) = task_end_day.get(task_name.as_str()) {
+                    milestone_day.insert(ms.name.as_str(), *day);
+                    break;
+                }
+            }
+            if let Some(day) = parse_relative_day(&c.target) {
+                milestone_day.insert(ms.name.as_str(), min_day.saturating_add(day));
+                break;
+            }
+            if let Some(abs_day) = parse_iso_date_day_number(&c.target) {
+                milestone_day.insert(ms.name.as_str(), abs_day.max(min_day));
+                break;
+            }
+        }
+    }
+
     // Render milestones as diamonds
     for (i, milestone) in document.milestones.iter().enumerate() {
         let row = task_count + i as i32;
@@ -2350,7 +2389,10 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             ty = y + bar_height - 6,
             txt = escape_text(&milestone.name)
         ));
-        let cx = chart_left + chart_w / 2;
+        let cx = milestone_day
+            .get(milestone.name.as_str())
+            .map(|d| day_to_x(*d))
+            .unwrap_or(chart_left + chart_w / 2);
         let r = (bar_height / 2) - 2;
         out.push_str(&format!(
             "<polygon points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"#facc15\" stroke=\"#854d0e\" stroke-width=\"1.5\"/>",
@@ -2438,6 +2480,49 @@ fn extract_bracketed_name(target: &str) -> Option<String> {
     Some(target[start + 1..end].trim().to_string())
 }
 
+fn parse_relative_day(raw: &str) -> Option<u32> {
+    let t = raw.trim();
+    let rest = t.strip_prefix("D+").or_else(|| t.strip_prefix("d+"))?;
+    rest.trim().parse::<u32>().ok()
+}
+
+fn parse_iso_date_tuple(raw: &str) -> Option<(i32, i32, i32)> {
+    let mut parts = raw.trim().split('-');
+    let y = parts.next()?.parse::<i32>().ok()?;
+    let m = parts.next()?.parse::<i32>().ok()?;
+    let d = parts.next()?.parse::<i32>().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((y, m, d))
+}
+
+fn parse_iso_date_day_number(raw: &str) -> Option<u32> {
+    let (y, m, d) = parse_iso_date_tuple(raw)?;
+    if y < 0 || !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    let mut days = 0u32;
+    for year in 0..y {
+        days = days.saturating_add(if is_leap_year(year) { 366 } else { 365 });
+    }
+    const MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    for mm in 1..m {
+        let idx = (mm - 1) as usize;
+        days = days.saturating_add(if mm == 2 && is_leap_year(y) {
+            29
+        } else {
+            MONTH[idx]
+        });
+    }
+    days = days.saturating_add((d - 1) as u32);
+    Some(days)
+}
+
+fn is_leap_year(y: i32) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+}
+
 fn render_chronology_svg(document: &TimelineDocument) -> String {
     let width: i32 = 760;
     let margin_x: i32 = 32;
@@ -2493,9 +2578,20 @@ fn render_chronology_svg(document: &TimelineDocument) -> String {
         y2 = line_bottom
     ));
 
-    // Events
-    for (i, event) in document.chronology_events.iter().enumerate() {
+    // Events (sorted by ISO date when parsable)
+    let mut events: Vec<&TimelineChronologyEvent> = document.chronology_events.iter().collect();
+    events.sort_by_key(|e| parse_iso_date_tuple(&e.when).unwrap_or((i32::MAX, i32::MAX, i32::MAX)));
+    for (i, event) in events.iter().enumerate() {
         let cy = line_top + (i as i32) * event_gap + event_gap / 2;
+        let card_y = cy - 16;
+        let card_x = line_x + 12;
+        out.push_str(&format!(
+            "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"28\" rx=\"4\" ry=\"4\" fill=\"{bg}\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>",
+            x = card_x,
+            y = card_y,
+            w = width - card_x - margin_x,
+            bg = if i % 2 == 0 { "#ffffff" } else { "#f8fafc" }
+        ));
         // Bullet circle
         out.push_str(&format!(
             "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"6\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1.5\"/>",
@@ -2511,7 +2607,7 @@ fn render_chronology_svg(document: &TimelineDocument) -> String {
         // Subject on right
         out.push_str(&format!(
             "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"13\" fill=\"#0f172a\">{txt}</text>",
-            x = line_x + 14,
+            x = line_x + 20,
             y = cy + 4,
             txt = escape_text(&event.subject)
         ));
@@ -3322,6 +3418,20 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     y + 2 + dy + 4,
                     escape_text(&label)
                 ));
+                if step_kind.contains("WhileStart") {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">while</text>",
+                        cx,
+                        y + 54
+                    ));
+                }
+                if step_kind.contains("RepeatWhile") {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">repeat while</text>",
+                        cx,
+                        y + 54
+                    ));
+                }
             }
             FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                 let bar_w = box_w;
@@ -3348,11 +3458,22 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
             }
             FamilyNodeKind::ActivityMerge => {
+                let merge_label = if step_kind.contains("Else") {
+                    format!("(else) {}", label)
+                } else if step_kind.contains("EndIf") {
+                    "(endif)".to_string()
+                } else if step_kind.contains("EndWhile") {
+                    "(endwhile)".to_string()
+                } else if step_kind.contains("RepeatStart") {
+                    "(repeat)".to_string()
+                } else {
+                    format!("(merge) {}", label)
+                };
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{}</text>",
                     cx,
                     y + 28,
-                    escape_text(&format!("(merge) {}", label))
+                    escape_text(&merge_label)
                 ));
             }
             FamilyNodeKind::ActivityPartition => {
@@ -3984,6 +4105,13 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         y_header
     ));
 
+    let mut incoming: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    let mut outgoing: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for t in transitions {
+        *incoming.entry(t.to.as_str()).or_insert(0) += 1;
+        *outgoing.entry(t.from.as_str()).or_insert(0) += 1;
+    }
+
     // Draw transitions (arrows) first so nodes appear on top
     for t in transitions {
         let from_coord = node_coords.get(&t.from);
@@ -3995,10 +4123,21 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         {
             // Compute start/end points at node boundaries
             let (x1, y1, x2, y2) = transition_endpoints(from_node, fx, fy, to_node, tx, ty);
-            out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
-                x1, y1, x2, y2, state_style.arrow_color
-            ));
+            if t.from == t.to {
+                let loop_rx = 18;
+                let loop_ry = 14;
+                let cpx = x1 + loop_rx;
+                let cpy = y1 - loop_ry;
+                out.push_str(&format!(
+                    "<path d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
+                    state_style.arrow_color
+                ));
+            } else {
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
+                    x1, y1, x2, y2, state_style.arrow_color
+                ));
+            }
             if let Some(label) = &t.label {
                 let mx = (x1 + x2) / 2;
                 let my = (y1 + y2) / 2 - 6;
@@ -4013,7 +4152,15 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // Draw nodes — pass state_style for coloring
     for node in nodes {
         if let Some(&(x, y)) = node_coords.get(&node.name) {
-            render_state_node_svg_styled(&mut out, node, x, y, state_style);
+            render_state_node_svg_styled(
+                &mut out,
+                node,
+                x,
+                y,
+                state_style,
+                *incoming.get(node.name.as_str()).unwrap_or(&0),
+                *outgoing.get(node.name.as_str()).unwrap_or(&0),
+            );
         }
     }
 
@@ -4891,7 +5038,7 @@ fn state_node_bbox(node: &StateNode) -> (i32, i32) {
         StateNodeKind::Fork | StateNodeKind::Join => (STATE_NODE_W, 8),
         StateNodeKind::Choice => (60, 40),
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (40, 40),
-        StateNodeKind::StartEnd | StateNodeKind::End => (36, 36),
+        StateNodeKind::StartEnd | StateNodeKind::End => (40, 40),
         StateNodeKind::Normal => {
             let actions_h = (node.internal_actions.len() as i32) * 14;
             (STATE_NODE_W, STATE_NODE_H + actions_h)
@@ -4948,6 +5095,8 @@ fn render_state_node_svg_styled(
     x: i32,
     y: i32,
     state_style: &crate::theme::StateStyle,
+    incoming_count: usize,
+    outgoing_count: usize,
 ) {
     let w = STATE_NODE_W;
     let base_h = STATE_NODE_H;
@@ -4958,10 +5107,21 @@ fn render_state_node_svg_styled(
         StateNodeKind::StartEnd => {
             let cx = x + w / 2;
             let cy = y + base_h / 2;
-            out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\"/>",
-                cx, cy, state_style.start_color
-            ));
+            if incoming_count > 0 && outgoing_count == 0 {
+                out.push_str(&format!(
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    cx, cy, state_style.background_color, state_style.border_color
+                ));
+                out.push_str(&format!(
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"8\" fill=\"{}\"/>",
+                    cx, cy, state_style.start_color
+                ));
+            } else {
+                out.push_str(&format!(
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\"/>",
+                    cx, cy, state_style.start_color
+                ));
+            }
         }
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => {
             let cx = x + w / 2;
@@ -5046,7 +5206,15 @@ fn render_state_node_svg_styled(
                     let region_x = x + ri as i32 * region_w + 4;
                     let mut child_y = y + 28;
                     for child in region {
-                        render_state_node_svg_styled(out, child, region_x, child_y, state_style);
+                        render_state_node_svg_styled(
+                            out,
+                            child,
+                            region_x,
+                            child_y,
+                            state_style,
+                            0,
+                            0,
+                        );
                         child_y += STATE_NODE_H + 12;
                     }
                 }
@@ -5081,7 +5249,15 @@ fn render_state_node_svg_styled(
                     if !region.is_empty() {
                         let mut child_y = y + h + 4;
                         for child in region {
-                            render_state_node_svg_styled(out, child, x + 8, child_y, state_style);
+                            render_state_node_svg_styled(
+                                out,
+                                child,
+                                x + 8,
+                                child_y,
+                                state_style,
+                                0,
+                                0,
+                            );
                             child_y += STATE_NODE_H + 8;
                         }
                     }
