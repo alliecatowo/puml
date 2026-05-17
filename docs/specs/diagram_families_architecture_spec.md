@@ -1,7 +1,7 @@
 # Diagram Families Architecture Spec
 
-Date: 2026-05-15  
-Status: Approved for implementation scaffolding
+Date: 2026-05-17
+Status: Approved architecture; implementation has moved beyond initial scaffolding
 
 ## Purpose
 
@@ -17,9 +17,9 @@ In scope:
 - Family layout-engine interface and deterministic behavior contract.
 - Error boundary for unsupported families during staged parity rollout.
 
-Out of scope (current scaffold slice):
-- Additional family-specific semantics not yet implemented in each active lane.
-- Concrete class/state/activity renderers.
+Out of scope for this architecture note:
+- Exhaustive family-specific semantics for each active parity lane.
+- Claims of full PlantUML parity for advanced family behavior.
 - Plugin/editor protocol changes.
 
 ## Architecture Overview
@@ -32,9 +32,10 @@ Pipeline target:
 4. Run family-specific layout engine.
 5. Render scene(s) into SVG.
 
-Current rollout state:
-- Sequence family: stable baseline path with active parity hardening.
-- Additional families: routed by family-aware APIs and currently in progressive parity lanes; unsupported families return deterministic diagnostics until implemented.
+Current implementation snapshot:
+- Sequence family: stable deep path with active parity hardening for advanced breadth.
+- Core UML and non-UML families: family-aware routed render paths exist for the tracked families named in the parity source of truth. Many core rows are implemented, while advanced rows remain partial until fixture and oracle evidence justify promotion.
+- Unsupported constructs or ambiguous family inputs return deterministic diagnostics; unsupported behavior is tracked at construct/feature granularity rather than by blanket family rejection.
 
 ## Shared IR Boundary
 
@@ -105,9 +106,9 @@ Docs-as-tests policy:
 
 ## Determinism Contract
 
-For every family-aware stub before full implementation:
+For every family-aware route, including partial implementations:
 - Same input/source must produce identical `Result` shape and identical error text.
-- Rejections for unsupported families are stable and not data-dependent beyond family name.
+- Rejections for unsupported families or constructs are stable and not data-dependent beyond the selected family, construct, and source span.
 
 ## Rollout Plan Hooks
 
@@ -126,3 +127,8 @@ Scaffolding phase is complete when:
 - Sequence behavior stays unchanged through existing tests.
 - Unsupported families are deterministically rejected with explicit diagnostics.
 - Parity roadmap contains family-by-family execution slices.
+
+Current follow-up acceptance now lives in
+`docs/audits/plantuml_parity_source_of_truth.md` and the relevant fixture/oracle
+reports. Do not use this historical scaffolding checklist as the current parity
+status table.

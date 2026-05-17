@@ -26,7 +26,7 @@ Legend:
 
 | Area | PlantUML Baseline | `puml` Status | Evidence | Notes |
 |---|---|---|---|---|
-| Sequence scope | Sequence diagrams plus many other UML families | `Differentiator` | `src/normalize.rs`, `docs/decision-log.md` D-001 | `puml` is intentionally sequence-only; non-sequence input rejected. |
+| Sequence scope | Sequence diagrams plus many other UML families | `Partial` | `docs/audits/plantuml_parity_source_of_truth.md`, `docs/decision-log.md` D-010 | Historical sequence audit row. `puml` now has routed render paths for many families, but this research chunk remains scoped to sequence behavior and does not claim whole-PlantUML parity. |
 | `@startuml`/`@enduml` blocks | Standard source delimiters | `Supported` | `src/parser.rs`, `tests/fixtures/basic/valid_start_end.puml` | Also tolerates plain single-diagram text input. |
 | Basic messages (`->`, `-->`, `<-`, `..>`, etc.) | Rich arrow forms | `Partial` | `src/parser.rs` arrow parser, `tests/fixtures/arrows/valid_dotted_parallel_sequence_edges.puml` | Core arrows plus slanted/top-half and dotted compatibility forms are supported; full PlantUML arrow grammar remains broader. |
 | Inline message arrow styling (`-[#red,dashed]>`, `-[hidden]->`) | Supported | `Partial` | `src/parser.rs`, `src/render.rs`, `tests/render_e2e.rs` | Decorated sequence arrows are parsed and now render per-message color, dashed/dotted strokes, hidden arrow visibility, and dotted `..>` portability forms. |
