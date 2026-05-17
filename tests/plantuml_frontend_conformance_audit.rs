@@ -84,8 +84,8 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
         .expect("failed to read tests/render_e2e.rs");
     let oracle_smoke = fs::read_to_string(repo_path("tests/oracle_smoke.rs"))
         .expect("failed to read tests/oracle_smoke.rs");
-    let parser =
-        fs::read_to_string(repo_path("src/parser.rs")).expect("failed to read src/parser.rs");
+    let parser_tests = fs::read_to_string(repo_path("src/parser/tests.rs"))
+        .expect("failed to read src/parser/tests.rs");
     for anchor_cell in anchors {
         for anchor in anchor_cell
             .split(',')
@@ -118,8 +118,8 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
                     oracle_smoke.contains(&needle),
                     "missing oracle_smoke anchor referenced by matrix: {anchor}"
                 ),
-                "src/parser.rs" => assert!(
-                    parser.contains(&needle),
+                "src/parser/tests.rs" => assert!(
+                    parser_tests.contains(&needle),
                     "missing parser anchor referenced by matrix: {anchor}"
                 ),
                 _ => panic!("unsupported matrix anchor file hint: {file_hint}"),
