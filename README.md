@@ -1,463 +1,248 @@
 # puml
 
-Fast, deterministic diagram rendering to SVG/PNG with a polymorphic multi-language frontend (PicoUML, PlantUML, Mermaid), strict validation, and scriptable CLI modes.
+Rust-native, deterministic diagram rendering for people, docs, and agents.
 
-![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)
-![rust](https://img.shields.io/badge/rust-2021-f97316)
-![scope](https://img.shields.io/badge/scope-full%20PlantUML%20parity%20target-14b8a6)
-![license](https://img.shields.io/badge/license-MIT-22c55e)
-![docs parity](https://img.shields.io/badge/docs--as--tests-enabled-16a34a)
-![determinism](https://img.shields.io/badge/svg-deterministic-0f766e)
-![agent harness](https://img.shields.io/badge/codex%2Fclaude-harness--ready-f59e0b)
+[![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)](Cargo.toml)
+[![Rust 2021](https://img.shields.io/badge/rust-2021-f97316)](Cargo.toml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-16a34a)](https://alliecatowo.github.io/puml/)
+[![PlantUML compatibility target](https://img.shields.io/badge/PlantUML-compatible%20target-14b8a6)](docs/audits/plantuml_parity_source_of_truth.md)
+[![deterministic SVG](https://img.shields.io/badge/output-deterministic%20SVG-0f766e)](docs/benchmarks/README.md)
 
-## PlantUML parity roadmap
+`puml` is a no-Java, PlantUML-compatible diagram renderer written in Rust. It parses diagram sources, lowers them through deterministic compiler stages, and emits SVG or PNG from a single CLI without needing a JVM, Graphviz install, or rendering server.
 
-`puml` is pursuing full 1:1 parity with PlantUML as an aggressive roadmap goal, with staged family-lane implementation to preserve deterministic parser/normalizer/layout/render contracts. Current support is not full PlantUML parity. The canonical current status is tracked in [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md), where support is classified conservatively as `implemented`, `partial`, or `missing`.
+It is also the home of PicoUML: our small, aspirational, agent-friendly diagram language for diagrams that need to stay easy to author, diff, validate, and render in automation.
 
-Language and compatibility statement:
-- PicoUML is the first-class canonical language surface for this engine.
-- PlantUML is a first-class compatibility target across implemented and planned diagram families; full 1:1 parity remains the roadmap ambition, not the current claim.
-- Mermaid is first-class for `sequenceDiagram`, `flowchart`/`graph`, `classDiagram`, `stateDiagram`/`stateDiagram-v2`, and `erDiagram` families, with deterministic diagnostics for unsupported constructs.
-
-Source-of-truth hierarchy:
-- Current support status: [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md)
-- Machine-readable exports: [`docs/audits/parity_gap_core.csv`](docs/audits/parity_gap_core.csv) and [`docs/audits/parity_gap_nonuml.csv`](docs/audits/parity_gap_nonuml.csv)
-- Remaining high-impact planning slices: [`docs/audits/post_blitz_gap_table.md`](docs/audits/post_blitz_gap_table.md)
-- **Oracle differential report**: [`docs/benchmarks/oracle_report.json`](docs/benchmarks/oracle_report.json) — produced on every PR by the [Oracle CI workflow](.github/workflows/oracle.yml) running fixture-by-fixture SVG comparison against PlantUML JAR v1.2024.7 (Temurin JDK 17). This is the measured, per-fixture evidence source for "what is actually at parity". Download the `oracle-report-<run>` artifact from any CI run for the latest fixture-match numbers.
-- The oracle is comparison-only and never part of the puml runtime or build; local `cargo test` still passes without Java or a JAR.
-
-## Install And Dev
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow, local hook setup, and agent checklist.
-
-```bash
-# clone + enter
-git clone <your-fork-or-repo-url>
-cd puml
-
-# one-time dev setup (Rust toolchain components)
-./scripts/setup.sh
-
-# install lefthook git hooks (opt-in; strongly recommended for contributors)
-./scripts/install-hooks.sh
-
-# fast local loop (fmt + clippy + test)
-./scripts/dev.sh
-
-# full quality gate (fmt + clippy + test + llvm-cov + release build + bench gates)
-./scripts/check-all.sh
-
-# quick quality gate (skips coverage + release build, keeps quick bench gates)
-./scripts/check-all.sh --quick
-```
-
-## CI/CD
-
-GitHub Actions enforces gate scripts from this repo directly:
-
-- PR gate workflow: `.github/workflows/pr-gate.yml`
-  runs `fmt` -> `clippy` -> `test` -> wasm check -> coverage gate -> docs examples drift gate
-  uploads benchmark artifact paths when present (`latest*`, `latest_trend*`)
-- Main gate workflow: `.github/workflows/main-gate.yml`
-  runs `./scripts/check-all.sh` (full gate)
-  publishes benchmark evidence artifacts (`latest*`, `latest_trend*`, baselines, `parity_latest.json`)
-- Oracle workflow: `.github/workflows/oracle.yml`
-  runs on every PR to main and on pushes to main
-  installs JDK 17 (Temurin) and downloads PlantUML JAR v1.2024.7 (pinned, cached)
-  runs `scripts/oracle.sh` (fixture-by-fixture SVG diff) and `cargo test --test oracle_smoke -- --include-ignored`
-  uploads `oracle-report-<run>` artifact with `oracle_report.json` as the measured parity source of truth
-  posts a fixture-match summary comment on each PR
-  SVG layout divergence is advisory; parse failures on JAR-accepted fixtures are hard failures
-- Branch protection/ruleset contract: [`docs/branch-protection.md`](docs/branch-protection.md)
-  validation command: `./scripts/branch-protection.sh verify`
-
-## CLI Usage (Explicit Modes)
-
-```bash
-# help
-cargo run -- --help
-
-# 1) FILE INPUT -> renders <input-stem>.svg
-cargo run -- tests/fixtures/basic/hello.puml
-
-# PNG output (rasterized from deterministic SVG)
-cargo run -- --format png tests/fixtures/basic/hello.puml
-cargo run -- --format png --dpi 192 tests/fixtures/basic/hello.puml -o hello@2x.png
-
-# 2) STDIN INPUT (explicit '-') -> render SVG to stdout
-cat tests/fixtures/basic/hello.puml | cargo run -- -
-
-# 3) STDIN INPUT (implicit, no INPUT arg) -> render SVG to stdout
-cat tests/fixtures/basic/hello.puml | cargo run --
-
-# check-only mode (parse + normalize, no render output)
-cargo run -- --check tests/fixtures/basic/hello.puml
-cat tests/fixtures/basic/hello.puml | cargo run -- --check -
-
-# batch docs/CI lint mode (repeatable inputs + globs)
-cargo run -- --check --lint-input docs/examples/basic_hello.puml --lint-input docs/examples/groups_notes.puml
-cargo run -- --check --lint-glob 'docs/**/*.md' --lint-report json
-
-# dump pipeline JSON
-cargo run -- --dump ast tests/fixtures/basic/hello.puml
-cargo run -- --dump model tests/fixtures/basic/hello.puml
-cargo run -- --dump scene tests/fixtures/basic/hello.puml
-
-# multi-diagram mode (must be explicit)
-cargo run -- --multi tests/fixtures/structure/multi_three.puml
-cat tests/fixtures/structure/multi_three.puml | cargo run -- --multi -
-
-# markdown fenced extraction mode (auto-enabled for .md/.markdown/.mdown files)
-cargo run -- --from-markdown --check docs/sequence-notes.md
-
-# machine-readable diagnostics
-cargo run -- --check --diagnostics json tests/fixtures/invalid_single.puml
-
-# LSP server (stdio)
-cargo run --bin puml-lsp
-
-# frontend + mode controls
-cargo run -- --dialect auto --compat strict --determinism strict tests/fixtures/basic/hello.puml
-cargo run -- --dialect plantuml --check tests/fixtures/basic/hello.puml
-
-# stdin + include support
-cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --include-root ./tests/fixtures/include -
-
-# runtime compatibility flags
-#   --duration         print elapsed wall time to stderr
-#   --quiet / -q       suppress non-error stderr
-#   --verbose / -v     emit per-stage parse/normalize/render timings
-#   --fail-on-warn     exit 1 if any warnings are emitted
-#   --overwrite        no-op (outputs are always overwritten)
-#   --charset UTF-8    no-op compatibility (only UTF-8 is supported)
-#   --format svg|png   render as deterministic SVG or PNG
-cargo run -- --verbose --duration --check tests/fixtures/basic/hello.puml
-```
-
-Runtime parity flag notes:
-- When stdin is a TTY and no input file is supplied, the CLI prints help instead of blocking forever.
-- `--format png` rasterizes deterministic SVG output; use `--dpi` to control PNG scale.
-- `--charset` accepts only `UTF-8` (case-insensitive); other charsets are rejected with `E_CHARSET_UNSUPPORTED`.
-
-## Asciicast-Style Example
-
-```console
-$ cat > hello.puml <<'PUML'
+```plantuml
 @startuml
-Alice -> Bob: hello
+Alice -> Bob: Hello
+Bob --> Alice: Ack
 @enduml
-PUML
-$ cargo run -- hello.puml
-$ ls hello.svg
-hello.svg
-$ cargo run -- --check hello.puml
-# exits 0 with no validation errors
 ```
-
-## Rendered Examples
-
-Canonical examples live in [`docs/examples/README.md`](docs/examples/README.md), with committed source/output pairs.
-Supported primitive catalog page: [`docs/examples/supported_primitives.md`](docs/examples/supported_primitives.md).
-These examples are coverage seeds and executable documentation artifacts, not proof of full PlantUML 1:1 parity and not a replacement for the source-of-truth audit table. Use [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md) for current implemented/partial/missing status.
-Current docs corpus footprint: `docs/examples/` contains `255` `.puml` sources and `258` `.svg` artifacts.
-
-Re-generate all committed examples:
-
-```bash
-for f in docs/examples/*.puml; do
-  cargo run -- "$f"
-done
-```
-
-### Basic Hello
-
-Source: [`docs/examples/basic_hello.puml`](docs/examples/basic_hello.puml)
 
 ![Basic Hello](docs/examples/basic_hello.svg)
 
-### Groups And Notes
+## Why
+
+Diagrams are still weirdly hard to keep in a codebase. PlantUML has the ecosystem and vocabulary, but the Java runtime, optional Graphviz dependency, and server-shaped workflows are friction for small tools, CI, WASM, and editor integrations. Mermaid is everywhere, but it is JavaScript-first and can be awkward for agents or non-browser tooling to validate with confidence.
+
+`puml` exists to make diagram rendering feel like a normal compiler tool:
+
+| Goal | What it means |
+|---|---|
+| Fast local loop | Rust CLI, deterministic output, no JVM or daemon required at runtime. |
+| PlantUML-compatible path | Substantial current support, with broad compatibility as the mission rather than a finished drop-in claim. |
+| Agent-readable diagnostics | Stable check, lint, markdown, dump, and diagnostics modes for automation and code review. |
+| PicoUML home base | A smaller language surface that belongs to this project and can evolve around human and AI editing. |
+| Docs-as-tests | `254` committed `.puml` sources and `258` committed `.svg` artifacts are used as regression evidence. |
+
+## Install
+
+Install from a checkout:
+
+```bash
+git clone https://github.com/alliecatowo/puml.git
+cd puml
+cargo install --path .
+```
+
+Or install directly from GitHub:
+
+```bash
+cargo install --git https://github.com/alliecatowo/puml.git
+```
+
+For development, run the repo setup once:
+
+```bash
+./scripts/setup.sh
+./scripts/install-hooks.sh
+```
+
+## Quick Start
+
+Render a diagram file to `hello.svg`:
+
+```bash
+cat > hello.puml <<'PUML'
+@startuml
+Alice -> Bob: Hello
+Bob --> Alice: Ack
+@enduml
+PUML
+
+puml hello.puml
+```
+
+Check without rendering:
+
+```bash
+puml --check hello.puml
+```
+
+Render from stdin:
+
+```bash
+cat hello.puml | puml - > hello.svg
+```
+
+Emit machine-readable pipeline data:
+
+```bash
+puml --dump ast hello.puml
+puml --dump model hello.puml
+puml --dump scene hello.puml
+```
+
+Use compatibility controls when you need them:
+
+```bash
+puml --dialect plantuml --compat strict --determinism strict hello.puml
+puml --format png --dpi 192 hello.puml -o hello@2x.png
+puml --from-markdown --check docs/examples/README.md
+puml --check --lint-glob 'docs/**/*.md' --lint-report json
+puml --no-url-includes --check hello.puml
+```
+
+## What Works Today
+
+`puml` already supports a broad set of diagram families and CLI workflows. It is not perfect PlantUML parity yet; compatibility is tracked conservatively and tested continuously.
+
+| Area | Current shape |
+|---|---|
+| Sequence diagrams | Broad support for participants, arrows, groups, notes, lifecycle, autonumber, metadata, and selected styling. |
+| Core UML families | Class, object, use-case, component, deployment, state, activity, and timing render paths with partial PlantUML parity. |
+| Planning and structure | Gantt, chronology, mindmap, WBS, nwdiag, Archimate, C4-style examples, and more. |
+| Data and text families | JSON, YAML, EBNF, regex, math/LaTeX, SDL, Ditaa, and chart renderers. |
+| Preprocessor | Deterministic support for many PlantUML preprocessor forms, includes, URL includes by default, macros, functions, loops, assertions, and stdlib imports. |
+| Frontends | PlantUML is the compatibility target; PicoUML is ours and evolving; Mermaid support exists for selected families. |
+| Outputs | Deterministic SVG by default; PNG rasterization is available through the same scene pipeline. |
+| Tool surfaces | CLI is primary; WASM and LSP integrations are emerging and kept close to the same parser/render pipeline. |
+
+For the detailed truth table, see the [PlantUML parity source of truth](docs/audits/plantuml_parity_source_of_truth.md), [frontend conformance matrix](docs/plantuml_frontend_conformance_matrix.md), and [oracle threshold notes](docs/oracle-thresholds.md).
+
+## Examples
+
+More examples live in the [example gallery](docs/examples/GALLERY.md) and on the [docs site](https://alliecatowo.github.io/puml/gallery/). The SVGs below are committed artifacts from this repository.
+
+<details>
+<summary>Sequence: groups and notes</summary>
 
 Source: [`docs/examples/groups_notes.puml`](docs/examples/groups_notes.puml)
 
-![Groups And Notes](docs/examples/groups_notes.svg)
+![Groups and Notes](docs/examples/groups_notes.svg)
 
-## CLI Contract
+</details>
 
-Inputs:
-- `INPUT` file path
-- `-` for stdin
-- omitted `INPUT` reads stdin
+<details>
+<summary>Sequence: lifecycle and autonumber</summary>
 
-Modes:
-- default renders SVG
-- `--format svg|png` selects output format (default `svg`)
-- `--dpi FLOAT` controls PNG rasterization DPI (default `96`; only used with `--format png`)
-- `--check` parses + normalizes only
-- `--lint-input INPUT` adds repeatable check/lint inputs (check mode only)
-- `--lint-glob GLOB` adds repeatable glob-expanded check/lint inputs (check mode only)
-- `--lint-report human|json` emits lint summary report format (default `human`)
-- `--dump ast|model|scene` emits JSON
-- `--multi` permits multiple stdin diagrams/pages (required when stdin expands to more than one diagram/page)
-- `--from-markdown` treats input as markdown and only extracts fenced diagram blocks
-  supported markdown fence langs: `puml`, `pumlx`, `picouml`, `plantuml`, `uml`, `puml-sequence`, `uml-sequence`, `mermaid`
-- `--diagnostics human|json` controls diagnostics output format (default `human`)
-- `--stdrpt` emits each diagnostic as a single tab-separated line: `<severity>\t<code>\t<file>:<line>:<col>\t<message>`, suppressing multi-line source-context output (exit codes are unchanged)
-- `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
-  `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
-  `mermaid`: supports the following diagram families:
-    - `sequenceDiagram`: participants/actors, message arrows including solid/dotted arrow, cross/lost (`-x`, `--x`), and open async (`-)`, `--)`) forms, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, all group blocks (`alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box`), `create`/`destroy`, `link` (collapsed to benign comment); unknown constructs emit deterministic `E_MERMAID_*` diagnostics
-    - `flowchart TD|LR|...` / `graph TD|LR|...`: nodes with bracket/brace/paren labels, `-->` and `-->|label|` edges, subgraph blocks — adapted to PlantUML component-style
-    - `classDiagram`: class declarations with `{ members }` blocks and `ClassName : member` lines, inheritance/association relations — adapted to PlantUML class diagram
-    - `stateDiagram` / `stateDiagram-v2`: `[*]` pseudo-states, `-->` transitions — adapted to PlantUML state diagram
-    - `erDiagram`: entity declarations and `||--o{` cardinality relations — adapted to PlantUML class-style diagram
-    Unsupported diagram families (e.g. `pie`, `gitDiagram`) emit a deterministic `E_MERMAID_FAMILY_UNSUPPORTED` diagnostic
-  `picouml`: canonical first-class language surface; explicit frontend selection routes through the shared deterministic baseline path, including compact forward/reverse call arrows (`=>`, `<=`, `~>`, `<~`)
-- `--compat strict|extended` sets semantic compatibility policy (default `strict`)
-  `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
-  `extended`: when `--include-root` is omitted, stdin `!include` falls back to current working directory
-- `--determinism strict|full` sets determinism policy (default `strict`)
-- `--include-root DIR` resolves `!include` when reading stdin
+Source: [`docs/examples/lifecycle_autonumber.puml`](docs/examples/lifecycle_autonumber.puml)
 
-Outputs:
-- single diagram from file writes `<input-stem>.svg`
-- with `--format png`, single diagram from file writes `<input-stem>.png`
-- single diagram from stdin writes SVG to stdout
-- with `--format png`, single diagram from stdin writes PNG bytes to stdout
-- multipage file inputs (`newpage`) write numbered files (`<stem>-1.svg`, `<stem>-2.svg`, ...)
-- with `--format png`, multipage file inputs write numbered PNG files (`<stem>-1.png`, `<stem>-2.png`, ...)
-- multipage stdin inputs require `--multi`; with `--multi`, stdout is a deterministic JSON array of `{name, svg}`
-- multipage stdin + `--multi` is only supported for SVG output
-- `ignore newpage` collapses multipage splits and keeps single-output behavior
-- multi diagram from stdin + `--multi` writes JSON array to stdout
-  markdown stdin naming is deterministic: `snippet-<n>.svg` (or `snippet-<n>-<page>.svg` for multipage fences)
-- markdown file outputs with `--multi` are deterministic snippet files:
-  `<markdown-stem>_snippet_<n>.svg` (or `<markdown-stem>_snippet_<n>-<page>.svg` for multipage fences)
-- `--output PATH` writes to that path for single diagrams, and numbered paths for multi
-- lint/check batch mode always emits a lint summary report on `stdout`
-  `human`: single summary line + failed file lines
-  `json`: `{"schema":"puml.lint_report","schema_version":1,"summary":...,"files":[...]}`
-- multi-file writes are transactional: failures do not leave partially updated numbered outputs
+![Lifecycle Autonumber](docs/examples/lifecycle_autonumber.svg)
 
-Exit codes:
-- `0` success
-- `1` validation or usage failure
-- `2` I/O failure
-- `3` internal failure
+</details>
 
-Diagnostics:
-- source warnings/errors include `line`/`column` and caret snippets when source spans exist
-- unsupported `skinparam` keys and `!theme` emit deterministic non-fatal warnings on `stderr`
-- `--diagnostics json` emits `{"schema":"puml.diagnostics","schema_version":1,"diagnostics":[...]}` with stable fields:
-  `code`, `severity`, `message`, `span`, `line`, `column`, `snippet`, `caret`
-  lint mode (`--check` + lint inputs/globs) adds optional `file` per diagnostic entry and emits one aggregated JSON payload on `stderr`
-- stream contract:
-  `--check`/render/`--dump` payload outputs remain on `stdout`; diagnostics (human or json) are emitted on `stderr`
-  lint/check batch mode keeps the same diagnostics behavior (`stderr`) and writes lint summary reports to `stdout`
+<details>
+<summary>Component diagram</summary>
 
-## Benchmarks And Gates
+Source: [`docs/examples/component/06_with_arrows.puml`](docs/examples/component/06_with_arrows.puml)
 
-Commands:
+![Component With Arrows](docs/examples/component/06_with_arrows.svg)
+
+</details>
+
+<details>
+<summary>Gantt chart</summary>
+
+Source: [`docs/examples/gantt/05_multi_task.puml`](docs/examples/gantt/05_multi_task.puml)
+
+![Gantt Multi Task](docs/examples/gantt/05_multi_task.svg)
+
+</details>
+
+<details>
+<summary>JSON projection</summary>
+
+Source: [`docs/examples/json/03_nested.puml`](docs/examples/json/03_nested.puml)
+
+![Nested JSON](docs/examples/json/03_nested.svg)
+
+</details>
+
+## Documentation
+
+| Link | Use it for |
+|---|---|
+| [Docs site](https://alliecatowo.github.io/puml/) | Guides, gallery, and the browser-based docs experience. |
+| [Getting started guide](https://alliecatowo.github.io/puml/guide/getting-started/) | First run, common CLI flows, and basic examples. |
+| [CLI guide](https://alliecatowo.github.io/puml/guide/cli/) | Runtime flags and command patterns. |
+| [Syntax guide](https://alliecatowo.github.io/puml/guide/syntax/) | Supported language surface. |
+| [Example corpus](docs/examples/README.md) | Committed examples used as executable documentation. |
+| [Known limitations](docs/examples/KNOWN_LIMITATIONS.md) | Rough edges and feature-depth limits. |
+| [Benchmarks](docs/benchmarks/README.md) | Performance gates and trend artifacts. |
+| [Troubleshooting](docs/troubleshooting.md) | Diagnostics and common failure modes. |
+
+## Development
+
+Useful local commands:
 
 ```bash
-# full benchmark refresh (records trend artifacts)
-./scripts/bench.sh
-
-# quick profile
-./scripts/bench.sh --quick
-
-# enforce perf + binary-size gates
-./scripts/bench.sh --enforce-gates
-./scripts/bench.sh --quick --enforce-gates
-
-# update mode baselines after explicit approval
+./scripts/dev.sh              # fmt + clippy + tests
+./scripts/check-all.sh --quick
+./scripts/check-all.sh        # full quality gate
+./scripts/branch-protection.sh verify
 ./scripts/bench.sh --update-baseline
-./scripts/bench.sh --quick --update-baseline
+cargo run -- --help
+cargo run -- --check docs/examples/basic_hello.puml
+cargo run -- docs/examples/basic_hello.puml
 ```
 
-Gate thresholds:
-- `full` (default): scenario mean `<= 250ms`, regression vs `docs/benchmarks/baseline_full.json` `<= 10%` with absolute delta floor `> 20ms`, binary size `<= 2,000,000` bytes
-- `quick`: scenario mean `<= 350ms`, regression vs `docs/benchmarks/baseline_quick.json` `<= 20%` with absolute delta floor `> 30ms`, binary size `<= 2,500,000` bytes
-- If the baseline file for the active mode is missing, regression checks are skipped and absolute + binary gates still apply.
-
-Artifacts:
-- raw run: `docs/benchmarks/latest.{md,csv,json}`
-- deterministic trend report: `docs/benchmarks/latest_trend.{md,json}`
-- mode baselines: `docs/benchmarks/baseline_{full,quick}.json`
-- no-Java oracle placeholder baseline: `docs/benchmarks/parity_latest.json`
-- differential oracle smoke report: `docs/benchmarks/oracle_smoke_latest.json`
-
-Differential oracle smoke command:
-
-```bash
-python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/benchmarks/oracle_smoke_latest.json
-```
-
-## Feature Matrix
-
-### Diagram Families
-
-| Area | Status | Notes |
-|---|---|---|
-| Sequence diagrams (`@startuml`) | Supported, partial PlantUML parity | End-to-end parser/normalize/layout/render path with broad participant, arrow, note, group, lifecycle, metadata, participant-order, autonumber, and skinparam-subset support; advanced PlantUML/teoz breadth remains tracked in the audit table. |
-| Class diagrams | Supported, partial PlantUML parity | Declarations, relations, fields/methods, visibility, stereotypes, packages/namespaces, notes, generics, association classes, lollipop notation, hide/show; full styling and edge semantics remain partial. |
-| Object diagrams | Supported, partial PlantUML parity | Object instance nodes, field-value lists, map/associative-array forms, and object links; advanced object semantics remain partial. |
-| Use-case diagrams | Supported, partial PlantUML parity | Actor declarations/styles, parenthesized `usecase (Name) as Alias`, use-case descriptions, packages/boundaries, include/extend/generalization semantics, notes, stereotypes, and direction controls; full style breadth remains partial. |
-| Component diagrams | Supported, partial PlantUML parity | `component`/`interface`/`port`/`portIn`/`portOut` declarations, dependencies, packages, scoped ports/interfaces, directional/styled links, and notation mode baseline; wider port/interface/style breadth remains partial. |
-| Deployment diagrams | Supported, partial PlantUML parity | `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations, deployment shape rendering, links, nesting, inline colors, ports/interfaces, and directional/styled links; advanced deployment controls remain partial. |
-| State diagrams | Supported, partial PlantUML parity | `state` declarations, `[*]` initial/final markers, transitions with guards, composite/history/fork-join forms; advanced styling/edge semantics remain partial. |
-| Activity diagrams (new style) | Supported, partial PlantUML parity | `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `backward`, `partition`/swimlane constructs; full beta breadth remains partial. |
-| Timing diagrams | Supported, partial PlantUML parity | `concise`/`robust`/`clock`/`binary` signal declarations, participant-oriented blocks, `@<time>`/relative/clock-derived instants, `signal is state` transitions, binary state aliases, clock period/pulse/offset metadata, and range/highlight bands; full timing semantics remain partial. |
-| Salt / wireframe (`@startsalt`) | Supported, partial PlantUML parity | Widget/grid/menu/tab/tree/table primitives, nested structures, scrolling markers, Creole/icon-safe text, pseudo-sprite placeholders, scoped widget styles, and metadata blocks; advanced widget/layout breadth remains partial. |
-| MindMap (`@startmindmap`) | Supported, partial PlantUML parity | Hierarchical OrgMode-style tree, directional controls, boxless markers, color/style hooks, deterministic layout, and large-tree SVG metadata for node/leaf/depth/branch classes; full orientation/style parity remains partial. |
-| WBS (`@startwbs`) | Supported, partial PlantUML parity | Work-breakdown structure trees with orientation, checkbox/progress annotations, large-tree SVG metadata for node/leaf/depth/branch classes, and deterministic geometry; full orientation/style parity remains partial. |
-| Gantt (`@startgantt`) | Supported, partial PlantUML parity | Task/milestone declarations, starts/ends/requires constraints including relative task offsets, project start/end date-axis markers, daily/weekly/monthly/quarterly/yearly scale hints, closed/open weekday/date calendar notes, horizontal/vertical separators, resource lanes/load metadata, deterministic SVG timeline; full calendar/resource/scale semantics remain partial. |
-| Chronology (`@startchronology`) | Supported, partial PlantUML parity | `happens on` event statements, timestamp placement, deterministic timeline render; advanced chronology/time-axis semantics remain partial. |
-| JSON family (`@startjson`) | Supported | Parses body as JSON via `serde_json`; flattens object/array/value tree into deterministic indented SVG node tree (falls back to raw line list on parse error). |
-| YAML family (`@startyaml`) | Supported | Indentation-based two-space mapping/sequence tree; rendered as a deterministic indented SVG node tree. |
-| nwdiag (`@startnwdiag`) | Supported, partial PlantUML parity | `network` and `group` blocks with address/color/label/shape/style attributes, node address/description/color/shape/style/width metadata, horizontal swimlanes plus group membership sections with deterministic node ordering; richer topology semantics remain partial. |
-| Archimate (`@startarchimate`) | Supported, partial PlantUML parity | `archimate "Name" as alias <<layer>>` declarations, stdlib element/junction macros, relation macros with direction/style suffixes, styled relation-edge SVG metadata, and layered strategy/business/application/technology/motivation/junction swimlanes; full relation/style breadth remains partial. |
-| Regex diagrams (`@startregex`) | Supported, partial PlantUML parity | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, lazy suffixes, counted repeats, `\|`, `(...)`, `\d`, `\p{Lu}`-style Unicode category labels, `.`, anchors, and localized labels) into deterministic railroad-style SVG; broader regex engine semantics remain partial. |
-| EBNF diagrams (`@startebnf`) | Supported, partial PlantUML parity | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, counted repeats, PlantUML `? special ?` sequences, prefix repeat forms like `4 * "x"`, and simple style blocks into deterministic railroad SVG; broader railroad styling remains partial. |
-| Math / LaTeX (`@startmath` / `@startlatex`) | Supported | Best-effort LaTeX SVG renderer: handles `\sum`, `\int`, `\prod`, `\frac{a}{b}`, `\binom{n}{k}`, `\sqrt{x}`, Greek letters (`\alpha`…`\omega`, `\infty`), cases/matrix environments, sub/sup scripts, accents, fences, and nested scaling. |
-| SDL diagrams (`@startsdl`) | Supported | Parses `state Name` declarations and `from -> to : signal` transitions; renders SDL-style rounded-corner rectangles with labeled arrow transitions in a 2-column grid. |
-| Ditaa diagrams (`@startditaa`) | Supported | Corner-detection parser finds ASCII boxes, ditaa color/shape tags (`{c}`, `{d}`, `{io}`, `{mo}`, `{o}`, `{s}`, `{tr}`), dashed/rounded/storage/document/choice shapes, junctions, diagonal connectors, and arrowheads, then renders deterministic SVG. |
-| Chart diagrams (`@startchart`) | Supported, partial PlantUML parity | Parses bar/column/line/pie plus selected area/scatter forms, label/value and colon-delimited points, palette/caption/annotation hooks, axis ranges/tick-step/categories, per-axis color/text/grid suffixes, label placement modes, pie callouts, and styled legend positioning metadata; full chart parity remains partial. |
-
-### Sequence Diagram Primitives
-
-| Area | Status | Notes |
-|---|---|---|
-| `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
-| Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`; PlantUML `order` placement hints such as `participant First order 10`. |
-| Messages + arrows | Supported | `->`, `-->`, `->>`, `-->>`, `<-`, `<--`, `->x`, `-\`, `-\\`, `-/`, `-//`, `->o`, `<->`, `<-->`, expanded slanted half-head forms such as `-/->` and `-\->`, bracketed PlantUML arrow color/style decorations such as `-[#red,dashed]>` and semicolon `line.*` payloads such as `-[#red;line.dotted;line.thickness=4]>>` (normalized to the portable arrow core), and synchronous/async forms. |
-| Virtual endpoints | Supported | `[`, `]` incoming/outgoing messages; `[*]`, found/lost directionality semantics. |
-| Notes | Supported | `note left/right/over`, `hnote`, `rnote`, across/alignment behavior; multi-line `note ... end note`; `note over A, B`. |
-| Groups / fragments | Supported | `alt`/`else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `box`, `ref` (single- and multi-line `ref over A, B`), `end`; mis-nested forms produce deterministic errors. |
-| Separators + dividers | Supported | `== separator ==`, `...`, `||`, `newpage`. |
-| `hide unlinked` | Supported | Filters explicit sequence participants that are not referenced by messages, notes, or lifecycle events. |
-| Lifecycle / control | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber` (start/stop/resume/format/step, dotted starts such as `1.02.003`, and repeated `#` zero-padding such as `"ID-###"`). |
-| Metadata | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
-| `skinparam` sequence subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor`, `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (all support `Sequence...` alias prefix). |
-| Other `skinparam` keys | Accepted with warning | Deterministic `W_SKINPARAM_UNSUPPORTED`/`W_SKINPARAM_UNSUPPORTED_VALUE`; continues execution. |
-
-### Preprocessor
-
-| Area | Status | Notes |
-|---|---|---|
-| `!include` | Supported | Relative file includes, cycle/depth guards, root confinement. |
-| `!include_many` | Supported | `*`/`?` glob expansion with alphabetical match order. |
-| `!include_once` | Supported | Deduplication via canonical path. |
-| `!includesub` | Supported | Extracts `!startsub … !endsub` named blocks. |
-| `!includeurl` / `!include http(s)://…` | Rejected (deterministic) | Emits `E_INCLUDE_URL_UNSUPPORTED`; URL fetching would break determinism. |
-| `!define` / `!undef` | Supported | Recursive token substitution and function-like macro substitution before normalizer, including default and keyword macro args, with a deterministic macro-depth guard. |
-| `!if` / `!elseif` / `!else` / `!endif` | Supported | Deterministic conditional evaluation: `defined()`, `==`, `!=`/`<>`, numeric/bool literals; compound `&&`/`||` and word `and`/`or`/`xor` at top level (short-circuit; respects parens depth and quoted strings). |
-| `!ifdef` / `!ifndef` | Supported | Defined/undefined guards. |
-| `!while` / `!endwhile` | Supported (bounded) | Bounded iterations; exceeding limit emits `E_PREPROC_WHILE_LIMIT`. |
-| `!foreach` / `!endfor` | Supported | `!foreach $var in v1, v2, v3` (or `$var in $listvar`) iterates over comma-separated items; JSON/list traversal supports `$key, $value` pairs and one-variable object key iteration; nested foreach OK; restores prior `$var` on exit. |
-| `!break` / `!continue` | Supported | Deterministic loop controls inside `!while` and `!foreach`; use outside a loop emits stable `E_PREPROC_BREAK_OUTSIDE_LOOP` / `E_PREPROC_CONTINUE_OUTSIDE_LOOP` diagnostics. |
-| `!function` / `!procedure` / `!return` | Supported | User-defined functions and procedures with default/keyword/unquoted args; `$`-prefixed procedure names may be invoked directly; callable bodies use local variable state; `!local` keeps procedure assignments local and explicit `!global` propagates out; `!return` exits functions. |
-| Preprocessor builtins | Supported | `%strlen`/`%length`, `%size`/`%count` (string length or JSON/list/map cardinality), `%eval`/`%eval_int`/`%eval_bool`, `%if`/`%ternary`, `%strpos`, `%substr`, `%splitstr`/`%splitstr_regex`/`%split`/`%split_regex`, `%join`, `%range`, `%list`/`%array`/`%newlist`, `%list_get`/`%array_get` with optional fallback, `%list_slice`/`%list_sublist`, `%list_add`/`%list_append`/`%list_push`, `%list_set`, `%list_remove`, `%list_pop`/`%list_shift`, `%list_sort`, `%list_contains`/`%array_contains`, `%list_is_empty`/`%is_empty`, `%list_clear`, `%list_size`/`%array_size`, `%map`/`%dict`/`%newmap`, `%map_get`/`%dict_get` with optional fallback, `%map_put`/`%map_set`/`%dict_put`/`%dict_set`, `%map_remove`/`%map_delete`/`%dict_remove`/`%dict_delete`, `%map_merge`/`%dict_merge`, `%map_contains_key`/`%map_has_key`/`%map_includes_key`/`%json_contains_key`, `%map_contains_value`/`%map_includes_value`/`%json_contains_value`, `%map_is_empty`, `%map_clear`, `%map_size`/`%dict_size`/`%json_size`, `%get`, `%set`/`%put`, `%remove`, `%keys`/`%values` plus `%map_keys`/`%map_values`/`%dict_keys`/`%dict_values`, `%trim`/`%ltrim`/`%rtrim`, `%replace`, `%equals`/`%equals_ignore_case`, `%startswith`/`%endswith`/`%contains` plus case-insensitive aliases, `%intval`, `%min`/`%max`/`%abs`, `%is_number`/`%is_int`, `%is_json`/`%is_list`, `%str`/`%stringify`, `%quote`/`%unquote`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%json_set`, `%json_remove`, `%json_merge`, `%json_type`, `%json_is_valid`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`, `%feature`, `%variable_exists`, `%function_exists`/`%procedure_exists`, `%newline`, `%retrieve_procedure_return`. Time/env-sensitive builtins (`%date`, `%time`, `%now`, `%timestamp`, `%getenv`) return empty, random-sensitive builtins (`%random`, `%rand`, `%random_int`) return `0`, `%uuid` returns a fixed nil UUID, and local/remote IO helpers such as `%load_json`/`%file_exists` reject with `E_PREPROC_UNSAFE_BUILTIN` for byte-stable output. |
-| JSON variable assignment | Supported | `!$var = { ... }` JSON-literal assignment parsed before normalization; native dot/bracket projection supports `$var.key[0].name`. |
-| `!import` / stdlib | Supported | Deterministic stdlib catalog resolution; unknown modules emit `E_IMPORT_UNSUPPORTED`. |
-| `!theme` | Supported | Local theme catalog semantics; unknown themes emit a deterministic warning and continue. |
-| `!assert` / `!log` / `!dump_memory` | Supported | Deterministic diagnostic forms; `!assert` failure emits `E_PREPROC_ASSERT_FAIL`. |
-| Inline JSON/YAML projection partial rows | Supported | Object-like `json $alias { ... }` / `yaml $alias { ... }` blocks accept partial key rows and quoted braces and render projection boxes in class/object/usecase plus component/deployment contexts. |
-
-### Frontends
-
-| Area | Status | Notes |
-|---|---|---|
-| PlantUML frontend | Supported, partial parity | First-class compatibility target across implemented diagram families; full 1:1 PlantUML parity is the roadmap goal, not the current support claim. |
-| Mermaid frontend (`sequenceDiagram`) | Supported | Participants/actors, message arrows including solid/dotted arrow, cross/lost (`-x`, `--x`), and open async (`-)`, `--)`) forms, `Note over\|left of\|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, `alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box "label"`, `create [participant] X`, `destroy X`, `link X: name @ url` (collapsed to benign comment). Mermaid flowchart/class styling aliases (`classDef`, `class`, `style fill:`) adapt to deterministic component color metadata. Unknown constructs emit deterministic `E_MERMAID_*` diagnostics. |
-| PicoUML frontend | Supported (baseline) | Canonical first-class language surface; baseline canonical routing implemented, with compact forward/reverse sync/async arrows (`=>`, `<=`, `~>`, `<~`) and shorthand multi-target notes. Full spec: `docs/specs/picouml-language.md`. |
-
-### CLI Flags
-
-| Flag | Status | Notes |
-|---|---|---|
-| `--check` | Supported | Parse + normalize only; no render output. |
-| `--dump ast\|model\|scene` | Supported | Emits JSON pipeline dump to stdout. |
-| `--multi` | Supported | Required for inputs with multiple `@startuml`/`@enduml` blocks. |
-| `--from-markdown` | Supported | Extracts fenced diagram blocks from Markdown; auto-enabled for `.md`/`.markdown`/`.mdown`. |
-| `--diagnostics human\|json` | Supported | Controls diagnostics output format; JSON form includes stable `code`/`severity`/`span`/`snippet`/`caret` fields. |
-| `--include-root DIR` | Supported | Resolves `!include` for stdin input. |
-| `--output PATH` | Supported | Writes to specified path for single diagrams, numbered paths for multi. |
-| `--overwrite` | Supported (no-op) | Outputs are always overwritten; flag accepted for PlantUML CLI compat. |
-| `--fail-on-warn` | Supported | Exits 1 if any warnings are emitted. |
-| `--charset UTF-8` | Supported | Only UTF-8 accepted; other charsets emit `E_CHARSET_UNSUPPORTED`. |
-| `--duration` | Supported | Prints elapsed wall time to stderr. |
-| `--quiet` / `-q` | Supported | Suppresses non-error stderr output. |
-| `--verbose` / `-v` | Supported | Emits per-stage parse/normalize/render timings. |
-| `--format svg\|png` | Supported | `svg` writes deterministic vector output; `png` rasterizes the same deterministic SVG scene. |
-| `--dialect auto\|plantuml\|mermaid\|picouml` | Supported | Selects frontend input dialect. |
-| `--compat strict\|extended` | Supported | Controls stdin include-root fallback policy. |
-| `--determinism strict\|full` | Supported | Controls determinism policy level. |
-| `--lint-input INPUT` | Supported | Adds repeatable check/lint inputs (check mode only). |
-| `--lint-glob GLOB` | Supported | Adds repeatable glob-expanded check/lint inputs (check mode only). |
-| `--lint-report human\|json` | Supported | Emits lint summary report format. |
-| `--stdrpt` | Supported | Single-line tab-separated diagnostics `<severity>\t<code>\t<file>:<line>:<col>\t<message>`. |
-
-## LSP Baseline
-
-`puml-lsp` includes a deterministic baseline for:
-- diagnostics published on `didOpen`/`didChange`/`didSave` using the same `parse -> normalize` pipeline as the CLI
-- completion for top-level sequence primitives plus arrow/lifecycle tokens
-- hover documentation for directives and arrow forms
-
-Contract notes:
-- completion and hover do not render diagrams
-- diagnostics preserve structured `code` when available from core diagnostics
-
-## Autonomy Harness
-
-Codex + Claude autonomous repo engineering entrypoints:
-
-```bash
-# harness-only (fastest confidence for agent-pack + MCP + parity invariants)
-./scripts/harness-check.sh --quick
-
-# full harness lane (includes docs gallery drift fail-on-drift checks)
-./scripts/harness-check.sh
-
-# VS Code scaffold smoke (LSP contract + extension build)
-./scripts/vscode-smoke.sh
-
-# ecosystem rollout closure check (LSP/VSCode/Studio/plugin contracts)
-./scripts/ecosystem-rollout-check.sh --quick
-./scripts/ecosystem-rollout-check.sh
-
-# full autonomous quality chain
-./scripts/autonomy-check.sh --quick
-./scripts/autonomy-check.sh
-```
-
-Dry-run planning commands:
-
-```bash
-./scripts/harness-check.sh --dry
-./scripts/autonomy-check.sh --dry
-```
-
-Docs gallery refresh commands (source-linked `.puml` + fenced snippets):
+Regenerate docs examples after renderer changes:
 
 ```bash
 for f in docs/examples/*.puml; do cargo run -- "$f"; done
 for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
-cargo run -- --from-markdown docs/examples/README.md --output docs/examples/README_snippet_1.svg
-cargo run -- --from-markdown --multi docs/examples/sequence/README.md
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/contributing.md](docs/contributing.md) for the full workflow.
+
+## Autonomy Harness
+
+This repo is intentionally set up for human plus agent development. The harness
+commands below validate the agent pack, MCP smoke tests, docs gallery drift, and
+the broader autonomous quality chain:
+
+```bash
+./scripts/harness-check.sh --quick
+./scripts/harness-check.sh
+./scripts/autonomy-check.sh --quick
+./scripts/autonomy-check.sh
 python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
 ```
 
-## Docs
+The detailed runbooks live in [docs/codex-workflow.md](docs/codex-workflow.md)
+and [docs/autonomous-workflow-cookbook.md](docs/autonomous-workflow-cookbook.md).
 
-- Developer flow: [`docs/codex-workflow.md`](docs/codex-workflow.md)
-- Command cookbook: [`docs/autonomous-workflow-cookbook.md`](docs/autonomous-workflow-cookbook.md)
-- Benchmark workflow: [`docs/benchmarks/README.md`](docs/benchmarks/README.md)
-- PlantUML frontend conformance matrix: [`docs/plantuml_frontend_conformance_matrix.md`](docs/plantuml_frontend_conformance_matrix.md)
-- Contribution guide: [`docs/contributing.md`](docs/contributing.md)
-- Troubleshooting guide: [`docs/troubleshooting.md`](docs/troubleshooting.md)
-- VS Code extension scaffold: [`extensions/vscode/README.md`](extensions/vscode/README.md)
+## Project Status
+
+This project is young, ambitious, and intentionally transparent. Some parts are polished; some are still sharp. PlantUML compatibility is a serious target with substantial implemented support, but the honest answer for any advanced construct is: check the audit table, try `puml --check`, and file the gap if it surprises you.
+
+The repo has also been developed with heavy AI-agent assistance and swarm-style parallel work. That is part of the experiment: make the renderer deterministic enough that humans and agents can safely iterate on diagrams, docs, tests, and compatibility evidence together. Expect some rough edges in wording and organization as the project grows, and please help sand them down.
+
+## Contributing
+
+Forks, PRs, issues, and discussions are welcome. Good contributions include:
+
+| Contribution | Examples |
+|---|---|
+| Compatibility fixtures | Small `.puml` examples that expose a PlantUML gap. |
+| Renderer fixes | Layout, SVG fidelity, text bounds, styling, or deterministic output improvements. |
+| Docs | Clearer examples, migration notes, troubleshooting, or gallery coverage. |
+| Tooling | CLI ergonomics, LSP behavior, editor integration, WASM/site work, or benchmark improvements. |
+
+Open an issue before large compatibility pushes so the work can be sliced cleanly. Small docs and fixture PRs are very welcome without ceremony.
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+MIT. See [LICENSE](LICENSE).
