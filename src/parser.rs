@@ -564,6 +564,14 @@ fn preprocess_text(
                         )?;
                     }
                 }
+                PreprocessDirective::IncludeUrl(raw_target) => {
+                    if active {
+                        return Err(Diagnostic::error_code(
+                            "E_INCLUDE_URL_UNSUPPORTED",
+                            format!("!includeurl URL targets are not supported: {raw_target}"),
+                        ));
+                    }
+                }
                 PreprocessDirective::Unsupported(name) => {
                     if active {
                         return Err(Diagnostic::error_code(
