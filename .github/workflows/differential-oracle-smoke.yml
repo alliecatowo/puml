@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - 'scripts/differential_oracle_smoke.py'
+      - '.github/workflows/differential-oracle-smoke.yml'
   workflow_dispatch:
 
 concurrency:
