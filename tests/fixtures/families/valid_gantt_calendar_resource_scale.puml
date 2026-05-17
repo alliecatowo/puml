@@ -1,14 +1,15 @@
 @startgantt
 title Calendar, Resource, and Scale Parity
 Project starts 2026-05-01
-printscale weekly
+printscale daily
 saturdays are closed
 sundays are closed
-2026-05-06 is closed
-2026-05-09 is open
+2026-05-04 to 2026-05-05 are closed
+2026-05-02 is reopened
 [Design] on {Alice:50%} requires 2 days
-[Build] on {Bob:75%, Cara} starts 2026-05-05 and requires 1 week
+[Build] on {Bob:75%, Cara} requires 3 days
+[Build] requires [Design]
 [Design] baseline starts 2026-05-01 and lasts 2 days
 [Build] is critical
-[Release] happens on [Build]'s end
+[Release] happens on [Build]'s start
 @endgantt
