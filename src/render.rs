@@ -620,7 +620,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     for (idx, node) in document.nodes.iter().enumerate() {
         let col = (idx as i32) % col_count;
         let row = (idx as i32) / col_count;
-        let body_h = if node.members.is_empty() {
+        let body_h = if node.kind == FamilyNodeKind::Note {
+            let lines = node
+                .label
+                .as_deref()
+                .unwrap_or(&node.name)
+                .lines()
+                .count()
+                .max(1) as i32;
+            lines * 16 + 20
+        } else if node.members.is_empty() {
             empty_member_pad
         } else {
             (node.members.len() as i32) * member_line_height + 2 * member_padding
@@ -645,7 +654,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     for (idx, node) in document.nodes.iter().enumerate() {
         let col = (idx as i32) % col_count;
         let row = (idx as i32) / col_count;
-        let body_h = if node.members.is_empty() {
+        let body_h = if node.kind == FamilyNodeKind::Note {
+            let lines = node
+                .label
+                .as_deref()
+                .unwrap_or(&node.name)
+                .lines()
+                .count()
+                .max(1) as i32;
+            lines * 16 + 20
+        } else if node.members.is_empty() {
             empty_member_pad
         } else {
             (node.members.len() as i32) * member_line_height + 2 * member_padding
@@ -2092,6 +2110,7 @@ fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::TimingClock => "clock",
         FamilyNodeKind::TimingBinary => "binary",
         FamilyNodeKind::TimingEvent => "event",
+        FamilyNodeKind::Note => "note",
         // C4 family
         FamilyNodeKind::C4Person => "person",
         FamilyNodeKind::C4PersonExt => "person_ext",
@@ -2136,6 +2155,11 @@ fn render_class_node(
     // ── C4 node rendering ─────────────────────────────────────────────────────
     if is_c4_kind(node.kind) {
         render_c4_node(out, node, x, y, w, h);
+        return;
+    }
+
+    if node.kind == FamilyNodeKind::Note {
+        render_note_card(out, x, y, w, h, node.label.as_deref().unwrap_or(&node.name));
         return;
     }
 
@@ -3884,6 +3908,10 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
                 cx, cy
             ));
         }
+        FamilyNodeKind::Note => {
+            render_note_card(out, x, y, w, h, &display);
+            return;
+        }
         FamilyNodeKind::Class | FamilyNodeKind::Object | FamilyNodeKind::UseCase => {
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#f1f5f9\" stroke=\"#64748b\" stroke-width=\"1\"/>",
@@ -3925,6 +3953,32 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
         kind_tag_y,
         kind_label
     ));
+}
+
+fn render_note_card(out: &mut String, x: i32, y: i32, w: i32, h: i32, text: &str) {
+    out.push_str(&format!(
+        "<path d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"#fff8c4\" stroke=\"#8a6d00\" stroke-width=\"1.2\"/>",
+        x + w - 16,
+        x + w,
+        y + 16,
+        y + h
+    ));
+    out.push_str(&format!(
+        "<path d=\"M{} {y} V{} H{}\" fill=\"none\" stroke=\"#8a6d00\" stroke-width=\"1\"/>",
+        x + w - 16,
+        y + 16,
+        x + w
+    ));
+    let mut ty = y + 22;
+    for line in text.lines().take(5) {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#3b2f00\">{}</text>",
+            x + 10,
+            ty,
+            escape_text(line)
+        ));
+        ty += 15;
+    }
 }
 
 /// Styled variant of `render_family_node_shape` that applies `comp_style` for
@@ -4161,6 +4215,9 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     y + 27,
                     escape_text(&label)
                 ));
+            }
+            FamilyNodeKind::Note => {
+                render_note_card(&mut out, cx - box_w / 2, y + 2, box_w, 44, &label);
             }
             FamilyNodeKind::ActivityDecision => {
                 // diamond

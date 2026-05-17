@@ -19,19 +19,19 @@ Canonical status artifact for machine/human parity review.
 | sequence | core | Basic messages and participants | implemented | `tests/fixtures/basic/hello.puml` | https://plantuml.com/sequence-diagram |
 | sequence | advanced | Arrow/style breadth and teoz semantics | partial | `tests/fixtures/arrows/valid_expanded_forms.puml` | https://plantuml.com/sequence-diagram |
 | class | core | Core declarations and relations | implemented | `tests/fixtures/families/valid_class_with_relations.puml` | https://plantuml.com/class-diagram |
-| class | advanced | Full class styling/edge semantics | partial | `tests/fixtures/families/valid_class_visibility.puml`, `tests/fixtures/styling/valid_skinparam_class.puml`, `tests/integration.rs` | https://plantuml.com/class-diagram |
+| class | advanced | Full class styling/edge semantics | partial | `tests/fixtures/families/valid_class_visibility.puml`, `tests/fixtures/styling/valid_skinparam_class.puml`, `tests/integration.rs::family_notes_render_for_core_uml_families` | https://plantuml.com/class-diagram |
 | object | core | Object declarations/relations | implemented | `tests/fixtures/families/valid_object_bootstrap.puml` | https://plantuml.com/object-diagram |
 | object | advanced | Full object semantics breadth | partial | `tests/fixtures/families/valid_object_bootstrap.puml`, `tests/integration.rs` | https://plantuml.com/object-diagram |
 | usecase | core | Actor/usecase declarations and relations | implemented | `tests/fixtures/families/valid_usecase_with_relations.puml` | https://plantuml.com/use-case-diagram |
 | usecase | advanced | Include/extend/style depth | partial | `tests/fixtures/families/valid_usecase_with_relations.puml`, `tests/integration.rs` | https://plantuml.com/use-case-diagram |
 | component | core | Component declarations/dependencies/packages | implemented | `tests/fixtures/families/valid_component.puml` | https://plantuml.com/component-diagram |
-| component | advanced | Interface/port/style breadth | partial | `tests/fixtures/families/valid_component.puml`, `tests/fixtures/styling/valid_skinparam_component.puml`, `tests/integration.rs` | https://plantuml.com/component-diagram |
+| component | advanced | Interface/port/style breadth | partial | `tests/fixtures/families/valid_component.puml`, `tests/fixtures/styling/valid_skinparam_component.puml`, `tests/integration.rs::family_notes_render_for_core_uml_families` | https://plantuml.com/component-diagram |
 | deployment | core | Node/artifact topology | implemented | `tests/fixtures/families/valid_deployment.puml` | https://plantuml.com/deployment-diagram |
 | deployment | advanced | Advanced deployment styling/controls | partial | `tests/fixtures/families/valid_deployment.puml` | https://plantuml.com/deployment-diagram |
 | state | core | State/transitions/history/concurrency | implemented | `tests/fixtures/families/valid_state.puml` | https://plantuml.com/state-diagram |
 | state | advanced | Full state styling/edge semantics | partial | `tests/fixtures/families/valid_state_history.puml`, `tests/fixtures/styling/valid_skinparam_state.puml` | https://plantuml.com/state-diagram |
 | activity | core | Legacy/old-style activity baseline | implemented | `tests/fixtures/families/valid_activity_old_style.puml` | https://plantuml.com/activity-diagram-legacy |
-| activity | advanced | New-style activity breadth | partial | `tests/fixtures/families/valid_activity_colored_lane.puml`, `tests/fixtures/styling/valid_skinparam_activity.puml` | https://plantuml.com/activity-diagram-beta |
+| activity | advanced | New-style activity breadth | partial | `tests/fixtures/families/valid_activity_colored_lane.puml`, `tests/fixtures/styling/valid_skinparam_activity.puml`, `tests/integration.rs::family_notes_render_for_core_uml_families` | https://plantuml.com/activity-diagram-beta |
 | timing | core | Timing participants/state transitions baseline | implemented | `tests/fixtures/families/valid_timing.puml` | https://plantuml.com/timing-diagram |
 | timing | advanced | Full timing semantics breadth | partial | `tests/fixtures/families/valid_timing_waveform.puml`, `tests/parity_state_activity_timing_depth.rs` | https://plantuml.com/timing-diagram |
 | preprocessor | core | include/define/undef/conditionals/loops/functions/procedures | implemented | `tests/fixtures/preprocessor/valid_if_elseif_else.puml` | https://plantuml.com/preprocessing |

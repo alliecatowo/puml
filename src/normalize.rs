@@ -1418,6 +1418,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     let mut legend = None;
     let mut class_style = ClassStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut note_counter: usize = 0;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -1574,6 +1575,10 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 left_role: rel.left_role,
                 right_role: rel.right_role,
             }),
+            StatementKind::Note(note) => {
+                note_counter += 1;
+                nodes.push(family_note_node(note_counter, note));
+            }
             StatementKind::ClassGroup {
                 kind,
                 label,
@@ -2535,6 +2540,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut activity_style = ActivityStyle::default();
     let mut timing_style = TimingStyle::default();
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
+    let mut note_counter: usize = 0;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -2680,6 +2686,10 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 left_role: rel.left_role,
                 right_role: rel.right_role,
             }),
+            StatementKind::Note(note) => {
+                note_counter += 1;
+                nodes.push(family_note_node(note_counter, note));
+            }
             StatementKind::ClassGroup {
                 kind,
                 label,
@@ -3003,6 +3013,24 @@ fn timing_decl_node_kind(kind: TimingDeclKind) -> FamilyNodeKind {
         TimingDeclKind::Robust => FamilyNodeKind::TimingRobust,
         TimingDeclKind::Clock => FamilyNodeKind::TimingClock,
         TimingDeclKind::Binary => FamilyNodeKind::TimingBinary,
+    }
+}
+
+fn family_note_node(idx: usize, note: crate::ast::Note) -> FamilyNode {
+    let mut label = note.text.trim().to_string();
+    if label.is_empty() {
+        label = "note".to_string();
+    }
+    let target = note.target.unwrap_or_default();
+    FamilyNode {
+        kind: FamilyNodeKind::Note,
+        name: format!("__note_{idx:04}"),
+        alias: Some(format!("note::{}|target={target}", note.position)),
+        members: Vec::new(),
+        depth: 0,
+        label: Some(label),
+        mindmap_side: MindMapSide::Right,
+        wbs_checkbox: None,
     }
 }
 
