@@ -1,8 +1,11 @@
 use std::cell::RefCell;
 
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs;
-use std::path::{Path, PathBuf};
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
+use std::path::PathBuf;
 
 use crate::ast::{
     ActivityStep, ActivityStepKind, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind,
@@ -644,6 +647,69 @@ fn is_active(conditionals: &[ConditionalFrame]) -> bool {
     conditionals.iter().all(|f| f.current_active)
 }
 
+/// On `wasm32` there is no filesystem available, so the entire `!include` /
+/// `!includesub` / `!include_many` / `!import` family returns a friendly error
+/// rather than attempting to read files. All FS-touching code below is gated
+/// with `cfg(not(target_arch = "wasm32"))`; these stubs satisfy the call sites.
+#[cfg(target_arch = "wasm32")]
+fn include_not_supported_in_wasm(directive_name: &str) -> Diagnostic {
+    Diagnostic::error_code(
+        "E_INCLUDE_NOT_SUPPORTED_WASM",
+        format!(
+            "{directive_name} is not available in the in-browser renderer — the WASM build has no filesystem"
+        ),
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(clippy::too_many_arguments)]
+fn process_include_directive(
+    _raw_target: &str,
+    directive_name: &str,
+    _include_once: bool,
+    _require_tag: bool,
+    _options: &ParseOptions,
+    _state: &mut PreprocState,
+    _include_stack: &mut Vec<PathBuf>,
+    _include_once_seen: &mut BTreeSet<PathBuf>,
+    _depth: usize,
+    _call_depth: usize,
+    _out: &mut String,
+) -> Result<(), Diagnostic> {
+    Err(include_not_supported_in_wasm(directive_name))
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(clippy::too_many_arguments)]
+fn process_include_many_directive(
+    _raw_target: &str,
+    _options: &ParseOptions,
+    _state: &mut PreprocState,
+    _include_stack: &mut Vec<PathBuf>,
+    _include_once_seen: &mut BTreeSet<PathBuf>,
+    _depth: usize,
+    _call_depth: usize,
+    _out: &mut String,
+) -> Result<(), Diagnostic> {
+    Err(include_not_supported_in_wasm("!include_many"))
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(clippy::too_many_arguments)]
+fn process_import_directive(
+    _raw_target: &str,
+    _options: &ParseOptions,
+    _state: &mut PreprocState,
+    _include_stack: &mut Vec<PathBuf>,
+    _include_once_seen: &mut BTreeSet<PathBuf>,
+    _depth: usize,
+    _call_depth: usize,
+    _out: &mut String,
+) -> Result<(), Diagnostic> {
+    Err(include_not_supported_in_wasm("!import"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::too_many_arguments)]
 fn process_include_directive(
     raw_target: &str,
@@ -764,6 +830,7 @@ fn process_include_directive(
     Ok(())
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn is_stdlib_catalog_target(raw_target: &str) -> bool {
     let trimmed = raw_target.trim();
     trimmed.starts_with('<') && trimmed.ends_with('>')
@@ -773,6 +840,7 @@ fn is_stdlib_catalog_target(raw_target: &str) -> bool {
 /// or `?`, expand it to every matching file in deterministic alphabetical
 /// order; otherwise behave like `!include`. Globs only match the file-name
 /// segment of the path so we cannot escape the include root by accident.
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::too_many_arguments)]
 fn process_include_many_directive(
     raw_target: &str,
@@ -950,6 +1018,7 @@ fn process_include_many_directive(
 /// Minimal `*`/`?` glob match — sufficient for `!include_many` filename
 /// patterns. Backtracks on `*` to keep behaviour predictable. No character
 /// classes, no recursion across path separators.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn glob_matches(pattern: &str, name: &str) -> bool {
     let p: Vec<char> = pattern.chars().collect();
     let n: Vec<char> = name.chars().collect();
@@ -982,6 +1051,7 @@ fn glob_matches(pattern: &str, name: &str) -> bool {
 
 /// Handle `!include <Library/Module>` by resolving the path through the stdlib root.
 /// The angle-bracket form is a stdlib reference; it is always treated as include-once.
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::too_many_arguments)]
 fn process_stdlib_angle_include(
     raw_target: &str,
@@ -1077,6 +1147,7 @@ fn process_stdlib_angle_include(
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::too_many_arguments)]
 fn process_import_directive(
     raw_target: &str,
@@ -1680,6 +1751,7 @@ fn evaluate_assert_expression(body: &str, state: &PreprocState) -> Result<bool, 
     evaluate_preprocess_expr(expression, state)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_include_path(
     options: &ParseOptions,
     include_stack: &[PathBuf],
@@ -1734,6 +1806,7 @@ fn resolve_include_path(
     Ok(resolved_canon)
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn parse_include_target(raw_target: &str) -> IncludeTarget {
     let trimmed = raw_target.trim();
     let unwrapped = trimmed
@@ -1760,6 +1833,7 @@ fn parse_include_target(raw_target: &str) -> IncludeTarget {
     }
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn parse_import_target(raw_target: &str) -> Result<PathBuf, Diagnostic> {
     let trimmed = raw_target.trim();
     let unwrapped = trimmed
@@ -1788,6 +1862,7 @@ fn parse_import_target(raw_target: &str) -> Result<PathBuf, Diagnostic> {
     Ok(path)
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn is_url_include_target(raw_target: &str) -> bool {
     let trimmed = raw_target
         .trim()
@@ -1799,6 +1874,7 @@ fn is_url_include_target(raw_target: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_stdlib_root(
     options: &ParseOptions,
     include_stack: &[PathBuf],
@@ -1843,6 +1919,7 @@ fn resolve_stdlib_root(
 /// 2. `include_root/stdlib/` from `ParseOptions`.
 /// 3. `stdlib/` adjacent to the first file on the include stack.
 /// 4. `CARGO_MANIFEST_DIR/stdlib/` at compile time (dev and test builds).
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_stdlib_root_for_angle_include(
     options: &ParseOptions,
     include_stack: &[PathBuf],
@@ -1894,11 +1971,13 @@ fn resolve_stdlib_root_for_angle_include(
 
 /// Returns true when the raw include target is an angle-bracket stdlib reference
 /// such as `<C4/C4_Context>` or `<awslib14/Compute/EC2>`.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn is_angle_bracket_include(raw_target: &str) -> bool {
     let trimmed = raw_target.trim();
     trimmed.starts_with('<') && trimmed.ends_with('>')
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn resolve_import_path(stdlib_root: &Path, import_path: &Path) -> Result<PathBuf, Diagnostic> {
     let resolved = normalize_path(stdlib_root.join(import_path));
     if !resolved.starts_with(stdlib_root) {
@@ -1930,6 +2009,7 @@ fn resolve_import_path(stdlib_root: &Path, import_path: &Path) -> Result<PathBuf
     Ok(resolved_canon)
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn extract_include_tag(content: &str, tag: &str) -> Option<String> {
     let mut collecting = false;
     let mut lines = Vec::new();
@@ -1962,6 +2042,7 @@ fn extract_include_tag(content: &str, tag: &str) -> Option<String> {
     None
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn normalize_path(path: PathBuf) -> PathBuf {
     let mut parts = Vec::new();
     let is_abs = path.is_absolute();
