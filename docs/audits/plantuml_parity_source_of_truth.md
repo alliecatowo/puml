@@ -57,7 +57,7 @@ Canonical status artifact for machine/human parity review.
 | archimate | core | Archimate parser + baseline render | implemented | `tests/fixtures/non_sequence/valid_archimate.puml` | https://plantuml.com/archimate-diagram |
 | archimate | advanced | Full relation/style breadth | partial | `docs/examples/archimate/01_layered.svg`, `tests/integration.rs` | https://plantuml.com/archimate-diagram |
 | regex | core | @startregex baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_regex.puml` | https://plantuml.com/regex |
-| regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg` | https://plantuml.com/regex |
+| regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg`, `tests/integration.rs` | https://plantuml.com/regex |
 | ebnf | core | @startebnf baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_ebnf.puml` | https://plantuml.com/ebnf |
 | ebnf | advanced | Full railroad style breadth | partial | `docs/examples/ebnf/01_simple_grammar.svg` | https://plantuml.com/ebnf |
 | math | core+advanced | @startmath/@startlatex baseline plus LaTeX-ish fractions, roots, paired scripts, accents, fences, Greek/operators, and big-operator layout | implemented | `tests/fixtures/non_sequence/valid_math.puml`, `tests/fixtures/families/valid_math_complex.puml`, `tests/integration.rs` | https://plantuml.com/ascii-math |

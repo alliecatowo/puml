@@ -290,23 +290,80 @@ fn flush_literal(literal: &mut String, out: &mut Vec<RegexToken>) {
 }
 
 fn push_with_repeat(token: RegexToken, chars: &[char], idx: &mut usize, out: &mut Vec<RegexToken>) {
-    if *idx < chars.len() {
-        let kind = match chars[*idx] {
-            '*' => Some(RepeatKind::ZeroOrMore),
-            '+' => Some(RepeatKind::OneOrMore),
-            '?' => Some(RepeatKind::ZeroOrOne),
-            _ => None,
-        };
-        if let Some(kind) = kind {
-            *idx += 1;
-            out.push(RegexToken::Repeat {
-                inner: Box::new(token),
-                kind,
-            });
-            return;
-        }
+    if let Some(kind) = parse_regex_repeat_kind(chars, idx) {
+        out.push(RegexToken::Repeat {
+            inner: Box::new(token),
+            kind,
+        });
+        return;
     }
     out.push(token);
+}
+
+fn parse_regex_repeat_kind(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    if *idx >= chars.len() {
+        return None;
+    }
+    match chars[*idx] {
+        '*' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrMore)
+        }
+        '+' => {
+            *idx += 1;
+            Some(RepeatKind::OneOrMore)
+        }
+        '?' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrOne)
+        }
+        '{' => parse_regex_braced_repeat(chars, idx),
+        _ => None,
+    }
+}
+
+fn parse_regex_braced_repeat(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    let start = *idx;
+    let mut cursor = start + 1;
+    let mut spec = String::new();
+    while cursor < chars.len() && chars[cursor] != '}' {
+        spec.push(chars[cursor]);
+        cursor += 1;
+    }
+    if cursor >= chars.len() {
+        return None;
+    }
+
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+
+    let kind = if let Some((min_raw, max_raw)) = spec.split_once(',') {
+        let min_raw = min_raw.trim();
+        let max_raw = max_raw.trim();
+        let min = if min_raw.is_empty() {
+            None
+        } else {
+            Some(min_raw.parse::<u32>().ok()?)
+        };
+        let max = if max_raw.is_empty() {
+            None
+        } else {
+            Some(max_raw.parse::<u32>().ok()?)
+        };
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return None;
+            }
+        }
+        RepeatKind::Range { min, max }
+    } else {
+        RepeatKind::Exact(spec.parse::<u32>().ok()?)
+    };
+
+    *idx = cursor + 1;
+    Some(kind)
 }
 
 fn normalize_ebnf(document: Document) -> Result<EbnfDocument, Diagnostic> {

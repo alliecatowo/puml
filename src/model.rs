@@ -214,11 +214,13 @@ pub enum RegexToken {
     Unsupported(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RepeatKind {
     ZeroOrOne,
     ZeroOrMore,
     OneOrMore,
+    Exact(u32),
+    Range { min: Option<u32>, max: Option<u32> },
 }
 
 #[derive(Debug, Clone)]

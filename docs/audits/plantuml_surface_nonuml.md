@@ -81,7 +81,7 @@ Official source: https://plantuml.com/regex
 
 Grouped features:
 - Standalone regex diagrams: `@startregex`/`@endregex`.
-- Regex core coverage: literals, shorthand classes, ranges, dot, escapes, repetitions, alternation.
+- Regex core coverage: literals, shorthand classes, ranges, dot, escapes, simple and counted repetitions, alternation.
 - Internationalized labels: descriptive-name mode and language selection (`!option useDescriptiveNames`, `!option language`).
 - Unicode handling: categories/scripts/blocks plus octal/unicode escape support.
 

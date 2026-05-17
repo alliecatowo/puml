@@ -5810,6 +5810,22 @@ fn non_uml_advanced_regex_localized_descriptive_labels_render() {
 }
 
 #[test]
+fn regex_exact_and_ranged_quantifiers_render_as_supported_repeats() {
+    let src = "@startregex\n^\\d{3}-[A-Z]{2,5}(foo|bar){1,}$\n@endregex\n";
+    let svg = render_source_to_svg(src).expect("regex counted quantifiers should render");
+    assert!(svg.contains("\\d{3}"), "expected exact count repeat");
+    assert!(svg.contains("[A-Z]{2,5}"), "expected bounded range repeat");
+    assert!(
+        svg.contains("(alt(&#39;foo&#39;|&#39;bar&#39;)){1,}"),
+        "expected open-ended range repeat on group"
+    );
+    assert!(
+        !svg.contains("?{3}?"),
+        "counted quantifiers should not render as unsupported tokens"
+    );
+}
+
+#[test]
 fn non_uml_advanced_ebnf_style_and_rule_notes_render() {
     let src = "@startebnf\n\
 style terminal #ecfeff\n\

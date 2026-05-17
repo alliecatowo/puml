@@ -4996,6 +4996,15 @@ fn regex_token_label(token: &RegexToken) -> String {
                 RepeatKind::ZeroOrOne => "?",
                 RepeatKind::ZeroOrMore => "*",
                 RepeatKind::OneOrMore => "+",
+                RepeatKind::Exact(n) => return format!("{}{{{}}}", regex_token_label(inner), n),
+                RepeatKind::Range { min, max } => {
+                    return format!(
+                        "{}{{{},{}}}",
+                        regex_token_label(inner),
+                        min.map(|n| n.to_string()).unwrap_or_default(),
+                        max.map(|n| n.to_string()).unwrap_or_default()
+                    );
+                }
             };
             format!("{}{}", regex_token_label(inner), suffix)
         }
@@ -5116,6 +5125,15 @@ fn ebnf_token_label(token: &EbnfToken) -> String {
                 RepeatKind::ZeroOrOne => "?",
                 RepeatKind::ZeroOrMore => "*",
                 RepeatKind::OneOrMore => "+",
+                RepeatKind::Exact(n) => return format!("{}{{{}}}", ebnf_token_label(inner), n),
+                RepeatKind::Range { min, max } => {
+                    return format!(
+                        "{}{{{},{}}}",
+                        ebnf_token_label(inner),
+                        min.map(|n| n.to_string()).unwrap_or_default(),
+                        max.map(|n| n.to_string()).unwrap_or_default()
+                    );
+                }
             };
             format!("{}{}", ebnf_token_label(inner), suffix)
         }
