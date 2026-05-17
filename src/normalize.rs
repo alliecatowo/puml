@@ -56,7 +56,7 @@ pub fn normalize_family_with_options(
         DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase | DiagramKind::Salt => {
             normalize_stub_family(document).map(NormalizedDocument::Family)
         }
-        DiagramKind::Gantt | DiagramKind::Chronology => {
+        DiagramKind::Gantt | DiagramKind::Chronology | DiagramKind::Activity => {
             normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
         }
         DiagramKind::State => normalize_state(document).map(NormalizedDocument::State),

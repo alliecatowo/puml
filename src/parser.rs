@@ -8864,6 +8864,28 @@ mod tests {
     }
 
     #[test]
+    fn parses_activity_oldstyle_baseline_statements() {
+        let doc = parse_with_options(
+            "@startuml\n|Build|\n(*) --> \"Init\"\n#gold:Compile;\n-->[next] right of \"Test\"\n\"Test\" --> (*)\ndetach\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Activity);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::GanttMilestoneDecl { .. }
+        ));
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttConstraint { .. }
+        ));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::GanttTaskDecl { .. }
+        ));
+    }
+
+    #[test]
     fn mismatched_start_end_family_markers_report_deterministic_error() {
         let err = parse_with_options("@startmindmap\n* Root\n@endwbs\n", &ParseOptions::default())
             .unwrap_err();

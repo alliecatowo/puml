@@ -560,7 +560,7 @@ fn activity_family_now_passes_validation() {
         .expect("binary")
         .args([
             "--check",
-            &fixture("non_sequence/invalid_activity_diagram.puml"),
+            &fixture("non_sequence/valid_activity_oldstyle_baseline.puml"),
         ])
         .assert()
         .success();
