@@ -1,4 +1,4 @@
-## Runtime contract snapshot (Current, audited in issue #23)
+## Runtime Contract Snapshot (Current)
 render_source_to_svgs(source)
 --dump ast|model|scene
 schema `puml.diagnostics`
