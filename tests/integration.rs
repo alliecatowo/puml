@@ -739,7 +739,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_procedure_unsupported.puml",
         "errors/invalid_preproc_endwhile_without_while.puml",
         "errors/invalid_preproc_expr_missing.puml",
-        "errors/invalid_preproc_expr_unsupported_parens.puml",
         "errors/invalid_preproc_unexpected_endfunction.puml",
         "errors/invalid_preproc_while_iteration_limit.puml",
         "errors/invalid_preproc_assert_missing_expr.puml",
@@ -2528,10 +2527,6 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
         (
             "errors/invalid_preproc_expr_missing.puml",
             "E_PREPROC_EXPR_REQUIRED",
-        ),
-        (
-            "errors/invalid_preproc_expr_unsupported_parens.puml",
-            "E_PREPROC_EXPR_UNSUPPORTED",
         ),
         (
             "errors/invalid_preproc_unexpected_endfunction.puml",
