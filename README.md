@@ -135,6 +135,7 @@ $ cargo run -- --check hello.puml
 
 Canonical examples live in [`docs/examples/README.md`](docs/examples/README.md), with committed source/output pairs.
 Supported primitive catalog page: [`docs/examples/supported_primitives.md`](docs/examples/supported_primitives.md).
+Current docs corpus footprint: `docs/examples/` contains `254` `.puml` sources and `258` `.svg` artifacts.
 
 Re-generate all committed examples:
 
@@ -184,7 +185,7 @@ Modes:
     - `stateDiagram` / `stateDiagram-v2`: `[*]` pseudo-states, `-->` transitions — adapted to PlantUML state diagram
     - `erDiagram`: entity declarations and `||--o{` cardinality relations — adapted to PlantUML class-style diagram
     Unsupported diagram families (e.g. `pie`, `gitDiagram`) emit a deterministic `E_MERMAID_FAMILY_UNSUPPORTED` diagnostic
-  `picouml`: canonical first-class language surface; explicit frontend selection is currently not implemented and returns a deterministic diagnostic
+  `picouml`: canonical first-class language surface; explicit frontend selection routes through the shared deterministic baseline path
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
   `extended`: when `--include-root` is omitted, stdin `!include` falls back to current working directory
