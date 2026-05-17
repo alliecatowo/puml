@@ -1,5 +1,5 @@
 use puml::parser::{parse_with_options, ParseOptions};
-use puml::NormalizedDocument;
+use puml::{DiagramFamily, NormalizedDocument};
 
 #[test]
 fn gantt_places_milestone_using_constraint_day_or_task_reference() {
@@ -140,6 +140,31 @@ Beta happens on 2026-08-01
     let g = svg.find("GA").expect("ga");
     assert!(d < b && b < g, "events should be sorted by date");
     assert!(svg.contains("stroke=\"#cbd5e1\""));
+}
+
+#[test]
+fn chart_respects_axis_range_and_negative_values() {
+    let src = r##"@startchart
+bar chart
+skinparam chartBackgroundColor #fff7ed
+v-axis "Net" -10 --> 10
+h-axis "Quarter" ["Q1", "Q2", "Q3"]
+bar "Actual" [-6, 4, 9] #dc2626
+bar "Plan" [-2, 2, 6] #2563eb
+legend top left
+@endchart
+"##;
+    let svg =
+        puml::render_source_to_svg_for_family(src, DiagramFamily::Chart).expect("chart render");
+    assert!(svg.contains("data-chart-type=\"bar\""));
+    assert!(svg.contains("class=\"chart-zero-axis\""));
+    assert!(svg.contains(">Net<"));
+    assert!(svg.contains(">Quarter<"));
+    assert!(svg.contains(">-10<"));
+    assert!(svg.contains(">10<"));
+    assert!(svg.contains(">-6<"));
+    assert!(svg.contains("fill=\"#fff7ed\""));
+    assert!(svg.contains("data-chart-legend=\"top-left\""));
 }
 
 #[test]

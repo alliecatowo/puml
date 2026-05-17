@@ -61,9 +61,10 @@ If no matching mode baseline exists, regression checks are skipped and absolute/
 
 ## No-Java Baseline
 
-- PlantUML oracle remains placeholder-only (`todo`) for this repo baseline.
-- `parity_latest.json` and `latest_trend.json` include explicit oracle placeholder metadata.
-- Do not remove placeholders until Java/oracle execution is intentionally enabled.
+- PlantUML oracle comparison is opt-in and remains skip-sentinel based unless `PUML_ORACLE_JAR` is set.
+- `parity_latest.json`, `latest_trend.json`, and `oracle_report.json` may include explicit oracle placeholder or skip metadata.
+- Oracle artifacts are comparison evidence only. They are not runtime inputs and do not imply that Java/PlantUML is used by the `puml` CLI or library.
+- Do not remove placeholders until Java/oracle execution is intentionally enabled for the relevant workflow.
 
 ## Differential Oracle Smoke
 

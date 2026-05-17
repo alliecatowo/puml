@@ -3492,6 +3492,7 @@ pub fn normalize_with_options(
                                 hidden: m.style.hidden,
                                 dashed: m.style.dashed,
                                 dotted: m.style.dotted,
+                                thickness: m.style.thickness,
                             },
                             from_virtual,
                             to_virtual,

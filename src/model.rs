@@ -727,6 +727,7 @@ pub struct SequenceMessageStyle {
     pub hidden: bool,
     pub dashed: bool,
     pub dotted: bool,
+    pub thickness: Option<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

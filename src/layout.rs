@@ -175,12 +175,17 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 text,
                 position,
             } => {
-                let y = events_top + (event_rows * options.message_row_height);
                 let (content_width, text_lines) = multiline_metrics(text);
                 let width_from_text =
                     content_width + (options.note_padding * 2) + NOTE_TEXT_WIDTH_GUARD_PX;
                 let width = options.note_width.max(width_from_text);
                 let height = (text_lines * TEXT_LINE_HEIGHT) + (options.note_padding * 2);
+                let y = note_vertical_position_y(
+                    position,
+                    events_top + (event_rows * options.message_row_height),
+                    height,
+                    events_top,
+                );
                 let (x, width) = note_horizontal_bounds(
                     position,
                     target.as_deref(),
@@ -598,6 +603,16 @@ fn note_horizontal_bounds(
     };
 
     (x.max(options.margin), width)
+}
+
+fn note_vertical_position_y(position: &str, row_y: i32, height: i32, events_top: i32) -> i32 {
+    if position.eq_ignore_ascii_case("top") {
+        return (row_y - height - 8).max(events_top - height - 8);
+    }
+    if position.eq_ignore_ascii_case("bottom") {
+        return row_y + 8;
+    }
+    row_y
 }
 
 fn group_horizontal_bounds(

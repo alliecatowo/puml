@@ -9,8 +9,10 @@ Canonical status artifact for machine/human parity review.
 - Status vocabulary is strict: `implemented`, `partial`, `missing`.
 - `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` are secondary aligned exports for tooling compatibility.
 - `docs/audits/post_blitz_gap_table.md` is the post-blitz planning companion for remaining partial rows, exact evidence, GitHub project status, and next implementation slices.
+- Examples, closed issues, merged PRs, and oracle reports are evidence inputs only; they do not override this table.
 - Be conservative: do not mark as `implemented` where evidence only shows baseline or partial depth.
-- Project board checks are advisory for review flow only; do not close issues from this artifact unless `origin/main` already contains the implementation commits.
+- Project board checks are advisory for review flow only; do not close issues from this artifact unless the implementation commits are merged into the branch being audited.
+- Oracle reports are comparison-only conformance evidence. The Java PlantUML oracle is never part of the `puml` runtime contract.
 
 ## Core UML + Preprocessor
 
@@ -74,3 +76,4 @@ Canonical status artifact for machine/human parity review.
 - 2026-05-17: Branch-local evidence now covers `#207` deterministic LaTeX-ish math rendering with matrices/environments, Greek/operators/symbols, text constructs, and big-operator layout on `origin/codex/local-parity-blitz-20260516`; `#207` was closed as completed and moved to `Done`.
 - 2026-05-17: Branch-local evidence plus `gh issue view 105` confirms SDL is implemented as a special-adapter baseline under closed/Done issue `#105`; deeper activity-beta parity remains represented by the existing `activity,advanced` partial row.
 - 2026-05-17: Latest pushed commit `13f92c0` strengthens partial evidence for Salt, regex, EBNF, and chart advanced rows; those rows remain `partial` because the official PlantUML surface is still wider than the current deterministic subset.
+- 2026-05-16: PR `#224` was merged as commit `c68b2a701953c0a018cef1847448334377933cf3` (`Merge pull request #224 from alliecatowo/parity/swarm-gap-wave-b2e311d`). Treat this as landed progress for the rows evidenced above, not as a blanket full-parity claim.

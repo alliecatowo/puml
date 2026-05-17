@@ -3618,7 +3618,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
     while i < lines.len() {
         let (raw_line, span) = lines[i];
         let line = strip_inline_plantuml_comment(raw_line).trim();
-
         // In raw-body family blocks we never strip empty lines or interpret comments.
         // Check for the closing marker first; otherwise capture verbatim.
         if let Some(bk) = block_kind {
@@ -3648,7 +3647,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
-        if line.is_empty() || line.starts_with('"') {
+        if line.is_empty()
+            || (line.starts_with('"')
+                && split_family_arrow(line).is_none()
+                && split_arrow(line).is_none())
+        {
             i += 1;
             continue;
         }
@@ -3714,8 +3717,25 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         if matches!(
             detected_kind,
-            Some(DiagramKind::Component | DiagramKind::Deployment)
+            None | Some(DiagramKind::Component | DiagramKind::Deployment)
         ) {
+            let ambiguous_class_interface = detected_kind.is_none()
+                && line.starts_with("interface ")
+                && later_lines_contain_class_family_declaration(&lines, i);
+            let actor_prefers_non_component = detected_kind.is_none()
+                && line.starts_with("actor ")
+                && (line.contains("<<")
+                    || line.contains('"')
+                    || later_lines_contain_usecase_family_declaration(&lines, i));
+            let ambiguous_class_scope = detected_kind.is_none()
+                && (line.starts_with("package ") || line.starts_with("namespace "))
+                && line.trim_end().ends_with('{')
+                && {
+                    let end_idx = find_scoping_block_end(&lines, i);
+                    end_idx > i
+                        && group_body_contains_class_family(&lines, i, end_idx)
+                        && !group_body_contains_component_family(&lines, i, end_idx)
+                };
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
                 let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
                     DiagramKind::Deployment
@@ -3727,29 +3747,32 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i = end_idx + 1;
                 continue;
             }
-            if let Some(kind) = parse_component_decl(line) {
-                let family = match &kind {
-                    StatementKind::ComponentDecl {
-                        kind:
-                            ComponentNodeKind::Node
-                            | ComponentNodeKind::Artifact
-                            | ComponentNodeKind::Cloud
-                            | ComponentNodeKind::Frame
-                            | ComponentNodeKind::Storage
-                            | ComponentNodeKind::Database
-                            | ComponentNodeKind::Package
-                            | ComponentNodeKind::Rectangle
-                            | ComponentNodeKind::Folder
-                            | ComponentNodeKind::File
-                            | ComponentNodeKind::Card,
-                        ..
-                    } => DiagramKind::Deployment,
-                    _ => DiagramKind::Component,
-                };
-                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
-                statements.push(Statement { span, kind });
-                i += 1;
-                continue;
+            if !ambiguous_class_interface && !actor_prefers_non_component && !ambiguous_class_scope
+            {
+                if let Some(kind) = parse_component_decl(line) {
+                    let family = match &kind {
+                        StatementKind::ComponentDecl {
+                            kind:
+                                ComponentNodeKind::Node
+                                | ComponentNodeKind::Artifact
+                                | ComponentNodeKind::Cloud
+                                | ComponentNodeKind::Frame
+                                | ComponentNodeKind::Storage
+                                | ComponentNodeKind::Database
+                                | ComponentNodeKind::Package
+                                | ComponentNodeKind::Rectangle
+                                | ComponentNodeKind::Folder
+                                | ComponentNodeKind::File
+                                | ComponentNodeKind::Card,
+                            ..
+                        } => DiagramKind::Deployment,
+                        _ => DiagramKind::Component,
+                    };
+                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
             }
         }
 
@@ -5014,7 +5037,15 @@ fn parse_relation_side_annotations(
 }
 
 fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
+    let mut in_quote = false;
     for (idx, ch) in core.char_indices() {
+        if ch == '"' {
+            in_quote = !in_quote;
+            continue;
+        }
+        if in_quote {
+            continue;
+        }
         if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+') {
             continue;
         }
@@ -5022,6 +5053,9 @@ fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
         let Some(len) = family_arrow_token_len(rest) else {
             continue;
         };
+        if len == 1 {
+            continue;
+        }
         let lhs = core[..idx].trim();
         let rhs = core[idx + len..].trim();
         if lhs.is_empty() || rhs.is_empty() {
@@ -5355,6 +5389,7 @@ fn group_body_contains_component_family(
         let line = strip_inline_plantuml_comment(raw).trim();
         let lower = line.to_ascii_lowercase();
         lower.starts_with("component ")
+            || lower.starts_with("interface ")
             || lower.starts_with("node ")
             || lower.starts_with("artifact ")
             || lower.starts_with("database ")
@@ -5369,6 +5404,21 @@ fn group_body_contains_component_family(
             || lower.starts_with("port ")
             || lower.starts_with("portin ")
             || lower.starts_with("portout ")
+    })
+}
+
+fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_idx: usize) -> bool {
+    lines[start + 1..end_idx].iter().any(|(raw, _)| {
+        let line = strip_inline_plantuml_comment(raw).trim();
+        let lower = line.to_ascii_lowercase();
+        lower.starts_with("abstract class ")
+            || lower.starts_with("annotation ")
+            || lower.starts_with("interface ")
+            || lower.starts_with("abstract ")
+            || lower.starts_with("enum ")
+            || lower.starts_with("protocol ")
+            || lower.starts_with("struct ")
+            || lower.starts_with("class ")
     })
 }
 
@@ -5410,6 +5460,14 @@ fn parse_component_scoping_block(
                 )
             })
         })
+        .or_else(|| {
+            lower.starts_with("namespace ").then(|| {
+                (
+                    "namespace",
+                    trimmed.strip_prefix("namespace ").unwrap_or("").trim(),
+                )
+            })
+        })
     else {
         return Ok(None);
     };
@@ -5422,6 +5480,15 @@ fn parse_component_scoping_block(
             "[E_COMPONENT_GROUP_UNCLOSED] unclosed `{kind}` block: missing `}}`",
         ))
         .with_span(lines[start].1));
+    }
+    if matches!(kind, "namespace" | "package")
+        && group_body_contains_class_family(lines, start, end_idx)
+        && !group_body_contains_component_family(lines, start, end_idx)
+    {
+        return Ok(None);
+    }
+    if kind == "namespace" && !group_body_contains_component_family(lines, start, end_idx) {
+        return Ok(None);
     }
     let label = clean_ident(label_raw.trim_end_matches('{').trim().trim_matches('"'));
     let members = lines[start + 1..end_idx]
@@ -5964,6 +6031,15 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         if let Some(end) = rest.find(']') {
             let inner = rest[..end].trim();
             let suffix = rest[end + 1..].trim();
+            if !suffix.is_empty() && !suffix.starts_with("as ") {
+                return None;
+            }
+            let bracketed_inner = format!("[{inner}]");
+            if normalize_virtual_endpoint(&bracketed_inner).is_some()
+                || matches!(inner, "*" | "H" | "H*")
+            {
+                return None;
+            }
             let alias = suffix
                 .strip_prefix("as ")
                 .map(str::trim)
@@ -6019,7 +6095,13 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         }
     }
     if let Some(inner) = trimmed.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
-        if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
+        let bracketed_inner = format!("[{inner}]");
+        if normalize_virtual_endpoint(&bracketed_inner).is_none()
+            && !matches!(inner, "*" | "H" | "H*")
+            && !inner.is_empty()
+            && !inner.contains('[')
+            && !inner.contains(']')
+        {
             return Some(StatementKind::ComponentDecl {
                 kind: ComponentNodeKind::Component,
                 name: clean_ident(inner),
@@ -6166,6 +6248,12 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
             label: Some("endswitch".to_string()),
         }));
     }
+    if let Some(rest) = trimmed.strip_prefix("elseif ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Else,
+            label: Some(format!("elseif {}", parse_activity_if_label(rest.trim()))),
+        }));
+    }
     if let Some(rest) = trimmed.strip_prefix("while ") {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::WhileStart,
@@ -6185,6 +6273,12 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
                     Some(r.to_string())
                 }
             }),
+        }));
+    }
+    if trimmed == "end repeat" || trimmed == "endrepeat" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndWhile,
+            label: Some("end repeat".to_string()),
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("partition ") {
@@ -6231,6 +6325,12 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
     if trimmed == "kill" || trimmed == "detach" {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::Stop,
+            label: Some(trimmed.to_string()),
+        }));
+    }
+    if trimmed == "break" || trimmed == "continue" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
             label: Some(trimmed.to_string()),
         }));
     }
@@ -6993,6 +7093,8 @@ fn parse_arrow_style(arrow: &str) -> MessageStyle {
                 "hidden" => style.hidden = true,
                 "dashed" => style.dashed = true,
                 "dotted" => style.dotted = true,
+                "bold" | "thick" => style.thickness = Some(3),
+                "thin" => style.thickness = Some(1),
                 _ if token.starts_with('#')
                     && matches!(token.len(), 4 | 5 | 7 | 9)
                     && token[1..].bytes().all(|b| b.is_ascii_hexdigit()) =>
@@ -7007,7 +7109,17 @@ fn parse_arrow_style(arrow: &str) -> MessageStyle {
                 _ if token.bytes().all(|b| b.is_ascii_alphabetic()) => {
                     style.color = Some(lower);
                 }
-                _ => {}
+                _ => {
+                    if let Some(value) = lower
+                        .strip_prefix("thickness=")
+                        .or_else(|| lower.strip_prefix("thickness:"))
+                        .or_else(|| lower.strip_prefix("thickness "))
+                    {
+                        if let Ok(n) = value.trim().parse::<u8>() {
+                            style.thickness = Some(n.clamp(1, 8));
+                        }
+                    }
+                }
             }
         }
     }
@@ -7321,6 +7433,12 @@ fn is_valid_note_position(position: &str) -> bool {
 
 fn clean_ident(s: &str) -> String {
     let mut out = s.trim().trim_matches('"').to_string();
+    if let Some(rest) = out.strip_prefix("()") {
+        out = rest.trim().to_string();
+    }
+    if let Some(rest) = out.strip_suffix("()") {
+        out = rest.trim().to_string();
+    }
     for suffix in ["++", "--", "**", "!!"] {
         out = out
             .strip_suffix(suffix)
@@ -7343,6 +7461,22 @@ fn extract_class_member_name(s: &str) -> String {
         "abstract ",
         "enum ",
         "class ",
+        "component ",
+        "portin ",
+        "portout ",
+        "port ",
+        "node ",
+        "database ",
+        "cloud ",
+        "frame ",
+        "storage ",
+        "package ",
+        "rectangle ",
+        "folder ",
+        "file ",
+        "card ",
+        "artifact ",
+        "actor ",
     ] {
         if lower.starts_with(kw) {
             // Extract the first identifier token from the original (case-preserved) text
@@ -7377,6 +7511,27 @@ fn split_family_relation_label(line: &str) -> (&str, Option<String>) {
             if !text.is_empty() {
                 return (line[..colon].trim_end(), Some(text.to_string()));
             }
+        }
+    }
+    let mut in_quote = false;
+    let mut last_colon = None;
+    for (idx, ch) in line.char_indices() {
+        if ch == '"' {
+            in_quote = !in_quote;
+            continue;
+        }
+        if !in_quote && ch == ':' {
+            last_colon = Some(idx);
+        }
+    }
+    if let Some(colon) = last_colon {
+        let prefix = line[..colon].trim_end();
+        let suffix = line[colon + 1..].trim();
+        if !suffix.is_empty()
+            && !suffix_has_family_relation_arrow(suffix)
+            && split_family_arrow(prefix).is_some()
+        {
+            return (prefix, Some(suffix.to_string()));
         }
     }
     (line.trim_end(), None)
@@ -9058,6 +9213,56 @@ mod tests {
     }
 
     #[test]
+    fn parses_family_relations_with_tight_labels_quotes_and_cardinality() {
+        let doc = parse_with_options(
+            "class \"Order-Service\"\nclass \"Line-Item\"\nclass \"Price-List\"\n\"Order-Service\" \"1\" --> \"0..*\" \"Line-Item\": contains\nLine-Item --> \"Price-List\": priced by\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        match &doc.statements[3].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "Order-Service");
+                assert_eq!(rel.to, "Line-Item");
+                assert_eq!(rel.label.as_deref(), Some("contains"));
+                assert_eq!(rel.left_cardinality.as_deref(), Some("1"));
+                assert_eq!(rel.right_cardinality.as_deref(), Some("0..*"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[4].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "Line-Item");
+                assert_eq!(rel.to, "Price-List");
+                assert_eq!(rel.label.as_deref(), Some("priced by"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_component_namespace_groups_and_lollipop_endpoint_cleanup() {
+        let doc = parse_with_options(
+            "@startuml\nnamespace Edge {\n  component API\n  interface \"Orders\" as Orders\n}\nAPI --() Orders: provides\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Component);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::ClassGroup { .. }
+        ));
+        match &doc.statements[1].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "API");
+                assert_eq!(rel.to, "Orders");
+                assert_eq!(rel.label.as_deref(), Some("provides"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
     fn parses_sequence_decorated_arrow_styles_as_portable_arrow_core() {
         let doc = parse_with_options(
             "participant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n",
@@ -9078,7 +9283,7 @@ mod tests {
     #[test]
     fn parses_activity_switch_split_goto_and_terminal_controls() {
         let doc = parse_with_options(
-            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\ncase (B)\ngoto retry\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\nbackward: retry path;\ndetach\n@enduml\n",
+            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\ncase (B)\ngoto retry\nendswitch\nif (ready?) then (yes)\nelseif (warm?) then (maybe)\nendif\nrepeat\ncontinue\nbreak\nrepeat while (again?)\nend repeat\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\nbackward: retry path;\ndetach\n@enduml\n",
             &ParseOptions::default(),
         )
         .unwrap();
@@ -9106,6 +9311,16 @@ mod tests {
             .iter()
             .any(|step| step.kind == ActivityStepKind::Action
                 && step.label.as_deref() == Some("goto retry")));
+        assert!(steps.iter().any(|step| step.kind == ActivityStepKind::Else
+            && step.label.as_deref() == Some("elseif warm? / maybe")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("continue")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("break")));
         assert!(steps
             .iter()
             .any(|step| step.kind == ActivityStepKind::Action

@@ -8,7 +8,9 @@ directive handling edges, comments/quoted-text behavior, and multi-block extract
 It is scoped to exercised frontend behaviors only. It does not assert full
 PlantUML 1:1 parity; use
 [`docs/audits/plantuml_parity_source_of_truth.md`](audits/plantuml_parity_source_of_truth.md)
-as the canonical current implemented/partial/missing status.
+as the canonical current implemented/partial/missing status. Rows here are
+runtime contract checks for selected frontend behavior, not a broader language
+support source of truth.
 
 ## Matrix
 

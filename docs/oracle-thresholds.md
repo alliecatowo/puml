@@ -5,9 +5,14 @@ what the exit-code thresholds mean, and how to run the suite locally.
 
 ## Overview
 
-The oracle suite compares SVG output produced by **puml** (our Rust renderer)
-against the **Java PlantUML reference JAR** on every `.puml` fixture under
-`tests/fixtures/` and `docs/examples/`.
+The oracle suite is a comparison-only conformance harness. It compares SVG
+output produced by **puml** (our Rust renderer) against the **Java PlantUML
+reference JAR** on every `.puml` fixture under `tests/fixtures/` and
+`docs/examples/`.
+
+The Java PlantUML JAR is never part of the `puml` runtime path, never a fallback
+renderer, and never required for normal CLI/library rendering. It is used only
+when an audit, local run, or CI workflow explicitly sets `PUML_ORACLE_JAR`.
 
 Each fixture is placed into exactly one category:
 
@@ -164,8 +169,12 @@ Unset `PUML_ORACLE_JAR` (or just don't set it).  The script exits 0 and
 writes the skip sentinel to the report file — safe to call unconditionally
 from any CI pipeline.
 
+The skip sentinel means "comparison not run"; it does not mean parity passed or
+failed.
+
 ## CI integration
 
-The oracle runs automatically on PRs that touch `src/parser.rs`,
-`src/normalize.rs`, `src/render.rs`, or any file under `tests/fixtures/`.
+The oracle comparison workflow runs automatically on PRs that touch
+`src/parser.rs`, `src/normalize.rs`, `src/render.rs`, or any file under
+`tests/fixtures/`.
 See `.github/workflows/oracle.yml` for the full pipeline definition.

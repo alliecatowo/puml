@@ -136,3 +136,58 @@ binary FLAG
     assert!(timing_svg.contains("period 10"));
     assert!(timing_svg.contains("checkpoint"));
 }
+
+#[test]
+fn core_uml_relation_namespace_lollipop_and_activity_beta_parity_depth() {
+    let class_svg = puml::render_source_to_svg(
+        r#"@startuml
+class "Order-Service"
+class "Line-Item"
+"Order-Service" "1" --> "0..*" "Line-Item": contains
+@enduml
+"#,
+    )
+    .expect("class relation render should succeed");
+    assert!(class_svg.contains("contains"));
+    assert!(class_svg.contains("&gt;1&lt;") || class_svg.contains(">1<"));
+    assert!(class_svg.contains("0..*"));
+
+    let component_svg = puml::render_source_to_svg(
+        r#"@startuml
+skinparam interfaceBackgroundColor lightblue
+namespace Edge {
+  component API
+  interface "Orders" as Orders
+}
+API --() Orders: provides
+@enduml
+"#,
+    )
+    .expect("component namespace render should succeed");
+    assert!(component_svg.contains("namespace Edge"));
+    assert!(component_svg.contains("API"));
+    assert!(component_svg.contains("Orders"));
+    assert!(component_svg.contains("provides"));
+
+    let activity_svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+if (ready?) then (yes)
+elseif (warm?) then (maybe)
+continue
+break
+endif
+repeat
+:again;
+repeat while (more?)
+end repeat
+stop
+@enduml
+"#,
+    )
+    .expect("activity beta render should succeed");
+    assert!(activity_svg.contains("elseif warm? / maybe"));
+    assert!(activity_svg.contains("continue"));
+    assert!(activity_svg.contains("break"));
+    assert!(activity_svg.contains("end repeat"));
+}
