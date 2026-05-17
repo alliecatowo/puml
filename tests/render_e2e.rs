@@ -117,6 +117,62 @@ fn render_core_uml_nested_scopes_lollipops_and_relation_annotations() {
 }
 
 #[test]
+fn render_activity_if_else_branches_use_distinct_columns() {
+    let svg = puml::render_source_to_svg(include_str!(
+        "../docs/examples/activity/02_if_then_else.puml"
+    ))
+    .expect("activity if/else example should render");
+    let texts = parse_svg_texts(&svg);
+    let text_x = |needle: &str| -> i32 {
+        texts
+            .iter()
+            .find(|text| text.text == needle)
+            .unwrap_or_else(|| panic!("missing text `{needle}`"))
+            .x
+    };
+
+    let then_x = text_x("Return 200");
+    let else_x = text_x("Return 401");
+    assert_ne!(
+        then_x, else_x,
+        "then and else actions should occupy distinct branch columns"
+    );
+    assert!(
+        else_x > then_x,
+        "else branch should be horizontally offset from the then branch"
+    );
+}
+
+#[test]
+fn render_activity_nested_if_else_reserves_outer_else_column_after_inner_branch() {
+    let svg =
+        puml::render_source_to_svg(include_str!("../docs/examples/activity/03_nested_if.puml"))
+            .expect("nested activity if/else example should render");
+    let texts = parse_svg_texts(&svg);
+    let text_x = |needle: &str| -> i32 {
+        texts
+            .iter()
+            .find(|text| text.text == needle)
+            .unwrap_or_else(|| panic!("missing text `{needle}`"))
+            .x
+    };
+
+    let execute_x = text_x("Execute");
+    let inner_else_x = text_x("Return 403");
+    let outer_else_x = text_x("Return 400");
+    let branch_xs = HashSet::from([execute_x, inner_else_x, outer_else_x]);
+
+    assert!(
+        branch_xs.len() >= 3,
+        "nested if/else should use separate columns for then, inner else, and outer else: {branch_xs:?}"
+    );
+    assert!(
+        execute_x < inner_else_x && inner_else_x < outer_else_x,
+        "outer else should be placed beyond the inner else branch"
+    );
+}
+
+#[test]
 fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
     let src = "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n@enduml\n";
     let svg = puml::render_source_to_svg(src).expect("decorated sequence render");

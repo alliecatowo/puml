@@ -5961,6 +5961,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         diamond_next_slot: i32, // first slot_y inside the branches
         // then-branch: accumulated while in_else==false
         then_cx: i32,
+        then_rightmost_cx: i32,
         then_end_next_slot: i32, // current_slot_y saved at "Else" time
         // else-branch: accumulated while in_else==true
         in_else: bool,
@@ -5987,12 +5988,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
 
     for (i, meta) in metas.iter().enumerate() {
         let base_cx = lane_center_x(&meta.lane_name);
-        let in_else_branch = if_stack.last().map(|f| f.in_else).unwrap_or(false);
-        let cx = if in_else_branch {
-            if_stack.last().map(|f| f.else_cx).unwrap_or(base_cx)
-        } else {
-            base_cx
-        };
+        let cx = if_stack
+            .last()
+            .map(|f| if f.in_else { f.else_cx } else { f.then_cx })
+            .unwrap_or(base_cx);
 
         match meta.step_kind.as_str() {
             "IfStart" => {
@@ -6011,11 +6010,17 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     diamond_arrow_out: arrow_out_y,
                     diamond_next_slot: next_slot_y,
                     then_cx: cx,
+                    then_rightmost_cx: cx,
                     then_end_next_slot: next_slot_y, // updated at "Else"
                     in_else: false,
                     else_cx,
                     else_start_slot: next_slot_y, // updated at "Else"
                 });
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                    }
+                }
                 current_slot_y = next_slot_y;
             }
             "Else" => {
@@ -6024,16 +6029,26 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 let frame = if_stack.last_mut().expect("else without if");
                 frame.then_cx = cx; // cx at end of then-branch (same lane)
                 frame.then_end_next_slot = then_end_next_slot;
-                // Else marker is placed at diamond_next_slot y, else_cx x
-                let else_cx = frame.else_cx;
+                // Else marker is placed beside all columns already used by
+                // the then-branch, so nested branches do not collide with it.
+                let else_cx = (frame.diamond_cx + branch_x_offset)
+                    .max(frame.then_rightmost_cx + branch_x_offset);
+                frame.else_cx = else_cx;
+                let diamond_cx = frame.diamond_cx;
+                let diamond_arrow_out = frame.diamond_arrow_out;
                 let slot_y = frame.diamond_next_slot;
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
                 frame.else_start_slot = slot_y;
                 frame.in_else = true;
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(else_cx);
+                    }
+                }
                 // Suppress standard prev→cur; add diamond→Else arrow
                 suppress_prev_arrow.insert(i);
-                extra_arrows.push((frame.diamond_cx, frame.diamond_arrow_out, else_cx, slot_y));
+                extra_arrows.push((diamond_cx, diamond_arrow_out, else_cx, slot_y));
                 node_layouts.push(NodeLayout {
                     cx: else_cx,
                     slot_y,
@@ -6064,6 +6079,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     arrow_out_y,
                     next_slot_y,
                 });
+                for parent in &mut if_stack {
+                    if !parent.in_else {
+                        parent.then_rightmost_cx =
+                            parent.then_rightmost_cx.max(frame.then_rightmost_cx);
+                    }
+                }
                 current_slot_y = next_slot_y;
             }
             _ => {
@@ -6076,6 +6097,11 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     arrow_out_y,
                     next_slot_y,
                 });
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                    }
+                }
                 current_slot_y = next_slot_y;
             }
         }
