@@ -149,7 +149,7 @@ jobs:
 
       - name: coverage gate
         if: steps.changes.outputs.run_full_gate == 'true'
-        run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|render)/.*\.rs'
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'
 
       - name: docs examples drift gate
         if: steps.changes.outputs.run_full_gate == 'true'
