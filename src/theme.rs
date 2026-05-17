@@ -1423,22 +1423,40 @@ pub fn classify_component_skinparam(
 ) -> SkinParamSupport<ComponentSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "backgroundcolor" | "componentbackgroundcolor" => parse_color_value(value)
+        "backgroundcolor"
+        | "componentbackgroundcolor"
+        | "deploymentbackgroundcolor"
+        | "nodebackgroundcolor"
+        | "artifactbackgroundcolor"
+        | "databasebackgroundcolor" => parse_color_value(value)
             .map(|c| {
                 SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::BackgroundColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "bordercolor" | "componentbordercolor" => parse_color_value(value)
+        "bordercolor"
+        | "componentbordercolor"
+        | "deploymentbordercolor"
+        | "nodebordercolor"
+        | "artifactbordercolor"
+        | "databasebordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "interfacebackgroundcolor" => parse_color_value(value)
-            .map(|c| {
-                SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::InterfaceColor(c))
-            })
-            .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "arrowcolor" | "componentarrowcolor" => parse_color_value(value)
+        "interfacebackgroundcolor" | "interfacecolor" | "interfacecirclebackgroundcolor" => {
+            parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::InterfaceColor(c))
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue)
+        }
+        "arrowcolor" | "componentarrowcolor" | "deploymentarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "componentfontcolor"
+        | "deploymentfontcolor"
+        | "componentfontsize"
+        | "deploymentfontsize"
+        | "componentfontname"
+        | "deploymentfontname" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
@@ -1482,27 +1500,32 @@ pub fn classify_activity_skinparam(
 ) -> SkinParamSupport<ActivitySkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "backgroundcolor" | "activitybackgroundcolor" => parse_color_value(value)
-            .map(|c| {
-                SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BackgroundColor(c))
-            })
-            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "backgroundcolor" | "activitybackgroundcolor" | "activitypartitionbackgroundcolor" => {
+            parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BackgroundColor(c))
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue)
+        }
         "bordercolor" | "activitybordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "activitydiamondbackgroundcolor" => parse_color_value(value)
+        "activitydiamondbackgroundcolor" | "activitydiamondcolor" => parse_color_value(value)
             .map(|c| {
                 SkinParamSupport::SupportedWithValue(
                     ActivitySkinParamValue::DiamondBackgroundColor(c),
                 )
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "activitybarcolor" => parse_color_value(value)
+        "activitybarcolor" | "activitystartcolor" | "activityendcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BarColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "arrowcolor" | "activityarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "activityfontcolor" | "activityfontsize" | "activityfontname" => {
+            SkinParamSupport::SupportedNoop
+        }
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
@@ -1549,9 +1572,13 @@ pub enum TimingSkinParamValue {
 pub fn classify_timing_skinparam(key: &str, value: &str) -> SkinParamSupport<TimingSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "timingbackgroundcolor" | "timingdiagrambackgroundcolor" => parse_color_value(value)
-            .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::BackgroundColor(c)))
-            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "backgroundcolor" | "timingbackgroundcolor" | "timingdiagrambackgroundcolor" => {
+            parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(TimingSkinParamValue::BackgroundColor(c))
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue)
+        }
         "timingaxiscolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::AxisColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
@@ -1572,12 +1599,13 @@ pub fn classify_timing_skinparam(key: &str, value: &str) -> SkinParamSupport<Tim
                 SkinParamSupport::SupportedWithValue(TimingSkinParamValue::SignalBorderColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "timingarrowcolor" => parse_color_value(value)
+        "arrowcolor" | "timingarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "timingfontcolor" => parse_color_value(value)
+        "fontcolor" | "timingfontcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::FontColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "timingfontsize" | "timingfontname" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }

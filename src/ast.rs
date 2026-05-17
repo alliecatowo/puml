@@ -88,6 +88,7 @@ pub enum StatementKind {
         name: String,
         alias: Option<String>,
         label: Option<String>,
+        members: Vec<ClassMember>,
     },
     ActivityStep(ActivityStep),
     TimingDecl {

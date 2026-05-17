@@ -700,6 +700,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "structure/valid_autonumber_restart_step_format.puml",
         "structure/valid_autonumber_format_only_and_canonical_spacing.puml",
         "structure/valid_autonumber_off_resume_edges.puml",
+        "structure/valid_autonumber_dotted_and_hash_padding.puml",
         "include/include_with_tag_ok.puml",
         "include/include_many_ok.puml",
         "include/include_once_ok.puml",
@@ -3107,6 +3108,33 @@ fn autonumber_off_and_resume_edges_are_preserved_in_model_dump() {
 }
 
 #[test]
+fn autonumber_dotted_and_hash_padding_are_preserved_in_model_dump() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "model",
+            &fixture("structure/valid_autonumber_dotted_and_hash_padding.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let events = json["events"].as_array().expect("events array");
+    let autonumber_raw: Vec<_> = events
+        .iter()
+        .filter_map(|event| event["kind"]["Autonumber"].as_str())
+        .collect();
+    assert_eq!(
+        autonumber_raw,
+        vec!["1.02.003", "7 2 \"ID-###\"", "stop", "resume 5 \"R-###\""]
+    );
+}
+
+#[test]
 fn lifecycle_shortcuts_are_preserved_in_model_dump() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
@@ -4661,6 +4689,38 @@ fn preprocessor_unsafe_io_helpers_reject_with_stable_policy_code() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_PREPROC_UNSAFE_BUILTIN"));
+}
+
+#[test]
+fn preprocessor_next_wave_expression_callable_scope_and_helper_aliases_expand() {
+    let src = "@startuml\n!procedure $Emit($from, $to)\n!$label = %map_get(%map(\"name\", \"Ada\"), \"missing\", \"fallback\")\n$from -> $to : $label/%procedure_exists(\"$Emit\")/%is_empty(%list_clear(%list(\"x\")))\n!endprocedure\n!function Pick($base)\n!$items = %list_push(%list($base), \"beta\")\n!return %list_get($items, 1, \"missing\")\n!endfunction\n!$cfg = {\"empty\":\"\",\"none\":null}\n!if %json_key_exists($cfg, \"empty\") and %json_key_exists($cfg, \"none\") and 1 <> 2\n!$Emit(Alice, Bob)\nAlice -> Bob : %Pick(\"alpha\")/%list_get(%list(\"x\"), 9, \"fallback\")/%is_number(%eval_int(\"2 + 3\"))\n!endif\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["fallback/true/true", "beta/fallback/true"]);
+}
+
+#[test]
+fn preprocessor_malformed_builtin_call_reports_syntax_code() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\nA -> B : %strlen(\"unterminated)\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_CALL_SYNTAX"));
 }
 
 #[test]

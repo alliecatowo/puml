@@ -1,4 +1,5 @@
-use puml::{render_source_to_svg_for_family, DiagramFamily};
+use puml::parser::{parse_with_options, ParseOptions};
+use puml::{render_source_to_svg_for_family, DiagramFamily, NormalizedDocument};
 
 #[test]
 fn chart_axes_named_series_arrays_and_legend_render() {
@@ -114,4 +115,42 @@ legend off
     assert!(!svg.contains("data-chart-legend="));
     assert!(svg.contains("Sales"));
     assert!(svg.contains("Costs"));
+}
+
+#[test]
+fn chart_axis_and_legend_style_suffixes_render_and_normalize() {
+    let src = "@startchart
+bar chart
+h-axis \"Sprint\" [Alpha,Beta] color #0f766e grid #ccfbf1 text #134e4a
+v-axis \"Score\" 0 --> 10 step 5 color #7c2d12 grid #fed7aa text #9a3412
+bar \"Actual\" [4,8] #2563eb
+legend bottom left background #f8fafc border #0f172a text #111827
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("chart axis and legend styling should render");
+    assert!(svg.contains("data-chart-axis-h-color=\"#0f766e\""));
+    assert!(svg.contains("data-chart-axis-h-grid=\"#ccfbf1\""));
+    assert!(svg.contains("data-chart-axis-v-color=\"#7c2d12\""));
+    assert!(svg.contains("data-chart-axis-v-text=\"#9a3412\""));
+    assert!(svg.contains("data-chart-legend=\"bottom-left\""));
+    assert!(svg.contains("fill=\"#f8fafc\""));
+    assert!(svg.contains("stroke=\"#0f172a\""));
+    assert!(svg.contains("fill=\"#111827\">Actual</text>"));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse chart");
+    let NormalizedDocument::Chart(model) = puml::normalize_family(doc).expect("normalize chart")
+    else {
+        panic!("expected chart model");
+    };
+    let h_axis = model.h_axis.expect("h-axis model");
+    let v_axis = model.v_axis.expect("v-axis model");
+    assert_eq!(h_axis.color.as_deref(), Some("#0f766e"));
+    assert_eq!(h_axis.grid_color.as_deref(), Some("#ccfbf1"));
+    assert_eq!(v_axis.color.as_deref(), Some("#7c2d12"));
+    assert_eq!(v_axis.label_color.as_deref(), Some("#9a3412"));
+    assert_eq!(model.legend.background_color.as_deref(), Some("#f8fafc"));
+    assert_eq!(model.legend.border_color.as_deref(), Some("#0f172a"));
+    assert_eq!(model.legend.text_color.as_deref(), Some("#111827"));
 }
