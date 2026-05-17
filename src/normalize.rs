@@ -1149,7 +1149,7 @@ fn last_numeric_token(input: &str) -> Option<f64> {
 }
 
 fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, Diagnostic> {
-    let mut tasks = Vec::new();
+    let mut tasks: Vec<TimelineTask> = Vec::new();
     let mut milestones = Vec::new();
     let mut separators = Vec::new();
     let mut constraints = Vec::new();
@@ -1173,24 +1173,45 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                 resources,
                 ..
             } => {
-                let workload_days = duration_days.unwrap_or(1).max(1);
-                let resource_allocations = parse_timeline_resource_allocations(&resources);
-                let duration_days =
-                    resource_adjusted_work_days(workload_days, &resource_allocations);
-                tasks.push(TimelineTask {
-                    name,
-                    start_day: start_date
-                        .as_deref()
-                        .and_then(parse_iso_date_day)
-                        .unwrap_or(0),
-                    workload_days,
-                    duration_days,
-                    resources,
-                    resource_allocations,
-                    baseline_start_day: None,
-                    baseline_duration_days: None,
-                    is_critical: false,
-                })
+                let parsed_start_day = start_date.as_deref().and_then(parse_iso_date_day);
+                // If a task with this name already exists, update it rather than
+                // creating a duplicate.  PlantUML allows splitting the declaration
+                // across multiple lines, e.g.:
+                //   [Design]
+                //   [Design] starts 2026-01-02
+                if let Some(existing) = tasks.iter_mut().find(|t| t.name == name) {
+                    if let Some(day) = parsed_start_day {
+                        existing.start_day = day;
+                    }
+                    if let Some(d) = duration_days {
+                        let workload = d.max(1);
+                        let new_allocs = parse_timeline_resource_allocations(&resources);
+                        existing.workload_days = workload;
+                        existing.duration_days = resource_adjusted_work_days(workload, &new_allocs);
+                        if !new_allocs.is_empty() {
+                            existing.resource_allocations = new_allocs;
+                        }
+                    }
+                    if !resources.is_empty() {
+                        existing.resources = resources;
+                    }
+                } else {
+                    let workload_days = duration_days.unwrap_or(1).max(1);
+                    let resource_allocations = parse_timeline_resource_allocations(&resources);
+                    let duration_days =
+                        resource_adjusted_work_days(workload_days, &resource_allocations);
+                    tasks.push(TimelineTask {
+                        name,
+                        start_day: parsed_start_day.unwrap_or(0),
+                        workload_days,
+                        duration_days,
+                        resources,
+                        resource_allocations,
+                        baseline_start_day: None,
+                        baseline_duration_days: None,
+                        is_critical: false,
+                    });
+                }
             }
             StatementKind::GanttMilestoneDecl { name, happens_on } => {
                 if let Some(target) = &happens_on {
