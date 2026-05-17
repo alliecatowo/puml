@@ -153,6 +153,11 @@ failures are advisory unless the overall match percentage drops below 50%.
 The PR comment summarizes the categories so reviewers can triage regressions
 even when the gate remains advisory.
 
+The generated CI summary is intentionally worded as conformance evidence. It is
+not a pixel-perfect parity claim: puml and Java PlantUML use different layout
+engines, so SVG geometry drift is useful triage data rather than proof that a
+supported construct is semantically wrong.
+
 ## Report format
 
 After every run (when `PUML_ORACLE_JAR` is set and the JAR is valid), the full
@@ -185,6 +190,21 @@ report is written to `docs/benchmarks/oracle_report.json` with this schema:
   ]
 }
 ```
+
+CI then runs `scripts/oracle_report_summary.py` over that raw report and writes:
+
+- `docs/benchmarks/oracle_report.md` — human-readable CI summary.
+- `docs/benchmarks/oracle_report_summary.json` — compact machine-readable
+  summary with `jar_version`, `fixture_count`, `match_pct`, fixture-level
+  pass/advisory/fail counts, category counts, and ranked top drift families.
+- `target/oracle-report-pages/` — static `index.html` plus the raw JSON,
+  compact JSON, and Markdown summary. On `main` pushes the oracle workflow
+  uploads this directory as a named Pages artifact so the latest JAR-backed
+  report can be retained separately from the checked-in skip sentinel.
+
+`oracle_report.json` remains the raw fixture-level evidence. The summary files
+exist to make CI and Pages artifacts easier to inspect without asking reviewers
+to hand-query JSON.
 
 ## Running the oracle locally
 
@@ -258,6 +278,17 @@ See `.github/workflows/oracle.yml` for the full pipeline definition.
 The CI workflow publishes one artifact named `oracle-report-<run_number>` with:
 
 - `docs/benchmarks/oracle_report.json`
+- `docs/benchmarks/oracle_report_summary.json`
+- `docs/benchmarks/oracle_report.md`
+- `target/oracle-report-pages/**`
+
+The normal artifact is retained for 90 days. On pushes to `main`, the workflow
+also uploads `target/oracle-report-pages` as a named Pages artifact
+`oracle-report-pages-<run_number>`.
+
+When the optional sentinel test step runs, CI also publishes a separate
+`oracle-smoke-test-log-<run_number>` artifact containing:
+
 - `/tmp/oracle_smoke_test.log`
 
 On pull requests, the workflow also posts a Markdown summary comment when
