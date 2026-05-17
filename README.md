@@ -264,6 +264,13 @@ Artifacts:
 - deterministic trend report: `docs/benchmarks/latest_trend.{md,json}`
 - mode baselines: `docs/benchmarks/baseline_{full,quick}.json`
 - no-Java oracle placeholder baseline: `docs/benchmarks/parity_latest.json`
+- differential oracle smoke report: `docs/benchmarks/oracle_smoke_latest.json`
+
+Differential oracle smoke command:
+
+```bash
+python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/benchmarks/oracle_smoke_latest.json
+```
 
 ## Feature Matrix
 
