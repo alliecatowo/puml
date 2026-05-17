@@ -7,8 +7,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
-use hex;
-#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use sha2::{Digest, Sha256};
 
 use crate::diagnostic::Diagnostic;
