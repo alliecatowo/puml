@@ -1,5 +1,5 @@
 /// Specialized diagram renderers for @startregex, @startebnf, @startchart,
-/// @startmath, @startsdl, and @startditaa diagram families.
+/// @startmath/@startlatex, @startsdl, and @startditaa diagram families.
 ///
 /// These bypass the main AST parser pipeline and implement their own
 /// mini-parsers and SVG renderers.
@@ -20,6 +20,8 @@ pub fn try_render_specialized(source: &str) -> Option<Result<String, Diagnostic>
         Some(render_chart(trimmed))
     } else if lower.starts_with("@startmath") {
         Some(render_math(trimmed))
+    } else if lower.starts_with("@startlatex") {
+        Some(render_latex(trimmed))
     } else if lower.starts_with("@startsdl") {
         Some(render_sdl(trimmed))
     } else if lower.starts_with("@startditaa") {
@@ -2234,6 +2236,22 @@ fn render_math(source: &str) -> Result<String, Diagnostic> {
 
     out.push_str("</svg>");
     Ok(out)
+}
+
+fn render_latex(source: &str) -> Result<String, Diagnostic> {
+    let (body, title) = strip_block(source, "@startlatex", "@endlatex");
+    let mut normalized = String::from("@startmath");
+    if let Some(t) = title {
+        normalized.push(' ');
+        normalized.push('"');
+        normalized.push_str(&t.replace('"', "\\\""));
+        normalized.push('"');
+    }
+    normalized.push('\n');
+    normalized.push_str(body);
+    normalized.push('\n');
+    normalized.push_str("@endmath\n");
+    render_math(&normalized)
 }
 
 // ─── Family 2: @startditaa ─────────────────────────────────────────────────────
