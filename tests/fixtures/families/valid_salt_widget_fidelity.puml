@@ -1,0 +1,12 @@
+@startsalt
+{
+Name    | "Enter your name"
+Email   | "email@example.com"
+Pass    | "password"
+        | [X] Remember me
+        | ( ) Admin
+        | (X) User
+^Role^  |
+[Login] | [Cancel]
+}
+@endsalt
