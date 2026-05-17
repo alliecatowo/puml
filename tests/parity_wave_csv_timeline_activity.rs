@@ -400,6 +400,55 @@ stop
 }
 
 #[test]
+fn activity_if_else_both_branches_present_in_scene_and_svg() {
+    // Regression test for issue #239: the else-branch was never rendered.
+    // Both then- and else-branch nodes must appear as distinct shapes in the
+    // output SVG, and arrows must diverge from the decision diamond.
+    let src = r#"@startuml
+start
+:Check;
+if (ok?) then (yes)
+  :HandleOk;
+else (no)
+  :HandleErr;
+endif
+stop
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("activity if/else render");
+
+    // Both branch labels must be present
+    assert!(svg.contains("HandleOk"), "then-branch action missing from SVG");
+    assert!(svg.contains("HandleErr"), "else-branch action missing from SVG");
+
+    // The (else) marker and (endif) merge node must be rendered
+    assert!(svg.contains("(else)"), "(else) marker missing from SVG");
+    assert!(svg.contains("(endif)"), "(endif) merge node missing from SVG");
+
+    // There must be at least two distinct x-coordinates in the arrows, proving
+    // that the diagram is not purely linear (i.e., branching exists).
+    let arrow_xs: std::collections::HashSet<i32> = {
+        let mut xs = std::collections::HashSet::new();
+        // Match <line x1="..." and x2="..."
+        let mut rest = svg.as_str();
+        while let Some(pos) = rest.find("<line x1=\"") {
+            rest = &rest[pos + 10..];
+            if let Some(end) = rest.find('"') {
+                if let Ok(v) = rest[..end].parse::<i32>() {
+                    xs.insert(v);
+                }
+            }
+        }
+        xs
+    };
+    assert!(
+        arrow_xs.len() >= 2,
+        "expected arrows at >= 2 distinct x positions (branching), got: {:?}",
+        arrow_xs
+    );
+}
+
+#[test]
 fn state_self_loop_and_final_pseudostate_render_distinctly() {
     let src = r#"@startuml
 state A
