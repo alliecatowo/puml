@@ -3824,7 +3824,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     }
 
     let (core, label) = split_message_label(line);
-    let (lhs, arrow, rhs) = split_arrow(core)?;
+    let (lhs, arrow, rhs) = split_family_arrow(core)?;
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
     let from = clean_bracketed_ident(&lhs_core);
@@ -3835,7 +3835,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     Some(StatementKind::FamilyRelation(FamilyRelation {
         from,
         to,
-        arrow: arrow.to_string(),
+        arrow,
         label,
         left_cardinality,
         right_cardinality,
@@ -3922,6 +3922,110 @@ fn parse_relation_side_annotations(
     }
 
     (rem.trim().to_string(), cardinality, role)
+}
+
+fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
+    for (idx, ch) in core.char_indices() {
+        if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+') {
+            continue;
+        }
+        let rest = &core[idx..];
+        let Some(len) = family_arrow_token_len(rest) else {
+            continue;
+        };
+        let lhs = core[..idx].trim();
+        let rhs = core[idx + len..].trim();
+        if lhs.is_empty() || rhs.is_empty() {
+            continue;
+        }
+        let arrow = normalize_family_arrow_token(&rest[..len]);
+        if arrow.is_empty() {
+            continue;
+        }
+        return Some((lhs, arrow, rhs));
+    }
+    None
+}
+
+fn family_arrow_token_len(s: &str) -> Option<usize> {
+    if let Some(len) = directional_family_arrow_token_len(s) {
+        return Some(len);
+    }
+
+    let len = s
+        .char_indices()
+        .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '*' | 'o' | '+'))
+        .map(|(idx, ch)| idx + ch.len_utf8())
+        .last()?;
+    let token = &s[..len];
+    if is_family_arrow_token(token) {
+        Some(len)
+    } else {
+        None
+    }
+}
+
+fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
+    let dirs = ["left", "right", "up", "down", "l", "r", "u", "d"];
+    for prefix_len in 1..=2 {
+        let prefix = s.get(..prefix_len)?;
+        if !prefix.chars().all(|ch| matches!(ch, '-' | '.')) {
+            continue;
+        }
+        let after_prefix = &s[prefix_len..];
+        if let Some(after_directive) = after_prefix.strip_prefix('[') {
+            if let Some(close) = after_directive.find(']') {
+                let after = &after_directive[close + 1..];
+                let suffix_len = after
+                    .char_indices()
+                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|'))
+                    .map(|(idx, ch)| idx + ch.len_utf8())
+                    .last()
+                    .unwrap_or(0);
+                if suffix_len > 0 {
+                    return Some(prefix_len + close + 2 + suffix_len);
+                }
+            }
+        }
+        for dir in dirs {
+            if let Some(after_dir) = after_prefix.strip_prefix(dir) {
+                let suffix_len = after_dir
+                    .char_indices()
+                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|'))
+                    .map(|(idx, ch)| idx + ch.len_utf8())
+                    .last()
+                    .unwrap_or(0);
+                if suffix_len > 0 {
+                    return Some(prefix_len + dir.len() + suffix_len);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn is_family_arrow_token(token: &str) -> bool {
+    token.contains('-') || token.contains('.') || token.contains('<') || token.contains('>')
+}
+
+fn normalize_family_arrow_token(token: &str) -> String {
+    let mut out = String::new();
+    let mut chars = token.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '[' {
+            for next in chars.by_ref() {
+                if next == ']' {
+                    break;
+                }
+            }
+            continue;
+        }
+        if ch.is_ascii_alphabetic() {
+            continue;
+        }
+        out.push(ch);
+    }
+    out
 }
 
 fn clean_bracketed_ident(s: &str) -> String {
@@ -4442,10 +4546,9 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("if ") {
-        let body = rest.trim_end_matches("then").trim();
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::IfStart,
-            label: Some(extract_paren_label(body).unwrap_or_else(|| body.to_string())),
+            label: Some(parse_activity_if_label(rest.trim())),
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("while ") {
@@ -4484,6 +4587,24 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         }));
     }
     None
+}
+
+fn parse_activity_if_label(input: &str) -> String {
+    let lower = input.to_ascii_lowercase();
+    if let Some(idx) = lower.find(" then ") {
+        let condition_raw = input[..idx].trim();
+        let then_raw = input[idx + " then ".len()..].trim();
+        let condition =
+            extract_paren_label(condition_raw).unwrap_or_else(|| condition_raw.to_string());
+        if let Some(branch) = extract_paren_label(then_raw) {
+            if !branch.is_empty() {
+                return format!("{condition} / {branch}");
+            }
+        }
+        return condition;
+    }
+    let body = input.trim_end_matches("then").trim();
+    extract_paren_label(body).unwrap_or_else(|| body.to_string())
 }
 
 fn extract_paren_label(input: &str) -> Option<String> {
@@ -4829,26 +4950,16 @@ fn parse_state_block(
 
 /// Parse `From --> To` or `From --> To : label`
 fn parse_state_transition(line: &str) -> Option<StateTransition> {
-    // Look for `-->` arrow
-    let arrow = "-->";
-    let idx = line.find(arrow)?;
-    let from_raw = line[..idx].trim();
-    let rest = line[idx + arrow.len()..].trim();
+    let (core, label) = split_message_label(line);
+    let (from_raw, arrow, to_raw) = split_family_arrow(core)?;
 
-    // Split `To : label`
-    let (to_raw, label) = if let Some((to_part, lbl)) = rest.split_once(':') {
-        (to_part.trim(), Some(lbl.trim().to_string()))
-    } else {
-        (rest, None)
-    };
-
-    if from_raw.is_empty() || to_raw.is_empty() {
+    if !arrow.contains('>') || from_raw.is_empty() || to_raw.is_empty() {
         return None;
     }
 
     Some(StateTransition {
-        from: from_raw.to_string(),
-        to: to_raw.to_string(),
+        from: clean_bracketed_ident(from_raw),
+        to: clean_bracketed_ident(to_raw),
         label,
     })
 }

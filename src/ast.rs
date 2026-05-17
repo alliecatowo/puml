@@ -145,6 +145,12 @@ pub enum StatementKind {
         alias: String,
         body: String,
     },
+    /// `yaml $alias { ... }` inline block inside a `@startuml`/`@enduml` block.
+    /// The body is the raw YAML-ish text (everything between the outer braces).
+    YamlProjection {
+        alias: String,
+        body: String,
+    },
     /// A row of cells in a `@startsalt` wireframe grid.
     SaltGridRow {
         cells: Vec<SaltCell>,
