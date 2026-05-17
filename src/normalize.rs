@@ -667,6 +667,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                 name,
                 start_date,
                 duration_days,
+                resources,
                 ..
             } => tasks.push(TimelineTask {
                 name,
@@ -675,9 +676,17 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                     .and_then(parse_iso_date_day)
                     .unwrap_or(0),
                 duration_days: duration_days.unwrap_or(1).max(1),
+                resources,
             }),
-            StatementKind::GanttMilestoneDecl { name } => {
-                milestones.push(TimelineMilestone { name })
+            StatementKind::GanttMilestoneDecl { name, happens_on } => {
+                if let Some(target) = &happens_on {
+                    constraints.push(TimelineConstraint {
+                        subject: name.clone(),
+                        kind: "happens".to_string(),
+                        target: target.clone(),
+                    });
+                }
+                milestones.push(TimelineMilestone { name, happens_on })
             }
             StatementKind::GanttConstraint {
                 subject,
@@ -718,13 +727,25 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         }
     }
 
+    let project_start = constraints
+        .iter()
+        .find(|c| {
+            c.subject.eq_ignore_ascii_case("Project")
+                && c.kind.eq_ignore_ascii_case("starts")
+                && parse_iso_date_day(&c.target).is_some()
+        })
+        .map(|c| c.target.clone());
+    let project_start_day = project_start.as_deref().and_then(parse_iso_date_day);
+
     if document.kind == DiagramKind::Gantt && !tasks.is_empty() {
-        let fallback_anchor = tasks
-            .iter()
-            .filter(|t| t.start_day > 0)
-            .map(|t| t.start_day)
-            .min()
-            .unwrap_or(0);
+        let fallback_anchor = project_start_day.unwrap_or_else(|| {
+            tasks
+                .iter()
+                .filter(|t| t.start_day > 0)
+                .map(|t| t.start_day)
+                .min()
+                .unwrap_or(0)
+        });
         let mut cursor = fallback_anchor;
         for task in &mut tasks {
             if task.start_day == 0 {
@@ -743,6 +764,8 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         milestones,
         constraints,
         chronology_events,
+        project_start,
+        project_start_day,
         title,
         header,
         footer,

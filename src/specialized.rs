@@ -4,6 +4,7 @@
 /// These bypass the main AST parser pipeline and implement their own
 /// mini-parsers and SVG renderers.
 use crate::diagnostic::Diagnostic;
+use std::collections::BTreeMap;
 
 // ─── Public dispatch ──────────────────────────────────────────────────────────
 
@@ -129,6 +130,41 @@ const RAIL_BOX_H: i32 = 28;
 const RAIL_GAP: i32 = 20; // horizontal gap between elements in a sequence
 const RAIL_ALT_GAP: i32 = 24; // vertical gap between alternation branches
 
+#[derive(Debug, Clone)]
+struct RailStyle {
+    literal_fill: String,
+    literal_stroke: String,
+    literal_text: String,
+    nonterminal_fill: String,
+    nonterminal_stroke: String,
+    nonterminal_text: String,
+    charclass_fill: String,
+    charclass_stroke: String,
+    charclass_text: String,
+    anchor_fill: String,
+    anchor_stroke: String,
+    anchor_text: String,
+}
+
+impl Default for RailStyle {
+    fn default() -> Self {
+        Self {
+            literal_fill: "#fff8e1".to_string(),
+            literal_stroke: "#f9a825".to_string(),
+            literal_text: "#333".to_string(),
+            nonterminal_fill: "#e8f5e9".to_string(),
+            nonterminal_stroke: "#388e3c".to_string(),
+            nonterminal_text: "#1b5e20".to_string(),
+            charclass_fill: "#fce4ec".to_string(),
+            charclass_stroke: "#c62828".to_string(),
+            charclass_text: "#b71c1c".to_string(),
+            anchor_fill: "#e3f2fd".to_string(),
+            anchor_stroke: "#1976d2".to_string(),
+            anchor_text: "#1565c0".to_string(),
+        }
+    }
+}
+
 fn rail_literal_width(text: &str) -> i32 {
     (text.len() as i32) * RAIL_FONT_W + RAIL_PAD_X * 2 + 8
 }
@@ -146,16 +182,23 @@ struct RailLayout {
 }
 
 fn layout_rail(node: &RailNode) -> RailLayout {
+    layout_rail_with_style(node, &RailStyle::default())
+}
+
+fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
     match node {
         RailNode::Literal(text) => {
             let w = rail_box_width(text);
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"14\" ry=\"14\" fill=\"#fff8e1\" stroke=\"#f9a825\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#333\">{}</text>",
+                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"14\" ry=\"14\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w, h,
+                style.literal_fill,
+                style.literal_stroke,
                 w / 2, mid,
+                style.literal_text,
                 escape_xml(text)
             );
             RailLayout {
@@ -170,10 +213,13 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#e8f5e9\" stroke=\"#388e3c\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#1b5e20\">{}</text>",
+                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w, h,
+                style.nonterminal_fill,
+                style.nonterminal_stroke,
                 w / 2, mid,
+                style.nonterminal_text,
                 escape_xml(name)
             );
             RailLayout {
@@ -188,10 +234,13 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"#e3f2fd\" stroke=\"#1976d2\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#1565c0\">{}</text>",
+                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w / 2, mid,
+                style.anchor_fill,
+                style.anchor_stroke,
                 w / 2, mid,
+                style.anchor_text,
                 escape_xml(sym)
             );
             RailLayout {
@@ -207,10 +256,13 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#fce4ec\" stroke=\"#c62828\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#b71c1c\">{}</text>",
+                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w, h,
+                style.charclass_fill,
+                style.charclass_stroke,
                 w / 2, mid,
+                style.charclass_text,
                 escape_xml(&text)
             );
             RailLayout {
@@ -227,7 +279,8 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             mid_y: RAIL_BOX_H / 2,
         },
         RailNode::Sequence(items) => {
-            let children: Vec<RailLayout> = items.iter().map(layout_rail).collect();
+            let children: Vec<RailLayout> =
+                items.iter().map(|item| layout_rail_with_style(item, style)).collect();
             if children.is_empty() {
                 return RailLayout {
                     svg: String::new(),
@@ -282,7 +335,10 @@ fn layout_rail(node: &RailNode) -> RailLayout {
                     mid_y: RAIL_BOX_H / 2,
                 };
             }
-            let children: Vec<RailLayout> = branches.iter().map(layout_rail).collect();
+            let children: Vec<RailLayout> = branches
+                .iter()
+                .map(|branch| layout_rail_with_style(branch, style))
+                .collect();
             let max_w = children.iter().map(|c| c.w_or_min()).max().unwrap_or(60);
             let total_h: i32 = children
                 .iter()
@@ -337,7 +393,7 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             }
         }
         RailNode::Repeat(inner) => {
-            let child = layout_rail(inner);
+            let child = layout_rail_with_style(inner, style);
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
@@ -393,7 +449,7 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             }
         }
         RailNode::OneOrMore(inner) => {
-            let child = layout_rail(inner);
+            let child = layout_rail_with_style(inner, style);
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
@@ -429,7 +485,7 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             }
         }
         RailNode::Optional(inner) => {
-            let child = layout_rail(inner);
+            let child = layout_rail_with_style(inner, style);
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
@@ -549,32 +605,104 @@ fn render_railroad(title: &str, root: &RailNode) -> String {
 
 fn render_regex(source: &str) -> Result<String, Diagnostic> {
     let (body, _title) = strip_block(source, "@startregex", "@endregex");
-    let pattern = body.trim();
+    let mut locale = RegexLocale::English;
+    let mut patterns = Vec::new();
+    for raw in body.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('\'') {
+            continue;
+        }
+        let lower = line.to_ascii_lowercase();
+        if let Some(rest) = lower
+            .strip_prefix("locale ")
+            .or_else(|| lower.strip_prefix("language "))
+            .or_else(|| lower.strip_prefix("lang "))
+        {
+            locale = RegexLocale::from_name(rest.trim());
+            continue;
+        }
+        patterns.push(line.to_string());
+    }
+    let pattern = patterns.join("\n");
     if pattern.is_empty() {
         return Err(Diagnostic::error(
             "[E_REGEX_EMPTY] @startregex body is empty",
         ));
     }
-    let node = parse_regex_to_rail(pattern);
-    let title = format!("/{}/", pattern);
+    let node = if patterns.len() == 1 {
+        parse_regex_to_rail(&patterns[0], locale)
+    } else {
+        RailNode::Alternation(
+            patterns
+                .iter()
+                .map(|pattern| parse_regex_to_rail(pattern, locale))
+                .collect(),
+        )
+    };
+    let title = format!("/{}/", pattern.replace('\n', " | "));
     Ok(render_railroad(&title, &node))
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RegexLocale {
+    English,
+    French,
+    Spanish,
+}
+
+impl RegexLocale {
+    fn from_name(name: &str) -> Self {
+        match name {
+            "fr" | "fra" | "fre" | "french" | "francais" | "français" => Self::French,
+            "es" | "spa" | "spanish" | "espanol" | "español" => Self::Spanish,
+            _ => Self::English,
+        }
+    }
+
+    fn label(self, key: &str) -> &'static str {
+        match (self, key) {
+            (Self::French, "digit") => "chiffre",
+            (Self::French, "word") => "mot",
+            (Self::French, "space") => "espace",
+            (Self::French, "any") => "tout",
+            (Self::French, "start") => "debut",
+            (Self::French, "end") => "fin",
+            (Self::Spanish, "digit") => "digito",
+            (Self::Spanish, "word") => "palabra",
+            (Self::Spanish, "space") => "espacio",
+            (Self::Spanish, "any") => "cualquiera",
+            (Self::Spanish, "start") => "inicio",
+            (Self::Spanish, "end") => "fin",
+            (_, "digit") => "digit",
+            (_, "word") => "word",
+            (_, "space") => "whitespace",
+            (_, "any") => "any char",
+            (_, "start") => "start",
+            (_, "end") => "end",
+            _ => "regex",
+        }
+    }
 }
 
 /// Parse a regex pattern string into a RailNode AST.
 /// Supports: literals, `.`, `|`, `(...)`, `[...]`, `*`, `+`, `?`, `^`, `$`.
-fn parse_regex_to_rail(pattern: &str) -> RailNode {
+fn parse_regex_to_rail(pattern: &str, locale: RegexLocale) -> RailNode {
     let chars: Vec<char> = pattern.chars().collect();
-    let (node, _) = parse_regex_alternation(&chars, 0);
+    let (node, _) = parse_regex_alternation(&chars, 0, locale);
     node
 }
 
-fn parse_regex_alternation(chars: &[char], start: usize) -> (RailNode, usize) {
+fn parse_regex_alternation(
+    chars: &[char],
+    start: usize,
+    locale: RegexLocale,
+) -> (RailNode, usize) {
     let mut branches = Vec::new();
-    let (first, mut pos) = parse_regex_sequence(chars, start);
+    let (first, mut pos) = parse_regex_sequence(chars, start, locale);
     branches.push(first);
     while pos < chars.len() && chars[pos] == '|' {
         pos += 1;
-        let (branch, new_pos) = parse_regex_sequence(chars, pos);
+        let (branch, new_pos) = parse_regex_sequence(chars, pos, locale);
         branches.push(branch);
         pos = new_pos;
     }
@@ -585,20 +713,28 @@ fn parse_regex_alternation(chars: &[char], start: usize) -> (RailNode, usize) {
     }
 }
 
-fn parse_regex_sequence(chars: &[char], start: usize) -> (RailNode, usize) {
+fn parse_regex_sequence(
+    chars: &[char],
+    start: usize,
+    locale: RegexLocale,
+) -> (RailNode, usize) {
     let mut items = Vec::new();
     let mut pos = start;
     while pos < chars.len() {
         match chars[pos] {
             ')' | '|' => break,
             '^' | '$' => {
-                let sym = chars[pos].to_string();
+                let sym = if chars[pos] == '^' {
+                    locale.label("start").to_string()
+                } else {
+                    locale.label("end").to_string()
+                };
                 pos += 1;
                 items.push(RailNode::Anchor(sym));
             }
             '(' => {
                 pos += 1; // consume '('
-                let (inner, new_pos) = parse_regex_alternation(chars, pos);
+                let (inner, new_pos) = parse_regex_alternation(chars, pos, locale);
                 pos = new_pos;
                 if pos < chars.len() && chars[pos] == ')' {
                     pos += 1;
@@ -628,18 +764,18 @@ fn parse_regex_sequence(chars: &[char], start: usize) -> (RailNode, usize) {
                 let escaped = if pos < chars.len() {
                     let c = chars[pos];
                     pos += 1;
-                    format!("\\{}", c)
+                    regex_escape_label(c, locale)
                 } else {
                     "\\".to_string()
                 };
-                let node = RailNode::Literal(escaped);
+                let node = RailNode::CharClass(escaped);
                 let (node, new_pos) = apply_quantifier(node, chars, pos);
                 pos = new_pos;
                 items.push(node);
             }
             '.' => {
                 pos += 1;
-                let node = RailNode::CharClass(".".to_string());
+                let node = RailNode::CharClass(locale.label("any").to_string());
                 let (node, new_pos) = apply_quantifier(node, chars, pos);
                 pos = new_pos;
                 items.push(node);
@@ -660,6 +796,20 @@ fn parse_regex_sequence(chars: &[char], start: usize) -> (RailNode, usize) {
         (items.remove(0), pos)
     } else {
         (RailNode::Sequence(items), pos)
+    }
+}
+
+fn regex_escape_label(ch: char, locale: RegexLocale) -> String {
+    match ch {
+        'd' => format!("\\d {}", locale.label("digit")),
+        'D' => format!("\\D not {}", locale.label("digit")),
+        'w' => format!("\\w {}", locale.label("word")),
+        'W' => format!("\\W not {}", locale.label("word")),
+        's' => format!("\\s {}", locale.label("space")),
+        'S' => format!("\\S not {}", locale.label("space")),
+        't' => "\\t tab".to_string(),
+        'n' => "\\n newline".to_string(),
+        other => format!("\\{other}"),
     }
 }
 
@@ -690,9 +840,10 @@ fn apply_quantifier(node: RailNode, chars: &[char], pos: usize) -> (RailNode, us
 
 fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
     let (body, doc_title) = strip_block(source, "@startebnf", "@endebnf");
+    let (body, style, notes) = parse_ebnf_render_directives(body);
 
     // Parse rules: "name = body ;"
-    let rules = parse_ebnf_rules(body);
+    let rules = parse_ebnf_rules(&body);
     if rules.is_empty() {
         return Err(Diagnostic::error(
             "[E_EBNF_EMPTY] @startebnf body contains no rules",
@@ -713,11 +864,12 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
 
     let layouts: Vec<(String, RailLayout)> = rule_svgs
         .iter()
-        .map(|(name, node)| (name.clone(), layout_rail(node)))
+        .map(|(name, node)| (name.clone(), layout_rail_with_style(node, &style)))
         .collect();
 
     let max_inner_w = layouts.iter().map(|(_, l)| l.width).max().unwrap_or(200);
-    let svg_w = max_inner_w + margin * 2 + 40;
+    let note_w = if notes.is_empty() { 0 } else { 220 };
+    let svg_w = max_inner_w + margin * 2 + 40 + note_w;
     let total_h: i32 = layouts
         .iter()
         .map(|(_, l)| l.height + label_h + gap_between)
@@ -727,6 +879,7 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
     let mut out = String::new();
     out.push_str(&svg_header(svg_w, total_h));
     out.push_str(svg_white_bg());
+    out.push_str("<g data-ebnf-style=\"customizable\">");
 
     if let Some(title) = &doc_title {
         out.push_str(&format!(
@@ -744,6 +897,19 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
             "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#555\">{} :=</text>",
             margin, y + 14, escape_xml(name)
         ));
+        if let Some(note) = notes.get(name) {
+            let nx = svg_w - note_w + 14;
+            out.push_str(&format!(
+                "<g data-ebnf-note-for=\"{}\"><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"34\" rx=\"6\" ry=\"6\" fill=\"#fff7ed\" stroke=\"#f97316\" stroke-width=\"1\"/><text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#7c2d12\">{}</text></g>",
+                escape_xml(name),
+                nx,
+                y - 4,
+                note_w - 28,
+                nx + 8,
+                y + 18,
+                escape_xml(note)
+            ));
+        }
         y += label_h;
 
         let mid_y = y + layout.mid_y + 10;
@@ -791,8 +957,67 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
         y += layout.height + gap_between + 10;
     }
 
+    out.push_str("</g>");
     out.push_str("</svg>");
     Ok(out)
+}
+
+fn parse_ebnf_render_directives(body: &str) -> (String, RailStyle, BTreeMap<String, String>) {
+    let mut style = RailStyle::default();
+    let mut notes = BTreeMap::new();
+    let mut rule_lines = Vec::new();
+
+    for raw in body.lines() {
+        let line = raw.trim();
+        if line.is_empty() {
+            rule_lines.push(raw.to_string());
+            continue;
+        }
+        let lower = line.to_ascii_lowercase();
+        if let Some((name, note)) = parse_ebnf_note(line) {
+            notes.insert(name, note);
+            continue;
+        }
+        if lower.starts_with("style ") || lower.starts_with("skinparam ") {
+            apply_ebnf_style_directive(line, &mut style);
+            continue;
+        }
+        rule_lines.push(raw.to_string());
+    }
+
+    (rule_lines.join("\n"), style, notes)
+}
+
+fn parse_ebnf_note(line: &str) -> Option<(String, String)> {
+    let lower = line.to_ascii_lowercase();
+    let rest = lower.strip_prefix("note ")?;
+    let source_rest = &line[line.len() - rest.len()..];
+    let (name, note) = source_rest.split_once(':')?;
+    let name = name.trim().trim_matches('"').to_string();
+    let note = note.trim().trim_matches('"').to_string();
+    if name.is_empty() || note.is_empty() {
+        None
+    } else {
+        Some((name, note))
+    }
+}
+
+fn apply_ebnf_style_directive(line: &str, style: &mut RailStyle) {
+    let lower = line.to_ascii_lowercase();
+    let words: Vec<&str> = line.split_whitespace().collect();
+    let color = words.iter().rev().find(|word| word.starts_with('#')).copied();
+    let Some(color) = color else {
+        return;
+    };
+    if lower.contains("terminal") && !lower.contains("nonterminal") {
+        style.literal_fill = color.to_string();
+    } else if lower.contains("nonterminal") || lower.contains("non-terminal") {
+        style.nonterminal_fill = color.to_string();
+    } else if lower.contains("charclass") || lower.contains("characterclass") {
+        style.charclass_fill = color.to_string();
+    } else if lower.contains("anchor") {
+        style.anchor_fill = color.to_string();
+    }
 }
 
 /// Parse EBNF rules: "name = body ;" lines, possibly multi-line.
@@ -807,15 +1032,20 @@ fn parse_ebnf_rules(body: &str) -> Vec<(String, String)> {
             continue;
         }
         // Check if line contains '=' (new rule start)
-        if let Some(eq_pos) = line.find('=') {
+        if let Some(eq_pos) = line.find('=').or_else(|| line.find("::=")) {
             // Save previous rule if any
             if let Some(name) = current_name.take() {
                 let trimmed = current_body.trim().trim_end_matches(';').trim().to_string();
                 rules.push((name, trimmed));
                 current_body.clear();
             }
-            let name = line[..eq_pos].trim().to_string();
-            let rest = line[eq_pos + 1..].trim();
+            let name = line[..eq_pos].trim().trim_end_matches(':').trim().to_string();
+            let rest_start = if line[eq_pos..].starts_with("::=") {
+                eq_pos + 3
+            } else {
+                eq_pos + 1
+            };
+            let rest = line[rest_start..].trim();
             current_name = Some(name);
             // Check if rule ends on same line
             if rest.ends_with(';') {
@@ -1045,6 +1275,33 @@ struct ChartData {
     value: f64,
 }
 
+#[derive(Debug, Clone)]
+struct ChartAnnotation {
+    target: String,
+    text: String,
+}
+
+#[derive(Debug, Clone)]
+struct ChartRenderOptions {
+    background: String,
+    axis_color: Option<String>,
+    palette: Vec<String>,
+    annotations: Vec<ChartAnnotation>,
+    caption: Option<String>,
+}
+
+impl Default for ChartRenderOptions {
+    fn default() -> Self {
+        Self {
+            background: "white".to_string(),
+            axis_color: None,
+            palette: Vec::new(),
+            annotations: Vec::new(),
+            caption: None,
+        }
+    }
+}
+
 fn render_chart(source: &str) -> Result<String, Diagnostic> {
     // Parse @startchart <type> header
     let first_line = source.lines().next().unwrap_or("").trim();
@@ -1066,6 +1323,7 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
     let (body, _) = strip_block(source, "@startchart", "@endchart");
     let mut title: Option<String> = None;
     let mut data: Vec<ChartData> = Vec::new();
+    let mut options = ChartRenderOptions::default();
 
     for line in body.lines() {
         let line = line.trim();
@@ -1075,6 +1333,16 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         let lower = line.to_ascii_lowercase();
         if lower.starts_with("title ") {
             title = Some(line[6..].trim().to_string());
+            continue;
+        }
+        if lower.starts_with("caption ") {
+            options.caption = Some(line[8..].trim().to_string());
+            continue;
+        }
+        if parse_chart_annotation(line, &mut options.annotations) {
+            continue;
+        }
+        if parse_chart_style(line, &mut options) {
             continue;
         }
         // Parse `"label" : value`, `label : value`, or `"label" value` (legacy)
@@ -1106,13 +1374,14 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         ));
     }
 
-    match chart_type {
+    let svg = match chart_type {
         ChartType::Bar | ChartType::Column => render_bar_chart(&data, &title, false),
         ChartType::Line => render_line_chart(&data, &title),
         ChartType::Area => render_area_chart(&data, &title),
         ChartType::Scatter => render_scatter_chart(&data, &title),
         ChartType::Pie => render_pie_chart(&data, &title),
-    }
+    }?;
+    Ok(apply_chart_render_options(svg, &options))
 }
 
 const CHART_COLORS: &[&str] = &[
@@ -1122,6 +1391,114 @@ const CHART_COLORS: &[&str] = &[
 
 fn bar_color(idx: usize) -> &'static str {
     CHART_COLORS[idx % CHART_COLORS.len()]
+}
+
+fn parse_chart_annotation(line: &str, annotations: &mut Vec<ChartAnnotation>) -> bool {
+    let lower = line.to_ascii_lowercase();
+    if let Some(rest) = lower
+        .strip_prefix("annotation ")
+        .or_else(|| lower.strip_prefix("annotate "))
+    {
+        let source_rest = &line[line.len() - rest.len()..];
+        if let Some((target, text)) = source_rest.split_once(':') {
+            annotations.push(ChartAnnotation {
+                target: target.trim().trim_matches('"').to_string(),
+                text: text.trim().trim_matches('"').to_string(),
+            });
+            return true;
+        }
+    }
+    if let Some(rest) = lower.strip_prefix("note at ") {
+        let source_rest = &line[line.len() - rest.len()..];
+        if let Some((target, text)) = source_rest.split_once(':') {
+            annotations.push(ChartAnnotation {
+                target: target.trim().trim_matches('"').to_string(),
+                text: text.trim().trim_matches('"').to_string(),
+            });
+            return true;
+        }
+    }
+    if let Some(rest) = lower.strip_prefix("note ") {
+        let source_rest = &line[line.len() - rest.len()..];
+        if let Some((text, target)) = source_rest.split_once(" at ") {
+            annotations.push(ChartAnnotation {
+                target: target.trim().trim_matches('"').to_string(),
+                text: text.trim().trim_matches('"').to_string(),
+            });
+            return true;
+        }
+    }
+    false
+}
+
+fn parse_chart_style(line: &str, options: &mut ChartRenderOptions) -> bool {
+    let lower = line.to_ascii_lowercase();
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if lower.starts_with("skinparam ") && lower.contains("backgroundcolor") {
+        if let Some(color) = parts.last().filter(|part| part.starts_with('#')) {
+            options.background = (*color).to_string();
+        }
+        return true;
+    }
+    if lower.starts_with("skinparam ") && lower.contains("axiscolor") {
+        if let Some(color) = parts.last().filter(|part| part.starts_with('#')) {
+            options.axis_color = Some((*color).to_string());
+        }
+        return true;
+    }
+    if lower.starts_with("palette ") {
+        options.palette = parts
+            .iter()
+            .skip(1)
+            .filter(|part| part.starts_with('#'))
+            .map(|part| (*part).to_string())
+            .collect();
+        return true;
+    }
+    false
+}
+
+fn apply_chart_render_options(mut svg: String, options: &ChartRenderOptions) -> String {
+    if options.background != "white" {
+        svg = svg.replacen(
+            "fill=\"white\"/>",
+            &format!("fill=\"{}\"/>", escape_xml(&options.background)),
+            1,
+        );
+    }
+    if let Some(axis_color) = &options.axis_color {
+        svg = svg.replace("stroke=\"#888\"", &format!("stroke=\"{}\"", escape_xml(axis_color)));
+    }
+    let mut additions = String::new();
+    if !options.palette.is_empty() {
+        additions.push_str(&format!(
+            "<metadata data-chart-palette=\"{}\"/>",
+            escape_xml(&options.palette.join(" "))
+        ));
+    }
+    let mut y = 34;
+    for ann in &options.annotations {
+        additions.push_str(&format!(
+            "<g data-chart-annotation=\"{}\"><rect x=\"560\" y=\"{}\" width=\"190\" height=\"24\" rx=\"5\" ry=\"5\" fill=\"#fff7ed\" stroke=\"#f97316\" stroke-width=\"1\"/><text x=\"570\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#7c2d12\">{}: {}</text></g>",
+            escape_xml(&ann.target),
+            y,
+            y + 16,
+            escape_xml(&ann.target),
+            escape_xml(&ann.text)
+        ));
+        y += 30;
+    }
+    if let Some(caption) = &options.caption {
+        additions.push_str(&format!(
+            "<text data-chart-caption=\"true\" x=\"50%\" y=\"96%\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{}</text>",
+            escape_xml(caption)
+        ));
+    }
+    if additions.is_empty() {
+        svg
+    } else {
+        svg.replace("</svg>", &format!("{additions}</svg>"))
+    }
 }
 
 fn render_bar_chart(

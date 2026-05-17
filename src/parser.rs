@@ -4297,7 +4297,12 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     }
 
     if let Some(rest) = trimmed.strip_prefix("Project starts ") {
-        let date = rest.trim();
+        let date = rest
+            .trim()
+            .strip_prefix("on ")
+            .or_else(|| rest.trim().strip_prefix("the "))
+            .unwrap_or_else(|| rest.trim())
+            .trim();
         if is_iso_date_literal(date) {
             return Some(StatementKind::GanttConstraint {
                 subject: "Project".to_string(),
@@ -4313,15 +4318,28 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             start_date: None,
             duration_days: None,
             depends_on: Vec::new(),
+            resources: Vec::new(),
         });
     }
     let rest = rest.trim();
+    let (rest_without_resources, resources) = extract_gantt_resources(rest);
+    let rest = rest_without_resources.trim();
     if let Some(rest) = rest.strip_prefix(':') {
+        if subject.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            let label = rest.trim();
+            if !label.is_empty() {
+                return Some(StatementKind::GanttMilestoneDecl {
+                    name: label.to_string(),
+                    happens_on: Some(subject),
+                });
+            }
+        }
         return Some(StatementKind::GanttTaskDecl {
             name: rest.trim().to_string(),
             start_date: None,
             duration_days: None,
             depends_on: Vec::new(),
+            resources,
         });
     }
     if let Some((start_date, duration_days)) = parse_gantt_start_and_duration(rest) {
@@ -4330,6 +4348,7 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             start_date: Some(start_date),
             duration_days: Some(duration_days),
             depends_on: Vec::new(),
+            resources,
         });
     }
     if let Some(duration_days) = parse_gantt_duration_clause(rest) {
@@ -4338,27 +4357,46 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             start_date: None,
             duration_days: Some(duration_days),
             depends_on: Vec::new(),
+            resources,
+        });
+    }
+    if let Some(start_date) = parse_gantt_start_date_clause(rest) {
+        return Some(StatementKind::GanttTaskDecl {
+            name: subject,
+            start_date: Some(start_date),
+            duration_days: None,
+            depends_on: Vec::new(),
+            resources,
+        });
+    }
+    if !resources.is_empty() {
+        return Some(StatementKind::GanttTaskDecl {
+            name: subject,
+            start_date: None,
+            duration_days: None,
+            depends_on: Vec::new(),
+            resources,
         });
     }
     let lower = rest.to_ascii_lowercase();
     if lower.starts_with("happens") {
-        return Some(StatementKind::GanttMilestoneDecl { name: subject });
-    }
-    // `[date] : label` shorthand for milestones
-    if let Some(stripped) = rest.strip_prefix(':') {
-        let label = stripped.trim();
-        if !label.is_empty() && subject.chars().next().is_some_and(|c| c.is_ascii_digit()) {
-            return Some(StatementKind::GanttMilestoneDecl {
-                name: format!("{label} ({subject})"),
-            });
-        }
+        return Some(StatementKind::GanttMilestoneDecl {
+            name: subject,
+            happens_on: parse_gantt_happens_target(rest),
+        });
     }
     for kind in ["starts", "ends", "requires"] {
         if lower.starts_with(kind) {
+            let target = rest[kind.len()..]
+                .trim()
+                .strip_prefix("at ")
+                .unwrap_or_else(|| rest[kind.len()..].trim())
+                .trim()
+                .to_string();
             return Some(StatementKind::GanttConstraint {
                 subject,
                 kind: kind.to_string(),
-                target: rest.to_string(),
+                target,
             });
         }
     }
@@ -4367,34 +4405,120 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
 
 fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
     let lower = rest.to_ascii_lowercase();
-    let marker = " and lasts ";
-    let idx = lower.find(marker)?;
+    let (idx, marker_len) = lower
+        .find(" and lasts ")
+        .map(|idx| (idx, " and lasts ".len()))
+        .or_else(|| lower.find(" and requires ").map(|idx| (idx, " and requires ".len())))?;
     let start_clause = rest[..idx].trim();
-    let duration_clause = rest[idx + marker.len()..].trim();
-    let start_date = start_clause.strip_prefix("starts ")?.trim();
+    let duration_clause = rest[idx + marker_len..].trim();
+    let start_date = parse_gantt_start_date_clause(start_clause)?;
+    Some((start_date, parse_gantt_duration_clause(duration_clause)?))
+}
+
+fn parse_gantt_start_date_clause(rest: &str) -> Option<String> {
+    let start_date = rest
+        .trim()
+        .strip_prefix("starts ")?
+        .trim()
+        .strip_prefix("at ")
+        .unwrap_or_else(|| rest.trim().strip_prefix("starts ").unwrap().trim())
+        .trim();
     if !is_iso_date_literal(start_date) {
         return None;
     }
-    let duration_days = parse_gantt_duration_clause(duration_clause)?;
-    Some((start_date.to_string(), duration_days))
+    Some(start_date.to_string())
 }
 
 fn parse_gantt_duration_clause(rest: &str) -> Option<u32> {
     let trimmed = rest.trim();
     let clause = trimmed
         .strip_prefix("lasts ")
+        .or_else(|| trimmed.strip_prefix("requires "))
         .map(str::trim)
         .unwrap_or(trimmed);
-    let mut parts = clause.split_whitespace();
-    let n = parts.next()?.parse::<u32>().ok()?;
-    let unit = parts.next()?.to_ascii_lowercase();
-    if parts.next().is_some() {
-        return None;
+    let mut total = 0u32;
+    let mut parts = clause.split_whitespace().peekable();
+    while parts.peek().is_some() {
+        if parts.peek().copied() == Some("and") {
+            parts.next();
+            continue;
+        }
+        let n = parts.next()?.parse::<u32>().ok()?;
+        let unit = parts.next()?.to_ascii_lowercase();
+        let days = match unit.as_str() {
+            "day" | "days" => n,
+            "week" | "weeks" => n.saturating_mul(7),
+            _ => return None,
+        };
+        total = total.saturating_add(days);
     }
-    match unit.as_str() {
-        "day" | "days" => Some(n.max(1)),
-        "week" | "weeks" => Some(n.saturating_mul(7).max(1)),
-        _ => None,
+    if total == 0 {
+        None
+    } else {
+        Some(total)
+    }
+}
+
+fn extract_gantt_resources(rest: &str) -> (String, Vec<String>) {
+    let lower = rest.to_ascii_lowercase();
+    let Some(on_idx) = lower
+        .find(" on {")
+        .or_else(|| lower.strip_prefix("on {").map(|_| 0))
+    else {
+        return (rest.to_string(), Vec::new());
+    };
+    let mut cursor = if on_idx == 0 { "on ".len() } else { on_idx + " on ".len() };
+    let mut resources = Vec::new();
+    while cursor < rest.len() {
+        let skipped = rest[cursor..].len() - rest[cursor..].trim_start().len();
+        cursor += skipped;
+        if !rest[cursor..].starts_with('{') {
+            break;
+        }
+        let Some(end_rel) = rest[cursor + 1..].find('}') else {
+            break;
+        };
+        let end = cursor + 1 + end_rel;
+        let resource = rest[cursor + 1..end].trim();
+        if !resource.is_empty() {
+            resources.push(resource.to_string());
+        }
+        cursor = end + 1;
+    }
+    if resources.is_empty() {
+        return (rest.to_string(), Vec::new());
+    }
+    let prefix = rest[..on_idx].trim_end();
+    let suffix = rest[cursor..]
+        .trim_start()
+        .strip_prefix("and ")
+        .unwrap_or_else(|| rest[cursor..].trim_start())
+        .trim_start();
+    let cleaned = if prefix.is_empty() {
+        suffix.to_string()
+    } else if suffix.is_empty() {
+        prefix.to_string()
+    } else {
+        format!("{prefix} {suffix}")
+    };
+    (cleaned, resources)
+}
+
+fn parse_gantt_happens_target(rest: &str) -> Option<String> {
+    let lower = rest.to_ascii_lowercase();
+    let target = lower
+        .strip_prefix("happens on ")
+        .and_then(|_| rest.get("happens on ".len()..))
+        .or_else(|| {
+            lower
+                .strip_prefix("happens at ")
+                .and_then(|_| rest.get("happens at ".len()..))
+        })?
+        .trim();
+    if target.is_empty() {
+        None
+    } else {
+        Some(target.to_string())
     }
 }
 

@@ -61,9 +61,11 @@ pub enum StatementKind {
         start_date: Option<String>,
         duration_days: Option<u32>,
         depends_on: Vec<String>,
+        resources: Vec<String>,
     },
     GanttMilestoneDecl {
         name: String,
+        happens_on: Option<String>,
     },
     GanttConstraint {
         subject: String,
