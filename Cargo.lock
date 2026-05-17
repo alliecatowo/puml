@@ -1618,6 +1618,7 @@ dependencies = [
  "insta",
  "predicates",
  "resvg",
+ "roxmltree",
  "serde",
  "serde_json",
  "sha2",
