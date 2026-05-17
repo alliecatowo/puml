@@ -1,5 +1,5 @@
 {
-  "_comment": "Visual regression manifest. Each fixture is rendered to SVG and checked for: (1) all expected_text substrings appear, (2) no <text> element is empty. Add new fixtures here as the renderer gains coverage. Run: cargo test --test visual_regression",
+  "_comment": "Visual regression manifest. Each fixture is rendered to SVG and checked for: (1) all expected_text substrings appear, (2) no <text> element is empty. Add semantic expected_text for label-rendering fixtures. Structural-only exceptions must include structural_only_reason. Run: cargo test --test visual_regression",
   "fixtures": [
     {
       "path": "docs/examples/sequence/01_basic.puml",
@@ -28,80 +28,80 @@
     {
       "path": "docs/examples/activity/01_simple_flow.puml",
       "family": "activity",
-      "expected_text": [],
-      "min_text_elements": 1
+      "expected_text": ["Simple Activity Flow", "Initialize", "Process Data", "Save Results"],
+      "min_text_elements": 5
     },
     {
       "path": "docs/examples/activity/02_if_then_else.puml",
       "family": "activity",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["If-Then-Else Decision", "Receive Request", "authenticated?", "Process", "Return 200", "Return 401"],
+      "min_text_elements": 9
     },
     {
       "path": "docs/examples/state/01_basic.puml",
       "family": "state",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["Idle", "Running"],
+      "min_text_elements": 3
     },
     {
       "path": "docs/examples/usecase/01_basic.puml",
       "family": "usecase",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["Login", "Register", "leads to"],
+      "min_text_elements": 3
     },
     {
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["Frontend", "Backend", "calls"],
+      "min_text_elements": 6
     },
     {
       "path": "docs/examples/object/01_basic.puml",
       "family": "object",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["Alice", "Bob", "knows"],
+      "min_text_elements": 3
     },
     {
       "path": "docs/examples/deployment/01_nodes.puml",
       "family": "deployment",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["WebServer", "AppServer", "DBServer", "HTTP", "TCP"],
+      "min_text_elements": 9
     },
     {
       "path": "docs/examples/gantt/01_basic.puml",
       "family": "gantt",
-      "expected_text": [],
-      "min_text_elements": 1
+      "expected_text": ["Project Timeline", "Design", "Build", "Test", "Kickoff"],
+      "min_text_elements": 20
     },
     {
       "path": "docs/examples/mindmap/01_basic.puml",
       "family": "mindmap",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["Project", "Planning", "Development", "Testing"],
+      "min_text_elements": 4
     },
     {
       "path": "docs/examples/wbs/01_basic.puml",
       "family": "wbs",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["Project Scope", "Phase 1", "Phase 2", "Phase 3"],
+      "min_text_elements": 4
     },
     {
       "path": "docs/examples/c4/01_context.puml",
       "family": "c4",
-      "expected_text": [],
-      "min_text_elements": 2
+      "expected_text": ["System Context - Banking App", "Customer", "Support", "Banking Application", "SMS Gateway", "Core Banking", "Uses", "Manages", "Sends notifications", "Transfers funds"],
+      "min_text_elements": 14
     },
     {
       "path": "docs/examples/json/01_object.puml",
       "family": "json",
-      "expected_text": [],
-      "min_text_elements": 1
+      "expected_text": ["JSON", "active: true", "age: 30", "name: \"Alice\""],
+      "min_text_elements": 5
     },
     {
       "path": "docs/examples/chart/01_bar.puml",
       "family": "chart",
-      "expected_text": [],
-      "min_text_elements": 0
+      "expected_text": ["Q1", "Q2", "Q3", "Q4", "42", "58", "73", "91"],
+      "min_text_elements": 13
     },
     {
       "path": "docs/examples/sdl/02_with_transitions.puml",
