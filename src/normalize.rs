@@ -21,10 +21,10 @@ use crate::model::{
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
-    activity_style_from_sequence_theme, chart_style_from_sequence_theme, classify_activity_skinparam,
-    classify_chart_skinparam, classify_class_skinparam, classify_component_skinparam,
-    classify_sequence_skinparam, classify_state_skinparam, classify_timing_skinparam,
-    class_style_from_sequence_theme, component_style_from_sequence_theme,
+    activity_style_from_sequence_theme, chart_style_from_sequence_theme,
+    class_style_from_sequence_theme, classify_activity_skinparam, classify_chart_skinparam,
+    classify_class_skinparam, classify_component_skinparam, classify_sequence_skinparam,
+    classify_state_skinparam, classify_timing_skinparam, component_style_from_sequence_theme,
     resolve_sequence_theme_preset, state_style_from_sequence_theme,
     timing_style_from_sequence_theme, ActivityStyle, ChartStyle, ClassStyle, ComponentStyle,
     SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle,
@@ -2341,6 +2341,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let family_kind = document.kind;
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
+    let mut groups = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -2500,6 +2501,39 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 left_role: rel.left_role,
                 right_role: rel.right_role,
             }),
+            StatementKind::ClassGroup {
+                kind,
+                label,
+                members,
+            } => {
+                for member_id in &members {
+                    let already_exists = nodes.iter().any(|n: &FamilyNode| {
+                        n.name == *member_id || n.alias.as_deref() == Some(member_id.as_str())
+                    });
+                    if !already_exists {
+                        let fallback_kind = match family_kind {
+                            DiagramKind::Deployment => FamilyNodeKind::Node,
+                            DiagramKind::Component => FamilyNodeKind::Component,
+                            _ => FamilyNodeKind::Component,
+                        };
+                        nodes.push(FamilyNode {
+                            kind: fallback_kind,
+                            name: member_id.clone(),
+                            alias: None,
+                            members: Vec::new(),
+                            depth: 0,
+                            label: None,
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
+                        });
+                    }
+                }
+                groups.push(FamilyGroup {
+                    kind,
+                    label,
+                    member_ids: members,
+                });
+            }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -2706,7 +2740,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings: ext_warnings,
-        groups: Vec::new(),
+        groups,
         json_projections: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,

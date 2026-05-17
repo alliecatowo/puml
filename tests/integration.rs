@@ -4588,6 +4588,61 @@ fn component_relations_with_cardinalities_render_endpoint_labels() {
 }
 
 #[test]
+fn family_relations_render_colon_endpoint_roles_without_stealing_edge_label() {
+    let src = "@startuml\nclass Customer\nclass Order\nCustomer \"1\" :buyer --> \"*\" :orders Order : places\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("class relation roles should render");
+    assert!(svg.contains(">buyer<"), "left colon role should render");
+    assert!(svg.contains(">orders<"), "right colon role should render");
+    assert!(svg.contains(">1<"), "left cardinality should render");
+    assert!(svg.contains(">*<"), "right cardinality should render");
+    assert!(svg.contains("places"), "edge label should render");
+}
+
+#[test]
+fn component_and_deployment_groups_render_labeled_frames_and_nested_members() {
+    let component_src = "@startuml\nskinparam ComponentBorderColor #0f766e\npackage \"Core Services\" {\n  component \"Public API\" as API\n  node \"Runtime Zone\" {\n    component Worker\n  }\n}\nAPI --> Worker : dispatches\n@enduml\n";
+    let component_svg =
+        render_source_to_svg(component_src).expect("component group svg should render");
+    assert!(
+        component_svg.contains(">package Core Services<"),
+        "component package frame label should render"
+    );
+    assert!(
+        component_svg.contains("Public API") || component_svg.contains(">API<"),
+        "component group member should render"
+    );
+    assert!(
+        component_svg.contains(">Worker<"),
+        "nested component group member should render"
+    );
+    assert!(
+        component_svg.contains("stroke=\"#0f766e\""),
+        "component border skinparam should style group frame"
+    );
+    assert!(
+        component_svg.contains(">dispatches<"),
+        "relation label between grouped members should render"
+    );
+
+    let deployment_src = "@startuml\nnode \"Edge Site\" {\n  artifact App\n  database Cache\n}\nApp --> Cache : warms\n@enduml\n";
+    let deployment_svg =
+        render_source_to_svg(deployment_src).expect("deployment group svg should render");
+    assert!(
+        deployment_svg.contains(">node Edge Site<"),
+        "deployment node frame label should render"
+    );
+    assert!(deployment_svg.contains(">App<"), "artifact member should render");
+    assert!(
+        deployment_svg.contains(">Cache<"),
+        "database member should render"
+    );
+    assert!(
+        deployment_svg.contains(">warms<"),
+        "deployment grouped relation should render"
+    );
+}
+
+#[test]
 fn class_relations_with_roles_render_endpoint_role_labels() {
     let src = fs::read_to_string(fixture("families/valid_class_with_relation_roles.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("class svg should render");

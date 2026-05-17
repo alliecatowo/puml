@@ -1266,30 +1266,30 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
     }
 
     if let Some((lhs, rhs)) = split_top_level(trimmed, "==") {
-        return Ok(normalize_expr_value(lhs) == normalize_expr_value(rhs));
+        return Ok(normalize_expr_value(&lhs) == normalize_expr_value(&rhs));
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, "!=") {
-        return Ok(normalize_expr_value(lhs) != normalize_expr_value(rhs));
+        return Ok(normalize_expr_value(&lhs) != normalize_expr_value(&rhs));
     }
     // Numeric comparisons: check two-char operators before one-char to avoid splitting <=/>= wrong.
     if let Some((lhs, rhs)) = split_top_level(trimmed, "<=") {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
+        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MIN);
+        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MAX);
         return Ok(a <= b);
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, ">=") {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
+        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MAX);
+        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MIN);
         return Ok(a >= b);
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, "<") {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
+        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MIN);
+        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MAX);
         return Ok(a < b);
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, ">") {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
+        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MAX);
+        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MIN);
         return Ok(a > b);
     }
     if let Some(inner) = trimmed.strip_prefix('!') {
@@ -3225,6 +3225,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind,
             Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
         ) {
+            if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                statements.push(Statement { span, kind });
+                i = end_idx + 1;
+                continue;
+            }
             if let Some(kind) = parse_component_decl(line) {
                 statements.push(Statement { span, kind });
                 i += 1;
@@ -3988,7 +3993,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         _ => return None,
     }
 
-    let (core, label) = split_message_label(line);
+    let (core, label) = split_family_relation_label(line);
     let (lhs, arrow, rhs) = split_family_arrow(core)?;
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
@@ -4051,6 +4056,17 @@ fn parse_relation_side_annotations(
                     }
                 }
             }
+            if let Some(colon) = t.rfind(" :") {
+                let value = t[colon + 2..].trim();
+                let endpoint = t[..colon].trim_end();
+                if !value.is_empty() && !endpoint.is_empty() {
+                    if role.is_none() {
+                        role = Some(value.to_string());
+                    }
+                    rem = endpoint.to_string();
+                    continue;
+                }
+            }
             break;
         }
     } else {
@@ -4073,6 +4089,25 @@ fn parse_relation_side_annotations(
                 if let Some(end_bracket_rel) = rest.find(']') {
                     let value = rest[..end_bracket_rel].trim();
                     let endpoint = rest[end_bracket_rel + 1..].trim_start();
+                    if !value.is_empty() && !endpoint.is_empty() {
+                        if role.is_none() {
+                            role = Some(value.to_string());
+                        }
+                        rem = endpoint.to_string();
+                        continue;
+                    }
+                }
+            }
+            if let Some(rest) = t.strip_prefix(':') {
+                let value_len = rest
+                    .char_indices()
+                    .take_while(|(_, ch)| !ch.is_whitespace())
+                    .map(|(idx, ch)| idx + ch.len_utf8())
+                    .last()
+                    .unwrap_or(0);
+                if value_len > 0 {
+                    let value = rest[..value_len].trim();
+                    let endpoint = rest[value_len..].trim_start();
                     if !value.is_empty() && !endpoint.is_empty() {
                         if role.is_none() {
                             role = Some(value.to_string());
@@ -4252,12 +4287,15 @@ fn parse_class_scoping_block(
         let rest = line.strip_prefix("package ").unwrap_or("").trim();
         let label_raw = rest.trim_end_matches('{').trim();
         let label = clean_ident(label_raw.trim_matches('"'));
-        let end_idx = find_family_decl_end(lines, start);
+        let end_idx = find_scoping_block_end(lines, start);
         if end_idx == start {
             return Err(Diagnostic::error(
                 "[E_CLASS_PACKAGE_UNCLOSED] unclosed `package` block: missing `}`",
             )
             .with_span(lines[start].1));
+        }
+        if group_body_contains_component_family(lines, start, end_idx) {
+            return Ok(None);
         }
         let members: Vec<String> = lines[start + 1..end_idx]
             .iter()
@@ -4281,7 +4319,7 @@ fn parse_class_scoping_block(
         let rest = line.strip_prefix("namespace ").unwrap_or("").trim();
         let label_raw = rest.trim_end_matches('{').trim();
         let label = clean_ident(label_raw.trim_matches('"'));
-        let end_idx = find_family_decl_end(lines, start);
+        let end_idx = find_scoping_block_end(lines, start);
         if end_idx == start {
             return Err(Diagnostic::error(
                 "[E_CLASS_NAMESPACE_UNCLOSED] unclosed `namespace` block: missing `}`",
@@ -4308,12 +4346,122 @@ fn parse_class_scoping_block(
     Ok(None)
 }
 
+fn group_body_contains_component_family(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+) -> bool {
+    lines[start + 1..end_idx].iter().any(|(raw, _)| {
+        let line = strip_inline_plantuml_comment(raw).trim();
+        let lower = line.to_ascii_lowercase();
+        lower.starts_with("component ")
+            || lower.starts_with("node ")
+            || lower.starts_with("artifact ")
+            || lower.starts_with("database ")
+            || lower.starts_with("cloud ")
+            || lower.starts_with("frame ")
+            || lower.starts_with("storage ")
+            || lower.starts_with("rectangle ")
+            || lower.starts_with("folder ")
+            || lower.starts_with("file ")
+            || lower.starts_with("card ")
+            || lower.starts_with("actor ")
+            || lower.starts_with("port ")
+            || lower.starts_with("portin ")
+            || lower.starts_with("portout ")
+    })
+}
+
+fn parse_component_scoping_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let Some((kind, label_raw)) = lower
+        .starts_with("package ")
+        .then(|| ("package", trimmed.strip_prefix("package ").unwrap_or("").trim()))
+        .or_else(|| {
+            lower
+                .starts_with("node ")
+                .then(|| ("node", trimmed.strip_prefix("node ").unwrap_or("").trim()))
+        })
+        .or_else(|| {
+            lower
+                .starts_with("frame ")
+                .then(|| ("frame", trimmed.strip_prefix("frame ").unwrap_or("").trim()))
+        })
+        .or_else(|| {
+            lower
+                .starts_with("cloud ")
+                .then(|| ("cloud", trimmed.strip_prefix("cloud ").unwrap_or("").trim()))
+        })
+        .or_else(|| {
+            lower
+                .starts_with("rectangle ")
+                .then(|| ("rectangle", trimmed.strip_prefix("rectangle ").unwrap_or("").trim()))
+        })
+    else {
+        return Ok(None);
+    };
+    if !trimmed.ends_with('{') {
+        return Ok(None);
+    }
+    let end_idx = find_scoping_block_end(lines, start);
+    if end_idx == start {
+        return Err(Diagnostic::error(format!(
+            "[E_COMPONENT_GROUP_UNCLOSED] unclosed `{kind}` block: missing `}}`",
+        ))
+        .with_span(lines[start].1));
+    }
+    let label = clean_ident(label_raw.trim_end_matches('{').trim().trim_matches('"'));
+    let members = lines[start + 1..end_idx]
+        .iter()
+        .map(|(raw, _)| raw.trim())
+        .filter(|s| !s.is_empty() && *s != "}")
+        .map(extract_component_group_member_name)
+        .filter(|s| !s.is_empty())
+        .collect();
+    Ok(Some((
+        StatementKind::ClassGroup {
+            kind: kind.to_string(),
+            label: if label.is_empty() { None } else { Some(label) },
+            members,
+        },
+        end_idx,
+    )))
+}
+
+fn find_scoping_block_end(lines: &[(&str, Span)], start: usize) -> usize {
+    let mut depth = 0usize;
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start) {
+        let trimmed = strip_inline_plantuml_comment(raw).trim();
+        if trimmed.ends_with('{') {
+            depth += 1;
+        }
+        if trimmed == "}" {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                return idx;
+            }
+        }
+    }
+    start
+}
+
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
     if line.starts_with("component ")
         || line.starts_with("interface ")
         || line.starts_with("port ")
         || line.starts_with("portin ")
         || line.starts_with("portout ")
+        || line.starts_with("package ")
+        || line.starts_with("rectangle ")
+        || line.starts_with("folder ")
+        || line.starts_with("file ")
+        || line.starts_with("card ")
+        || line.starts_with("actor ")
     {
         return Some(DiagramKind::Component);
     }
@@ -4323,6 +4471,7 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("cloud ")
         || line.starts_with("frame ")
         || line.starts_with("storage ")
+        || line.starts_with("database ")
     {
         return Some(DiagramKind::Deployment);
     }
@@ -5917,6 +6066,38 @@ fn extract_class_member_name(s: &str) -> String {
     }
     // Plain identifier (like in a together block)
     clean_ident(t)
+}
+
+fn extract_component_group_member_name(s: &str) -> String {
+    if let Some(StatementKind::ComponentDecl { name, alias, .. }) = parse_component_decl(s) {
+        return alias.unwrap_or(name);
+    }
+    extract_class_member_name(s)
+}
+
+fn split_family_relation_label(line: &str) -> (&str, Option<String>) {
+    if split_family_arrow(line).is_none() {
+        return split_message_label(line);
+    }
+    if let Some(colon) = line.rfind(" :") {
+        let suffix = line[colon + 2..].trim();
+        if !suffix_has_family_relation_arrow(suffix) {
+            let text = line[colon + 2..].trim();
+            if !text.is_empty() {
+                return (line[..colon].trim_end(), Some(text.to_string()));
+            }
+        }
+    }
+    (line.trim_end(), None)
+}
+
+fn suffix_has_family_relation_arrow(suffix: &str) -> bool {
+    suffix.contains("--")
+        || suffix.contains("..")
+        || suffix.contains("->")
+        || suffix.contains("<-")
+        || suffix.contains("|>")
+        || suffix.contains("<|")
 }
 
 fn split_message_label(line: &str) -> (&str, Option<String>) {

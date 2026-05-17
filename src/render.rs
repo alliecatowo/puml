@@ -3098,7 +3098,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .unwrap_or(0);
     let header_h = 40 + title_lines * 22;
     let width = (margin_x * 2) + (cols * cell_w) + ((cols - 1).max(0) * gap);
-    let height = header_h + margin_y + (rows.max(1) * cell_h) + ((rows - 1).max(0) * gap) + 60;
+    let height = header_h
+        + margin_y
+        + (rows.max(1) * cell_h)
+        + ((rows - 1).max(0) * gap)
+        + 60
+        + (doc.groups.len() as i32 * 12);
 
     // Position lookup by name and alias.
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
@@ -3109,7 +3114,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
         width, height, width, height
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&comp_style.background_color)
+    ));
     render_relation_marker_defs(&mut out, &comp_style.arrow_color);
 
     let mut y_cursor = 28;
@@ -3143,6 +3151,47 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         if let Some(alias) = id_alias {
             positions.insert(alias, (x, y, cell_w, cell_h));
         }
+    }
+
+    for group in &doc.groups {
+        let mut gx_min = i32::MAX;
+        let mut gy_min = i32::MAX;
+        let mut gx_max = i32::MIN;
+        let mut gy_max = i32::MIN;
+        let mut found_any = false;
+        for member_id in &group.member_ids {
+            if let Some((x, y, w, h)) = positions.get(member_id.as_str()) {
+                gx_min = gx_min.min(*x);
+                gy_min = gy_min.min(*y);
+                gx_max = gx_max.max(*x + *w);
+                gy_max = gy_max.max(*y + *h);
+                found_any = true;
+            }
+        }
+        if !found_any {
+            continue;
+        }
+        let pad = 14;
+        let label_h = 20;
+        let fx = gx_min - pad;
+        let fy = gy_min - pad - label_h;
+        let fw = gx_max - gx_min + pad * 2;
+        let fh = gy_max - gy_min + pad * 2 + label_h;
+        let label = match group.label.as_deref() {
+            Some(v) => format!("{} {}", group.kind, v),
+            None => group.kind.clone(),
+        };
+        out.push_str(&format!(
+            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"6 4\"/>",
+            comp_style.border_color
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+            fx + 8,
+            fy + 14,
+            comp_style.border_color,
+            escape_text(&label)
+        ));
     }
 
     // Draw relations with shared relation-style semantics.
