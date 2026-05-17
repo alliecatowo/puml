@@ -279,8 +279,10 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
             mid_y: RAIL_BOX_H / 2,
         },
         RailNode::Sequence(items) => {
-            let children: Vec<RailLayout> =
-                items.iter().map(|item| layout_rail_with_style(item, style)).collect();
+            let children: Vec<RailLayout> = items
+                .iter()
+                .map(|item| layout_rail_with_style(item, style))
+                .collect();
             if children.is_empty() {
                 return RailLayout {
                     svg: String::new(),
@@ -692,11 +694,7 @@ fn parse_regex_to_rail(pattern: &str, locale: RegexLocale) -> RailNode {
     node
 }
 
-fn parse_regex_alternation(
-    chars: &[char],
-    start: usize,
-    locale: RegexLocale,
-) -> (RailNode, usize) {
+fn parse_regex_alternation(chars: &[char], start: usize, locale: RegexLocale) -> (RailNode, usize) {
     let mut branches = Vec::new();
     let (first, mut pos) = parse_regex_sequence(chars, start, locale);
     branches.push(first);
@@ -713,11 +711,7 @@ fn parse_regex_alternation(
     }
 }
 
-fn parse_regex_sequence(
-    chars: &[char],
-    start: usize,
-    locale: RegexLocale,
-) -> (RailNode, usize) {
+fn parse_regex_sequence(chars: &[char], start: usize, locale: RegexLocale) -> (RailNode, usize) {
     let mut items = Vec::new();
     let mut pos = start;
     while pos < chars.len() {
@@ -1005,7 +999,11 @@ fn parse_ebnf_note(line: &str) -> Option<(String, String)> {
 fn apply_ebnf_style_directive(line: &str, style: &mut RailStyle) {
     let lower = line.to_ascii_lowercase();
     let words: Vec<&str> = line.split_whitespace().collect();
-    let color = words.iter().rev().find(|word| word.starts_with('#')).copied();
+    let color = words
+        .iter()
+        .rev()
+        .find(|word| word.starts_with('#'))
+        .copied();
     let Some(color) = color else {
         return;
     };
@@ -1039,7 +1037,11 @@ fn parse_ebnf_rules(body: &str) -> Vec<(String, String)> {
                 rules.push((name, trimmed));
                 current_body.clear();
             }
-            let name = line[..eq_pos].trim().trim_end_matches(':').trim().to_string();
+            let name = line[..eq_pos]
+                .trim()
+                .trim_end_matches(':')
+                .trim()
+                .to_string();
             let rest_start = if line[eq_pos..].starts_with("::=") {
                 eq_pos + 3
             } else {
@@ -1467,7 +1469,10 @@ fn apply_chart_render_options(mut svg: String, options: &ChartRenderOptions) -> 
         );
     }
     if let Some(axis_color) = &options.axis_color {
-        svg = svg.replace("stroke=\"#888\"", &format!("stroke=\"{}\"", escape_xml(axis_color)));
+        svg = svg.replace(
+            "stroke=\"#888\"",
+            &format!("stroke=\"{}\"", escape_xml(axis_color)),
+        );
     }
     let mut additions = String::new();
     if !options.palette.is_empty() {
@@ -2931,7 +2936,7 @@ struct Connector {
 
 fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
     let (body, title) = strip_block(source, "@startditaa", "@endditaa");
-    let (scale, transparent) = parse_ditaa_options(source.lines().next().unwrap_or(""));
+    let options = parse_ditaa_options(source.lines().next().unwrap_or(""));
 
     if body.trim().is_empty() {
         return Err(Diagnostic::error(
@@ -2947,8 +2952,8 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         ));
     }
 
-    let cell_w = 10i32 * scale;
-    let cell_h = 16i32 * scale;
+    let cell_w = 10i32 * options.scale;
+    let cell_h = 16i32 * options.scale;
     let grid_rows = lines.len();
     let grid_cols = lines.iter().map(|r| r.len()).max().unwrap_or(0);
     let title_h = if title.is_some() { 28i32 } else { 0 };
@@ -3260,12 +3265,60 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         }
     }
 
+    // Diagonal connectors, a common ditaa idiom for loose ASCII wiring.
+    for (row_idx, row) in lines.iter().enumerate() {
+        for (c, &ch) in row.iter().enumerate() {
+            if !matches!(ch, '/' | '\\') {
+                continue;
+            }
+            let in_shape = shapes
+                .iter()
+                .any(|s| row_idx >= s.r1 && row_idx <= s.r2 && c >= s.c1 && c <= s.c2);
+            if in_shape {
+                continue;
+            }
+            let x = margin + c as i32 * cell_w + cell_w / 2;
+            let y = margin + title_h + row_idx as i32 * cell_h + cell_h / 2;
+            let (x1, y1, x2, y2) = if ch == '/' {
+                (
+                    x - cell_w / 2,
+                    y + cell_h / 2,
+                    x + cell_w / 2,
+                    y - cell_h / 2,
+                )
+            } else {
+                (
+                    x - cell_w / 2,
+                    y - cell_h / 2,
+                    x + cell_w / 2,
+                    y + cell_h / 2,
+                )
+            };
+            connectors.push(Connector {
+                x1,
+                y1,
+                x2,
+                y2,
+                has_head_end: false,
+                has_head_start: false,
+                dashed: false,
+            });
+        }
+    }
+
     // ── Pass 3: SVG emission ──────────────────────────────────────────────────
 
     let mut out = String::new();
     out.push_str(&svg_header(svg_w, svg_h));
-    if !transparent {
-        out.push_str(svg_white_bg());
+    if !options.transparent {
+        if let Some(background) = &options.background {
+            out.push_str(&format!(
+                "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+                escape_xml(background)
+            ));
+        } else {
+            out.push_str(svg_white_bg());
+        }
     }
 
     // Arrow markers
@@ -3277,6 +3330,9 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
          <path d=\"M8,0 L8,6 L0,3 z\" fill=\"#444\"/></marker>\
          </defs>",
     );
+    if options.shadow {
+        out.push_str("<defs><filter id=\"ditaa-shadow\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\"><feDropShadow dx=\"2\" dy=\"2\" stdDeviation=\"1.5\" flood-color=\"#00000033\"/></filter></defs>");
+    }
 
     if let Some(t) = &title {
         out.push_str(&format!(
@@ -3296,18 +3352,23 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         } else {
             ""
         };
+        let filter = if options.shadow {
+            "filter=\"url(#ditaa-shadow)\""
+        } else {
+            ""
+        };
 
         match shape.kind {
             ShapeKind::Rect => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
-                    rx, ry, rw, rh, shape.fill, stroke
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    rx, ry, rw, rh, shape.fill, stroke, filter
                 ));
             }
             ShapeKind::RoundedRect => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" ry=\"12\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
-                    rx, ry, rw, rh, shape.fill, stroke
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" ry=\"12\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    rx, ry, rw, rh, shape.fill, stroke, filter
                 ));
             }
             ShapeKind::Document => {
@@ -3426,9 +3487,21 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
     Ok(out)
 }
 
-fn parse_ditaa_options(first_line: &str) -> (i32, bool) {
-    let mut scale = 1i32;
-    let mut transparent = false;
+#[derive(Debug, Clone)]
+struct DitaaOptions {
+    scale: i32,
+    transparent: bool,
+    shadow: bool,
+    background: Option<String>,
+}
+
+fn parse_ditaa_options(first_line: &str) -> DitaaOptions {
+    let mut options = DitaaOptions {
+        scale: 1,
+        transparent: false,
+        shadow: false,
+        background: None,
+    };
     let lower = first_line.to_ascii_lowercase();
     if let Some(pos) = lower.find("scale=") {
         let n: String = lower[pos + 6..]
@@ -3436,11 +3509,23 @@ fn parse_ditaa_options(first_line: &str) -> (i32, bool) {
             .take_while(|c| c.is_ascii_digit())
             .collect();
         if let Ok(v) = n.parse::<i32>() {
-            scale = v.clamp(1, 4);
+            options.scale = v.clamp(1, 4);
         }
     }
     if lower.contains("transparent=true") || lower.contains("transparent=yes") {
-        transparent = true;
+        options.transparent = true;
     }
-    (scale, transparent)
+    if lower.contains("shadow=true") || lower.contains("shadow=yes") {
+        options.shadow = true;
+    }
+    if let Some(pos) = lower.find("background=") {
+        let value: String = first_line[pos + "background=".len()..]
+            .chars()
+            .take_while(|c| !c.is_whitespace())
+            .collect();
+        if !value.is_empty() {
+            options.background = Some(value);
+        }
+    }
+    options
 }

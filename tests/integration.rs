@@ -5778,6 +5778,55 @@ fn chart_area_and_scatter_render_paths_are_supported() {
 }
 
 #[test]
+fn non_uml_advanced_chart_annotations_and_style_directives_render() {
+    let src = "@startchart bar\n\
+title Revenue\n\
+skinparam backgroundColor #f8fafc\n\
+skinparam axisColor #334155\n\
+palette #0ea5e9 #f97316\n\
+caption Forecast confidence\n\
+\"Q1\" : 10\n\
+\"Q2\" : 18\n\
+annotation \"Q2\" : peak quarter\n\
+@endchart\n";
+    let svg = render_source_to_svg(src).expect("styled annotated chart should render");
+    assert!(svg.contains("fill=\"#f8fafc\""));
+    assert!(svg.contains("stroke=\"#334155\""));
+    assert!(svg.contains("data-chart-palette=\"#0ea5e9 #f97316\""));
+    assert!(svg.contains("data-chart-annotation=\"Q2\""));
+    assert!(svg.contains("peak quarter"));
+    assert!(svg.contains("data-chart-caption=\"true\""));
+}
+
+#[test]
+fn non_uml_advanced_regex_localized_descriptive_labels_render() {
+    let src = "@startregex\nlocale fr\n^\\d+\\s\\w+$\n@endregex\n";
+    let svg = render_source_to_svg(src).expect("localized regex should render");
+    assert!(svg.contains("chiffre"));
+    assert!(svg.contains("espace"));
+    assert!(svg.contains("mot"));
+    assert!(svg.contains("debut"));
+    assert!(svg.contains("fin"));
+}
+
+#[test]
+fn non_uml_advanced_ebnf_style_and_rule_notes_render() {
+    let src = "@startebnf\n\
+style terminal #ecfeff\n\
+style nonterminal #eef2ff\n\
+note expr : entry point\n\
+expr ::= term , { \"+\" , term } ;\n\
+term = \"id\" ;\n\
+@endebnf\n";
+    let svg = render_source_to_svg(src).expect("styled ebnf should render");
+    assert!(svg.contains("data-ebnf-style=\"customizable\""));
+    assert!(svg.contains("fill=\"#ecfeff\""));
+    assert!(svg.contains("fill=\"#eef2ff\""));
+    assert!(svg.contains("data-ebnf-note-for=\"expr\""));
+    assert!(svg.contains("entry point"));
+}
+
+#[test]
 fn sdl_state_stereotypes_render_special_shapes() {
     let src = "@startsdl\nstate Start <<start>>\nstate Decide <<decision>>\nstate End <<end>>\nstate Start -> Decide : next\nstate Decide -> End : done\n@endsdl\n";
     let svg = render_source_to_svg(src).expect("sdl stereotypes should render");
@@ -5807,6 +5856,20 @@ fn ditaa_scale_and_transparent_options_are_applied() {
         !svg.contains("fill=\"white\""),
         "transparent=true should omit white background"
     );
+}
+
+#[test]
+fn non_uml_advanced_ditaa_diagonal_connectors_shadow_and_background_options_render() {
+    let src = "@startditaa shadow=true background=#f8fafc\n\
++---+   +---+\n\
+| A | / | B |\n\
++---+   +---+\n\
+@endditaa\n";
+    let svg = render_source_to_svg(src).expect("ditaa diagonal connector should render");
+    assert!(svg.contains("fill=\"#f8fafc\""));
+    assert!(svg.contains("id=\"ditaa-shadow\""));
+    assert!(svg.contains("filter=\"url(#ditaa-shadow)\""));
+    assert!(svg.contains("<line"));
 }
 
 fn extract_svg_width_attr(svg: &str) -> Option<i32> {
