@@ -170,6 +170,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 autonumber.update(raw.as_deref());
             }
             SequenceEventKind::Note {
+                kind,
                 target,
                 text,
                 position,
@@ -192,6 +193,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
 
                 notes.push(NoteBox {
                     target_id: target.clone(),
+                    kind: *kind,
                     x,
                     y,
                     width,

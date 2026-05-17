@@ -1,3 +1,4 @@
+use crate::ast::NoteKind;
 use crate::model::{
     LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, SequenceMessageStyle, VirtualEndpoint,
 };
@@ -72,6 +73,7 @@ pub struct MessageLine {
 #[derive(Debug, Clone)]
 pub struct NoteBox {
     pub target_id: Option<String>,
+    pub kind: NoteKind,
     pub x: i32,
     pub y: i32,
     pub width: i32,

@@ -1,0 +1,3 @@
+@startuml
+A -> B : %join(%splitstr_regex("alpha, beta;gamma", "\s*[,;]\s*"), "|")
+@enduml

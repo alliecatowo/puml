@@ -2030,6 +2030,14 @@ fn substitute_vars(line: &str, vars: &BTreeMap<String, String>) -> String {
             }
             let name: String = chars[i + 1..j].iter().collect();
             if let Some(value) = vars.get(&name) {
+                let (json_path, next_idx) = collect_json_path_suffix(&chars, j);
+                if !json_path.is_empty()
+                    && serde_json::from_str::<serde_json::Value>(value.trim()).is_ok()
+                {
+                    out.push_str(&get_json_attribute(value, &json_path));
+                    i = next_idx;
+                    continue;
+                }
                 out.push_str(value);
             } else {
                 out.push('$');
@@ -2042,6 +2050,61 @@ fn substitute_vars(line: &str, vars: &BTreeMap<String, String>) -> String {
         i += 1;
     }
     out
+}
+
+fn collect_json_path_suffix(chars: &[char], start: usize) -> (String, usize) {
+    let mut path = String::new();
+    let mut i = start;
+    while i < chars.len() {
+        match chars[i] {
+            '.' => {
+                let mut j = i + 1;
+                if j >= chars.len()
+                    || !(chars[j].is_ascii_alphabetic() || chars[j] == '_' || chars[j] == '-')
+                {
+                    break;
+                }
+                if !path.is_empty() {
+                    path.push('.');
+                }
+                while j < chars.len()
+                    && (chars[j].is_ascii_alphanumeric() || chars[j] == '_' || chars[j] == '-')
+                {
+                    path.push(chars[j]);
+                    j += 1;
+                }
+                i = j;
+            }
+            '[' => {
+                let mut j = i + 1;
+                let mut in_quotes = false;
+                let mut quote = '\0';
+                while j < chars.len() {
+                    let ch = chars[j];
+                    if in_quotes {
+                        if ch == quote {
+                            in_quotes = false;
+                        }
+                    } else if ch == '"' || ch == '\'' {
+                        in_quotes = true;
+                        quote = ch;
+                    } else if ch == ']' {
+                        break;
+                    }
+                    j += 1;
+                }
+                if j >= chars.len() || chars[j] != ']' {
+                    break;
+                }
+                for ch in &chars[i..=j] {
+                    path.push(*ch);
+                }
+                i = j + 1;
+            }
+            _ => break,
+        }
+    }
+    (path, i)
 }
 
 fn substitute_tokens_and_vars(line: &str, state: &PreprocState) -> String {
@@ -2235,6 +2298,7 @@ fn dispatch_builtin(
                 Some(s.split(sep.as_str()).collect::<Vec<&str>>().join(","))
             }
         }
+        "splitstr_regex" => Some(split_preprocessor_regex(&arg(0), &arg(1)).join(",")),
         "split" => {
             let s = arg(0);
             let sep = arg(1);
@@ -2361,6 +2425,19 @@ fn dispatch_builtin(
         ),
         // Time-/env-sensitive builtins: empty for determinism.
         "date" | "getenv" => Some(String::new()),
+        // Random-sensitive builtins: fixed deterministic value.
+        "random" | "rand" => Some("0".to_string()),
+        // Local/remote IO helpers are disabled rather than implicitly reading
+        // host state during preprocessing.
+        "load_file" | "load_data" | "load_json" | "load_yaml" | "load_csv" => {
+            return Err(Diagnostic::error_code(
+                "E_PREPROC_UNSAFE_BUILTIN",
+                format!(
+                    "preprocessor builtin `%{}(...)` is disabled for deterministic offline execution",
+                    name
+                ),
+            ));
+        }
         "dirpath" => {
             let p = arg(0);
             Some(
@@ -2643,12 +2720,13 @@ fn json_value_at_path<'a>(
 ) -> Option<&'a serde_json::Value> {
     let mut current = root;
     for segment in split_json_path(path) {
-        if let Some(idx) = segment
-            .strip_prefix('[')
-            .and_then(|s| s.strip_suffix(']'))
-            .and_then(|s| s.trim().parse::<usize>().ok())
-        {
-            current = current.as_array()?.get(idx)?;
+        if let Some(inner) = segment.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+            if let Ok(idx) = inner.trim().parse::<usize>() {
+                current = current.as_array()?.get(idx)?;
+            } else {
+                let key = strip_quotes(inner.trim());
+                current = current.as_object()?.get(key.as_str())?;
+            }
         } else {
             current = current.as_object()?.get(segment.as_str())?;
         }
@@ -2812,6 +2890,175 @@ fn preprocessor_list_items(raw: &str) -> Vec<String> {
         .map(|s| strip_quotes(s.trim()))
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+#[derive(Clone)]
+enum SimpleRegexAtom {
+    Any,
+    Literal(char),
+    Whitespace,
+    Digit,
+    Word,
+    Class(Vec<(char, char)>, bool),
+}
+
+#[derive(Clone)]
+struct SimpleRegexPart {
+    atom: SimpleRegexAtom,
+    min: usize,
+    max: Option<usize>,
+}
+
+fn split_preprocessor_regex(s: &str, pattern: &str) -> Vec<String> {
+    if pattern.is_empty() {
+        return vec![s.to_string()];
+    }
+    let Some(parts) = parse_simple_regex(pattern) else {
+        return s.split(pattern).map(str::to_string).collect();
+    };
+    let chars = s.chars().collect::<Vec<_>>();
+    let mut fields = Vec::new();
+    let mut start = 0usize;
+    let mut i = 0usize;
+    while i < chars.len() {
+        if let Some(len) = match_simple_regex_at(&chars, i, &parts, 0) {
+            if len > 0 {
+                fields.push(chars[start..i].iter().collect());
+                i += len;
+                start = i;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    fields.push(chars[start..].iter().collect());
+    fields
+}
+
+fn parse_simple_regex(pattern: &str) -> Option<Vec<SimpleRegexPart>> {
+    let chars = pattern.chars().collect::<Vec<_>>();
+    let mut parts = Vec::new();
+    let mut i = 0usize;
+    while i < chars.len() {
+        let atom = match chars[i] {
+            '\\' => {
+                i += 1;
+                if i >= chars.len() {
+                    return None;
+                }
+                match chars[i] {
+                    's' => SimpleRegexAtom::Whitespace,
+                    'd' => SimpleRegexAtom::Digit,
+                    'w' => SimpleRegexAtom::Word,
+                    other => SimpleRegexAtom::Literal(other),
+                }
+            }
+            '[' => {
+                let (atom, next) = parse_simple_regex_class(&chars, i + 1)?;
+                i = next;
+                atom
+            }
+            '.' => SimpleRegexAtom::Any,
+            '|' | '(' | ')' | '{' | '}' => return None,
+            other => SimpleRegexAtom::Literal(other),
+        };
+        i += 1;
+        let (min, max) = if i < chars.len() {
+            match chars[i] {
+                '+' => {
+                    i += 1;
+                    (1, None)
+                }
+                '*' => {
+                    i += 1;
+                    (0, None)
+                }
+                '?' => {
+                    i += 1;
+                    (0, Some(1))
+                }
+                _ => (1, Some(1)),
+            }
+        } else {
+            (1, Some(1))
+        };
+        parts.push(SimpleRegexPart { atom, min, max });
+    }
+    Some(parts)
+}
+
+fn parse_simple_regex_class(chars: &[char], mut i: usize) -> Option<(SimpleRegexAtom, usize)> {
+    let mut negated = false;
+    if i < chars.len() && chars[i] == '^' {
+        negated = true;
+        i += 1;
+    }
+    let mut ranges = Vec::new();
+    while i < chars.len() && chars[i] != ']' {
+        let start = if chars[i] == '\\' {
+            i += 1;
+            if i >= chars.len() {
+                return None;
+            }
+            chars[i]
+        } else {
+            chars[i]
+        };
+        if i + 2 < chars.len() && chars[i + 1] == '-' && chars[i + 2] != ']' {
+            let end = chars[i + 2];
+            ranges.push((start, end));
+            i += 3;
+        } else {
+            ranges.push((start, start));
+            i += 1;
+        }
+    }
+    if i >= chars.len() || chars[i] != ']' {
+        return None;
+    }
+    Some((SimpleRegexAtom::Class(ranges, negated), i))
+}
+
+fn match_simple_regex_at(
+    chars: &[char],
+    pos: usize,
+    parts: &[SimpleRegexPart],
+    part_idx: usize,
+) -> Option<usize> {
+    if part_idx >= parts.len() {
+        return Some(0);
+    }
+    let part = &parts[part_idx];
+    let mut max_count = 0usize;
+    while pos + max_count < chars.len()
+        && part.max.map(|max| max_count < max).unwrap_or(true)
+        && simple_regex_atom_matches(&part.atom, chars[pos + max_count])
+    {
+        max_count += 1;
+    }
+    if max_count < part.min {
+        return None;
+    }
+    for count in (part.min..=max_count).rev() {
+        if let Some(rest) = match_simple_regex_at(chars, pos + count, parts, part_idx + 1) {
+            return Some(count + rest);
+        }
+    }
+    None
+}
+
+fn simple_regex_atom_matches(atom: &SimpleRegexAtom, ch: char) -> bool {
+    match atom {
+        SimpleRegexAtom::Any => true,
+        SimpleRegexAtom::Literal(lit) => *lit == ch,
+        SimpleRegexAtom::Whitespace => ch.is_whitespace(),
+        SimpleRegexAtom::Digit => ch.is_ascii_digit(),
+        SimpleRegexAtom::Word => ch.is_ascii_alphanumeric() || ch == '_',
+        SimpleRegexAtom::Class(ranges, negated) => {
+            let matched = ranges.iter().any(|(start, end)| *start <= ch && ch <= *end);
+            matched ^ *negated
+        }
+    }
 }
 
 fn preprocessor_size(raw: &str) -> usize {
@@ -5333,6 +5580,12 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             });
         }
     }
+    if let Some((start_date, end_date)) = parse_gantt_closed_date_range(trimmed) {
+        return Some(StatementKind::GanttCalendarClosedDateRange {
+            start_date,
+            end_date,
+        });
+    }
     if let Some(day) = parse_gantt_closed_weekday(trimmed) {
         return Some(StatementKind::GanttCalendarClosed { day });
     }
@@ -5456,6 +5709,28 @@ fn parse_gantt_closed_weekday(line: &str) -> Option<String> {
             || lower == format!("{day}s are closed")
     })?;
     Some(day.to_string())
+}
+
+fn parse_gantt_closed_date_range(line: &str) -> Option<(String, String)> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let suffix_len = if lower.ends_with(" is closed") {
+        " is closed".len()
+    } else if lower.ends_with(" are closed") {
+        " are closed".len()
+    } else {
+        return None;
+    };
+    let range = trimmed[..trimmed.len().saturating_sub(suffix_len)].trim();
+    let lower_range = lower[..lower.len().saturating_sub(suffix_len)].trim();
+    let sep = " to ";
+    let idx = lower_range.find(sep)?;
+    let start_date = range[..idx].trim();
+    let end_date = range[idx + sep.len()..].trim();
+    if !is_iso_date_literal(start_date) || !is_iso_date_literal(end_date) {
+        return None;
+    }
+    Some((start_date.to_string(), end_date.to_string()))
 }
 
 fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
@@ -6518,6 +6793,18 @@ fn parse_multiline_note_block(
         if trimmed.eq_ignore_ascii_case("end note") {
             return Some((
                 StatementKind::Note(Note {
+                    kind: note_kind_from_keyword(note_kw),
+                    position,
+                    target,
+                    text: body.join("\n"),
+                }),
+                idx,
+            ));
+        }
+        if note_end_matches(trimmed, note_kw) {
+            return Some((
+                StatementKind::Note(Note {
+                    kind: note_kind_from_keyword(note_kw),
                     position,
                     target,
                     text: body.join("\n"),
@@ -6852,6 +7139,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             )));
         }
         return Some(StatementKind::Note(Note {
+            kind: note_kind_from_keyword(note_kw),
             position: pos,
             target,
             text: text.trim().to_string(),
@@ -7008,6 +7296,20 @@ fn parse_note_head(head: &str) -> (String, Option<String>) {
         position,
         (!target.trim().is_empty()).then(|| clean_ident(target.trim())),
     )
+}
+
+fn note_kind_from_keyword(keyword: &str) -> crate::ast::NoteKind {
+    match keyword.to_ascii_lowercase().as_str() {
+        "hnote" => crate::ast::NoteKind::Hexagonal,
+        "rnote" => crate::ast::NoteKind::Rectangle,
+        _ => crate::ast::NoteKind::Folded,
+    }
+}
+
+fn note_end_matches(line: &str, note_keyword: &str) -> bool {
+    line.eq_ignore_ascii_case("end note")
+        || (note_keyword.eq_ignore_ascii_case("hnote") && line.eq_ignore_ascii_case("endhnote"))
+        || (note_keyword.eq_ignore_ascii_case("rnote") && line.eq_ignore_ascii_case("endrnote"))
 }
 
 fn is_valid_note_position(position: &str) -> bool {
@@ -7401,7 +7703,11 @@ fn note_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool 
     }
     for (candidate, _) in lines.iter().skip(idx + 1) {
         let trimmed = candidate.trim();
-        if trimmed.eq_ignore_ascii_case("end note") || trimmed.eq_ignore_ascii_case("endnote") {
+        if trimmed.eq_ignore_ascii_case("end note")
+            || trimmed.eq_ignore_ascii_case("endnote")
+            || trimmed.eq_ignore_ascii_case("endhnote")
+            || trimmed.eq_ignore_ascii_case("endrnote")
+        {
             return true;
         }
         if trimmed.is_empty() {
@@ -8487,6 +8793,7 @@ mod tests {
 
         match &doc.statements[0].kind {
             StatementKind::Note(n) => {
+                assert_eq!(n.kind, crate::ast::NoteKind::Hexagonal);
                 assert_eq!(n.position, "over");
                 assert_eq!(n.target.as_deref(), Some("A"));
                 assert_eq!(n.text, "alias form");
@@ -8495,9 +8802,34 @@ mod tests {
         }
         match &doc.statements[1].kind {
             StatementKind::Note(n) => {
+                assert_eq!(n.kind, crate::ast::NoteKind::Rectangle);
                 assert_eq!(n.position, "right");
                 assert_eq!(n.target.as_deref(), Some("A"));
                 assert_eq!(n.text, "rounded alias");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_hnote_and_rnote_multiline_terminators() {
+        let doc = parse_with_options(
+            "hnote over A\nhex body\nendhnote\nrnote over B\nrect body\nendrnote\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+
+        match &doc.statements[0].kind {
+            StatementKind::Note(n) => {
+                assert_eq!(n.kind, crate::ast::NoteKind::Hexagonal);
+                assert_eq!(n.text, "hex body");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[1].kind {
+            StatementKind::Note(n) => {
+                assert_eq!(n.kind, crate::ast::NoteKind::Rectangle);
+                assert_eq!(n.text, "rect body");
             }
             other => panic!("unexpected statement: {other:?}"),
         }
@@ -8890,6 +9222,23 @@ mod tests {
         assert!(matches!(
             doc.statements[2].kind,
             StatementKind::GanttCalendarClosed { ref day } if day == "sunday"
+        ));
+    }
+
+    #[test]
+    fn parses_gantt_closed_date_range_calendar_statement() {
+        let doc = parse_with_options(
+            "@startgantt\nProject starts 2026-05-01\n2026-05-04 to 2026-05-05 is closed\n[Build] lasts 2 days\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Gantt);
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttCalendarClosedDateRange {
+                ref start_date,
+                ref end_date
+            } if start_date == "2026-05-04" && end_date == "2026-05-05"
         ));
     }
 

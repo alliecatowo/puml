@@ -1,4 +1,4 @@
-use crate::ast::{DiagramKind, MemberModifier};
+use crate::ast::{DiagramKind, MemberModifier, NoteKind};
 use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::model::{
     ArchimateDocument, ChartDocument, ChartSubtype, DitaaDocument, EbnfDocument, EbnfToken,
@@ -280,11 +280,7 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for n in &scene.notes {
-        let nrx = (scene.style.round_corner / 2).max(2);
-        out.push_str(&format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-            n.x, n.y, n.width, n.height, nrx, nrx, scene.style.note_background_color, scene.style.note_border_color
-        ));
+        render_sequence_note_shape(&mut out, n.kind, n.x, n.y, n.width, n.height, scene);
 
         let mut text_y = n.y + 20;
         for line in n.text.lines() {
@@ -2818,11 +2814,9 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .as_deref()
         .map(|t| 8 + (t.lines().count() as i32) * 22)
         .unwrap_or(0);
-    let calendar_h = if document.closed_weekdays.is_empty() {
-        0
-    } else {
-        18
-    };
+    let has_calendar_notes =
+        !document.closed_weekdays.is_empty() || !document.closed_ranges.is_empty();
+    let calendar_h = if !has_calendar_notes { 0 } else { 18 };
 
     let row_count = (document.tasks.len() + document.milestones.len()) as i32;
     let chart_top = 40 + title_h + calendar_h + header_h;
@@ -2855,13 +2849,26 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             x = margin_x
         ));
     }
-    if !document.closed_weekdays.is_empty() {
-        let label = document
-            .closed_weekdays
-            .iter()
-            .map(|day| title_case_ascii(day))
-            .collect::<Vec<_>>()
-            .join(", ");
+    if has_calendar_notes {
+        let mut labels = Vec::new();
+        if !document.closed_weekdays.is_empty() {
+            labels.push(
+                document
+                    .closed_weekdays
+                    .iter()
+                    .map(|day| title_case_ascii(day))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+        }
+        labels.extend(document.closed_ranges.iter().map(|range| {
+            if range.start_date == range.end_date {
+                range.start_date.clone()
+            } else {
+                format!("{} to {}", range.start_date, range.end_date)
+            }
+        }));
+        let label = labels.join("; ");
         out.push_str(&format!(
             "<text class=\"gantt-calendar\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#92400e\">Calendar: closed {label}</text>",
             x = margin_x,
@@ -2996,6 +3003,20 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let start_offset = day.saturating_sub(min_day);
         chart_left + ((chart_w as u32 * start_offset) / total_days) as i32
     };
+    for range in &document.closed_ranges {
+        if range.end_day < min_day || range.start_day > max_day_exclusive {
+            continue;
+        }
+        let start = range.start_day.max(min_day);
+        let end = range.end_day.saturating_add(1).min(max_day_exclusive);
+        let x = day_to_x(start);
+        let w = (day_to_x(end) - x).max(2);
+        out.push_str(&format!(
+            "<rect class=\"gantt-closed-range\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#fef3c7\" opacity=\"0.7\"/>",
+            y = chart_top,
+            h = chart_h
+        ));
+    }
     if has_resource_lanes {
         let mut lane_start = 0usize;
         while lane_start < ordered_tasks.len() {
@@ -3040,11 +3061,27 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             bh = bar_height
         ));
         if !task.resources.is_empty() {
+            let resource_label = task.resources.join(", ");
+            let pill_w = ((resource_label.len() as i32) * 7 + 14).min((bw - 6).max(0));
+            if pill_w > 26 {
+                out.push_str(&format!(
+                    "<rect class=\"gantt-resource-pill\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"14\" rx=\"7\" ry=\"7\" fill=\"#dbeafe\" stroke=\"#93c5fd\" stroke-width=\"1\"/>",
+                    x = bx + 4,
+                    y = y + 3,
+                    w = pill_w
+                ));
+                out.push_str(&format!(
+                    "<text class=\"gantt-resource\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"9\" fill=\"#1e40af\">{txt}</text>",
+                    x = bx + 10,
+                    y = y + 14,
+                    txt = escape_text(&resource_label)
+                ));
+            }
             out.push_str(&format!(
                 "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#1e40af\">{txt}</text>",
                 x = chart_right - 6,
                 y = y + bar_height - 6,
-                txt = escape_text(&task.resources.join(", "))
+                txt = escape_text(&resource_label)
             ));
         }
     }
@@ -4365,6 +4402,67 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn render_sequence_note_shape(
+    out: &mut String,
+    kind: NoteKind,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    scene: &Scene,
+) {
+    let fill = &scene.style.note_background_color;
+    let stroke = &scene.style.note_border_color;
+    match kind {
+        NoteKind::Folded => {
+            let fold = 14.min(width / 4).min(height / 3).max(8);
+            out.push_str(&format!(
+                "<path d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + width - fold,
+                x + width,
+                y + fold,
+                y + height,
+                fill,
+                stroke
+            ));
+            out.push_str(&format!(
+                "<path d=\"M{} {y} V{} H{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + width - fold,
+                y + fold,
+                x + width,
+                stroke
+            ));
+        }
+        NoteKind::Hexagonal => {
+            let cut = 16.min(width / 5).max(8);
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + cut,
+                y,
+                x + width - cut,
+                y,
+                x + width,
+                y + height / 2,
+                x + width - cut,
+                y + height,
+                x + cut,
+                y + height,
+                x,
+                y + height / 2,
+                fill,
+                stroke
+            ));
+        }
+        NoteKind::Rectangle => {
+            out.push_str(&format!(
+                "<rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"0\" ry=\"0\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                fill,
+                stroke
+            ));
+        }
+    }
 }
 
 fn timing_state_color(state: &str, idx: usize) -> &'static str {
@@ -5715,13 +5813,21 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
     let width = 780;
     let height = 420;
     let style = &document.style;
+    let series = effective_chart_series(document);
+    let categories = effective_chart_categories(document, &series);
+    let type_name = chart_subtype_name(document.subtype);
     let mut out = String::new();
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-chart-type=\"{type_name}\" data-chart-horizontal=\"{}\" data-chart-stacked=\"{}\">",
+        document.horizontal,
+        document.stacked,
         w = width,
         h = height
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&style.background_color)
+    ));
     let mut y = 28;
     if let Some(title) = &document.title {
         out.push_str(&format!(
@@ -5730,38 +5836,35 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
         ));
         y += 22;
     }
-    let label = match document.subtype {
-        ChartSubtype::Bar => "bar chart",
-        ChartSubtype::Line => "line chart",
-        ChartSubtype::Pie => "pie chart",
-    };
     out.push_str(&format!(
         "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">{}</text>",
-        label
+        type_name
     ));
     let plot_top = y + 16;
-    let plot_bottom = height - 60;
-    let plot_left = 60;
-    let plot_right = width - 40;
+    let plot_bottom = height - 74;
+    let plot_left = 78;
+    let plot_right = width
+        - if chart_legend_visible(document, &series) {
+            160
+        } else {
+            40
+        };
+    let plot = ChartPlotArea {
+        left: plot_left,
+        top: plot_top,
+        right: plot_right,
+        bottom: plot_bottom,
+    };
     match document.subtype {
-        ChartSubtype::Bar => render_chart_bars(
-            &mut out,
-            &document.data,
-            plot_left,
-            plot_top,
-            plot_right,
-            plot_bottom,
-            style,
-        ),
-        ChartSubtype::Line => render_chart_line(
-            &mut out,
-            &document.data,
-            plot_left,
-            plot_top,
-            plot_right,
-            plot_bottom,
-            style,
-        ),
+        ChartSubtype::Bar if document.horizontal => {
+            render_chart_horizontal_bars(&mut out, document, &series, &categories, plot, style)
+        }
+        ChartSubtype::Bar => {
+            render_chart_bars(&mut out, document, &series, &categories, plot, style)
+        }
+        ChartSubtype::Line => {
+            render_chart_line(&mut out, document, &series, &categories, plot, style)
+        }
         ChartSubtype::Pie => render_chart_pie(
             &mut out,
             &document.data,
@@ -5770,6 +5873,7 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             style,
         ),
     }
+    render_chart_legend(&mut out, document, &series, plot_right + 20, plot_top + 8);
     out.push_str("</svg>");
     out
 }
@@ -5778,131 +5882,191 @@ const CHART_PALETTE: &[&str] = &[
     "#1d4ed8", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#dc2626", "#0f172a", "#facc15",
 ];
 
-fn render_chart_bars(
-    out: &mut String,
-    data: &[crate::model::ChartPoint],
+#[derive(Clone, Copy)]
+struct ChartPlotArea {
     left: i32,
     top: i32,
     right: i32,
     bottom: i32,
+}
+
+fn render_chart_bars(
+    out: &mut String,
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+    categories: &[String],
+    plot: ChartPlotArea,
     style: &crate::theme::ChartStyle,
 ) {
-    out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
-        escape_text(&style.axis_color),
-        l = left,
-        r = right,
-        b = bottom
-    ));
-    out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
-        escape_text(&style.axis_color),
-        l = left,
-        t = top,
-        b = bottom
-    ));
-    if data.is_empty() {
+    render_chart_axes(out, document, categories, plot, style);
+    if series.is_empty() || categories.is_empty() {
         return;
     }
-    let max_value = data
-        .iter()
-        .map(|p| p.value.max(0.0))
-        .fold(0.0_f64, f64::max)
-        .max(1.0);
-    let count = data.len() as i32;
-    let avail = (right - left).max(20);
-    let bar_w = (avail / count).max(4) - 6;
-    for (idx, point) in data.iter().enumerate() {
-        let bx = left + (idx as i32) * (avail / count) + 4;
-        let bh = ((point.value.max(0.0) / max_value) * ((bottom - top) as f64)) as i32;
-        let by = bottom - bh;
-        let color = if idx == 0 {
-            style.bar_color.as_str()
-        } else {
-            CHART_PALETTE[idx % CHART_PALETTE.len()]
-        };
-        out.push_str(&format!(
-            "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
-            escape_text(&style.axis_color),
-            bx = bx,
-            by = by,
-            bw = bar_w,
-            bh = bh
-        ));
+    let (_, max_value) = chart_value_range(document, series);
+    let count = categories.len() as i32;
+    let avail = (plot.right - plot.left).max(20);
+    let band = (avail / count).max(10);
+    let group_count = if document.stacked {
+        1
+    } else {
+        series.len().max(1) as i32
+    };
+    let bar_w = ((band - 8) / group_count).max(4);
+    for (cat_idx, category) in categories.iter().enumerate() {
+        let band_x = plot.left + (cat_idx as i32) * band;
+        let mut stack_top = plot.bottom;
+        for (series_idx, item) in series.iter().enumerate() {
+            let value = item.values.get(cat_idx).copied().unwrap_or(0.0).max(0.0);
+            let bh = ((value / max_value) * ((plot.bottom - plot.top) as f64)) as i32;
+            let bx = band_x
+                + 4
+                + if document.stacked {
+                    0
+                } else {
+                    (series_idx as i32) * bar_w
+                };
+            let by = if document.stacked {
+                stack_top - bh
+            } else {
+                plot.bottom - bh
+            };
+            stack_top = by;
+            let color = chart_series_color(item, series_idx, style.bar_color.as_str());
+            out.push_str(&format!(
+                "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                escape_text(&style.axis_color),
+                bx = bx,
+                by = by,
+                bw = bar_w,
+                bh = bh,
+                color = escape_text(&color)
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                format_chart_value(value),
+                tx = bx + bar_w / 2,
+                ty = by - 4
+            ));
+        }
         out.push_str(&format!(
             "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
             escape_text(&style.font_color),
-            escape_text(&point.label),
-            tx = bx + bar_w / 2,
-            ty = bottom + 16
-        ));
-        out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-            format_chart_value(point.value),
-            tx = bx + bar_w / 2,
-            ty = by - 4
+            escape_text(category),
+            tx = band_x + band / 2,
+            ty = plot.bottom + 16
         ));
     }
 }
 
 fn render_chart_line(
     out: &mut String,
-    data: &[crate::model::ChartPoint],
-    left: i32,
-    top: i32,
-    right: i32,
-    bottom: i32,
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+    categories: &[String],
+    plot: ChartPlotArea,
     style: &crate::theme::ChartStyle,
 ) {
-    out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
-        style.axis_color,
-        l = left,
-        r = right,
-        b = bottom
-    ));
-    out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
-        style.axis_color,
-        l = left,
-        t = top,
-        b = bottom
-    ));
-    if data.is_empty() {
+    render_chart_axes(out, document, categories, plot, style);
+    if series.is_empty() || categories.is_empty() {
         return;
     }
-    let max_value = data
-        .iter()
-        .map(|p| p.value.max(0.0))
-        .fold(0.0_f64, f64::max)
-        .max(1.0);
-    let count = data.len() as i32;
-    let step = ((right - left) as f64) / ((count.max(2) - 1) as f64).max(1.0);
-    let mut points = String::new();
-    for (idx, point) in data.iter().enumerate() {
-        let px = left + ((idx as f64) * step) as i32;
-        let ph = ((point.value.max(0.0) / max_value) * ((bottom - top) as f64)) as i32;
-        let py = bottom - ph;
-        if !points.is_empty() {
-            points.push(' ');
+    let (_, max_value) = chart_value_range(document, series);
+    let count = categories.len() as i32;
+    let step = ((plot.right - plot.left) as f64) / ((count.max(2) - 1) as f64).max(1.0);
+    for (series_idx, item) in series.iter().enumerate() {
+        let color = chart_series_color(item, series_idx, style.line_color.as_str());
+        let mut points = String::new();
+        for (idx, category) in categories.iter().enumerate() {
+            let value = item.values.get(idx).copied().unwrap_or(0.0).max(0.0);
+            let px = plot.left + ((idx as f64) * step) as i32;
+            let ph = ((value / max_value) * ((plot.bottom - plot.top) as f64)) as i32;
+            let py = plot.bottom - ph;
+            if !points.is_empty() {
+                points.push(' ');
+            }
+            points.push_str(&format!("{px},{py}"));
+            out.push_str(&format!(
+                "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                escape_text(&color)
+            ));
+            if series_idx == 0 {
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                    escape_text(&style.font_color),
+                    escape_text(category),
+                    tx = px,
+                    ty = plot.bottom + 16
+                ));
+            }
         }
-        points.push_str(&format!("{px},{py}"));
         out.push_str(&format!(
-            "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
-            style.line_color
-        ));
-        out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-            style.font_color,
-            escape_text(&point.label),
-            tx = px,
-            ty = bottom + 16
+            "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            points,
+            escape_text(&color)
         ));
     }
-    out.push_str(&format!(
-        "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-        points, style.line_color
-    ));
+}
+
+fn render_chart_horizontal_bars(
+    out: &mut String,
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+    categories: &[String],
+    plot: ChartPlotArea,
+    style: &crate::theme::ChartStyle,
+) {
+    render_chart_axes(out, document, categories, plot, style);
+    if series.is_empty() || categories.is_empty() {
+        return;
+    }
+    let (_, max_value) = chart_value_range(document, series);
+    let count = categories.len() as i32;
+    let avail = (plot.bottom - plot.top).max(20);
+    let band = (avail / count).max(10);
+    let group_count = if document.stacked {
+        1
+    } else {
+        series.len().max(1) as i32
+    };
+    let bar_h = ((band - 8) / group_count).max(4);
+    for (cat_idx, category) in categories.iter().enumerate() {
+        let band_y = plot.top + (cat_idx as i32) * band;
+        let mut stack_left = plot.left;
+        for (series_idx, item) in series.iter().enumerate() {
+            let value = item.values.get(cat_idx).copied().unwrap_or(0.0).max(0.0);
+            let bw = ((value / max_value) * ((plot.right - plot.left) as f64)) as i32;
+            let bx = if document.stacked {
+                stack_left
+            } else {
+                plot.left
+            };
+            let by = band_y
+                + 4
+                + if document.stacked {
+                    0
+                } else {
+                    (series_idx as i32) * bar_h
+                };
+            stack_left += bw;
+            let color = chart_series_color(item, series_idx, style.bar_color.as_str());
+            out.push_str(&format!(
+                "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                escape_text(&style.axis_color),
+                bx = bx,
+                by = by,
+                bw = bw,
+                bh = bar_h,
+                color = escape_text(&color)
+            ));
+        }
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            escape_text(&style.font_color),
+            escape_text(category),
+            tx = plot.left - 8,
+            ty = band_y + band / 2 + 4
+        ));
+    }
 }
 
 fn render_chart_pie(
@@ -5969,6 +6133,208 @@ fn render_chart_pie(
             lx = lx,
             ly = ly
         ));
+    }
+}
+
+fn render_chart_axes(
+    out: &mut String,
+    document: &ChartDocument,
+    categories: &[String],
+    plot: ChartPlotArea,
+    style: &crate::theme::ChartStyle,
+) {
+    out.push_str(&format!(
+        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.axis_color),
+        l = plot.left,
+        r = plot.right,
+        b = plot.bottom
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.axis_color),
+        l = plot.left,
+        t = plot.top,
+        b = plot.bottom
+    ));
+    for tick in 0..=4 {
+        let y = plot.bottom - ((plot.bottom - plot.top) * tick / 4);
+        out.push_str(&format!(
+            "<line x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            escape_text(&style.grid_color),
+            l = plot.left,
+            r = plot.right
+        ));
+    }
+    if let Some(axis) = &document.h_axis {
+        if let Some(label) = &axis.label {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
+                escape_text(&style.font_color),
+                escape_text(label),
+                x = (plot.left + plot.right) / 2,
+                y = plot.bottom + 42
+            ));
+        }
+    }
+    if let Some(axis) = &document.v_axis {
+        if let Some(label) = &axis.label {
+            out.push_str(&format!(
+                "<text x=\"18\" y=\"{y}\" transform=\"rotate(-90 18 {y})\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
+                escape_text(&style.font_color),
+                escape_text(label),
+                y = (plot.top + plot.bottom) / 2
+            ));
+        }
+    }
+    if document.horizontal {
+        return;
+    }
+    if categories.len() > 1 {
+        let step =
+            ((plot.right - plot.left) as f64) / ((categories.len() as i32 - 1).max(1) as f64);
+        for idx in 0..categories.len() {
+            let x = plot.left + ((idx as f64) * step) as i32;
+            out.push_str(&format!(
+                "<line x1=\"{x}\" y1=\"{t}\" x2=\"{x}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                escape_text(&style.grid_color),
+                t = plot.top,
+                b = plot.bottom
+            ));
+        }
+    }
+}
+
+fn render_chart_legend(
+    out: &mut String,
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+    default_x: i32,
+    default_y: i32,
+) {
+    if !chart_legend_visible(document, series) {
+        return;
+    }
+    let x = match document.legend.h_align {
+        crate::model::LegendHAlign::Left => 24,
+        crate::model::LegendHAlign::Center => 340,
+        crate::model::LegendHAlign::Right => default_x,
+    };
+    let y = match document.legend.v_align {
+        crate::model::LegendVAlign::Top => default_y,
+        crate::model::LegendVAlign::Bottom => 356,
+    };
+    let width = 132;
+    let height = 18 + (series.len() as i32) * 18;
+    out.push_str(&format!(
+        "<g data-chart-legend=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\" fill=\"#ffffff\" stroke=\"#cbd5e1\"/>",
+        chart_legend_position(document)
+    ));
+    for (idx, item) in series.iter().enumerate() {
+        let cy = y + 18 + (idx as i32) * 18;
+        let color = chart_series_color(item, idx, "#1d4ed8");
+        out.push_str(&format!(
+            "<rect x=\"{x1}\" y=\"{y1}\" width=\"10\" height=\"10\" fill=\"{}\"/><text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            escape_text(&color),
+            escape_text(&item.name),
+            x1 = x + 8,
+            y1 = cy - 9,
+            tx = x + 24,
+            ty = cy
+        ));
+    }
+    out.push_str("</g>");
+}
+
+fn effective_chart_series(document: &ChartDocument) -> Vec<crate::model::ChartSeries> {
+    if !document.series.is_empty() {
+        return document.series.clone();
+    }
+    if document.data.is_empty() {
+        return Vec::new();
+    }
+    vec![crate::model::ChartSeries {
+        name: "Value".to_string(),
+        values: document.data.iter().map(|p| p.value).collect(),
+        color: None,
+    }]
+}
+
+fn effective_chart_categories(
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+) -> Vec<String> {
+    if let Some(axis) = &document.h_axis {
+        if !axis.categories.is_empty() {
+            return axis.categories.clone();
+        }
+    }
+    if !document.data.is_empty() {
+        return document.data.iter().map(|p| p.label.clone()).collect();
+    }
+    let count = series.iter().map(|s| s.values.len()).max().unwrap_or(0);
+    (1..=count).map(|idx| idx.to_string()).collect()
+}
+
+fn chart_value_range(document: &ChartDocument, series: &[crate::model::ChartSeries]) -> (f64, f64) {
+    let axis_min = document.v_axis.as_ref().and_then(|axis| axis.min);
+    let axis_max = document.v_axis.as_ref().and_then(|axis| axis.max);
+    let computed_max = if document.stacked {
+        let categories = series.iter().map(|s| s.values.len()).max().unwrap_or(0);
+        (0..categories)
+            .map(|idx| {
+                series
+                    .iter()
+                    .map(|s| s.values.get(idx).copied().unwrap_or(0.0).max(0.0))
+                    .sum::<f64>()
+            })
+            .fold(0.0_f64, f64::max)
+    } else {
+        series
+            .iter()
+            .flat_map(|s| s.values.iter().copied())
+            .map(|v| v.max(0.0))
+            .fold(0.0_f64, f64::max)
+    };
+    let min = axis_min.unwrap_or(0.0);
+    let max = axis_max.unwrap_or(computed_max.max(1.0)).max(min + 1.0);
+    (min, max)
+}
+
+fn chart_series_color(
+    series: &crate::model::ChartSeries,
+    idx: usize,
+    first_fallback: &str,
+) -> String {
+    series.color.clone().unwrap_or_else(|| {
+        if idx == 0 {
+            first_fallback.to_string()
+        } else {
+            CHART_PALETTE[idx % CHART_PALETTE.len()].to_string()
+        }
+    })
+}
+
+fn chart_legend_visible(document: &ChartDocument, series: &[crate::model::ChartSeries]) -> bool {
+    document.legend.visible || series.len() > 1
+}
+
+fn chart_legend_position(document: &ChartDocument) -> &'static str {
+    match (document.legend.v_align, document.legend.h_align) {
+        (crate::model::LegendVAlign::Top, crate::model::LegendHAlign::Left) => "top-left",
+        (crate::model::LegendVAlign::Top, crate::model::LegendHAlign::Center) => "top",
+        (crate::model::LegendVAlign::Top, crate::model::LegendHAlign::Right) => "right",
+        (crate::model::LegendVAlign::Bottom, crate::model::LegendHAlign::Left) => "bottom-left",
+        (crate::model::LegendVAlign::Bottom, crate::model::LegendHAlign::Center) => "bottom",
+        (crate::model::LegendVAlign::Bottom, crate::model::LegendHAlign::Right) => "bottom-right",
+    }
+}
+
+fn chart_subtype_name(subtype: ChartSubtype) -> &'static str {
+    match subtype {
+        ChartSubtype::Bar => "bar",
+        ChartSubtype::Line => "line",
+        ChartSubtype::Pie => "pie",
     }
 }
 

@@ -1,5 +1,6 @@
 ---
 source: tests/integration.rs
+assertion_line: 1690
 expression: json
 ---
 {
@@ -45,6 +46,7 @@ expression: json
       "event": {
         "kind": {
           "Note": {
+            "kind": "Folded",
             "position": "across",
             "target": null,
             "text": "advanced_across_line_one_with_long_payload_context_for_layout_guardrails\nadvanced_across_line_two_with_long_payload_context_for_layout_guardrails"
@@ -76,6 +78,7 @@ expression: json
       "event": {
         "kind": {
           "Note": {
+            "kind": "Hexagonal",
             "position": "over",
             "target": "GW, WK",
             "text": "alias_note_line_one_with_long_payload_context_for_layout_guardrails\nalias_note_line_two_with_long_payload_context_for_layout_guardrails"

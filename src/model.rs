@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::ast::{ClassMember, DiagramKind};
+use crate::ast::{ClassMember, DiagramKind, NoteKind};
 use crate::diagnostic::Diagnostic;
 use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
@@ -299,6 +299,12 @@ pub struct ChartDocument {
     pub title: Option<String>,
     pub subtype: ChartSubtype,
     pub data: Vec<ChartPoint>,
+    pub h_axis: Option<ChartAxis>,
+    pub v_axis: Option<ChartAxis>,
+    pub series: Vec<ChartSeries>,
+    pub legend: ChartLegend,
+    pub horizontal: bool,
+    pub stacked: bool,
     pub style: ChartStyle,
     pub warnings: Vec<Diagnostic>,
 }
@@ -316,6 +322,38 @@ pub struct ChartPoint {
     pub value: f64,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ChartAxis {
+    pub label: Option<String>,
+    pub categories: Vec<String>,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChartSeries {
+    pub name: String,
+    pub values: Vec<f64>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChartLegend {
+    pub visible: bool,
+    pub h_align: LegendHAlign,
+    pub v_align: LegendVAlign,
+}
+
+impl Default for ChartLegend {
+    fn default() -> Self {
+        Self {
+            visible: false,
+            h_align: LegendHAlign::Right,
+            v_align: LegendVAlign::Top,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TimelineDocument {
     pub kind: DiagramKind,
@@ -324,6 +362,7 @@ pub struct TimelineDocument {
     pub constraints: Vec<TimelineConstraint>,
     pub chronology_events: Vec<TimelineChronologyEvent>,
     pub closed_weekdays: Vec<String>,
+    pub closed_ranges: Vec<TimelineClosedRange>,
     pub project_start: Option<String>,
     pub project_start_day: Option<u32>,
     pub title: Option<String>,
@@ -353,6 +392,14 @@ pub struct TimelineConstraint {
     pub subject: String,
     pub kind: String,
     pub target: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineClosedRange {
+    pub start_date: String,
+    pub end_date: String,
+    pub start_day: u32,
+    pub end_day: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -641,6 +688,7 @@ pub enum SequenceEventKind {
         to_virtual: Option<VirtualEndpoint>,
     },
     Note {
+        kind: NoteKind,
         position: String,
         target: Option<String>,
         text: String,

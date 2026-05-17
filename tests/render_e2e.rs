@@ -723,6 +723,92 @@ fn parse_svg_rects(svg: &str) -> Vec<SvgRect> {
             fill,
         });
     }
+    for chunk in svg.split("<path ").skip(1) {
+        let Some(end) = chunk.find("/>") else {
+            continue;
+        };
+        let tag = &chunk[..end];
+        let (Some(d), Some(fill)) = (parse_svg_attr(tag, "d"), parse_svg_attr(tag, "fill")) else {
+            continue;
+        };
+        if fill == "none" || !d.starts_with('M') {
+            continue;
+        }
+        let parts = d.split_whitespace().collect::<Vec<_>>();
+        let Some(start) = parts.first().and_then(|p| p.strip_prefix('M')) else {
+            continue;
+        };
+        let Some((x, y)) = start.split_once(',') else {
+            continue;
+        };
+        let (Ok(x), Ok(y)) = (x.parse::<i32>(), y.parse::<i32>()) else {
+            continue;
+        };
+        let mut max_x = x;
+        let mut max_y = y;
+        for part in parts.iter().skip(1) {
+            if let Some(value) = part.strip_prefix('H') {
+                if let Ok(value) = value.parse::<i32>() {
+                    max_x = max_x.max(value);
+                }
+            } else if let Some(value) = part.strip_prefix('V') {
+                if let Ok(value) = value.parse::<i32>() {
+                    max_y = max_y.max(value);
+                }
+            } else if let Some(value) = part.strip_prefix('L') {
+                if let Ok(value) = value.parse::<i32>() {
+                    max_x = max_x.max(value);
+                }
+            }
+        }
+        rects.push(SvgRect {
+            x,
+            y,
+            width: max_x - x,
+            height: max_y - y,
+            fill,
+        });
+    }
+    for chunk in svg.split("<polygon ").skip(1) {
+        let Some(end) = chunk.find("/>") else {
+            continue;
+        };
+        let tag = &chunk[..end];
+        let (Some(points), Some(fill)) =
+            (parse_svg_attr(tag, "points"), parse_svg_attr(tag, "fill"))
+        else {
+            continue;
+        };
+        let coords = points
+            .split(|c: char| !c.is_ascii_digit() && c != '-')
+            .filter_map(|n| n.parse::<i32>().ok())
+            .collect::<Vec<_>>();
+        if coords.len() < 6 {
+            continue;
+        }
+        let xs = coords.iter().step_by(2).copied().collect::<Vec<_>>();
+        let ys = coords
+            .iter()
+            .skip(1)
+            .step_by(2)
+            .copied()
+            .collect::<Vec<_>>();
+        let (Some(min_x), Some(max_x), Some(min_y), Some(max_y)) = (
+            xs.iter().min(),
+            xs.iter().max(),
+            ys.iter().min(),
+            ys.iter().max(),
+        ) else {
+            continue;
+        };
+        rects.push(SvgRect {
+            x: *min_x,
+            y: *min_y,
+            width: max_x - min_x,
+            height: max_y - min_y,
+            fill,
+        });
+    }
     rects
 }
 

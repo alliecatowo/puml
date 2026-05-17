@@ -75,6 +75,10 @@ pub enum StatementKind {
     GanttCalendarClosed {
         day: String,
     },
+    GanttCalendarClosedDateRange {
+        start_date: String,
+        end_date: String,
+    },
     ChronologyHappensOn {
         subject: String,
         when: String,
@@ -378,9 +382,17 @@ pub enum VirtualEndpointKind {
 
 #[derive(Debug, Clone)]
 pub struct Note {
+    pub kind: NoteKind,
     pub position: String,
     pub target: Option<String>,
     pub text: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoteKind {
+    Folded,
+    Hexagonal,
+    Rectangle,
 }
 
 #[derive(Debug, Clone)]
