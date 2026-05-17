@@ -4,7 +4,7 @@ Issue link: #128
 
 ## Scope
 
-This baseline defines first-class PicoUML surface routing into the shared sequence model.
+This baseline defines first-class PicoUML surface routing into the shared sequence model. `puml` is the Rust renderer binary/engine; PicoUML is the project-owned language surface that adapts into that shared pipeline; PlantUML remains the compatibility target.
 
 ## Canonical block markers
 
@@ -16,6 +16,7 @@ This baseline defines first-class PicoUML surface routing into the shared sequen
 ## Frontend routing
 
 - `--dialect picouml` routes through PicoUML adaptation and into the shared parser/normalize pipeline.
+- Files ending in `.picouml` route through PicoUML adaptation when the CLI dialect is `auto`.
 - Markdown fenced code blocks tagged `picouml` are treated as first-class PicoUML frontend input.
 - Compact sequence arrows route deterministically through the shared PlantUML model:
   - `A => B : msg` becomes a sync call message from `A` to `B`.
