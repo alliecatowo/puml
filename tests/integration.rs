@@ -2665,6 +2665,7 @@ fn extended_family_fixtures_pass_check_and_render_svg() {
         ("families/valid_state.puml", "state diagram"),
         ("families/valid_activity.puml", "activity diagram"),
         ("families/valid_timing.puml", "timing diagram"),
+        ("families/valid_timing_waveform.puml", "<polyline"),
     ];
     for (case, marker) in cases {
         Command::cargo_bin("puml")

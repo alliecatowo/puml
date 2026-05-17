@@ -1,0 +1,30 @@
+@startuml
+title Signal Waveform Demo
+concise Bus
+robust State
+clock clk
+binary enable
+@0
+Bus is Idle
+State is Reset
+clk is high
+enable is low
+@5
+Bus is Active
+State is Running
+clk is low
+enable is high
+@10
+Bus is Idle
+State is Running
+clk is high
+@15
+Bus is Wait
+State is Paused
+clk is low
+enable is low
+@20
+Bus is Idle
+State is Reset
+clk is high
+@enduml
