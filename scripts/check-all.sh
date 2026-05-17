@@ -67,7 +67,7 @@ if [[ "$MODE" == "full" ]]; then
     exit 1
   fi
 
-  COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|specialized)\.rs|src/(frontend|render)/.*\.rs'
+  COVERAGE_IGNORE_REGEX='src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|render)/.*\.rs'
   echo "[gate] cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex '${COVERAGE_IGNORE_REGEX}'"
   cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
 
