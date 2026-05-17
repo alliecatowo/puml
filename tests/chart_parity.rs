@@ -65,3 +65,53 @@ legend top right
     assert!(svg.contains("#0ea5e9"));
     assert!(svg.contains("#f97316"));
 }
+
+#[test]
+fn chart_palette_caption_annotations_and_tick_step_render_in_normalized_path() {
+    let src = "@startchart
+bar chart
+palette red #2563eb green
+caption Forecast confidence
+h-axis \"Quarter\" [Q1,Q2,Q3]
+v-axis \"Net\" -10 --> 20 step 10
+bar \"Actual\" [-5,12,18]
+bar \"Plan\" [0,10,15]
+annotation \"Q2\" : peak quarter
+legend bottom center
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("chart style parity slice should render");
+    assert!(svg.contains("data-chart-palette=\"#ff0000 #2563eb #008000\""));
+    assert!(svg.contains("data-chart-axis-v-range=\"-10..20\""));
+    assert!(svg.contains(">-10<"));
+    assert!(svg.contains(">0<"));
+    assert!(svg.contains(">10<"));
+    assert!(svg.contains(">20<"));
+    assert!(svg.contains("fill=\"#ff0000\""));
+    assert!(svg.contains("fill=\"#2563eb\""));
+    assert!(svg.contains("data-chart-annotation=\"Q2\""));
+    assert!(svg.contains("peak quarter"));
+    assert!(svg.contains("data-chart-caption=\"true\""));
+    assert!(svg.contains("Forecast confidence"));
+    assert!(svg.contains("data-chart-legend=\"bottom\""));
+}
+
+#[test]
+fn chart_legend_off_suppresses_multi_series_legend() {
+    let src = "@startchart
+h-axis [Q1,Q2]
+v-axis \"Revenue\" 0 --> 100
+bar \"Sales\" [45,62]
+bar \"Costs\" [20,28]
+legend off
+@endchart
+";
+
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("chart legend off should render");
+    assert!(!svg.contains("data-chart-legend="));
+    assert!(svg.contains("Sales"));
+    assert!(svg.contains("Costs"));
+}

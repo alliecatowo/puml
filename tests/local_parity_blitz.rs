@@ -191,3 +191,36 @@ stop
     assert!(activity_svg.contains("break"));
     assert!(activity_svg.contains("end repeat"));
 }
+
+#[test]
+fn core_uml_family_relation_bracket_styles_survive_to_svg() {
+    let class_svg = puml::render_source_to_svg(
+        r##"@startuml
+skinparam classArrowColor #111111
+class API
+class Worker
+class Hidden
+API -[#red,dashed,thickness=4]-> Worker : styled
+Worker -[hidden]-> Hidden : layout only
+@enduml
+"##,
+    )
+    .expect("styled class relation should render");
+    assert!(class_svg.contains("stroke=\"#ff0000\""));
+    assert!(class_svg.contains("stroke-width=\"4\""));
+    assert!(class_svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(class_svg.contains("visibility=\"hidden\""));
+
+    let component_svg = puml::render_source_to_svg(
+        r##"@startuml
+component API
+component DB
+API -[#008800,bold]-> DB : persists
+@enduml
+"##,
+    )
+    .expect("styled component relation should render");
+    assert!(component_svg.contains("stroke=\"#008800\""));
+    assert!(component_svg.contains("stroke-width=\"3\""));
+    assert!(component_svg.contains("persists"));
+}

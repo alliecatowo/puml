@@ -297,12 +297,15 @@ pub struct DitaaDocument {
 #[derive(Debug, Clone)]
 pub struct ChartDocument {
     pub title: Option<String>,
+    pub caption: Option<String>,
     pub subtype: ChartSubtype,
     pub data: Vec<ChartPoint>,
     pub h_axis: Option<ChartAxis>,
     pub v_axis: Option<ChartAxis>,
     pub series: Vec<ChartSeries>,
     pub legend: ChartLegend,
+    pub palette: Vec<String>,
+    pub annotations: Vec<ChartAnnotation>,
     pub horizontal: bool,
     pub stacked: bool,
     pub style: ChartStyle,
@@ -328,6 +331,7 @@ pub struct ChartAxis {
     pub categories: Vec<String>,
     pub min: Option<f64>,
     pub max: Option<f64>,
+    pub tick_step: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -340,14 +344,22 @@ pub struct ChartSeries {
 #[derive(Debug, Clone)]
 pub struct ChartLegend {
     pub visible: bool,
+    pub explicit: bool,
     pub h_align: LegendHAlign,
     pub v_align: LegendVAlign,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChartAnnotation {
+    pub target: String,
+    pub text: String,
 }
 
 impl Default for ChartLegend {
     fn default() -> Self {
         Self {
             visible: false,
+            explicit: false,
             h_align: LegendHAlign::Right,
             v_align: LegendVAlign::Top,
         }
@@ -581,6 +593,10 @@ pub struct FamilyRelation {
     pub right_cardinality: Option<String>,
     pub left_role: Option<String>,
     pub right_role: Option<String>,
+    pub line_color: Option<String>,
+    pub dashed: bool,
+    pub hidden: bool,
+    pub thickness: Option<u8>,
 }
 
 #[derive(Debug, Clone)]

@@ -124,6 +124,36 @@ fn render_sequence_rare_arrow_styles_and_note_positions() {
 }
 
 #[test]
+fn render_sequence_lifecycle_shortcuts_have_visible_markers() {
+    let src = fixture("lifecycle/valid_shortcuts_expansion.puml");
+    let svg = puml::render_source_to_svg(&src).expect("lifecycle shortcut render");
+
+    assert!(
+        svg.contains("class=\"sequence-activation\""),
+        "activation bars should render for ++ shortcut"
+    );
+    assert!(
+        svg.contains("class=\"sequence-create\""),
+        "create markers should render for create/**"
+    );
+    assert!(
+        svg.contains("class=\"sequence-destroy\""),
+        "destroy markers should render for !!"
+    );
+}
+
+#[test]
+fn render_sequence_explicit_lifecycle_has_activation_and_destroy_marker() {
+    let src = fixture("lifecycle/valid_create_activate_destroy.puml");
+    let svg = puml::render_source_to_svg(&src).expect("explicit lifecycle render");
+
+    assert!(svg.contains("data-participant=\"Worker\""));
+    assert!(svg.contains("class=\"sequence-activation\""));
+    assert!(svg.contains("class=\"sequence-create\""));
+    assert!(svg.contains("class=\"sequence-destroy\""));
+}
+
+#[test]
 fn render_svg_contains_expected_structure() {
     let src = fixture("e2e/deterministic_sequence.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");

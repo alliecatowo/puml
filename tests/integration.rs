@@ -5858,6 +5858,20 @@ fn preproc_list_and_map_builtins_are_deterministic_json_strings() {
 }
 
 #[test]
+fn preproc_nested_json_mutation_and_projection_helpers_expand() {
+    let src = "@startuml\n!$cfg = {\"users\":[{\"name\":\"Ada\",\"role\":\"dev\"}],\"meta\":{\"version\":1}}\n!$cfg = %json_set($cfg, \"users[0].role\", \"admin\")\n!$cfg = %json_set($cfg, \"meta.tags[0]\", \"stable\")\n!$cfg = %json_merge($cfg, {\"meta\":{\"build\":2},\"extra\":true})\n!$cfg = %json_remove($cfg, \"users[0].name\")\n!$items = %list_sort(%list_remove(%list(\"zeta\", \"alpha\", \"beta\"), \"zeta\"))\n!assert %json_key_exists($cfg, \"meta.tags[0]\") and %json_is_valid($cfg)\nA -> B : %get($cfg, \"users[0].role\") / %get($cfg, \"meta.tags[0]\") / %get($cfg, \"meta.build\") / %json_type($cfg) / %join($items, \":\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("nested JSON helpers should expand");
+    assert!(
+        svg.contains("admin / stable / 2 /") && svg.contains("object / alpha:beta"),
+        "expected nested mutation, merge, remove, type, and sorted list output"
+    );
+    assert!(
+        !svg.contains("Ada"),
+        "json_remove should delete the nested name before rendering"
+    );
+}
+
+#[test]
 fn preproc_undef_removes_define() {
     // After !undef, the define should no longer expand
     let src = "@startuml\n!define GREETING hello\n!undef GREETING\nA -> B : ok\n@enduml\n";

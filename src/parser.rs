@@ -2324,6 +2324,11 @@ fn dispatch_builtin(
                 .contains(&arg(1))
                 .to_string(),
         ),
+        "list_sort" | "array_sort" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            items.sort();
+            Some(preprocessor_list_literal(&items))
+        }
         "list_get" => Some(
             preprocessor_list_items(&arg(0))
                 .get(parse_int_lenient(&arg(1)).max(0) as usize)
@@ -2335,14 +2340,34 @@ fn dispatch_builtin(
             items.push(arg(1));
             Some(preprocessor_list_literal(&items))
         }
+        "list_remove" => {
+            let key = arg(1);
+            let mut items = preprocessor_list_items(&arg(0));
+            if let Ok(idx) = key.trim().parse::<usize>() {
+                if idx < items.len() {
+                    items.remove(idx);
+                }
+            } else {
+                items.retain(|item| item != &key);
+            }
+            Some(preprocessor_list_literal(&items))
+        }
         "map" | "dict" => Some(preprocessor_map_literal(&expanded_args)),
+        "map_merge" | "json_merge" => Some(preprocessor_json_merge(&arg(0), &arg(1))),
         "map_contains_key" | "contains_key" => {
             Some(json_contains_key(&arg(0), &arg(1)).to_string())
         }
         "get" | "map_get" | "json_get" => Some(preprocessor_get(&arg(0), &arg(1))),
         "set" | "put" | "json_set" | "map_put" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
+        "remove" | "map_remove" | "json_remove" => Some(preprocessor_remove(&arg(0), &arg(1))),
         "keys" | "map_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
         "values" | "map_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
+        "json_type" => Some(preprocessor_json_type(&arg(0))),
+        "json_is_valid" | "is_json" => Some(
+            serde_json::from_str::<serde_json::Value>(arg(0).trim())
+                .is_ok()
+                .to_string(),
+        ),
         "strpos" => {
             let s = arg(0);
             let sub = arg(1);
@@ -3116,6 +3141,13 @@ fn preprocessor_get(container: &str, key: &str) -> String {
 
 fn preprocessor_set(container: &str, key: &str, replacement: &str) -> String {
     if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
+        if set_json_value_at_path(
+            &mut value,
+            &split_json_path(key),
+            json_value_from_preproc(replacement),
+        ) {
+            return value.to_string();
+        }
         if let Some(obj) = value.as_object_mut() {
             obj.insert(
                 key.to_string(),
@@ -3133,6 +3165,157 @@ fn preprocessor_set(container: &str, key: &str, replacement: &str) -> String {
         }
     }
     container.to_string()
+}
+
+fn preprocessor_remove(container: &str, key: &str) -> String {
+    if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
+        let _ = remove_json_value_at_path(&mut value, &split_json_path(key));
+        return value.to_string();
+    }
+    let mut items = preprocessor_list_items(container);
+    if let Ok(idx) = key.trim().parse::<usize>() {
+        if idx < items.len() {
+            items.remove(idx);
+        }
+    } else {
+        items.retain(|item| item != key);
+    }
+    preprocessor_list_literal(&items)
+}
+
+fn preprocessor_json_merge(lhs: &str, rhs: &str) -> String {
+    let Ok(mut left) = serde_json::from_str::<serde_json::Value>(lhs.trim()) else {
+        return rhs.to_string();
+    };
+    let Ok(right) = serde_json::from_str::<serde_json::Value>(rhs.trim()) else {
+        return left.to_string();
+    };
+    merge_json_values(&mut left, right);
+    left.to_string()
+}
+
+fn merge_json_values(left: &mut serde_json::Value, right: serde_json::Value) {
+    match (left, right) {
+        (serde_json::Value::Object(dst), serde_json::Value::Object(src)) => {
+            for (key, value) in src {
+                match dst.get_mut(&key) {
+                    Some(existing) => merge_json_values(existing, value),
+                    None => {
+                        dst.insert(key, value);
+                    }
+                }
+            }
+        }
+        (serde_json::Value::Array(dst), serde_json::Value::Array(src)) => {
+            dst.extend(src);
+        }
+        (dst, src) => {
+            *dst = src;
+        }
+    }
+}
+
+fn preprocessor_json_type(raw: &str) -> String {
+    match serde_json::from_str::<serde_json::Value>(raw.trim()) {
+        Ok(serde_json::Value::Object(_)) => "object".to_string(),
+        Ok(serde_json::Value::Array(_)) => "array".to_string(),
+        Ok(serde_json::Value::String(_)) => "string".to_string(),
+        Ok(serde_json::Value::Number(_)) => "number".to_string(),
+        Ok(serde_json::Value::Bool(_)) => "boolean".to_string(),
+        Ok(serde_json::Value::Null) => "null".to_string(),
+        Err(_) => "string".to_string(),
+    }
+}
+
+fn json_value_from_preproc(raw: &str) -> serde_json::Value {
+    serde_json::from_str::<serde_json::Value>(raw.trim())
+        .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()))
+}
+
+fn set_json_value_at_path(
+    value: &mut serde_json::Value,
+    segments: &[String],
+    replacement: serde_json::Value,
+) -> bool {
+    let Some((head, tail)) = segments.split_first() else {
+        *value = replacement;
+        return true;
+    };
+    if let Some(inner) = head.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        let Ok(idx) = inner.trim().parse::<usize>() else {
+            return false;
+        };
+        if !value.is_array() {
+            *value = serde_json::Value::Array(Vec::new());
+        }
+        let Some(items) = value.as_array_mut() else {
+            return false;
+        };
+        while items.len() <= idx {
+            items.push(serde_json::Value::Null);
+        }
+        if tail.is_empty() {
+            items[idx] = replacement;
+            true
+        } else {
+            set_json_value_at_path(&mut items[idx], tail, replacement)
+        }
+    } else {
+        if !value.is_object() {
+            *value = serde_json::Value::Object(serde_json::Map::new());
+        }
+        let Some(obj) = value.as_object_mut() else {
+            return false;
+        };
+        if tail.is_empty() {
+            obj.insert(head.clone(), replacement);
+            true
+        } else {
+            let next = obj.entry(head.clone()).or_insert_with(|| {
+                if tail.first().map(|s| s.starts_with('[')).unwrap_or(false) {
+                    serde_json::Value::Array(Vec::new())
+                } else {
+                    serde_json::Value::Object(serde_json::Map::new())
+                }
+            });
+            set_json_value_at_path(next, tail, replacement)
+        }
+    }
+}
+
+fn remove_json_value_at_path(value: &mut serde_json::Value, segments: &[String]) -> bool {
+    let Some((head, tail)) = segments.split_first() else {
+        return false;
+    };
+    if let Some(inner) = head.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        let Ok(idx) = inner.trim().parse::<usize>() else {
+            return false;
+        };
+        let Some(items) = value.as_array_mut() else {
+            return false;
+        };
+        if tail.is_empty() {
+            if idx < items.len() {
+                items.remove(idx);
+                return true;
+            }
+            return false;
+        }
+        items
+            .get_mut(idx)
+            .map(|next| remove_json_value_at_path(next, tail))
+            .unwrap_or(false)
+    } else {
+        let Some(obj) = value.as_object_mut() else {
+            return false;
+        };
+        if tail.is_empty() {
+            return obj.remove(head).is_some();
+        }
+        obj.get_mut(head)
+            .map(|next| remove_json_value_at_path(next, tail))
+            .unwrap_or(false)
+    }
 }
 
 fn preprocessor_json_keys(json: &str) -> Vec<String> {
@@ -4861,7 +5044,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     }
 
     let (core, label) = split_family_relation_label(line);
-    let (lhs, arrow, rhs) = split_family_arrow(core)?;
+    let (lhs, arrow, relation_style, rhs) = split_family_arrow_styled(core)?;
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
     if normalize_virtual_endpoint(&lhs_core).is_some()
@@ -4885,6 +5068,10 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         right_cardinality,
         left_role,
         right_role,
+        line_color: relation_style.line_color,
+        dashed: relation_style.dashed,
+        hidden: relation_style.hidden,
+        thickness: relation_style.thickness,
     }))
 }
 
@@ -5036,7 +5223,21 @@ fn parse_relation_side_annotations(
     (rem.trim().to_string(), cardinality, role)
 }
 
+#[derive(Debug, Clone, Default)]
+struct ParsedFamilyRelationStyle {
+    line_color: Option<String>,
+    dashed: bool,
+    hidden: bool,
+    thickness: Option<u8>,
+}
+
 fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
+    split_family_arrow_styled(core).map(|(lhs, arrow, _, rhs)| (lhs, arrow, rhs))
+}
+
+fn split_family_arrow_styled(
+    core: &str,
+) -> Option<(&str, String, ParsedFamilyRelationStyle, &str)> {
     let mut in_quote = false;
     for (idx, ch) in core.char_indices() {
         if ch == '"' {
@@ -5061,13 +5262,61 @@ fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
         if lhs.is_empty() || rhs.is_empty() {
             continue;
         }
-        let arrow = normalize_family_arrow_token(&rest[..len]);
+        let raw_arrow = &rest[..len];
+        let arrow = normalize_family_arrow_token(raw_arrow);
         if arrow.is_empty() {
             continue;
         }
-        return Some((lhs, arrow, rhs));
+        return Some((lhs, arrow, parse_family_relation_style(raw_arrow), rhs));
     }
     None
+}
+
+fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
+    let mut style = ParsedFamilyRelationStyle::default();
+    let mut rest = raw_arrow;
+    while let Some(open) = rest.find('[') {
+        let after_open = &rest[open + 1..];
+        let Some(close) = after_open.find(']') else {
+            break;
+        };
+        let content = &after_open[..close];
+        for part in content.split(',') {
+            let token = part.trim();
+            let lower = token.to_ascii_lowercase();
+            match lower.as_str() {
+                "dashed" | "dotted" => style.dashed = true,
+                "hidden" => style.hidden = true,
+                "bold" | "thick" => style.thickness = Some(style.thickness.unwrap_or(3).max(3)),
+                "thin" => style.thickness = Some(1),
+                _ => {
+                    if let Some(value) = lower
+                        .strip_prefix("thickness=")
+                        .or_else(|| lower.strip_prefix("thickness:"))
+                    {
+                        if let Ok(n) = value.trim().parse::<u8>() {
+                            style.thickness = Some(n.clamp(1, 8));
+                        }
+                    } else if let Some(color) = parse_relation_color_token(token) {
+                        style.line_color = Some(color);
+                    }
+                }
+            }
+        }
+        rest = &after_open[close + 1..];
+    }
+    style
+}
+
+fn parse_relation_color_token(token: &str) -> Option<String> {
+    let trimmed = token.trim();
+    if trimmed.len() == 7
+        && trimmed.starts_with('#')
+        && trimmed[1..].chars().all(|ch| ch.is_ascii_hexdigit())
+    {
+        return Some(trimmed.to_ascii_lowercase());
+    }
+    crate::theme::css3_color_to_hex(trimmed.trim_start_matches('#')).map(str::to_string)
 }
 
 fn family_arrow_token_len(s: &str) -> Option<usize> {

@@ -13,6 +13,8 @@ pub struct Scene {
     pub footboxes: Vec<ParticipantBox>,
     pub lifelines: Vec<Lifeline>,
     pub messages: Vec<MessageLine>,
+    pub activations: Vec<ActivationBox>,
+    pub lifecycle_markers: Vec<LifecycleMarker>,
     pub notes: Vec<NoteBox>,
     pub groups: Vec<GroupBox>,
     pub structures: Vec<StructureLine>,
@@ -68,6 +70,29 @@ pub struct MessageLine {
     pub style: SequenceMessageStyle,
     pub from_virtual: Option<VirtualEndpoint>,
     pub to_virtual: Option<VirtualEndpoint>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActivationBox {
+    pub participant_id: String,
+    pub x: i32,
+    pub y1: i32,
+    pub y2: i32,
+    pub depth: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct LifecycleMarker {
+    pub participant_id: String,
+    pub x: i32,
+    pub y: i32,
+    pub kind: LifecycleMarkerKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifecycleMarkerKind {
+    Create,
+    Destroy,
 }
 
 #[derive(Debug, Clone)]
