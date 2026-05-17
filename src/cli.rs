@@ -42,6 +42,10 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue, conflicts_with = "dump")]
     pub check: bool,
 
+    /// Emit structured JSON metadata after parse and normalization.
+    #[arg(long, action = ArgAction::SetTrue, conflicts_with_all = ["check", "dump"])]
+    pub metadata: bool,
+
     /// Lint/check mode inputs (repeatable file paths).
     #[arg(long, action = ArgAction::Append, value_name = "INPUT", requires = "check")]
     pub lint_input: Vec<PathBuf>,

@@ -20,9 +20,10 @@ use puml::model::{
 use puml::scene::LayoutOptions;
 use puml::source::Span;
 use puml::{
-    extract_markdown_diagrams, normalize_family, preprocess_with_pipeline_options, render,
-    specialized, CompatMode, DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput,
-    FrontendSelection, NormalizedDocument, ParsePipelineOptions, TextOutputMode,
+    extract_markdown_diagrams, extract_metadata, normalize_family,
+    preprocess_with_pipeline_options, render, specialized, CompatMode, DeterminismMode, Diagnostic,
+    DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument, ParsePipelineOptions,
+    TextOutputMode,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -287,11 +288,52 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         return Err((EXIT_VALIDATION, "no diagram content provided".to_string()));
     }
 
-    if input_path.is_none() && diagrams.len() > 1 && !cli.multi {
+    if input_path.is_none() && diagrams.len() > 1 && !cli.multi && !cli.metadata {
         return Err((
             EXIT_VALIDATION,
             "multiple diagrams detected; rerun with --multi".to_string(),
         ));
+    }
+
+    if cli.metadata {
+        let values = diagrams
+            .iter()
+            .map(|source| {
+                let doc = parse_for_cli(
+                    &source.source,
+                    include_root.clone(),
+                    cli.dialect,
+                    cli.compat,
+                    cli.determinism,
+                    source.frontend_hint,
+                    cli.no_url_includes,
+                )
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+                let ast = doc.clone();
+                let model = normalize_family(doc)
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+                Ok(extract_metadata(&ast, &model))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if values.len() == 1 {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&values[0]).map_err(|e| (
+                    EXIT_INTERNAL,
+                    format!("failed to serialize metadata output: {e}")
+                ))?
+            );
+        } else {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&values).map_err(|e| (
+                    EXIT_INTERNAL,
+                    format!("failed to serialize metadata output: {e}")
+                ))?
+            );
+        }
+        return Ok(());
     }
 
     if cli.check {
