@@ -318,6 +318,32 @@ pub struct FamilyRelation {
 }
 
 #[derive(Debug, Clone)]
+pub struct ClassDecl {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjectDecl {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UseCaseDecl {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FamilyRelation {
+    pub from: String,
+    pub to: String,
+    pub arrow: String,
+    pub label: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ParticipantDecl {
     pub role: ParticipantRole,
     pub name: String,
