@@ -92,9 +92,16 @@ jobs:
           PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
         run: |
           set +e
-          ./scripts/oracle.sh
-          ORACLE_EXIT=$?
+          # Pipe oracle.sh stdout through tee so it appears in the step log
+          # AND gets saved to a temp file for extraction.
+          ORACLE_STDOUT_FILE="$(mktemp)"
+          ./scripts/oracle.sh 2>&1 | tee "${ORACLE_STDOUT_FILE}"
+          ORACLE_EXIT="${PIPESTATUS[0]}"
           set -e
+
+          echo "[oracle-ci] oracle.sh exited: ${ORACLE_EXIT}" >&2
+          echo "[oracle-ci] oracle_report.json size: $(stat -c%s docs/benchmarks/oracle_report.json 2>/dev/null || echo 'missing')" >&2
+          echo "[oracle-ci] oracle_report.json skipped=$(jq -r '.skipped // false' docs/benchmarks/oracle_report.json 2>/dev/null)" >&2
 
           echo "exit_code=${ORACLE_EXIT}" >> "${GITHUB_OUTPUT}"
 
@@ -107,7 +114,9 @@ jobs:
             BFAIL=$(jq  '.summary.both_fail'  docs/benchmarks/oracle_report.json)
             JVER=$(jq -r '.jar_version'       docs/benchmarks/oracle_report.json)
 
-            if [[ "${TOTAL}" -gt 0 ]]; then
+            echo "[oracle-ci] TOTAL=${TOTAL} MATCH=${MATCH} JAR_VERSION=${JVER}" >&2
+
+            if [[ "${TOTAL}" != "null" ]] && [[ "${TOTAL}" -gt 0 ]]; then
               MATCH_PCT=$(( MATCH * 100 / TOTAL ))
             else
               MATCH_PCT=0
@@ -124,6 +133,8 @@ jobs:
               echo "jar_version=${JVER}"
             } >> "${GITHUB_OUTPUT}"
           fi
+
+          rm -f "${ORACLE_STDOUT_FILE}"
 
           # exit 2 (<50% match) = hard CI failure; 0 and 1 are soft/advisory.
           if [[ "${ORACLE_EXIT}" -eq 2 ]]; then
