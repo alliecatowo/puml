@@ -141,6 +141,30 @@ Project ends 2026-05-20
 }
 
 #[test]
+fn gantt_scale_single_day_calendar_and_multi_resource_semantics_render() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+printscale weekly
+2026-05-04 is closed
+[Build] on {Alice, Bob} requires 2 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("data-gantt-scale=\"weekly\""));
+    assert!(svg.contains("class=\"gantt-scale\""));
+    assert!(svg.contains("2026-05-04"));
+    assert!(svg.contains("Alice, Bob"));
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.scale.as_deref(), Some("weekly"));
+    assert_eq!(model.closed_ranges.len(), 1);
+    assert_eq!(model.tasks[0].resources, vec!["Alice", "Bob"]);
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01

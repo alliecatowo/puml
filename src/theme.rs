@@ -1290,10 +1290,10 @@ pub enum SkinParamSupport<V> {
 pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<ClassSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "classbackgroundcolor" => parse_color_value(value)
+        "backgroundcolor" | "classbackgroundcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::BackgroundColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "classbordercolor" => parse_color_value(value)
+        "bordercolor" | "classbordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "classheaderbackgroundcolor" => parse_color_value(value)
@@ -1301,13 +1301,13 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 SkinParamSupport::SupportedWithValue(ClassSkinParamValue::HeaderBackgroundColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "classmemberfontcolor" => parse_color_value(value)
+        "fontcolor" | "classfontcolor" | "classmemberfontcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::MemberFontColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "classarrowcolor" => parse_color_value(value)
+        "arrowcolor" | "classarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ClassSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "classfontsize" => {
+        "fontsize" | "classfontsize" => {
             if let Ok(n) = value.trim().parse::<u32>() {
                 SkinParamSupport::SupportedWithValue(ClassSkinParamValue::FontSize(n))
             } else {
@@ -1364,19 +1364,19 @@ pub enum StateSkinParamValue {
 pub fn classify_state_skinparam(key: &str, value: &str) -> SkinParamSupport<StateSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "statebackgroundcolor" => parse_color_value(value)
+        "backgroundcolor" | "statebackgroundcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::BackgroundColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "statebordercolor" => parse_color_value(value)
+        "bordercolor" | "statebordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "statearrowcolor" => parse_color_value(value)
+        "arrowcolor" | "statearrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "statestartcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(StateSkinParamValue::StartColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "statefontsize" => {
+        "fontsize" | "statefontsize" => {
             if let Ok(n) = value.trim().parse::<u32>() {
                 SkinParamSupport::SupportedWithValue(StateSkinParamValue::FontSize(n))
             } else {
@@ -1423,12 +1423,12 @@ pub fn classify_component_skinparam(
 ) -> SkinParamSupport<ComponentSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "componentbackgroundcolor" => parse_color_value(value)
+        "backgroundcolor" | "componentbackgroundcolor" => parse_color_value(value)
             .map(|c| {
                 SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::BackgroundColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "componentbordercolor" => parse_color_value(value)
+        "bordercolor" | "componentbordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "interfacebackgroundcolor" => parse_color_value(value)
@@ -1436,7 +1436,7 @@ pub fn classify_component_skinparam(
                 SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::InterfaceColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "componentarrowcolor" => parse_color_value(value)
+        "arrowcolor" | "componentarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         _ => SkinParamSupport::UnsupportedKey,
@@ -1482,12 +1482,12 @@ pub fn classify_activity_skinparam(
 ) -> SkinParamSupport<ActivitySkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "activitybackgroundcolor" => parse_color_value(value)
+        "backgroundcolor" | "activitybackgroundcolor" => parse_color_value(value)
             .map(|c| {
                 SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BackgroundColor(c))
             })
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "activitybordercolor" => parse_color_value(value)
+        "bordercolor" | "activitybordercolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BorderColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "activitydiamondbackgroundcolor" => parse_color_value(value)
@@ -1500,7 +1500,7 @@ pub fn classify_activity_skinparam(
         "activitybarcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::BarColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "activityarrowcolor" => parse_color_value(value)
+        "arrowcolor" | "activityarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         _ => SkinParamSupport::UnsupportedKey,

@@ -145,6 +145,7 @@ pub struct YamlTreeNode {
 #[derive(Debug, Clone)]
 pub struct NwdiagDocument {
     pub networks: Vec<NwdiagNetwork>,
+    pub groups: Vec<NwdiagGroup>,
     pub title: Option<String>,
     pub warnings: Vec<Diagnostic>,
 }
@@ -153,6 +154,7 @@ pub struct NwdiagDocument {
 pub struct NwdiagNetwork {
     pub name: String,
     pub address: Option<String>,
+    pub color: Option<String>,
     pub nodes: Vec<NwdiagNode>,
 }
 
@@ -160,6 +162,15 @@ pub struct NwdiagNetwork {
 pub struct NwdiagNode {
     pub name: String,
     pub address: Option<String>,
+    pub label: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NwdiagGroup {
+    pub name: String,
+    pub color: Option<String>,
+    pub nodes: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -175,6 +186,8 @@ pub struct ArchimateElement {
     pub name: String,
     pub alias: Option<String>,
     pub layer: String,
+    pub fill: Option<String>,
+    pub stroke: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -183,6 +196,8 @@ pub struct ArchimateRelation {
     pub to: String,
     pub kind: String,
     pub label: Option<String>,
+    pub direction: Option<String>,
+    pub style: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -375,6 +390,7 @@ pub struct TimelineDocument {
     pub chronology_events: Vec<TimelineChronologyEvent>,
     pub closed_weekdays: Vec<String>,
     pub closed_ranges: Vec<TimelineClosedRange>,
+    pub scale: Option<String>,
     pub project_start: Option<String>,
     pub project_start_day: Option<u32>,
     pub title: Option<String>,
@@ -598,6 +614,8 @@ pub struct FamilyRelation {
     pub dashed: bool,
     pub hidden: bool,
     pub thickness: Option<u8>,
+    pub left_lollipop: bool,
+    pub right_lollipop: bool,
 }
 
 #[derive(Debug, Clone)]

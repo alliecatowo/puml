@@ -57,6 +57,17 @@ pub fn render_svg(scene: &Scene) -> String {
     let font_size_px = scene.style.default_font_size.unwrap_or(12);
     let _ = (font_family, font_size_px); // used inline below
 
+    if let Some(header) = &scene.header {
+        render_sequence_metadata_label(
+            &mut out,
+            header,
+            "sequence-header",
+            "font-family=\"monospace\" font-size=\"12\"",
+            "#333",
+            16,
+        );
+    }
+
     if let Some(title) = &scene.title {
         for (idx, line) in title.lines.iter().enumerate() {
             out.push_str(&creole_text(
@@ -402,6 +413,28 @@ pub fn render_svg(scene: &Scene) -> String {
         render_participant_box(&mut out, p, scene);
     }
 
+    if let Some(caption) = &scene.caption {
+        render_sequence_metadata_label(
+            &mut out,
+            caption,
+            "sequence-caption",
+            "font-family=\"monospace\" font-size=\"12\" font-style=\"italic\"",
+            "#333",
+            16,
+        );
+    }
+
+    if let Some(footer) = &scene.footer {
+        render_sequence_metadata_label(
+            &mut out,
+            footer,
+            "sequence-footer",
+            "font-family=\"monospace\" font-size=\"12\"",
+            "#333",
+            16,
+        );
+    }
+
     // Render legend if present.
     if let Some(legend_text) = &scene.legend_text {
         render_legend(&mut out, legend_text, scene);
@@ -409,6 +442,27 @@ pub fn render_svg(scene: &Scene) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn render_sequence_metadata_label(
+    out: &mut String,
+    label: &crate::scene::Label,
+    class_name: &str,
+    attrs: &str,
+    color: &str,
+    line_gap: i32,
+) {
+    out.push_str(&format!("<g class=\"{}\">", escape_text(class_name)));
+    for (idx, line) in label.lines.iter().enumerate() {
+        out.push_str(&creole_text(
+            label.x,
+            label.y + (idx as i32 * line_gap),
+            attrs,
+            line,
+            color,
+        ));
+    }
+    out.push_str("</g>");
 }
 
 fn sequence_message_label_anchor(x1: i32, x2: i32, align: MessageAlign) -> (i32, &'static str) {
@@ -872,6 +926,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{markers}/>",
             dash = stroke_dash
         ));
+        if relation.left_lollipop {
+            render_lollipop_endpoint(&mut out, x1, y1, relation_color);
+        }
+        if relation.right_lollipop {
+            render_lollipop_endpoint(&mut out, x2, y2, relation_color);
+        }
         if let Some(left) = &relation.left_cardinality {
             out.push_str(&format!(
                 "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
@@ -995,6 +1055,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 header_h: bx.header_h,
             },
             &class_style,
+            document.namespace_separator.as_deref(),
         );
     }
 
@@ -2442,6 +2503,7 @@ fn render_class_node(
     node: &crate::model::FamilyNode,
     geometry: ClassNodeGeometry,
     class_style: &ClassStyle,
+    namespace_separator: Option<&str>,
 ) {
     let ClassNodeGeometry {
         x,
@@ -2530,10 +2592,14 @@ fn render_class_node(
         FamilyNodeKind::UseCase => "",
         _ => "",
     };
+    let display_name = namespace_separator
+        .filter(|sep| !sep.is_empty())
+        .map(|sep| node.name.replace("::", sep))
+        .unwrap_or_else(|| node.name.clone());
     let header_text = if let Some(alias) = &node.alias {
-        format!("{kind_prefix}{} (as {})", node.name, alias)
+        format!("{kind_prefix}{} (as {})", display_name, alias)
     } else {
-        format!("{kind_prefix}{}", node.name)
+        format!("{kind_prefix}{}", display_name)
     };
     // Underline for objects (PlantUML convention)
     let text_decoration = if matches!(node.kind, FamilyNodeKind::Object) {
@@ -3120,9 +3186,10 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     let has_calendar_notes =
         !document.closed_weekdays.is_empty() || !document.closed_ranges.is_empty();
     let calendar_h = if !has_calendar_notes { 0 } else { 18 };
+    let scale_h = if document.scale.is_some() { 18 } else { 0 };
 
     let row_count = (document.tasks.len() + document.milestones.len()) as i32;
-    let chart_top = 40 + title_h + calendar_h + header_h;
+    let chart_top = 40 + title_h + calendar_h + scale_h + header_h;
     let chart_h = (row_count.max(1)) * (bar_height + row_gap) + 20;
     let total_h = chart_top + chart_h + 40;
 
@@ -3133,6 +3200,12 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         h = total_h
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    if let Some(scale) = &document.scale {
+        out.push_str(&format!(
+            "<metadata data-gantt-scale=\"{}\"/>",
+            escape_text(scale)
+        ));
+    }
 
     // Title
     if let Some(title) = &document.title {
@@ -3177,6 +3250,14 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             x = margin_x,
             y = 42 + title_h,
             label = escape_text(&label)
+        ));
+    }
+    if let Some(scale) = &document.scale {
+        out.push_str(&format!(
+            "<text class=\"gantt-scale\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">Scale: {scale}</text>",
+            x = margin_x,
+            y = 42 + title_h + calendar_h,
+            scale = escape_text(scale)
         ));
     }
 
@@ -3275,7 +3356,13 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .max()
         .unwrap_or(min_day.saturating_add(1));
     let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
-    let tick_count = total_days.clamp(1, 8);
+    let tick_count = match document.scale.as_deref() {
+        Some("weekly") => total_days.div_ceil(7).clamp(1, 8),
+        Some("monthly") => total_days.div_ceil(30).clamp(1, 8),
+        Some("quarterly") => total_days.div_ceil(90).clamp(1, 8),
+        Some("yearly") => total_days.div_ceil(365).clamp(1, 8),
+        _ => total_days.clamp(1, 8),
+    };
     let date_axis = document.project_start_day.is_some() || min_day > 366;
 
     // Axis header bar
@@ -3875,6 +3962,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} />",
             x1, y1, x2, y2, relation_color, stroke_width, dash, visibility, markers
         ));
+        if rel.left_lollipop {
+            render_lollipop_endpoint(&mut out, x1, y1, relation_color);
+        }
+        if rel.right_lollipop {
+            render_lollipop_endpoint(&mut out, x2, y2, relation_color);
+        }
         if let Some(stereotype) = &rel.stereotype {
             let mx = (x1 + x2) / 2;
             let my = (y1 + y2) / 2 - if rel.label.is_some() { 20 } else { 6 };
@@ -4146,6 +4239,11 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
     let kind_label = family_node_label(node.kind);
+    out.push_str(&format!(
+        "<desc data-uml-id=\"{}\">{}</desc>",
+        escape_text(&node.name),
+        escape_text(&node.name)
+    ));
 
     match node.kind {
         FamilyNodeKind::Interface => {
@@ -4364,6 +4462,15 @@ fn render_note_card(out: &mut String, x: i32, y: i32, w: i32, h: i32, text: &str
     }
 }
 
+fn render_lollipop_endpoint(out: &mut String, x: i32, y: i32, stroke: &str) {
+    out.push_str(&format!(
+        "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\" class=\"uml-lollipop\"/>",
+        x,
+        y,
+        stroke
+    ));
+}
+
 /// Styled variant of `render_family_node_shape` that applies `comp_style` for
 /// Component/Interface nodes and falls back to the default for others.
 fn render_family_node_shape_styled(
@@ -4379,6 +4486,11 @@ fn render_family_node_shape_styled(
     let cy = y + h / 2;
     let display = node.label.clone().unwrap_or_else(|| node.name.clone());
     let kind_label = family_node_label(node.kind);
+    out.push_str(&format!(
+        "<desc data-uml-id=\"{}\">{}</desc>",
+        escape_text(&node.name),
+        escape_text(&node.name)
+    ));
 
     match node.kind {
         FamilyNodeKind::Interface => {
@@ -4881,11 +4993,30 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 .clone()
                 .or_else(|| e.members.first().map(|m| m.text.clone()))
                 .unwrap_or_default();
+            if parse_timing_range_note(&txt).is_some() {
+                return None;
+            }
             if txt.is_empty() {
                 None
             } else {
                 Some((t, txt))
             }
+        })
+        .collect();
+    let timing_ranges: Vec<(i64, i64, String)> = events
+        .iter()
+        .filter_map(|e| {
+            if e.alias.is_some() {
+                return None;
+            }
+            let start = e.name.parse::<i64>().ok()?;
+            let txt = e
+                .label
+                .clone()
+                .or_else(|| e.members.first().map(|m| m.text.clone()))
+                .unwrap_or_default();
+            let (end, label) = parse_timing_range_note(&txt)?;
+            Some((start, end, label))
         })
         .collect();
 
@@ -4895,6 +5026,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         .iter()
         .filter_map(|e| e.name.parse::<i64>().ok())
         .collect();
+    time_vals.extend(timing_ranges.iter().map(|(_, end, _)| *end));
     time_vals.sort();
     time_vals.dedup();
     if time_vals.is_empty() {
@@ -4984,6 +5116,22 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
     // Major ticks at each @N position
     let rows_h = n_signals * row_h;
+    for (start, end, label) in &timing_ranges {
+        let x1 = time_to_x((*start).min(*end));
+        let x2 = time_to_x((*start).max(*end));
+        let w = (x2 - x1).max(2);
+        out.push_str(&format!(
+            "<rect class=\"timing-range\" x=\"{x1}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#fde68a\" opacity=\"0.45\" stroke=\"#f59e0b\" stroke-width=\"1\"/>",
+            y = axis_top,
+            h = axis_h + rows_h
+        ));
+        out.push_str(&format!(
+            "<text class=\"timing-range-label\" x=\"{x}\" y=\"{y}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#92400e\">{}</text>",
+            escape_text(label),
+            x = x1 + w / 2,
+            y = axis_top + axis_h - 14
+        ));
+    }
     for &t in &time_vals {
         let tx = time_to_x(t);
         // Gridline through all signal rows
@@ -5557,6 +5705,18 @@ pub fn render_yaml_svg(document: &YamlDocument) -> String {
     out
 }
 
+fn parse_timing_range_note(note: &str) -> Option<(i64, String)> {
+    let rest = note.strip_prefix("range:")?;
+    let (end, label) = rest.split_once(':').unwrap_or((rest, ""));
+    let end = end.trim().trim_start_matches('@').parse::<i64>().ok()?;
+    let label = if label.trim().is_empty() {
+        "range".to_string()
+    } else {
+        label.trim().to_string()
+    };
+    Some((end, label))
+}
+
 pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     let width = 760;
     let net_rows: i32 = document
@@ -5564,7 +5724,14 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         .iter()
         .map(|n| 1 + n.nodes.len() as i32)
         .sum();
-    let height = 80 + net_rows.max(1) * 24 + (document.networks.len() as i32) * 14;
+    let group_rows: i32 = document
+        .groups
+        .iter()
+        .map(|g| 1 + g.nodes.len() as i32)
+        .sum();
+    let height = 80
+        + (net_rows + group_rows).max(1) * 24
+        + ((document.networks.len() + document.groups.len()) as i32) * 14;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
@@ -5586,9 +5753,11 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     } else {
         for net in &document.networks {
             // Swimlane header
+            let net_fill = net.color.as_deref().unwrap_or("#e0f2fe");
             out.push_str(&format!(
-                "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"22\" fill=\"#e0f2fe\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
-                y
+                "<rect class=\"nwdiag-network\" x=\"24\" y=\"{}\" width=\"712\" height=\"22\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+                y,
+                escape_text(net_fill)
             ));
             let label = match &net.address {
                 Some(a) => format!("network {} ({})", net.name, a),
@@ -5601,18 +5770,48 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             ));
             y += 26;
             for node in &net.nodes {
+                let node_fill = node.color.as_deref().unwrap_or("white");
                 out.push_str(&format!(
-                    "<rect x=\"56\" y=\"{}\" width=\"680\" height=\"20\" rx=\"3\" ry=\"3\" fill=\"white\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
-                    y
+                    "<rect class=\"nwdiag-node\" x=\"56\" y=\"{}\" width=\"680\" height=\"20\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"/>",
+                    y,
+                    escape_text(node_fill)
                 ));
+                let display = node.label.as_deref().unwrap_or(&node.name);
                 let lbl = match &node.address {
-                    Some(a) => format!("{} [{}]", node.name, a),
-                    None => node.name.clone(),
+                    Some(a) => format!("{} [{}]", display, a),
+                    None => display.to_string(),
                 };
                 out.push_str(&format!(
                     "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
                     y + 14,
                     escape_text(&lbl)
+                ));
+                y += 24;
+            }
+            y += 10;
+        }
+        for group in &document.groups {
+            let fill = group.color.as_deref().unwrap_or("#fef3c7");
+            out.push_str(&format!(
+                "<rect class=\"nwdiag-group\" x=\"24\" y=\"{}\" width=\"712\" height=\"22\" fill=\"{}\" stroke=\"#d97706\" stroke-width=\"1\"/>",
+                y,
+                escape_text(fill)
+            ));
+            out.push_str(&format!(
+                "<text x=\"32\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#78350f\">group {}</text>",
+                y + 16,
+                escape_text(&group.name)
+            ));
+            y += 26;
+            for node in &group.nodes {
+                out.push_str(&format!(
+                    "<rect class=\"nwdiag-group-member\" x=\"56\" y=\"{}\" width=\"680\" height=\"20\" rx=\"3\" ry=\"3\" fill=\"#fff7ed\" stroke=\"#f59e0b\" stroke-width=\"1\"/>",
+                    y
+                ));
+                out.push_str(&format!(
+                    "<text x=\"66\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                    y + 14,
+                    escape_text(node)
                 ));
                 y += 24;
             }
@@ -5631,6 +5830,7 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         "application",
         "technology",
         "motivation",
+        "junction",
     ];
     let lane_height = 80;
     let height = 80 + (layers.len() as i32) * lane_height + (document.relations.len() as i32) * 18;
@@ -5655,6 +5855,7 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
             "application" => "#dbeafe",
             "technology" => "#dcfce7",
             "motivation" => "#ede9fe",
+            "junction" => "#f1f5f9",
             _ => "#f1f5f9",
         };
         out.push_str(&format!(
@@ -5668,11 +5869,22 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         ));
         let mut x = 100;
         for elem in document.elements.iter().filter(|e| e.layer == *layer) {
+            let fill = elem.fill.as_deref().unwrap_or("white");
+            let stroke = elem.stroke.as_deref().unwrap_or("#334155");
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"140\" height=\"40\" rx=\"4\" ry=\"4\" fill=\"white\" stroke=\"#334155\" stroke-width=\"1\"/>",
+                "<rect class=\"archimate-element\" x=\"{}\" y=\"{}\" width=\"140\" height=\"40\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
                 x,
-                layer_y + 22
+                layer_y + 22,
+                escape_text(fill),
+                escape_text(stroke)
             ));
+            if elem.layer == "junction" {
+                out.push_str(&format!(
+                    "<circle class=\"archimate-junction\" cx=\"{}\" cy=\"{}\" r=\"8\" fill=\"#334155\"/>",
+                    x + 122,
+                    layer_y + 34
+                ));
+            }
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
                 x + 8,
@@ -5699,11 +5911,23 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
                 .as_deref()
                 .map(|l| format!(" : {l}"))
                 .unwrap_or_default();
+            let direction = rel
+                .direction
+                .as_deref()
+                .map(|d| format!(" direction={d}"))
+                .unwrap_or_default();
+            let style = rel
+                .style
+                .as_deref()
+                .map(|s| format!(" style={s}"))
+                .unwrap_or_default();
             out.push_str(&format!(
-                "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} -[{}]-&gt; {}{}</text>",
+                "<text class=\"archimate-relation\" x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{} -[{}{}{}]-&gt; {}{}</text>",
                 y,
                 escape_text(&rel.from),
                 escape_text(&rel.kind),
+                escape_text(&direction),
+                escape_text(&style),
                 escape_text(&rel.to),
                 escape_text(&label)
             ));

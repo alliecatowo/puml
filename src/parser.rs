@@ -277,8 +277,14 @@ fn preprocess_text(
                 PreprocessDirective::Foreach(spec) => {
                     let endfor = find_matching_endfor(&lines, i)?;
                     if active {
-                        // Expected form: `$var in val1, val2, val3` or
-                        // `$var in $listvar` where $listvar is comma-separated.
+                        // Expected forms:
+                        //   `$var in val1, val2, val3`
+                        //   `$var in $listvar`
+                        //   `$key, $value in $mapvar`
+                        // For two loop variables, JSON objects iterate
+                        // key/value pairs and JSON arrays iterate index/value
+                        // pairs. This keeps common PlantUML map/list loops
+                        // deterministic without adding runtime dependencies.
                         let parts: Vec<&str> = spec.splitn(2, " in ").collect();
                         if parts.len() != 2 {
                             return Err(Diagnostic::error_code(
@@ -286,13 +292,28 @@ fn preprocess_text(
                                 "`!foreach` requires form `$var in val1, val2, ...`",
                             ));
                         }
-                        let var_name = parts[0].trim().trim_start_matches('$').to_string();
+                        let var_names = parts[0]
+                            .split(',')
+                            .map(|name| name.trim().trim_start_matches('$').to_string())
+                            .filter(|name| !name.is_empty())
+                            .collect::<Vec<_>>();
+                        if var_names.is_empty() {
+                            return Err(Diagnostic::error_code(
+                                "E_PREPROC_FOREACH_FORM",
+                                "`!foreach` requires at least one loop variable",
+                            ));
+                        }
                         let rhs = expand_preprocessor_text(parts[1].trim(), state, 0)?;
-                        let items = preprocessor_list_items(&rhs);
+                        let bindings = preprocessor_foreach_bindings(&var_names, &rhs);
                         let block = lines[i + 1..endfor].join("\n");
-                        let prev = state.vars.get(&var_name).cloned();
-                        for item in items {
-                            state.vars.insert(var_name.clone(), item);
+                        let prev = var_names
+                            .iter()
+                            .map(|name| (name.clone(), state.vars.get(name).cloned()))
+                            .collect::<Vec<_>>();
+                        for row in bindings {
+                            for (name, value) in row {
+                                state.vars.insert(name, value);
+                            }
                             preprocess_text(
                                 &block,
                                 options,
@@ -304,12 +325,14 @@ fn preprocess_text(
                                 out,
                             )?;
                         }
-                        match prev {
-                            Some(v) => {
-                                state.vars.insert(var_name, v);
-                            }
-                            None => {
-                                state.vars.remove(&var_name);
+                        for (name, value) in prev {
+                            match value {
+                                Some(v) => {
+                                    state.vars.insert(name, v);
+                                }
+                                None => {
+                                    state.vars.remove(&name);
+                                }
                             }
                         }
                     }
@@ -2324,9 +2347,21 @@ fn dispatch_builtin(
                 .contains(&arg(1))
                 .to_string(),
         ),
+        "list_indexof" | "array_indexof" | "indexof" => Some(
+            preprocessor_list_items(&arg(0))
+                .iter()
+                .position(|item| item == &arg(1))
+                .map(|idx| idx.to_string())
+                .unwrap_or_else(|| "-1".to_string()),
+        ),
         "list_sort" | "array_sort" => {
             let mut items = preprocessor_list_items(&arg(0));
             items.sort();
+            Some(preprocessor_list_literal(&items))
+        }
+        "list_reverse" | "array_reverse" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            items.reverse();
             Some(preprocessor_list_literal(&items))
         }
         "list_get" => Some(
@@ -2335,9 +2370,28 @@ fn dispatch_builtin(
                 .cloned()
                 .unwrap_or_default(),
         ),
+        "first" | "list_first" | "array_first" => Some(
+            preprocessor_list_items(&arg(0))
+                .first()
+                .cloned()
+                .unwrap_or_default(),
+        ),
+        "last" | "list_last" | "array_last" => Some(
+            preprocessor_list_items(&arg(0))
+                .last()
+                .cloned()
+                .unwrap_or_default(),
+        ),
         "list_add" => {
             let mut items = preprocessor_list_items(&arg(0));
             items.push(arg(1));
+            Some(preprocessor_list_literal(&items))
+        }
+        "list_insert" | "array_insert" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            let idx = parse_int_lenient(&arg(1)).max(0) as usize;
+            let idx = idx.min(items.len());
+            items.insert(idx, arg(2));
             Some(preprocessor_list_literal(&items))
         }
         "list_remove" => {
@@ -2354,6 +2408,7 @@ fn dispatch_builtin(
         }
         "map" | "dict" => Some(preprocessor_map_literal(&expanded_args)),
         "map_merge" | "json_merge" => Some(preprocessor_json_merge(&arg(0), &arg(1))),
+        "map_entries" | "entries" => Some(preprocessor_map_entries(&arg(0))),
         "map_contains_key" | "contains_key" => {
             Some(json_contains_key(&arg(0), &arg(1)).to_string())
         }
@@ -2362,12 +2417,14 @@ fn dispatch_builtin(
         "remove" | "map_remove" | "json_remove" => Some(preprocessor_remove(&arg(0), &arg(1))),
         "keys" | "map_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
         "values" | "map_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
-        "json_type" => Some(preprocessor_json_type(&arg(0))),
+        "json_type" | "get_json_type" => Some(preprocessor_json_type(&arg(0))),
         "json_is_valid" | "is_json" => Some(
             serde_json::from_str::<serde_json::Value>(arg(0).trim())
                 .is_ok()
                 .to_string(),
         ),
+        "str2json" => Some(preprocessor_str2json(&arg(0))),
+        "json_add" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
         "strpos" => {
             let s = arg(0);
             let sub = arg(1);
@@ -2917,6 +2974,60 @@ fn preprocessor_list_items(raw: &str) -> Vec<String> {
         .collect()
 }
 
+fn preprocessor_foreach_bindings(var_names: &[String], rhs: &str) -> Vec<Vec<(String, String)>> {
+    if var_names.len() == 2 {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(rhs.trim()) {
+            if let Some(obj) = value.as_object() {
+                return obj
+                    .iter()
+                    .map(|(key, value)| {
+                        vec![
+                            (var_names[0].clone(), key.clone()),
+                            (var_names[1].clone(), json_value_to_preproc_string(value)),
+                        ]
+                    })
+                    .collect();
+            }
+            if let Some(items) = value.as_array() {
+                return items
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, value)| {
+                        vec![
+                            (var_names[0].clone(), idx.to_string()),
+                            (var_names[1].clone(), json_value_to_preproc_string(value)),
+                        ]
+                    })
+                    .collect();
+            }
+        }
+    }
+
+    preprocessor_list_items(rhs)
+        .into_iter()
+        .enumerate()
+        .map(|(idx, item)| {
+            if var_names.len() == 1 {
+                return vec![(var_names[0].clone(), item)];
+            }
+            let mut values = preprocessor_list_items(&item);
+            if values.len() <= 1 {
+                values = vec![idx.to_string(), item];
+            }
+            var_names
+                .iter()
+                .enumerate()
+                .map(|(var_idx, name)| {
+                    (
+                        name.clone(),
+                        values.get(var_idx).cloned().unwrap_or_default(),
+                    )
+                })
+                .collect()
+        })
+        .collect()
+}
+
 #[derive(Clone)]
 enum SimpleRegexAtom {
     Any,
@@ -3118,6 +3229,31 @@ fn preprocessor_map_literal(args: &[String]) -> String {
         }
     }
     serde_json::Value::Object(obj).to_string()
+}
+
+fn preprocessor_map_entries(json: &str) -> String {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(json.trim()) else {
+        return "[]".to_string();
+    };
+    let Some(obj) = value.as_object() else {
+        return "[]".to_string();
+    };
+    let rows = obj
+        .iter()
+        .map(|(key, value)| {
+            serde_json::Value::Array(vec![
+                serde_json::Value::String(key.clone()),
+                serde_json::Value::String(json_value_to_preproc_string(value)),
+            ])
+        })
+        .collect::<Vec<_>>();
+    serde_json::Value::Array(rows).to_string()
+}
+
+fn preprocessor_str2json(raw: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(raw.trim())
+        .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()))
+        .to_string()
 }
 
 fn preprocessor_get(container: &str, key: &str) -> String {
@@ -5049,6 +5185,8 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     let (label, label_stereotype) = split_relation_label_stereotype(raw_label);
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
+    let (lhs_core, left_lollipop) = strip_lollipop_endpoint(&lhs_core);
+    let (rhs_core, right_lollipop) = strip_lollipop_endpoint(&rhs_core);
     if normalize_virtual_endpoint(&lhs_core).is_some()
         || normalize_virtual_endpoint(&rhs_core).is_some()
         || looks_like_virtual_endpoint_syntax(&lhs_core)
@@ -5075,7 +5213,20 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         dashed: relation_style.dashed,
         hidden: relation_style.hidden,
         thickness: relation_style.thickness,
+        left_lollipop,
+        right_lollipop,
     }))
+}
+
+fn strip_lollipop_endpoint(side: &str) -> (String, bool) {
+    let trimmed = side.trim();
+    if let Some(rest) = trimmed.strip_prefix("()") {
+        return (rest.trim_start().to_string(), true);
+    }
+    if let Some(rest) = trimmed.strip_suffix("()") {
+        return (rest.trim_end().to_string(), true);
+    }
+    (trimmed.to_string(), false)
 }
 
 fn split_relation_label_stereotype(label: Option<String>) -> (Option<String>, Option<String>) {
@@ -5465,6 +5616,12 @@ fn clean_bracketed_ident(s: &str) -> String {
     clean_ident(trimmed)
 }
 
+#[derive(Debug, Clone, Default)]
+struct ScopedGroupContent {
+    members: Vec<String>,
+    relations: Vec<FamilyRelation>,
+}
+
 /// Parse `together { ... }`, `package "name" { ... }`, `namespace ns { ... }` blocks.
 /// Returns (StatementKind, end_line_index) where end_line_index points to the closing `}`.
 fn parse_class_scoping_block(
@@ -5495,6 +5652,7 @@ fn parse_class_scoping_block(
                 kind: "together".to_string(),
                 label: None,
                 members,
+                relations: Vec::new(),
             },
             end_idx,
         )));
@@ -5515,13 +5673,14 @@ fn parse_class_scoping_block(
         if group_body_contains_component_family(lines, start, end_idx) {
             return Ok(None);
         }
-        let members =
-            collect_scoped_class_group_members(lines, start, end_idx, std::slice::from_ref(&label));
+        let content =
+            collect_scoped_class_group_content(lines, start, end_idx, std::slice::from_ref(&label));
         return Ok(Some((
             StatementKind::ClassGroup {
                 kind: "package".to_string(),
                 label: if label.is_empty() { None } else { Some(label) },
-                members,
+                members: content.members,
+                relations: content.relations,
             },
             end_idx,
         )));
@@ -5539,13 +5698,14 @@ fn parse_class_scoping_block(
             )
             .with_span(lines[start].1));
         }
-        let members =
-            collect_scoped_class_group_members(lines, start, end_idx, std::slice::from_ref(&label));
+        let content =
+            collect_scoped_class_group_content(lines, start, end_idx, std::slice::from_ref(&label));
         return Ok(Some((
             StatementKind::ClassGroup {
                 kind: "namespace".to_string(),
                 label: if label.is_empty() { None } else { Some(label) },
-                members,
+                members: content.members,
+                relations: content.relations,
             },
             end_idx,
         )));
@@ -5554,18 +5714,25 @@ fn parse_class_scoping_block(
     Ok(None)
 }
 
-fn collect_scoped_class_group_members(
+fn collect_scoped_class_group_content(
     lines: &[(&str, Span)],
     start: usize,
     end_idx: usize,
     scope: &[String],
-) -> Vec<String> {
-    let mut members = Vec::new();
+) -> ScopedGroupContent {
+    let mut content = ScopedGroupContent::default();
     let mut idx = start + 1;
     while idx < end_idx {
         let line = lines[idx].0.trim();
         let lower = line.to_ascii_lowercase();
         if line.is_empty() || line == "}" {
+            idx += 1;
+            continue;
+        }
+        if let Some(StatementKind::FamilyRelation(rel)) =
+            parse_family_relation(line, Some(DiagramKind::Class))
+        {
+            content.relations.push(qualify_scoped_relation(rel, scope));
             idx += 1;
             continue;
         }
@@ -5590,12 +5757,10 @@ fn collect_scoped_class_group_members(
                 if !label.is_empty() {
                     nested_scope.push(label);
                 }
-                members.extend(collect_scoped_class_group_members(
-                    lines,
-                    idx,
-                    nested_end,
-                    &nested_scope,
-                ));
+                let nested =
+                    collect_scoped_class_group_content(lines, idx, nested_end, &nested_scope);
+                content.members.extend(nested.members);
+                content.relations.extend(nested.relations);
                 idx = nested_end + 1;
                 continue;
             }
@@ -5638,7 +5803,7 @@ fn collect_scoped_class_group_members(
                     encoded.push('\t');
                     encoded.push_str(&member);
                 }
-                members.push(encoded);
+                content.members.push(encoded);
                 if nested_end > idx {
                     idx = nested_end + 1;
                     continue;
@@ -5661,7 +5826,7 @@ fn collect_scoped_class_group_members(
                     name
                 )
             };
-            members.push(scoped);
+            content.members.push(scoped);
         }
         if line.ends_with('{') {
             let nested_end = find_family_decl_end(lines, idx);
@@ -5672,7 +5837,37 @@ fn collect_scoped_class_group_members(
         }
         idx += 1;
     }
-    members
+    content
+}
+
+fn scoped_prefix(scope: &[String]) -> String {
+    scope
+        .iter()
+        .filter(|s| !s.is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+fn qualify_scoped_identifier(name: String, scope: &[String]) -> String {
+    let prefix = scoped_prefix(scope);
+    if prefix.is_empty()
+        || name.is_empty()
+        || name.contains("::")
+        || name == "[*]"
+        || name == "[H]"
+        || name == "[H*]"
+    {
+        name
+    } else {
+        format!("{prefix}::{name}")
+    }
+}
+
+fn qualify_scoped_relation(mut rel: FamilyRelation, scope: &[String]) -> FamilyRelation {
+    rel.from = qualify_scoped_identifier(rel.from, scope);
+    rel.to = qualify_scoped_identifier(rel.to, scope);
+    rel
 }
 
 fn group_body_contains_component_family(
@@ -5786,21 +5981,113 @@ fn parse_component_scoping_block(
         return Ok(None);
     }
     let label = clean_ident(label_raw.trim_end_matches('{').trim().trim_matches('"'));
-    let members = lines[start + 1..end_idx]
-        .iter()
-        .map(|(raw, _)| raw.trim())
-        .filter(|s| !s.is_empty() && *s != "}")
-        .map(extract_component_group_member_name)
-        .filter(|s| !s.is_empty())
-        .collect();
+    let content =
+        collect_scoped_component_group_content(lines, start, end_idx, std::slice::from_ref(&label));
     Ok(Some((
         StatementKind::ClassGroup {
             kind: kind.to_string(),
             label: if label.is_empty() { None } else { Some(label) },
-            members,
+            members: content.members,
+            relations: content.relations,
         },
         end_idx,
     )))
+}
+
+fn collect_scoped_component_group_content(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+    scope: &[String],
+) -> ScopedGroupContent {
+    let mut content = ScopedGroupContent::default();
+    let mut idx = start + 1;
+    while idx < end_idx {
+        let line = lines[idx].0.trim();
+        let lower = line.to_ascii_lowercase();
+        if line.is_empty() || line == "}" {
+            idx += 1;
+            continue;
+        }
+        if let Some(StatementKind::FamilyRelation(rel)) =
+            parse_family_relation(line, Some(DiagramKind::Component))
+        {
+            content.relations.push(qualify_scoped_relation(rel, scope));
+            idx += 1;
+            continue;
+        }
+        if (lower.starts_with("package ")
+            || lower.starts_with("namespace ")
+            || lower.starts_with("node ")
+            || lower.starts_with("frame ")
+            || lower.starts_with("cloud ")
+            || lower.starts_with("rectangle "))
+            && line.trim_end().ends_with('{')
+        {
+            let keyword = [
+                "package",
+                "namespace",
+                "node",
+                "frame",
+                "cloud",
+                "rectangle",
+            ]
+            .into_iter()
+            .find(|kw| lower.starts_with(&format!("{kw} ")))
+            .unwrap_or("package");
+            let label = clean_ident(
+                line[keyword.len()..]
+                    .trim()
+                    .trim_end_matches('{')
+                    .trim()
+                    .trim_matches('"'),
+            );
+            let nested_end = find_scoping_block_end(lines, idx);
+            if nested_end > idx {
+                let mut nested_scope = scope.to_vec();
+                if !label.is_empty() {
+                    nested_scope.push(label);
+                }
+                let nested =
+                    collect_scoped_component_group_content(lines, idx, nested_end, &nested_scope);
+                content.members.extend(nested.members);
+                content.relations.extend(nested.relations);
+                idx = nested_end + 1;
+                continue;
+            }
+        }
+        if let Some(StatementKind::ComponentDecl {
+            name, alias, label, ..
+        }) = parse_component_decl(line)
+        {
+            let local_id = alias.clone().unwrap_or_else(|| name.clone());
+            let scoped_id = qualify_scoped_identifier(local_id, scope);
+            let display = label
+                .or_else(|| alias.as_ref().map(|_| name.clone()))
+                .or_else(|| (scoped_id != name).then(|| name.clone()))
+                .filter(|value| value != &scoped_id);
+            let mut encoded = scoped_id;
+            if let Some(display) = display {
+                encoded.push('\t');
+                encoded.push_str(&display);
+            }
+            content.members.push(encoded);
+        } else {
+            let name = extract_component_group_member_name(line);
+            if !name.is_empty() {
+                content.members.push(qualify_scoped_identifier(name, scope));
+            }
+        }
+        if line.ends_with('{') {
+            let nested_end = find_family_decl_end(lines, idx);
+            if nested_end > idx {
+                idx = nested_end + 1;
+                continue;
+            }
+        }
+        idx += 1;
+    }
+    content
 }
 
 fn find_scoping_block_end(lines: &[(&str, Span)], start: usize) -> usize {
@@ -5927,6 +6214,13 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
         return Some(kind);
     }
 
+    if let Some(scale) = parse_gantt_scale_directive(trimmed) {
+        return Some(StatementKind::GanttConstraint {
+            subject: "Project".to_string(),
+            kind: "scale".to_string(),
+            target: scale,
+        });
+    }
     if let Some(rest) = trimmed.strip_prefix("Project starts ") {
         let date = rest
             .trim()
@@ -6101,13 +6395,33 @@ fn parse_gantt_closed_date_range(line: &str) -> Option<(String, String)> {
     let range = trimmed[..trimmed.len().saturating_sub(suffix_len)].trim();
     let lower_range = lower[..lower.len().saturating_sub(suffix_len)].trim();
     let sep = " to ";
-    let idx = lower_range.find(sep)?;
-    let start_date = range[..idx].trim();
-    let end_date = range[idx + sep.len()..].trim();
+    let (start_date, end_date) = if let Some(idx) = lower_range.find(sep) {
+        (range[..idx].trim(), range[idx + sep.len()..].trim())
+    } else {
+        (range, range)
+    };
     if !is_iso_date_literal(start_date) || !is_iso_date_literal(end_date) {
         return None;
     }
     Some((start_date.to_string(), end_date.to_string()))
+}
+
+fn parse_gantt_scale_directive(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let value = lower
+        .strip_prefix("printscale ")
+        .or_else(|| lower.strip_prefix("scale "))?
+        .trim();
+    let normalized = match value {
+        "daily" | "day" | "days" => "daily",
+        "weekly" | "week" | "weeks" => "weekly",
+        "monthly" | "month" | "months" => "monthly",
+        "quarterly" | "quarter" | "quarters" => "quarterly",
+        "yearly" | "year" | "years" => "yearly",
+        _ => return None,
+    };
+    Some(normalized.to_string())
 }
 
 fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
@@ -6195,7 +6509,11 @@ fn extract_gantt_resources(rest: &str) -> (String, Vec<String>) {
         };
         let end = cursor + 1 + end_rel;
         let resource = rest[cursor + 1..end].trim();
-        if !resource.is_empty() {
+        for resource in resource
+            .split(',')
+            .map(str::trim)
+            .filter(|resource| !resource.is_empty())
+        {
             resources.push(resource.to_string());
         }
         cursor = end + 1;
@@ -6737,6 +7055,14 @@ fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
 
 fn parse_timing_event(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
+    if let Some((start, end, label)) = parse_timing_highlight(trimmed) {
+        return Some(StatementKind::TimingEvent {
+            time: start,
+            signal: None,
+            state: None,
+            note: Some(format!("range:{end}:{label}")),
+        });
+    }
     // `@<time>` standalone, or `<signal> is <state>` or `@<time> <signal> is <state>`
     if let Some(rest) = trimmed.strip_prefix('@') {
         let rest = rest.trim();
@@ -6759,6 +7085,14 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
                 signal: None,
                 state: None,
                 note: None,
+            });
+        }
+        if let Some((end, label)) = parse_timing_range_after_time(after) {
+            return Some(StatementKind::TimingEvent {
+                time,
+                signal: None,
+                state: None,
+                note: Some(format!("range:{end}:{label}")),
             });
         }
         // after may contain "signal is state"
@@ -6788,11 +7122,54 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
     None
 }
 
+fn parse_timing_range_after_time(after: &str) -> Option<(String, String)> {
+    let rest = after.trim().strip_prefix("<->")?.trim();
+    let rest = rest.strip_prefix('@').unwrap_or(rest).trim();
+    let (end, label) = rest
+        .split_once(':')
+        .map(|(e, l)| (e.trim(), l.trim()))
+        .unwrap_or((rest, ""));
+    if end.is_empty() {
+        return None;
+    }
+    Some((end.to_string(), label.trim_matches('"').to_string()))
+}
+
+fn parse_timing_highlight(line: &str) -> Option<(String, String, String)> {
+    let rest = line.strip_prefix("highlight ")?.trim();
+    let lower = rest.to_ascii_lowercase();
+    let idx = lower.find(" to ")?;
+    let start = rest[..idx].trim().trim_start_matches('@');
+    let after = rest[idx + " to ".len()..].trim();
+    let (end_part, label) = after
+        .split_once(':')
+        .map(|(e, l)| (e.trim(), l.trim()))
+        .unwrap_or((after, ""));
+    let end = end_part
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .trim_start_matches('@');
+    if start.is_empty() || end.is_empty() {
+        return None;
+    }
+    let label = if label.is_empty() {
+        "highlight".to_string()
+    } else {
+        label.trim_matches('"').to_string()
+    };
+    Some((start.to_string(), end.to_string(), label))
+}
+
 fn split_is(s: &str) -> Option<(String, String)> {
     let needle = " is ";
     let idx = s.find(needle)?;
     let lhs = s[..idx].trim();
-    let rhs = s[idx + needle.len()..].trim().trim_matches('"');
+    let rhs = s[idx + needle.len()..]
+        .trim()
+        .trim_matches('"')
+        .trim_matches('{')
+        .trim_matches('}');
     if lhs.is_empty() || rhs.is_empty() {
         return None;
     }
@@ -9189,6 +9566,43 @@ mod tests {
     }
 
     #[test]
+    fn preprocessor_foreach_binds_map_pairs_and_array_indices() {
+        let doc = parse_with_options(
+            "@startuml\n!$cfg = { \"name\": \"Ada\", \"role\": \"core\" }\n!foreach $key, $value in $cfg\nA -> B : $key=$value\n!endfor\n!foreach $idx, $color in [\"red\",\"blue\"]\nA -> B : $idx:$color\n!endfor\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        let labels = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::Message(m) => m.label.as_deref(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(labels, vec!["name=Ada", "role=core", "0:red", "1:blue"]);
+    }
+
+    #[test]
+    fn preprocessor_list_and_map_builtin_aliases_expand_inline() {
+        let doc = parse_with_options(
+            "@startuml\n!$list = %list_insert([\"a\",\"c\"], 1, \"b\")\n!$map = %map(\"name\", \"Ada\", \"role\", \"core\")\nA -> B : %join(%list_reverse($list), \"\")/%list_indexof($list, \"b\")/%first($list)/%last($list)\nA -> B : %json_type(%str2json($map))/%get_json_type($map)/%map_entries($map)\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        let labels = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::Message(m) => m.label.as_deref(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(labels[0], "cba/1/a/c");
+        assert!(labels[1].starts_with("object/object/[[\"name\",\"Ada\"],[\"role\",\"core\"]]"));
+    }
+
+    #[test]
     fn while_requires_balancing() {
         let err = parse_with_options("!endwhile\n", &ParseOptions::default()).unwrap_err();
         assert!(err.message.contains("E_PREPROC_WHILE_UNEXPECTED"));
@@ -9587,6 +10001,45 @@ mod tests {
                 assert_eq!(rel.from, "API");
                 assert_eq!(rel.to, "Orders");
                 assert_eq!(rel.label.as_deref(), Some("provides"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_scoped_core_uml_relations_and_lollipop_endpoints() {
+        let doc = parse_with_options(
+            "@startuml\npackage Domain {\n  namespace Core {\n    class Api\n    class Repo\n    Api \"1\" -[#green,dashed]-> \"0..*\" Repo : owns\n  }\n}\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::ClassGroup {
+                members, relations, ..
+            } => {
+                assert!(members.iter().any(|m| m == "Domain::Core::Api"));
+                assert_eq!(relations.len(), 1);
+                assert_eq!(relations[0].from, "Domain::Core::Api");
+                assert_eq!(relations[0].to, "Domain::Core::Repo");
+                assert_eq!(relations[0].left_cardinality.as_deref(), Some("1"));
+                assert_eq!(relations[0].right_cardinality.as_deref(), Some("0..*"));
+                assert_eq!(relations[0].line_color.as_deref(), Some("#008000"));
+                assert!(relations[0].dashed);
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+
+        let component_doc = parse_with_options(
+            "@startuml\nnamespace Edge {\n  component API\n  interface Orders\n  API --() Orders : provides\n}\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &component_doc.statements[0].kind {
+            StatementKind::ClassGroup { relations, .. } => {
+                assert_eq!(relations.len(), 1);
+                assert_eq!(relations[0].from, "Edge::API");
+                assert_eq!(relations[0].to, "Edge::Orders");
+                assert!(relations[0].right_lollipop);
             }
             other => panic!("unexpected statement: {other:?}"),
         }

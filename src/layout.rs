@@ -15,6 +15,8 @@ const GROUP_HEADER_BASELINE_Y: i32 = 16;
 const GROUP_REF_BODY_BASELINE_Y: i32 = 32;
 const GROUP_BOTTOM_PADDING: i32 = 8;
 const NOTE_TEXT_WIDTH_GUARD_PX: i32 = 8;
+const METADATA_LINE_HEIGHT: i32 = 16;
+const METADATA_BLOCK_PADDING: i32 = 8;
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     let mut pages = layout_pages(document, options);
@@ -73,9 +75,15 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
 
     let title_max_width = (max_participant_right - (options.margin * 2)).max(200);
     let title_max_chars = (title_max_width / 9).max(1) as usize;
-    let title = document.title.as_ref().map(|text| Label {
+    let header = document.header.as_ref().map(|text| Label {
         x: options.margin,
         y: options.margin,
+        lines: normalize_label_lines(text, title_max_chars, options.text_overflow_policy),
+    });
+    let header_block_height = metadata_label_block_height(header.as_ref());
+    let title = document.title.as_ref().map(|text| Label {
+        x: options.margin,
+        y: options.margin + header_block_height,
         lines: normalize_label_lines(text, title_max_chars, options.text_overflow_policy),
     });
 
@@ -85,7 +93,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         0
     };
 
-    let participant_top = options.margin + title_block_height;
+    let participant_top = options.margin + header_block_height + title_block_height;
     for p in &mut participants {
         p.y = participant_top;
     }
@@ -462,17 +470,47 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         }
     }
 
+    let lower_metadata_max_chars = title_max_chars;
+    let caption_lines = document.caption.as_ref().map(|text| {
+        normalize_label_lines(text, lower_metadata_max_chars, options.text_overflow_policy)
+    });
+    let footer_lines = document.footer.as_ref().map(|text| {
+        normalize_label_lines(text, lower_metadata_max_chars, options.text_overflow_policy)
+    });
+    let lower_metadata_height = metadata_lines_block_height(caption_lines.as_ref())
+        + metadata_lines_block_height(footer_lines.as_ref());
+
     let min_bottom = if footboxes.is_empty() {
         lifeline_end + options.footer_height
     } else {
         lifeline_end + participant_height
     };
-    let height = (min_bottom + options.margin).max(participant_top + participant_height + 80);
+    let height = (min_bottom + lower_metadata_height + options.margin)
+        .max(participant_top + participant_height + 80);
+
+    let mut lower_metadata_y = min_bottom + METADATA_LINE_HEIGHT;
+    let caption = caption_lines.map(|lines| {
+        let label = Label {
+            x: options.margin,
+            y: lower_metadata_y,
+            lines,
+        };
+        lower_metadata_y += metadata_label_block_height(Some(&label));
+        label
+    });
+    let footer = footer_lines.map(|lines| Label {
+        x: options.margin,
+        y: lower_metadata_y,
+        lines,
+    });
 
     Scene {
         width,
         height,
+        header,
         title,
+        caption,
+        footer,
         participants,
         footboxes,
         lifelines,
@@ -488,6 +526,18 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         legend_halign: document.legend_halign,
         legend_valign: document.legend_valign,
     }
+}
+
+fn metadata_label_block_height(label: Option<&Label>) -> i32 {
+    label
+        .map(|label| metadata_lines_block_height(Some(&label.lines)))
+        .unwrap_or(0)
+}
+
+fn metadata_lines_block_height(lines: Option<&Vec<String>>) -> i32 {
+    lines
+        .map(|lines| (lines.len() as i32 * METADATA_LINE_HEIGHT) + METADATA_BLOCK_PADDING)
+        .unwrap_or(0)
 }
 
 #[derive(Debug, Clone)]

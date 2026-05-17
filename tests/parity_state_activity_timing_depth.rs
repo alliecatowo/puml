@@ -125,3 +125,30 @@ FLAG is low
     assert!(svg.contains("CLK"));
     assert!(svg.contains("<polyline"));
 }
+
+#[test]
+fn timing_relative_times_ranges_highlights_and_braced_states_render() {
+    let src = r#"@startuml
+title Timing range semantics
+concise PHASE
+binary FLAG
+@0
+PHASE is {Queued}
+FLAG is off
+@+5
+PHASE is {Running}
+FLAG is on
+@5 <-> @12 : active window
+highlight 12 to 18 : cooldown
+@18 FLAG is low
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("timing render should succeed");
+
+    assert!(svg.contains("Queued"));
+    assert!(svg.contains("Running"));
+    assert!(svg.contains("@5"));
+    assert!(svg.contains("class=\"timing-range\""));
+    assert!(svg.contains("active window"));
+    assert!(svg.contains("cooldown"));
+}

@@ -285,7 +285,7 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 
 | Area | Status | Notes |
 |---|---|---|
-| Sequence diagrams (`@startuml`) | Supported | End-to-end parser/normalize/layout/render path with full parity for participants, arrows, notes, groups, lifecycle, metadata, and skinparam subset. |
+| Sequence diagrams (`@startuml`) | Supported | End-to-end parser/normalize/layout/render path with broad participant, arrow, note, group, lifecycle, metadata, participant-order, and skinparam-subset support; advanced PlantUML/teoz breadth remains tracked in the audit table. |
 | Class diagrams | Supported | Declarations, relations, fields/methods, visibility, stereotypes, packages/namespaces, notes, generics, association classes, lollipop notation, hide/show. |
 | Object diagrams | Supported | Object instance nodes, field-value lists, map/associative-array forms, and object links. |
 | Use-case diagrams | Supported | Actor declarations/styles, parenthesized `usecase (Name) as Alias`, use-case descriptions, packages/boundaries, include/extend/generalization semantics, notes, stereotypes, and direction controls. |
@@ -293,22 +293,22 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | Deployment diagrams | Supported | `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations, links, and nesting. |
 | State diagrams | Supported | `state` declarations, `[*]` initial/final markers, transitions with guards, composite/history/fork-join forms. |
 | Activity diagrams (new style) | Supported | `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `backward`, `partition`/swimlane constructs. |
-| Timing diagrams | Supported | `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>` instants, and `signal is state` transitions. |
+| Timing diagrams | Supported | `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>`/relative instants, `signal is state` transitions, and range/highlight bands. |
 | Salt / wireframe (`@startsalt`) | Supported | Widget/grid/menu/tab/tree/table primitives, nested structures, scrolling markers, and metadata blocks. |
 | MindMap (`@startmindmap`) | Supported | Hierarchical OrgMode-style tree, directional controls, boxless markers, color/style hooks, deterministic layout. |
 | WBS (`@startwbs`) | Supported | Work-breakdown structure trees with orientation, style, and deterministic geometry. |
-| Gantt (`@startgantt`) | Supported | Task/milestone declarations, starts/ends/requires constraints, project date axis, closed weekday calendar notes, resource lanes, deterministic SVG timeline. |
+| Gantt (`@startgantt`) | Supported | Task/milestone declarations, starts/ends/requires constraints, project start/end date-axis markers, daily/weekly/monthly scale hints, closed weekday/date calendar notes, resource lanes, deterministic SVG timeline. |
 | Chronology (`@startchronology`) | Supported | `happens on` event statements, timestamp placement, deterministic timeline render. |
 | JSON family (`@startjson`) | Supported | Parses body as JSON via `serde_json`; flattens object/array/value tree into deterministic indented SVG node tree (falls back to raw line list on parse error). |
 | YAML family (`@startyaml`) | Supported | Indentation-based two-space mapping/sequence tree; rendered as a deterministic indented SVG node tree. |
-| nwdiag (`@startnwdiag`) | Supported | `network` blocks with `address` and `Node [address = "..."]` entries; horizontal swimlanes per network with deterministic node ordering. |
-| Archimate (`@startarchimate`) | Supported | `archimate "Name" as alias <<layer>>` declarations, relation macros (`Rel_Association`, `Rel_Realization`, `Rel_Serving`, `Rel_Composition`, `Rel_Aggregation`, `Rel_Used_By`, `Rel_Flow`), layered strategy/business/application/technology/motivation swimlanes. |
+| nwdiag (`@startnwdiag`) | Supported | `network` and `group` blocks with address/color/label attributes; horizontal swimlanes plus group membership sections with deterministic node ordering. |
+| Archimate (`@startarchimate`) | Supported | `archimate "Name" as alias <<layer>>` declarations, stdlib element/junction macros, relation macros with direction/style suffixes, and layered strategy/business/application/technology/motivation/junction swimlanes. |
 | Regex diagrams (`@startregex`) | Supported | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, `\|`, `(...)`, `\d`, `.`, anchors) into a deterministic railroad-style SVG; unsupported quantifiers emit deterministic warnings. |
 | EBNF diagrams (`@startebnf`) | Supported | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, `*`, `+`, `?` into a deterministic railroad SVG. |
 | Math / LaTeX (`@startmath` / `@startlatex`) | Supported | Best-effort LaTeX SVG renderer: handles `\sum`, `\int`, `\prod`, `\frac{a}{b}`, `\sqrt{x}`, Greek letters (`\alpha`…`\omega`, `\infty`), sub/sup scripts via tspan baseline shifts and nested scaling. |
 | SDL diagrams (`@startsdl`) | Supported | Parses `state Name` declarations and `from -> to : signal` transitions; renders SDL-style rounded-corner rectangles with labeled arrow transitions in a 2-column grid. |
 | Ditaa diagrams (`@startditaa`) | Supported | Corner-detection parser finds `+...+` rectangles from the ASCII grid, renders them as SVG `<rect>` with extracted inner text, and converts `--->` connector runs to SVG lines with arrowheads. |
-| Chart diagrams (`@startchart`) | Supported | Parses `bar`/`line`/`pie` subtype plus `"label" value` rows; renders bar columns, line plots, or labeled pie slices with deterministic palette colors. |
+| Chart diagrams (`@startchart`) | Supported | Parses bar/column/line/pie plus selected area/scatter forms, label/value and colon-delimited points, palette/caption/annotation hooks, v-axis tick-step metadata, and legend positioning; full axis/legend/style parity remains partial. |
 
 ### Sequence Diagram Primitives
 
