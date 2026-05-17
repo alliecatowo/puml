@@ -17,6 +17,7 @@ pub use model::{
     FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
     SequenceDocument, SequencePage, StateDocument, TimelineDocument,
 };
+pub use render::TextOutputMode;
 
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
@@ -208,6 +209,25 @@ pub fn render_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
     let document = parse(source)?;
     let family = map_ast_kind_to_family(document.kind);
     render_document_for_family(document, family)
+}
+
+pub fn render_source_to_text(source: &str, mode: TextOutputMode) -> Result<String, Diagnostic> {
+    let pages = render_source_to_texts(source, mode)?;
+    if pages.len() > 1 {
+        return Err(Diagnostic::error(
+            "multiple pages detected; use render_source_to_texts or --multi",
+        ));
+    }
+    Ok(pages.into_iter().next().unwrap_or_default())
+}
+
+pub fn render_source_to_texts(
+    source: &str,
+    mode: TextOutputMode,
+) -> Result<Vec<String>, Diagnostic> {
+    let document = parse(source)?;
+    let model = normalize_family(document)?;
+    Ok(render::render_text_pages(&model, mode))
 }
 
 pub fn render_source_to_svg_for_family(

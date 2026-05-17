@@ -22,11 +22,12 @@ use puml::source::Span;
 use puml::{
     extract_markdown_diagrams, normalize_family, render, specialized, CompatMode, DeterminismMode,
     Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument,
-    ParsePipelineOptions,
+    ParsePipelineOptions, TextOutputMode,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
+use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -41,7 +42,10 @@ const EXIT_INTERNAL: u8 = 3;
 #[derive(Debug, Serialize)]
 struct MultiSvgOut {
     name: String,
-    svg: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    svg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -82,7 +86,7 @@ struct InputDiagram {
 #[derive(Debug, Clone)]
 struct RenderedOutput {
     name_hint: Option<String>,
-    svg: String,
+    content: String,
 }
 
 #[derive(Debug, Clone)]
@@ -144,7 +148,7 @@ struct LintFileAccumulator {
 }
 
 fn main() -> ExitCode {
-    let cli = match Cli::try_parse() {
+    let cli = match Cli::try_parse_from(expand_plantuml_text_format_args(std::env::args_os())) {
         Ok(cli) => cli,
         Err(err) => {
             let code = if err.use_stderr() {
@@ -166,6 +170,31 @@ fn main() -> ExitCode {
             ExitCode::from(code)
         }
     }
+}
+
+fn expand_plantuml_text_format_args<I>(args: I) -> Vec<OsString>
+where
+    I: IntoIterator<Item = OsString>,
+{
+    let mut expanded = Vec::new();
+    for arg in args {
+        match arg.to_str() {
+            Some("-txt") => {
+                expanded.push(OsString::from("--format"));
+                expanded.push(OsString::from("txt"));
+            }
+            Some("-atxt") => {
+                expanded.push(OsString::from("--format"));
+                expanded.push(OsString::from("atxt"));
+            }
+            Some("-utxt") => {
+                expanded.push(OsString::from("--format"));
+                expanded.push(OsString::from("utxt"));
+            }
+            _ => expanded.push(arg),
+        }
+    }
+    expanded
 }
 
 fn run(mut cli: Cli) -> Result<(), (u8, String)> {
@@ -365,15 +394,17 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
 
     let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
         // Short-circuit for specialized families (math, ditaa, etc.)
-        if let Some(result) = specialized::try_render_specialized(&source.source) {
-            let svg = result
-                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-            let name_hint = source
-                .output_name_hint
-                .as_ref()
-                .map(|base| format!("{base}.svg"));
-            all.push(RenderedOutput { name_hint, svg });
-            return Ok(all);
+        if cli.format.uses_svg_renderer() {
+            if let Some(result) = specialized::try_render_specialized(&source.source) {
+                let content = result
+                    .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+                let name_hint = source
+                    .output_name_hint
+                    .as_ref()
+                    .map(|base| format!("{base}.{}", output_extension(cli.format)));
+                all.push(RenderedOutput { name_hint, content });
+                return Ok(all);
+            }
         }
         let doc = parse_for_cli(
             &source.source,
@@ -388,9 +419,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         let model = normalize_family(doc)
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
         emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
-        let pages = render_pages_from_model(&model);
+        let pages = render_pages_from_model(&model, cli.format);
         let page_count = pages.len();
-        for (page_idx, svg) in pages.into_iter().enumerate() {
+        for (page_idx, content) in pages.into_iter().enumerate() {
             let name_hint = source.output_name_hint.as_ref().map(|base| {
                 if page_count == 1 {
                     format!("{base}.{}", output_extension(cli.format))
@@ -398,7 +429,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     format!("{base}-{}.{}", page_idx + 1, output_extension(cli.format))
                 }
             });
-            all.push(RenderedOutput { name_hint, svg });
+            all.push(RenderedOutput { name_hint, content });
         }
         Ok::<_, (u8, String)>(all)
     })?;
@@ -422,11 +453,19 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             .iter()
             .enumerate()
             .map(|(idx, out)| MultiSvgOut {
-                name: out
-                    .name_hint
-                    .clone()
-                    .unwrap_or_else(|| format!("diagram-{}.svg", idx + 1)),
-                svg: out.svg.clone(),
+                name: out.name_hint.clone().unwrap_or_else(|| {
+                    format!("diagram-{}.{}", idx + 1, output_extension(cli.format))
+                }),
+                svg: if cli.format == OutputFormat::Svg {
+                    Some(out.content.clone())
+                } else {
+                    None
+                },
+                text: if cli.format.is_text() {
+                    Some(out.content.clone())
+                } else {
+                    None
+                },
             })
             .collect::<Vec<_>>();
 
@@ -471,12 +510,15 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     if outputs.len() == 1 {
         match cli.format {
             OutputFormat::Svg => {
-                println!("{}", outputs[0].svg);
+                println!("{}", outputs[0].content);
             }
             OutputFormat::Png => {
                 io::stdout()
                     .write_all(&binary_outputs[0].bytes)
                     .map_err(|e| (EXIT_IO, format!("failed to write PNG to stdout: {e}")))?;
+            }
+            OutputFormat::Txt | OutputFormat::Atxt | OutputFormat::Utxt => {
+                print!("{}", outputs[0].content);
             }
         }
         return Ok(());
@@ -874,7 +916,14 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
     }
 }
 
-fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
+fn render_pages_from_model(model: &NormalizedDocument, format: OutputFormat) -> Vec<String> {
+    match format.text_mode() {
+        Some(mode) => render::render_text_pages(model, mode),
+        None => render_svg_pages_from_model(model),
+    }
+}
+
+fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
     match model {
         NormalizedDocument::Sequence(sequence) => {
             let scenes = layout::layout_pages(sequence, LayoutOptions::default());
@@ -1347,6 +1396,28 @@ fn output_extension(format: OutputFormat) -> &'static str {
     match format {
         OutputFormat::Svg => "svg",
         OutputFormat::Png => "png",
+        OutputFormat::Txt => "txt",
+        OutputFormat::Atxt => "atxt",
+        OutputFormat::Utxt => "utxt",
+    }
+}
+
+impl OutputFormat {
+    fn uses_svg_renderer(self) -> bool {
+        matches!(self, Self::Svg | Self::Png)
+    }
+
+    fn is_text(self) -> bool {
+        self.text_mode().is_some()
+    }
+
+    fn text_mode(self) -> Option<TextOutputMode> {
+        match self {
+            Self::Svg | Self::Png => None,
+            Self::Txt => Some(TextOutputMode::Txt),
+            Self::Atxt => Some(TextOutputMode::Atxt),
+            Self::Utxt => Some(TextOutputMode::Utxt),
+        }
     }
 }
 
@@ -1356,8 +1427,10 @@ fn render_output_bytes(
     dpi: f32,
 ) -> Result<RenderedBinaryOutput, (u8, String)> {
     let bytes = match format {
-        OutputFormat::Svg => output.svg.as_bytes().to_vec(),
-        OutputFormat::Png => svg_to_png_bytes(&output.svg, dpi)?,
+        OutputFormat::Svg | OutputFormat::Txt | OutputFormat::Atxt | OutputFormat::Utxt => {
+            output.content.as_bytes().to_vec()
+        }
+        OutputFormat::Png => svg_to_png_bytes(&output.content, dpi)?,
     };
     Ok(RenderedBinaryOutput {
         name_hint: output.name_hint.clone(),

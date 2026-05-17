@@ -5,7 +5,7 @@ use predicates::prelude::*;
 use puml::model::SequenceEventKind;
 use puml::normalize;
 use puml::parser::parse;
-use puml::render_source_to_svg;
+use puml::{render_source_to_svg, render_source_to_text, TextOutputMode};
 use serde_json::Value;
 use std::fs;
 use tempfile::tempdir;
@@ -90,6 +90,93 @@ fn png_output_scales_dimensions_by_dpi() {
     let bytes = fs::read(&output).unwrap();
     let image = image::load_from_memory(&bytes).expect("png should decode");
     assert_eq!(image.dimensions(), (656, 320));
+}
+
+#[test]
+fn txt_output_writes_structural_text_to_stdout() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "txt", "-"])
+        .write_stdin("@startuml\nAlice -> Bob: hi\n@enduml\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("sequence\nparticipants (2)"))
+        .stdout(predicate::str::contains("Alice -> Bob: hi"));
+}
+
+#[test]
+fn plantuml_style_txt_alias_writes_default_txt_file() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single_valid.puml");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-txt", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let output = tmp.path().join("single_valid.txt");
+    assert!(output.exists());
+    let actual = fs::read_to_string(output).unwrap();
+    assert!(actual.contains("Alice -> Bob: hi"));
+}
+
+#[test]
+fn utxt_output_preserves_unicode_tree_markers_and_text() {
+    let actual = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "utxt", "-"])
+        .write_stdin("@startuml\nclass Café\nclass Té\nCafé --> Té : crème\n@enduml\n")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let actual = String::from_utf8(actual).unwrap();
+    assert!(actual.contains("├─ Class Café"));
+    assert!(actual.contains("Café --> Té: crème"));
+}
+
+#[test]
+fn plantuml_style_utxt_alias_writes_unicode_text_to_stdout() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-utxt", "-"])
+        .write_stdin("@startuml\nclass Café\n@enduml\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("└─ Class Café"));
+}
+
+#[test]
+fn txt_multi_stdin_outputs_text_payloads_with_txt_names() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "txt", "--multi", "-"])
+        .write_stdin(fs::read_to_string(fixture("structure/newpage_stdin_contract.puml")).unwrap())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected array output");
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["name"], "diagram-1.txt");
+    assert!(arr[0]["text"].as_str().unwrap().contains("page one"));
+    assert!(arr[0].get("svg").is_none());
+}
+
+#[test]
+fn render_source_to_text_api_supports_family_models() {
+    let src = include_str!("fixtures/families/valid_class_with_relations.puml");
+    let text = render_source_to_text(src, TextOutputMode::Txt).expect("class text render");
+    assert!(text.contains("Class orientation=TopToBottom"));
+    assert!(text.contains("Dog *-- Collar: has"));
 }
 
 #[test]

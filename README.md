@@ -99,6 +99,8 @@ Use compatibility controls when you need them:
 ```bash
 puml --dialect plantuml --compat strict --determinism strict hello.puml
 puml --format png --dpi 192 hello.puml -o hello@2x.png
+puml -txt hello.puml
+puml --format utxt hello.puml -o hello.utxt
 puml --from-markdown --check docs/examples/README.md
 puml --check --lint-glob 'docs/**/*.md' --lint-report json
 puml --no-url-includes --check hello.puml
@@ -116,8 +118,14 @@ puml --no-url-includes --check hello.puml
 | Data and text families | JSON, YAML, EBNF, regex, math/LaTeX, SDL, Ditaa, and chart renderers. |
 | Preprocessor | Deterministic support for many PlantUML preprocessor forms, includes, URL includes by default, macros, functions, loops, assertions, and stdlib imports. |
 | Frontends | PlantUML is the compatibility target; PicoUML is ours and evolving; Mermaid support exists for selected families. |
-| Outputs | Deterministic SVG by default; PNG rasterization is available through the same scene pipeline. |
+| Outputs | Deterministic SVG by default; PNG rasterization is available through the same scene pipeline. `txt`, `atxt`, and `utxt` modes emit deterministic structural text for normalized diagram models. |
 | Tool surfaces | CLI is primary; WASM and LSP integrations are emerging and kept close to the same parser/render pipeline. |
+
+### Text Output Modes
+
+PlantUML-style `-txt`, `-atxt`, and `-utxt` flags are accepted as aliases for `--format txt`, `--format atxt`, and `--format utxt`. The first version is intentionally structural rather than pixel-perfect PlantUML ASCII art: it lists metadata, participants or nodes, relations, events, and family-specific records from the normalized model. `txt` and `atxt` force ASCII-safe output for labels; `utxt` preserves Unicode labels and uses Unicode tree markers.
+
+Remaining gaps: text mode does not yet reproduce PlantUML's exact ASCII-art layout, styling is summarized only when it carries model semantics, and SVG-only specialized pre-render shortcuts are bypassed in favor of normalized structural output.
 
 For the detailed truth table, see the [PlantUML parity source of truth](docs/audits/plantuml_parity_source_of_truth.md), [frontend conformance matrix](docs/plantuml_frontend_conformance_matrix.md), and [oracle threshold notes](docs/oracle-thresholds.md).
 
