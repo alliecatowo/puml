@@ -1714,6 +1714,22 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 });
             }
             StatementKind::Unknown(line) => {
+                if family_kind == DiagramKind::Salt {
+                    let text = line.trim();
+                    if !text.is_empty() {
+                        nodes.push(FamilyNode {
+                            kind: FamilyNodeKind::Salt,
+                            name: text.to_string(),
+                            alias: None,
+                            members: Vec::new(),
+                            depth: 0,
+                            label: None,
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
+                        });
+                    }
+                    continue;
+                }
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
                     line
@@ -2863,6 +2879,37 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
             | StatementKind::Scale(_)
             | StatementKind::LegendPos(_) => {}
             StatementKind::Unknown(line) => {
+                if family_kind == DiagramKind::Activity {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    activity_step_counter += 1;
+                    if trimmed.starts_with('|') && trimmed.ends_with('|') && trimmed.len() > 2 {
+                        activity_active_partition =
+                            Some(trimmed.trim_matches('|').trim().to_string());
+                    }
+                    let lane = activity_active_partition
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string());
+                    nodes.push(FamilyNode {
+                        kind: if trimmed.starts_with('|') && trimmed.ends_with('|') {
+                            FamilyNodeKind::ActivityPartition
+                        } else {
+                            FamilyNodeKind::ActivityAction
+                        },
+                        name: format!("__act_{activity_step_counter:04}"),
+                        alias: Some(format!(
+                            "activity::OldStyle|lane={lane}|fork_depth={activity_fork_depth}|fork_branch={activity_fork_branch}"
+                        )),
+                        members: Vec::new(),
+                        depth: 0,
+                        label: Some(trimmed.to_string()),
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    });
+                    continue;
+                }
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
                     line
@@ -3786,6 +3833,7 @@ fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
         DiagramKind::Timing => ("E_FAMILY_TIMING_UNSUPPORTED", "timing"),
         DiagramKind::Gantt => ("E_FAMILY_GANTT_UNSUPPORTED", "gantt"),
         DiagramKind::Chronology => ("E_FAMILY_CHRONOLOGY_UNSUPPORTED", "chronology"),
+        DiagramKind::Salt => ("E_FAMILY_SALT_UNSUPPORTED", "salt"),
         _ => ("E_FAMILY_UNSUPPORTED", "unknown"),
     };
 

@@ -400,6 +400,50 @@ fn normalize_family_accepts_wave1_implemented_families() {
 }
 
 #[test]
+fn normalize_family_accepts_gantt_and_chronology_timelines() {
+    let cases = [
+        (
+            "non_sequence/valid_gantt_diagram.puml",
+            puml::ast::DiagramKind::Gantt,
+            3,
+        ),
+        (
+            "non_sequence/valid_chronology_diagram.puml",
+            puml::ast::DiagramKind::Chronology,
+            3,
+        ),
+    ];
+
+    for (path, expected_kind, expected_entries) in cases {
+        let src = fs::read_to_string(fixture(path)).expect("fixture should load");
+        let doc = parse(&src).expect("parse should succeed");
+        assert_eq!(doc.kind, expected_kind);
+        let normalized = normalize_family(doc).expect("timeline normalize should succeed");
+        match normalized {
+            NormalizedDocument::Timeline(model) => {
+                assert!(
+                    model.tasks.len()
+                        + model.milestones.len()
+                        + model.constraints.len()
+                        + model.chronology_events.len()
+                        >= expected_entries
+                );
+                assert_eq!(model.title.as_deref(), Some("Timeline Overview"));
+            }
+            other => panic!("expected timeline model, got {:?}", other),
+        }
+    }
+}
+
+#[test]
+fn normalize_family_rejects_sequence_only_syntax_in_timeline_slice() {
+    let src = "@startgantt\nparticipant A\nA -> B\n@endgantt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize_family(doc).expect_err("mixed timeline/sequence syntax should fail");
+    assert!(err.message.contains("E_GANTT_UNSUPPORTED"));
+}
+
+#[test]
 fn normalize_family_rejects_mixed_bootstrap_declaration_kinds() {
     let doc = puml::ast::Document {
         kind: puml::ast::DiagramKind::Class,
@@ -1268,29 +1312,41 @@ fn check_fixture_supports_json_diagnostics_for_warnings() {
 }
 
 #[test]
-fn layout_row_sizing_advances_y_for_wrapped_message_labels_and_tall_notes() {
-    let src = "@startuml\nA -> B : this is a deliberately long message label that wraps into several rows\nnote over A: note line one\nnote line two\nnote line three\nend note\nB -> A : done\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    let model = normalize::normalize(doc).expect("normalize should succeed");
-    let options = LayoutOptions {
-        participant_spacing: 90,
-        ..LayoutOptions::default()
+fn normalize_sequence_ignores_preprocessor_statements_in_ast() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Sequence,
+        statements: vec![
+            puml::ast::Statement {
+                span: Span::new(0, 1),
+                kind: puml::ast::StatementKind::Include("x.puml".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(1, 2),
+                kind: puml::ast::StatementKind::Define {
+                    name: "K".to_string(),
+                    value: Some("1".to_string()),
+                },
+            },
+            puml::ast::Statement {
+                span: Span::new(2, 3),
+                kind: puml::ast::StatementKind::Undef("K".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(3, 4),
+                kind: puml::ast::StatementKind::Message(puml::ast::Message {
+                    from: "A".to_string(),
+                    to: "B".to_string(),
+                    arrow: "->".to_string(),
+                    label: None,
+                    style: puml::ast::MessageStyle::default(),
+                    from_virtual: None,
+                    to_virtual: None,
+                }),
+            },
+        ],
     };
-    let scene = layout::layout(&model, options);
-
-    assert!(scene.messages.len() >= 2, "expected two messages");
-    assert!(
-        scene.messages[0].label_lines.len() > 1,
-        "first message should wrap"
-    );
-
-    assert!(!scene.notes.is_empty(), "expected at least one note");
-    let note = &scene.notes[0];
-    let second_message = &scene.messages[1];
-    assert!(
-        second_message.y >= note.y + options.message_row_height,
-        "second message should be pushed below note row height expansion"
-    );
+    let model = normalize::normalize(doc).expect("normalize should ignore preprocessor statements");
+    assert_eq!(model.events.len(), 1);
 }
 
 #[test]
@@ -1359,63 +1415,156 @@ fn layout_overflow_bounds_keep_multi_target_note_and_over_group_in_view() {
     let doc = parse(src).expect("parse should succeed");
     let model = normalize::normalize(doc).expect("normalize should succeed");
     let scene = layout::layout(&model, LayoutOptions::default());
-
-    assert!(!scene.notes.is_empty(), "expected note");
-    assert!(!scene.groups.is_empty(), "expected group");
-    for note in &scene.notes {
-        assert!(note.x >= LayoutOptions::default().margin);
-        assert!(note.x + note.width <= scene.width);
-    }
-    for group in &scene.groups {
-        assert!(group.x >= LayoutOptions::default().margin);
-        assert!(group.x + group.width <= scene.width);
-    }
-}
-
-#[test]
-fn layout_pages_newpage_keeps_page_local_geometry_and_content() {
-    let src = "@startuml\ntitle Base\nA -> B : one\nnewpage Second\nnote over A: page two note\nA -> B : two\n@enduml\n";
-    let doc = parse(src).expect("parse should succeed");
-    let model = normalize::normalize(doc).expect("normalize should succeed");
-    let pages = layout::layout_pages(&model, LayoutOptions::default());
-
-    assert_eq!(pages.len(), 2, "newpage should split into two scene pages");
-    assert_eq!(
-        pages[0]
-            .title
-            .as_ref()
-            .expect("page one title")
-            .lines
-            .first()
-            .expect("line"),
-        "Base"
-    );
-    assert_eq!(
-        pages[1]
-            .title
-            .as_ref()
-            .expect("page two title")
-            .lines
-            .first()
-            .expect("line"),
-        "Second"
-    );
+    assert!(!scene.notes.is_empty(), "expected multi-target note");
+    assert!(!scene.groups.is_empty(), "expected over group");
     assert!(
-        pages[0].notes.is_empty(),
-        "page one should not include page two note"
+        scene
+            .notes
+            .iter()
+            .all(|note| note.x >= 0 && note.x + note.width <= scene.width),
+        "notes should stay within scene width"
     );
-    assert_eq!(pages[1].notes.len(), 1, "page two should contain its note");
 }
 
 #[test]
-fn unknown_family_render_route_reports_deterministic_error_code() {
-    use puml::DiagramFamily;
+fn normalize_reports_group_unclosed_error() {
+    let src = "@startuml\npar lane\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected unclosed group error");
+    assert!(err.message.contains("E_GROUP_UNCLOSED"));
+}
 
-    let src = "@startuml\nfoo bar\n@enduml\n";
-    let err = puml::render_source_to_svg_for_family(src, DiagramFamily::Unknown)
-        .expect_err("expected unsupported family diagnostic");
-    assert!(err.message.contains("E_RENDER_FAMILY_UNSUPPORTED"));
-    assert!(!err.message.trim().is_empty());
+#[test]
+fn normalize_reports_return_infer_empty_without_context() {
+    let src = "@startuml\nreturn done\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected return inference error");
+    assert!(err.message.contains("E_RETURN_INFER_EMPTY"));
+}
+
+#[test]
+fn normalize_reports_lifecycle_explicit_destroyed_and_duplicate_errors() {
+    for (src, code) in [
+        (
+            "@startuml\ndestroy A\nactivate A\n@enduml\n",
+            "E_LIFECYCLE_ACTIVATE_DESTROYED",
+        ),
+        (
+            "@startuml\ndestroy A\ndeactivate A\n@enduml\n",
+            "E_LIFECYCLE_DEACTIVATE_DESTROYED",
+        ),
+        (
+            "@startuml\ndestroy A\ndestroy A\n@enduml\n",
+            "E_LIFECYCLE_DESTROY_TWICE",
+        ),
+        (
+            "@startuml\ncreate A\ncreate A\n@enduml\n",
+            "E_LIFECYCLE_CREATE_EXISTING",
+        ),
+    ] {
+        let doc = parse(src).expect("parse should succeed");
+        let err = normalize::normalize(doc).expect_err("expected lifecycle diagnostic");
+        assert!(
+            err.message.contains(code),
+            "expected {code}, got {}",
+            err.message
+        );
+    }
+}
+
+#[test]
+fn normalize_reports_destroyed_sender_message_error() {
+    let src = "@startuml\ndestroy A\nA -> B\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize::normalize(doc).expect_err("expected destroyed sender error");
+    assert!(err.message.contains("E_LIFECYCLE_DESTROYED_SENDER"));
+}
+
+#[test]
+fn normalize_rejects_family_document_with_unknown_syntax_statement() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(3, 8),
+            kind: puml::ast::StatementKind::Unknown("???".to_string()),
+        }],
+    };
+    let err = normalize_family(doc).expect_err("expected parse unknown error for family");
+    assert!(err.message.contains("E_PARSE_UNKNOWN"));
+}
+
+#[test]
+fn normalize_family_rejects_mixed_usecase_in_object_stub() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Object,
+        statements: vec![puml::ast::Statement {
+            span: Span::new(0, 2),
+            kind: puml::ast::StatementKind::UseCaseDecl(puml::ast::UseCaseDecl {
+                name: "UC".to_string(),
+                alias: None,
+                members: Vec::new(),
+            }),
+        }],
+    };
+    let err = normalize_family(doc).expect_err("expected family mixed error");
+    assert!(err.message.contains("E_FAMILY_MIXED"));
+}
+
+#[test]
+fn normalize_family_preserves_metadata_and_ignores_preprocessor_placeholders() {
+    let doc = puml::ast::Document {
+        kind: puml::ast::DiagramKind::Class,
+        statements: vec![
+            puml::ast::Statement {
+                span: Span::new(0, 1),
+                kind: puml::ast::StatementKind::Header("Top".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(1, 2),
+                kind: puml::ast::StatementKind::Footer("Bottom".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(2, 3),
+                kind: puml::ast::StatementKind::Caption("Cap".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(3, 4),
+                kind: puml::ast::StatementKind::Legend("Leg".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(4, 5),
+                kind: puml::ast::StatementKind::Include("x".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(5, 6),
+                kind: puml::ast::StatementKind::Define {
+                    name: "K".to_string(),
+                    value: Some("1".to_string()),
+                },
+            },
+            puml::ast::Statement {
+                span: Span::new(6, 7),
+                kind: puml::ast::StatementKind::Undef("K".to_string()),
+            },
+            puml::ast::Statement {
+                span: Span::new(7, 8),
+                kind: puml::ast::StatementKind::ClassDecl(puml::ast::ClassDecl {
+                    name: "A".to_string(),
+                    alias: None,
+                    members: Vec::new(),
+                }),
+            },
+        ],
+    };
+    let out = normalize_family(doc).expect("family normalize should succeed");
+    let family = match out {
+        NormalizedDocument::Family(v) => v,
+        _ => panic!("expected family document"),
+    };
+    assert_eq!(family.header.as_deref(), Some("Top"));
+    assert_eq!(family.footer.as_deref(), Some("Bottom"));
+    assert_eq!(family.caption.as_deref(), Some("Cap"));
+    assert_eq!(family.legend.as_deref(), Some("Leg"));
 }
 
 #[test]

@@ -560,7 +560,7 @@ fn activity_family_now_passes_validation() {
         .expect("binary")
         .args([
             "--check",
-            &fixture("non_sequence/invalid_activity_diagram.puml"),
+            &fixture("non_sequence/valid_activity_oldstyle_baseline.puml"),
         ])
         .assert()
         .success();
@@ -700,6 +700,9 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "structure/valid_autonumber_format_only_and_canonical_spacing.puml",
         "structure/valid_autonumber_off_resume_edges.puml",
         "include/include_with_tag_ok.puml",
+        "include/include_many_ok.puml",
+        "include/include_once_ok.puml",
+        "include/includesub_ok.puml",
         "preprocessor/valid_if_elseif_else.puml",
         "preprocessor/valid_ifdef_ifndef.puml",
         "preprocessor/valid_while_define_counter.puml",
@@ -817,6 +820,9 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_arrow_slash_tokenization.puml",
         "errors/invalid_include_tag_missing.puml",
         "errors/invalid_include_url.puml",
+        "errors/invalid_include_once_url.puml",
+        "errors/invalid_includesub_url.puml",
+        "errors/invalid_includesub_missing_tag.puml",
         "errors/invalid_else_inside_loop_group.puml",
         "errors/invalid_group_else_without_alt.puml",
         "errors/invalid_group_mismatched_end_keyword.puml",
@@ -830,6 +836,7 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_expr_missing.puml",
         "errors/invalid_preproc_unexpected_endfunction.puml",
         "errors/invalid_preproc_while_iteration_limit.puml",
+        "errors/invalid_pragma_missing_body.puml",
         "errors/invalid_preproc_assert_missing_expr.puml",
         "errors/invalid_preproc_builtin_in_assert.puml",
         "errors/invalid_preproc_builtin_in_log.puml",
