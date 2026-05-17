@@ -30,6 +30,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          targets: wasm32-unknown-unknown
           components: rustfmt, clippy, llvm-tools-preview
 
       - name: Cache Rust build artifacts
@@ -43,6 +44,9 @@ jobs:
 
       - name: Full gate
         run: ./scripts/check-all.sh
+
+      - name: wasm check
+        run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
       - name: docs examples drift gate
         run: python3 ./scripts/parity_harness.py --quiet --fail-on-doc-drift

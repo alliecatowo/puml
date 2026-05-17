@@ -16,7 +16,15 @@ default-run = "puml"
 
 [features]
 default = ["cli"]
-cli = ["dep:clap", "dep:glob", "dep:resvg", "dep:tiny-skia", "dep:image"]
+cli = [
+    "dep:clap",
+    "dep:glob",
+    "dep:resvg",
+    "dep:tiny-skia",
+    "dep:image",
+    "url-includes",
+]
+url-includes = ["dep:ureq", "dep:sha2", "dep:hex"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -27,9 +35,9 @@ glob = { version = "0.3", optional = true }
 resvg = { version = "0.45", optional = true }
 tiny-skia = { version = "0.11", optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
-ureq = { version = "2", default-features = false, features = ["tls"] }
-sha2 = "0.10"
-hex = "0.4"
+ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
+sha2 = { version = "0.10", optional = true }
+hex = { version = "0.4", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2"

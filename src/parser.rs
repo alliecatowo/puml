@@ -7,9 +7,9 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use hex;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use sha2::{Digest, Sha256};
 
 use crate::ast::{
@@ -2100,7 +2100,10 @@ fn is_url_include_target(raw_target: &str) -> bool {
 }
 
 /// Extract the canonical URL string from a raw include target (strips quotes/angle brackets).
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(
+    not(all(not(target_arch = "wasm32"), feature = "url-includes")),
+    allow(dead_code)
+)]
 fn extract_url(raw_target: &str) -> &str {
     raw_target
         .trim()
@@ -2112,7 +2115,7 @@ fn extract_url(raw_target: &str) -> &str {
 
 /// Resolve the on-disk cache path for a URL include.
 /// Uses `~/.cache/puml/includes/<sha256-of-url>`.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 fn url_cache_path(url: &str) -> Option<std::path::PathBuf> {
     let mut hasher = Sha256::new();
     hasher.update(url.as_bytes());
@@ -2128,7 +2131,7 @@ fn url_cache_path(url: &str) -> Option<std::path::PathBuf> {
 /// Fetch a URL include, using a local disk cache keyed by SHA-256 of the URL.
 /// Returns the fetched content as a string.
 /// Handles `file://` URLs by reading from the local filesystem directly.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
     // Handle file:// URLs by stripping the scheme and reading from the local fs.
     if url.to_ascii_lowercase().starts_with("file://") {
@@ -2214,6 +2217,15 @@ fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
             )
         })
     }
+}
+
+#[cfg(not(all(not(target_arch = "wasm32"), feature = "url-includes")))]
+#[allow(dead_code)]
+fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
+    Err(Diagnostic::error_code(
+        "E_INCLUDE_URL_UNSUPPORTED",
+        format!("URL includes are not supported in this build: {url}"),
+    ))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
