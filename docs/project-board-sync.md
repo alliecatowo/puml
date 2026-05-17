@@ -34,6 +34,9 @@ Checked on 2026-05-17 with `gh api graphql` and `gh project item-list`:
   create/update/enable mutation for Project v2 workflows.
 - Status and Priority field IDs/options in `.github/workflows/project-sync.yml`
   match the live board.
+- The `Priority` field accepts `P0`, `P1`, `P2`, and `P3`; `P3` was added on
+  2026-05-17 to match the existing repository label and reduce manual board
+  cleanup for lower-priority issues.
 
 ## Usage
 
@@ -87,7 +90,7 @@ Behavior:
 - PR merged -> `Status: Done`
 - closing issues referenced by an open PR -> `Status: Merging`
 - closing issues referenced by a merged PR -> `Status: Done`
-- labels named `P0`, `P1`, or `P2` -> matching `Priority`
+- labels named `P0`, `P1`, `P2`, or `P3` -> matching `Priority`
 
 The workflow uses `secrets.PUML_PROJECT_TOKEN`. For user-owned Projects v2
 boards, a PAT with `project` scope is required in practice because repository
