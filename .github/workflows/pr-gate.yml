@@ -27,6 +27,7 @@ jobs:
       run_full_gate: ${{ steps.changes.outputs.run_full_gate }}
       docs_examples_changed: ${{ steps.changes.outputs.docs_examples_changed }}
       run_site_smoke: ${{ steps.changes.outputs.run_site_smoke }}
+      run_wasm_site_smoke: ${{ steps.changes.outputs.run_wasm_site_smoke }}
 
     steps:
       - name: Checkout
@@ -50,6 +51,7 @@ jobs:
           run_full_gate=false
           docs_examples_changed=false
           run_site_smoke=false
+          run_wasm_site_smoke=false
 
           while IFS= read -r file; do
             [[ -n "${file}" ]] || continue
@@ -63,6 +65,12 @@ jobs:
               site/*|site/**|scripts/build-site.mjs|scripts/site-smoke.sh|crates/puml-wasm/*|crates/puml-wasm/**)
                 run_full_gate=true
                 run_site_smoke=true
+                run_wasm_site_smoke=true
+                ;;
+              scripts/wasm-smoke.mjs|site/scripts/smoke-inline-fence-preview.mjs|site/static/js/inline-fence-preview.js|site/static/js/wasm-renderer.js)
+                run_full_gate=true
+                run_site_smoke=true
+                run_wasm_site_smoke=true
                 ;;
               docs/*|README.md|CONTRIBUTING.md|LICENSE|*.md)
                 run_site_smoke=true
@@ -82,6 +90,7 @@ jobs:
             echo "run_full_gate=${run_full_gate}"
             echo "docs_examples_changed=${docs_examples_changed}"
             echo "run_site_smoke=${run_site_smoke}"
+            echo "run_wasm_site_smoke=${run_wasm_site_smoke}"
           } >> "${GITHUB_OUTPUT}"
 
           echo "Changed files:"
@@ -89,6 +98,7 @@ jobs:
           echo "run_full_gate=${run_full_gate}"
           echo "docs_examples_changed=${docs_examples_changed}"
           echo "run_site_smoke=${run_site_smoke}"
+          echo "run_wasm_site_smoke=${run_wasm_site_smoke}"
 
       - name: Fast path for docs-only changes
         if: steps.changes.outputs.run_full_gate != 'true'
@@ -307,6 +317,19 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup Rust toolchain
+        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build artifacts
+        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
       - name: Install Zola
         run: |
           set -euo pipefail
@@ -318,8 +341,22 @@ jobs:
           echo "${RUNNER_TEMP}/zola" >> "${GITHUB_PATH}"
           "${RUNNER_TEMP}/zola/zola" --version
 
+      - name: Install wasm-pack
+        if: needs.changes.outputs.run_wasm_site_smoke == 'true'
+        run: |
+          set -euo pipefail
+          if ! command -v wasm-pack >/dev/null; then
+            curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+          fi
+          wasm-pack --version
+
       - name: site graph toggle smoke
-        run: ./scripts/site-smoke.sh
+        run: |
+          if [[ "${{ needs.changes.outputs.run_wasm_site_smoke }}" == "true" ]]; then
+            ./scripts/site-smoke.sh --build-wasm --require-wasm
+          else
+            ./scripts/site-smoke.sh
+          fi
 
       - name: Upload site smoke artifacts
         if: always()
