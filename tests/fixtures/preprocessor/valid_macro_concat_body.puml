@@ -1,0 +1,6 @@
+@startuml
+!procedure Emit($prefix, $suffix)
+$prefix##$suffix -> Bob : $prefix ## $suffix
+!endprocedure
+!Emit(Al, ice)
+@enduml

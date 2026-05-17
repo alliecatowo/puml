@@ -1,0 +1,4 @@
+@startuml
+!$foo = { "employees": [ { "name": "Ada", "skills": ["rust", "uml"] } ], "meta": { "count": 1 } }
+A -> B : $foo.employees[0].name|$foo.employees[0].skills[1]|$foo.meta.count
+@enduml

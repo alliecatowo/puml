@@ -7,18 +7,18 @@ use crate::ast::{
 use crate::diagnostic::Diagnostic;
 use crate::model::FamilyStyle;
 use crate::model::{
-    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartDocument, ChartPoint,
-    ChartSubtype, DitaaDocument, EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup,
-    FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyRelation as ModelFamilyRelation,
-    JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, MindMapSide,
-    NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole,
-    RegexDocument, RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState,
-    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind,
-    SequenceMessageStyle, SequencePage, StateDocument,
+    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartAxis, ChartDocument, ChartLegend,
+    ChartPoint, ChartSeries, ChartSubtype, DitaaDocument, EbnfDocument, EbnfRule, EbnfToken,
+    FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation,
+    FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign,
+    MathDocument, MindMapSide, NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode,
+    Participant, ParticipantRole, RegexDocument, RegexPattern, RegexToken, RepeatKind, ScaleSpec,
+    SdlDocument, SdlState, SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent,
+    SequenceEventKind, SequenceMessageStyle, SequencePage, StateDocument,
     StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
-    StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineConstraint,
-    TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind,
-    VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
+    StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineClosedRange,
+    TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
@@ -710,6 +710,12 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
     let (title, body) = collect_raw_body(&document);
     let mut subtype = ChartSubtype::Bar;
     let mut data = Vec::new();
+    let mut h_axis: Option<ChartAxis> = None;
+    let mut v_axis: Option<ChartAxis> = None;
+    let mut series: Vec<ChartSeries> = Vec::new();
+    let mut legend = ChartLegend::default();
+    let mut horizontal = false;
+    let mut stacked = false;
     let mut style = ChartStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut first_non_empty = true;
@@ -775,6 +781,37 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
                 }
             }
         }
+        let lower = line.to_ascii_lowercase();
+        if lower.starts_with("h-axis ") || lower == "h-axis" {
+            h_axis = Some(parse_chart_axis(line, "h-axis"));
+            continue;
+        }
+        if lower.starts_with("v-axis ") || lower == "v-axis" {
+            v_axis = Some(parse_chart_axis(line, "v-axis"));
+            continue;
+        }
+        if lower.starts_with("legend") {
+            legend = parse_chart_legend(line);
+            continue;
+        }
+        if lower == "horizontal" || lower == "horizontal true" || lower == "mode horizontal" {
+            horizontal = true;
+            continue;
+        }
+        if lower == "stacked" || lower == "stacked true" || lower == "mode stacked" {
+            stacked = true;
+            continue;
+        }
+        if lower == "horizontal stacked" || lower == "stacked horizontal" {
+            horizontal = true;
+            stacked = true;
+            continue;
+        }
+        if let Some(parsed) = parse_chart_series(line) {
+            subtype = parsed.0;
+            series.push(parsed.1);
+            continue;
+        }
         // Parse data point: "Label" value  OR  Label value
         let (label, rest) = if let Some(stripped) = line.strip_prefix('"') {
             if let Some(end) = stripped.find('"') {
@@ -808,9 +845,137 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         title,
         subtype,
         data,
+        h_axis,
+        v_axis,
+        series,
+        legend,
+        horizontal,
+        stacked,
         style,
         warnings,
     })
+}
+
+fn parse_chart_axis(line: &str, prefix: &str) -> ChartAxis {
+    let mut rest = line[prefix.len()..].trim();
+    let mut axis = ChartAxis::default();
+    if let Some((label, after)) = parse_optional_quoted_prefix(rest) {
+        axis.label = Some(label);
+        rest = after;
+    }
+    if let Some(start) = rest.find('[') {
+        if let Some(end_rel) = rest[start + 1..].find(']') {
+            let end = start + 1 + end_rel;
+            axis.categories = parse_chart_array_labels(&rest[start + 1..end]);
+            rest = rest[end + 1..].trim();
+        }
+    }
+    if let Some((left, right)) = rest.split_once("-->") {
+        axis.min = last_numeric_token(left);
+        axis.max = first_numeric_token(right);
+    } else if axis.label.is_none() && !rest.is_empty() && !rest.starts_with('[') {
+        axis.label = Some(rest.trim().trim_matches('"').to_string());
+    }
+    axis
+}
+
+fn parse_chart_legend(line: &str) -> ChartLegend {
+    let mut legend = ChartLegend {
+        visible: true,
+        ..ChartLegend::default()
+    };
+    let rest = line[6..].trim().to_ascii_lowercase();
+    if rest == "off" || rest == "false" || rest == "none" {
+        legend.visible = false;
+        return legend;
+    }
+    for token in rest.split_whitespace() {
+        match token {
+            "left" => legend.h_align = LegendHAlign::Left,
+            "center" | "centre" => legend.h_align = LegendHAlign::Center,
+            "right" => legend.h_align = LegendHAlign::Right,
+            "top" => legend.v_align = LegendVAlign::Top,
+            "bottom" => legend.v_align = LegendVAlign::Bottom,
+            _ => {}
+        }
+    }
+    legend
+}
+
+fn parse_chart_series(line: &str) -> Option<(ChartSubtype, ChartSeries)> {
+    let lower = line.to_ascii_lowercase();
+    let (subtype, rest) = if lower.starts_with("bar ") {
+        (ChartSubtype::Bar, line[3..].trim())
+    } else if lower.starts_with("line ") {
+        (ChartSubtype::Line, line[4..].trim())
+    } else {
+        return None;
+    };
+    let (name, rest) = if let Some((label, after)) = parse_optional_quoted_prefix(rest) {
+        (label, after)
+    } else {
+        let mut parts = rest.splitn(2, char::is_whitespace);
+        (
+            parts.next().unwrap_or("Series").trim().to_string(),
+            parts.next().unwrap_or("").trim(),
+        )
+    };
+    let start = rest.find('[')?;
+    let end = rest[start + 1..].find(']')? + start + 1;
+    let values = parse_chart_number_array(&rest[start + 1..end]);
+    if values.is_empty() {
+        return None;
+    }
+    let color = rest[end + 1..]
+        .split_whitespace()
+        .find(|token| token.starts_with('#') || crate::theme::css3_color_to_hex(token).is_some())
+        .map(|token| {
+            crate::theme::css3_color_to_hex(token)
+                .unwrap_or(token)
+                .to_string()
+        });
+    Some((
+        subtype,
+        ChartSeries {
+            name,
+            values,
+            color,
+        },
+    ))
+}
+
+fn parse_optional_quoted_prefix(input: &str) -> Option<(String, &str)> {
+    let stripped = input.strip_prefix('"')?;
+    let end = stripped.find('"')?;
+    Some((stripped[..end].to_string(), stripped[end + 1..].trim()))
+}
+
+fn parse_chart_array_labels(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .map(|v| v.trim().trim_matches('"').to_string())
+        .filter(|v| !v.is_empty())
+        .collect()
+}
+
+fn parse_chart_number_array(input: &str) -> Vec<f64> {
+    input
+        .split(',')
+        .filter_map(|v| v.trim().parse::<f64>().ok())
+        .collect()
+}
+
+fn first_numeric_token(input: &str) -> Option<f64> {
+    input
+        .split_whitespace()
+        .find_map(|token| token.trim_matches('"').parse::<f64>().ok())
+}
+
+fn last_numeric_token(input: &str) -> Option<f64> {
+    input
+        .split_whitespace()
+        .filter_map(|token| token.trim_matches('"').parse::<f64>().ok())
+        .next_back()
 }
 
 fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, Diagnostic> {
@@ -819,6 +984,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
     let mut constraints = Vec::new();
     let mut chronology_events = Vec::new();
     let mut closed_weekdays = Vec::new();
+    let mut closed_ranges = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -864,6 +1030,31 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             StatementKind::GanttCalendarClosed { day } => {
                 if !closed_weekdays.iter().any(|existing| existing == &day) {
                     closed_weekdays.push(day);
+                }
+            }
+            StatementKind::GanttCalendarClosedDateRange {
+                start_date,
+                end_date,
+            } => {
+                if let (Some(start_day), Some(end_day)) = (
+                    parse_iso_date_day(&start_date),
+                    parse_iso_date_day(&end_date),
+                ) {
+                    let (start_date, end_date, start_day, end_day) = if start_day <= end_day {
+                        (start_date, end_date, start_day, end_day)
+                    } else {
+                        (end_date, start_date, end_day, start_day)
+                    };
+                    if !closed_ranges.iter().any(|existing: &TimelineClosedRange| {
+                        existing.start_day == start_day && existing.end_day == end_day
+                    }) {
+                        closed_ranges.push(TimelineClosedRange {
+                            start_date,
+                            end_date,
+                            start_day,
+                            end_day,
+                        });
+                    }
                 }
             }
             StatementKind::ChronologyHappensOn { subject, when } => {
@@ -920,12 +1111,19 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             if task.start_day == 0 {
                 task.start_day = cursor;
             }
-            task.duration_days =
-                scheduled_gantt_span_days(task.start_day, task.duration_days, &closed_weekdays);
             let task_end = task.start_day.saturating_add(task.duration_days);
             if task_end > cursor {
                 cursor = task_end;
             }
+        }
+        apply_gantt_task_reference_constraints(&mut tasks, &constraints);
+        for task in &mut tasks {
+            task.duration_days = scheduled_gantt_span_days(
+                task.start_day,
+                task.duration_days,
+                &closed_weekdays,
+                &closed_ranges,
+            );
         }
     }
 
@@ -936,6 +1134,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         constraints,
         chronology_events,
         closed_weekdays,
+        closed_ranges,
         project_start,
         project_start_day,
         title,
@@ -968,15 +1167,20 @@ fn parse_iso_date_day(raw: &str) -> Option<u32> {
     u32::try_from(days).ok()
 }
 
-fn scheduled_gantt_span_days(start_day: u32, work_days: u32, closed_weekdays: &[String]) -> u32 {
-    if closed_weekdays.is_empty() {
+fn scheduled_gantt_span_days(
+    start_day: u32,
+    work_days: u32,
+    closed_weekdays: &[String],
+    closed_ranges: &[TimelineClosedRange],
+) -> u32 {
+    if closed_weekdays.is_empty() && closed_ranges.is_empty() {
         return work_days.max(1);
     }
     let mut day = start_day;
     let mut remaining = work_days.max(1);
     let mut span = 0u32;
     while remaining > 0 {
-        if !is_gantt_closed_weekday(day, closed_weekdays) {
+        if !is_gantt_closed_day(day, closed_weekdays, closed_ranges) {
             remaining -= 1;
         }
         day = day.saturating_add(1);
@@ -986,6 +1190,77 @@ fn scheduled_gantt_span_days(start_day: u32, work_days: u32, closed_weekdays: &[
         }
     }
     span.max(1)
+}
+
+fn apply_gantt_task_reference_constraints(
+    tasks: &mut [TimelineTask],
+    constraints: &[TimelineConstraint],
+) {
+    for _ in 0..tasks.len().max(1) {
+        let mut changed = false;
+        for constraint in constraints {
+            if !constraint.kind.eq_ignore_ascii_case("starts") {
+                continue;
+            }
+            let Some(subject_idx) = tasks.iter().position(|t| t.name == constraint.subject) else {
+                continue;
+            };
+            let Some((target_name, endpoint)) = parse_gantt_task_reference(&constraint.target)
+            else {
+                continue;
+            };
+            let Some(target) = tasks.iter().find(|t| t.name == target_name) else {
+                continue;
+            };
+            let next_start = match endpoint {
+                "start" => target.start_day,
+                "end" => target.start_day.saturating_add(target.duration_days),
+                _ => continue,
+            };
+            if tasks[subject_idx].start_day != next_start {
+                tasks[subject_idx].start_day = next_start;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
+fn parse_gantt_task_reference(target: &str) -> Option<(String, &'static str)> {
+    let trimmed = target.trim();
+    let name = extract_bracketed_name_from_target(trimmed)?;
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.contains("'s end") || lower.contains(" end") {
+        Some((name, "end"))
+    } else if lower.contains("'s start") || lower.contains(" start") {
+        Some((name, "start"))
+    } else {
+        Some((name, "end"))
+    }
+}
+
+fn extract_bracketed_name_from_target(target: &str) -> Option<String> {
+    let start = target.find('[')?;
+    let end = target[start + 1..].find(']')? + start + 1;
+    let name = target[start + 1..end].trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
+fn is_gantt_closed_day(
+    day: u32,
+    closed_weekdays: &[String],
+    closed_ranges: &[TimelineClosedRange],
+) -> bool {
+    is_gantt_closed_weekday(day, closed_weekdays)
+        || closed_ranges
+            .iter()
+            .any(|range| (range.start_day..=range.end_day).contains(&day))
 }
 
 fn is_gantt_closed_weekday(day: u32, closed_weekdays: &[String]) -> bool {
@@ -3240,6 +3515,7 @@ pub fn normalize_with_options(
                 events.push(SequenceEvent {
                     span: stmt.span,
                     kind: SequenceEventKind::Note {
+                        kind: n.kind,
                         position: n.position,
                         target: n.target,
                         text: n.text,
@@ -3689,6 +3965,7 @@ pub fn normalize_with_options(
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
             | StatementKind::GanttCalendarClosed { .. }
+            | StatementKind::GanttCalendarClosedDateRange { .. }
             | StatementKind::ChronologyHappensOn { .. }
             | StatementKind::ComponentDecl { .. }
             | StatementKind::ActivityStep(_)
