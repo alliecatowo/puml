@@ -7146,12 +7146,15 @@ mod tests {
         ));
         assert!(matches!(
             doc.statements[1].kind,
-            StatementKind::GanttMilestoneDecl { .. }
+            StatementKind::GanttMilestoneDecl {
+                happens_on: Some(_),
+                ..
+            }
         ));
-        assert!(matches!(
-            doc.statements[2].kind,
-            StatementKind::GanttConstraint { .. }
-        ));
+        assert!(doc
+            .statements
+            .iter()
+            .any(|stmt| matches!(stmt.kind, StatementKind::GanttConstraint { .. })));
     }
 
     #[test]

@@ -17,6 +17,27 @@ fn gantt_places_milestone_using_constraint_day_or_task_reference() {
 }
 
 #[test]
+fn gantt_renders_resource_lanes_project_date_axis_and_workload_duration() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+[Design] on {Alice} requires 2 days
+[Build] on {Bob:50%} starts 2026-05-03 and requires 1 week
+[Launch] happens on 2026-05-10
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("class=\"resource-lane\""));
+    assert!(svg.contains("Alice"));
+    assert!(svg.contains("Bob:50%"));
+    assert!(svg.contains("2026-05-01"));
+    assert!(svg.contains("Launch"));
+    assert!(
+        !svg.contains(">D+0<"),
+        "project-start diagrams should use date axis labels"
+    );
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01

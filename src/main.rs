@@ -1457,7 +1457,9 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         }
         StatementKind::StateRegionDivider => json!("StateRegionDivider"),
         StatementKind::StateHistory { deep } => json!({"StateHistory": {"deep": deep}}),
-        StatementKind::GanttTaskDecl { name, .. } => json!({"GanttTaskDecl": {"name": name}}),
+        StatementKind::GanttTaskDecl {
+            name, resources, ..
+        } => json!({"GanttTaskDecl": {"name": name, "resources": resources}}),
         StatementKind::GanttMilestoneDecl { name, happens_on } => {
             json!({"GanttMilestoneDecl": {"name": name, "happens_on": happens_on}})
         }
@@ -1696,9 +1698,9 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
         "tasks": model
             .tasks
             .iter()
-            .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days}))
+            .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days, "resources": t.resources}))
             .collect::<Vec<_>>(),
-        "milestones": model.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
+        "milestones": model.milestones.iter().map(|m| json!({"name": m.name, "happens_on": m.happens_on})).collect::<Vec<_>>(),
         "constraints": model
             .constraints
             .iter()
@@ -1709,6 +1711,8 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             .iter()
             .map(|e| json!({"subject": e.subject, "when": e.when}))
             .collect::<Vec<_>>(),
+        "project_start": model.project_start,
+        "project_start_day": model.project_start_day,
         "title": model.title,
         "header": model.header,
         "footer": model.footer,
@@ -1896,11 +1900,13 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "tasks": timeline
                     .tasks
                     .iter()
-                    .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days}))
+                    .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days, "resources": t.resources}))
                     .collect::<Vec<_>>(),
-                "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
+                "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name, "happens_on": m.happens_on})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+                "project_start": timeline.project_start,
+                "project_start_day": timeline.project_start_day,
                 "title": timeline.title,
                 "header": timeline.header,
                 "footer": timeline.footer,
