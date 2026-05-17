@@ -39,7 +39,7 @@ expression: json
       "name": "Design",
       "resource_allocations": [],
       "resources": [],
-      "start_day": 20575,
+      "start_day": 20574,
       "workload_days": 1
     },
     {
@@ -47,7 +47,7 @@ expression: json
       "name": "Build",
       "resource_allocations": [],
       "resources": [],
-      "start_day": 20576,
+      "start_day": 20575,
       "workload_days": 1
     }
   ],

@@ -1,5 +1,6 @@
 ---
 source: tests/integration.rs
+assertion_line: 3213
 expression: json
 ---
 {
@@ -62,5 +63,6 @@ expression: json
     "participant_background_color": "#f6f6f6",
     "participant_border_color": "#111"
   },
+  "teoz": false,
   "title": null
 }

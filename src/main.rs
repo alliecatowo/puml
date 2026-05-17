@@ -1668,6 +1668,7 @@ fn model_to_json(model: &SequenceDocument) -> Value {
     json!({
         "participants": model.participants.iter().map(model_participant_to_json).collect::<Vec<_>>(),
         "events": model.events.iter().map(model_event_to_json).collect::<Vec<_>>(),
+        "teoz": model.teoz,
         "title": model.title,
         "header": model.header,
         "footer": model.footer,

@@ -202,6 +202,7 @@ pub struct ArchimateElement {
     pub name: String,
     pub alias: Option<String>,
     pub layer: String,
+    pub kind: String,
     pub fill: Option<String>,
     pub stroke: Option<String>,
 }
@@ -307,6 +308,9 @@ pub struct SdlState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SdlStateKind {
     Start,
+    Input,
+    Output,
+    Decision,
     State,
     Stop,
 }
@@ -691,6 +695,7 @@ pub struct FamilyRelation {
 pub struct SequenceDocument {
     pub participants: Vec<Participant>,
     pub events: Vec<SequenceEvent>,
+    pub teoz: bool,
     pub title: Option<String>,
     pub header: Option<String>,
     pub footer: Option<String>,
@@ -714,6 +719,7 @@ impl Default for SequenceDocument {
         Self {
             participants: Vec::new(),
             events: Vec::new(),
+            teoz: false,
             title: None,
             header: None,
             footer: None,
@@ -736,6 +742,7 @@ impl Default for SequenceDocument {
 pub struct SequencePage {
     pub participants: Vec<Participant>,
     pub events: Vec<SequenceEvent>,
+    pub teoz: bool,
     pub title: Option<String>,
     pub header: Option<String>,
     pub footer: Option<String>,

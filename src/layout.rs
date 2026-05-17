@@ -17,6 +17,7 @@ const GROUP_BOTTOM_PADDING: i32 = 8;
 const NOTE_TEXT_WIDTH_GUARD_PX: i32 = 8;
 const METADATA_LINE_HEIGHT: i32 = 16;
 const METADATA_BLOCK_PADDING: i32 = 8;
+const TEOZ_ROUTE_LANE_HEIGHT: i32 = 14;
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     let mut pages = layout_pages(document, options);
@@ -109,6 +110,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let mut open_groups: Vec<usize> = Vec::new();
     let mut event_rows: i32 = 0;
     let mut autonumber = AutonumberState::default();
+    let mut teoz_route_lanes_by_row: BTreeMap<i32, i32> = BTreeMap::new();
 
     for event in &document.events {
         match &event.kind {
@@ -138,6 +140,14 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     &centers_by_id,
                     &options,
                 );
+                let route_lane = if document.teoz && is_parallel {
+                    let lane = teoz_route_lanes_by_row.entry(y).or_insert(0);
+                    *lane += 1;
+                    *lane
+                } else {
+                    0
+                };
+                let route_y = y + (route_lane * TEOZ_ROUTE_LANE_HEIGHT);
                 let label = autonumber.apply(label.clone());
                 let label_lines = message_label_lines(
                     label.as_deref(),
@@ -153,6 +163,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     to_id: to.clone(),
                     x1,
                     y,
+                    route_y,
                     x2,
                     arrow: arrow.clone(),
                     label,
@@ -161,8 +172,14 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     from_virtual: *from_virtual,
                     to_virtual: *to_virtual,
                 });
-                if !is_parallel || has_label_lines {
+                if !is_parallel {
                     event_rows += row_units;
+                } else if has_label_lines || document.teoz {
+                    let route_units = row_units_for_height(
+                        (route_y - y) + TEXT_LINE_HEIGHT,
+                        options.message_row_height,
+                    );
+                    event_rows += row_units.max(route_units);
                 }
             }
             SequenceEventKind::Return { label, from, to } => {
@@ -190,6 +207,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         to_id: to_id.clone(),
                         x1,
                         y,
+                        route_y: y,
                         x2,
                         arrow: "-->".to_string(),
                         label,

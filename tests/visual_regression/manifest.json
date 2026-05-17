@@ -102,6 +102,12 @@
       "family": "chart",
       "expected_text": [],
       "min_text_elements": 0
+    },
+    {
+      "path": "docs/examples/sdl/02_with_transitions.puml",
+      "family": "sdl",
+      "expected_text": ["Idle", "Processing", "Waiting", "Done", "request", "complete"],
+      "min_text_elements": 8
     }
   ]
 }
