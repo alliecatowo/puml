@@ -1151,6 +1151,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::JsonProjection { alias, body } => {
                 json_projections.push(crate::model::JsonProjection { alias, body });
             }
+            StatementKind::YamlProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection { alias, body });
+            }
             StatementKind::ClassDecl(decl) => {
                 if node_kind != FamilyNodeKind::Class {
                     return Err(Diagnostic::error(format!(
@@ -3052,6 +3055,7 @@ pub fn normalize_with_options(
             | StatementKind::RawBody(_)
             | StatementKind::ClassGroup { .. }
             | StatementKind::JsonProjection { .. }
+            | StatementKind::YamlProjection { .. }
             | StatementKind::SaltGridRow { .. } => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",

@@ -4580,6 +4580,52 @@ fn usecase_diagram_renders_ellipse_nodes() {
 }
 
 #[test]
+fn usecase_include_extend_dependencies_render_as_dashed_open_arrows() {
+    let src = "@startuml\nusecase Login\nusecase Authorize\nusecase Recover\nLogin ..> Authorize : <<include>>\nRecover .left.> Login : extends\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("usecase include/extend svg should render");
+    assert!(svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(svg.contains("marker-end=\"url(#arrow-open)\""));
+    assert!(svg.contains("&lt;&lt;include&gt;&gt;"));
+    assert!(svg.contains("&lt;&lt;extend&gt;&gt;"));
+}
+
+#[test]
+fn class_family_accepts_directional_and_dotted_relation_arrows() {
+    let src = "@startuml\nclass Base\nclass Impl\nclass Service\nImpl -up-|> Base\nService ..> Impl : depends\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("class directional relation svg should render");
+    assert!(svg.contains("arrow-triangle"));
+    assert!(svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(svg.contains("depends"));
+}
+
+#[test]
+fn component_relations_render_dotted_markers_and_styled_port_shape() {
+    let src = "@startuml\ncomponent API\ninterface REST\nport Adapter\nAPI ..> REST : uses\nAdapter -down-> API : plugs\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("component relation svg should render");
+    assert!(svg.contains("stroke-dasharray=\"4 4\""));
+    assert!(svg.contains("marker-end=\"url(#arrow-open)\""));
+    assert!(svg.contains("port"));
+    assert!(svg.contains("Adapter"));
+}
+
+#[test]
+fn state_transitions_accept_short_and_directional_arrows() {
+    let src = "@startuml\nstate Idle\nstate Active\nstate Closed\n[*] -> Idle\nIdle -down-> Active : open\nActive --> Closed : done\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("state directional transition svg should render");
+    assert!(svg.contains("Idle"));
+    assert!(svg.contains("Active"));
+    assert!(svg.contains("open"));
+}
+
+#[test]
+fn activity_if_then_branch_label_is_preserved() {
+    let src = "@startuml\nstart\nif (in stock?) then (yes)\n:Ship;\nelse (no)\n:Notify;\nendif\nstop\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("activity svg should render");
+    assert!(svg.contains("in stock? / yes"));
+    assert!(svg.contains("(merge) no"));
+}
+
+#[test]
 fn gantt_render_emits_horizontal_bars_and_milestone_diamond() {
     let src = fs::read_to_string(fixture("timeline/valid_gantt_render.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("gantt svg should render");
