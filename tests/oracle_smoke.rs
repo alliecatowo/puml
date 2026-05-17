@@ -11,6 +11,10 @@ fn differential_oracle_script() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/differential_oracle_smoke.py")
 }
 
+fn oracle_report_summary_script() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/oracle_report_summary.py")
+}
+
 fn repo_path(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
@@ -361,6 +365,107 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
 }
 
 // ---------------------------------------------------------------------------
+// oracle_report_summary_publishes_top_drift_families
+// ---------------------------------------------------------------------------
+
+/// The JAR-backed shell oracle writes raw comparison JSON. The publisher script
+/// must convert that into durable Markdown/JSON/static outputs with enough
+/// triage data for CI and Pages artifacts, without presenting layout drift as
+/// pixel-perfect parity evidence.
+#[test]
+fn oracle_report_summary_publishes_top_drift_families() {
+    let input = repo_path("target/oracle_report_summary_sample.json");
+    let markdown = repo_path("target/oracle_report_summary_sample.md");
+    let summary_json = repo_path("target/oracle_report_summary_sample.summary.json");
+    let pages_dir = repo_path("target/oracle-report-summary-pages");
+
+    let sample = serde_json::json!({
+        "schema_version": "1.0",
+        "timestamp": "2026-05-17T23:45:00Z",
+        "jar_version": "PlantUML version 1.2024.7",
+        "summary": {
+            "total": 5,
+            "match": 2,
+            "drift": 2,
+            "puml_only": 0,
+            "jar_only": 1,
+            "both_fail": 0
+        },
+        "fixtures": [
+            {"path": "tests/fixtures/basic/hello.puml", "category": "match", "metrics": {}},
+            {"path": "docs/examples/sequence/01_basic.puml", "category": "match", "metrics": {}},
+            {"path": "tests/fixtures/families/valid_salt_login_form.puml", "category": "drift", "metrics": {}},
+            {"path": "tests/fixtures/families/valid_chart_bar_quarterly.puml", "category": "drift", "metrics": {}},
+            {"path": "tests/fixtures/errors/invalid_preproc_dynamic_invoke.puml", "category": "jar-only", "metrics": {}}
+        ]
+    });
+    std::fs::write(
+        &input,
+        serde_json::to_string_pretty(&sample).expect("sample JSON should serialize"),
+    )
+    .expect("sample report should be writable");
+
+    let output = Command::new("python3")
+        .arg(oracle_report_summary_script())
+        .arg("--input")
+        .arg(&input)
+        .arg("--markdown")
+        .arg(&markdown)
+        .arg("--json")
+        .arg(&summary_json)
+        .arg("--pages-dir")
+        .arg(&pages_dir)
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("failed to invoke oracle_report_summary.py");
+
+    assert!(
+        output.status.success(),
+        "oracle report summary should succeed; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let summary_raw =
+        std::fs::read_to_string(&summary_json).expect("summary JSON should be readable");
+    let summary: serde_json::Value =
+        serde_json::from_str(&summary_raw).expect("summary JSON should parse");
+
+    assert_eq!(summary["schema_version"].as_str(), Some("1.0"));
+    assert_eq!(
+        summary["jar_version"].as_str(),
+        Some("PlantUML version 1.2024.7")
+    );
+    assert_eq!(summary["fixture_count"].as_u64(), Some(5));
+    assert_eq!(summary["match_pct"].as_u64(), Some(40));
+    assert_eq!(summary["gate_status"].as_str(), Some("fail"));
+    assert_eq!(summary["outcome_counts"]["pass"].as_u64(), Some(2));
+    assert_eq!(summary["outcome_counts"]["advisory"].as_u64(), Some(2));
+    assert_eq!(summary["outcome_counts"]["fail"].as_u64(), Some(1));
+
+    let top = summary["top_drift_families"]
+        .as_array()
+        .expect("top drift families should be an array");
+    assert_eq!(top[0]["family"].as_str(), Some("families"));
+    assert_eq!(top[0]["count"].as_u64(), Some(2));
+    assert_eq!(top[1]["family"].as_str(), Some("errors"));
+    assert_eq!(top[1]["count"].as_u64(), Some(1));
+
+    let markdown_raw = std::fs::read_to_string(&markdown).expect("markdown should be readable");
+    assert!(markdown_raw.contains("PlantUML JAR: PlantUML version 1.2024.7"));
+    assert!(markdown_raw.contains("It is conformance evidence, not a pixel-perfect parity claim."));
+    assert!(markdown_raw.contains("| families | 2 | drift: 2 |"));
+
+    assert!(
+        pages_dir.join("index.html").exists(),
+        "publisher should create a static Pages entry point"
+    );
+    assert!(
+        pages_dir.join("oracle_report.json").exists(),
+        "publisher should copy the raw report into the static artifact"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // oracle_drift_threshold_documented
 // ---------------------------------------------------------------------------
 
@@ -400,6 +505,14 @@ fn oracle_drift_threshold_documented() {
     assert!(
         contents.contains("dry-run"),
         "docs/oracle-thresholds.md must document the Java-free dry-run schema"
+    );
+    assert!(
+        contents.contains("oracle_report_summary.json"),
+        "docs/oracle-thresholds.md must document the durable summary artifact"
+    );
+    assert!(
+        contents.contains("not a pixel-perfect parity claim"),
+        "docs/oracle-thresholds.md must avoid overclaiming pixel-perfect parity"
     );
 
     // Verify the script actually encodes these thresholds too
