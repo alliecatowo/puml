@@ -144,6 +144,19 @@ fn render_sequence_rare_arrow_styles_and_note_positions() {
 }
 
 #[test]
+fn render_sequence_slanted_arrow_heads_are_distinct() {
+    let src = fixture("arrows/valid_arrow_variant_tokenization.puml");
+    let svg = puml::render_source_to_svg(&src).expect("slanted arrow styles render");
+
+    assert!(svg.contains("sequence-arrow-head-slash"));
+    assert!(svg.contains("sequence-arrow-head-backslash"));
+    assert!(
+        !svg.contains("<polygon points=\""),
+        "slanted half-head arrows should not fall back to filled triangle heads"
+    );
+}
+
+#[test]
 fn render_sequence_lifecycle_shortcuts_have_visible_markers() {
     let src = fixture("lifecycle/valid_shortcuts_expansion.puml");
     let svg = puml::render_source_to_svg(&src).expect("lifecycle shortcut render");

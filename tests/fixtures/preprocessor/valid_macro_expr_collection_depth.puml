@@ -1,0 +1,9 @@
+@startuml
+!define EDGE(a,b,label) a -> b : %upper(label)
+!$items = %list("red", %map("name", "blue"))
+!$items = %list_set($items, 0, "green")
+!$cfg = %map("items", $items, "owner", "Ada")
+!assert not %map_is_empty($cfg) and %map_contains_value($cfg, "blue")
+EDGE(Alice, Bob, ok)
+A -> B : %eval_int("2 + 3 * 4") / %get($cfg, "items[1].name") / %list_get(%get($cfg, "items"), 0)
+@enduml

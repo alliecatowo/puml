@@ -737,6 +737,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_json_dot_bracket_access.puml",
         "preprocessor/valid_splitstr_regex.puml",
         "preprocessor/valid_macro_concat_body.puml",
+        "preprocessor/valid_macro_expr_collection_depth.puml",
         "preprocessor/valid_unsafe_builtin_policy.puml",
         // MindMap/WBS hardening fixtures
         "families/valid_mindmap_palette.puml",
@@ -4600,6 +4601,35 @@ fn preprocessor_macro_concat_expands_inside_safe_procedure_body_lines() {
     let msg = &json["statements"][0]["kind"]["Message"];
     assert_eq!(msg["from"].as_str().unwrap(), "Alice");
     assert_eq!(msg["label"].as_str().unwrap(), "Alice");
+}
+
+#[test]
+fn preprocessor_macro_expression_and_collection_depth_expand() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_macro_expr_collection_depth.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|stmt| {
+            stmt["kind"]["Message"]["label"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["OK", "14 / blue / green"]);
 }
 
 #[test]

@@ -16,6 +16,8 @@ fn conformance_matrix_has_required_sections_and_scenarios() {
         "apostrophe inside quoted label preserved",
         "unknown preprocessor directive fails deterministically",
         "trailing unterminated block in `--multi`",
+        "dry-run fixture category schema",
+        "fixture-backed drift categories",
     ] {
         assert!(
             doc.contains(needle),
@@ -78,6 +80,8 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
         .expect("failed to read tests/coverage_edges.rs");
     let render_e2e = fs::read_to_string(repo_path("tests/render_e2e.rs"))
         .expect("failed to read tests/render_e2e.rs");
+    let oracle_smoke = fs::read_to_string(repo_path("tests/oracle_smoke.rs"))
+        .expect("failed to read tests/oracle_smoke.rs");
     let parser =
         fs::read_to_string(repo_path("src/parser.rs")).expect("failed to read src/parser.rs");
     for anchor_cell in anchors {
@@ -103,6 +107,10 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
                 "tests/render_e2e.rs" => assert!(
                     render_e2e.contains(&needle),
                     "missing render_e2e anchor referenced by matrix: {anchor}"
+                ),
+                "tests/oracle_smoke.rs" => assert!(
+                    oracle_smoke.contains(&needle),
+                    "missing oracle_smoke anchor referenced by matrix: {anchor}"
                 ),
                 "src/parser.rs" => assert!(
                     parser.contains(&needle),

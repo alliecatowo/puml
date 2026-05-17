@@ -7,6 +7,10 @@ fn oracle_script() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/oracle.sh")
 }
 
+fn differential_oracle_script() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/differential_oracle_smoke.py")
+}
+
 fn repo_path(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
@@ -22,6 +26,8 @@ fn repo_path(rel: &str) -> PathBuf {
 fn oracle_skip_sentinel() {
     let output = Command::new("bash")
         .arg(oracle_script())
+        .arg("--report-file")
+        .arg(repo_path("target/oracle_skip_sentinel_report.json"))
         .env_remove("PUML_ORACLE_JAR")
         .output()
         .expect("failed to invoke oracle.sh");
@@ -50,6 +56,27 @@ fn oracle_skip_sentinel() {
         reason.contains("PUML_ORACLE_JAR"),
         "reason should mention PUML_ORACLE_JAR, got: {reason}"
     );
+
+    assert_eq!(
+        v["comparison_only"].as_bool(),
+        Some(true),
+        "oracle sentinel must identify comparison-only tooling"
+    );
+    assert_eq!(
+        v["runtime_dependency"].as_bool(),
+        Some(false),
+        "oracle sentinel must not describe a runtime dependency"
+    );
+    assert_eq!(
+        v["build_dependency"].as_bool(),
+        Some(false),
+        "oracle sentinel must not describe a build dependency"
+    );
+    assert_eq!(
+        v["java_attempted"].as_bool(),
+        Some(false),
+        "PUML_ORACLE_JAR-unset sentinel must not attempt java"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -73,12 +100,14 @@ fn oracle_report_schema_is_stable() {
     };
 
     let fixtures_dir = repo_path("tests/fixtures");
-    let report_file = repo_path("docs/benchmarks/oracle_report.json");
+    let report_file = repo_path("target/oracle_report_schema_test.json");
 
     let output = Command::new("bash")
         .arg(oracle_script())
         .arg("--corpus-dir")
         .arg(&fixtures_dir)
+        .arg("--report-file")
+        .arg(&report_file)
         .env("PUML_ORACLE_JAR", &jar)
         .output()
         .expect("failed to invoke oracle.sh with JAR");
@@ -176,6 +205,116 @@ fn oracle_report_schema_is_stable() {
 }
 
 // ---------------------------------------------------------------------------
+// differential_oracle_dry_run_schema_lists_fixture_categories
+// ---------------------------------------------------------------------------
+
+/// The Python smoke harness must be usable as Java-free, comparison-only
+/// metadata tooling. Dry run mode should not invoke cargo rendering, PlantUML,
+/// Java, or a JAR; it should still publish the fixture-backed drift categories
+/// that explain known partial PlantUML gaps.
+#[test]
+fn differential_oracle_dry_run_schema_lists_fixture_categories() {
+    let report_file = repo_path("target/oracle_smoke_dry_test_report.json");
+    let output = Command::new("python3")
+        .arg(differential_oracle_script())
+        .arg("--dry-run")
+        .arg("--quiet")
+        .arg("--output")
+        .arg(&report_file)
+        .output()
+        .expect("failed to invoke differential_oracle_smoke.py");
+
+    assert!(
+        output.status.success(),
+        "dry-run oracle smoke should succeed without Java/JAR; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let written =
+        std::fs::read_to_string(&report_file).expect("dry-run oracle report must be readable");
+    let v: serde_json::Value =
+        serde_json::from_str(written.trim()).expect("dry-run oracle report must be valid JSON");
+
+    assert_eq!(
+        v["schema_version"].as_str(),
+        Some("1.1.0"),
+        "dry-run schema version should capture fixture category metadata"
+    );
+    assert_eq!(v["tool"]["dry_run"].as_bool(), Some(true));
+    assert_eq!(v["oracle"]["enabled"].as_bool(), Some(false));
+    assert_eq!(v["oracle"]["comparison_only"].as_bool(), Some(true));
+    assert_eq!(v["oracle"]["runtime_dependency"].as_bool(), Some(false));
+    assert_eq!(v["oracle"]["build_dependency"].as_bool(), Some(false));
+    assert_eq!(
+        v["oracle"]["normal_cargo_test_uses_oracle"].as_bool(),
+        Some(false)
+    );
+
+    let total = v["summary"]["total"].as_u64().unwrap_or(0);
+    assert!(total >= 8, "expected expanded oracle fixture corpus");
+    assert_eq!(v["summary"]["not_run"].as_u64(), Some(total));
+    assert_eq!(v["summary"]["failed"].as_u64(), Some(0));
+    assert!(
+        v["summary"]["by_expected_oracle_category"]["drift"]
+            .as_u64()
+            .unwrap_or(0)
+            >= 3,
+        "expected partial PlantUML gaps to be represented as drift fixtures"
+    );
+    assert!(
+        v["summary"]["by_expected_oracle_category"]["jar-only"]
+            .as_u64()
+            .unwrap_or(0)
+            >= 1,
+        "expected unsupported advanced preprocessor gap to be fixture-backed"
+    );
+
+    let fixtures = v["fixtures"]
+        .as_array()
+        .expect("dry-run report should contain fixture array");
+    let mut saw_salt = false;
+    let mut saw_preproc = false;
+    for fixture in fixtures {
+        assert_eq!(fixture["local"]["attempted"].as_bool(), Some(false));
+        assert_eq!(fixture["oracle"]["attempted"].as_bool(), Some(false));
+        assert_eq!(fixture["comparison"]["state"].as_str(), Some("not-run"));
+
+        let rel = fixture["fixture"]
+            .as_str()
+            .expect("fixture entries should include relative paths");
+        assert!(
+            repo_path(&format!("tests/fixtures/{rel}")).exists(),
+            "dry-run fixture path should exist: {rel}"
+        );
+
+        if rel == "families/valid_salt_login_form.puml" {
+            saw_salt = true;
+            assert_eq!(
+                fixture["classification"]["support_status"].as_str(),
+                Some("partial")
+            );
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("drift")
+            );
+        }
+        if rel == "errors/invalid_preproc_dynamic_invoke.puml" {
+            saw_preproc = true;
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("jar-only")
+            );
+        }
+    }
+
+    assert!(saw_salt, "Salt partial fixture should be in dry-run corpus");
+    assert!(
+        saw_preproc,
+        "advanced preprocessor partial fixture should be in dry-run corpus"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // oracle_drift_threshold_documented
 // ---------------------------------------------------------------------------
 
@@ -207,6 +346,14 @@ fn oracle_drift_threshold_documented() {
     assert!(
         contents.contains("exit"),
         "docs/oracle-thresholds.md must document exit codes"
+    );
+    assert!(
+        contents.contains("comparison-only"),
+        "docs/oracle-thresholds.md must document comparison-only oracle usage"
+    );
+    assert!(
+        contents.contains("dry-run"),
+        "docs/oracle-thresholds.md must document the Java-free dry-run schema"
     );
 
     // Verify the script actually encodes these thresholds too
