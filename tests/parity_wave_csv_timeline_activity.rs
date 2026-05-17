@@ -42,6 +42,24 @@ sundays are closed
 }
 
 #[test]
+fn gantt_closed_weekdays_extend_workload_span_on_date_axis() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+saturday are closed
+sundays are closed
+[Build] requires 2 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("Calendar: closed Saturday, Sunday"));
+    assert!(svg.contains("2026-05-01"));
+    assert!(
+        svg.contains("2026-05-05"),
+        "two working days from Friday with a closed weekend should span through Tuesday"
+    );
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01

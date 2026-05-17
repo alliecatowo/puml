@@ -13,8 +13,9 @@ use crate::model::{
     JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, MindMapSide,
     NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole,
     RegexDocument, RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState,
-    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
-    StateDocument, StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
+    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind,
+    SequenceMessageStyle, SequencePage, StateDocument,
+    StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineConstraint,
     TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind,
     VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
@@ -919,6 +920,8 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             if task.start_day == 0 {
                 task.start_day = cursor;
             }
+            task.duration_days =
+                scheduled_gantt_span_days(task.start_day, task.duration_days, &closed_weekdays);
             let task_end = task.start_day.saturating_add(task.duration_days);
             if task_end > cursor {
                 cursor = task_end;
@@ -963,6 +966,39 @@ fn parse_iso_date_day(raw: &str) -> Option<u32> {
         return None;
     }
     u32::try_from(days).ok()
+}
+
+fn scheduled_gantt_span_days(start_day: u32, work_days: u32, closed_weekdays: &[String]) -> u32 {
+    if closed_weekdays.is_empty() {
+        return work_days.max(1);
+    }
+    let mut day = start_day;
+    let mut remaining = work_days.max(1);
+    let mut span = 0u32;
+    while remaining > 0 {
+        if !is_gantt_closed_weekday(day, closed_weekdays) {
+            remaining -= 1;
+        }
+        day = day.saturating_add(1);
+        span = span.saturating_add(1);
+        if span > work_days.saturating_add(21) {
+            break;
+        }
+    }
+    span.max(1)
+}
+
+fn is_gantt_closed_weekday(day: u32, closed_weekdays: &[String]) -> bool {
+    let weekday = match (day + 3) % 7 {
+        0 => "monday",
+        1 => "tuesday",
+        2 => "wednesday",
+        3 => "thursday",
+        4 => "friday",
+        5 => "saturday",
+        _ => "sunday",
+    };
+    closed_weekdays.iter().any(|closed| closed == weekday)
 }
 
 fn collect_raw_block(document: &Document) -> (String, Option<String>) {
@@ -3043,6 +3079,12 @@ pub fn normalize_with_options(
                             to: to.clone(),
                             arrow: parsed_arrow.render_arrow.clone(),
                             label: m.label.clone(),
+                            style: SequenceMessageStyle {
+                                color: m.style.color.clone(),
+                                hidden: m.style.hidden,
+                                dashed: m.style.dashed,
+                                dotted: m.style.dotted,
+                            },
                             from_virtual,
                             to_virtual,
                         },

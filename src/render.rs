@@ -9,6 +9,7 @@ use crate::model::{
     VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
+use crate::theme::css3_color_to_hex;
 use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
@@ -182,37 +183,58 @@ pub fn render_svg(scene: &Scene) -> String {
         .as_deref()
         .unwrap_or(scene.style.arrow_color.as_str());
     for m in &scene.messages {
-        let stroke_dash = if m.arrow.contains("--") {
+        let stroke_color = m
+            .style
+            .color
+            .as_deref()
+            .and_then(normalize_message_color)
+            .unwrap_or(message_line_color);
+        let arrow_fill = m
+            .style
+            .color
+            .as_deref()
+            .and_then(normalize_message_color)
+            .unwrap_or(scene.style.arrow_color.as_str());
+        let stroke_dash = if m.style.dotted {
+            " stroke-dasharray=\"2 4\""
+        } else if m.style.dashed || m.arrow.contains("--") {
             " stroke-dasharray=\"6 4\""
         } else {
             ""
         };
+        let hidden = if m.style.hidden {
+            " visibility=\"hidden\""
+        } else {
+            ""
+        };
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
-            m.x1, m.y, m.x2, m.y, message_line_color, stroke_dash
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
+            m.x1, m.y, m.x2, m.y, stroke_color, stroke_dash, hidden
         ));
         let arrow_size = 6;
         if m.x2 >= m.x1 {
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"{}/>",
                 m.x2,
                 m.y,
                 m.x2 - arrow_size,
                 m.y - 4,
                 m.x2 - arrow_size,
                 m.y + 4,
-                scene.style.arrow_color
+                arrow_fill,
+                hidden
             ));
         } else {
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"{}/>",
                 m.x2,
                 m.y,
                 m.x2 + arrow_size,
                 m.y - 4,
                 m.x2 + arrow_size,
                 m.y + 4,
-                scene.style.arrow_color
+                arrow_fill,
+                hidden
             ));
         }
 
@@ -333,6 +355,14 @@ pub fn render_svg(scene: &Scene) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn normalize_message_color(value: &str) -> Option<&str> {
+    let value = value.trim();
+    if value.starts_with('#') {
+        return Some(value);
+    }
+    css3_color_to_hex(value).or(Some(value))
 }
 
 fn compute_svg_dimensions(scene: &Scene) -> (String, String, String) {
@@ -3031,51 +3061,34 @@ fn parse_iso_date_day_number(raw: &str) -> Option<u32> {
     if y < 0 || !(1..=12).contains(&m) || !(1..=31).contains(&d) {
         return None;
     }
-    let mut days = 0u32;
-    for year in 0..y {
-        days = days.saturating_add(if is_leap_year(year) { 366 } else { 365 });
+    let y = i64::from(y);
+    let m = i64::from(m);
+    let d = i64::from(d);
+    let y_adj = y - if m <= 2 { 1 } else { 0 };
+    let era = if y_adj >= 0 { y_adj } else { y_adj - 399 } / 400;
+    let yoe = y_adj - era * 400;
+    let mp = m + if m > 2 { -3 } else { 9 };
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146097 + doe - 719468;
+    if days < 0 {
+        return None;
     }
-    const MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    for mm in 1..m {
-        let idx = (mm - 1) as usize;
-        days = days.saturating_add(if mm == 2 && is_leap_year(y) {
-            29
-        } else {
-            MONTH[idx]
-        });
-    }
-    days = days.saturating_add((d - 1) as u32);
-    Some(days)
+    u32::try_from(days).ok()
 }
 
-fn day_number_to_iso(mut day: u32) -> Option<String> {
-    let mut year = 0i32;
-    loop {
-        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
-        if day < days_in_year {
-            break;
-        }
-        day -= days_in_year;
-        year += 1;
-    }
-    const MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    let mut month = 1u32;
-    for base_days in MONTH {
-        let days_in_month = if month == 2 && is_leap_year(year) {
-            29
-        } else {
-            base_days
-        };
-        if day < days_in_month {
-            return Some(format!(
-                "{year:04}-{month:02}-{dom:02}",
-                dom = day + 1
-            ));
-        }
-        day -= days_in_month;
-        month += 1;
-    }
-    None
+fn day_number_to_iso(day: u32) -> Option<String> {
+    let z = i64::from(day) + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let mut y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    y += if m <= 2 { 1 } else { 0 };
+    Some(format!("{y:04}-{m:02}-{d:02}"))
 }
 
 fn is_leap_year(y: i32) -> bool {
