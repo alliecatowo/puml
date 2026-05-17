@@ -92,7 +92,15 @@ Emit machine-readable pipeline data:
 puml --dump ast hello.puml
 puml --dump model hello.puml
 puml --dump scene hello.puml
+puml --metadata hello.puml
 ```
+
+`--metadata` writes structured JSON to stdout after parse and normalization. It
+includes the diagram family, title when present, warning records, detected
+themes and skinparams, page metadata for sequence diagrams, and family-specific
+counts such as sequence participants/messages/notes/groups or class
+classes/relations. With `--from-markdown`, it emits one metadata object per
+supported embedded diagram fence; multiple fences are returned as a JSON array.
 
 Use compatibility controls when you need them:
 

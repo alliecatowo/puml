@@ -14,6 +14,10 @@ fn fixture(name: &str) -> String {
     format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
+fn example(name: &str) -> String {
+    format!("{}/docs/examples/{name}", env!("CARGO_MANIFEST_DIR"))
+}
+
 #[test]
 fn single_file_defaults_to_svg_file_output() {
     let tmp = tempdir().unwrap();
@@ -177,6 +181,137 @@ fn render_source_to_text_api_supports_family_models() {
     let text = render_source_to_text(src, TextOutputMode::Txt).expect("class text render");
     assert!(text.contains("Class orientation=TopToBottom"));
     assert!(text.contains("Dog *-- Collar: has"));
+}
+
+#[test]
+fn metadata_mode_reports_sequence_counts_and_style_metadata() {
+    let src = r#"@startuml
+!theme plain
+skinparam participantBackgroundColor #ddeeff
+title Checkout
+participant User
+participant API
+User -> API: request
+note right of API: cached
+group happy path
+API --> User: ok
+end
+newpage retry
+User -> API: retry
+@enduml
+"#;
+
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--metadata", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(json["schema"], "puml.metadata");
+    assert_eq!(json["schema_version"], 1);
+    assert_eq!(json["family"], "sequence");
+    assert_eq!(json["title"], "Checkout");
+    assert_eq!(json["counts"]["participants"], 2);
+    assert_eq!(json["counts"]["messages"], 3);
+    assert_eq!(json["counts"]["notes"], 1);
+    assert_eq!(json["counts"]["groups"], 1);
+    assert_eq!(json["counts"]["pages"], 2);
+    assert_eq!(json["themes"], serde_json::json!(["plain"]));
+    assert_eq!(
+        json["skinparams"],
+        serde_json::json!([{"key": "participantBackgroundColor", "value": "#ddeeff"}])
+    );
+    assert_eq!(json["pages"][0]["title"], "Checkout");
+    assert_eq!(json["pages"][1]["title"], "retry");
+    assert_eq!(json["warnings"], serde_json::json!([]));
+}
+
+#[test]
+fn metadata_mode_reports_class_counts() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--metadata",
+            &fixture("families/valid_class_with_relations.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(json["family"], "class");
+    assert_eq!(json["counts"]["classes"], 4);
+    assert_eq!(json["counts"]["relations"], 5);
+    assert_eq!(json["skinparams"], serde_json::json!([]));
+    assert_eq!(json["themes"], serde_json::json!([]));
+    assert_eq!(json["pages"], serde_json::json!([]));
+}
+
+#[test]
+fn metadata_mode_reports_broad_family_counts() {
+    let cases = [
+        (fixture("families/valid_state.puml"), "state", "transitions"),
+        (
+            fixture("families/valid_gantt_calendar_resource_scale.puml"),
+            "gantt",
+            "tasks",
+        ),
+        (example("json/01_object.puml"), "json", "nodes"),
+        (fixture("non_sequence/valid_yaml.puml"), "yaml", "nodes"),
+        (
+            fixture("non_sequence/valid_archimate.puml"),
+            "archimate",
+            "elements",
+        ),
+        (
+            fixture("non_sequence/valid_regex.puml"),
+            "regex",
+            "patterns",
+        ),
+        (fixture("families/valid_ebnf_arith.puml"), "ebnf", "rules"),
+        (fixture("families/valid_sdl_shapes.puml"), "sdl", "states"),
+        (
+            fixture("families/valid_chart_bar_quarterly.puml"),
+            "chart",
+            "data_points",
+        ),
+        (example("nwdiag/01_single_net.puml"), "nwdiag", "networks"),
+        (example("math/01_simple.puml"), "math", "body_bytes"),
+        (example("ditaa/01_simple_ascii.puml"), "ditaa", "body_bytes"),
+        (example("activity/01_simple_flow.puml"), "activity", "nodes"),
+    ];
+
+    for (path, family, count_key) in cases {
+        let out = Command::cargo_bin("puml")
+            .expect("binary")
+            .args(["--metadata", &path])
+            .assert()
+            .success()
+            .stderr(predicate::str::is_empty())
+            .get_output()
+            .stdout
+            .clone();
+
+        let json: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(json["family"], family, "metadata family for {path}");
+        assert!(
+            json["counts"][count_key].as_u64().unwrap_or_default() > 0,
+            "metadata count {count_key} should be present and nonzero for {path}: {json}"
+        );
+        assert!(
+            json["warnings"].is_array(),
+            "metadata warnings should be an array for {path}: {json}"
+        );
+    }
 }
 
 #[test]
@@ -2136,6 +2271,31 @@ fn from_markdown_extracts_fenced_blocks_in_source_order() {
         .unwrap();
     assert_eq!(first, "one");
     assert_eq!(second, "two");
+}
+
+#[test]
+fn metadata_mode_from_markdown_emits_one_object_per_fence_without_multi() {
+    let input = fs::read_to_string(fixture("markdown/multipage_mixed.md")).unwrap();
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--from-markdown", "--metadata", "-"])
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let arr = json.as_array().expect("expected metadata array");
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["family"], "sequence");
+    assert_eq!(arr[0]["counts"]["messages"], 2);
+    assert_eq!(arr[0]["counts"]["pages"], 2);
+    assert_eq!(arr[1]["family"], "sequence");
+    assert_eq!(arr[1]["counts"]["messages"], 1);
+    assert_eq!(arr[1]["counts"]["pages"], 1);
 }
 
 #[test]
