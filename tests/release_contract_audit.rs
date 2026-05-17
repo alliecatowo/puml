@@ -59,11 +59,19 @@ fn release_docs_capture_release_gate_contract() {
         "coverage status doc should capture scoped coverage policy"
     );
     assert!(
-        bench.contains("REGRESSION_MIN_DELTA_MS_FULL=20"),
+        bench.contains("BINARY_LIMIT_BYTES_FULL=12000000"),
+        "bench gate should define the post-url-include full-mode binary ceiling"
+    );
+    assert!(
+        bench.contains("BINARY_LIMIT_BYTES_QUICK=12000000"),
+        "bench gate should define the post-url-include quick-mode binary ceiling"
+    );
+    assert!(
+        bench.contains("REGRESSION_MIN_DELTA_MS_FULL=40"),
         "bench gate should define a full-mode regression delta floor"
     );
     assert!(
-        bench.contains("REGRESSION_MIN_DELTA_MS_QUICK=30"),
+        bench.contains("REGRESSION_MIN_DELTA_MS_QUICK=50"),
         "bench gate should define a quick-mode regression delta floor"
     );
     assert!(
@@ -75,12 +83,16 @@ fn release_docs_capture_release_gate_contract() {
         "bench gate should require explicit baseline updates"
     );
     assert!(
-        bench_docs.contains("absolute delta floor `>20ms`"),
+        bench_docs.contains("absolute delta floor `>40ms`"),
         "bench docs should describe full-mode regression delta floor"
     );
     assert!(
-        bench_docs.contains("absolute delta floor `>30ms`"),
+        bench_docs.contains("absolute delta floor `>50ms`"),
         "bench docs should describe quick-mode regression delta floor"
+    );
+    assert!(
+        bench_docs.contains("binary size limit (`target/release/puml`): `12,000,000` bytes"),
+        "bench docs should describe recalibrated binary ceiling"
     );
     assert!(
         bench_docs.contains("baseline_full.json") && bench_docs.contains("baseline_quick.json"),
