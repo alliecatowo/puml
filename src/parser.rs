@@ -1041,10 +1041,7 @@ fn process_include_many_directive(
         if !options.allow_url_includes {
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
-                format!(
-                    "!include_many URL includes are disabled: {}",
-                    raw_target
-                ),
+                format!("!include_many URL includes are disabled: {}", raw_target),
             ));
         }
         let url = extract_url(raw_target);
@@ -1365,10 +1362,7 @@ fn process_import_directive(
         if !options.allow_url_includes {
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
-                format!(
-                    "!import URL includes are disabled: {}",
-                    raw_target
-                ),
+                format!("!import URL includes are disabled: {}", raw_target),
             ));
         }
         let url = extract_url(raw_target);
@@ -2102,9 +2096,7 @@ fn is_url_include_target(raw_target: &str) -> bool {
         .trim_end_matches('>')
         .trim();
     let lower = trimmed.to_ascii_lowercase();
-    lower.starts_with("http://")
-        || lower.starts_with("https://")
-        || lower.starts_with("file://")
+    lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("file://")
 }
 
 /// Extract the canonical URL string from a raw include target (strips quotes/angle brackets).
@@ -2128,10 +2120,7 @@ fn url_cache_path(url: &str) -> Option<std::path::PathBuf> {
 
     let cache_base = std::env::var_os("XDG_CACHE_HOME")
         .map(std::path::PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(|h| std::path::PathBuf::from(h).join(".cache"))
-        })?;
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".cache")))?;
 
     Some(cache_base.join("puml").join("includes").join(hash))
 }
@@ -10973,7 +10962,9 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_INCLUDE_URL_DISABLED"));
-        assert!(err.message.contains("!includeurl URL includes are disabled"));
+        assert!(err
+            .message
+            .contains("!includeurl URL includes are disabled"));
     }
 
     #[test]

@@ -42,11 +42,7 @@ fn include_file_url_resolves_from_local_filesystem() {
 /// Helper: write a .puml fixture file that uses `!include <url>`.
 fn write_include_fixture(dir: &std::path::Path, url: &str) -> std::path::PathBuf {
     let path = dir.join("diagram.puml");
-    fs::write(
-        &path,
-        format!("@startuml\n!include {url}\n@enduml\n"),
-    )
-    .unwrap();
+    fs::write(&path, format!("@startuml\n!include {url}\n@enduml\n")).unwrap();
     path
 }
 
@@ -132,7 +128,10 @@ fn include_http_url_cache_hit_no_second_network_call() {
     _mock.assert_hits(1);
 
     let svg2 = fs::read_to_string(&output2).unwrap();
-    assert_eq!(svg1, svg2, "second render should be byte-identical to first");
+    assert_eq!(
+        svg1, svg2,
+        "second render should be byte-identical to first"
+    );
 }
 
 #[test]
@@ -161,12 +160,14 @@ fn include_http_404_produces_clear_diagnostic() {
         .arg(&fixture)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("E_INCLUDE_URL_FETCH").or(
-            // ureq returns a non-2xx error that we surface
-            predicate::str::contains("404")
-                .or(predicate::str::contains("fetch"))
-                .or(predicate::str::contains("HTTP")),
-        ));
+        .stderr(
+            predicate::str::contains("E_INCLUDE_URL_FETCH").or(
+                // ureq returns a non-2xx error that we surface
+                predicate::str::contains("404")
+                    .or(predicate::str::contains("fetch"))
+                    .or(predicate::str::contains("HTTP")),
+            ),
+        );
 }
 
 // ---------------------------------------------------------------------------
@@ -211,10 +212,7 @@ fn url_cache_path_for(url: &str) -> Option<std::path::PathBuf> {
 
     let cache_base = std::env::var_os("XDG_CACHE_HOME")
         .map(std::path::PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(|h| std::path::PathBuf::from(h).join(".cache"))
-        })?;
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".cache")))?;
 
     Some(cache_base.join("puml").join("includes").join(hash))
 }
