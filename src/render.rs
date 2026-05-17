@@ -1907,7 +1907,8 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         total_w, svg_h, style.canvas_fill
     ));
 
-    if table_like {
+    let render_panel = table_like || style.panel_fill != SaltRenderStyle::default().panel_fill;
+    if render_panel {
         out.push_str(&format!(
             "<rect data-salt-style=\"panel\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
             MARGIN,
