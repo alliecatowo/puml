@@ -27,44 +27,107 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Classify changed files
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANGED_FILES="${RUNNER_TEMP}/changed-files.txt"
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+            git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "${CHANGED_FILES}"
+          else
+            git ls-files > "${CHANGED_FILES}"
+          fi
+
+          run_full_gate=false
+          docs_examples_changed=false
+
+          while IFS= read -r file; do
+            [[ -n "${file}" ]] || continue
+
+            case "${file}" in
+              docs/examples/*)
+                run_full_gate=true
+                docs_examples_changed=true
+                ;;
+              docs/*|README.md|CONTRIBUTING.md|LICENSE|*.md)
+                ;;
+              *)
+                run_full_gate=true
+                ;;
+            esac
+          done < "${CHANGED_FILES}"
+
+          if [[ ! -s "${CHANGED_FILES}" ]]; then
+            run_full_gate=true
+          fi
+
+          {
+            echo "run_full_gate=${run_full_gate}"
+            echo "docs_examples_changed=${docs_examples_changed}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Changed files:"
+          sed 's/^/  - /' "${CHANGED_FILES}"
+          echo "run_full_gate=${run_full_gate}"
+          echo "docs_examples_changed=${docs_examples_changed}"
+
+      - name: Fast path for docs-only changes
+        if: steps.changes.outputs.run_full_gate != 'true'
+        run: |
+          echo "Docs-only change set detected outside docs/examples; skipping Rust, coverage, wasm, visual, and docs-example drift gates."
+
       - name: Setup Rust toolchain
+        if: steps.changes.outputs.run_full_gate == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy, llvm-tools-preview
 
       - name: Cache Rust build artifacts
+        if: steps.changes.outputs.run_full_gate == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
       - name: Install cargo-llvm-cov
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo install cargo-llvm-cov --locked
 
       - name: fmt gate
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo fmt --check
 
       - name: clippy gate
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: test gate
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo test
 
       - name: wasm check
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
       - name: visual text sweep
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo test --test visual_regression visual_regression_focused_text_presence_sweep
 
       - name: coverage gate
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|normalize|render|specialized)\.rs'
 
       - name: docs examples drift gate
+        if: steps.changes.outputs.run_full_gate == 'true'
         run: python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
 
       - name: Upload benchmark artifacts
-        if: always()
+        if: always() && steps.changes.outputs.run_full_gate == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pr-benchmarks-${{ github.run_number }}

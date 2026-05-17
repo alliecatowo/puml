@@ -34,9 +34,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Classify changed files
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANGED_FILES="${RUNNER_TEMP}/changed-files.txt"
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+            git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "${CHANGED_FILES}"
+            run_oracle=false
+          else
+            git ls-files > "${CHANGED_FILES}"
+            run_oracle=true
+          fi
+
+          while IFS= read -r file; do
+            [[ -n "${file}" ]] || continue
+
+            case "${file}" in
+              Cargo.toml|Cargo.lock|src/*|crates/*|tests/fixtures/*|tests/oracle_smoke.rs|docs/examples/*|stdlib/*|scripts/oracle.sh|.github/workflows/oracle.yml)
+                run_oracle=true
+                ;;
+            esac
+          done < "${CHANGED_FILES}"
+
+          if [[ ! -s "${CHANGED_FILES}" ]]; then
+            run_oracle=true
+          fi
+
+          echo "run_oracle=${run_oracle}" >> "${GITHUB_OUTPUT}"
+
+          echo "Changed files:"
+          sed 's/^/  - /' "${CHANGED_FILES}"
+          echo "run_oracle=${run_oracle}"
+
+      - name: Fast path for oracle-irrelevant changes
+        if: steps.changes.outputs.run_oracle != 'true'
+        run: |
+          echo "No code, renderer, fixture, stdlib, or docs/example changes detected; skipping pinned PlantUML JAR oracle."
+
       # JDK 17 (Temurin LTS) — required to run the PlantUML reference JAR.
       # Not a runtime or build dependency of puml; CI-only for oracle comparison.
       - name: Setup JDK 17 (Temurin)
+        if: steps.changes.outputs.run_oracle == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -44,6 +87,7 @@ jobs:
 
       # Cache the JAR by pinned version so re-runs skip the download.
       - name: Cache PlantUML JAR
+        if: steps.changes.outputs.run_oracle == 'true'
         id: cache-jar
         uses: actions/cache@v4
         with:
@@ -52,7 +96,7 @@ jobs:
 
       # Download from the official GitHub Releases mirror (deterministic URL).
       - name: Download PlantUML JAR
-        if: steps.cache-jar.outputs.cache-hit != 'true'
+        if: steps.changes.outputs.run_oracle == 'true' && steps.cache-jar.outputs.cache-hit != 'true'
         run: |
           curl -fsSL \
             "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/${PLANTUML_JAR}" \
@@ -60,6 +104,7 @@ jobs:
           echo "[oracle] Downloaded plantuml-${PLANTUML_VERSION}.jar"
 
       - name: Verify JAR integrity and version
+        if: steps.changes.outputs.run_oracle == 'true'
         run: |
           if [[ ! -f "${PLANTUML_JAR}" ]]; then
             echo "ERROR: JAR not found after download step" >&2
@@ -70,15 +115,18 @@ jobs:
           java -jar "${PLANTUML_JAR}" -version
 
       - name: Setup Rust toolchain
+        if: steps.changes.outputs.run_oracle == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust build artifacts
+        if: steps.changes.outputs.run_oracle == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: oracle-ubuntu-stable
           cache-on-failure: true
 
       - name: Build release binary
+        if: steps.changes.outputs.run_oracle == 'true'
         run: cargo build --release
 
       # Run the oracle shell conformance suite (fixture-by-fixture SVG diff).
@@ -87,6 +135,7 @@ jobs:
       #   exit 1 = 50% <= match% < 80%  (WARN, advisory)
       #   exit 2 = match% < 50%  (HARD FAIL)
       - name: Run oracle conformance suite (scripts/oracle.sh)
+        if: steps.changes.outputs.run_oracle == 'true'
         id: oracle
         env:
           PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
@@ -140,6 +189,7 @@ jobs:
       # continue-on-error: true so sentinel test failures do not block the PR
       # — the oracle.sh step above is the hard gate.
       - name: Run oracle_smoke sentinel tests (cargo test --test oracle_smoke)
+        if: steps.changes.outputs.run_oracle == 'true'
         id: cargo-oracle-smoke
         continue-on-error: true
         env:
@@ -150,7 +200,7 @@ jobs:
 
       # Upload artifacts: oracle_report.json + test log
       - name: Upload oracle artifacts
-        if: always()
+        if: always() && steps.changes.outputs.run_oracle == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: oracle-report-${{ github.run_number }}
@@ -166,6 +216,7 @@ jobs:
       # step outputs as the string "null" rather than an empty string.
       - name: Comment on PR with oracle summary
         if: >-
+          steps.changes.outputs.run_oracle == 'true' &&
           github.event_name == 'pull_request' &&
           steps.oracle.outputs.total != '' &&
           steps.oracle.outputs.total != 'null'
