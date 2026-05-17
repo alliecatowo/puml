@@ -1,5 +1,5 @@
 @startuml
-' New-style activity while (not yet supported)
+' New-style activity while.
 start
 while (has items?) is (yes)
   :process item;

@@ -272,38 +272,40 @@ fn nonuml_missing_rows_do_not_contradict_fixture_backed_support() {
     }
 }
 
-#[test]
-fn owned_nonuml_examples_do_not_advertise_implemented_families_as_unsupported() {
-    let owned_example_dirs = [
-        "docs/examples/gantt",
-        "docs/examples/chronology",
-        "docs/examples/mindmap",
-        "docs/examples/wbs",
-        "docs/examples/salt",
-        "docs/examples/archimate",
-        "docs/examples/nwdiag",
-        "docs/examples/regex",
-        "docs/examples/ebnf",
-        "docs/examples/chart",
-    ];
-    let stale_markers = ["not yet supported", "unsupported by this parser"];
+fn collect_doc_example_sources(dir: &str, out: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(repo_path(dir)).unwrap_or_else(|e| panic!("{dir}: {e}")) {
+        let path = entry.expect("example entry").path();
+        if path.is_dir() {
+            collect_doc_example_sources(
+                path.strip_prefix(env!("CARGO_MANIFEST_DIR"))
+                    .expect("example path should be under repo root")
+                    .to_str()
+                    .expect("example path should be UTF-8"),
+                out,
+            );
+            continue;
+        }
+        if path.extension().and_then(|s| s.to_str()) == Some("puml") {
+            out.push(path);
+        }
+    }
+}
 
-    for dir in owned_example_dirs {
-        for entry in fs::read_dir(repo_path(dir)).unwrap_or_else(|e| panic!("{dir}: {e}")) {
-            let path = entry.expect("example entry").path();
-            if path.extension().and_then(|s| s.to_str()) != Some("puml") {
-                continue;
-            }
-            let raw =
-                fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let lower = raw.to_ascii_lowercase();
-            for marker in stale_markers {
-                assert!(
-                    !lower.contains(marker),
-                    "{} still advertises stale unsupported status marker `{marker}`",
-                    path.display()
-                );
-            }
+#[test]
+fn docs_examples_do_not_advertise_stale_unsupported_markers() {
+    let stale_markers = ["not yet supported", "unsupported by this parser"];
+    let mut sources = Vec::new();
+    collect_doc_example_sources("docs/examples", &mut sources);
+
+    for path in sources {
+        let raw = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let lower = raw.to_ascii_lowercase();
+        for marker in stale_markers {
+            assert!(
+                !lower.contains(marker),
+                "{} still advertises stale unsupported status marker `{marker}`",
+                path.display()
+            );
         }
     }
 }

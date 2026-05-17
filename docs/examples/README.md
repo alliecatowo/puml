@@ -10,8 +10,9 @@ where support is tracked conservatively as `implemented`, `partial`, or `missing
 ## Corpus location and size
 
 - Root: `docs/examples/`
-- Diagram sources: `254` `*.puml` files
+- Diagram sources: `255` `*.puml` files
 - Render artifacts: `258` `*.svg` files
+- Site gallery manifest: `248` paired family examples across `31` family directories
 - Additional docs/index files are also present in this tree
 
 ## Primary indexes
