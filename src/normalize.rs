@@ -21,10 +21,14 @@ use crate::model::{
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
-    classify_activity_skinparam, classify_class_skinparam, classify_component_skinparam,
-    classify_sequence_skinparam, classify_state_skinparam, resolve_sequence_theme_preset,
-    ActivityStyle, ClassStyle, ComponentStyle, SequenceSkinParamSupport, SequenceSkinParamValue,
-    SequenceStyle, SkinParamSupport, StateStyle,
+    activity_style_from_sequence_theme, chart_style_from_sequence_theme, classify_activity_skinparam,
+    classify_chart_skinparam, classify_class_skinparam, classify_component_skinparam,
+    classify_sequence_skinparam, classify_state_skinparam, classify_timing_skinparam,
+    class_style_from_sequence_theme, component_style_from_sequence_theme,
+    resolve_sequence_theme_preset, state_style_from_sequence_theme,
+    timing_style_from_sequence_theme, ActivityStyle, ChartStyle, ClassStyle, ComponentStyle,
+    SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle,
+    TimingStyle,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -591,11 +595,49 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
     let (title, body) = collect_raw_body(&document);
     let mut subtype = ChartSubtype::Bar;
     let mut data = Vec::new();
+    let mut style = ChartStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut first_non_empty = true;
     for line in body {
         let line = line.trim();
         if line.is_empty() || line.starts_with('\'') {
+            continue;
+        }
+        if let Some(theme_name) = line.strip_prefix("!theme ") {
+            style = chart_style_from_sequence_theme(
+                &resolve_sequence_theme_preset(theme_name)
+                    .map_err(Diagnostic::error)?
+                    .style,
+            );
+            continue;
+        }
+        if line.to_ascii_lowercase().starts_with("skinparam ") {
+            let rest = line[10..].trim();
+            let mut parts = rest.splitn(2, char::is_whitespace);
+            let key = parts.next().unwrap_or("").trim();
+            let value = parts.next().unwrap_or("").trim();
+            use crate::theme::ChartSkinParamValue;
+            match classify_chart_skinparam(key, value) {
+                SkinParamSupport::SupportedNoop => {}
+                SkinParamSupport::SupportedWithValue(v) => match v {
+                    ChartSkinParamValue::BackgroundColor(c) => style.background_color = c,
+                    ChartSkinParamValue::AxisColor(c) => style.axis_color = c,
+                    ChartSkinParamValue::GridColor(c) => style.grid_color = c,
+                    ChartSkinParamValue::SeriesColor(c) => style.series_color = c,
+                    ChartSkinParamValue::BarColor(c) => style.bar_color = c,
+                    ChartSkinParamValue::LineColor(c) => style.line_color = c,
+                    ChartSkinParamValue::PieBorderColor(c) => style.pie_border_color = c,
+                    ChartSkinParamValue::FontColor(c) => style.font_color = c,
+                },
+                SkinParamSupport::UnsupportedKey => warnings.push(Diagnostic::warning(format!(
+                    "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                    key
+                ))),
+                SkinParamSupport::UnsupportedValue => warnings.push(Diagnostic::warning(format!(
+                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                    value, key
+                ))),
+            }
             continue;
         }
         if first_non_empty {
@@ -646,6 +688,7 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         title,
         subtype,
         data,
+        style,
         warnings,
     })
 }
@@ -1346,8 +1389,14 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::Theme(_)
-            | StatementKind::Pragma(_)
+            StatementKind::Theme(value) => {
+                class_style = class_style_from_sequence_theme(
+                    &resolve_sequence_theme_preset(&value)
+                        .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                        .style,
+                );
+            }
+            StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
@@ -1547,8 +1596,14 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
                     }
                 }
             }
-            StatementKind::Theme(_)
-            | StatementKind::Pragma(_)
+            StatementKind::Theme(value) => {
+                state_style = state_style_from_sequence_theme(
+                    &resolve_sequence_theme_preset(&value)
+                        .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                        .style,
+                );
+            }
+            StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
@@ -2176,6 +2231,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut activity_fork_branch: usize = 0;
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
+    let mut timing_style = TimingStyle::default();
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in document.statements {
@@ -2392,6 +2448,51 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                         }
                     }
                 }
+                if !handled && matches!(family_kind, DiagramKind::Timing) {
+                    use crate::theme::TimingSkinParamValue;
+                    match classify_timing_skinparam(&key, &value) {
+                        SkinParamSupport::SupportedNoop => {
+                            handled = true;
+                        }
+                        SkinParamSupport::SupportedWithValue(v) => {
+                            handled = true;
+                            match v {
+                                TimingSkinParamValue::BackgroundColor(c) => {
+                                    timing_style.background_color = c;
+                                }
+                                TimingSkinParamValue::AxisColor(c) => {
+                                    timing_style.axis_color = c;
+                                }
+                                TimingSkinParamValue::GridColor(c) => {
+                                    timing_style.grid_color = c;
+                                }
+                                TimingSkinParamValue::SignalBackgroundColor(c) => {
+                                    timing_style.signal_background_color = c;
+                                }
+                                TimingSkinParamValue::SignalBorderColor(c) => {
+                                    timing_style.signal_border_color = c;
+                                }
+                                TimingSkinParamValue::ArrowColor(c) => {
+                                    timing_style.arrow_color = c;
+                                }
+                                TimingSkinParamValue::FontColor(c) => {
+                                    timing_style.font_color = c;
+                                }
+                            }
+                        }
+                        SkinParamSupport::UnsupportedKey => {}
+                        SkinParamSupport::UnsupportedValue => {
+                            handled = true;
+                            ext_warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                    value, key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                }
                 if !handled {
                     ext_warnings.push(
                         Diagnostic::warning(format!(
@@ -2402,8 +2503,24 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     );
                 }
             }
-            StatementKind::Theme(_)
-            | StatementKind::Pragma(_)
+            StatementKind::Theme(value) => {
+                let style = resolve_sequence_theme_preset(&value)
+                    .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                    .style;
+                match family_kind {
+                    DiagramKind::Component | DiagramKind::Deployment => {
+                        component_style = component_style_from_sequence_theme(&style);
+                    }
+                    DiagramKind::Activity => {
+                        activity_style = activity_style_from_sequence_theme(&style);
+                    }
+                    DiagramKind::Timing => {
+                        timing_style = timing_style_from_sequence_theme(&style);
+                    }
+                    _ => {}
+                }
+            }
+            StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_)
@@ -2432,6 +2549,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
             Some(FamilyStyle::Component(component_style))
         }
         DiagramKind::Activity => Some(FamilyStyle::Activity(activity_style)),
+        DiagramKind::Timing => Some(FamilyStyle::Timing(timing_style)),
         _ => None,
     };
 

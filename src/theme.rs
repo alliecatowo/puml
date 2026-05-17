@@ -287,6 +287,78 @@ pub struct SequenceThemePreset {
     pub style: SequenceStyle,
 }
 
+pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
+    ClassStyle {
+        background_color: style.participant_background_color.clone(),
+        border_color: style.participant_border_color.clone(),
+        header_color: style.group_background_color.clone(),
+        member_color: style.arrow_color.clone(),
+        arrow_color: style.arrow_color.clone(),
+        font_size: style.default_font_size,
+        font_name: style.default_font_name.clone(),
+    }
+}
+
+pub fn state_style_from_sequence_theme(style: &SequenceStyle) -> StateStyle {
+    StateStyle {
+        background_color: style.participant_background_color.clone(),
+        border_color: style.participant_border_color.clone(),
+        arrow_color: style.arrow_color.clone(),
+        start_color: style.arrow_color.clone(),
+        font_size: style.default_font_size,
+    }
+}
+
+pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentStyle {
+    ComponentStyle {
+        background_color: style.participant_background_color.clone(),
+        border_color: style.participant_border_color.clone(),
+        interface_color: style.note_background_color.clone(),
+        arrow_color: style.arrow_color.clone(),
+    }
+}
+
+pub fn activity_style_from_sequence_theme(style: &SequenceStyle) -> ActivityStyle {
+    ActivityStyle {
+        background_color: style.participant_background_color.clone(),
+        border_color: style.participant_border_color.clone(),
+        diamond_color: style.note_background_color.clone(),
+        fork_color: style.arrow_color.clone(),
+        arrow_color: style.arrow_color.clone(),
+    }
+}
+
+pub fn timing_style_from_sequence_theme(style: &SequenceStyle) -> TimingStyle {
+    TimingStyle {
+        background_color: style
+            .background_color
+            .clone()
+            .unwrap_or_else(|| "#ffffff".to_string()),
+        axis_color: style.arrow_color.clone(),
+        grid_color: style.lifeline_border_color.clone(),
+        signal_background_color: style.participant_background_color.clone(),
+        signal_border_color: style.participant_border_color.clone(),
+        arrow_color: style.arrow_color.clone(),
+        font_color: style.arrow_color.clone(),
+    }
+}
+
+pub fn chart_style_from_sequence_theme(style: &SequenceStyle) -> ChartStyle {
+    ChartStyle {
+        background_color: style
+            .background_color
+            .clone()
+            .unwrap_or_else(|| "#ffffff".to_string()),
+        axis_color: style.arrow_color.clone(),
+        grid_color: style.lifeline_border_color.clone(),
+        series_color: style.arrow_color.clone(),
+        bar_color: style.participant_border_color.clone(),
+        line_color: style.arrow_color.clone(),
+        pie_border_color: style.group_border_color.clone(),
+        font_color: style.arrow_color.clone(),
+    }
+}
+
 pub const LOCAL_SEQUENCE_THEME_CATALOG: &[&str] = &[
     "plain",
     "_none_",
@@ -1430,6 +1502,159 @@ pub fn classify_activity_skinparam(
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "activityarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ActivitySkinParamValue::ArrowColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        _ => SkinParamSupport::UnsupportedKey,
+    }
+}
+
+// ─── Timing-family skinparam support ────────────────────────────────────────
+
+/// Style overrides for timing diagrams.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimingStyle {
+    pub background_color: String,
+    pub axis_color: String,
+    pub grid_color: String,
+    pub signal_background_color: String,
+    pub signal_border_color: String,
+    pub arrow_color: String,
+    pub font_color: String,
+}
+
+impl Default for TimingStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#ffffff".to_string(),
+            axis_color: "#64748b".to_string(),
+            grid_color: "#cbd5e1".to_string(),
+            signal_background_color: "#f8fafc".to_string(),
+            signal_border_color: "#0f172a".to_string(),
+            arrow_color: "#0ea5e9".to_string(),
+            font_color: "#0f172a".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TimingSkinParamValue {
+    BackgroundColor(String),
+    AxisColor(String),
+    GridColor(String),
+    SignalBackgroundColor(String),
+    SignalBorderColor(String),
+    ArrowColor(String),
+    FontColor(String),
+}
+
+pub fn classify_timing_skinparam(
+    key: &str,
+    value: &str,
+) -> SkinParamSupport<TimingSkinParamValue> {
+    let normalized = key.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "timingbackgroundcolor" | "timingdiagrambackgroundcolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(TimingSkinParamValue::BackgroundColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "timingaxiscolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::AxisColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "timinggridcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::GridColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "timingsignalbackgroundcolor" | "timingparticipantbackgroundcolor" => {
+            parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(
+                        TimingSkinParamValue::SignalBackgroundColor(c),
+                    )
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue)
+        }
+        "timingsignalbordercolor" | "timingparticipantbordercolor" => parse_color_value(value)
+            .map(|c| {
+                SkinParamSupport::SupportedWithValue(TimingSkinParamValue::SignalBorderColor(c))
+            })
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "timingarrowcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::ArrowColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "timingfontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(TimingSkinParamValue::FontColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        _ => SkinParamSupport::UnsupportedKey,
+    }
+}
+
+// ─── Chart-family skinparam support ─────────────────────────────────────────
+
+/// Style overrides for chart diagrams.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChartStyle {
+    pub background_color: String,
+    pub axis_color: String,
+    pub grid_color: String,
+    pub series_color: String,
+    pub bar_color: String,
+    pub line_color: String,
+    pub pie_border_color: String,
+    pub font_color: String,
+}
+
+impl Default for ChartStyle {
+    fn default() -> Self {
+        Self {
+            background_color: "#ffffff".to_string(),
+            axis_color: "#0f172a".to_string(),
+            grid_color: "#e2e8f0".to_string(),
+            series_color: "#1d4ed8".to_string(),
+            bar_color: "#1d4ed8".to_string(),
+            line_color: "#1d4ed8".to_string(),
+            pie_border_color: "#0f172a".to_string(),
+            font_color: "#0f172a".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChartSkinParamValue {
+    BackgroundColor(String),
+    AxisColor(String),
+    GridColor(String),
+    SeriesColor(String),
+    BarColor(String),
+    LineColor(String),
+    PieBorderColor(String),
+    FontColor(String),
+}
+
+pub fn classify_chart_skinparam(key: &str, value: &str) -> SkinParamSupport<ChartSkinParamValue> {
+    let normalized = key.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "chartbackgroundcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::BackgroundColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartaxiscolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::AxisColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartgridcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::GridColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartseriescolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::SeriesColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartbarcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::BarColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartlinecolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::LineColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartpiebordercolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::PieBorderColor(c)))
+            .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "chartfontcolor" => parse_color_value(value)
+            .map(|c| SkinParamSupport::SupportedWithValue(ChartSkinParamValue::FontColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         _ => SkinParamSupport::UnsupportedKey,
     }

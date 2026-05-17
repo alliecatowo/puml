@@ -1458,8 +1458,8 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::StateRegionDivider => json!("StateRegionDivider"),
         StatementKind::StateHistory { deep } => json!({"StateHistory": {"deep": deep}}),
         StatementKind::GanttTaskDecl { name, .. } => json!({"GanttTaskDecl": {"name": name}}),
-        StatementKind::GanttMilestoneDecl { name } => {
-            json!({"GanttMilestoneDecl": {"name": name}})
+        StatementKind::GanttMilestoneDecl { name, happens_on } => {
+            json!({"GanttMilestoneDecl": {"name": name, "happens_on": happens_on}})
         }
         StatementKind::GanttConstraint {
             subject,

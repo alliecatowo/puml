@@ -1448,6 +1448,12 @@ fn parse_chart_style(line: &str, options: &mut ChartRenderOptions) -> bool {
         }
         return true;
     }
+    if lower.starts_with("skinparam ") && lower.contains("chart") {
+        if let Some(color) = parts.last().filter(|part| part.starts_with('#')) {
+            options.palette.push((*color).to_string());
+        }
+        return true;
+    }
     if lower.starts_with("palette ") {
         options.palette = parts
             .iter()

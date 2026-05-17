@@ -539,7 +539,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         w = svg_width,
         h = svg_height
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&class_style.background_color)
+    ));
 
     // Arrowhead/diamond marker defs — use class_style.arrow_color for stroke
     let arrow_stroke = &class_style.arrow_color;
@@ -3897,6 +3900,14 @@ fn timing_state_color(state: &str, idx: usize) -> &'static str {
 }
 
 pub fn render_timing_svg(doc: &FamilyDocument) -> String {
+    let default_timing_style;
+    let style = match &doc.family_style {
+        Some(crate::model::FamilyStyle::Timing(style)) => style,
+        _ => {
+            default_timing_style = crate::theme::TimingStyle::default();
+            &default_timing_style
+        }
+    };
     // ── Collect signals and events ────────────────────────────────────────────
     let signals: Vec<&FamilyNode> = doc
         .nodes
@@ -3982,14 +3993,28 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\">"
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&style.background_color)
+    ));
+    out.push_str(&format!(
+        "<metadata data-timing-style=\"{} {} {} {} {} {} {}\"/>",
+        escape_text(&style.background_color),
+        escape_text(&style.axis_color),
+        escape_text(&style.grid_color),
+        escape_text(&style.signal_background_color),
+        escape_text(&style.signal_border_color),
+        escape_text(&style.arrow_color),
+        escape_text(&style.font_color)
+    ));
 
     // ── Title ─────────────────────────────────────────────────────────────────
     let mut ty = 22i32;
     if let Some(title) = &doc.title {
         for line in title.lines() {
             out.push_str(&format!(
-                "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">{}</text>",
+                "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                escape_text(&style.font_color),
                 escape_text(line)
             ));
             ty += 22;
@@ -4006,7 +4031,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     // ── Time axis ─────────────────────────────────────────────────────────────
     // Background strip for time axis
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#f8fafc\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>",
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.signal_background_color),
+        escape_text(&style.grid_color),
         x = left_pad,
         y = axis_top,
         w = chart_w,
@@ -4019,19 +4046,22 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         let tx = time_to_x(t);
         // Gridline through all signal rows
         out.push_str(&format!(
-            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+            escape_text(&style.grid_color),
             y1 = signals_top,
             y2 = signals_top + rows_h
         ));
         // Tick mark on axis
         out.push_str(&format!(
-            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"#64748b\" stroke-width=\"1.5\"/>",
+            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            escape_text(&style.axis_color),
             y1 = axis_top + axis_h - 8,
             y2 = axis_top + axis_h
         ));
         // Label
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">@{t}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">@{t}</text>",
+            escape_text(&style.font_color),
             ty = axis_top + 20
         ));
     }
@@ -4039,11 +4069,13 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     for (t, note) in &global_events {
         let tx = time_to_x(*t);
         out.push_str(&format!(
-            "<circle cx=\"{tx}\" cy=\"{cy}\" r=\"3\" fill=\"#0ea5e9\"/>",
+            "<circle cx=\"{tx}\" cy=\"{cy}\" r=\"3\" fill=\"{}\"/>",
+            escape_text(&style.arrow_color),
             cy = axis_top + 8
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#0c4a6e\">{}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            escape_text(&style.font_color),
             escape_text(note),
             ty = axis_top + 10
         ));
@@ -4054,7 +4086,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         let mid = (w[0] + w[1]) / 2;
         let mx = time_to_x(mid);
         out.push_str(&format!(
-            "<line x1=\"{mx}\" y1=\"{y1}\" x2=\"{mx}\" y2=\"{y2}\" stroke=\"#94a3b8\" stroke-width=\"0.75\"/>",
+            "<line x1=\"{mx}\" y1=\"{y1}\" x2=\"{mx}\" y2=\"{y2}\" stroke=\"{}\" stroke-width=\"0.75\"/>",
+            escape_text(&style.axis_color),
             y1 = axis_top + axis_h - 4,
             y2 = axis_top + axis_h
         ));
@@ -4079,7 +4112,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
         // Signal name label (left column)
         out.push_str(&format!(
-            "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#0f172a\" text-anchor=\"end\">{name}</text>",
+            "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"{}\" text-anchor=\"end\">{name}</text>",
+            escape_text(&style.font_color),
             x = left_pad - 8,
             ty = wave_mid + 4,
             name = escape_text(&signal.name)
@@ -4110,7 +4144,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
         // Row separator line at bottom
         out.push_str(&format!(
-            "<line x1=\"0\" y1=\"{y}\" x2=\"{width}\" y2=\"{y}\" stroke=\"#e2e8f0\" stroke-width=\"0.5\"/>",
+            "<line x1=\"0\" y1=\"{y}\" x2=\"{width}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            escape_text(&style.grid_color),
             y = row_y + row_h
         ));
 
@@ -4157,8 +4192,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     path.push_str(&format!("L {x2},{cy} "));
                 }
                 out.push_str(&format!(
-                    "<polyline points=\"{}\" fill=\"none\" stroke=\"#0f172a\" stroke-width=\"2\"/>",
+                    "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"/>",
                     path.replace("M ", "").replace("L ", "")
+                    , escape_text(&style.signal_border_color)
                 ));
 
                 // Pulse labels
@@ -4210,7 +4246,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     cur_t = next_t;
                 }
                 out.push_str(&format!(
-                    "<polyline points=\"{path_pts}\" fill=\"none\" stroke=\"#0f172a\" stroke-width=\"2\"/>",
+                    "<polyline points=\"{path_pts}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    escape_text(&style.signal_border_color),
                 ));
                 // Clock label
                 out.push_str(&format!(
@@ -5130,6 +5167,7 @@ fn sdl_state_kind_label(kind: SdlStateKind) -> &'static str {
 pub fn render_chart_svg(document: &ChartDocument) -> String {
     let width = 780;
     let height = 420;
+    let style = &document.style;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
@@ -5166,6 +5204,7 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             plot_top,
             plot_right,
             plot_bottom,
+            style,
         ),
         ChartSubtype::Line => render_chart_line(
             &mut out,
@@ -5174,12 +5213,14 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             plot_top,
             plot_right,
             plot_bottom,
+            style,
         ),
         ChartSubtype::Pie => render_chart_pie(
             &mut out,
             &document.data,
             width / 2,
             (plot_top + plot_bottom) / 2,
+            style,
         ),
     }
     out.push_str("</svg>");
@@ -5197,15 +5238,18 @@ fn render_chart_bars(
     top: i32,
     right: i32,
     bottom: i32,
+    style: &crate::theme::ChartStyle,
 ) {
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.axis_color),
         l = left,
         r = right,
         b = bottom
     ));
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.axis_color),
         l = left,
         t = top,
         b = bottom
@@ -5225,16 +5269,22 @@ fn render_chart_bars(
         let bx = left + (idx as i32) * (avail / count) + 4;
         let bh = ((point.value.max(0.0) / max_value) * ((bottom - top) as f64)) as i32;
         let by = bottom - bh;
-        let color = CHART_PALETTE[idx % CHART_PALETTE.len()];
+        let color = if idx == 0 {
+            style.bar_color.as_str()
+        } else {
+            CHART_PALETTE[idx % CHART_PALETTE.len()]
+        };
         out.push_str(&format!(
-            "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"#0f172a\" stroke-width=\"0.5\"/>",
+            "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            escape_text(&style.axis_color),
             bx = bx,
             by = by,
             bw = bar_w,
             bh = bh
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            escape_text(&style.font_color),
             escape_text(&point.label),
             tx = bx + bar_w / 2,
             ty = bottom + 16
