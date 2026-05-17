@@ -612,6 +612,24 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"{dash}{markers}/>",
             dash = stroke_dash
         ));
+        if let Some(left) = &relation.left_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x1 - 4,
+                y = y1 - 6,
+                member_color = class_style.member_color,
+                txt = escape_text(left)
+            ));
+        }
+        if let Some(right) = &relation.right_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x2 + 4,
+                y = y2 - 6,
+                member_color = class_style.member_color,
+                txt = escape_text(right)
+            ));
+        }
         if let Some(label) = &relation.label {
             let lx = (x1 + x2) / 2;
             let ly = (y1 + y2) / 2 - 4;
@@ -2612,6 +2630,22 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 mx,
                 my,
                 escape_text(label)
+            ));
+        }
+        if let Some(left) = &rel.left_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x1 - 4,
+                y1 - 6,
+                escape_text(left)
+            ));
+        }
+        if let Some(right) = &rel.right_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x2 + 4,
+                y2 - 6,
+                escape_text(right)
             ));
         }
     }

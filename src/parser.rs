@@ -3747,8 +3747,10 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
 
     let (core, label) = split_message_label(line);
     let (lhs, arrow, rhs) = split_arrow(core)?;
-    let from = clean_bracketed_ident(lhs);
-    let to = clean_bracketed_ident(rhs);
+    let (lhs_core, left_cardinality) = parse_relation_side_cardinality(lhs, true);
+    let (rhs_core, right_cardinality) = parse_relation_side_cardinality(rhs, false);
+    let from = clean_bracketed_ident(&lhs_core);
+    let to = clean_bracketed_ident(&rhs_core);
     if from.is_empty() || to.is_empty() {
         return None;
     }
@@ -3757,7 +3759,40 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         to,
         arrow: arrow.to_string(),
         label,
+        left_cardinality,
+        right_cardinality,
     }))
+}
+
+fn parse_relation_side_cardinality(side: &str, is_left: bool) -> (String, Option<String>) {
+    let trimmed = side.trim();
+    if trimmed.is_empty() {
+        return (String::new(), None);
+    }
+
+    if is_left {
+        if let Some(end_quote) = trimmed.rfind('"') {
+            if end_quote > 0 {
+                if let Some(start_quote) = trimmed[..end_quote].rfind('"') {
+                    let value = trimmed[start_quote + 1..end_quote].trim();
+                    let endpoint = trimmed[..start_quote].trim();
+                    if !value.is_empty() && !endpoint.is_empty() {
+                        return (endpoint.to_string(), Some(value.to_string()));
+                    }
+                }
+            }
+        }
+    } else if let Some(rest) = trimmed.strip_prefix('"') {
+        if let Some(end_quote_rel) = rest.find('"') {
+            let value = rest[..end_quote_rel].trim();
+            let endpoint = rest[end_quote_rel + 1..].trim();
+            if !value.is_empty() && !endpoint.is_empty() {
+                return (endpoint.to_string(), Some(value.to_string()));
+            }
+        }
+    }
+
+    (trimmed.to_string(), None)
 }
 
 fn clean_bracketed_ident(s: &str) -> String {

@@ -489,6 +489,8 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
                     to: "U".to_string(),
                     arrow: "-->".to_string(),
                     label: Some("owns".to_string()),
+                    left_cardinality: None,
+                    right_cardinality: None,
                 }),
             },
         ],
