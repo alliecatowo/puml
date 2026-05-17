@@ -480,7 +480,7 @@ fn visual_regression_focused_text_presence_sweep() {
         FOCUSED_TEXT_SWEEP_FIXTURES.len(),
         "focused visual text sweep fixture list must match manifest entries"
     );
-    run_text_sweep(fixtures.into_iter(), FOCUSED_TEXT_SWEEP_FIXTURES.len());
+    run_text_sweep(fixtures, FOCUSED_TEXT_SWEEP_FIXTURES.len());
 }
 
 #[test]
