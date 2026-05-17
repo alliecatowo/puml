@@ -1,7 +1,9 @@
 use puml::ast::{ParticipantDecl, StatementKind};
 use puml::diagnostic::Severity;
 use puml::scene::LayoutOptions;
-use puml::{layout, normalize, parse, render, Document};
+use puml::{
+    layout, normalize, parse_with_pipeline_options, render, Document, ParsePipelineOptions,
+};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
@@ -109,7 +111,7 @@ fn main() {
             "exit" => break,
             "textDocument/didOpen" => {
                 if let Some((u, v, t)) = open(&msg) {
-                    let parsed = parse(&t).ok();
+                    let parsed = lsp_parse(&t).ok();
                     docs.insert(
                         u.clone(),
                         Doc {
@@ -133,7 +135,7 @@ fn main() {
                             continue;
                         }
                     }
-                    let parsed = parse(&t).ok();
+                    let parsed = lsp_parse(&t).ok();
                     docs.insert(
                         u.clone(),
                         Doc {
@@ -1163,7 +1165,7 @@ fn code_actions(uri: &str, d: &Doc, msg: &Value) -> Value {
         "kind":"source.format",
         "command":{"title":"Format document","command":"puml.applyFormat","arguments":[uri]}
     })];
-    if parse(&d.text).and_then(normalize).is_ok() {
+    if lsp_parse(&d.text).and_then(normalize).is_ok() {
         out.push(json!({
             "title":"Render SVG preview",
             "kind":"refactor.rewrite",
@@ -1412,7 +1414,7 @@ fn range(src: &str, s: usize, e: usize) -> Value {
 }
 
 fn render_result(src: &str) -> Value {
-    match parse(src).and_then(normalize) {
+    match lsp_parse(src).and_then(normalize) {
         Ok(m) => {
             let s = layout::layout_pages(&m, LayoutOptions::default());
             json!({"svg":s.first().map(render::render_svg).unwrap_or_default(),"width":0,"height":0,"diagnostics":[]})
@@ -1420,6 +1422,17 @@ fn render_result(src: &str) -> Value {
         Err(d) => json!({"svg":"","width":0,"height":0,"diagnostics":[{"message":d.message}]}),
     }
 }
+
+fn lsp_parse(src: &str) -> Result<Document, puml::Diagnostic> {
+    parse_with_pipeline_options(
+        src,
+        &ParsePipelineOptions {
+            no_url_includes: true,
+            ..ParsePipelineOptions::default()
+        },
+    )
+}
+
 fn open(v: &Value) -> Option<(String, i64, String)> {
     Some((
         v.pointer("/params/textDocument/uri")?.as_str()?.to_string(),
@@ -1526,7 +1539,7 @@ mod tests {
         let doc = Doc {
             text: src.to_string(),
             version: 1,
-            parsed: parse(src).ok(),
+            parsed: lsp_parse(src).ok(),
         };
         let out = definition(&doc, "file:///test.puml", (2, 1)).expect("definition");
         let first = out
@@ -1545,7 +1558,7 @@ mod tests {
         let doc = Doc {
             text: src.to_string(),
             version: 1,
-            parsed: parse(src).ok(),
+            parsed: lsp_parse(src).ok(),
         };
         let out = semantic_tokens(&doc);
         let data = out
@@ -1621,7 +1634,7 @@ mod tests {
         let doc = Doc {
             text: src.to_string(),
             version: 1,
-            parsed: parse(src).ok(),
+            parsed: lsp_parse(src).ok(),
         };
         let out = hover(&doc, (1, 3)).expect("hover");
         assert!(out["contents"]["value"]
@@ -1647,9 +1660,27 @@ mod tests {
         assert_eq!(first["severity"], 1);
         assert_eq!(first["code"], "E_ARROW_INVALID");
     }
+
+    #[test]
+    fn publish_diagnostics_does_not_fetch_url_includes() {
+        let mut out = Vec::new();
+        let src = "@startuml\n!include https://example.com/remote.puml\n@enduml\n";
+        pub_diag(&mut out, "file:///a.puml", 3, src).expect("publish diagnostics");
+
+        let raw = String::from_utf8(out).expect("utf8");
+        let payload = raw
+            .split_once("\r\n\r\n")
+            .map(|(_, body)| body)
+            .expect("lsp frame");
+        let msg: Value = serde_json::from_str(payload).expect("json frame");
+        let first = msg["params"]["diagnostics"][0].clone();
+        assert_eq!(first["source"], "puml");
+        assert_eq!(first["severity"], 1);
+        assert_eq!(first["code"], "E_INCLUDE_URL_DISABLED");
+    }
 }
 fn pub_diag(w: &mut impl Write, uri: &str, ver: i64, src: &str) -> io::Result<()> {
-    let ds = match parse(src).and_then(normalize) {
+    let ds = match lsp_parse(src).and_then(normalize) {
         Ok(m) => m
             .warnings
             .into_iter()

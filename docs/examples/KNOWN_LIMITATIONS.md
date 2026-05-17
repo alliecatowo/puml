@@ -13,7 +13,7 @@ that diagram families are unsupported overall.
 ### Cross-cutting
 
 - PNG output is implemented via deterministic SVG rasterization; advanced PlantUML raster flags beyond DPI remain out of scope.
-- URL-based include/import sources are intentionally rejected for deterministic/safety reasons.
+- URL-based include/import sources are enabled by default in the native CLI for PlantUML compatibility. Use `--no-url-includes` for untrusted or no-network runs. LSP and WASM surfaces do not fetch remote includes as side effects; see [`docs/url-includes.md`](../url-includes.md).
 - Differential oracle is smoke-level in CI (not a full semantic pixel-parity oracle yet).
 
 ### Sequence
@@ -25,7 +25,7 @@ that diagram families are unsupported overall.
 ### Preprocessor / stdlib
 
 - Dynamic invocation families (`%invoke_procedure`, `%call_user_func`) are still narrower than PlantUML.
-- Theme/source fetching from remote locations is intentionally constrained.
+- Theme/source fetching from remote locations follows the URL include policy and remains narrower than PlantUML's full resolver surface.
 - Stdlib macro compatibility is broad but not complete visual parity for every icon/macro variant.
 
 ### Family depth (not family availability)

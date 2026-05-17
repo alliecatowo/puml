@@ -59,7 +59,7 @@ No freehand SVG. No imaginary syntax. No “looks right” without parsing. No f
 - No duplicate parser in prompt text.
 - No arbitrary shell execution.
 - No remote fetch by default.
-- No remote includes.
+- Remote includes are disabled unless a tool call explicitly opts in with `allow_url_includes: true`.
 - No silent file writes.
 - No path traversal outside approved workspace roots.
 - No generated diagram is considered final until `puml_check` passes.
@@ -384,7 +384,8 @@ Input:
 ```json
 {
   "source": "string",
-  "includeRoot": "string?"
+  "includeRoot": "string?",
+  "allow_url_includes": "boolean?"
 }
 ```
 
@@ -416,7 +417,8 @@ Input:
   "source": "string",
   "theme": "string?",
   "page": 0,
-  "includeRoot": "string?"
+  "includeRoot": "string?",
+  "allow_url_includes": "boolean?"
 }
 ```
 

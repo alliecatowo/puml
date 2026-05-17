@@ -52,10 +52,10 @@ This log records intentional contract deviations and updates adopted in the curr
 - Spec/implementation contradiction and resolution: PlantUML preprocessing remains broader than this implementation; we intentionally keep a narrower bounded contract instead of implying full preprocessing parity.
 
 ### D-008: Strict include baseline for include-id and URL handling
-- Decision: Add bounded include-id extraction for `!include file!TAG` using local `!startsub TAG`/`!endsub` blocks, and hard-reject URL includes with a dedicated deterministic diagnostic.
-- Rationale: This is the first strict-mode foundation slice for preprocessor parity: expand local include capabilities while keeping network behavior explicitly unsupported and deterministic.
-- Impact: Missing tags now fail with `E_INCLUDE_TAG_NOT_FOUND`; URL targets fail with `E_INCLUDE_URL_UNSUPPORTED`; missing files continue to fail with deterministic `E_INCLUDE_READ`.
-- Spec/implementation contradiction and resolution: PlantUML supports broader include variants; current behavior intentionally limits include-id extraction to local tagged sub-blocks only.
+- Decision: Add bounded include-id extraction for `!include file!TAG` using local `!startsub TAG`/`!endsub` blocks. URL includes are a surface-specific policy: the native CLI enables them by default for PlantUML compatibility, `--no-url-includes` rejects them with a deterministic diagnostic, and LSP/WASM surfaces avoid surprise network access.
+- Rationale: This is the first strict-mode foundation slice for preprocessor parity: expand local include capabilities while making the network boundary explicit instead of silently fetching everywhere.
+- Impact: Missing tags now fail with `E_INCLUDE_TAG_NOT_FOUND`; disabled URL targets fail with `E_INCLUDE_URL_DISABLED`; unsupported builds or fetch failures use URL-specific diagnostics; missing files continue to fail with deterministic `E_INCLUDE_READ`.
+- Spec/implementation contradiction and resolution: PlantUML supports broader include variants; current behavior intentionally limits include-id extraction to local tagged sub-blocks only while preserving native URL include compatibility where the caller opts into the native CLI/default library policy.
 
 ### D-009: Compat contract interpretation at parse boundary
 - Decision: Interpret `compat` and `determinism` at one explicit parse-pipeline contract boundary; keep strict and extended on a single parser path.

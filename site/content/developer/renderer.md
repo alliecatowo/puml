@@ -22,7 +22,7 @@ declare function detect_family(source: string): string;
 
 ## What's different from the CLI
 
-- **No filesystem.** `!include`, `!include_many`, `!includesub`, `!import`, and `!include <stdlib/...>` all return `E_INCLUDE_NOT_SUPPORTED_WASM`. Everything else &mdash; parser, normaliser, layout, SVG render &mdash; is identical to the native build.
+- **No filesystem or URL fetching.** `!include`, `!include_many`, `!includesub`, `!import`, and `!include <stdlib/...>` all return deterministic include diagnostics in WASM. This differs from the native CLI, which enables URL includes by default for PlantUML compatibility. Everything else &mdash; parser, normaliser, layout, SVG render &mdash; is identical to the native build.
 - **No PNG output.** The browser already has a DOM, so the page consumes the SVG directly. The `resvg` / `tiny-skia` / `image` deps that the CLI uses for PNG rasterization are feature-gated to the `cli` feature and never enter the WASM binary.
 - **One single-page renderer per call.** Multi-page diagrams come back as an array of SVG strings; the studio currently concatenates them vertically.
 
