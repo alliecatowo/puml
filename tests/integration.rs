@@ -422,6 +422,36 @@ fn docs_examples_svg_corpus_matches_renderer() {
 }
 
 #[test]
+fn nonuml_family_fixtures_render_nonempty_svg_depth_smoke() {
+    let fixtures = [
+        "non_sequence/valid_sdl.puml",
+        "non_sequence/valid_archimate.puml",
+        "non_sequence/valid_nwdiag.puml",
+        "non_sequence/valid_json.puml",
+        "non_sequence/valid_yaml.puml",
+        "non_sequence/valid_regex.puml",
+        "non_sequence/valid_ebnf.puml",
+        "non_sequence/valid_chart_bar.puml",
+        "non_sequence/valid_chart_pie.puml",
+        "non_sequence/valid_math.puml",
+        "non_sequence/valid_ditaa.puml",
+        "families/valid_math_complex.puml",
+        "families/valid_ditaa_complex.puml",
+    ];
+
+    for case in fixtures {
+        let src = fs::read_to_string(fixture(case)).expect("fixture should load");
+        let svg = render_source_to_svg(&src).expect("render should succeed");
+        assert!(svg.starts_with("<svg"), "expected svg root for {case}");
+        assert!(
+            svg.len() > 120,
+            "expected non-trivial svg for {case}, got {} bytes",
+            svg.len()
+        );
+    }
+}
+
+#[test]
 fn check_mode_fails_for_invalid_input() {
     Command::cargo_bin("puml")
         .expect("binary")
