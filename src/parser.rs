@@ -56,6 +56,11 @@ pub fn parse(source: &str) -> Result<Document, Diagnostic> {
 }
 
 pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Document, Diagnostic> {
+    let expanded = preprocess_with_options(source, options)?;
+    parse_preprocessed(&expanded)
+}
+
+pub fn preprocess_with_options(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
     let mut state = PreprocState::default();
     let mut include_stack = Vec::new();
     let mut include_once_seen = BTreeSet::new();
@@ -72,7 +77,7 @@ pub fn parse_with_options(source: &str, options: &ParseOptions) -> Result<Docume
         &mut expanded,
     )?;
 
-    parse_preprocessed(&expanded)
+    Ok(expanded)
 }
 
 #[derive(Debug, Clone)]

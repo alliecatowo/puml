@@ -6573,6 +6573,67 @@ fn chart_area_and_scatter_render_paths_are_supported() {
 }
 
 #[test]
+fn specialized_chart_render_routes_preprocess_define_like_check_mode() {
+    let src = "@startchart\n!define ROW Q1 : 42\nROW\n@endchart\n";
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let cli_svg = Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("-")
+        .write_stdin(src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let cli_svg = String::from_utf8(cli_svg).expect("CLI SVG should be UTF-8");
+    let lib_svg = render_source_to_svg(src).expect("library chart render should succeed");
+
+    assert_eq!(cli_svg.trim_end(), lib_svg);
+    assert!(lib_svg.contains(">Q1<"));
+    assert!(lib_svg.contains(">42<"));
+    assert!(!lib_svg.contains("!define ROW Q1"));
+}
+
+#[test]
+fn specialized_regex_render_routes_preprocess_define_like_check_mode() {
+    let src = "@startregex\n!define WORD ^foo$\nWORD\n@endregex\n";
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let cli_svg = Command::cargo_bin("puml")
+        .expect("binary")
+        .arg("-")
+        .write_stdin(src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let cli_svg = String::from_utf8(cli_svg).expect("CLI SVG should be UTF-8");
+    let lib_svg = render_source_to_svg(src).expect("library regex render should succeed");
+
+    assert_eq!(cli_svg.trim_end(), lib_svg);
+    assert!(lib_svg.contains("foo"));
+    assert!(!lib_svg.contains("!define WORD"));
+}
+
+#[test]
 fn non_uml_advanced_chart_annotations_and_style_directives_render() {
     let src = "@startchart bar\n\
 title Revenue\n\

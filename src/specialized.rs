@@ -12,20 +12,46 @@ use std::collections::BTreeMap;
 /// Try to render `source` as one of the specialized diagram families.
 /// Returns `Some(svg)` if the source is recognized, `None` otherwise.
 pub fn try_render_specialized(source: &str) -> Option<Result<String, Diagnostic>> {
+    let family = detect_specialized_family(source)?;
+    Some(match family {
+        SpecializedFamily::Regex => render_regex(source.trim()),
+        SpecializedFamily::Ebnf => render_ebnf(source.trim()),
+        SpecializedFamily::Chart => render_chart(source.trim()),
+        SpecializedFamily::Math => render_math(source.trim()),
+        SpecializedFamily::Latex => render_latex(source.trim()),
+        SpecializedFamily::Ditaa => render_ditaa(source.trim()),
+    })
+}
+
+pub fn is_specialized_source(source: &str) -> bool {
+    detect_specialized_family(source).is_some()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SpecializedFamily {
+    Regex,
+    Ebnf,
+    Chart,
+    Math,
+    Latex,
+    Ditaa,
+}
+
+fn detect_specialized_family(source: &str) -> Option<SpecializedFamily> {
     let trimmed = source.trim();
     let lower = trimmed.to_ascii_lowercase();
     if lower.starts_with("@startregex") {
-        Some(render_regex(trimmed))
+        Some(SpecializedFamily::Regex)
     } else if lower.starts_with("@startebnf") {
-        Some(render_ebnf(trimmed))
+        Some(SpecializedFamily::Ebnf)
     } else if lower.starts_with("@startchart") {
-        Some(render_chart(trimmed))
+        Some(SpecializedFamily::Chart)
     } else if lower.starts_with("@startmath") {
-        Some(render_math(trimmed))
+        Some(SpecializedFamily::Math)
     } else if lower.starts_with("@startlatex") {
-        Some(render_latex(trimmed))
+        Some(SpecializedFamily::Latex)
     } else if lower.starts_with("@startditaa") {
-        Some(render_ditaa(trimmed))
+        Some(SpecializedFamily::Ditaa)
     } else {
         None
     }
