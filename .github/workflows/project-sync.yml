@@ -70,6 +70,7 @@ jobs:
         if: env.HAS_PROJECT_TOKEN != 'true'
         run: |
           echo "::warning title=Project sync skipped::PUML_PROJECT_TOKEN is not configured or is unavailable for this event. User-owned Projects v2 boards cannot be edited with the repository GITHUB_TOKEN."
+          echo "Configure a repository secret named PUML_PROJECT_TOKEN with a classic PAT that can read and write the user-owned Project v2 board."
 
       - name: Sync issue or pull request to PUML project
         if: env.HAS_PROJECT_TOKEN == 'true' && github.event_name != 'workflow_dispatch'

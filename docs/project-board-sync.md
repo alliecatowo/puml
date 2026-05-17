@@ -18,6 +18,23 @@ only the existing `Status` and `Priority` fields on issue/PR events.
 - Write access to the GitHub Project board
 - The project must use a **Single Select** status field with an option named **"Done"**
 
+## Live board state checked
+
+Checked on 2026-05-17 with `gh api graphql` and `gh project item-list`:
+
+- User project `alliecatowo/3` is titled `PUML`, public, open, and has ID
+  `PVT_kwHOBdlpmc4BX1zk`.
+- Project `shortDescription` and `readme` were set through `updateProjectV2`
+  to describe the board and token-backed repo automation.
+- Native workflows enabled: `Auto-add sub-issues to project` and
+  `Auto-add to project`.
+- Native workflows disabled: `Item added to project`, `Item closed`,
+  `Pull request linked to issue`, `Pull request merged`, and `Auto-close issue`.
+- The live GraphQL mutation schema exposes `deleteProjectV2Workflow`, but no
+  create/update/enable mutation for Project v2 workflows.
+- Status and Priority field IDs/options in `.github/workflows/project-sync.yml`
+  match the live board.
+
 ## Usage
 
 ```bash
@@ -78,6 +95,11 @@ boards, a PAT with `project` scope is required in practice because repository
 missing or unavailable for an event, the workflow exits successfully with a
 warning instead of failing unrelated PRs.
 
+Live check on 2026-05-17: the repository Actions secrets API reported
+`total_count: 0`, so `PUML_PROJECT_TOKEN` was not configured at that time.
+Recent `Project Sync` workflow runs completed successfully by executing the
+skip step and skipping the project edit steps.
+
 The older sweep can still be run as a scheduled workflow or manually:
 
 ```yaml
@@ -115,3 +137,6 @@ settings; in that case use `PUML_PROJECT_TOKEN`.
 - Native Projects v2 workflow rules such as "Item closed", "Pull request
   merged", and "Pull request linked to issue" remain UI-managed; the GraphQL
   schema currently exposes them as readable/deletable, not configurable.
+- GitHub's current Actions guidance says repository `GITHUB_TOKEN` is scoped to
+  the repository and cannot access Projects; user projects should use a personal
+  access token saved as a secret.
