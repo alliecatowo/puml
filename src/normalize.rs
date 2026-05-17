@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::ast::{
-    ActivityStepKind, ComponentNodeKind, DiagramKind, Document, ParticipantRole as AstRole,
-    StatementKind, TimingDeclKind,
+    ActivityStepKind, ClassMember, ComponentNodeKind, DiagramKind, Document,
+    ParticipantRole as AstRole, StatementKind, TimingDeclKind,
 };
 use crate::diagnostic::Diagnostic;
 use crate::model::FamilyStyle;
@@ -1581,9 +1581,39 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             } => {
                 // Auto-create nodes for members declared inside a package/namespace block
                 // if they haven't already been declared as top-level statements.
+                let mut group_member_ids = Vec::with_capacity(members.len());
                 for member_id in &members {
+                    let mut parts = member_id.split('\t');
+                    let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
+                    let encoded_members = parts
+                        .map(|text| ClassMember {
+                            text: text.to_string(),
+                            modifier: None,
+                        })
+                        .filter(|member| {
+                            let trimmed = member.text.trim();
+                            if hide_options.contains("stereotype")
+                                && trimmed.starts_with("<<")
+                                && trimmed.ends_with(">>")
+                            {
+                                return false;
+                            }
+                            if hide_options.contains("circle") && trimmed == "()" {
+                                return false;
+                            }
+                            if (hide_options.contains("empty members")
+                                || hide_options.contains("empty methods")
+                                || hide_options.contains("empty fields"))
+                                && (trimmed.is_empty() || trimmed == "--" || trimmed == "..")
+                            {
+                                return false;
+                            }
+                            true
+                        })
+                        .collect::<Vec<_>>();
+                    group_member_ids.push(node_id.clone());
                     let already_exists = nodes.iter().any(|n: &FamilyNode| {
-                        n.name == *member_id || n.alias.as_deref() == Some(member_id.as_str())
+                        n.name == node_id || n.alias.as_deref() == Some(node_id.as_str())
                     });
                     if !already_exists {
                         let nk = match node_kind {
@@ -1593,9 +1623,9 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                         };
                         nodes.push(FamilyNode {
                             kind: nk,
-                            name: member_id.clone(),
+                            name: node_id,
                             alias: None,
-                            members: Vec::new(),
+                            members: encoded_members,
                             depth: 0,
                             label: None,
                             mindmap_side: MindMapSide::Right,
@@ -1606,7 +1636,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 groups.push(FamilyGroup {
                     kind,
                     label,
-                    member_ids: members,
+                    member_ids: group_member_ids,
                 });
             }
             StatementKind::SetOption { key, value } => {

@@ -759,9 +759,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             continue;
         };
         let mut style = arrow_style(&normalized_arrow);
-        let usecase_dependency = matches!(document.kind, crate::ast::DiagramKind::UseCase)
-            .then(|| usecase_dependency_label(relation.label.as_deref()))
-            .flatten();
+        let usecase_dependency = usecase_dependency_label(relation.label.as_deref());
         if usecase_dependency.is_some() {
             style.dashed = true;
             if style.end_marker.is_none() {
@@ -1421,7 +1419,8 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
             render_tree_arrow(&mut out, x1, y1, x2, y2, &document.style.arrow_color);
 
             if let Some(label) = &relation.label {
-                let label_lines = wrap_text(label.clone(), 18, document.text_overflow_policy);
+                let label = usecase_dependency_label(Some(label)).unwrap_or(label);
+                let label_lines = wrap_text(label.to_string(), 18, document.text_overflow_policy);
                 let label_x = ((x1 + x2) / 2).max(4);
                 let label_y = ((y1 + y2) / 2).min(height - 8);
                 for (line_idx, line) in label_lines.iter().enumerate() {
@@ -2203,7 +2202,7 @@ fn render_class_node(
 
     // Header text: for Object render "name : Class" style if present; for now just name
     let kind_prefix = match node.kind {
-        FamilyNodeKind::Class => "",
+        FamilyNodeKind::Class => "class ",
         FamilyNodeKind::Object => "",
         FamilyNodeKind::UseCase => "",
         _ => "",
@@ -2679,9 +2678,13 @@ fn arrow_style(arrow: &str) -> ArrowStyle {
 fn usecase_dependency_label(label: Option<&str>) -> Option<&'static str> {
     let normalized = label?.trim().to_ascii_lowercase();
     let compact = normalized.split_whitespace().collect::<String>();
-    if matches!(compact.as_str(), "<<include>>" | "include" | "includes") {
+    if matches!(compact.as_str(), "<<include>>" | "include" | "includes")
+        || compact.contains("include")
+    {
         Some("<<include>>")
-    } else if matches!(compact.as_str(), "<<extend>>" | "extend" | "extends") {
+    } else if matches!(compact.as_str(), "<<extend>>" | "extend" | "extends")
+        || compact.contains("extend")
+    {
         Some("<<extend>>")
     } else {
         None
@@ -3476,6 +3479,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             x1, y1, x2, y2, comp_style.arrow_color, dash, markers
         ));
         if let Some(label) = &rel.label {
+            let label = usecase_dependency_label(Some(label)).unwrap_or(label);
             let mx = (x1 + x2) / 2;
             let my = (y1 + y2) / 2 - 6;
             out.push_str(&format!(

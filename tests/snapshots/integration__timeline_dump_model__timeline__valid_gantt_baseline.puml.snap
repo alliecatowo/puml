@@ -1,6 +1,6 @@
 ---
 source: tests/integration.rs
-assertion_line: 456
+assertion_line: 632
 expression: json
 ---
 {
@@ -8,14 +8,14 @@ expression: json
   "chronology_events": [],
   "constraints": [
     {
-      "kind": "starts",
-      "subject": "Build",
-      "target": "starts 2026-05-02"
+      "kind": "happens",
+      "subject": "Kickoff",
+      "target": "2026-05-01"
     },
     {
       "kind": "requires",
       "subject": "Build",
-      "target": "requires [Design]"
+      "target": "[Design]"
     }
   ],
   "footer": null,
@@ -24,19 +24,30 @@ expression: json
   "legend": null,
   "milestones": [
     {
+      "happens_on": "2026-05-01",
       "name": "Kickoff"
     }
   ],
+  "project_start": null,
+  "project_start_day": null,
   "tasks": [
     {
       "duration_days": 1,
       "name": "Design",
-      "start_day": 0
+      "resources": [],
+      "start_day": 20575
     },
     {
       "duration_days": 1,
       "name": "Build",
-      "start_day": 1
+      "resources": [],
+      "start_day": 20576
+    },
+    {
+      "duration_days": 1,
+      "name": "Build",
+      "resources": [],
+      "start_day": 20575
     }
   ],
   "title": null,

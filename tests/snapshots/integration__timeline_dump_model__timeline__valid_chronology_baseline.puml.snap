@@ -1,5 +1,6 @@
 ---
 source: tests/integration.rs
+assertion_line: 632
 expression: json
 ---
 {
@@ -20,6 +21,8 @@ expression: json
   "kind": "Chronology",
   "legend": null,
   "milestones": [],
+  "project_start": null,
+  "project_start_day": null,
   "tasks": [],
   "title": null,
   "warnings": []

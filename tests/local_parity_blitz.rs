@@ -33,7 +33,7 @@ Account --> Ledger : posts
 "#,
     )
     .expect("class render should succeed");
-    assert_eq!(class_svg.matches(">Account<").count(), 1);
+    assert_eq!(class_svg.matches(">class Account<").count(), 1);
     assert!(class_svg.contains("+id: UUID"));
     assert!(class_svg.contains("+close()"));
 

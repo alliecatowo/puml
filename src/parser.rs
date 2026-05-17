@@ -3445,7 +3445,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         if matches!(
             detected_kind,
-            None | Some(DiagramKind::Sequence | DiagramKind::Component | DiagramKind::Deployment)
+            Some(DiagramKind::Component | DiagramKind::Deployment)
         ) {
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
                 let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
@@ -3484,16 +3484,29 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
-        if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
-            let family = family_for_declaration(&kind);
-            detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
-            let block_span = Span::new(span.start, lines[end_idx].1.end);
-            statements.push(Statement {
-                span: block_span,
-                kind,
-            });
-            i = end_idx + 1;
-            continue;
+        if matches!(
+            detected_kind,
+            None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
+        ) && !(detected_kind.is_none()
+            && in_block
+            && block_kind == Some(BlockKind::Uml)
+            && ((line.starts_with("interface ")
+                && !later_lines_contain_class_family_declaration(&lines, i))
+                || (line.starts_with("actor ")
+                    && !line.contains("<<")
+                    && !later_lines_contain_usecase_family_declaration(&lines, i))))
+        {
+            if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
+                let family = family_for_declaration(&kind);
+                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
         }
 
         if let Some(kind) = parse_family_member_row(line, detected_kind) {
@@ -3525,6 +3538,36 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
+        if detected_kind.is_none() && detect_non_sequence_family(line) != Some(DiagramKind::State) {
+            if let Some(kind) = parse_message(line) {
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
+        if detected_kind.is_none()
+            && in_block
+            && block_kind == Some(BlockKind::Uml)
+            && !(line.starts_with("actor ") && line.contains("<<"))
+        {
+            if let Some(kind) = parse_participant(line) {
+                detected_kind = Some(select_diagram_kind(
+                    detected_kind,
+                    DiagramKind::Sequence,
+                    span,
+                )?);
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
         if detected_kind.is_none() {
             if let Some(kind) = detect_non_sequence_family(line) {
                 detected_kind = Some(kind);
@@ -3540,6 +3583,16 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind,
             Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
         ) {
+            if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                statements.push(Statement { span, kind });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_component_decl(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
             // Try a relation again now that detection settled.
             if let Some(kind) = parse_family_relation(line, detected_kind) {
                 statements.push(Statement { span, kind });
@@ -4189,6 +4242,26 @@ fn parse_family_declaration(
     Ok(None)
 }
 
+fn later_lines_contain_class_family_declaration(lines: &[(&str, Span)], start: usize) -> bool {
+    lines.iter().skip(start + 1).any(|(raw, _)| {
+        let line = raw.trim();
+        line.starts_with("abstract class ")
+            || line.starts_with("abstract ")
+            || line.starts_with("annotation ")
+            || line.starts_with("class ")
+            || line.starts_with("enum ")
+            || line.starts_with("protocol ")
+            || line.starts_with("struct ")
+    })
+}
+
+fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start: usize) -> bool {
+    lines.iter().skip(start + 1).any(|(raw, _)| {
+        let line = raw.trim();
+        line.starts_with("usecase ") || line.starts_with("usecase(")
+    })
+}
+
 fn parse_named_family_decl(
     line: &str,
     keyword: &str,
@@ -4469,6 +4542,13 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     let (lhs, arrow, rhs) = split_family_arrow(core)?;
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
+    if normalize_virtual_endpoint(&lhs_core).is_some()
+        || normalize_virtual_endpoint(&rhs_core).is_some()
+        || looks_like_virtual_endpoint_syntax(&lhs_core)
+        || looks_like_virtual_endpoint_syntax(&rhs_core)
+    {
+        return None;
+    }
     let from = clean_bracketed_ident(&lhs_core);
     let to = clean_bracketed_ident(&rhs_core);
     if from.is_empty() || to.is_empty() {
@@ -4491,6 +4571,9 @@ fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<St
         Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase) => family?,
         _ => return None,
     };
+    if split_family_arrow(line).is_some() {
+        return None;
+    }
     let (owner, member) = line.split_once(':')?;
     if owner.contains("--") || owner.contains("..") || owner.contains("->") || owner.contains("<-")
     {
@@ -4804,13 +4887,8 @@ fn parse_class_scoping_block(
         if group_body_contains_component_family(lines, start, end_idx) {
             return Ok(None);
         }
-        let members: Vec<String> = lines[start + 1..end_idx]
-            .iter()
-            .map(|(raw, _)| raw.trim())
-            .filter(|s| !s.is_empty())
-            .map(extract_class_member_name)
-            .filter(|s| !s.is_empty())
-            .collect();
+        let members =
+            collect_scoped_class_group_members(lines, start, end_idx, std::slice::from_ref(&label));
         return Ok(Some((
             StatementKind::ClassGroup {
                 kind: "package".to_string(),
@@ -4833,13 +4911,8 @@ fn parse_class_scoping_block(
             )
             .with_span(lines[start].1));
         }
-        let members: Vec<String> = lines[start + 1..end_idx]
-            .iter()
-            .map(|(raw, _)| raw.trim())
-            .filter(|s| !s.is_empty())
-            .map(extract_class_member_name)
-            .filter(|s| !s.is_empty())
-            .collect();
+        let members =
+            collect_scoped_class_group_members(lines, start, end_idx, std::slice::from_ref(&label));
         return Ok(Some((
             StatementKind::ClassGroup {
                 kind: "namespace".to_string(),
@@ -4851,6 +4924,127 @@ fn parse_class_scoping_block(
     }
 
     Ok(None)
+}
+
+fn collect_scoped_class_group_members(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+    scope: &[String],
+) -> Vec<String> {
+    let mut members = Vec::new();
+    let mut idx = start + 1;
+    while idx < end_idx {
+        let line = lines[idx].0.trim();
+        let lower = line.to_ascii_lowercase();
+        if line.is_empty() || line == "}" {
+            idx += 1;
+            continue;
+        }
+        if (lower.starts_with("package ") || lower.starts_with("namespace "))
+            && line.trim_end().ends_with('{')
+        {
+            let keyword = if lower.starts_with("package ") {
+                "package"
+            } else {
+                "namespace"
+            };
+            let label = clean_ident(
+                line[keyword.len()..]
+                    .trim()
+                    .trim_end_matches('{')
+                    .trim()
+                    .trim_matches('"'),
+            );
+            let nested_end = find_scoping_block_end(lines, idx);
+            if nested_end > idx {
+                let mut nested_scope = scope.to_vec();
+                if !label.is_empty() {
+                    nested_scope.push(label);
+                }
+                members.extend(collect_scoped_class_group_members(
+                    lines,
+                    idx,
+                    nested_end,
+                    &nested_scope,
+                ));
+                idx = nested_end + 1;
+                continue;
+            }
+        }
+        for keyword in [
+            "abstract class",
+            "annotation",
+            "interface",
+            "abstract",
+            "enum",
+            "class",
+        ] {
+            if let Some((name, _alias, true, _stereotypes)) = parse_named_family_decl(line, keyword)
+            {
+                let scoped_name = if scope.iter().all(|s| s.is_empty()) {
+                    name
+                } else {
+                    format!(
+                        "{}::{}",
+                        scope
+                            .iter()
+                            .filter(|s| !s.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join("::"),
+                        name
+                    )
+                };
+                let nested_end = find_family_decl_end(lines, idx);
+                let members_text = parse_family_decl_members(lines, idx, keyword, &scoped_name)
+                    .map(|members| {
+                        members
+                            .into_iter()
+                            .map(|member| member.text)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                let mut encoded = scoped_name;
+                for member in members_text {
+                    encoded.push('\t');
+                    encoded.push_str(&member);
+                }
+                members.push(encoded);
+                if nested_end > idx {
+                    idx = nested_end + 1;
+                    continue;
+                }
+            }
+        }
+        let name = extract_class_member_name(line);
+        if !name.is_empty() {
+            let scoped = if scope.iter().all(|s| s.is_empty()) {
+                name
+            } else {
+                format!(
+                    "{}::{}",
+                    scope
+                        .iter()
+                        .filter(|s| !s.is_empty())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join("::"),
+                    name
+                )
+            };
+            members.push(scoped);
+        }
+        if line.ends_with('{') {
+            let nested_end = find_family_decl_end(lines, idx);
+            if nested_end > idx {
+                idx = nested_end + 1;
+                continue;
+            }
+        }
+        idx += 1;
+    }
+    members
 }
 
 fn group_body_contains_component_family(
@@ -6838,7 +7032,11 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
 
     let mut run_start: Option<usize> = None;
     let mut in_bracket = false;
+    let mut skip_until = 0usize;
     for (idx, ch) in core.char_indices() {
+        if idx < skip_until {
+            continue;
+        }
         if let Some(start) = run_start {
             if in_bracket {
                 if ch == ']' {
@@ -6865,6 +7063,45 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
             }
             run_start = None;
             continue;
+        }
+        if ch == '[' && core[..idx].trim().is_empty() {
+            let mut skipped_open_endpoint = false;
+            for endpoint in ["[o", "[x"] {
+                if core[idx..].starts_with(endpoint)
+                    && core[idx + endpoint.len()..]
+                        .chars()
+                        .next()
+                        .is_some_and(char::is_whitespace)
+                {
+                    skip_until = idx + endpoint.len();
+                    skipped_open_endpoint = true;
+                    break;
+                }
+            }
+            if skipped_open_endpoint {
+                continue;
+            }
+            if let Some(close_rel) = core[idx..].find(']') {
+                let bracket_body = &core[idx + ch.len_utf8()..idx + close_rel];
+                if bracket_body.contains('-') {
+                    continue;
+                }
+                let after_idx = idx + close_rel + 1;
+                if core[after_idx..]
+                    .chars()
+                    .next()
+                    .is_some_and(char::is_whitespace)
+                {
+                    skip_until = after_idx;
+                    continue;
+                }
+            } else if core[idx + ch.len_utf8()..]
+                .chars()
+                .next()
+                .is_some_and(char::is_whitespace)
+            {
+                continue;
+            }
         }
         if is_arrow_char(ch) {
             if run_start.is_none() {

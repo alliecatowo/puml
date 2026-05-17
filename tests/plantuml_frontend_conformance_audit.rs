@@ -76,27 +76,40 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
         .expect("failed to read tests/integration.rs");
     let coverage_edges = fs::read_to_string(repo_path("tests/coverage_edges.rs"))
         .expect("failed to read tests/coverage_edges.rs");
+    let render_e2e = fs::read_to_string(repo_path("tests/render_e2e.rs"))
+        .expect("failed to read tests/render_e2e.rs");
     let parser =
         fs::read_to_string(repo_path("src/parser.rs")).expect("failed to read src/parser.rs");
-    for anchor in anchors {
-        let Some((file_hint, symbol)) = anchor.split_once("::") else {
-            continue;
-        };
-        let needle = format!("fn {symbol}");
-        match file_hint {
-            "tests/integration.rs" => assert!(
-                integration.contains(&needle),
-                "missing integration anchor referenced by matrix: {anchor}"
-            ),
-            "tests/coverage_edges.rs" => assert!(
-                coverage_edges.contains(&needle),
-                "missing coverage_edges anchor referenced by matrix: {anchor}"
-            ),
-            "src/parser.rs" => assert!(
-                parser.contains(&needle),
-                "missing parser anchor referenced by matrix: {anchor}"
-            ),
-            _ => panic!("unsupported matrix anchor file hint: {file_hint}"),
+    for anchor_cell in anchors {
+        for anchor in anchor_cell
+            .split(',')
+            .map(str::trim)
+            .map(|a| a.trim_matches('`'))
+            .filter(|a| !a.is_empty())
+        {
+            let Some((file_hint, symbol)) = anchor.split_once("::") else {
+                continue;
+            };
+            let needle = format!("fn {symbol}");
+            match file_hint {
+                "tests/integration.rs" => assert!(
+                    integration.contains(&needle),
+                    "missing integration anchor referenced by matrix: {anchor}"
+                ),
+                "tests/coverage_edges.rs" => assert!(
+                    coverage_edges.contains(&needle),
+                    "missing coverage_edges anchor referenced by matrix: {anchor}"
+                ),
+                "tests/render_e2e.rs" => assert!(
+                    render_e2e.contains(&needle),
+                    "missing render_e2e anchor referenced by matrix: {anchor}"
+                ),
+                "src/parser.rs" => assert!(
+                    parser.contains(&needle),
+                    "missing parser anchor referenced by matrix: {anchor}"
+                ),
+                _ => panic!("unsupported matrix anchor file hint: {file_hint}"),
+            }
         }
     }
 }
