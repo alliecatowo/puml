@@ -3463,6 +3463,8 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         if detected_kind.is_none() {
             if let Some(kind) = detect_non_sequence_family(line) {
                 detected_kind = Some(kind);
+            } else if parse_component_decl(line).is_some() {
+                detected_kind = Some(DiagramKind::Component);
             } else if looks_like_unsupported_family_syntax(line) {
                 detected_kind = Some(DiagramKind::Unknown);
             }
