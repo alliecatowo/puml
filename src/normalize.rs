@@ -1269,6 +1269,8 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 label: rel.label,
                 left_cardinality: rel.left_cardinality,
                 right_cardinality: rel.right_cardinality,
+                left_role: rel.left_role,
+                right_role: rel.right_role,
             }),
             StatementKind::ClassGroup {
                 kind,
@@ -1993,6 +1995,8 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
                 label: None,
                 left_cardinality: None,
                 right_cardinality: None,
+                left_role: None,
+                right_role: None,
             });
         }
         parents.push(idx);
@@ -2278,6 +2282,8 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 label: rel.label,
                 left_cardinality: rel.left_cardinality,
                 right_cardinality: rel.right_cardinality,
+                left_role: rel.left_role,
+                right_role: rel.right_role,
             }),
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),

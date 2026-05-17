@@ -3787,8 +3787,8 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
 
     let (core, label) = split_message_label(line);
     let (lhs, arrow, rhs) = split_arrow(core)?;
-    let (lhs_core, left_cardinality) = parse_relation_side_cardinality(lhs, true);
-    let (rhs_core, right_cardinality) = parse_relation_side_cardinality(rhs, false);
+    let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
+    let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
     let from = clean_bracketed_ident(&lhs_core);
     let to = clean_bracketed_ident(&rhs_core);
     if from.is_empty() || to.is_empty() {
@@ -3801,38 +3801,89 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         label,
         left_cardinality,
         right_cardinality,
+        left_role,
+        right_role,
     }))
 }
 
-fn parse_relation_side_cardinality(side: &str, is_left: bool) -> (String, Option<String>) {
+fn parse_relation_side_annotations(
+    side: &str,
+    is_left: bool,
+) -> (String, Option<String>, Option<String>) {
     let trimmed = side.trim();
     if trimmed.is_empty() {
-        return (String::new(), None);
+        return (String::new(), None, None);
     }
 
+    let mut rem = trimmed.to_string();
+    let mut cardinality: Option<String> = None;
+    let mut role: Option<String> = None;
+
     if is_left {
-        if let Some(end_quote) = trimmed.rfind('"') {
-            if end_quote > 0 {
-                if let Some(start_quote) = trimmed[..end_quote].rfind('"') {
-                    let value = trimmed[start_quote + 1..end_quote].trim();
-                    let endpoint = trimmed[..start_quote].trim();
+        loop {
+            let t = rem.trim_end();
+            if t.ends_with(']') {
+                if let Some(start_bracket) = t.rfind('[') {
+                    let value = t[start_bracket + 1..t.len() - 1].trim();
+                    let endpoint = t[..start_bracket].trim_end();
                     if !value.is_empty() && !endpoint.is_empty() {
-                        return (endpoint.to_string(), Some(value.to_string()));
+                        if role.is_none() {
+                            role = Some(value.to_string());
+                        }
+                        rem = endpoint.to_string();
+                        continue;
                     }
                 }
             }
-        }
-    } else if let Some(rest) = trimmed.strip_prefix('"') {
-        if let Some(end_quote_rel) = rest.find('"') {
-            let value = rest[..end_quote_rel].trim();
-            let endpoint = rest[end_quote_rel + 1..].trim();
-            if !value.is_empty() && !endpoint.is_empty() {
-                return (endpoint.to_string(), Some(value.to_string()));
+            if t.ends_with('"') {
+                if let Some(start_quote) = t[..t.len() - 1].rfind('"') {
+                    let value = t[start_quote + 1..t.len() - 1].trim();
+                    let endpoint = t[..start_quote].trim_end();
+                    if !value.is_empty() && !endpoint.is_empty() {
+                        if cardinality.is_none() {
+                            cardinality = Some(value.to_string());
+                        }
+                        rem = endpoint.to_string();
+                        continue;
+                    }
+                }
             }
+            break;
+        }
+    } else {
+        loop {
+            let t = rem.trim_start();
+            if let Some(rest) = t.strip_prefix('"') {
+                if let Some(end_quote_rel) = rest.find('"') {
+                    let value = rest[..end_quote_rel].trim();
+                    let endpoint = rest[end_quote_rel + 1..].trim_start();
+                    if !value.is_empty() && !endpoint.is_empty() {
+                        if cardinality.is_none() {
+                            cardinality = Some(value.to_string());
+                        }
+                        rem = endpoint.to_string();
+                        continue;
+                    }
+                }
+            }
+            if let Some(rest) = t.strip_prefix('[') {
+                if let Some(end_bracket_rel) = rest.find(']') {
+                    let value = rest[..end_bracket_rel].trim();
+                    let endpoint = rest[end_bracket_rel + 1..].trim_start();
+                    if !value.is_empty() && !endpoint.is_empty() {
+                        if role.is_none() {
+                            role = Some(value.to_string());
+                        }
+                        rem = endpoint.to_string();
+                        continue;
+                    }
+                }
+            }
+            break;
         }
     }
 
-    (trimmed.to_string(), None)
+    (rem.trim().to_string(), cardinality, role)
 }
 
 fn clean_bracketed_ident(s: &str) -> String {

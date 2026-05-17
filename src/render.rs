@@ -630,6 +630,24 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 txt = escape_text(right)
             ));
         }
+        if let Some(left_role) = &relation.left_role {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x1 - 4,
+                y = y1 + 12,
+                member_color = class_style.member_color,
+                txt = escape_text(left_role)
+            ));
+        }
+        if let Some(right_role) = &relation.right_role {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x2 + 4,
+                y = y2 + 12,
+                member_color = class_style.member_color,
+                txt = escape_text(right_role)
+            ));
+        }
         if let Some(label) = &relation.label {
             let lx = (x1 + x2) / 2;
             let ly = (y1 + y2) / 2 - 4;
@@ -2563,6 +2581,24 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         width, height, width, height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str("<defs>");
+    out.push_str(&format!(
+        "<marker id=\"arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"10\" markerHeight=\"10\" orient=\"auto-start-reverse\"><path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/></marker>",
+        comp_style.arrow_color
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\"><path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\"/></marker>",
+        comp_style.arrow_color
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\"><path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/></marker>",
+        comp_style.arrow_color, comp_style.arrow_color
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\"><path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"{}\" stroke-width=\"1\"/></marker>",
+        comp_style.arrow_color
+    ));
+    out.push_str("</defs>");
 
     let mut y_cursor = 28;
     if let Some(title) = &doc.title {
@@ -2597,10 +2633,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         }
     }
 
-    // Draw relations as straight arrows between node center boundaries.
+    // Draw relations with shared relation-style semantics.
     for rel in &doc.relations {
-        let from_box = positions.get(&rel.from);
-        let to_box = positions.get(&rel.to);
+        let (from_name, to_name, normalized_arrow) =
+            normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+        let from_box = positions.get(&from_name);
+        let to_box = positions.get(&to_name);
         let (Some(&(fx, fy, fw, fh)), Some(&(tx, ty, tw, th))) = (from_box, to_box) else {
             continue;
         };
@@ -2610,18 +2648,23 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let cy2 = ty + th / 2;
         let (x1, y1) = clip_to_box_edge((cx1, cy1), (cx2, cy2), (fx, fy, fw, fh));
         let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
-        let dashed = rel.arrow.contains("..") || rel.arrow.contains("--");
-        let dash = if dashed && rel.arrow.contains("..") {
-            " stroke-dasharray=\"4 4\""
+        let style = arrow_style(&normalized_arrow);
+        let dash = if style.dashed {
+            " stroke-dasharray=\"5 3\""
         } else {
             ""
         };
+        let mut markers = String::new();
+        if let Some(end) = style.end_marker {
+            markers.push_str(&format!(" marker-end=\"url(#{end})\""));
+        }
+        if let Some(start) = style.start_marker {
+            markers.push_str(&format!(" marker-start=\"url(#{start})\""));
+        }
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
-            x1, y1, x2, y2, comp_style.arrow_color, dash
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{} {}/>",
+            x1, y1, x2, y2, comp_style.arrow_color, dash, markers
         ));
-        // arrowhead
-        out.push_str(&arrowhead_svg(x1, y1, x2, y2, &comp_style.arrow_color));
         if let Some(label) = &rel.label {
             let mx = (x1 + x2) / 2;
             let my = (y1 + y2) / 2 - 6;
@@ -2646,6 +2689,22 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 x2 + 4,
                 y2 - 6,
                 escape_text(right)
+            ));
+        }
+        if let Some(left_role) = &rel.left_role {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x1 - 4,
+                y1 + 12,
+                escape_text(left_role)
+            ));
+        }
+        if let Some(right_role) = &rel.right_role {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x2 + 4,
+                y2 + 12,
+                escape_text(right_role)
             ));
         }
     }
@@ -2859,28 +2918,6 @@ fn clip_to_box_edge(
     let ex = ex.clamp(bx as f64, (bx + bw) as f64);
     let ey = ey.clamp(by as f64, (by + bh) as f64);
     (ex as i32, ey as i32)
-}
-
-fn arrowhead_svg(_x1: i32, _y1: i32, x2: i32, y2: i32, color: &str) -> String {
-    // small triangle arrowhead pointing in the direction from (x1,y1) -> (x2,y2)
-    let dx = (x2 - _x1) as f64;
-    let dy = (y2 - _y1) as f64;
-    let len = (dx * dx + dy * dy).sqrt().max(1.0);
-    let ux = dx / len;
-    let uy = dy / len;
-    let size = 8.0;
-    let bx = (x2 as f64) - ux * size;
-    let by = (y2 as f64) - uy * size;
-    let px = -uy;
-    let py = ux;
-    let lx = bx + px * (size / 2.0);
-    let ly = by + py * (size / 2.0);
-    let rx = bx - px * (size / 2.0);
-    let ry = by - py * (size / 2.0);
-    format!(
-        "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-        x2, y2, lx as i32, ly as i32, rx as i32, ry as i32, color
-    )
 }
 
 fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32, w: i32, h: i32) {
@@ -3098,6 +3135,18 @@ fn render_family_node_shape_styled(
             out.push_str(&format!(
                 "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 cx, cy, r, comp_style.interface_color, comp_style.border_color
+            ));
+        }
+        FamilyNodeKind::Port => {
+            let pw = 24;
+            let ph = 24;
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" ry=\"2\" fill=\"#f8fafc\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                cx - pw / 2,
+                cy - ph / 2,
+                pw,
+                ph,
+                comp_style.border_color
             ));
         }
         FamilyNodeKind::Component => {
