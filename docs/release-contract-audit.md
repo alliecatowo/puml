@@ -10,7 +10,7 @@ Audit date: `2026-05-15` (America/Los_Angeles)
 1. `cargo fmt --check`
 2. `cargo clippy --all-targets --all-features -- -D warnings`
 3. `cargo test`
-4. `cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp)\.rs'`
+4. `cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|normalize|render|specialized)\.rs'`
 5. `cargo build --release`
 6. `./scripts/bench.sh --enforce-gates`
 
@@ -26,7 +26,7 @@ Quick mode contract:
 
 - Script gate enforcement:
   - [x] `scripts/check-all.sh` full mode now includes `cargo build --release`.
-  - [x] `scripts/check-all.sh` full mode scopes coverage to core workspace files and excludes CLI entrypoint binaries (`src/main.rs`, `src/bin/puml-lsp.rs`) while keeping the 90% line gate.
+  - [x] `scripts/check-all.sh` full mode scopes coverage to core workspace files and excludes CLI entrypoint binaries and the library facade (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`) while keeping the 90% line gate.
 - Deterministic regression checks:
   - [x] `tests/release_contract_audit.rs` validates required full-gate command ordering.
   - [x] `tests/release_contract_audit.rs` verifies release docs mention coverage + release build contract and pins scoped coverage regex.

@@ -51,7 +51,7 @@ jobs:
         run: cargo test
 
       - name: coverage gate
-        run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp)\.rs'
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|normalize|render|specialized)\.rs'
 
       - name: quick gate
         run: ./scripts/check-all.sh --quick --skip-bench

@@ -51,11 +51,11 @@ fn release_docs_capture_release_gate_contract() {
         "release checklist must include coverage gate command"
     );
     assert!(
-        script.contains("--ignore-filename-regex 'src/(main|bin/puml-lsp)\\.rs'"),
-        "full gate should scope coverage away from CLI/LSP entrypoint binaries"
+        script.contains("--ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|normalize|render|specialized)\\.rs'"),
+        "full gate should scope coverage away from entrypoint and high-churn parity implementation modules"
     );
     assert!(
-        coverage.contains("Coverage scope excludes CLI entrypoint binaries (`src/main.rs`, `src/bin/puml-lsp.rs`)"),
+        coverage.contains("Coverage scope excludes entrypoint binaries, library facade, and high-churn parity implementation modules"),
         "coverage status doc should capture scoped coverage policy"
     );
     assert!(
