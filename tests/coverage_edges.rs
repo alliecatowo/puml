@@ -400,6 +400,50 @@ fn normalize_family_accepts_wave1_implemented_families() {
 }
 
 #[test]
+fn normalize_family_accepts_gantt_and_chronology_timelines() {
+    let cases = [
+        (
+            "non_sequence/valid_gantt_diagram.puml",
+            puml::ast::DiagramKind::Gantt,
+            3,
+        ),
+        (
+            "non_sequence/valid_chronology_diagram.puml",
+            puml::ast::DiagramKind::Chronology,
+            3,
+        ),
+    ];
+
+    for (path, expected_kind, expected_entries) in cases {
+        let src = fs::read_to_string(fixture(path)).expect("fixture should load");
+        let doc = parse(&src).expect("parse should succeed");
+        assert_eq!(doc.kind, expected_kind);
+        let normalized = normalize_family(doc).expect("timeline normalize should succeed");
+        match normalized {
+            NormalizedDocument::Timeline(model) => {
+                assert_eq!(
+                    model.tasks.len()
+                        + model.milestones.len()
+                        + model.constraints.len()
+                        + model.chronology_events.len(),
+                    expected_entries
+                );
+                assert_eq!(model.title.as_deref(), Some("Timeline Overview"));
+            }
+            other => panic!("expected timeline model, got {:?}", other),
+        }
+    }
+}
+
+#[test]
+fn normalize_family_rejects_sequence_only_syntax_in_timeline_slice() {
+    let src = "@startgantt\nparticipant A\nA -> B\n@endgantt\n";
+    let doc = parse(src).expect("parse should succeed");
+    let err = normalize_family(doc).expect_err("mixed timeline/sequence syntax should fail");
+    assert!(err.message.contains("E_GANTT_UNSUPPORTED"));
+}
+
+#[test]
 fn normalize_family_rejects_mixed_bootstrap_declaration_kinds() {
     let doc = puml::ast::Document {
         kind: puml::ast::DiagramKind::Class,

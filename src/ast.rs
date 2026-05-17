@@ -17,6 +17,8 @@ pub enum DiagramKind {
     Wbs,
     Gantt,
     Chronology,
+    MindMap,
+    Wbs,
     Component,
     Deployment,
     State,

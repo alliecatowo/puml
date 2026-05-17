@@ -17,6 +17,7 @@ pub use model::{
     FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
     SequenceDocument, SequencePage, StateDocument, TimelineDocument,
 };
+
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
 use std::path::PathBuf;
@@ -25,8 +26,6 @@ use std::path::PathBuf;
 pub enum DiagramFamily {
     Sequence,
     Class,
-    Gantt,
-    Chronology,
     State,
     Activity,
     Timing,
