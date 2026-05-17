@@ -102,10 +102,26 @@ fixture is classified as:
 The JAR is not a runtime dependency, not a build dependency, and is not used by
 normal `cargo test` or render commands.
 
+### `oracle_report_summary.json` and `oracle_report.md`
+
+Machine-readable and human-readable summaries produced by
+`scripts/oracle_report_summary.py` from a live JAR-backed `oracle_report.json`.
+The compact summary records the PlantUML JAR version, fixture count, match
+percentage, fixture-level pass/advisory/fail counts, raw category counts, and
+top drift families with representative fixtures. The Markdown report repeats
+those details for CI summaries and reviewer comments.
+
+These files are generated in CI and uploaded with the oracle artifact. On
+`main`, the same data is copied into `target/oracle-report-pages/` and uploaded
+as a named Pages artifact. The report is conformance evidence, not a
+pixel-perfect parity claim.
+
 ## Artifact Retention Policy
 
 - PR runs: 14 days (uploaded by `pr-gate.yml`)
 - Main runs: 90 days (uploaded by `main-gate.yml`)
+- JAR-backed oracle reports: 90 days (`oracle-report-<run_number>`, plus
+  `oracle-report-pages-<run_number>` on `main`)
 - Release binaries: 7 days staging (GitHub Release assets are permanent)
 
 Artifacts older than the retention window are automatically deleted by GitHub.
