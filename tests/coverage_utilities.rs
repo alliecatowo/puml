@@ -261,6 +261,64 @@ fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
 }
 
 #[test]
+fn mermaid_pipeline_supports_cross_and_open_sequence_arrows() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+
+    let src = "sequenceDiagram\nAlice-xBob: lost\nBob--xAlice: dotted lost\nAlice-)Bob: async open\nBob--)Alice: dotted async open\n";
+    let document =
+        parse_with_pipeline_options(src, &options).expect("mermaid cross/open arrows should adapt");
+    let model = puml::normalize(document).expect("normalize");
+    let arrows = model
+        .events
+        .iter()
+        .filter_map(|event| match &event.kind {
+            puml::model::SequenceEventKind::Message { arrow, .. } => Some(arrow.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(arrows, vec!["->x", "-->x", "->>", "-->>"]);
+}
+
+#[test]
+fn picouml_pipeline_supports_reverse_custom_arrows() {
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+
+    let src = "@startpicouml\nAlice <= Bob : reply\nBob <~ Carol : signal\n@endpicouml\n";
+    let document =
+        parse_with_pipeline_options(src, &options).expect("picouml reverse arrows should adapt");
+    let model = puml::normalize(document).expect("normalize");
+    let messages = model
+        .events
+        .iter()
+        .filter_map(|event| match &event.kind {
+            puml::model::SequenceEventKind::Message {
+                from, to, label, ..
+            } => Some((from.as_str(), to.as_str(), label.as_deref().unwrap_or(""))),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        messages,
+        vec![
+            ("Bob", "Alice", "reply <<sync>>"),
+            ("Carol", "Bob", "signal <<async>>")
+        ]
+    );
+}
+
+#[test]
 fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
     let sequence = "@startuml\nA -> B: hi\n@enduml\n";
     let component = "@startuml\ncomponent API\n@enduml\n";

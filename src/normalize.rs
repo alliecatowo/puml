@@ -18,8 +18,9 @@ use crate::model::{
     SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction, StateNode,
     StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
     TimelineClosedRange, TimelineConstraint, TimelineDocument, TimelineMilestone,
-    TimelineOpenRange, TimelineResourceAllocation, TimelineTask, VirtualEndpoint,
-    VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
+    TimelineOpenRange, TimelineResourceAllocation, TimelineSeparator, TimelineTask,
+    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument,
+    YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
@@ -1123,6 +1124,7 @@ fn last_numeric_token(input: &str) -> Option<f64> {
 fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, Diagnostic> {
     let mut tasks = Vec::new();
     let mut milestones = Vec::new();
+    let mut separators = Vec::new();
     let mut constraints = Vec::new();
     let mut chronology_events = Vec::new();
     let mut closed_weekdays = Vec::new();
@@ -1184,6 +1186,14 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             } => {
                 if subject.eq_ignore_ascii_case("Project") && kind.eq_ignore_ascii_case("scale") {
                     scale = Some(target);
+                } else if kind.eq_ignore_ascii_case("separator") {
+                    separators.push(TimelineSeparator {
+                        label: subject
+                            .strip_prefix("__separator::")
+                            .unwrap_or(&subject)
+                            .to_string(),
+                        target: (!target.trim().is_empty()).then(|| target.trim().to_string()),
+                    });
                 } else {
                     constraints.push(TimelineConstraint {
                         subject,
@@ -1259,6 +1269,12 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => {
                 legend = Some(strip_legend_pos_prefix(&v));
+            }
+            StatementKind::Separator(label) => {
+                separators.push(TimelineSeparator {
+                    label: label.unwrap_or_else(|| "Separator".to_string()),
+                    target: None,
+                });
             }
             StatementKind::Scale(v) => {
                 if document.kind == DiagramKind::Gantt {
@@ -1348,6 +1364,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         kind: document.kind,
         tasks,
         milestones,
+        separators,
         constraints,
         chronology_events,
         closed_weekdays,
@@ -1436,11 +1453,18 @@ fn apply_gantt_task_reference_constraints(
             let Some(target) = tasks.iter().find(|t| t.name == target_name) else {
                 continue;
             };
-            let target_day = match endpoint {
+            let mut target_day = match endpoint {
                 "start" => target.start_day,
                 "end" => target.start_day.saturating_add(target.duration_days),
                 _ => continue,
             };
+            if let Some(offset) = parse_gantt_reference_day_offset(&constraint.target) {
+                target_day = if offset.is_negative() {
+                    target_day.saturating_sub(offset.unsigned_abs())
+                } else {
+                    target_day.saturating_add(offset as u32)
+                };
+            }
             let next_start = if kind == "ends" {
                 target_day.saturating_sub(tasks[subject_idx].duration_days)
             } else if kind == "requires" {
@@ -1463,6 +1487,26 @@ fn apply_gantt_task_reference_constraints(
             break;
         }
     }
+}
+
+fn parse_gantt_reference_day_offset(target: &str) -> Option<i32> {
+    let lower = target.to_ascii_lowercase();
+    let (sign, marker) = if let Some(idx) = lower.find(" days after ") {
+        (1, idx)
+    } else if let Some(idx) = lower.find(" day after ") {
+        (1, idx)
+    } else if let Some(idx) = lower.find(" days before ") {
+        (-1, idx)
+    } else if let Some(idx) = lower.find(" day before ") {
+        (-1, idx)
+    } else {
+        return None;
+    };
+    target[..marker]
+        .split_whitespace()
+        .last()
+        .and_then(|n| n.parse::<i32>().ok())
+        .map(|n| n.saturating_mul(sign))
 }
 
 fn parse_gantt_task_reference(target: &str) -> Option<(String, &'static str)> {
@@ -1861,7 +1905,10 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
             current = Some(NwdiagNetwork {
                 name,
                 address: None,
+                label: None,
                 color: None,
+                shape: None,
+                style: None,
                 nodes: Vec::new(),
             });
             continue;
@@ -1885,7 +1932,10 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
                 } else {
                     name
                 },
+                label: None,
                 color: None,
+                shape: None,
+                style: None,
                 nodes: Vec::new(),
             });
             continue;
@@ -1909,13 +1959,14 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
                 net.address = Some(value);
                 continue;
             }
-            if let Some(rest) = trimmed.strip_prefix("color") {
-                net.color = Some(
-                    rest.trim_start_matches([' ', '='])
-                        .trim()
-                        .trim_matches('"')
-                        .to_string(),
-                );
+            if let Some((key, value)) = parse_nwdiag_assignment(trimmed) {
+                match key.as_str() {
+                    "color" => net.color = Some(value),
+                    "description" | "label" => net.label = Some(value),
+                    "shape" => net.shape = Some(value),
+                    "style" => net.style = Some(value),
+                    _ => {}
+                }
                 continue;
             }
             for entry in split_nwdiag_entries(trimmed) {
@@ -1926,13 +1977,14 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
             continue;
         }
         if let Some(group) = current_group.as_mut() {
-            if let Some(rest) = trimmed.strip_prefix("color") {
-                group.color = Some(
-                    rest.trim_start_matches([' ', '='])
-                        .trim()
-                        .trim_matches('"')
-                        .to_string(),
-                );
+            if let Some((key, value)) = parse_nwdiag_assignment(trimmed) {
+                match key.as_str() {
+                    "color" => group.color = Some(value),
+                    "description" | "label" => group.label = Some(value),
+                    "shape" => group.shape = Some(value),
+                    "style" => group.style = Some(value),
+                    _ => {}
+                }
                 continue;
             }
             for entry in split_nwdiag_entries(trimmed) {
@@ -1962,6 +2014,24 @@ fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocument, Diagn
     })
 }
 
+fn parse_nwdiag_assignment(line: &str) -> Option<(String, String)> {
+    let (key, value) = line.split_once('=')?;
+    let key = key.trim().to_ascii_lowercase();
+    if key.is_empty() || key.contains(char::is_whitespace) {
+        return None;
+    }
+    Some((key, clean_nwdiag_attr_value(value)))
+}
+
+fn clean_nwdiag_attr_value(value: &str) -> String {
+    value
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .trim_matches('"')
+        .to_string()
+}
+
 fn split_nwdiag_entries(line: &str) -> Vec<String> {
     line.split(';')
         .map(str::trim)
@@ -1986,30 +2056,51 @@ fn parse_nwdiag_node_entry(entry: &str) -> Option<NwdiagNode> {
     let mut color: Option<String> = None;
     let mut shape: Option<String> = None;
     let mut style: Option<String> = None;
+    let mut width: Option<u32> = None;
     if let Some(attrs) = attrs {
         for kv in split_csv_args(attrs) {
             if let Some((k, v)) = kv.split_once('=') {
-                let key = k.trim();
-                let value = v.trim().trim_matches('"').to_string();
-                match key {
+                let key = k.trim().to_ascii_lowercase();
+                let value = clean_nwdiag_attr_value(v);
+                match key.as_str() {
                     "address" => node_address = Some(value),
                     "description" | "label" => label = Some(value),
                     "color" => color = Some(value),
                     "shape" => shape = Some(value),
                     "style" => style = Some(value),
+                    "width" => width = value.parse::<u32>().ok(),
                     _ => {}
                 }
             }
         }
     }
+    let addresses = parse_nwdiag_addresses(node_address.as_deref());
     Some(NwdiagNode {
         name: name_part,
         address: node_address,
+        addresses,
         label,
         color,
         shape,
         style,
+        width,
     })
+}
+
+fn parse_nwdiag_addresses(address: Option<&str>) -> Vec<String> {
+    let Some(address) = address else {
+        return Vec::new();
+    };
+    let trimmed = address.trim();
+    let body = trimmed
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(trimmed);
+    split_csv_args(body)
+        .into_iter()
+        .map(|item| clean_nwdiag_attr_value(&item))
+        .filter(|item| !item.is_empty())
+        .collect()
 }
 
 fn normalize_archimate_document(document: Document) -> Result<ArchimateDocument, Diagnostic> {
@@ -3561,6 +3652,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut activity_fork_depth: usize = 0;
     let mut activity_fork_branch: usize = 0;
     let mut timing_current_time: Option<String> = None;
+    let mut timing_current_signal: Option<String> = None;
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
     let mut timing_style = TimingStyle::default();
@@ -3675,7 +3767,30 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 state,
                 note,
             } => {
-                let effective_time = if time.is_empty() {
+                let mut signal = signal;
+                if family_kind == DiagramKind::Timing
+                    && signal.is_none()
+                    && state.is_none()
+                    && note.is_none()
+                    && !time.is_empty()
+                    && nodes.iter().any(|node: &FamilyNode| {
+                        matches!(
+                            node.kind,
+                            FamilyNodeKind::TimingConcise
+                                | FamilyNodeKind::TimingRobust
+                                | FamilyNodeKind::TimingClock
+                                | FamilyNodeKind::TimingBinary
+                        ) && node.name == time
+                    })
+                {
+                    timing_current_signal = Some(time);
+                    continue;
+                }
+                if family_kind == DiagramKind::Timing && signal.is_none() && state.is_some() {
+                    signal = timing_current_signal.clone();
+                }
+                let effective_time = if time.is_empty() || signal.as_deref() == Some(time.as_str())
+                {
                     timing_current_time.clone().unwrap_or_default()
                 } else {
                     let normalized_time =
@@ -4115,6 +4230,11 @@ fn declaration_stereotype_members(stereotypes: Vec<String>) -> Vec<crate::ast::C
 
 fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
     let trimmed = raw.trim().trim_start_matches('@');
+    if let Some((_, multiplier)) = trimmed.split_once('*') {
+        if let Ok(n) = multiplier.trim().parse::<i64>() {
+            return n.to_string();
+        }
+    }
     if let Some(delta) = trimmed
         .strip_prefix('+')
         .and_then(|v| v.parse::<i64>().ok())

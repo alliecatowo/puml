@@ -17,6 +17,11 @@ This baseline defines first-class PicoUML surface routing into the shared sequen
 
 - `--dialect picouml` routes through PicoUML adaptation and into the shared parser/normalize pipeline.
 - Markdown fenced code blocks tagged `picouml` are treated as first-class PicoUML frontend input.
+- Compact sequence arrows route deterministically through the shared PlantUML model:
+  - `A => B : msg` becomes a sync call message from `A` to `B`.
+  - `A <= B : msg` becomes a sync call message from `B` to `A`.
+  - `A ~> B : msg` becomes an async signal message from `A` to `B`.
+  - `A <~ B : msg` becomes an async signal message from `B` to `A`.
 
 ## Deterministic diagnostics
 

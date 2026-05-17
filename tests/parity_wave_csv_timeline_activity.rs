@@ -234,6 +234,54 @@ sundays are closed
 }
 
 #[test]
+fn gantt_separator_relative_constraints_resource_metadata_and_month_scale_render() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+Project ends 2026-07-01
+printscale monthly
+saturdays are closed
+sundays are closed
+2026-05-04 to 2026-05-05 are closed
+2026-05-09 is reopened
+[Design] on {Alice:50%} requires 2 days
+-- Build phase --
+[Build] on {Bob:75%, Cara} requires 1 month
+[Build] starts 2 days after [Design]'s end
+Separator just 1 day before [Build]'s start
+[Launch] happens on [Build]'s end
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("data-gantt-scale=\"monthly\""));
+    assert!(svg.contains("data-gantt-resource-count=\"3\""));
+    assert!(svg.contains("data-gantt-separator-count=\"2\""));
+    assert!(svg.contains("class=\"gantt-separator\""));
+    assert!(svg.contains("Build phase"));
+    assert!(svg.contains("data-gantt-load=\"Bob:75%, Cara\""));
+    assert!(svg.contains("class=\"gantt-open-range\""));
+    assert!(svg.contains("class=\"gantt-closed-range\""));
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    let design = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Design")
+        .expect("design task");
+    let build = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Build")
+        .expect("build task");
+    assert_eq!(model.scale.as_deref(), Some("monthly"));
+    assert_eq!(model.separators.len(), 2);
+    assert_eq!(build.workload_days, 30);
+    assert_eq!(build.start_day, design.start_day + design.duration_days + 2);
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01
@@ -385,4 +433,33 @@ clock clk
     assert!(svg.contains("deploy"));
     assert!(svg.contains("<polyline"));
     assert!(svg.contains("timing diagram"));
+}
+
+#[test]
+fn timing_participant_oriented_clock_offset_and_alias_states_render() {
+    let src = r#"@startuml
+clock "Clock" as CLK with period 4 pulse 1 offset 2
+binary "Enable" as EN
+robust BUS
+@EN
+0 is down
++4 is up
++4 is off
+@BUS
+0 is {Idle}
+4 is {Run}
+@CLK*0
+CLK is high
+@CLK*2
+CLK is low
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("timing render");
+    assert!(svg.contains("data-timing-offset=\"2\""));
+    assert!(svg.contains("data-timing-period=\"4\""));
+    assert!(svg.contains("Enable"));
+    assert!(svg.contains("Idle"));
+    assert!(svg.contains("Run"));
+    assert!(svg.contains(">high<"));
+    assert!(svg.contains(">low<"));
 }

@@ -78,6 +78,8 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
         .expect("failed to read tests/integration.rs");
     let coverage_edges = fs::read_to_string(repo_path("tests/coverage_edges.rs"))
         .expect("failed to read tests/coverage_edges.rs");
+    let coverage_utilities = fs::read_to_string(repo_path("tests/coverage_utilities.rs"))
+        .expect("failed to read tests/coverage_utilities.rs");
     let render_e2e = fs::read_to_string(repo_path("tests/render_e2e.rs"))
         .expect("failed to read tests/render_e2e.rs");
     let oracle_smoke = fs::read_to_string(repo_path("tests/oracle_smoke.rs"))
@@ -103,6 +105,10 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
                 "tests/coverage_edges.rs" => assert!(
                     coverage_edges.contains(&needle),
                     "missing coverage_edges anchor referenced by matrix: {anchor}"
+                ),
+                "tests/coverage_utilities.rs" => assert!(
+                    coverage_utilities.contains(&needle),
+                    "missing coverage_utilities anchor referenced by matrix: {anchor}"
                 ),
                 "tests/render_e2e.rs" => assert!(
                     render_e2e.contains(&needle),

@@ -1723,9 +1723,10 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
         "tasks": model
             .tasks
             .iter()
-            .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days, "resources": t.resources}))
+            .map(|t| json!({"name": t.name, "start_day": t.start_day, "workload_days": t.workload_days, "duration_days": t.duration_days, "resources": t.resources, "resource_allocations": t.resource_allocations.iter().map(|r| json!({"name": r.name, "load_percent": r.load_percent})).collect::<Vec<_>>()}))
             .collect::<Vec<_>>(),
         "milestones": model.milestones.iter().map(|m| json!({"name": m.name, "happens_on": m.happens_on})).collect::<Vec<_>>(),
+        "separators": model.separators.iter().map(|s| json!({"label": s.label, "target": s.target})).collect::<Vec<_>>(),
         "constraints": model
             .constraints
             .iter()
@@ -1734,6 +1735,11 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
         "closed_weekdays": model.closed_weekdays,
         "closed_ranges": model
             .closed_ranges
+            .iter()
+            .map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day}))
+            .collect::<Vec<_>>(),
+        "open_ranges": model
+            .open_ranges
             .iter()
             .map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day}))
             .collect::<Vec<_>>(),
@@ -1934,12 +1940,14 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "tasks": timeline
                     .tasks
                     .iter()
-                    .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days, "resources": t.resources}))
+                    .map(|t| json!({"name": t.name, "start_day": t.start_day, "workload_days": t.workload_days, "duration_days": t.duration_days, "resources": t.resources, "resource_allocations": t.resource_allocations.iter().map(|r| json!({"name": r.name, "load_percent": r.load_percent})).collect::<Vec<_>>()}))
                     .collect::<Vec<_>>(),
                 "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name, "happens_on": m.happens_on})).collect::<Vec<_>>(),
+                "separators": timeline.separators.iter().map(|s| json!({"label": s.label, "target": s.target})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "closed_weekdays": timeline.closed_weekdays,
                 "closed_ranges": timeline.closed_ranges.iter().map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day})).collect::<Vec<_>>(),
+                "open_ranges": timeline.open_ranges.iter().map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
                 "project_start": timeline.project_start,
                 "project_start_day": timeline.project_start_day,

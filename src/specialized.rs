@@ -121,6 +121,8 @@ enum RailNode {
     Anchor(String),
     /// Character class.
     CharClass(String),
+    /// EBNF special sequence: ? ... ?
+    Special(String),
     /// Empty / epsilon.
     Empty,
 }
@@ -259,14 +261,35 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+                "<metadata class=\"regex-token regex-charclass\" data-regex-class=\"{}\"/><rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
 <text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
+                escape_xml(cls),
                 w, h,
                 style.charclass_fill,
                 style.charclass_stroke,
                 w / 2, mid,
                 style.charclass_text,
                 escape_xml(&text)
+            );
+            RailLayout {
+                svg,
+                width: w,
+                height: h,
+                mid_y: mid,
+            }
+        }
+        RailNode::Special(text) => {
+            let label = format!("? {} ?", text);
+            let w = rail_box_width(&label);
+            let h = RAIL_BOX_H;
+            let mid = h / 2;
+            let svg = format!(
+                "<metadata class=\"ebnf-token ebnf-special\" data-ebnf-special=\"{}\"/><rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#ede9fe\" stroke=\"#7c3aed\" stroke-width=\"1.5\" stroke-dasharray=\"4 2\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#4c1d95\">{}</text>",
+                escape_xml(text),
+                w, h,
+                w / 2, mid,
+                escape_xml(&label)
             );
             RailLayout {
                 svg,
@@ -514,6 +537,10 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
                 escape_xml(&label)
             ));
             out.push_str(&format!(
+                "<metadata data-rail-repeat-label=\"{}\"/>",
+                escape_xml(&repeat_label(spec))
+            ));
+            out.push_str(&format!(
                 "<g transform=\"translate(20,0)\">{}</g>",
                 child.svg
             ));
@@ -620,7 +647,19 @@ fn rail_node_label(node: &RailNode) -> String {
         RailNode::NonTerminal(name) => name.clone(),
         RailNode::Anchor(sym) => sym.clone(),
         RailNode::CharClass(text) => text.clone(),
+        RailNode::Special(text) => format!("? {text} ?"),
         RailNode::Empty => String::new(),
+    }
+}
+
+fn repeat_label(spec: &str) -> String {
+    let body = spec.trim_matches(|ch| ch == '{' || ch == '}');
+    match body.split_once(',') {
+        Some(("", max)) => format!("up to {}", max.trim()),
+        Some((min, "")) => format!("at least {}", min.trim()),
+        Some((min, max)) => format!("{} to {}", min.trim(), max.trim()),
+        None if !body.is_empty() => format!("exactly {body}"),
+        _ => "counted repeat".to_string(),
     }
 }
 
@@ -738,7 +777,16 @@ fn render_regex(source: &str) -> Result<String, Diagnostic> {
         )
     };
     let title = format!("/{}/", pattern.replace('\n', " | "));
-    Ok(render_railroad(&title, &node))
+    let svg = render_railroad(&title, &node).replacen(
+        "<svg ",
+        &format!(
+            "<svg data-regex-locale=\"{}\" data-regex-pattern-count=\"{}\" ",
+            locale.name(),
+            patterns.len()
+        ),
+        1,
+    );
+    Ok(svg)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -749,6 +797,14 @@ enum RegexLocale {
 }
 
 impl RegexLocale {
+    fn name(self) -> &'static str {
+        match self {
+            Self::English => "en",
+            Self::French => "fr",
+            Self::Spanish => "es",
+        }
+    }
+
     fn from_name(name: &str) -> Self {
         match name {
             "fr" | "fra" | "fre" | "french" | "francais" | "français" => Self::French,
@@ -854,7 +910,21 @@ fn parse_regex_sequence(chars: &[char], start: usize, locale: RegexLocale) -> (R
                 let escaped = if pos < chars.len() {
                     let c = chars[pos];
                     pos += 1;
-                    regex_escape_label(c, locale)
+                    if matches!(c, 'p' | 'P') && pos < chars.len() && chars[pos] == '{' {
+                        let negated = c == 'P';
+                        pos += 1;
+                        let mut class = String::new();
+                        while pos < chars.len() && chars[pos] != '}' {
+                            class.push(chars[pos]);
+                            pos += 1;
+                        }
+                        if pos < chars.len() && chars[pos] == '}' {
+                            pos += 1;
+                        }
+                        regex_unicode_category_label(&class, negated)
+                    } else {
+                        regex_escape_label(c, locale)
+                    }
                 } else {
                     "\\".to_string()
                 };
@@ -903,14 +973,41 @@ fn regex_escape_label(ch: char, locale: RegexLocale) -> String {
     }
 }
 
+fn regex_unicode_category_label(class: &str, negated: bool) -> String {
+    let label = match class {
+        "L" | "Letter" => "unicode letter",
+        "Lu" | "Uppercase_Letter" => "unicode uppercase letter",
+        "Ll" | "Lowercase_Letter" => "unicode lowercase letter",
+        "N" | "Number" => "unicode number",
+        "Nd" | "Decimal_Number" => "unicode decimal digit",
+        "Zs" | "Separator" => "unicode separator",
+        "P" | "Punctuation" => "unicode punctuation",
+        other => return format!("\\p{{{other}}} unicode category"),
+    };
+    if negated {
+        format!("not {label}")
+    } else {
+        label.to_string()
+    }
+}
+
 fn apply_quantifier(node: RailNode, chars: &[char], pos: usize) -> (RailNode, usize) {
     if pos >= chars.len() {
         return (node, pos);
     }
     match chars[pos] {
-        '*' => (RailNode::Repeat(Box::new(node)), pos + 1),
-        '+' => (RailNode::OneOrMore(Box::new(node)), pos + 1),
-        '?' => (RailNode::Optional(Box::new(node)), pos + 1),
+        '*' => (
+            RailNode::Repeat(Box::new(node)),
+            consume_lazy_suffix(chars, pos + 1),
+        ),
+        '+' => (
+            RailNode::OneOrMore(Box::new(node)),
+            consume_lazy_suffix(chars, pos + 1),
+        ),
+        '?' => (
+            RailNode::Optional(Box::new(node)),
+            consume_lazy_suffix(chars, pos + 1),
+        ),
         '{' => {
             let mut p = pos + 1;
             while p < chars.len() && chars[p] != '}' {
@@ -918,11 +1015,22 @@ fn apply_quantifier(node: RailNode, chars: &[char], pos: usize) -> (RailNode, us
             }
             if p < chars.len() && chars[p] == '}' {
                 let spec: String = chars[pos..=p].iter().collect();
-                return (RailNode::CountedRepeat(Box::new(node), spec), p + 1);
+                return (
+                    RailNode::CountedRepeat(Box::new(node), spec),
+                    consume_lazy_suffix(chars, p + 1),
+                );
             }
             (node, pos)
         }
         _ => (node, pos),
+    }
+}
+
+fn consume_lazy_suffix(chars: &[char], pos: usize) -> usize {
+    if pos < chars.len() && chars[pos] == '?' {
+        pos + 1
+    } else {
+        pos
     }
 }
 
@@ -1057,6 +1165,7 @@ fn parse_ebnf_render_directives(body: &str) -> (String, RailStyle, BTreeMap<Stri
     let mut notes = BTreeMap::new();
     let mut rule_lines = Vec::new();
 
+    let mut in_style_block = false;
     for raw in body.lines() {
         let line = raw.trim();
         if line.is_empty() {
@@ -1064,6 +1173,20 @@ fn parse_ebnf_render_directives(body: &str) -> (String, RailStyle, BTreeMap<Stri
             continue;
         }
         let lower = line.to_ascii_lowercase();
+        if lower.starts_with("<style") {
+            in_style_block = true;
+            continue;
+        }
+        if in_style_block {
+            apply_ebnf_style_directive(line, &mut style);
+            if lower.contains("</style>") {
+                in_style_block = false;
+            }
+            continue;
+        }
+        if lower.starts_with("title ") || lower.starts_with("legend ") || lower == "end legend" {
+            continue;
+        }
         if let Some((name, note)) = parse_ebnf_note(line) {
             notes.insert(name, note);
             continue;
@@ -1200,6 +1323,8 @@ enum EbnfToken {
     RBracket,
     LParen,
     RParen,
+    Star,
+    Question,
     Semicolon,
     Literal(String),
     Ident(String),
@@ -1244,6 +1369,23 @@ fn tokenize_ebnf(s: &str) -> Vec<EbnfToken> {
             ')' => {
                 chars.next();
                 tokens.push(EbnfToken::RParen);
+            }
+            '*' => {
+                chars.next();
+                tokens.push(EbnfToken::Star);
+            }
+            '?' => {
+                chars.next();
+                let mut special = String::new();
+                while let Some(&ch) = chars.peek() {
+                    chars.next();
+                    if ch == '?' {
+                        break;
+                    }
+                    special.push(ch);
+                }
+                tokens.push(EbnfToken::Question);
+                tokens.push(EbnfToken::Literal(format!("?{}?", special.trim())));
             }
             ';' => {
                 chars.next();
@@ -1321,6 +1463,9 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
     if pos >= tokens.len() {
         return (RailNode::Empty, pos);
     }
+    if let Some((node, next)) = parse_ebnf_prefix_repeat(tokens, pos) {
+        return (node, next);
+    }
     let (node, p) = match &tokens[pos] {
         EbnfToken::LBrace => {
             let (inner, p) = ebnf_parse_alternation(tokens, pos + 1);
@@ -1349,6 +1494,14 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
             };
             (inner, p)
         }
+        EbnfToken::Question => {
+            if let Some(EbnfToken::Literal(s)) = tokens.get(pos + 1) {
+                let text = s.trim_matches('?').trim().to_string();
+                (RailNode::Special(text), pos + 2)
+            } else {
+                (RailNode::Empty, pos + 1)
+            }
+        }
         EbnfToken::Literal(s) => (RailNode::Literal(s.clone()), pos + 1),
         EbnfToken::Ident(s) => (RailNode::NonTerminal(s.clone()), pos + 1),
         _ => (RailNode::Empty, pos + 1),
@@ -1358,6 +1511,23 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
     } else {
         (node, p)
     }
+}
+
+fn parse_ebnf_prefix_repeat(tokens: &[EbnfToken], pos: usize) -> Option<(RailNode, usize)> {
+    let Some(EbnfToken::Ident(count)) = tokens.get(pos) else {
+        return None;
+    };
+    if !count.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+    if tokens.get(pos + 1) != Some(&EbnfToken::Star) {
+        return None;
+    }
+    let (inner, next) = ebnf_parse_item(tokens, pos + 2);
+    Some((
+        RailNode::CountedRepeat(Box::new(inner), format!("{{{count}}}")),
+        next,
+    ))
 }
 
 fn parse_ebnf_counted_repeat(tokens: &[EbnfToken], pos: usize) -> Option<(String, usize)> {
@@ -2391,6 +2561,7 @@ enum Expr {
     Sup(Box<Expr>, Box<Expr>),
     SubSup(Box<Expr>, Box<Expr>, Box<Expr>),
     Frac(Box<Expr>, Box<Expr>),
+    Binom(Box<Expr>, Box<Expr>),
     Sqrt(Box<Expr>),
     Accent {
         kind: String,
@@ -2617,6 +2788,10 @@ fn is_frac(name: &str) -> bool {
     matches!(name, "frac" | "dfrac" | "tfrac" | "cfrac")
 }
 
+fn is_binom(name: &str) -> bool {
+    matches!(name, "binom" | "dbinom" | "tbinom")
+}
+
 fn is_sqrt(name: &str) -> bool {
     matches!(name, "sqrt" | "cbrt")
 }
@@ -2747,6 +2922,7 @@ fn is_matrix_env(name: &str) -> bool {
             | "Vmatrix"
             | "smallmatrix"
             | "array"
+            | "cases"
             | "aligned"
             | "align"
     )
@@ -2846,6 +3022,12 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
                     skip_spaces(tokens, idx);
                     let den = parse_single_expr(tokens, idx);
                     exprs.push(Expr::Frac(Box::new(num), Box::new(den)));
+                } else if is_binom(&name) {
+                    skip_spaces(tokens, idx);
+                    let top = parse_single_expr(tokens, idx);
+                    skip_spaces(tokens, idx);
+                    let bottom = parse_single_expr(tokens, idx);
+                    exprs.push(Expr::Binom(Box::new(top), Box::new(bottom)));
                 } else if is_sqrt(&name) {
                     // Optionally skip [n] for nth root
                     skip_spaces(tokens, idx);
@@ -3281,6 +3463,42 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 ascent,
             }
         }
+        Expr::Binom(top, bottom) => {
+            let top_l = layout_expr(top, font_size * 0.85);
+            let bottom_l = layout_expr(bottom, font_size * 0.85);
+            let pad = font_size * 0.35;
+            let body_w = top_l.width.max(bottom_l.width) + pad * 2.0;
+            let gap = font_size * 0.08;
+            let body_h = top_l.height + gap + bottom_l.height;
+            let fence_w = font_size * 0.35;
+            let total_w = body_w + fence_w * 2.0;
+            let total_h = body_h.max(font_size * 1.3);
+            let ascent = total_h * 0.58;
+            let top_x = fence_w + (body_w - top_l.width) / 2.0;
+            let bottom_x = fence_w + (body_w - bottom_l.width) / 2.0;
+            let bottom_y = top_l.height + gap;
+            let svg = format!(
+                "<g data-math-construct=\"binom\"><text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">(</text><g transform=\"translate({},{})\">{}</g><g transform=\"translate({},{})\">{}</g><text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">)</text></g>",
+                fence_w / 2.0,
+                ascent,
+                total_h * 1.1,
+                top_x,
+                0.0,
+                top_l.svg,
+                bottom_x,
+                bottom_y,
+                bottom_l.svg,
+                total_w - fence_w / 2.0,
+                ascent,
+                total_h * 1.1
+            );
+            Layout {
+                svg,
+                width: total_w,
+                height: total_h,
+                ascent,
+            }
+        }
         Expr::Sqrt(inner) => {
             let inner_l = layout_expr(inner, font_size);
             let pad = 4.0;
@@ -3547,8 +3765,41 @@ fn hint_to_fill(hint: &str) -> Option<&'static str> {
         "cPNK" | "cPnk" => Some("#f5aad4"),
         "cORA" | "cOra" => Some("#f5d4aa"),
         "cGRA" | "cGra" => Some("#cccccc"),
+        "cAAA" | "cAaa" => Some("#dddddd"),
         _ => None,
     }
+}
+
+fn ditaa_tag_kind(text: &str) -> Option<ShapeKind> {
+    if text.contains("{c}") {
+        Some(ShapeKind::Diamond)
+    } else if text.contains("{d}") {
+        Some(ShapeKind::Document)
+    } else if text.contains("{io}") {
+        Some(ShapeKind::Io)
+    } else if text.contains("{mo}") {
+        Some(ShapeKind::ManualOperation)
+    } else if text.contains("{o}") {
+        Some(ShapeKind::Ellipse)
+    } else if text.contains("{s}") {
+        Some(ShapeKind::Cylinder)
+    } else if text.contains("{tr}") {
+        Some(ShapeKind::Trapezoid)
+    } else {
+        None
+    }
+}
+
+fn strip_ditaa_tags(text: &str) -> String {
+    text.split_whitespace()
+        .filter(|part| {
+            !matches!(
+                *part,
+                "{c}" | "{d}" | "{io}" | "{mo}" | "{o}" | "{s}" | "{tr}"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Shape types detected in the grid.
@@ -3559,6 +3810,26 @@ enum ShapeKind {
     Document,
     Cylinder,
     Diamond,
+    Io,
+    ManualOperation,
+    Ellipse,
+    Trapezoid,
+}
+
+impl ShapeKind {
+    fn attr(&self) -> &'static str {
+        match self {
+            Self::Rect => "rect",
+            Self::RoundedRect => "rounded",
+            Self::Document => "document",
+            Self::Cylinder => "storage",
+            Self::Diamond => "choice",
+            Self::Io => "io",
+            Self::ManualOperation => "manual-operation",
+            Self::Ellipse => "ellipse",
+            Self::Trapezoid => "trapezoid",
+        }
+    }
 }
 
 /// A detected shape.
@@ -3689,6 +3960,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                     // Determine fill by scanning for color hints inside box
                     let mut fill = "#f0f4ff".to_string();
                     let mut dashed = false;
+                    let mut tag_kind: Option<ShapeKind> = None;
                     let mut text_lines: Vec<(usize, String)> = Vec::new();
 
                     for row_idx in (r1 + 1)..r2 {
@@ -3707,6 +3979,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                                 fill = f.to_string();
                             }
                         }
+                        tag_kind = tag_kind.or_else(|| ditaa_tag_kind(&trimmed_inner));
 
                         // Check for dashed edges
                         if (c1 + 1..c2).any(|c| get(r1, c) == '=')
@@ -3721,6 +3994,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                             .filter(|w| hint_to_fill(w).is_none())
                             .collect::<Vec<_>>()
                             .join(" ");
+                        let display = strip_ditaa_tags(&display);
 
                         if !display.is_empty() {
                             text_lines.push((row_idx, display));
@@ -3728,7 +4002,9 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                     }
 
                     // Determine shape kind
-                    let kind = if rounded_start || rounded_end {
+                    let kind = if let Some(kind) = tag_kind {
+                        kind
+                    } else if rounded_start || rounded_end {
                         ShapeKind::RoundedRect
                     } else {
                         // Check for cylinder: top row has '(' at c1+1 and ')' at c2-1
@@ -4035,18 +4311,19 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         } else {
             ""
         };
+        let shape_attr = shape.kind.attr();
 
         match shape.kind {
             ShapeKind::Rect => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
-                    rx, ry, rw, rh, shape.fill, stroke, filter
+                    "<rect data-ditaa-shape=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    shape_attr, rx, ry, rw, rh, shape.fill, stroke, filter
                 ));
             }
             ShapeKind::RoundedRect => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" ry=\"12\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
-                    rx, ry, rw, rh, shape.fill, stroke, filter
+                    "<rect data-ditaa-shape=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" ry=\"12\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    shape_attr, rx, ry, rw, rh, shape.fill, stroke, filter
                 ));
             }
             ShapeKind::Document => {
@@ -4054,7 +4331,8 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                 let cx = rx + rw / 2;
                 let bot_y = ry + rh;
                 out.push_str(&format!(
-                    "<path d=\"M {},{} L {},{} L {},{} Q {},{} {},{} Q {},{} {},{}  Z\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
+                    "<path data-ditaa-shape=\"{}\" d=\"M {},{} L {},{} L {},{} Q {},{} {},{} Q {},{} {},{}  Z\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
+                    shape_attr,
                     rx, ry,
                     rx + rw, ry,
                     rx + rw, bot_y - 8,
@@ -4067,10 +4345,10 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                 let cx = rx + rw / 2;
                 let ell_ry = 6i32;
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>\
+                    "<g data-ditaa-shape=\"{}\"><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>\
                      <ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\"/>\
-                     <ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"none\" stroke=\"#3344aa\" stroke-width=\"1\"/>",
-                    rx, ry + ell_ry, rw, rh - ell_ry, shape.fill, stroke,
+                     <ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"none\" stroke=\"#3344aa\" stroke-width=\"1\"/></g>",
+                    shape_attr, rx, ry + ell_ry, rw, rh - ell_ry, shape.fill, stroke,
                     cx, ry + ell_ry, rw / 2, ell_ry, shape.fill,
                     cx, ry + rh, rw / 2, ell_ry
                 ));
@@ -4079,12 +4357,54 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                 let cx = rx + rw / 2;
                 let cy = ry + rh / 2;
                 out.push_str(&format!(
-                    "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
+                    "<polygon data-ditaa-shape=\"{}\" points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
+                    shape_attr,
                     cx, ry,
                     rx + rw, cy,
                     cx, ry + rh,
                     rx, cy,
                     shape.fill, stroke
+                ));
+            }
+            ShapeKind::Io => {
+                let slant = (rw / 6).max(8);
+                out.push_str(&format!(
+                    "<polygon data-ditaa-shape=\"{}\" points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    shape_attr,
+                    rx + slant, ry,
+                    rx + rw, ry,
+                    rx + rw - slant, ry + rh,
+                    rx, ry + rh,
+                    shape.fill,
+                    stroke,
+                    filter
+                ));
+            }
+            ShapeKind::ManualOperation | ShapeKind::Trapezoid => {
+                let slant = (rw / 6).max(8);
+                out.push_str(&format!(
+                    "<polygon data-ditaa-shape=\"{}\" points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    shape_attr,
+                    rx, ry,
+                    rx + rw, ry,
+                    rx + rw - slant, ry + rh,
+                    rx + slant, ry + rh,
+                    shape.fill,
+                    stroke,
+                    filter
+                ));
+            }
+            ShapeKind::Ellipse => {
+                out.push_str(&format!(
+                    "<ellipse data-ditaa-shape=\"{}\" cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    shape_attr,
+                    rx + rw / 2,
+                    ry + rh / 2,
+                    (rw / 2).max(8),
+                    (rh / 2).max(8),
+                    shape.fill,
+                    stroke,
+                    filter
                 ));
             }
         }
@@ -4116,9 +4436,35 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
             marker_start = " marker-start=\"url(#dah)\"";
         }
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#444\" stroke-width=\"1.5\"{}{}{}/>",
-            conn.x1, conn.y1, conn.x2, conn.y2, dash, marker_end, marker_start
+            "<line class=\"ditaa-connector\" data-ditaa-arrow-start=\"{}\" data-ditaa-arrow-end=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#444\" stroke-width=\"1.5\"{}{}{}/>",
+            conn.has_head_start, conn.has_head_end, conn.x1, conn.y1, conn.x2, conn.y2, dash, marker_end, marker_start
         ));
+    }
+
+    for (row_idx, row) in lines.iter().enumerate() {
+        for (c, &ch) in row.iter().enumerate() {
+            if ch != '+' {
+                continue;
+            }
+            let in_shape = shapes
+                .iter()
+                .any(|s| row_idx >= s.r1 && row_idx <= s.r2 && c >= s.c1 && c <= s.c2);
+            if in_shape {
+                continue;
+            }
+            let horizontal = matches!(get(row_idx, c.saturating_sub(1)), '-' | '=')
+                || matches!(get(row_idx, c + 1), '-' | '=' | '>');
+            let vertical = matches!(get(row_idx.saturating_sub(1), c), '|' | ':' | '^')
+                || matches!(get(row_idx + 1, c), '|' | ':' | 'v');
+            if horizontal && vertical {
+                let x = margin + c as i32 * cell_w + cell_w / 2;
+                let y = margin + title_h + row_idx as i32 * cell_h + cell_h / 2;
+                out.push_str(&format!(
+                    "<circle class=\"ditaa-junction\" data-ditaa-junction=\"true\" cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"#444\"/>",
+                    x, y
+                ));
+            }
+        }
     }
 
     // ── Pass 4: render unclaimed text ─────────────────────────────────────────
