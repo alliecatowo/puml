@@ -189,6 +189,8 @@ The static docs site lives in [site/](site/README.md). It mirrors `docs/examples
 <details>
 <summary>Agent and swarm development context</summary>
 
+## Autonomy Harness
+
 This repo is deliberately friendly to human plus AI-agent development. The point is not novelty for its own sake; it is to make diagram work measurable enough that parallel contributors can add fixtures, tighten diagnostics, improve layout, and update docs without guessing.
 
 Useful harnesses:
