@@ -1,0 +1,3 @@
+@startuml
+A -> B : %abs("-7") %is_dark("#000000") %reverse_color("#000000") %lighten("#000000", 50) %darken("#ffffff", 100)
+@enduml

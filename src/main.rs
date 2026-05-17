@@ -1607,6 +1607,9 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::JsonProjection { alias, body } => json!({
             "JsonProjection": {"alias": alias, "body": body}
         }),
+        StatementKind::YamlProjection { alias, body } => json!({
+            "YamlProjection": {"alias": alias, "body": body}
+        }),
         StatementKind::HideUnlinked => json!({"HideUnlinked": true}),
         StatementKind::SaltGridRow { cells } => json!({
             "SaltGridRow": cells.iter().map(|c| format!("{:?}", c)).collect::<Vec<_>>()
