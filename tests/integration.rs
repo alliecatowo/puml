@@ -500,6 +500,7 @@ fn docs_examples_svg_corpus_matches_renderer() {
 fn nonuml_family_fixtures_render_nonempty_svg_depth_smoke() {
     let fixtures = [
         "non_sequence/valid_sdl.puml",
+        "families/valid_sdl_shapes.puml",
         "non_sequence/valid_archimate.puml",
         "non_sequence/valid_nwdiag.puml",
         "non_sequence/valid_json.puml",

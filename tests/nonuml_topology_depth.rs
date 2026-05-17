@@ -64,6 +64,62 @@ expr = term, { ("+" | "-"), term }, [ "end" ];
 }
 
 #[test]
+fn sdl_render_uses_typed_shapes_and_transition_edges() {
+    let src = r#"@startsdl
+title SDL With Transitions
+start Idle
+state Processing
+state Waiting
+stop Done
+Idle -> Processing : request
+Processing -> Waiting : response
+Waiting -> Idle : retry
+Waiting -> Done : complete
+@endsdl
+"#;
+    let svg = puml::render_source_to_svg(src).expect("sdl render");
+
+    assert!(svg.contains("SDL With Transitions"));
+    assert!(svg.contains("data-sdl-kind=\"start\""));
+    assert!(svg.contains("data-sdl-kind=\"state\""));
+    assert!(svg.contains("data-sdl-kind=\"stop\""));
+    assert!(svg.contains("class=\"sdl-transition\""));
+    assert!(svg.contains("marker-end=\"url(#sdl-arrow)\""));
+    assert!(svg.contains("data-sdl-from=\"Waiting\" data-sdl-to=\"Done\""));
+    assert!(svg.contains(">request</text>"));
+    assert!(svg.contains(">Idle</text>"));
+    assert!(svg.contains(">Done</text>"));
+    assert!(
+        !svg.contains("<ellipse"),
+        "SDL should not collapse to an empty ellipse placeholder"
+    );
+}
+
+#[test]
+fn sdl_input_output_decision_shapes_render_from_fixture() {
+    let src = std::fs::read_to_string(format!(
+        "{}/tests/fixtures/families/valid_sdl_shapes.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("sdl fixture");
+    let svg = puml::render_source_to_svg(&src).expect("sdl render");
+
+    for kind in ["start", "input", "state", "decision", "output", "stop"] {
+        assert!(
+            svg.contains(&format!("data-sdl-kind=\"{kind}\"")),
+            "missing SDL {kind} node in rendered SVG"
+        );
+    }
+    for label in ["receive", "parse", "check", "yes", "no", "complete"] {
+        assert!(
+            svg.contains(&format!(">{label}</text>")),
+            "missing transition label {label}"
+        );
+    }
+    assert!(svg.matches("class=\"sdl-transition\"").count() >= 6);
+}
+
+#[test]
 fn archimate_junction_direction_and_style_breadth_render() {
     let src = r##"@startarchimate
 Application_Service(service, "Service", "#dbeafe")

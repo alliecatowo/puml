@@ -307,6 +307,9 @@ pub struct SdlState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SdlStateKind {
     Start,
+    Input,
+    Output,
+    Decision,
     State,
     Stop,
 }
