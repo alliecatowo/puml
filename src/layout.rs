@@ -325,7 +325,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     if let Some(ix) = open_groups.last().copied() {
                         groups[ix].separators.push(GroupSeparator {
                             y,
-                            label: label.clone(),
+                            label: Some(else_separator_label(label.as_deref())),
                         });
                     }
                 } else {
@@ -865,6 +865,13 @@ fn group_content_min_size(kind: &str, label: Option<&str>) -> (i32, i32) {
     }
 
     (max_width + (GROUP_TEXT_INSET_X * 2), height)
+}
+
+fn else_separator_label(label: Option<&str>) -> String {
+    match label.map(str::trim).filter(|label| !label.is_empty()) {
+        Some(label) => format!("else {label}"),
+        None => "else".to_string(),
+    }
 }
 
 fn estimate_text_px_width(line: &str) -> i32 {

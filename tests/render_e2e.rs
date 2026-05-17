@@ -840,8 +840,28 @@ fn render_svg_handles_ref_else_and_multi_target_notes() {
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");
 
     assert!(svg.contains("ref over A, B"));
-    assert!(svg.contains("fallback"));
+    assert!(svg.contains("else fallback"));
     assert_snapshot!("render_svg_handles_ref_else_and_multi_target_notes", svg);
+}
+
+#[test]
+fn render_svg_sequence_alt_opt_loop_fixture_labels_alt_and_else() {
+    let src = std::fs::read_to_string(format!(
+        "{}/docs/examples/sequence/05_alt_opt_loop.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("sequence alt/opt/loop fixture should exist");
+    let svg =
+        puml::render_source_to_svg(&src).expect("sequence alt/opt/loop fixture should render");
+
+    assert!(
+        svg.contains(">alt credentials valid<"),
+        "alt branch header should include the group keyword and label"
+    );
+    assert!(
+        svg.contains(">else invalid<"),
+        "else branch separator should include the group keyword and label"
+    );
 }
 
 #[test]
