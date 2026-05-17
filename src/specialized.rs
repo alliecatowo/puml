@@ -2213,8 +2213,13 @@ enum Expr {
     Literal(String),
     Sub(Box<Expr>, Box<Expr>),
     Sup(Box<Expr>, Box<Expr>),
+    SubSup(Box<Expr>, Box<Expr>, Box<Expr>),
     Frac(Box<Expr>, Box<Expr>),
     Sqrt(Box<Expr>),
+    Accent {
+        kind: String,
+        inner: Box<Expr>,
+    },
     Greek(char),
     BigOp {
         op: char,
@@ -2436,14 +2441,27 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
                 *idx += 1;
                 let base = exprs.pop().unwrap_or(Expr::Literal(String::new()));
                 let sub = parse_single_expr(tokens, idx);
-                // Check if there's also a ^
-                exprs.push(Expr::Sub(Box::new(base), Box::new(sub)));
+                skip_spaces(tokens, idx);
+                if *idx < tokens.len() && matches!(tokens[*idx], LatexToken::Sup) {
+                    *idx += 1;
+                    let sup = parse_single_expr(tokens, idx);
+                    exprs.push(Expr::SubSup(Box::new(base), Box::new(sub), Box::new(sup)));
+                } else {
+                    exprs.push(Expr::Sub(Box::new(base), Box::new(sub)));
+                }
             }
             LatexToken::Sup => {
                 *idx += 1;
                 let base = exprs.pop().unwrap_or(Expr::Literal(String::new()));
                 let sup = parse_single_expr(tokens, idx);
-                exprs.push(Expr::Sup(Box::new(base), Box::new(sup)));
+                skip_spaces(tokens, idx);
+                if *idx < tokens.len() && matches!(tokens[*idx], LatexToken::Sub) {
+                    *idx += 1;
+                    let sub = parse_single_expr(tokens, idx);
+                    exprs.push(Expr::SubSup(Box::new(base), Box::new(sub), Box::new(sup)));
+                } else {
+                    exprs.push(Expr::Sup(Box::new(base), Box::new(sup)));
+                }
             }
             LatexToken::Char(c) => {
                 exprs.push(Expr::Literal(c.to_string()));
@@ -2506,6 +2524,16 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
                     exprs.push(Expr::Sqrt(Box::new(inner)));
                 } else if matches!(
                     name.as_str(),
+                    "hat" | "bar" | "overline" | "underline" | "vec" | "dot" | "ddot"
+                ) {
+                    skip_spaces(tokens, idx);
+                    let inner = parse_single_expr(tokens, idx);
+                    exprs.push(Expr::Accent {
+                        kind: name,
+                        inner: Box::new(inner),
+                    });
+                } else if matches!(
+                    name.as_str(),
                     "text" | "mathrm" | "mathit" | "mathbf" | "mathbb" | "mathcal" | "operatorname"
                 ) {
                     // Consume following group and render it as literal text
@@ -2516,9 +2544,12 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
                     name.as_str(),
                     "left" | "right" | "big" | "bigg" | "Big" | "Bigg"
                 ) {
-                    // consume the following bracket char if any
+                    // consume and render the following delimiter; \left. / \right. are invisible
                     if *idx < tokens.len() {
-                        if let LatexToken::Char(_) = &tokens[*idx] {
+                        if let LatexToken::Char(c) = &tokens[*idx] {
+                            if *c != '.' {
+                                exprs.push(Expr::Literal(c.to_string()));
+                            }
                             *idx += 1;
                         }
                     }
@@ -2564,7 +2595,29 @@ fn parse_single_expr(tokens: &[LatexToken], idx: &mut usize) -> Expr {
         LatexToken::Command(name) => {
             let name = name.clone();
             *idx += 1;
-            command_to_expr(&name)
+            if is_frac(&name) {
+                skip_spaces(tokens, idx);
+                let num = parse_single_expr(tokens, idx);
+                skip_spaces(tokens, idx);
+                let den = parse_single_expr(tokens, idx);
+                Expr::Frac(Box::new(num), Box::new(den))
+            } else if is_sqrt(&name) {
+                skip_spaces(tokens, idx);
+                let inner = parse_single_expr(tokens, idx);
+                Expr::Sqrt(Box::new(inner))
+            } else if matches!(
+                name.as_str(),
+                "hat" | "bar" | "overline" | "underline" | "vec" | "dot" | "ddot"
+            ) {
+                skip_spaces(tokens, idx);
+                let inner = parse_single_expr(tokens, idx);
+                Expr::Accent {
+                    kind: name,
+                    inner: Box::new(inner),
+                }
+            } else {
+                command_to_expr(&name)
+            }
         }
         LatexToken::Sub | LatexToken::Sup => Expr::Literal(String::new()),
         LatexToken::RBrace | LatexToken::Space => Expr::Literal(String::new()),
@@ -2694,6 +2747,37 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 ascent,
             }
         }
+        Expr::SubSup(base, sub, sup) => {
+            let base_l = layout_expr(base, font_size);
+            let sub_l = layout_expr(sub, font_size * SUB_SCALE);
+            let sup_l = layout_expr(sup, font_size * SUP_SCALE);
+            let script_w = sub_l.width.max(sup_l.width);
+            let sup_shift = font_size * 0.5;
+            let sub_shift = font_size * 0.3;
+            let sup_y = base_l.ascent - sup_shift - sup_l.ascent;
+            let dy = if sup_y < 0.0 { -sup_y } else { 0.0 };
+            let sub_y = base_l.ascent + sub_shift + dy;
+            let total_w = base_l.width + script_w;
+            let total_h = (sub_y + sub_l.height - sub_l.ascent).max(base_l.height + dy);
+            let ascent = base_l.ascent + dy;
+            let svg = format!(
+                "<g transform=\"translate(0,{})\">{}<g transform=\"translate({},{})\">{}</g><g transform=\"translate({},{})\">{}</g></g>",
+                dy,
+                base_l.svg,
+                base_l.width,
+                sup_y + dy,
+                sup_l.svg,
+                base_l.width,
+                sub_y - sub_l.ascent,
+                sub_l.svg
+            );
+            Layout {
+                svg,
+                width: total_w,
+                height: total_h,
+                ascent,
+            }
+        }
         Expr::Frac(num, den) => {
             let num_l = layout_expr(num, font_size * 0.85);
             let den_l = layout_expr(den, font_size * 0.85);
@@ -2755,6 +2839,74 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 svg,
                 width: total_w,
                 height: total_h,
+                ascent,
+            }
+        }
+        Expr::Accent { kind, inner } => {
+            let inner_l = layout_expr(inner, font_size);
+            let top_pad = if kind == "underline" { 2.0 } else { font_size * 0.35 };
+            let bottom_pad = if kind == "underline" {
+                font_size * 0.25
+            } else {
+                0.0
+            };
+            let width = inner_l.width.max(font_size * 0.7);
+            let height = inner_l.height + top_pad + bottom_pad;
+            let ascent = inner_l.ascent + top_pad;
+            let inner_x = (width - inner_l.width) / 2.0;
+            let mut svg = String::new();
+            match kind.as_str() {
+                "hat" => svg.push_str(&format!(
+                    "<path d=\"M {},{} L {},{} L {},{}\" fill=\"none\" stroke=\"#333\" stroke-width=\"1.2\"/>",
+                    width * 0.2,
+                    top_pad,
+                    width * 0.5,
+                    1.0,
+                    width * 0.8,
+                    top_pad
+                )),
+                "vec" => svg.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.2\" marker-end=\"url(#math-arrow)\"/>",
+                    width * 0.15,
+                    top_pad * 0.55,
+                    width * 0.85,
+                    top_pad * 0.55
+                )),
+                "dot" | "ddot" => {
+                    svg.push_str(&format!(
+                        "<circle cx=\"{}\" cy=\"{}\" r=\"1.5\" fill=\"#333\"/>",
+                        width * 0.45,
+                        top_pad * 0.45
+                    ));
+                    if kind == "ddot" {
+                        svg.push_str(&format!(
+                            "<circle cx=\"{}\" cy=\"{}\" r=\"1.5\" fill=\"#333\"/>",
+                            width * 0.6,
+                            top_pad * 0.45
+                        ));
+                    }
+                }
+                "underline" => svg.push_str(&format!(
+                    "<line x1=\"0\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.2\"/>",
+                    inner_l.height + top_pad + 2.0,
+                    width,
+                    inner_l.height + top_pad + 2.0
+                )),
+                _ => svg.push_str(&format!(
+                    "<line x1=\"0\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.2\"/>",
+                    top_pad * 0.45,
+                    width,
+                    top_pad * 0.45
+                )),
+            }
+            svg.push_str(&format!(
+                "<g transform=\"translate({},{})\">{}</g>",
+                inner_x, top_pad, inner_l.svg
+            ));
+            Layout {
+                svg,
+                width,
+                height,
                 ascent,
             }
         }
@@ -2858,6 +3010,9 @@ fn render_math(source: &str) -> Result<String, Diagnostic> {
     let mut out = String::new();
     out.push_str(&svg_header(w, h));
     out.push_str(svg_white_bg());
+    out.push_str(
+        "<defs><marker id=\"math-arrow\" markerWidth=\"7\" markerHeight=\"5\" refX=\"6\" refY=\"2.5\" orient=\"auto\"><path d=\"M0,0 L0,5 L7,2.5 z\" fill=\"#333\"/></marker></defs>",
+    );
 
     if let Some(t) = &title {
         out.push_str(&format!(
@@ -3163,7 +3318,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                 let c_start = c;
                 c += 1;
                 let dashed = row[c] == '=';
-                while c < row.len() && matches!(row[c], '-' | '=') {
+                while c < row.len() && matches!(row[c], '-' | '=' | '+') {
                     c += 1;
                 }
                 let c_end = c;
@@ -3188,7 +3343,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
             } else if matches!(ch, '-' | '=') {
                 let c_start = c;
                 let dashed = ch == '=';
-                while c < row.len() && matches!(row[c], '-' | '=') {
+                while c < row.len() && matches!(row[c], '-' | '=' | '+') {
                     c += 1;
                 }
                 let has_head = c < row.len() && row[c] == '>';
@@ -3230,7 +3385,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                 let r_start = r;
                 r += 1;
                 let dashed = get(r, col_idx) == ':';
-                while r < grid_rows && matches!(get(r, col_idx), '|' | ':') {
+                while r < grid_rows && matches!(get(r, col_idx), '|' | ':' | '+') {
                     r += 1;
                 }
                 let r_end = r;
@@ -3254,7 +3409,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
             } else if matches!(ch, '|' | ':') {
                 let r_start = r;
                 let dashed = ch == ':';
-                while r < grid_rows && matches!(get(r, col_idx), '|' | ':') {
+                while r < grid_rows && matches!(get(r, col_idx), '|' | ':' | '+') {
                     r += 1;
                 }
                 // Check if next char is 'v'
@@ -3315,13 +3470,41 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                     y + cell_h / 2,
                 )
             };
+            let has_head_start = match ch {
+                '/' => {
+                    let r = (row_idx + 1).min(grid_rows.saturating_sub(1));
+                    (c.saturating_sub(3)..=c + 1).any(|cc| get(r, cc) == '<')
+                        || (c.saturating_sub(3)..=c).any(|cc| get(row_idx, cc) == '<')
+                        || (0..grid_cols).any(|cc| get(r, cc) == '<')
+                }
+                '\\' => {
+                    let r = row_idx.saturating_sub(1);
+                    (c.saturating_sub(3)..=c + 1).any(|cc| get(r, cc) == '<')
+                        || (c.saturating_sub(3)..=c).any(|cc| get(row_idx, cc) == '<')
+                        || (0..grid_cols).any(|cc| get(r, cc) == '<')
+                }
+                _ => false,
+            };
+            let has_head_end = match ch {
+                '/' => {
+                    (c + 1 < grid_cols && row_idx > 0 && get(row_idx - 1, c + 1) == '>')
+                        || (c + 1 < grid_cols && row_idx > 0 && get(row_idx - 1, c + 1) == '^')
+                }
+                '\\' => {
+                    (c + 1 < grid_cols && row_idx + 1 < grid_rows && get(row_idx + 1, c + 1) == '>')
+                        || (c + 1 < grid_cols
+                            && row_idx + 1 < grid_rows
+                            && get(row_idx + 1, c + 1) == 'v')
+                }
+                _ => false,
+            };
             connectors.push(Connector {
                 x1,
                 y1,
                 x2,
                 y2,
-                has_head_end: false,
-                has_head_start: false,
+                has_head_end,
+                has_head_start,
                 dashed: false,
             });
         }
