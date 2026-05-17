@@ -315,6 +315,7 @@ pub struct FamilyRelation {
     pub to: String,
     pub arrow: String,
     pub label: Option<String>,
+    pub stereotype: Option<String>,
     pub left_cardinality: Option<String>,
     pub right_cardinality: Option<String>,
     pub left_role: Option<String>,
@@ -331,6 +332,7 @@ pub struct ParticipantDecl {
     pub name: String,
     pub alias: Option<String>,
     pub display: Option<String>,
+    pub order: Option<i32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -224,3 +224,42 @@ API -[#008800,bold]-> DB : persists
     assert!(component_svg.contains("stroke-width=\"3\""));
     assert!(component_svg.contains("persists"));
 }
+
+#[test]
+fn core_uml_relation_stereotypes_and_cardinality_survive_to_svg() {
+    let component_svg = puml::render_source_to_svg(
+        r##"@startuml
+package "Edge" {
+  component "API Gateway" as api
+  port "HTTP" as http
+  interface "Orders" as orders
+}
+api "1" -[#008800,thickness=3]-> "0..*" orders <<REST>> : exposes
+http --> api :binds
+@enduml
+"##,
+    )
+    .expect("component relation metadata should render");
+    assert!(component_svg.contains("package Edge"));
+    assert!(component_svg.contains("api"));
+    assert!(component_svg.contains("http"));
+    assert!(component_svg.contains("&lt;&lt;REST&gt;&gt;"));
+    assert!(component_svg.contains("exposes"));
+    assert!(component_svg.contains("0..*"));
+    assert!(component_svg.contains("stroke=\"#008800\""));
+    assert!(component_svg.contains("stroke-width=\"3\""));
+
+    let deployment_svg = puml::render_source_to_svg(
+        r##"@startuml
+node "Cluster" as cluster
+database "Orders DB" as db
+cluster --> db : <<deploys>> stores
+@enduml
+"##,
+    )
+    .expect("deployment relation metadata should render");
+    assert!(deployment_svg.contains("Cluster"));
+    assert!(deployment_svg.contains("Orders DB"));
+    assert!(deployment_svg.contains("&lt;&lt;deploys&gt;&gt;"));
+    assert!(deployment_svg.contains("stores"));
+}

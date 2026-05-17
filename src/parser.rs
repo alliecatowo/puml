@@ -5043,8 +5043,10 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         _ => return None,
     }
 
-    let (core, label) = split_family_relation_label(line);
+    let (core, raw_label) = split_family_relation_label(line);
     let (lhs, arrow, relation_style, rhs) = split_family_arrow_styled(core)?;
+    let (rhs, trailing_stereotype) = split_relation_trailing_stereotype(rhs);
+    let (label, label_stereotype) = split_relation_label_stereotype(raw_label);
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
     if normalize_virtual_endpoint(&lhs_core).is_some()
@@ -5064,6 +5066,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         to,
         arrow,
         label,
+        stereotype: label_stereotype.or(trailing_stereotype),
         left_cardinality,
         right_cardinality,
         left_role,
@@ -5073,6 +5076,49 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         hidden: relation_style.hidden,
         thickness: relation_style.thickness,
     }))
+}
+
+fn split_relation_label_stereotype(label: Option<String>) -> (Option<String>, Option<String>) {
+    let Some(label) = label else {
+        return (None, None);
+    };
+    let trimmed = label.trim();
+    if let Some((stereotype, rest)) = parse_leading_stereotype(trimmed) {
+        let label = rest.trim();
+        return (
+            (!label.is_empty()).then(|| label.to_string()),
+            Some(stereotype),
+        );
+    }
+    (Some(label), None)
+}
+
+fn split_relation_trailing_stereotype(side: &str) -> (&str, Option<String>) {
+    let trimmed = side.trim();
+    let Some(open) = trimmed.rfind("<<") else {
+        return (side, None);
+    };
+    let before = trimmed[..open].trim_end();
+    let tail = trimmed[open..].trim();
+    if before.is_empty() {
+        return (side, None);
+    }
+    if let Some((stereotype, rest)) = parse_leading_stereotype(tail) {
+        if rest.trim().is_empty() {
+            return (before, Some(stereotype));
+        }
+    }
+    (side, None)
+}
+
+fn parse_leading_stereotype(s: &str) -> Option<(String, &str)> {
+    let rest = s.trim_start().strip_prefix("<<")?;
+    let close = rest.find(">>")?;
+    let value = rest[..close].trim();
+    if value.is_empty() {
+        return None;
+    }
+    Some((value.to_string(), &rest[close + 2..]))
 }
 
 fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
@@ -5892,6 +5938,21 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             return Some(StatementKind::GanttConstraint {
                 subject: "Project".to_string(),
                 kind: "starts".to_string(),
+                target: date.to_string(),
+            });
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("Project ends ") {
+        let date = rest
+            .trim()
+            .strip_prefix("on ")
+            .or_else(|| rest.trim().strip_prefix("the "))
+            .unwrap_or_else(|| rest.trim())
+            .trim();
+        if is_iso_date_literal(date) {
+            return Some(StatementKind::GanttConstraint {
+                subject: "Project".to_string(),
+                kind: "ends".to_string(),
                 target: date.to_string(),
             });
         }
@@ -7242,10 +7303,14 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
         } else {
             (None, rest)
         };
+        let (rem, order) = split_participant_order(rem);
 
         let mut alias = None;
         let mut name = rem.to_string();
-        if let Some((lhs, rhs)) = rem.split_once(" as ") {
+        if let Some(rhs) = rem.strip_prefix("as ") {
+            alias = Some(clean_ident(rhs.trim()));
+            name = alias.clone().unwrap_or_default();
+        } else if let Some((lhs, rhs)) = rem.split_once(" as ") {
             let lhs = lhs.trim();
             let rhs = rhs.trim();
             if display.is_none() {
@@ -7265,9 +7330,24 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
             name,
             alias,
             display,
+            order,
         }));
     }
     None
+}
+
+fn split_participant_order(input: &str) -> (&str, Option<i32>) {
+    let trimmed = input.trim();
+    let mut tokens = trimmed.rsplitn(3, char::is_whitespace);
+    let value = tokens.next().unwrap_or("");
+    let keyword = tokens.next().unwrap_or("");
+    let before = tokens.next().unwrap_or("");
+    if keyword.eq_ignore_ascii_case("order") {
+        if let Ok(order) = value.parse::<i32>() {
+            return (before.trim_end(), Some(order));
+        }
+    }
+    (trimmed, None)
 }
 
 fn parse_message(line: &str) -> Option<StatementKind> {
@@ -9455,7 +9535,8 @@ mod tests {
         match &usecase_doc.statements[2].kind {
             StatementKind::FamilyRelation(rel) => {
                 assert_eq!(rel.arrow, "..>");
-                assert_eq!(rel.label.as_deref(), Some("<<include>>"));
+                assert_eq!(rel.label.as_deref(), None);
+                assert_eq!(rel.stereotype.as_deref(), Some("include"));
             }
             other => panic!("unexpected statement: {other:?}"),
         }

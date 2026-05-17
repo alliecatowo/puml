@@ -836,7 +836,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             continue;
         };
         let mut style = arrow_style(&normalized_arrow);
-        let usecase_dependency = usecase_dependency_label(relation.label.as_deref());
+        let usecase_dependency = usecase_dependency_label(relation.label.as_deref())
+            .or_else(|| usecase_dependency_label(relation.stereotype.as_deref()));
         if usecase_dependency.is_some() {
             style.dashed = true;
             if style.end_marker.is_none() {
@@ -906,6 +907,17 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 member_color = class_style.member_color,
                 txt = escape_text(right_role)
             ));
+        }
+        if let Some(stereotype) = &relation.stereotype {
+            if usecase_dependency.is_none() {
+                let sx = (x1 + x2) / 2;
+                let sy = (y1 + y2) / 2 - if relation.label.is_some() { 20 } else { 6 };
+                out.push_str(&format!(
+                    "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
+                    member_color = class_style.member_color,
+                    txt = escape_text(stereotype)
+                ));
+            }
         }
         let rendered_label = usecase_dependency.or(relation.label.as_deref());
         if let Some(label) = rendered_label {
@@ -1550,10 +1562,11 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     // Parse rows from the encoded node names.
     let mut rows: Vec<Vec<SaltCellRender>> = Vec::new();
     let mut in_tree = false;
+    let mut style = SaltRenderStyle::default();
     for node in &document.nodes {
         if let Some(rest) = node.name.strip_prefix("SALT_ROW\x1f") {
             let cells: Vec<SaltCellRender> = rest.split('\x1e').map(decode_salt_cell).collect();
-            if let Some(cells) = transform_salt_row(cells, &mut in_tree) {
+            if let Some(cells) = transform_salt_row(cells, &mut in_tree, &mut style) {
                 rows.push(cells);
             }
         }
@@ -1591,24 +1604,28 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         total_w, svg_h
     ));
     out.push_str(&format!(
-        "<rect width=\"{}\" height=\"{}\" fill=\"#f5f5f5\"/>",
-        total_w, svg_h
+        "<rect data-salt-style=\"canvas\" width=\"{}\" height=\"{}\" fill=\"{}\"/>",
+        total_w, svg_h, style.canvas_fill
     ));
 
     // Outer border
     out.push_str(&format!(
-        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" stroke=\"#555\" stroke-width=\"1.5\"/>",
+        "<rect data-salt-style=\"panel\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
         MARGIN,
         MARGIN + title_h,
         total_w - MARGIN * 2,
-        total_h - MARGIN * 2
+        total_h - MARGIN * 2,
+        style.panel_fill,
+        style.border_color
     ));
 
     if let Some(title) = &document.title {
         out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#222\">{}</text>",
+            "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"13\" font-weight=\"600\" fill=\"{}\">{}</text>",
             MARGIN,
             MARGIN - 6,
+            style.font_family,
+            style.text_color,
             escape_text(title)
         ));
     }
@@ -1618,11 +1635,12 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         let row_y = MARGIN + title_h + (row_idx as i32) * CELL_H;
         if is_salt_separator_row(cells) {
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#777\" stroke-width=\"1.5\"/>",
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 MARGIN + 4,
                 row_y + CELL_H / 2,
                 total_w - MARGIN - 4,
-                row_y + CELL_H / 2
+                row_y + CELL_H / 2,
+                style.border_color
             ));
             continue;
         }
@@ -1630,18 +1648,19 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
 
         for (col_idx, cell) in cells.iter().enumerate() {
             let cell_w = col_widths.get(col_idx).copied().unwrap_or(MIN_CELL_W);
-            render_salt_cell_svg(&mut out, cell, col_x, row_y, cell_w, CELL_H);
+            render_salt_cell_svg(&mut out, cell, col_x, row_y, cell_w, CELL_H, &style);
             col_x += cell_w;
         }
 
         // Row separator line (skip the last row)
         if row_idx + 1 < rows.len() {
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#ccc\" stroke-width=\"0.5\"/>",
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                 MARGIN,
                 row_y + CELL_H,
                 total_w - MARGIN,
-                row_y + CELL_H
+                row_y + CELL_H,
+                style.grid_color
             ));
         }
     }
@@ -1653,11 +1672,12 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
             col_x += w;
             if col_idx + 1 < col_count {
                 out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#ccc\" stroke-width=\"0.5\"/>",
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                     col_x,
                     MARGIN + title_h,
                     col_x,
-                    MARGIN + title_h + total_h - MARGIN * 2
+                    MARGIN + title_h + total_h - MARGIN * 2,
+                    style.grid_color
                 ));
             }
         }
@@ -1688,9 +1708,131 @@ fn is_salt_separator_row(cells: &[SaltCellRender]) -> bool {
     saw_dash
 }
 
+struct SaltRenderStyle {
+    canvas_fill: String,
+    panel_fill: String,
+    header_fill: String,
+    input_fill: String,
+    button_fill: String,
+    accent_fill: String,
+    border_color: String,
+    grid_color: String,
+    text_color: String,
+    muted_text_color: String,
+    font_family: &'static str,
+}
+
+impl Default for SaltRenderStyle {
+    fn default() -> Self {
+        Self {
+            canvas_fill: "#f5f5f5".to_string(),
+            panel_fill: "white".to_string(),
+            header_fill: "#e2e8f0".to_string(),
+            input_fill: "white".to_string(),
+            button_fill: "#e8e8e8".to_string(),
+            accent_fill: "#eef2ff".to_string(),
+            border_color: "#555".to_string(),
+            grid_color: "#ccc".to_string(),
+            text_color: "#222".to_string(),
+            muted_text_color: "#aaa".to_string(),
+            font_family: "monospace",
+        }
+    }
+}
+
+impl SaltRenderStyle {
+    fn set(&mut self, key: &str, value: &str) -> bool {
+        let value = normalize_salt_color(value).unwrap_or_else(|| value.trim().to_string());
+        match key.to_ascii_lowercase().as_str() {
+            "backgroundcolor" | "saltbackgroundcolor" | "canvascolor" => {
+                self.canvas_fill = value;
+                true
+            }
+            "saltpanelcolor" | "panelcolor" | "saltfillcolor" => {
+                self.panel_fill = value;
+                true
+            }
+            "saltheadercolor" | "headercolor" | "tableheadercolor" => {
+                self.header_fill = value;
+                true
+            }
+            "saltinputcolor" | "saltinputbackgroundcolor" | "inputbackgroundcolor" => {
+                self.input_fill = value;
+                true
+            }
+            "saltbuttoncolor" | "saltbuttonbackgroundcolor" | "buttonbackgroundcolor" => {
+                self.button_fill = value;
+                true
+            }
+            "saltaccentcolor" | "accentcolor" | "saltmenucolor" | "salttabcolor" => {
+                self.accent_fill = value;
+                true
+            }
+            "bordercolor" | "saltbordercolor" => {
+                self.border_color = value;
+                true
+            }
+            "saltgridcolor" | "gridcolor" => {
+                self.grid_color = value;
+                true
+            }
+            "fontcolor" | "saltfontcolor" => {
+                self.text_color = value;
+                true
+            }
+            "saltmutedfontcolor" | "mutedfontcolor" => {
+                self.muted_text_color = value;
+                true
+            }
+            "handwritten" if value.eq_ignore_ascii_case("true") => {
+                self.font_family = "Comic Sans MS, cursive";
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+fn normalize_salt_color(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_matches('"');
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with('#') {
+        Some(trimmed.to_string())
+    } else {
+        Some(css3_color_to_hex(trimmed).unwrap_or(trimmed).to_string())
+    }
+}
+
+fn apply_salt_style_directive(line: &str, style: &mut SaltRenderStyle) -> bool {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some(rest) = lower
+        .strip_prefix("skinparam salt")
+        .or_else(|| lower.strip_prefix("skinparam "))
+    {
+        let offset = trimmed.len() - rest.len();
+        let original_rest = trimmed[offset..].trim();
+        if let Some((key, value)) = original_rest.split_once(char::is_whitespace) {
+            return style.set(key.trim(), value.trim());
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("saltstyle ") {
+        if let Some((key, value)) = rest.split_once('=') {
+            return style.set(key.trim(), value.trim());
+        }
+        if let Some((key, value)) = rest.split_once(char::is_whitespace) {
+            return style.set(key.trim(), value.trim());
+        }
+    }
+    false
+}
+
 /// A decoded salt cell ready for rendering.
 enum SaltCellRender {
     Label(String),
+    Header(String),
     Input(String),
     Button(String),
     Combo(String),
@@ -1708,6 +1850,7 @@ impl SaltCellRender {
     fn text(&self) -> &str {
         match self {
             Self::Label(t)
+            | Self::Header(t)
             | Self::Input(t)
             | Self::Button(t)
             | Self::Combo(t)
@@ -1726,16 +1869,21 @@ impl SaltCellRender {
 fn transform_salt_row(
     cells: Vec<SaltCellRender>,
     in_tree: &mut bool,
+    style: &mut SaltRenderStyle,
 ) -> Option<Vec<SaltCellRender>> {
     if cells.len() != 1 {
-        return Some(cells);
+        return Some(cells.into_iter().map(promote_salt_header_cell).collect());
     }
 
     let SaltCellRender::Label(text) = &cells[0] else {
-        return Some(cells);
+        return Some(cells.into_iter().map(promote_salt_header_cell).collect());
     };
     let trimmed = text.trim();
     let lower = trimmed.to_ascii_lowercase();
+
+    if apply_salt_style_directive(trimmed, style) {
+        return None;
+    }
 
     if matches!(trimmed, "{" | "}") {
         if trimmed == "}" {
@@ -1769,7 +1917,21 @@ fn transform_salt_row(
         *in_tree = false;
     }
 
-    Some(cells)
+    Some(cells.into_iter().map(promote_salt_header_cell).collect())
+}
+
+fn promote_salt_header_cell(cell: SaltCellRender) -> SaltCellRender {
+    match cell {
+        SaltCellRender::Label(text) => {
+            let trimmed = text.trim();
+            if let Some(rest) = trimmed.strip_prefix('=') {
+                SaltCellRender::Header(rest.trim().to_string())
+            } else {
+                SaltCellRender::Label(text)
+            }
+        }
+        other => other,
+    }
 }
 
 fn parse_salt_tree_line(line: &str) -> Option<(usize, String)> {
@@ -1858,76 +2020,118 @@ fn estimate_text_width(text: &str) -> i32 {
 }
 
 /// Render a single salt cell into SVG, appending to `out`.
-fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32, w: i32, h: i32) {
+fn render_salt_cell_svg(
+    out: &mut String,
+    cell: &SaltCellRender,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    style: &SaltRenderStyle,
+) {
     let pad = 8;
     let text_y = y + h / 2 + 4;
     match cell {
         SaltCellRender::Label(text) => {
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
                 x + pad,
                 text_y,
+                style.font_family,
+                style.text_color,
+                escape_text(text)
+            ));
+        }
+        SaltCellRender::Header(text) => {
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"header\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + 1,
+                y + 1,
+                w - 2,
+                h - 2,
+                style.header_fill,
+                style.grid_color
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" font-weight=\"700\" fill=\"{}\">{}</text>",
+                x + pad,
+                text_y,
+                style.font_family,
+                style.text_color,
                 escape_text(text)
             ));
         }
         SaltCellRender::Input(placeholder) => {
             // Bordered rectangle with gray placeholder text
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" stroke=\"#888\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
                 x + pad,
                 y + 4,
                 w - pad * 2,
-                h - 8
+                h - 8,
+                style.input_fill,
+                style.border_color
             ));
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#aaa\">{}</text>",
+                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
                 x + pad + 4,
                 text_y,
+                style.font_family,
+                style.muted_text_color,
                 escape_text(placeholder)
             ));
         }
         SaltCellRender::Button(label) => {
             // Rounded rectangle with bold text
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#e8e8e8\" stroke=\"#555\" stroke-width=\"1\" rx=\"4\" ry=\"4\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"4\" ry=\"4\"/>",
                 x + pad,
                 y + 4,
                 w - pad * 2,
-                h - 8
+                h - 8,
+                style.button_fill,
+                style.border_color
             ));
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" font-weight=\"bold\" fill=\"#111\">{}</text>",
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"12\" font-weight=\"bold\" fill=\"{}\">{}</text>",
                 x + w / 2,
                 text_y,
+                style.font_family,
+                style.text_color,
                 escape_text(label)
             ));
         }
         SaltCellRender::Combo(label) => {
             // Rectangle with down-arrow indicator
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\" stroke=\"#888\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
                 x + pad,
                 y + 4,
                 w - pad * 2,
-                h - 8
+                h - 8,
+                style.input_fill,
+                style.border_color
             ));
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#222\">{}</text>",
+                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
                 x + pad + 4,
                 text_y,
+                style.font_family,
+                style.text_color,
                 escape_text(label)
             ));
             // Down arrow triangle
             let ax = x + w - pad - 10;
             let ay = y + h / 2;
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#555\"/>",
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
                 ax,
                 ay - 3,
                 ax + 8,
                 ay - 3,
                 ax + 4,
-                ay + 3
+                ay + 3,
+                style.border_color
             ));
         }
         SaltCellRender::CheckboxChecked(label) => {
@@ -1935,23 +2139,25 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
             let by = y + h / 2 - 6;
             // Box
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
-                bx, by
+                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                bx, by, style.input_fill, style.border_color
             ));
             // Checkmark (×)
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#222\" stroke-width=\"1.5\"/>",
-                bx + 2, by + 2, bx + 10, by + 10
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                bx + 2, by + 2, bx + 10, by + 10, style.text_color
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#222\" stroke-width=\"1.5\"/>",
-                bx + 10, by + 2, bx + 2, by + 10
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                bx + 10, by + 2, bx + 2, by + 10, style.text_color
             ));
             if !label.is_empty() {
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
                     bx + 16,
                     text_y,
+                    style.font_family,
+                    style.text_color,
                     escape_text(label)
                 ));
             }
@@ -1960,14 +2166,16 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
             let bx = x + pad;
             let by = y + h / 2 - 6;
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
-                bx, by
+                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                bx, by, style.input_fill, style.border_color
             ));
             if !label.is_empty() {
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
                     bx + 16,
                     text_y,
+                    style.font_family,
+                    style.text_color,
                     escape_text(label)
                 ));
             }
@@ -1976,19 +2184,21 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
             let cx = x + pad + 6;
             let cy = y + h / 2;
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
-                cx, cy
+                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                cx, cy, style.input_fill, style.border_color
             ));
             // Filled dot
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"#333\"/>",
-                cx, cy
+                "<circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\"/>",
+                cx, cy, style.text_color
             ));
             if !label.is_empty() {
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
                     cx + 10,
                     text_y,
+                    style.font_family,
+                    style.text_color,
                     escape_text(label)
                 ));
             }
@@ -1997,14 +2207,16 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
             let cx = x + pad + 6;
             let cy = y + h / 2;
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"white\" stroke=\"#555\" stroke-width=\"1\"/>",
-                cx, cy
+                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                cx, cy, style.input_fill, style.border_color
             ));
             if !label.is_empty() {
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#222\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
                     cx + 10,
                     text_y,
+                    style.font_family,
+                    style.text_color,
                     escape_text(label)
                 ));
             }
@@ -2014,36 +2226,45 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
             let branch_x = x + pad + indent;
             let cy = y + h / 2;
             out.push_str(&format!(
-                "<g data-salt-widget=\"tree\"><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#9ca3af\" stroke-width=\"1\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#9ca3af\" stroke-width=\"1\"/><circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"#475569\"/><text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1f2937\">{}</text></g>",
+                "<g data-salt-widget=\"tree\"><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\"/><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text></g>",
                 branch_x,
                 y + 4,
                 branch_x,
                 y + h - 4,
+                style.grid_color,
                 branch_x,
                 cy,
                 branch_x + 10,
                 cy,
+                style.grid_color,
                 branch_x + 10,
                 cy,
+                style.border_color,
                 branch_x + 18,
                 text_y,
+                style.font_family,
+                style.text_color,
                 escape_text(label)
             ));
         }
         SaltCellRender::MenuBar(items) => {
             out.push_str(&format!(
-                "<rect data-salt-widget=\"menu\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#eef2ff\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+                "<rect data-salt-widget=\"menu\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
                 x + 1,
                 y + 2,
                 w - 2,
-                h - 4
+                h - 4,
+                style.accent_fill,
+                style.border_color
             ));
             let mut item_x = x + pad;
             for item in items {
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
                     item_x,
                     text_y,
+                    style.font_family,
+                    style.text_color,
                     escape_text(item)
                 ));
                 item_x += estimate_text_width(item) + 24;
@@ -2054,8 +2275,12 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
             for (idx, tab) in tabs.iter().enumerate() {
                 let tab_w = estimate_text_width(tab) + 24;
                 let active_tab = idx == *active;
-                let fill = if active_tab { "white" } else { "#e2e8f0" };
-                let stroke = if active_tab { "#334155" } else { "#94a3b8" };
+                let fill = if active_tab {
+                    style.panel_fill.as_str()
+                } else {
+                    style.accent_fill.as_str()
+                };
+                let stroke = style.border_color.as_str();
                 out.push_str(&format!(
                     "<rect data-salt-widget=\"tab\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
                     tab_x,
@@ -2066,19 +2291,22 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
                     stroke
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
                     tab_x + 12,
                     text_y,
+                    style.font_family,
+                    style.text_color,
                     escape_text(tab)
                 ));
                 tab_x += tab_w - 1;
             }
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#334155\" stroke-width=\"1\"/>",
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
                 x + pad,
                 y + h - 1,
                 x + w - pad,
-                y + h - 1
+                y + h - 1,
+                style.border_color
             ));
         }
         SaltCellRender::ScrollBar { vertical, percent } => {
@@ -2087,26 +2315,28 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
             let track_w = if *vertical { 12 } else { w - pad * 2 };
             let track_h = if *vertical { h - 10 } else { 12 };
             out.push_str(&format!(
-                "<rect data-salt-widget=\"scrollbar\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#e5e7eb\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
-                track_x, track_y, track_w, track_h
+                "<rect data-salt-widget=\"scrollbar\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                track_x, track_y, track_w, track_h, style.accent_fill, style.border_color
             ));
             if *vertical {
                 let thumb_h = ((track_h as f32) * (*percent as f32 / 100.0)).round() as i32;
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"#64748b\"/>",
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"{}\"/>",
                     track_x + 2,
                     track_y + 2,
                     track_w - 4,
-                    thumb_h.max(8).min(track_h - 4)
+                    thumb_h.max(8).min(track_h - 4),
+                    style.border_color
                 ));
             } else {
                 let thumb_w = ((track_w as f32) * (*percent as f32 / 100.0)).round() as i32;
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"#64748b\"/>",
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"{}\"/>",
                     track_x + 2,
                     track_y + 2,
                     thumb_w.max(12).min(track_w - 4),
-                    track_h - 4
+                    track_h - 4,
+                    style.border_color
                 ));
             }
         }
@@ -3021,10 +3251,20 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .chain(milestone_day.values().copied())
         .min()
         .unwrap_or(0);
+    let project_end_day = document
+        .constraints
+        .iter()
+        .find(|c| {
+            c.subject.eq_ignore_ascii_case("Project")
+                && c.kind.eq_ignore_ascii_case("ends")
+                && parse_iso_date_day_number(&c.target).is_some()
+        })
+        .and_then(|c| parse_iso_date_day_number(&c.target));
     let max_day_exclusive = document
         .project_start_day
         .map(|d| d.saturating_add(1))
         .into_iter()
+        .chain(project_end_day.map(|d| d.saturating_add(1)))
         .chain(
             document
                 .tasks
@@ -3089,6 +3329,22 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             y = chart_top,
             h = chart_h
         ));
+    }
+    if let Some(day) = project_end_day {
+        if (min_day..=max_day_exclusive).contains(&day) {
+            let x = day_to_x(day);
+            out.push_str(&format!(
+                "<line class=\"gantt-project-end\" x1=\"{x}\" y1=\"{y1}\" x2=\"{x}\" y2=\"{y2}\" stroke=\"#dc2626\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
+                y1 = chart_top - header_h,
+                y2 = chart_top + chart_h
+            ));
+            out.push_str(&format!(
+                "<text class=\"gantt-project-end-label\" x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#991b1b\">Project ends {label}</text>",
+                x = x - 4,
+                y = chart_top - header_h - 4,
+                label = escape_text(&format_gantt_axis_label(day, min_day, true))
+            ));
+        }
     }
     if has_resource_lanes {
         let mut lane_start = 0usize;
@@ -3619,6 +3875,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} />",
             x1, y1, x2, y2, relation_color, stroke_width, dash, visibility, markers
         ));
+        if let Some(stereotype) = &rel.stereotype {
+            let mx = (x1 + x2) / 2;
+            let my = (y1 + y2) / 2 - if rel.label.is_some() { 20 } else { 6 };
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">&lt;&lt;{}&gt;&gt;</text>",
+                mx,
+                my,
+                escape_text(stereotype)
+            ));
+        }
         if let Some(label) = &rel.label {
             let label = usecase_dependency_label(Some(label)).unwrap_or(label);
             let mx = (x1 + x2) / 2;
@@ -7543,9 +7809,21 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
     }
 
     let total_leaves = wbs_leaf_count(nodes, 0);
-    let canvas_w = (total_leaves as i32) * X_STEP + 2 * MARGIN;
     let max_depth = nodes.iter().map(|n| n.depth).max().unwrap_or(0);
-    let canvas_h = (max_depth as i32 + 1) * Y_STEP + 2 * MARGIN + NODE_H;
+    let vertical = matches!(
+        doc.orientation,
+        FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop
+    );
+    let canvas_w = if vertical {
+        (total_leaves as i32) * X_STEP + 2 * MARGIN
+    } else {
+        (max_depth as i32 + 1) * X_STEP + 2 * MARGIN + 120
+    };
+    let canvas_h = if vertical {
+        (max_depth as i32 + 1) * Y_STEP + 2 * MARGIN + NODE_H
+    } else {
+        (total_leaves as i32) * Y_STEP + 2 * MARGIN + NODE_H
+    };
 
     let mut x_positions = vec![0i32; n];
     let mut y_positions = vec![0i32; n];
@@ -7560,20 +7838,39 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         margin: i32,
         node_h: i32,
         y_step: i32,
+        orientation: FamilyOrientation,
+        max_depth: usize,
         x_positions: &mut [i32],
         y_positions: &mut [i32],
     ) {
         let depth = nodes[idx].depth;
         let leaves = wbs_leaf_count(nodes, idx);
-        let cx = x_start + (leaves as i32 * x_step) / 2;
-        x_positions[idx] = cx;
-        y_positions[idx] = margin + (depth as i32) * y_step + node_h / 2;
+        let vertical = matches!(
+            orientation,
+            FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop
+        );
+        let display_depth = match orientation {
+            FamilyOrientation::TopToBottom | FamilyOrientation::LeftToRight => depth,
+            FamilyOrientation::BottomToTop | FamilyOrientation::RightToLeft => {
+                max_depth.saturating_sub(depth)
+            }
+        };
+        if vertical {
+            let cx = x_start + (leaves as i32 * x_step) / 2;
+            x_positions[idx] = cx;
+            y_positions[idx] = margin + (display_depth as i32) * y_step + node_h / 2;
+        } else {
+            let cy = x_start + (leaves as i32 * y_step) / 2;
+            x_positions[idx] = margin + (display_depth as i32) * x_step + 80;
+            y_positions[idx] = cy;
+        }
 
         let children: Vec<usize> = (idx + 1..nodes.len())
             .take_while(|&j| nodes[j].depth > depth)
             .filter(|&j| nodes[j].depth == depth + 1)
             .collect();
         let mut child_x = x_start;
+        let leaf_step = if vertical { x_step } else { y_step };
         for &c in &children {
             assign_wbs_positions(
                 nodes,
@@ -7583,10 +7880,12 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
                 margin,
                 node_h,
                 y_step,
+                orientation,
+                max_depth,
                 x_positions,
                 y_positions,
             );
-            child_x += wbs_leaf_count(nodes, c) as i32 * x_step;
+            child_x += wbs_leaf_count(nodes, c) as i32 * leaf_step;
         }
     }
 
@@ -7598,14 +7897,18 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         MARGIN,
         NODE_H,
         Y_STEP,
+        doc.orientation,
+        max_depth,
         &mut x_positions,
         &mut y_positions,
     );
 
     let mut out = String::new();
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
-        w = canvas_w, h = canvas_h
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-wbs-orientation=\"{orientation}\">",
+        w = canvas_w,
+        h = canvas_h,
+        orientation = doc.orientation.as_str()
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 

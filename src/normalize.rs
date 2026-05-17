@@ -1780,6 +1780,19 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
     for stmt in document.statements {
         match stmt.kind {
             StatementKind::SkinParam { key, value } => {
+                if family_kind == DiagramKind::Salt {
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::Salt,
+                        name: format!("SALT_ROW\x1fL:saltstyle {key} {value}"),
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    });
+                    continue;
+                }
                 match classify_class_skinparam(&key, &value) {
                     SkinParamSupport::SupportedNoop => {}
                     SkinParamSupport::SupportedWithValue(v) => {
@@ -1927,6 +1940,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 to: rel.to,
                 arrow: rel.arrow,
                 label: rel.label,
+                stereotype: rel.stereotype,
                 left_cardinality: rel.left_cardinality,
                 right_cardinality: rel.right_cardinality,
                 left_role: rel.left_role,
@@ -2734,6 +2748,7 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
                 to: nodes[idx].name.clone(),
                 arrow: "->".to_string(),
                 label: None,
+                stereotype: None,
                 left_cardinality: None,
                 right_cardinality: None,
                 left_role: None,
@@ -3046,6 +3061,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 to: rel.to,
                 arrow: rel.arrow,
                 label: rel.label,
+                stereotype: rel.stereotype,
                 left_cardinality: rel.left_cardinality,
                 right_cardinality: rel.right_cardinality,
                 left_role: rel.left_role,
@@ -3495,6 +3511,7 @@ pub fn normalize_with_options(
 
     let mut participants: Vec<Participant> = Vec::new();
     let mut participant_ix: BTreeMap<String, usize> = BTreeMap::new();
+    let mut participant_order: BTreeMap<String, i32> = BTreeMap::new();
     let mut events = Vec::new();
 
     let mut title = None;
@@ -3525,6 +3542,9 @@ pub fn normalize_with_options(
                 mark_group_content(&mut group_stack);
                 let id = p.alias.unwrap_or_else(|| p.name.clone());
                 let display = p.display.unwrap_or_else(|| p.name.clone());
+                if let Some(order) = p.order {
+                    participant_order.insert(id.clone(), order);
+                }
                 upsert_participant(
                     &mut participants,
                     &mut participant_ix,
@@ -4153,6 +4173,29 @@ pub fn normalize_with_options(
             for (idx, p) in participants.iter().enumerate() {
                 participant_ix.insert(p.id.clone(), idx);
             }
+        }
+    }
+
+    if !participant_order.is_empty() {
+        let original_ix: BTreeMap<String, usize> = participants
+            .iter()
+            .enumerate()
+            .map(|(idx, p)| (p.id.clone(), idx))
+            .collect();
+        participants.sort_by(|a, b| {
+            let a_key = (
+                participant_order.get(&a.id).copied().unwrap_or(i32::MAX),
+                original_ix.get(&a.id).copied().unwrap_or(usize::MAX),
+            );
+            let b_key = (
+                participant_order.get(&b.id).copied().unwrap_or(i32::MAX),
+                original_ix.get(&b.id).copied().unwrap_or(usize::MAX),
+            );
+            a_key.cmp(&b_key)
+        });
+        participant_ix.clear();
+        for (idx, p) in participants.iter().enumerate() {
+            participant_ix.insert(p.id.clone(), idx);
         }
     }
 
