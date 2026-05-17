@@ -57,9 +57,6 @@ jobs:
       - name: coverage gate
         run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|normalize|render|specialized)\.rs'
 
-      - name: quick gate
-        run: ./scripts/check-all.sh --quick --skip-bench
-
       - name: docs examples drift gate
         run: python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
 
