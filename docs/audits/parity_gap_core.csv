@@ -1,24 +1,24 @@
-feature_group,feature,plantuml_support,puml_status,notes,source_url
-sequence,Basic messages and participants,Documented on sequence diagram page,implemented,End-to-end parser+normalize+layout+render path is active,https://plantuml.com/sequence-diagram
-sequence,Advanced arrow/style breadth,Documented on sequence diagram page,partial,Broad subset implemented with deterministic behavior; full PlantUML breadth still wider,https://plantuml.com/sequence-diagram
-sequence,Teoz-specific semantics,Documented on sequence diagram page,partial,Deterministic path exists but is not 1:1 for all teoz behaviors,https://plantuml.com/sequence-diagram
-class,Core declarations and relations,Documented on class diagram page,implemented,Class family is implemented and rendered; breadth still evolving,https://plantuml.com/class-diagram
-class,Advanced class semantics (full styling/edge forms),Documented on class diagram page,partial,Many controls implemented but full PlantUML semantics remain broader,https://plantuml.com/class-diagram
-object,Object declarations/relations/maps,Documented on object diagram page,implemented,Object family is implemented with deterministic render path,https://plantuml.com/object-diagram
-object,Advanced object semantics,Documented on object diagram page,partial,Feature coverage is substantial but not full-surface equivalent,https://plantuml.com/object-diagram
-usecase,Actor/usecase declarations and relations,Documented on use-case diagram page,implemented,Use-case family is implemented with deterministic output,https://plantuml.com/use-case-diagram
-usecase,Full include/extend/style surface,Documented on use-case diagram page,partial,Core behavior implemented; complete parity depth still in progress,https://plantuml.com/use-case-diagram
-component,Component declarations/dependencies/packages,Documented on component diagram page,implemented,Component family is implemented (no longer unsupported-family path),https://plantuml.com/component-diagram
-component,Port/interface/style breadth,Documented on component diagram page,partial,Subset implemented with deterministic behavior,https://plantuml.com/component-diagram
-deployment,Deployment node/artifact topology,Documented on deployment diagram page,implemented,Deployment family implemented with deterministic render path,https://plantuml.com/deployment-diagram
-deployment,Advanced deployment styling/controls,Documented on deployment diagram page,partial,Extended controls remain narrower than full PlantUML,https://plantuml.com/deployment-diagram
-state,State declarations/transitions/history/concurrency,Documented on state diagram page,implemented,State family is implemented end-to-end,https://plantuml.com/state-diagram
-state,Advanced state styling/edge forms,Documented on state diagram page,partial,Core parity delivered; advanced breadth still expanding,https://plantuml.com/state-diagram
-activity,Old-style activity syntax,Documented on activity legacy page,implemented,Old-style activity baseline and render path implemented,https://plantuml.com/activity-diagram-legacy
-activity,New-style activity syntax breadth,Documented on activity beta page,partial,New-style parser/render support exists; full beta breadth still wider in PlantUML,https://plantuml.com/activity-diagram-beta
-timing,Timing participants and state transitions,Documented on timing diagram page,implemented,Timing family supported with deterministic render path,https://plantuml.com/timing-diagram
-timing,Full timing semantics (all advanced controls),Documented on timing diagram page,partial,Supported baseline is real but not full-surface parity,https://plantuml.com/timing-diagram
-preprocessor,Include/define/undef/conditionals/loops/functions/procedures,Documented on preprocessing page,implemented,Deterministic preprocessor core is implemented across major directives,https://plantuml.com/preprocessing
-preprocessor,Dynamic invocation and full expression breadth,Documented on preprocessing page,partial,Complex/dynamic paths remain intentionally constrained,https://plantuml.com/preprocessing
-preprocessor,URL include/remote source behavior,Documented on preprocessing page,partial,Rejected deterministically by policy; differs from permissive PlantUML modes,https://plantuml.com/preprocessing
-preprocessor,Theme/stdlib integration,Documented on theme and stdlib pages,implemented,Local deterministic catalogs and stdlib surfaces are implemented,https://plantuml.com/stdlib
+family,slice,feature,status,notes,evidence,official_source
+sequence,core,Basic messages and participants,implemented,End-to-end parser+normalize+layout+render path is active,tests/fixtures/basic/hello.puml,https://plantuml.com/sequence-diagram
+sequence,advanced,Advanced arrow/style breadth,partial,Broad subset implemented with deterministic behavior; full PlantUML breadth still wider,tests/fixtures/arrows/valid_expanded_forms.puml,https://plantuml.com/sequence-diagram
+sequence,advanced,Teoz-specific semantics,partial,Deterministic path exists but is not 1:1 for all teoz behaviors,tests/fixtures/notes/valid_note_across_multi.puml,https://plantuml.com/sequence-diagram
+class,core,Core declarations and relations,implemented,Class family is implemented and rendered; breadth still evolving,tests/fixtures/families/valid_class_with_relations.puml,https://plantuml.com/class-diagram
+class,advanced,Advanced class semantics (full styling/edge forms),partial,Many controls implemented but full PlantUML semantics remain broader,tests/fixtures/families/valid_class_visibility.puml,https://plantuml.com/class-diagram
+object,core,Object declarations/relations/maps,implemented,Object family is implemented with deterministic render path,tests/fixtures/families/valid_object_bootstrap.puml,https://plantuml.com/object-diagram
+object,advanced,Advanced object semantics,partial,Feature coverage is substantial but not full-surface equivalent,tests/fixtures/families/valid_object_bootstrap.puml,https://plantuml.com/object-diagram
+usecase,core,Actor/usecase declarations and relations,implemented,Use-case family is implemented with deterministic output,tests/fixtures/families/valid_usecase_with_relations.puml,https://plantuml.com/use-case-diagram
+usecase,advanced,Full include/extend/style surface,partial,Core behavior implemented; complete parity depth still in progress,tests/fixtures/families/valid_usecase_with_relations.puml,https://plantuml.com/use-case-diagram
+component,core,Component declarations/dependencies/packages,implemented,Component family is implemented with deterministic render path,tests/fixtures/families/valid_component.puml,https://plantuml.com/component-diagram
+component,advanced,Port/interface/style breadth,partial,Subset implemented with deterministic behavior,tests/fixtures/families/valid_component.puml,https://plantuml.com/component-diagram
+deployment,core,Deployment node/artifact topology,implemented,Deployment family implemented with deterministic render path,tests/fixtures/families/valid_deployment.puml,https://plantuml.com/deployment-diagram
+deployment,advanced,Advanced deployment styling/controls,partial,Extended controls remain narrower than full PlantUML,tests/fixtures/families/valid_deployment.puml,https://plantuml.com/deployment-diagram
+state,core,State declarations/transitions/history/concurrency,implemented,State family is implemented end-to-end,tests/fixtures/families/valid_state.puml,https://plantuml.com/state-diagram
+state,advanced,Advanced state styling/edge forms,partial,Core parity delivered; advanced breadth still expanding,tests/fixtures/families/valid_state_history.puml,https://plantuml.com/state-diagram
+activity,core,Old-style activity syntax,implemented,Old-style activity baseline and render path implemented,tests/fixtures/families/valid_activity_old_style.puml,https://plantuml.com/activity-diagram-legacy
+activity,advanced,New-style activity syntax breadth,partial,New-style parser/render support exists; full beta breadth still wider in PlantUML,tests/fixtures/families/valid_activity_colored_lane.puml,https://plantuml.com/activity-diagram-beta
+timing,core,Timing participants and state transitions,implemented,Timing family supported with deterministic render path,tests/fixtures/families/valid_timing.puml,https://plantuml.com/timing-diagram
+timing,advanced,Full timing semantics (all advanced controls),partial,Supported baseline is real but not full-surface parity,tests/fixtures/families/valid_timing.puml,https://plantuml.com/timing-diagram
+preprocessor,core,Include/define/undef/conditionals/loops/functions/procedures,implemented,Deterministic preprocessor core is implemented across major directives,tests/fixtures/preprocessor/valid_if_elseif_else.puml,https://plantuml.com/preprocessing
+preprocessor,advanced,Dynamic invocation and full expression breadth,partial,Complex/dynamic paths remain intentionally constrained,tests/fixtures/errors/invalid_preproc_concat_unsupported.puml,https://plantuml.com/preprocessing
+preprocessor,policy,URL include/remote source behavior,partial,Rejected deterministically by policy; differs from permissive PlantUML modes,tests/fixtures/errors/invalid_include_url.puml,https://plantuml.com/preprocessing
+preprocessor,core,Theme/stdlib integration,implemented,Local deterministic catalogs and stdlib surfaces are implemented,tests/fixtures/include/valid_c4_context.puml,https://plantuml.com/stdlib
