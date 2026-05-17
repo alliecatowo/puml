@@ -292,7 +292,10 @@ Slice integration:
   2. Ensure it links a `.puml` source and commit the matching `.svg` artifact (or add fenced `puml` and commit `<md-stem>_snippet_<n>.svg`).
   3. Run parity harness; report must show `doc_examples.summary.failed = 0`.
 - Environment constraint: Java is not required for baseline runs in this repo.
-- PlantUML comparison rows: remain `TODO` until Java + PlantUML jar are available in the benchmark environment.
+- PlantUML comparison rows in the generic benchmark trend remain `TODO` for
+  no-Java runs. Differential oracle evidence is tracked separately through
+  `docs/benchmarks/oracle_smoke_latest.json` and optional `PUML_ORACLE_JAR`
+  reports.
 - Comparison method (documented now, execute later):
   1. Run identical fixture corpus through `puml` and PlantUML.
   2. Capture parse success, render success, and elapsed time per fixture.
@@ -340,17 +343,23 @@ All diagram families and preprocessor surface areas have landed. 438 tests pass.
 - PicoUML canonical baseline routing: #128.
 - PlantUML frontend conformance matrix: #130.
 
-#### CLI / Runtime — Partially Done (keep #87 open)
+#### CLI / Runtime — Baseline Done (2026-05-15)
 
 Landed (2026-05-15): `--check`, `--dump`, `--multi`, `--from-markdown`, `--diagnostics`, `--include-root`, `--output`, `--overwrite`, `--fail-on-warn`, `--charset`, `--duration`, `--quiet`, `--verbose`, `--format`, `--dialect`, `--compat`, `--determinism`, `--lint-input`, `--lint-glob`, `--lint-report`.
 
-Remaining open items under #87:
-- `hide unlinked` now filters unreferenced explicit sequence participants; broader non-sequence `hide @unlinked` parity remains tracked separately.
-- `--format png` is a deterministic rejection (no raster output support).
+#87 is closed. Follow-up runtime gaps are tracked on their owning parity rows
+rather than by reopening the blitz issue:
+- `hide unlinked` filters unreferenced explicit sequence participants; broader non-sequence `hide @unlinked` parity remains tracked separately.
+- `--format png` is supported through deterministic SVG rasterization with `--dpi`; advanced PlantUML raster flags beyond DPI remain out of scope.
 
-#### Differential Oracle — Deferred (keep #88 open)
+#### Differential Oracle — Smoke Workflow Landed / Full Parity Deferred
 
-Scaffolding script and automated cross-run parity report are not yet implemented. `docs/benchmarks/parity_latest.json` baseline exists from parity harness but Java-based PlantUML comparison rows remain TODO.
+The deterministic Java-free oracle smoke report is available at
+`docs/benchmarks/oracle_smoke_latest.json`, and CI has a differential oracle
+smoke workflow with optional live PlantUML execution. `scripts/oracle.sh` can
+produce `docs/benchmarks/oracle_report.json` when `PUML_ORACLE_JAR` is set.
+This is comparison evidence only: the generic benchmark trend can still show
+no-Java TODO placeholders, and full semantic/pixel parity remains deferred.
 
 #### JSON Projection Adapters — Deferred (keep #103 open)
 
