@@ -575,7 +575,10 @@ fn rail_node_label(node: &RailNode) -> String {
     match node {
         RailNode::Literal(text) => format!("'{text}'"),
         RailNode::Sequence(items) => {
-            if items.iter().all(|item| matches!(item, RailNode::Literal(_))) {
+            if items
+                .iter()
+                .all(|item| matches!(item, RailNode::Literal(_)))
+            {
                 let mut literal = String::new();
                 for item in items {
                     if let RailNode::Literal(text) = item {
@@ -584,7 +587,11 @@ fn rail_node_label(node: &RailNode) -> String {
                 }
                 format!("'{literal}'")
             } else {
-                items.iter().map(rail_node_label).collect::<Vec<_>>().join("")
+                items
+                    .iter()
+                    .map(rail_node_label)
+                    .collect::<Vec<_>>()
+                    .join("")
             }
         }
         RailNode::Alternation(branches) => format!(
@@ -1303,7 +1310,7 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
     if pos >= tokens.len() {
         return (RailNode::Empty, pos);
     }
-    match &tokens[pos] {
+    let (node, p) = match &tokens[pos] {
         EbnfToken::LBrace => {
             let (inner, p) = ebnf_parse_alternation(tokens, pos + 1);
             let p = if p < tokens.len() && tokens[p] == EbnfToken::RBrace {
@@ -1334,7 +1341,44 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
         EbnfToken::Literal(s) => (RailNode::Literal(s.clone()), pos + 1),
         EbnfToken::Ident(s) => (RailNode::NonTerminal(s.clone()), pos + 1),
         _ => (RailNode::Empty, pos + 1),
+    };
+    if let Some((spec, next)) = parse_ebnf_counted_repeat(tokens, p) {
+        (RailNode::CountedRepeat(Box::new(node), spec), next)
+    } else {
+        (node, p)
     }
+}
+
+fn parse_ebnf_counted_repeat(tokens: &[EbnfToken], pos: usize) -> Option<(String, usize)> {
+    if pos >= tokens.len() || tokens[pos] != EbnfToken::LBrace {
+        return None;
+    }
+    let mut p = pos + 1;
+    let mut saw_digit = false;
+    let mut saw_comma = false;
+    let mut spec = String::new();
+    while p < tokens.len() {
+        match &tokens[p] {
+            EbnfToken::Ident(s) if s.chars().all(|ch| ch.is_ascii_digit()) => {
+                saw_digit = true;
+                spec.push_str(s);
+                p += 1;
+            }
+            EbnfToken::Comma if !saw_comma => {
+                saw_comma = true;
+                spec.push(',');
+                p += 1;
+            }
+            EbnfToken::RBrace => {
+                if saw_digit {
+                    return Some((format!("{{{spec}}}"), p + 1));
+                }
+                return None;
+            }
+            _ => return None,
+        }
+    }
+    None
 }
 
 // ─── Family 3: @startchart ────────────────────────────────────────────────────
@@ -1391,7 +1435,7 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         .unwrap_or("")
         .trim()
         .to_string();
-    let chart_type = match chart_type_str.split_whitespace().next().unwrap_or("") {
+    let mut chart_type = match chart_type_str.split_whitespace().next().unwrap_or("") {
         "line" => ChartType::Line,
         "area" => ChartType::Area,
         "scatter" => ChartType::Scatter,
@@ -1411,6 +1455,33 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
             continue;
         }
         let lower = line.to_ascii_lowercase();
+        match lower.as_str() {
+            "bar" | "bars" | "bar chart" | "barchart" => {
+                chart_type = ChartType::Bar;
+                continue;
+            }
+            "line" | "lines" | "line chart" | "linechart" => {
+                chart_type = ChartType::Line;
+                continue;
+            }
+            "area" | "area chart" | "areachart" => {
+                chart_type = ChartType::Area;
+                continue;
+            }
+            "scatter" | "scatter chart" | "scatterchart" => {
+                chart_type = ChartType::Scatter;
+                continue;
+            }
+            "pie" | "pie chart" | "piechart" => {
+                chart_type = ChartType::Pie;
+                continue;
+            }
+            "column" | "column chart" | "columnchart" => {
+                chart_type = ChartType::Column;
+                continue;
+            }
+            _ => {}
+        }
         if lower.starts_with("title ") {
             title = Some(line[6..].trim().to_string());
             continue;
@@ -1475,7 +1546,23 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         ChartType::Scatter => render_scatter_chart(&data, &title),
         ChartType::Pie => render_pie_chart(&data, &title),
     }?;
+    let svg = add_chart_type_metadata(svg, chart_type);
     Ok(apply_chart_render_options(svg, &options))
+}
+
+fn add_chart_type_metadata(svg: String, chart_type: ChartType) -> String {
+    let name = match chart_type {
+        ChartType::Bar => "bar",
+        ChartType::Line => "line",
+        ChartType::Area => "area",
+        ChartType::Scatter => "scatter",
+        ChartType::Pie => "pie",
+        ChartType::Column => "column",
+    };
+    svg.replace(
+        "</svg>",
+        &format!("<metadata data-chart-type=\"{name}\"/></svg>"),
+    )
 }
 
 const CHART_COLORS: &[&str] = &[

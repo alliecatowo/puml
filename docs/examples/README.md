@@ -20,7 +20,7 @@ This directory is the canonical docs-as-tests corpus consumed by `scripts/parity
 | Area | Status |
 |---|---|
 | Core UML families (sequence/class/object/usecase/component/deployment/state/activity/timing) | Implemented with mixed depth (`implemented` + `partial` features) |
-| Non-UML families (salt/json/yaml/nwdiag/archimate/regex/ebnf/chart/math/sdl/ditaa) | Implemented baseline render paths; deeper semantics vary by family |
+| Non-UML families (gantt/chronology/salt/mindmap/wbs/json/yaml/nwdiag/archimate/regex/ebnf/chart/math/sdl/ditaa) | Implemented baseline render paths; deeper semantics vary by family |
 | Preprocessor/themes/skinparams/creole | Broad support with deterministic boundaries and documented partial areas |
 
 ## Notes

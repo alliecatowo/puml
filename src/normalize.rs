@@ -485,7 +485,7 @@ fn parse_ebnf_seq(
                     "[W_EBNF_UNBALANCED] missing closing `]`",
                 ));
             }
-            out.push(EbnfToken::Optional(inner));
+            push_ebnf_with_repeat(EbnfToken::Optional(inner), chars, idx, &mut out);
             continue;
         }
         if ch == '{' {
@@ -498,7 +498,7 @@ fn parse_ebnf_seq(
                     "[W_EBNF_UNBALANCED] missing closing `}`",
                 ));
             }
-            out.push(EbnfToken::Repetition(inner));
+            push_ebnf_with_repeat(EbnfToken::Repetition(inner), chars, idx, &mut out);
             continue;
         }
         if ch.is_alphanumeric() || ch == '_' {
@@ -528,23 +528,80 @@ fn push_ebnf_with_repeat(
     idx: &mut usize,
     out: &mut Vec<EbnfToken>,
 ) {
-    if *idx < chars.len() {
-        let kind = match chars[*idx] {
-            '*' => Some(RepeatKind::ZeroOrMore),
-            '+' => Some(RepeatKind::OneOrMore),
-            '?' => Some(RepeatKind::ZeroOrOne),
-            _ => None,
-        };
-        if let Some(kind) = kind {
-            *idx += 1;
-            out.push(EbnfToken::Repeat {
-                inner: Box::new(token),
-                kind,
-            });
-            return;
-        }
+    if let Some(kind) = parse_ebnf_repeat_kind(chars, idx) {
+        out.push(EbnfToken::Repeat {
+            inner: Box::new(token),
+            kind,
+        });
+        return;
     }
     out.push(token);
+}
+
+fn parse_ebnf_repeat_kind(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    if *idx >= chars.len() {
+        return None;
+    }
+    match chars[*idx] {
+        '*' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrMore)
+        }
+        '+' => {
+            *idx += 1;
+            Some(RepeatKind::OneOrMore)
+        }
+        '?' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrOne)
+        }
+        '{' => parse_ebnf_braced_repeat(chars, idx),
+        _ => None,
+    }
+}
+
+fn parse_ebnf_braced_repeat(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    let start = *idx;
+    let mut cursor = start + 1;
+    let mut spec = String::new();
+    while cursor < chars.len() && chars[cursor] != '}' {
+        spec.push(chars[cursor]);
+        cursor += 1;
+    }
+    if cursor >= chars.len() {
+        return None;
+    }
+
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+
+    let kind = if let Some((min_raw, max_raw)) = spec.split_once(',') {
+        let min_raw = min_raw.trim();
+        let max_raw = max_raw.trim();
+        let min = if min_raw.is_empty() {
+            None
+        } else {
+            Some(min_raw.parse::<u32>().ok()?)
+        };
+        let max = if max_raw.is_empty() {
+            None
+        } else {
+            Some(max_raw.parse::<u32>().ok()?)
+        };
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return None;
+            }
+        }
+        RepeatKind::Range { min, max }
+    } else {
+        RepeatKind::Exact(spec.parse::<u32>().ok()?)
+    };
+
+    *idx = cursor + 1;
+    Some(kind)
 }
 
 fn normalize_math(document: Document) -> Result<MathDocument, Diagnostic> {
@@ -700,15 +757,15 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         if first_non_empty {
             first_non_empty = false;
             match line.to_ascii_lowercase().as_str() {
-                "bar" | "bars" => {
+                "bar" | "bars" | "bar chart" | "barchart" => {
                     subtype = ChartSubtype::Bar;
                     continue;
                 }
-                "line" | "lines" => {
+                "line" | "lines" | "line chart" | "linechart" => {
                     subtype = ChartSubtype::Line;
                     continue;
                 }
-                "pie" => {
+                "pie" | "pie chart" | "piechart" => {
                     subtype = ChartSubtype::Pie;
                     continue;
                 }
@@ -720,13 +777,18 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         // Parse data point: "Label" value  OR  Label value
         let (label, rest) = if let Some(stripped) = line.strip_prefix('"') {
             if let Some(end) = stripped.find('"') {
-                (stripped[..end].to_string(), stripped[end + 1..].trim())
+                (
+                    stripped[..end].to_string(),
+                    stripped[end + 1..].trim().trim_start_matches(':').trim(),
+                )
             } else {
                 warnings.push(Diagnostic::warning(format!(
                     "[W_CHART_UNQUOTED] unterminated quoted label on line `{line}`"
                 )));
                 (stripped.to_string(), "")
             }
+        } else if let Some((head, tail)) = line.split_once(':') {
+            (head.trim().trim_matches('"').to_string(), tail.trim())
         } else {
             let mut parts = line.splitn(2, char::is_whitespace);
             let head = parts.next().unwrap_or("");

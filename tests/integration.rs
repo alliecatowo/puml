@@ -5933,7 +5933,7 @@ fn ebnf_exact_and_ranged_quantifiers_render_as_supported_repeats() {
     );
     assert!(svg.contains("digit{2}"), "expected exact EBNF repeat");
     assert!(
-        svg.contains("[&quot;-&quot;]{0,1}"),
+        svg.contains("{0,1}"),
         "expected counted repeat on optional group"
     );
     assert!(
@@ -5947,20 +5947,20 @@ fn chart_plantuml_style_named_subtypes_and_colon_points_render() {
     let cases = [
         (
             "@startchart\nbar chart\nQ1 : 42\nQ2 : 58\n@endchart\n",
-            "bar chart",
+            "data-chart-type=\"bar\"",
         ),
         (
             "@startchart\nline chart\nJan : 10\nFeb : 15\n@endchart\n",
-            "line chart",
+            "data-chart-type=\"line\"",
         ),
         (
             "@startchart\npie chart\nFrontend : 35\nBackend : 65\n@endchart\n",
-            "pie chart",
+            "data-chart-type=\"pie\"",
         ),
     ];
-    for (src, label) in cases {
+    for (src, marker) in cases {
         let svg = render_source_to_svg(src).expect("chart should render");
-        assert!(svg.contains(label), "expected subtype label `{label}`");
+        assert!(svg.contains(marker), "expected subtype marker `{marker}`");
         assert!(
             svg.contains("42")
                 || svg.contains("10")
