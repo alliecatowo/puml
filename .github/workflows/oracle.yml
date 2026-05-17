@@ -34,19 +34,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # -----------------------------------------------------------------------
       # JDK 17 (Temurin LTS) — required to run the PlantUML reference JAR.
       # Not a runtime or build dependency of puml; CI-only for oracle comparison.
-      # -----------------------------------------------------------------------
       - name: Setup JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      # -----------------------------------------------------------------------
       # Cache the JAR by pinned version so re-runs skip the download.
-      # -----------------------------------------------------------------------
       - name: Cache PlantUML JAR
         id: cache-jar
         uses: actions/cache@v4
@@ -73,9 +69,6 @@ jobs:
           echo "[oracle] JAR size: ${JAR_SIZE} bytes"
           java -jar "${PLANTUML_JAR}" -version
 
-      # -----------------------------------------------------------------------
-      # Rust toolchain + build
-      # -----------------------------------------------------------------------
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -88,15 +81,11 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
-      # -----------------------------------------------------------------------
       # Run the oracle shell conformance suite (fixture-by-fixture SVG diff).
       # Soft-fail thresholds:
-      #   exit 0 → match% ≥ 80%  (PASS)
-      #   exit 1 → 50% ≤ match% < 80%  (WARN — advisory)
-      #   exit 2 → match% < 50%  (HARD FAIL)
-      # SVG byte-equality is advisory (we use a different layout engine).
-      # Parse-failures on files the JAR accepts (jar-only) are hard-fail triggers.
-      # -----------------------------------------------------------------------
+      #   exit 0 = match% >= 80%  (PASS)
+      #   exit 1 = 50% <= match% < 80%  (WARN, advisory)
+      #   exit 2 = match% < 50%  (HARD FAIL)
       - name: Run oracle conformance suite (scripts/oracle.sh)
         id: oracle
         env:
@@ -136,30 +125,24 @@ jobs:
             } >> "${GITHUB_OUTPUT}"
           fi
 
-          # exit 2 (<50% match) → hard CI failure; 0 and 1 are soft/advisory.
+          # exit 2 (<50% match) = hard CI failure; 0 and 1 are soft/advisory.
           if [[ "${ORACLE_EXIT}" -eq 2 ]]; then
             echo "[oracle] HARD FAIL: match% < 50%" >&2
             exit 2
           fi
           exit 0
 
-      # -----------------------------------------------------------------------
       # Run the Rust oracle_smoke test suite with the real JAR.
-      # The --ignored flag unlocks oracle_report_schema_is_stable and any other
-      # JAR-gated tests that skip by default when PUML_ORACLE_JAR is unset.
-      # -----------------------------------------------------------------------
+      # --include-ignored unlocks JAR-gated tests that skip by default.
       - name: Run oracle_smoke test suite (cargo test --test oracle_smoke)
         id: cargo-oracle-smoke
         env:
           PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
         run: |
-          # Run both the always-on sentinel tests AND the JAR-gated ignored tests.
           cargo test --test oracle_smoke -- --include-ignored 2>&1 | tee /tmp/oracle_smoke_test.log
-          echo "exit_code=${PIPESTATUS[0]}" >> "${GITHUB_OUTPUT}"
+          echo "cargo_exit_code=${PIPESTATUS[0]}" >> "${GITHUB_OUTPUT}"
 
-      # -----------------------------------------------------------------------
-      # Upload artifacts: oracle_report.json + SVG diffs + test log
-      # -----------------------------------------------------------------------
+      # Upload artifacts: oracle_report.json + test log
       - name: Upload oracle artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -171,18 +154,27 @@ jobs:
             docs/benchmarks/oracle_report.json
             /tmp/oracle_smoke_test.log
 
-      # -----------------------------------------------------------------------
       # Post a Markdown summary comment on the PR.
       # Only runs when oracle data is present (skipped sentinel has no totals).
-      # -----------------------------------------------------------------------
       - name: Comment on PR with oracle summary
         if: github.event_name == 'pull_request' && steps.oracle.outputs.total != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOTAL: ${{ steps.oracle.outputs.total }}
+          MATCH: ${{ steps.oracle.outputs.match }}
+          DRIFT: ${{ steps.oracle.outputs.drift }}
+          PUML_ONLY: ${{ steps.oracle.outputs.puml_only }}
+          JAR_ONLY: ${{ steps.oracle.outputs.jar_only }}
+          BOTH_FAIL: ${{ steps.oracle.outputs.both_fail }}
+          MATCH_PCT: ${{ steps.oracle.outputs.match_pct }}
+          JAR_VERSION: ${{ steps.oracle.outputs.jar_version }}
+          EXIT_CODE: ${{ steps.oracle.outputs.exit_code }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          EXIT_CODE="${{ steps.oracle.outputs.exit_code }}"
-          MATCH_PCT="${{ steps.oracle.outputs.match_pct }}"
-
           if [[ "${EXIT_CODE}" -eq 0 ]]; then
             STATUS_ICON="[PASS]"
             STATUS_TEXT="PASS (>=80% match)"
@@ -194,23 +186,45 @@ jobs:
             STATUS_TEXT="FAIL (<50% match)"
           fi
 
-          BODY="## ${STATUS_ICON} Oracle Conformance Report -- ${STATUS_TEXT}
+          REPORT_URL="${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}"
 
-| Metric | Value |
-|---|---|
-| PlantUML JAR version | \`${{ steps.oracle.outputs.jar_version }}\` |
-| Total fixtures | ${{ steps.oracle.outputs.total }} |
-| Match (<=10% drift on all metrics) | ${{ steps.oracle.outputs.match }} |
-| Drift (>10% on any metric) | ${{ steps.oracle.outputs.drift }} |
-| puml-only (we render; JAR fails) | ${{ steps.oracle.outputs.puml_only }} |
-| jar-only (JAR renders; we fail) | ${{ steps.oracle.outputs.jar_only }} |
-| both-fail | ${{ steps.oracle.outputs.both_fail }} |
-| **Match %** | **${MATCH_PCT}%** |
+          python3 - <<PYEOF
+          import os, subprocess
+          icon = os.environ['STATUS_ICON']
+          text = os.environ['STATUS_TEXT']
+          jver = os.environ['JAR_VERSION']
+          total = os.environ['TOTAL']
+          match = os.environ['MATCH']
+          drift = os.environ['DRIFT']
+          ponly = os.environ['PUML_ONLY']
+          jonly = os.environ['JAR_ONLY']
+          bfail = os.environ['BOTH_FAIL']
+          mpct = os.environ['MATCH_PCT']
+          run_num = os.environ['RUN_NUMBER']
+          report_url = os.environ['REPORT_URL']
+          pr_number = os.environ['PR_NUMBER']
+          repo = os.environ['REPOSITORY']
 
-Full report: [oracle-report-${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          body = f"""## {icon} Oracle Conformance Report -- {text}
 
-> SVG layout divergence is advisory (puml uses a different layout engine than PlantUML). Parse failures on files the JAR accepts (jar-only) are hard failures.
-"
-          gh pr comment "${{ github.event.pull_request.number }}" \
-            --body "${BODY}" \
-            --repo "${{ github.repository }}"
+          | Metric | Value |
+          |---|---|
+          | PlantUML JAR version | `{jver}` |
+          | Total fixtures | {total} |
+          | Match (<=10% drift on all metrics) | {match} |
+          | Drift (>10% on any metric) | {drift} |
+          | puml-only (we render; JAR fails) | {ponly} |
+          | jar-only (JAR renders; we fail) | {jonly} |
+          | both-fail | {bfail} |
+          | **Match %** | **{mpct}%** |
+
+          Full report: [oracle-report-{run_num}]({report_url})
+
+          > SVG layout divergence is advisory (puml uses a different layout engine). Parse failures on JAR-accepted files are hard failures.
+          """
+
+          subprocess.run(
+            ['gh', 'pr', 'comment', pr_number, '--body', body, '--repo', repo],
+            check=True
+          )
+          PYEOF
