@@ -29,6 +29,7 @@ Legend:
 | Sequence scope | Sequence diagrams plus many other UML families | `Differentiator` | `src/normalize.rs`, `docs/decision-log.md` D-001 | `puml` is intentionally sequence-only; non-sequence input rejected. |
 | `@startuml`/`@enduml` blocks | Standard source delimiters | `Supported` | `src/parser.rs`, `tests/fixtures/basic/valid_start_end.puml` | Also tolerates plain single-diagram text input. |
 | Basic messages (`->`, `-->`, `<-`, etc.) | Rich arrow forms | `Partial` | `src/parser.rs` `VALID_ARROWS` list | Core arrows supported, but many PlantUML variants are missing (e.g., slanted/top-half syntaxes shown in docs). |
+| Inline message arrow styling (`-[#red,dashed]>`, `-[hidden]->`) | Supported | `Partial` | `src/parser.rs`, `src/render.rs`, `tests/render_e2e.rs` | Decorated sequence arrows are parsed and now render per-message color, dashed/dotted strokes, and hidden arrow visibility. |
 | Bidirectional arrows (`<->`) | Supported | `Partial` | `src/normalize.rs` (`bidirectional` split) | Expanded into two one-way events; rendering semantics differ from native PlantUML style nuances. |
 | Participant auto-creation from messages | Supported | `Supported` | `src/normalize.rs` `ensure_implicit` | Participants inferred if not declared. |
 | Participant declarations (`participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`) | Supported (+ `queue`) | `Partial` | `src/parser.rs` role list | Missing `queue` role explicitly documented by PlantUML. |

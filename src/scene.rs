@@ -1,4 +1,6 @@
-use crate::model::{LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, VirtualEndpoint};
+use crate::model::{
+    LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, SequenceMessageStyle, VirtualEndpoint,
+};
 use crate::theme::SequenceStyle;
 
 #[derive(Debug, Clone)]
@@ -62,6 +64,7 @@ pub struct MessageLine {
     pub arrow: String,
     pub label: Option<String>,
     pub label_lines: Vec<String>,
+    pub style: SequenceMessageStyle,
     pub from_virtual: Option<VirtualEndpoint>,
     pub to_virtual: Option<VirtualEndpoint>,
 }

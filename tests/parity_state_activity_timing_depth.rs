@@ -91,3 +91,37 @@ clock CLK
     assert!(svg.contains("CLK"));
     assert!(svg.contains("<polyline"));
 }
+
+#[test]
+fn timing_parity_handles_labels_controls_and_standalone_time_blocks() {
+    let src = r#"@startuml
+title Timing labels and controls
+concise "Request phase" as REQ
+robust "Bus state" as BUS
+binary FLAG
+clock CLK with period 8 pulse 3
+@0
+REQ is "Queued"
+BUS is IDLE
+FLAG is off
+@4 handshake
+@8
+REQ is "Running"
+BUS is RUN
+FLAG is on
+@16 done
+FLAG is low
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("timing render should succeed");
+
+    assert!(svg.contains("Request phase"));
+    assert!(svg.contains("Bus state"));
+    assert!(svg.contains("Queued"));
+    assert!(svg.contains("Running"));
+    assert!(svg.contains("handshake"));
+    assert!(svg.contains("done"));
+    assert!(svg.contains("FLAG"));
+    assert!(svg.contains("CLK"));
+    assert!(svg.contains("<polyline"));
+}

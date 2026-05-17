@@ -54,11 +54,14 @@ fn parser_preprocessor_variables_and_callable_invocations_expand_deterministical
 }
 
 #[test]
-fn parser_preprocessor_concat_and_procedure_return_fail_with_stable_codes() {
+fn parser_preprocessor_concat_expands_and_procedure_return_fails_with_stable_code() {
     let concat_src =
-        "@startuml\n!function Join($a##$b)\n!return $a\n!endfunction\nA -> B\n@enduml\n";
-    let concat_err = parse(concat_src).expect_err("expected concat unsupported");
-    assert!(concat_err.message.contains("E_PREPROC_CONCAT_UNSUPPORTED"));
+        "@startuml\n!function Join($a##$b)\n!return $a ## $b\n!endfunction\nA -> B: %Join(Al, ice)\n@enduml\n";
+    let concat_doc = parse(concat_src).expect("expected concat expansion");
+    match &concat_doc.statements[0].kind {
+        puml::ast::StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
+        other => panic!("unexpected statement: {other:?}"),
+    }
 
     let proc_return_src =
         "@startuml\n!procedure Bad($x)\n!return $x\n!endprocedure\n!Bad(\"A\")\n@enduml\n";
@@ -650,6 +653,7 @@ fn normalize_reports_invalid_arrow_when_ast_contains_malformed_arrow() {
                 to: "B".to_string(),
                 arrow: "bogus".to_string(),
                 label: None,
+                style: Default::default(),
                 from_virtual: None,
                 to_virtual: None,
             }),
@@ -717,6 +721,7 @@ fn normalize_rejects_lifecycle_shortcuts_on_virtual_endpoints() {
                 to: "A".to_string(),
                 arrow: "->@L++".to_string(),
                 label: None,
+                style: Default::default(),
                 from_virtual: None,
                 to_virtual: None,
             }),
@@ -743,6 +748,7 @@ fn normalize_ignores_horizontal_rule_unknown_syntax_passthrough() {
                     to: "B".to_string(),
                     arrow: "->".to_string(),
                     label: Some("ok".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: None,
                 }),
@@ -901,6 +907,7 @@ fn render_escapes_text_in_labels_and_titles() {
                 to: "A".to_string(),
                 arrow: "->".to_string(),
                 label: Some("<&>\"'".to_string()),
+                style: Default::default(),
                 from_virtual: None,
                 to_virtual: None,
             },
@@ -1045,6 +1052,7 @@ fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
                         "one two three four five six seven eight nine ten eleven twelve"
                             .to_string(),
                     ),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: None,
                 },
@@ -1063,6 +1071,7 @@ fn layout_expands_rows_for_wrapped_labels_and_open_group_tail() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("short".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: None,
                 },
@@ -1112,6 +1121,7 @@ fn layout_offsets_virtual_endpoints_for_overlap_cases() {
                     to: "ghost-right".to_string(),
                     arrow: "->".to_string(),
                     label: Some("both virtual".to_string()),
+                    style: Default::default(),
                     from_virtual: Some(VirtualEndpoint {
                         side: VirtualEndpointSide::Left,
                         kind: VirtualEndpointKind::Filled,
@@ -1129,6 +1139,7 @@ fn layout_offsets_virtual_endpoints_for_overlap_cases() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("from virtual".to_string()),
+                    style: Default::default(),
                     from_virtual: Some(VirtualEndpoint {
                         side: VirtualEndpointSide::Right,
                         kind: VirtualEndpointKind::Circle,
@@ -1143,6 +1154,7 @@ fn layout_offsets_virtual_endpoints_for_overlap_cases() {
                     to: "ghost-left".to_string(),
                     arrow: "->".to_string(),
                     label: Some("to virtual".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: Some(VirtualEndpoint {
                         side: VirtualEndpointSide::Left,

@@ -9,7 +9,8 @@ use crate::model::{
     VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
-use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle};
+use crate::theme::css3_color_to_hex;
+use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle, MessageAlign};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
 
@@ -182,39 +183,60 @@ pub fn render_svg(scene: &Scene) -> String {
         .as_deref()
         .unwrap_or(scene.style.arrow_color.as_str());
     for m in &scene.messages {
-        let stroke_dash = if m.arrow.contains("--") {
+        let stroke_color = m
+            .style
+            .color
+            .as_deref()
+            .and_then(normalize_message_color)
+            .unwrap_or(message_line_color);
+        let arrow_fill = m
+            .style
+            .color
+            .as_deref()
+            .and_then(normalize_message_color)
+            .unwrap_or(scene.style.arrow_color.as_str());
+        let stroke_dash = if m.style.dotted {
+            " stroke-dasharray=\"2 4\""
+        } else if m.style.dashed || m.arrow.contains("--") {
             " stroke-dasharray=\"6 4\""
         } else {
             ""
         };
-        out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
-            m.x1, m.y, m.x2, m.y, message_line_color, stroke_dash
-        ));
-        let arrow_size = 6;
-        if m.x2 >= m.x1 {
+        let hidden = if m.style.hidden {
+            " visibility=\"hidden\""
+        } else {
+            ""
+        };
+        if m.x1 == m.x2 {
+            let loop_w = 46;
+            let loop_h = 26;
+            let dir = if m.arrow.starts_with('<') { -1 } else { 1 };
+            let x2 = m.x1 + dir * loop_w;
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-                m.x2,
+                "<path d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
+                m.x1,
                 m.y,
-                m.x2 - arrow_size,
-                m.y - 4,
-                m.x2 - arrow_size,
-                m.y + 4,
-                scene.style.arrow_color
+                x2,
+                m.y,
+                x2,
+                m.y + loop_h,
+                m.x1,
+                m.y + loop_h,
+                x2,
+                m.y + loop_h * 2,
+                m.x1,
+                m.y + loop_h * 2,
+                stroke_color,
+                stroke_dash,
+                hidden
             ));
         } else {
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-                m.x2,
-                m.y,
-                m.x2 + arrow_size,
-                m.y - 4,
-                m.x2 + arrow_size,
-                m.y + 4,
-                scene.style.arrow_color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
+                m.x1, m.y, m.x2, m.y, stroke_color, stroke_dash, hidden
             ));
         }
+        render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, hidden);
 
         if let Some(virtual_ep) = m.from_virtual {
             render_virtual_endpoint_marker(&mut out, m.x1, m.y, virtual_ep.kind);
@@ -224,24 +246,33 @@ pub fn render_svg(scene: &Scene) -> String {
         }
 
         if !m.label_lines.is_empty() {
-            let tx = ((m.x1 + m.x2) / 2) + 2;
-            let start_y = m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP);
+            let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
+            let below = scene.style.response_message_below_arrow && m.arrow.starts_with('<');
+            let start_y = if below {
+                m.y + 16
+            } else {
+                m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
+            };
             for (idx, line) in m.label_lines.iter().enumerate() {
                 out.push_str(&creole_text(
                     tx,
                     start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
-                    "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\"",
+                    &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                     line,
                     "black",
                 ));
             }
         } else if let Some(label) = &m.label {
-            let tx = ((m.x1 + m.x2) / 2) + 2;
-            let ty = m.y - 8;
+            let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
+            let ty = if scene.style.response_message_below_arrow && m.arrow.starts_with('<') {
+                m.y + 16
+            } else {
+                m.y - 8
+            };
             out.push_str(&creole_text(
                 tx,
                 ty,
-                "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\"",
+                &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                 label,
                 "black",
             ));
@@ -333,6 +364,143 @@ pub fn render_svg(scene: &Scene) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn sequence_message_label_anchor(x1: i32, x2: i32, align: MessageAlign) -> (i32, &'static str) {
+    let left = x1.min(x2);
+    let right = x1.max(x2);
+    match align {
+        MessageAlign::Left => (left + 8, "start"),
+        MessageAlign::Center => (((x1 + x2) / 2) + 2, "middle"),
+        MessageAlign::Right => (right - 8, "end"),
+    }
+}
+
+fn render_sequence_arrow_heads(
+    out: &mut String,
+    m: &crate::scene::MessageLine,
+    stroke_color: &str,
+    fill_color: &str,
+    hidden: &str,
+) {
+    let arrow = m.arrow.replace(['/', '\\'], "");
+    let left_marker = arrow.chars().next().filter(|c| matches!(c, 'o' | 'x'));
+    let right_marker = arrow.chars().last().filter(|c| matches!(c, 'o' | 'x'));
+    let left_arrow = arrow.starts_with('<') || arrow.starts_with("<<");
+    let right_arrow = arrow.contains('>') && !matches!(right_marker, Some('o' | 'x'));
+    let open_head = arrow.contains(">>") || arrow.contains("<<");
+
+    if left_arrow {
+        render_arrow_head(
+            out,
+            m.x1,
+            m.y,
+            m.x2,
+            m.x1,
+            open_head,
+            stroke_color,
+            fill_color,
+            hidden,
+        );
+    }
+    if right_arrow {
+        render_arrow_head(
+            out,
+            m.x2,
+            m.y,
+            m.x1,
+            m.x2,
+            open_head,
+            stroke_color,
+            fill_color,
+            hidden,
+        );
+    }
+    if let Some(marker) = left_marker {
+        render_arrow_endpoint_marker(out, m.x1, m.y, marker, stroke_color, hidden);
+    }
+    if let Some(marker) = right_marker {
+        render_arrow_endpoint_marker(out, m.x2, m.y, marker, stroke_color, hidden);
+    }
+}
+
+fn render_arrow_head(
+    out: &mut String,
+    x: i32,
+    y: i32,
+    from_x: i32,
+    to_x: i32,
+    open: bool,
+    stroke_color: &str,
+    fill_color: &str,
+    hidden: &str,
+) {
+    let dir = if to_x >= from_x { 1 } else { -1 };
+    let back = x - (dir * 8);
+    if open {
+        out.push_str(&format!(
+            "<polyline points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
+            back,
+            y - 5,
+            x,
+            y,
+            back,
+            y + 5,
+            stroke_color,
+            hidden
+        ));
+    } else {
+        out.push_str(&format!(
+            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
+            x,
+            y,
+            back,
+            y - 5,
+            back,
+            y + 5,
+            fill_color,
+            stroke_color,
+            hidden
+        ));
+    }
+}
+
+fn render_arrow_endpoint_marker(
+    out: &mut String,
+    x: i32,
+    y: i32,
+    marker: char,
+    stroke_color: &str,
+    hidden: &str,
+) {
+    match marker {
+        'o' => out.push_str(&format!(
+            "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
+            x, y, stroke_color, hidden
+        )),
+        'x' => out.push_str(&format!(
+            "<g stroke=\"{}\" stroke-width=\"1.5\"{}><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
+            stroke_color,
+            hidden,
+            x - 4,
+            y - 4,
+            x + 4,
+            y + 4,
+            x - 4,
+            y + 4,
+            x + 4,
+            y - 4
+        )),
+        _ => {}
+    }
+}
+
+fn normalize_message_color(value: &str) -> Option<&str> {
+    let value = value.trim();
+    if value.starts_with('#') {
+        return Some(value);
+    }
+    css3_color_to_hex(value).or(Some(value))
 }
 
 fn compute_svg_dimensions(scene: &Scene) -> (String, String, String) {
@@ -527,7 +695,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
     // Compute width / height of the SVG; account for JSON projection height.
     let proj_extra_height: i32 = document.json_projections.iter().fold(0, |acc, proj| {
-        let kv_count = extract_json_kv_lines(&proj.body).len() as i32;
+        let kv_count = extract_projection_kv_lines(&proj.body, &proj.format).len() as i32;
         acc + 22 + kv_count * 16 + 8 + 12
     });
     let svg_width = margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap;
@@ -539,7 +707,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         w = svg_width,
         h = svg_height
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&class_style.background_color)
+    ));
 
     // Arrowhead/diamond marker defs — use class_style.arrow_color for stroke
     let arrow_stroke = &class_style.arrow_color;
@@ -746,7 +917,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let proj_padding = 8_i32;
 
         for proj in &document.json_projections {
-            let kv_lines = extract_json_kv_lines(&proj.body);
+            let kv_lines = extract_projection_kv_lines(&proj.body, &proj.format);
             let body_h = (kv_lines.len() as i32) * proj_line_h + proj_padding * 2;
             let proj_h = proj_header_h + body_h;
 
@@ -767,10 +938,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 hh = proj_header_h,
             ));
             out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#78350f\">{alias}</text>",
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#78350f\">{alias} ({format})</text>",
                 tx = proj_margin_left + 8,
                 ty = proj_y + 15,
                 alias = escape_text(&proj.alias),
+                format = escape_text(&proj.format),
             ));
             // Separator line.
             out.push_str(&format!(
@@ -799,7 +971,85 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     out
 }
 
-/// Extract `key: value` display lines from a JSON body string.
+/// Extract deterministic display lines from a JSON/YAML projection body.
+fn extract_projection_kv_lines(body: &str, format: &str) -> Vec<String> {
+    if format == "json" {
+        if let Some(value) = parse_projection_json_value(body) {
+            let mut lines = Vec::new();
+            flatten_projection_json("", &value, &mut lines);
+            if !lines.is_empty() {
+                return lines;
+            }
+        }
+    }
+    if format == "yaml" {
+        let lines = extract_yaml_kv_lines(body);
+        if !lines.is_empty() {
+            return lines;
+        }
+    }
+    extract_json_kv_lines(body)
+}
+
+fn parse_projection_json_value(body: &str) -> Option<serde_json::Value> {
+    let trimmed = body.trim();
+    serde_json::from_str::<serde_json::Value>(trimmed)
+        .ok()
+        .or_else(|| serde_json::from_str::<serde_json::Value>(&format!("{{{trimmed}}}")).ok())
+}
+
+fn flatten_projection_json(prefix: &str, value: &serde_json::Value, lines: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Object(obj) => {
+            for (key, value) in obj {
+                let next = if prefix.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
+                flatten_projection_json(&next, value, lines);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for (idx, value) in items.iter().enumerate() {
+                flatten_projection_json(&format!("{prefix}[{idx}]"), value, lines);
+            }
+        }
+        serde_json::Value::String(s) => lines.push(format!("{prefix}: {s}")),
+        serde_json::Value::Number(n) => lines.push(format!("{prefix}: {n}")),
+        serde_json::Value::Bool(b) => lines.push(format!("{prefix}: {b}")),
+        serde_json::Value::Null => lines.push(format!("{prefix}: null")),
+    }
+}
+
+fn extract_yaml_kv_lines(body: &str) -> Vec<String> {
+    let mut path: Vec<String> = Vec::new();
+    let mut lines = Vec::new();
+    for raw in body.lines() {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let indent = raw.chars().take_while(|c| *c == ' ').count() / 2;
+        path.truncate(indent);
+        let item = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        let Some((key, value)) = item.split_once(':') else {
+            continue;
+        };
+        let key = key.trim().trim_matches('"').trim_matches('\'').to_string();
+        let value = value.trim().trim_matches('"').trim_matches('\'');
+        if value.is_empty() {
+            path.push(key);
+        } else {
+            let mut full = path.clone();
+            full.push(key);
+            lines.push(format!("{}: {}", full.join("."), value));
+        }
+    }
+    lines
+}
+
+/// Extract `key: value` display lines from a JSON-ish body string.
 /// Strips outer braces/brackets, parses simple string-keyed properties.
 fn extract_json_kv_lines(body: &str) -> Vec<String> {
     let mut lines = Vec::new();
@@ -2547,9 +2797,14 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .as_deref()
         .map(|t| 8 + (t.lines().count() as i32) * 22)
         .unwrap_or(0);
+    let calendar_h = if document.closed_weekdays.is_empty() {
+        0
+    } else {
+        18
+    };
 
     let row_count = (document.tasks.len() + document.milestones.len()) as i32;
-    let chart_top = 40 + title_h + header_h;
+    let chart_top = 40 + title_h + calendar_h + header_h;
     let chart_h = (row_count.max(1)) * (bar_height + row_gap) + 20;
     let total_h = chart_top + chart_h + 40;
 
@@ -2579,11 +2834,35 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             x = margin_x
         ));
     }
+    if !document.closed_weekdays.is_empty() {
+        let label = document
+            .closed_weekdays
+            .iter()
+            .map(|day| title_case_ascii(day))
+            .collect::<Vec<_>>()
+            .join(", ");
+        out.push_str(&format!(
+            "<text class=\"gantt-calendar\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#92400e\">Calendar: closed {label}</text>",
+            x = margin_x,
+            y = 42 + title_h,
+            label = escape_text(&label)
+        ));
+    }
 
-    // Build column index for tasks + milestones
+    let has_resource_lanes = document.tasks.iter().any(|t| !t.resources.is_empty());
+    let mut ordered_tasks: Vec<&TimelineTask> = document.tasks.iter().collect();
+    if has_resource_lanes {
+        ordered_tasks.sort_by(|a, b| {
+            resource_lane_label(a)
+                .cmp(&resource_lane_label(b))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+    }
+
+    // Build row index for tasks + milestones
     let mut row_index: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
     let mut row_counter: i32 = 0;
-    for task in &document.tasks {
+    for task in &ordered_tasks {
         row_index.insert(task.name.clone(), row_counter);
         row_counter += 1;
     }
@@ -2593,20 +2872,70 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         row_counter += 1;
     }
 
-    let min_day = document
+    let task_end_day: std::collections::BTreeMap<&str, u32> = document
         .tasks
         .iter()
-        .map(|t| t.start_day)
+        .map(|t| {
+            (
+                t.name.as_str(),
+                t.start_day.saturating_add(t.duration_days.max(1)),
+            )
+        })
+        .collect();
+    let preliminary_min_day = document
+        .project_start_day
+        .into_iter()
+        .chain(document.tasks.iter().map(|t| t.start_day))
+        .min()
+        .unwrap_or(0);
+    let milestone_anchor = document.project_start_day.unwrap_or(preliminary_min_day);
+    let mut milestone_day: std::collections::BTreeMap<&str, u32> =
+        std::collections::BTreeMap::new();
+    for ms in &document.milestones {
+        if let Some(day) = ms
+            .happens_on
+            .as_deref()
+            .and_then(|target| resolve_gantt_milestone_day(target, milestone_anchor, &task_end_day))
+        {
+            milestone_day.insert(ms.name.as_str(), day);
+            continue;
+        }
+        for c in &document.constraints {
+            if c.subject != ms.name {
+                continue;
+            }
+            if let Some(day) =
+                resolve_gantt_milestone_day(&c.target, milestone_anchor, &task_end_day)
+            {
+                milestone_day.insert(ms.name.as_str(), day);
+                break;
+            }
+        }
+    }
+
+    let min_day = document
+        .project_start_day
+        .into_iter()
+        .chain(document.tasks.iter().map(|t| t.start_day))
+        .chain(milestone_day.values().copied())
         .min()
         .unwrap_or(0);
     let max_day_exclusive = document
-        .tasks
-        .iter()
-        .map(|t| t.start_day.saturating_add(t.duration_days.max(1)))
+        .project_start_day
+        .map(|d| d.saturating_add(1))
+        .into_iter()
+        .chain(
+            document
+                .tasks
+                .iter()
+                .map(|t| t.start_day.saturating_add(t.duration_days.max(1))),
+        )
+        .chain(milestone_day.values().map(|d| d.saturating_add(1)))
         .max()
         .unwrap_or(min_day.saturating_add(1));
     let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
     let tick_count = total_days.clamp(1, 8);
+    let date_axis = document.project_start_day.is_some() || min_day > 366;
 
     // Axis header bar
     out.push_str(&format!(
@@ -2625,10 +2954,14 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             y2 = chart_top + chart_h
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">D+{n}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{label}</text>",
             tx = x + 6,
             ty = chart_top - 10,
-            n = day_offset
+            label = escape_text(&format_gantt_axis_label(
+                min_day.saturating_add(day_offset),
+                min_day,
+                date_axis
+            ))
         ));
     }
 
@@ -2642,19 +2975,35 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let start_offset = day.saturating_sub(min_day);
         chart_left + ((chart_w as u32 * start_offset) / total_days) as i32
     };
-    let task_end_day: std::collections::BTreeMap<&str, u32> = document
-        .tasks
-        .iter()
-        .map(|t| {
-            (
-                t.name.as_str(),
-                t.start_day.saturating_add(t.duration_days.max(1)),
-            )
-        })
-        .collect();
+    if has_resource_lanes {
+        let mut lane_start = 0usize;
+        while lane_start < ordered_tasks.len() {
+            let lane = resource_lane_label(ordered_tasks[lane_start]);
+            let mut lane_end = lane_start + 1;
+            while lane_end < ordered_tasks.len()
+                && resource_lane_label(ordered_tasks[lane_end]) == lane
+            {
+                lane_end += 1;
+            }
+            let y = chart_top + lane_start as i32 * (bar_height + row_gap);
+            let h = (lane_end - lane_start) as i32 * (bar_height + row_gap);
+            out.push_str(&format!(
+                "<rect class=\"resource-lane\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#eff6ff\" stroke=\"#bfdbfe\" stroke-width=\"1\" opacity=\"0.72\"/>",
+                x = chart_left,
+                w = chart_w
+            ));
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#1d4ed8\">{label}</text>",
+                x = chart_left + 6,
+                y = y + 14,
+                label = escape_text(&lane)
+            ));
+            lane_start = lane_end;
+        }
+    }
 
     // Render tasks as horizontal bars
-    for (i, task) in document.tasks.iter().enumerate() {
+    for (i, task) in ordered_tasks.iter().enumerate() {
         let row = i as i32;
         let y = chart_top + row * (bar_height + row_gap) + row_gap / 2;
         // Label
@@ -2669,30 +3018,13 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             "<rect x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1\"/>",
             bh = bar_height
         ));
-    }
-
-    // Render milestones as diamonds (position derived from constraints when possible)
-    let mut milestone_day: std::collections::BTreeMap<&str, u32> =
-        std::collections::BTreeMap::new();
-    for ms in &document.milestones {
-        for c in &document.constraints {
-            if c.subject != ms.name {
-                continue;
-            }
-            if let Some(task_name) = extract_bracketed_name(&c.target) {
-                if let Some(day) = task_end_day.get(task_name.as_str()) {
-                    milestone_day.insert(ms.name.as_str(), *day);
-                    break;
-                }
-            }
-            if let Some(day) = parse_relative_day(&c.target) {
-                milestone_day.insert(ms.name.as_str(), min_day.saturating_add(day));
-                break;
-            }
-            if let Some(abs_day) = parse_iso_date_day_number(&c.target) {
-                milestone_day.insert(ms.name.as_str(), abs_day.max(min_day));
-                break;
-            }
+        if !task.resources.is_empty() {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#1e40af\">{txt}</text>",
+                x = chart_right - 6,
+                y = y + bar_height - 6,
+                txt = escape_text(&task.resources.join(", "))
+            ));
         }
     }
 
@@ -2771,7 +3103,11 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     // Render textual constraint annotations beneath chart (start/requires with date strings)
     let mut note_y = chart_top + chart_h + 10;
     for constraint in &document.constraints {
-        if row_index.contains_key(&constraint.target) {
+        if row_index.contains_key(&constraint.target)
+            || extract_bracketed_name(&constraint.target)
+                .as_deref()
+                .is_some_and(|target| row_index.contains_key(target))
+        {
             continue;
         }
         out.push_str(&format!(
@@ -2798,10 +3134,53 @@ fn extract_bracketed_name(target: &str) -> Option<String> {
     Some(target[start + 1..end].trim().to_string())
 }
 
+fn resource_lane_label(task: &TimelineTask) -> String {
+    if task.resources.is_empty() {
+        "Unassigned".to_string()
+    } else {
+        task.resources.join(", ")
+    }
+}
+
+fn title_case_ascii(raw: &str) -> String {
+    let mut chars = raw.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    let mut out = String::new();
+    out.push(first.to_ascii_uppercase());
+    out.push_str(chars.as_str());
+    out
+}
+
 fn parse_relative_day(raw: &str) -> Option<u32> {
     let t = raw.trim();
     let rest = t.strip_prefix("D+").or_else(|| t.strip_prefix("d+"))?;
     rest.trim().parse::<u32>().ok()
+}
+
+fn resolve_gantt_milestone_day(
+    target: &str,
+    anchor_day: u32,
+    task_end_day: &std::collections::BTreeMap<&str, u32>,
+) -> Option<u32> {
+    if let Some(task_name) = extract_bracketed_name(target) {
+        if let Some(day) = task_end_day.get(task_name.as_str()) {
+            return Some(*day);
+        }
+    }
+    if let Some(day) = parse_relative_day(target) {
+        return Some(anchor_day.saturating_add(day));
+    }
+    parse_iso_date_day_number(target)
+}
+
+fn format_gantt_axis_label(day: u32, min_day: u32, date_axis: bool) -> String {
+    if date_axis {
+        day_number_to_iso(day).unwrap_or_else(|| format!("D+{}", day.saturating_sub(min_day)))
+    } else {
+        format!("D+{}", day.saturating_sub(min_day))
+    }
 }
 
 fn parse_iso_date_tuple(raw: &str) -> Option<(i32, i32, i32)> {
@@ -2820,25 +3199,34 @@ fn parse_iso_date_day_number(raw: &str) -> Option<u32> {
     if y < 0 || !(1..=12).contains(&m) || !(1..=31).contains(&d) {
         return None;
     }
-    let mut days = 0u32;
-    for year in 0..y {
-        days = days.saturating_add(if is_leap_year(year) { 366 } else { 365 });
+    let y = i64::from(y);
+    let m = i64::from(m);
+    let d = i64::from(d);
+    let y_adj = y - if m <= 2 { 1 } else { 0 };
+    let era = if y_adj >= 0 { y_adj } else { y_adj - 399 } / 400;
+    let yoe = y_adj - era * 400;
+    let mp = m + if m > 2 { -3 } else { 9 };
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146097 + doe - 719468;
+    if days < 0 {
+        return None;
     }
-    const MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    for mm in 1..m {
-        let idx = (mm - 1) as usize;
-        days = days.saturating_add(if mm == 2 && is_leap_year(y) {
-            29
-        } else {
-            MONTH[idx]
-        });
-    }
-    days = days.saturating_add((d - 1) as u32);
-    Some(days)
+    u32::try_from(days).ok()
 }
 
-fn is_leap_year(y: i32) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+fn day_number_to_iso(day: u32) -> Option<String> {
+    let z = i64::from(day) + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let mut y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    y += if m <= 2 { 1 } else { 0 };
+    Some(format!("{y:04}-{m:02}-{d:02}"))
 }
 
 fn render_chronology_svg(document: &TimelineDocument) -> String {
@@ -2965,7 +3353,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .unwrap_or(0);
     let header_h = 40 + title_lines * 22;
     let width = (margin_x * 2) + (cols * cell_w) + ((cols - 1).max(0) * gap);
-    let height = header_h + margin_y + (rows.max(1) * cell_h) + ((rows - 1).max(0) * gap) + 60;
+    let height = header_h
+        + margin_y
+        + (rows.max(1) * cell_h)
+        + ((rows - 1).max(0) * gap)
+        + 60
+        + (doc.groups.len() as i32 * 12);
 
     // Position lookup by name and alias.
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
@@ -2976,7 +3369,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
         width, height, width, height
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&comp_style.background_color)
+    ));
     render_relation_marker_defs(&mut out, &comp_style.arrow_color);
 
     let mut y_cursor = 28;
@@ -3010,6 +3406,47 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         if let Some(alias) = id_alias {
             positions.insert(alias, (x, y, cell_w, cell_h));
         }
+    }
+
+    for group in &doc.groups {
+        let mut gx_min = i32::MAX;
+        let mut gy_min = i32::MAX;
+        let mut gx_max = i32::MIN;
+        let mut gy_max = i32::MIN;
+        let mut found_any = false;
+        for member_id in &group.member_ids {
+            if let Some((x, y, w, h)) = positions.get(member_id.as_str()) {
+                gx_min = gx_min.min(*x);
+                gy_min = gy_min.min(*y);
+                gx_max = gx_max.max(*x + *w);
+                gy_max = gy_max.max(*y + *h);
+                found_any = true;
+            }
+        }
+        if !found_any {
+            continue;
+        }
+        let pad = 14;
+        let label_h = 20;
+        let fx = gx_min - pad;
+        let fy = gy_min - pad - label_h;
+        let fw = gx_max - gx_min + pad * 2;
+        let fh = gy_max - gy_min + pad * 2 + label_h;
+        let label = match group.label.as_deref() {
+            Some(v) => format!("{} {}", group.kind, v),
+            None => group.kind.clone(),
+        };
+        out.push_str(&format!(
+            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"6 4\"/>",
+            comp_style.border_color
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+            fx + 8,
+            fy + 14,
+            comp_style.border_color,
+            escape_text(&label)
+        ));
     }
 
     // Draw relations with shared relation-style semantics.
@@ -3775,11 +4212,16 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     act_style.fork_color
                 ));
                 if step_kind.contains("ForkAgain") {
+                    let branch_label = if label.is_empty() {
+                        format!("branch {}", fork_branch + 1)
+                    } else {
+                        format!("branch {} / {}", fork_branch + 1, label)
+                    };
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">branch {}</text>",
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
                         cx,
                         y + 20,
-                        fork_branch + 1
+                        escape_text(&branch_label)
                     ));
                 }
                 if step_kind.contains("Fork") && !step_kind.contains("ForkAgain") {
@@ -3897,6 +4339,14 @@ fn timing_state_color(state: &str, idx: usize) -> &'static str {
 }
 
 pub fn render_timing_svg(doc: &FamilyDocument) -> String {
+    let default_timing_style;
+    let style = match &doc.family_style {
+        Some(crate::model::FamilyStyle::Timing(style)) => style,
+        _ => {
+            default_timing_style = crate::theme::TimingStyle::default();
+            &default_timing_style
+        }
+    };
     // ── Collect signals and events ────────────────────────────────────────────
     let signals: Vec<&FamilyNode> = doc
         .nodes
@@ -3982,14 +4432,28 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\">"
     ));
-    out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    out.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+        escape_text(&style.background_color)
+    ));
+    out.push_str(&format!(
+        "<metadata data-timing-style=\"{} {} {} {} {} {} {}\"/>",
+        escape_text(&style.background_color),
+        escape_text(&style.axis_color),
+        escape_text(&style.grid_color),
+        escape_text(&style.signal_background_color),
+        escape_text(&style.signal_border_color),
+        escape_text(&style.arrow_color),
+        escape_text(&style.font_color)
+    ));
 
     // ── Title ─────────────────────────────────────────────────────────────────
     let mut ty = 22i32;
     if let Some(title) = &doc.title {
         for line in title.lines() {
             out.push_str(&format!(
-                "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"#0f172a\">{}</text>",
+                "<text x=\"24\" y=\"{ty}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                escape_text(&style.font_color),
                 escape_text(line)
             ));
             ty += 22;
@@ -4006,7 +4470,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     // ── Time axis ─────────────────────────────────────────────────────────────
     // Background strip for time axis
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#f8fafc\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>",
+        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.signal_background_color),
+        escape_text(&style.grid_color),
         x = left_pad,
         y = axis_top,
         w = chart_w,
@@ -4019,19 +4485,22 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         let tx = time_to_x(t);
         // Gridline through all signal rows
         out.push_str(&format!(
-            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+            escape_text(&style.grid_color),
             y1 = signals_top,
             y2 = signals_top + rows_h
         ));
         // Tick mark on axis
         out.push_str(&format!(
-            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"#64748b\" stroke-width=\"1.5\"/>",
+            "<line x1=\"{tx}\" y1=\"{y1}\" x2=\"{tx}\" y2=\"{y2}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            escape_text(&style.axis_color),
             y1 = axis_top + axis_h - 8,
             y2 = axis_top + axis_h
         ));
         // Label
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">@{t}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">@{t}</text>",
+            escape_text(&style.font_color),
             ty = axis_top + 20
         ));
     }
@@ -4039,11 +4508,13 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     for (t, note) in &global_events {
         let tx = time_to_x(*t);
         out.push_str(&format!(
-            "<circle cx=\"{tx}\" cy=\"{cy}\" r=\"3\" fill=\"#0ea5e9\"/>",
+            "<circle cx=\"{tx}\" cy=\"{cy}\" r=\"3\" fill=\"{}\"/>",
+            escape_text(&style.arrow_color),
             cy = axis_top + 8
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#0c4a6e\">{}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            escape_text(&style.font_color),
             escape_text(note),
             ty = axis_top + 10
         ));
@@ -4054,7 +4525,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         let mid = (w[0] + w[1]) / 2;
         let mx = time_to_x(mid);
         out.push_str(&format!(
-            "<line x1=\"{mx}\" y1=\"{y1}\" x2=\"{mx}\" y2=\"{y2}\" stroke=\"#94a3b8\" stroke-width=\"0.75\"/>",
+            "<line x1=\"{mx}\" y1=\"{y1}\" x2=\"{mx}\" y2=\"{y2}\" stroke=\"{}\" stroke-width=\"0.75\"/>",
+            escape_text(&style.axis_color),
             y1 = axis_top + axis_h - 4,
             y2 = axis_top + axis_h
         ));
@@ -4078,11 +4550,13 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         ));
 
         // Signal name label (left column)
+        let signal_label = signal.label.as_deref().unwrap_or(&signal.name);
         out.push_str(&format!(
-            "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#0f172a\" text-anchor=\"end\">{name}</text>",
+            "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"{}\" text-anchor=\"end\">{name}</text>",
+            escape_text(&style.font_color),
             x = left_pad - 8,
             ty = wave_mid + 4,
-            name = escape_text(&signal.name)
+            name = escape_text(signal_label)
         ));
         // Signal kind tag
         out.push_str(&format!(
@@ -4091,6 +4565,20 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             ty = wave_mid + 16,
             kind = family_node_label(signal.kind)
         ));
+        if !signal.members.is_empty() {
+            let controls = signal
+                .members
+                .iter()
+                .map(|m| m.text.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"9\" fill=\"#64748b\" text-anchor=\"end\">{controls}</text>",
+                x = left_pad - 8,
+                ty = wave_mid + 28,
+                controls = escape_text(&controls)
+            ));
+        }
 
         // Collect events for this signal, sorted by time.
         let mut sig_events: Vec<(i64, String)> = events
@@ -4110,7 +4598,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
         // Row separator line at bottom
         out.push_str(&format!(
-            "<line x1=\"0\" y1=\"{y}\" x2=\"{width}\" y2=\"{y}\" stroke=\"#e2e8f0\" stroke-width=\"0.5\"/>",
+            "<line x1=\"0\" y1=\"{y}\" x2=\"{width}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            escape_text(&style.grid_color),
             y = row_y + row_h
         ));
 
@@ -4157,8 +4646,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     path.push_str(&format!("L {x2},{cy} "));
                 }
                 out.push_str(&format!(
-                    "<polyline points=\"{}\" fill=\"none\" stroke=\"#0f172a\" stroke-width=\"2\"/>",
-                    path.replace("M ", "").replace("L ", "")
+                    "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    path.replace("M ", "").replace("L ", ""),
+                    escape_text(&style.signal_border_color)
                 ));
 
                 // Pulse labels
@@ -4175,14 +4665,20 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             FamilyNodeKind::TimingClock => {
                 // Clock: square wave. If edge events exist for this signal, use
                 // their spacing as the period baseline; otherwise fallback.
-                let period = if sig_events.len() >= 2 {
+                let controlled_period = timing_control_i64(signal, "period");
+                let controlled_pulse = timing_control_i64(signal, "pulse");
+                let period = if let Some(period) = controlled_period {
+                    period.max(1)
+                } else if sig_events.len() >= 2 {
                     (sig_events[1].0 - sig_events[0].0).max(1)
                 } else if time_vals.len() >= 2 {
                     (time_vals[1] - time_vals[0]).max(1)
                 } else {
                     t_span / 4
                 };
-                let half = period / 2;
+                let half = controlled_pulse
+                    .unwrap_or_else(|| (period / 2).max(1))
+                    .clamp(1, period.max(1));
                 let t_end = t_max + period;
 
                 let mut path_pts = String::new();
@@ -4210,7 +4706,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     cur_t = next_t;
                 }
                 out.push_str(&format!(
-                    "<polyline points=\"{path_pts}\" fill=\"none\" stroke=\"#0f172a\" stroke-width=\"2\"/>",
+                    "<polyline points=\"{path_pts}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    escape_text(&style.signal_border_color),
                 ));
                 // Clock label
                 out.push_str(&format!(
@@ -4331,6 +4828,20 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn timing_control_i64(signal: &FamilyNode, key: &str) -> Option<i64> {
+    for member in &signal.members {
+        let mut parts = member.text.split_whitespace();
+        while let Some(part) = parts.next() {
+            if part.eq_ignore_ascii_case(key) {
+                if let Some(value) = parts.next().and_then(|v| v.parse::<i64>().ok()) {
+                    return Some(value);
+                }
+            }
+        }
+    }
+    None
 }
 
 pub fn render_json_svg(document: &JsonDocument) -> String {
@@ -4809,6 +5320,15 @@ fn regex_token_label(token: &RegexToken) -> String {
                 RepeatKind::ZeroOrOne => "?",
                 RepeatKind::ZeroOrMore => "*",
                 RepeatKind::OneOrMore => "+",
+                RepeatKind::Exact(n) => return format!("{}{{{}}}", regex_token_label(inner), n),
+                RepeatKind::Range { min, max } => {
+                    return format!(
+                        "{}{{{},{}}}",
+                        regex_token_label(inner),
+                        min.map(|n| n.to_string()).unwrap_or_default(),
+                        max.map(|n| n.to_string()).unwrap_or_default()
+                    );
+                }
             };
             format!("{}{}", regex_token_label(inner), suffix)
         }
@@ -4929,6 +5449,15 @@ fn ebnf_token_label(token: &EbnfToken) -> String {
                 RepeatKind::ZeroOrOne => "?",
                 RepeatKind::ZeroOrMore => "*",
                 RepeatKind::OneOrMore => "+",
+                RepeatKind::Exact(n) => return format!("{}{{{}}}", ebnf_token_label(inner), n),
+                RepeatKind::Range { min, max } => {
+                    return format!(
+                        "{}{{{},{}}}",
+                        ebnf_token_label(inner),
+                        min.map(|n| n.to_string()).unwrap_or_default(),
+                        max.map(|n| n.to_string()).unwrap_or_default()
+                    );
+                }
             };
             format!("{}{}", ebnf_token_label(inner), suffix)
         }
@@ -5130,6 +5659,7 @@ fn sdl_state_kind_label(kind: SdlStateKind) -> &'static str {
 pub fn render_chart_svg(document: &ChartDocument) -> String {
     let width = 780;
     let height = 420;
+    let style = &document.style;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
@@ -5166,6 +5696,7 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             plot_top,
             plot_right,
             plot_bottom,
+            style,
         ),
         ChartSubtype::Line => render_chart_line(
             &mut out,
@@ -5174,12 +5705,14 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             plot_top,
             plot_right,
             plot_bottom,
+            style,
         ),
         ChartSubtype::Pie => render_chart_pie(
             &mut out,
             &document.data,
             width / 2,
             (plot_top + plot_bottom) / 2,
+            style,
         ),
     }
     out.push_str("</svg>");
@@ -5197,15 +5730,18 @@ fn render_chart_bars(
     top: i32,
     right: i32,
     bottom: i32,
+    style: &crate::theme::ChartStyle,
 ) {
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.axis_color),
         l = left,
         r = right,
         b = bottom
     ));
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        escape_text(&style.axis_color),
         l = left,
         t = top,
         b = bottom
@@ -5225,16 +5761,22 @@ fn render_chart_bars(
         let bx = left + (idx as i32) * (avail / count) + 4;
         let bh = ((point.value.max(0.0) / max_value) * ((bottom - top) as f64)) as i32;
         let by = bottom - bh;
-        let color = CHART_PALETTE[idx % CHART_PALETTE.len()];
+        let color = if idx == 0 {
+            style.bar_color.as_str()
+        } else {
+            CHART_PALETTE[idx % CHART_PALETTE.len()]
+        };
         out.push_str(&format!(
-            "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"#0f172a\" stroke-width=\"0.5\"/>",
+            "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            escape_text(&style.axis_color),
             bx = bx,
             by = by,
             bw = bar_w,
             bh = bh
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            escape_text(&style.font_color),
             escape_text(&point.label),
             tx = bx + bar_w / 2,
             ty = bottom + 16
@@ -5255,15 +5797,18 @@ fn render_chart_line(
     top: i32,
     right: i32,
     bottom: i32,
+    style: &crate::theme::ChartStyle,
 ) {
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        style.axis_color,
         l = left,
         r = right,
         b = bottom
     ));
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        style.axis_color,
         l = left,
         t = top,
         b = bottom
@@ -5288,27 +5833,37 @@ fn render_chart_line(
         }
         points.push_str(&format!("{px},{py}"));
         out.push_str(&format!(
-            "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"#1d4ed8\"/>"
+            "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+            style.line_color
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            style.font_color,
             escape_text(&point.label),
             tx = px,
             ty = bottom + 16
         ));
     }
     out.push_str(&format!(
-        "<polyline points=\"{}\" fill=\"none\" stroke=\"#1d4ed8\" stroke-width=\"1.5\"/>",
-        points
+        "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        points, style.line_color
     ));
 }
 
-fn render_chart_pie(out: &mut String, data: &[crate::model::ChartPoint], cx: i32, cy: i32) {
+fn render_chart_pie(
+    out: &mut String,
+    data: &[crate::model::ChartPoint],
+    cx: i32,
+    cy: i32,
+    style: &crate::theme::ChartStyle,
+) {
     let radius = 120_i32;
     let total: f64 = data.iter().map(|p| p.value.max(0.0)).sum();
     if total <= 0.0 {
         out.push_str(&format!(
-            "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\" fill=\"#e2e8f0\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+            "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            style.grid_color,
+            style.pie_border_color,
             cx = cx,
             cy = cy,
             r = radius
@@ -5331,9 +5886,14 @@ fn render_chart_pie(out: &mut String, data: &[crate::model::ChartPoint], cx: i32
         } else {
             0
         };
-        let color = CHART_PALETTE[idx % CHART_PALETTE.len()];
+        let color = if idx == 0 {
+            style.series_color.as_str()
+        } else {
+            CHART_PALETTE[idx % CHART_PALETTE.len()]
+        };
         out.push_str(&format!(
-            "<path d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{color}\" stroke=\"#0f172a\" stroke-width=\"0.5\"/>",
+            "<path d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            style.pie_border_color,
             cx = cx,
             cy = cy,
             r = radius,
@@ -5348,7 +5908,8 @@ fn render_chart_pie(out: &mut String, data: &[crate::model::ChartPoint], cx: i32
         let lx = cx as f64 + ((radius as f64) * 0.6) * mid.cos();
         let ly = cy as f64 + ((radius as f64) * 0.6) * mid.sin();
         out.push_str(&format!(
-            "<text x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#fff\">{}</text>",
+            "<text x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            style.font_color,
             escape_text(&point.label),
             lx = lx,
             ly = ly

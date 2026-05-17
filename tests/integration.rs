@@ -712,6 +712,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_builtin_strlen.puml",
         "preprocessor/valid_builtin_boolval.puml",
         "preprocessor/valid_builtin_chain.puml",
+        "preprocessor/valid_builtin_list_map_stringification_assert_log.puml",
         "include/valid_include_once.puml",
         "include/valid_include_many.puml",
         "include/valid_includesub.puml",
@@ -834,7 +835,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_builtin_in_log.puml",
         "errors/invalid_preproc_dynamic_invoke.puml",
         "errors/invalid_preproc_json_assignment.puml",
-        "errors/invalid_preproc_concat_unsupported.puml",
         "errors/invalid_preproc_function_missing_arg.puml",
         "errors/invalid_preproc_procedure_return.puml",
         "errors/invalid_import_empty_path.puml",
@@ -2649,10 +2649,6 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
             "E_PREPROC_JSON_UNSUPPORTED",
         ),
         (
-            "errors/invalid_preproc_concat_unsupported.puml",
-            "E_PREPROC_CONCAT_UNSUPPORTED",
-        ),
-        (
             "errors/invalid_preproc_function_missing_arg.puml",
             "E_PREPROC_ARG_REQUIRED",
         ),
@@ -4431,6 +4427,30 @@ fn preprocessor_builtin_chain_composes_substr_upper_intval_dec2hex() {
 }
 
 #[test]
+fn preprocessor_builtin_list_map_stringification_assert_and_log_surface_passes() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_builtin_list_map_stringification_assert_log.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        label,
+        "beta|alpha+beta+gamma|Ada|2|\"name\",\"role\"|Ada,admin|\"admin\""
+    );
+}
+
+#[test]
 fn preprocessor_dynamic_call_user_func_invokes_function_expression() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
@@ -4588,6 +4608,64 @@ fn component_relations_with_cardinalities_render_endpoint_labels() {
 }
 
 #[test]
+fn family_relations_render_colon_endpoint_roles_without_stealing_edge_label() {
+    let src = "@startuml\nclass Customer\nclass Order\nCustomer \"1\" :buyer --> \"*\" :orders Order : places\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("class relation roles should render");
+    assert!(svg.contains(">buyer<"), "left colon role should render");
+    assert!(svg.contains(">orders<"), "right colon role should render");
+    assert!(svg.contains(">1<"), "left cardinality should render");
+    assert!(svg.contains(">*<"), "right cardinality should render");
+    assert!(svg.contains("places"), "edge label should render");
+}
+
+#[test]
+fn component_and_deployment_groups_render_labeled_frames_and_nested_members() {
+    let component_src = "@startuml\nskinparam ComponentBorderColor #0f766e\npackage \"Core Services\" {\n  component \"Public API\" as API\n  node \"Runtime Zone\" {\n    component Worker\n  }\n}\nAPI --> Worker : dispatches\n@enduml\n";
+    let component_svg =
+        render_source_to_svg(component_src).expect("component group svg should render");
+    assert!(
+        component_svg.contains(">package Core Services<"),
+        "component package frame label should render"
+    );
+    assert!(
+        component_svg.contains("Public API") || component_svg.contains(">API<"),
+        "component group member should render"
+    );
+    assert!(
+        component_svg.contains(">Worker<"),
+        "nested component group member should render"
+    );
+    assert!(
+        component_svg.contains("stroke=\"#0f766e\""),
+        "component border skinparam should style group frame"
+    );
+    assert!(
+        component_svg.contains(">dispatches<"),
+        "relation label between grouped members should render"
+    );
+
+    let deployment_src = "@startuml\nnode \"Edge Site\" {\n  artifact App\n  database Cache\n}\nApp --> Cache : warms\n@enduml\n";
+    let deployment_svg =
+        render_source_to_svg(deployment_src).expect("deployment group svg should render");
+    assert!(
+        deployment_svg.contains(">node Edge Site<"),
+        "deployment node frame label should render"
+    );
+    assert!(
+        deployment_svg.contains(">App<"),
+        "artifact member should render"
+    );
+    assert!(
+        deployment_svg.contains(">Cache<"),
+        "database member should render"
+    );
+    assert!(
+        deployment_svg.contains(">warms<"),
+        "deployment grouped relation should render"
+    );
+}
+
+#[test]
 fn class_relations_with_roles_render_endpoint_role_labels() {
     let src = fs::read_to_string(fixture("families/valid_class_with_relation_roles.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("class svg should render");
@@ -4635,6 +4713,51 @@ fn object_diagram_renders_underlined_header_and_rects() {
     assert!(
         svg.contains("text-decoration=\"underline\""),
         "object header should be underlined"
+    );
+}
+
+#[test]
+fn uml_declaration_stereotypes_and_component_shorthand_aliases_render() {
+    let class_src = "@startuml\nclass Order <<Entity>>\n@enduml\n";
+    let class_svg = render_source_to_svg(class_src).expect("stereotype svg should render");
+    assert!(
+        class_svg.contains("&lt;&lt;Entity&gt;&gt;"),
+        "class stereotype should render"
+    );
+    let object_src = "@startuml\nobject cache <<singleton>>\n@enduml\n";
+    let object_svg = render_source_to_svg(object_src).expect("object stereotype svg should render");
+    assert!(
+        object_svg.contains("&lt;&lt;singleton&gt;&gt;"),
+        "object stereotype should render"
+    );
+    let usecase_src =
+        "@startuml\nactor Shopper <<primary>> as S\nusecase Checkout <<critical>> as UC\nS --> UC : starts\n@enduml\n";
+    let usecase_svg =
+        render_source_to_svg(usecase_src).expect("usecase stereotype svg should render");
+    assert!(
+        usecase_svg.contains("&lt;&lt;primary&gt;&gt;"),
+        "actor stereotype should render"
+    );
+    assert!(
+        usecase_svg.contains("&lt;&lt;critical&gt;&gt;"),
+        "usecase stereotype should render"
+    );
+
+    let component_src =
+        "@startuml\n[Public API] as API\n() \"Gateway Port\" as Gateway\nAPI --> Gateway : exposes\n@enduml\n";
+    let component_svg =
+        render_source_to_svg(component_src).expect("component shorthand svg should render");
+    assert!(
+        component_svg.contains("Public API"),
+        "component shorthand label should render"
+    );
+    assert!(
+        component_svg.contains("Gateway Port"),
+        "interface shorthand label should render"
+    );
+    assert!(
+        component_svg.contains(">exposes<"),
+        "aliased shorthand relation should render"
     );
 }
 
@@ -5576,6 +5699,24 @@ fn preproc_while_loop_with_variable_counter_expands_correctly() {
 }
 
 #[test]
+fn preproc_expression_word_operators_and_string_builtins_expand() {
+    let src = "@startuml\n!$raw = \"  Alpha-Beta  \"\n!assert %contains(%trim($raw), \"Alpha\") and %startswith(%trim($raw), \"Alpha\")\nA -> B : %replace(%lower(%trim($raw)), \"-\", \":\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("string builtins should expand");
+    assert!(svg.contains("alpha:beta"), "expected replacement output");
+}
+
+#[test]
+fn preproc_list_and_map_builtins_are_deterministic_json_strings() {
+    let src = "@startuml\n!$items = %list(\"red\", \"blue\")\n!$items = %list_add($items, \"green\")\n!$cfg = %map(\"name\", \"Ada\", \"role\", \"admin\")\n!$cfg = %map_put($cfg, \"team\", %join($items, \"/\"))\n!assert %list_contains($items, \"blue\") and %map_contains_key($cfg, \"team\")\nA -> B : %list_get($items, 2) / %get($cfg, \"team\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("list/map builtins should expand");
+    assert!(svg.contains("green /"), "expected list_get output");
+    assert!(
+        svg.contains("red/blue/green"),
+        "expected joined map value output"
+    );
+}
+
+#[test]
 fn preproc_undef_removes_define() {
     // After !undef, the define should no longer expand
     let src = "@startuml\n!define GREETING hello\n!undef GREETING\nA -> B : ok\n@enduml\n";
@@ -5695,6 +5836,48 @@ fn json_projection_inline_parse_roundtrip() {
 }
 
 #[test]
+fn json_projection_flattens_nested_values() {
+    let src = "@startuml\njson $cfg { \"user\": { \"name\": \"Ada\" }, \"roles\": [\"admin\"] }\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("nested json projection should render");
+    assert!(
+        svg.contains("user.name"),
+        "SVG must contain nested object key"
+    );
+    assert!(svg.contains("roles[0]"), "SVG must contain array index key");
+}
+
+#[test]
+fn json_projection_accepts_partial_rows_and_quoted_braces() {
+    let src =
+        "@startuml\njson $cfg {\n  \"name\": \"Ada\"\n  \"template\": \"{literal}\"\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("partial JSON projection rows should render");
+    assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
+    assert!(
+        svg.contains("name: Ada"),
+        "SVG must contain partial row key"
+    );
+    assert!(
+        svg.contains("template: {literal}"),
+        "quoted braces must not close the projection"
+    );
+}
+
+#[test]
+fn yaml_projection_accepts_partial_rows_and_quoted_braces() {
+    let src = "@startuml\nyaml $cfg {\n  name: Ada\n  template: \"{literal}\"\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("partial YAML projection rows should render");
+    assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
+    assert!(
+        svg.contains("name: Ada"),
+        "SVG must contain partial YAML row key"
+    );
+    assert!(
+        svg.contains("template: {literal}"),
+        "quoted braces must not close the YAML projection"
+    );
+}
+
+#[test]
 fn yaml_projection_render_contains_alias_and_keys() {
     let src = fs::read_to_string(fixture("families/valid_yaml_projection.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("yaml projection should render");
@@ -5751,7 +5934,7 @@ fn salt_login_form_fixture_renders_svg() {
 
 #[test]
 fn salt_wireframe_grid_renders_button_and_input() {
-    let src = "@startsalt\n{\n| Name | \"Enter name\" |\n| [OK] | [Cancel]    |\n}\n@endsalt\n";
+    let src = "@startsalt\n{\nName: | \"Enter name\"\n[OK]  | [Cancel]\n}\n@endsalt\n";
     let svg = render_source_to_svg(src).expect("salt grid should render");
     assert!(
         svg.contains("Enter name"),
@@ -5775,6 +5958,119 @@ fn chart_area_and_scatter_render_paths_are_supported() {
         scatter_svg.matches("<circle").count() >= 3,
         "scatter chart should render point circles"
     );
+}
+
+#[test]
+fn non_uml_advanced_chart_annotations_and_style_directives_render() {
+    let src = "@startchart bar\n\
+title Revenue\n\
+skinparam backgroundColor #f8fafc\n\
+skinparam axisColor #334155\n\
+palette #0ea5e9 #f97316\n\
+caption Forecast confidence\n\
+\"Q1\" : 10\n\
+\"Q2\" : 18\n\
+annotation \"Q2\" : peak quarter\n\
+@endchart\n";
+    let svg = render_source_to_svg(src).expect("styled annotated chart should render");
+    assert!(svg.contains("fill=\"#f8fafc\""));
+    assert!(svg.contains("stroke=\"#334155\""));
+    assert!(svg.contains("data-chart-palette=\"#0ea5e9 #f97316\""));
+    assert!(svg.contains("data-chart-annotation=\"Q2\""));
+    assert!(svg.contains("peak quarter"));
+    assert!(svg.contains("data-chart-caption=\"true\""));
+}
+
+#[test]
+fn non_uml_advanced_regex_localized_descriptive_labels_render() {
+    let src = "@startregex\nlocale fr\n^\\d+\\s\\w+$\n@endregex\n";
+    let svg = render_source_to_svg(src).expect("localized regex should render");
+    assert!(svg.contains("chiffre"));
+    assert!(svg.contains("espace"));
+    assert!(svg.contains("mot"));
+    assert!(svg.contains("debut"));
+    assert!(svg.contains("fin"));
+}
+
+#[test]
+fn regex_exact_and_ranged_quantifiers_render_as_supported_repeats() {
+    let src = "@startregex\n^\\d{3}-[A-Z]{2,5}(foo|bar){1,}$\n@endregex\n";
+    let svg = render_source_to_svg(src).expect("regex counted quantifiers should render");
+    assert!(svg.contains("\\d{3}"), "expected exact count repeat");
+    assert!(svg.contains("[A-Z]{2,5}"), "expected bounded range repeat");
+    assert!(
+        svg.contains("(alt(&#39;foo&#39;|&#39;bar&#39;)){1,}"),
+        "expected open-ended range repeat on group"
+    );
+    assert!(
+        !svg.contains("?{3}?"),
+        "counted quantifiers should not render as unsupported tokens"
+    );
+}
+
+#[test]
+fn ebnf_exact_and_ranged_quantifiers_render_as_supported_repeats() {
+    let src = "@startebnf\nidentifier = letter{1,} , digit{2} , [ \"-\" ]{0,1} ;\n@endebnf\n";
+    let svg = render_source_to_svg(src).expect("ebnf counted quantifiers should render");
+    assert!(
+        svg.contains("letter{1,}"),
+        "expected open-ended EBNF repeat"
+    );
+    assert!(svg.contains("digit{2}"), "expected exact EBNF repeat");
+    assert!(
+        svg.contains("{0,1}"),
+        "expected counted repeat on optional group"
+    );
+    assert!(
+        !svg.contains("?{2}?"),
+        "counted EBNF repeats should not render as unsupported tokens"
+    );
+}
+
+#[test]
+fn chart_plantuml_style_named_subtypes_and_colon_points_render() {
+    let cases = [
+        (
+            "@startchart\nbar chart\nQ1 : 42\nQ2 : 58\n@endchart\n",
+            "data-chart-type=\"bar\"",
+        ),
+        (
+            "@startchart\nline chart\nJan : 10\nFeb : 15\n@endchart\n",
+            "data-chart-type=\"line\"",
+        ),
+        (
+            "@startchart\npie chart\nFrontend : 35\nBackend : 65\n@endchart\n",
+            "data-chart-type=\"pie\"",
+        ),
+    ];
+    for (src, marker) in cases {
+        let svg = render_source_to_svg(src).expect("chart should render");
+        assert!(svg.contains(marker), "expected subtype marker `{marker}`");
+        assert!(
+            svg.contains("42")
+                || svg.contains("10")
+                || svg.contains("Frontend")
+                || svg.contains("Backend"),
+            "expected colon-delimited chart data to render"
+        );
+    }
+}
+
+#[test]
+fn non_uml_advanced_ebnf_style_and_rule_notes_render() {
+    let src = "@startebnf\n\
+style terminal #ecfeff\n\
+style nonterminal #eef2ff\n\
+note expr : entry point\n\
+expr ::= term , { \"+\" , term } ;\n\
+term = \"id\" ;\n\
+@endebnf\n";
+    let svg = render_source_to_svg(src).expect("styled ebnf should render");
+    assert!(svg.contains("data-ebnf-style=\"customizable\""));
+    assert!(svg.contains("fill=\"#ecfeff\""));
+    assert!(svg.contains("fill=\"#eef2ff\""));
+    assert!(svg.contains("data-ebnf-note-for=\"expr\""));
+    assert!(svg.contains("entry point"));
 }
 
 #[test]
@@ -5809,6 +6105,63 @@ fn ditaa_scale_and_transparent_options_are_applied() {
     );
 }
 
+#[test]
+fn non_uml_advanced_ditaa_diagonal_connectors_shadow_and_background_options_render() {
+    let src = "@startditaa shadow=true background=#f8fafc\n\
++---+   +---+\n\
+| A | / | B |\n\
++---+   +---+\n\
+@endditaa\n";
+    let svg = render_source_to_svg(src).expect("ditaa diagonal connector should render");
+    assert!(svg.contains("fill=\"#f8fafc\""));
+    assert!(svg.contains("id=\"ditaa-shadow\""));
+    assert!(svg.contains("filter=\"url(#ditaa-shadow)\""));
+    assert!(svg.contains("<line"));
+}
+
+#[test]
+fn non_uml_advanced_math_scripts_accents_and_fences_render() {
+    let src = "@startmath\n\\left( \\hat{x}_{i}^{2} + \\vec{v} \\right) = \\sqrt{\\frac{a_1^2}{b}}\n@endmath\n";
+    let svg = render_source_to_svg(src).expect("advanced math expression should render");
+    assert!(svg.contains("id=\"math-arrow\""));
+    assert!(svg.contains("<path d=\"M"));
+    assert!(svg.contains("marker-end=\"url(#math-arrow)\""));
+    assert!(svg.contains("&quot;") || svg.contains("("));
+    assert!(svg.contains("<line"));
+}
+
+#[test]
+fn non_uml_advanced_math_matrix_symbols_and_text_constructs_render() {
+    let src = "@startlatex\n\\begin{bmatrix} \\alpha & \\beta \\\\ \\sum_{i=0}^{n} i & \\int_{0}^{\\infty} e^{-x} dx \\end{bmatrix} \\Rightarrow \\text{ok} \\subseteq \\mathbb{R}\n@endlatex\n";
+    let svg = render_source_to_svg(src).expect("matrix math expression should render");
+    assert!(svg.contains("data-math-env=\"bmatrix\""));
+    assert!(svg.contains("α"));
+    assert!(svg.contains("β"));
+    assert!(svg.contains("∑"));
+    assert!(svg.contains("∫"));
+    assert!(svg.contains("∞"));
+    assert!(svg.contains("⇒"));
+    assert!(svg.contains("⊆"));
+    assert!(svg.contains(">ok<"));
+}
+
+#[test]
+fn non_uml_advanced_ditaa_junctions_and_diagonal_arrowheads_render() {
+    let src = "@startditaa\n\
++---+   +---+\n\
+| A |---+-->B\n\
++---+  /    \\\n\
+      <      v\n\
+@endditaa\n";
+    let svg = render_source_to_svg(src).expect("ditaa junctions and diagonal heads should render");
+    assert!(svg.contains("marker-end=\"url(#da)\""));
+    assert!(svg.contains("marker-start=\"url(#dah)\""));
+    assert!(
+        svg.matches("<line").count() >= 3,
+        "junction and diagonal connectors should emit several line segments"
+    );
+}
+
 fn extract_svg_width_attr(svg: &str) -> Option<i32> {
     let key = "width=\"";
     let start = svg.find(key)? + key.len();
@@ -5827,6 +6180,25 @@ fn salt_advanced_widgets_render_tree_menu_tab_scroll_and_table() {
     assert!(svg.contains("data-salt-widget=\"scrollbar\""));
     assert!(svg.contains("Leaf"));
     assert!(svg.contains("Search"));
+}
+
+#[test]
+fn archimate_stdlib_element_and_relation_macros_render() {
+    let src = "@startarchimate\n\
+Business_Actor(customer, \"Customer\")\n\
+Application_Component(service, \"Order Service\")\n\
+Technology_Node(runtime, \"Runtime\")\n\
+Rel_Assignment(customer, service, \"places order\")\n\
+Rel_Access(service, runtime, \"uses\")\n\
+@endarchimate\n";
+    let svg = render_source_to_svg(src).expect("archimate stdlib macros should render");
+    assert!(svg.contains("Customer"));
+    assert!(svg.contains("Order Service"));
+    assert!(svg.contains("Runtime"));
+    assert!(svg.contains("-[assignment]-&gt;"));
+    assert!(svg.contains("-[access]-&gt;"));
+    assert!(svg.contains("places order"));
+    assert!(svg.contains("uses"));
 }
 
 // ── skinparam classify: class/state/component/activity (#202) ─────────────────
@@ -5968,4 +6340,95 @@ fn skinparam_activity_colors_appear_in_svg() {
         svg.contains("#7e22ce"),
         "ActivityArrowColor #7e22ce should appear in SVG"
     );
+}
+
+#[test]
+fn family_theme_applies_to_class_state_component_activity_timing_and_chart() {
+    let cases = [
+        (
+            "@startuml\n!theme vibrant\nclass Demo\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\n[*] --> Ready\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\ncomponent API\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\nstart\n:Ship it;\nstop\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\nclock clk\n@0\nclk is high\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startchart\n!theme vibrant\nbar\n\"A\" 1\n@endchart\n",
+            ["#7c3aed", "#6d28d9"],
+        ),
+    ];
+
+    for (src, expected) in cases {
+        let svg = render_source_to_svg(src).expect("themed family should render");
+        for color in expected {
+            assert!(
+                svg.contains(color),
+                "expected themed color {color} in SVG: {svg}"
+            );
+        }
+    }
+}
+
+#[test]
+fn timing_skinparam_colors_are_accepted_and_rendered() {
+    let src = "@startuml\nskinparam TimingBackgroundColor #101820\nskinparam TimingAxisColor #f2aa4c\nskinparam TimingGridColor #5f6f89\nskinparam TimingSignalBackgroundColor #dbeafe\nskinparam TimingSignalBorderColor #1d4ed8\nskinparam TimingArrowColor #dc2626\nskinparam TimingFontColor #f8fafc\nclock clk\n@0\nclk is high\n@enduml\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(src).expect("timing skinparam svg should render");
+    for color in [
+        "#101820", "#f2aa4c", "#5f6f89", "#dbeafe", "#1d4ed8", "#dc2626", "#f8fafc",
+    ] {
+        assert!(svg.contains(color), "expected timing color {color}");
+    }
+}
+
+#[test]
+fn chart_skinparam_colors_are_accepted_and_rendered() {
+    let src = "@startchart\nskinparam ChartBackgroundColor #fff7ed\nskinparam ChartAxisColor #9a3412\nskinparam ChartGridColor #fed7aa\nskinparam ChartSeriesColor #0f766e\nskinparam ChartBarColor #ea580c\nskinparam ChartLineColor #0369a1\nskinparam ChartPieBorderColor #431407\nskinparam ChartFontColor #7c2d12\nbar\n\"A\" 4\n\"B\" 9\n@endchart\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(src).expect("chart skinparam svg should render");
+    for color in ["#fff7ed", "#9a3412", "#ea580c", "#7c2d12"] {
+        assert!(svg.contains(color), "expected chart color {color}");
+    }
+
+    let line_svg = render_source_to_svg(
+        "@startchart\nskinparam ChartLineColor #0369a1\nline\n\"A\" 1\n\"B\" 2\n@endchart\n",
+    )
+    .expect("chart line skinparam svg should render");
+    assert!(line_svg.contains("#0369a1"));
+
+    let pie_svg = render_source_to_svg(
+        "@startchart\nskinparam ChartSeriesColor #0f766e\nskinparam ChartPieBorderColor #431407\npie\n\"A\" 1\n\"B\" 2\n@endchart\n",
+    )
+    .expect("chart pie skinparam svg should render");
+    assert!(pie_svg.contains("#0f766e"));
+    assert!(pie_svg.contains("#431407"));
 }

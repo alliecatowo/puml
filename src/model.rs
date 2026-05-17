@@ -4,7 +4,9 @@ use crate::ast::{ClassMember, DiagramKind};
 use crate::diagnostic::Diagnostic;
 use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
-use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle, SequenceStyle, StateStyle};
+use crate::theme::{
+    ActivityStyle, ChartStyle, ClassStyle, ComponentStyle, SequenceStyle, StateStyle, TimingStyle,
+};
 
 /// How to scale (or fix the size of) the output SVG.
 #[derive(Debug, Clone, PartialEq)]
@@ -212,11 +214,13 @@ pub enum RegexToken {
     Unsupported(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RepeatKind {
     ZeroOrOne,
     ZeroOrMore,
     OneOrMore,
+    Exact(u32),
+    Range { min: Option<u32>, max: Option<u32> },
 }
 
 #[derive(Debug, Clone)]
@@ -295,6 +299,7 @@ pub struct ChartDocument {
     pub title: Option<String>,
     pub subtype: ChartSubtype,
     pub data: Vec<ChartPoint>,
+    pub style: ChartStyle,
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -318,6 +323,9 @@ pub struct TimelineDocument {
     pub milestones: Vec<TimelineMilestone>,
     pub constraints: Vec<TimelineConstraint>,
     pub chronology_events: Vec<TimelineChronologyEvent>,
+    pub closed_weekdays: Vec<String>,
+    pub project_start: Option<String>,
+    pub project_start_day: Option<u32>,
     pub title: Option<String>,
     pub header: Option<String>,
     pub footer: Option<String>,
@@ -331,11 +339,13 @@ pub struct TimelineTask {
     pub name: String,
     pub start_day: u32,
     pub duration_days: u32,
+    pub resources: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct TimelineMilestone {
     pub name: String,
+    pub happens_on: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -355,6 +365,7 @@ pub struct TimelineChronologyEvent {
 pub struct JsonProjection {
     pub alias: String,
     pub body: String,
+    pub format: String,
 }
 
 /// Per-family style overrides carried through the model.
@@ -364,6 +375,7 @@ pub enum FamilyStyle {
     State(StateStyle),
     Component(ComponentStyle),
     Activity(ActivityStyle),
+    Timing(TimingStyle),
 }
 
 #[derive(Debug, Clone)]
@@ -623,6 +635,7 @@ pub enum SequenceEventKind {
         to: String,
         arrow: String,
         label: Option<String>,
+        style: SequenceMessageStyle,
         from_virtual: Option<VirtualEndpoint>,
         to_virtual: Option<VirtualEndpoint>,
     },
@@ -657,6 +670,14 @@ pub enum SequenceEventKind {
         value: Option<String>,
     },
     UndefPlaceholder(String),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SequenceMessageStyle {
+    pub color: Option<String>,
+    pub hidden: bool,
+    pub dashed: bool,
+    pub dotted: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

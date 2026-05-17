@@ -1,5 +1,4 @@
 @startregex
-' Regex repetition examples (not yet supported)
 a*
 b+
 c?

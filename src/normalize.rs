@@ -13,18 +13,23 @@ use crate::model::{
     JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign, MathDocument, MindMapSide,
     NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole,
     RegexDocument, RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState,
-    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequencePage,
-    StateDocument, StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
+    SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind,
+    SequenceMessageStyle, SequencePage, StateDocument,
+    StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineConstraint,
     TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint, VirtualEndpointKind,
     VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
-    classify_activity_skinparam, classify_class_skinparam, classify_component_skinparam,
-    classify_sequence_skinparam, classify_state_skinparam, resolve_sequence_theme_preset,
-    ActivityStyle, ClassStyle, ComponentStyle, SequenceSkinParamSupport, SequenceSkinParamValue,
-    SequenceStyle, SkinParamSupport, StateStyle,
+    activity_style_from_sequence_theme, chart_style_from_sequence_theme,
+    class_style_from_sequence_theme, classify_activity_skinparam, classify_chart_skinparam,
+    classify_class_skinparam, classify_component_skinparam, classify_sequence_skinparam,
+    classify_state_skinparam, classify_timing_skinparam, component_style_from_sequence_theme,
+    resolve_sequence_theme_preset, state_style_from_sequence_theme,
+    timing_style_from_sequence_theme, ActivityStyle, ChartStyle, ClassStyle, ComponentStyle,
+    SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle,
+    TimingStyle,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -286,23 +291,80 @@ fn flush_literal(literal: &mut String, out: &mut Vec<RegexToken>) {
 }
 
 fn push_with_repeat(token: RegexToken, chars: &[char], idx: &mut usize, out: &mut Vec<RegexToken>) {
-    if *idx < chars.len() {
-        let kind = match chars[*idx] {
-            '*' => Some(RepeatKind::ZeroOrMore),
-            '+' => Some(RepeatKind::OneOrMore),
-            '?' => Some(RepeatKind::ZeroOrOne),
-            _ => None,
-        };
-        if let Some(kind) = kind {
-            *idx += 1;
-            out.push(RegexToken::Repeat {
-                inner: Box::new(token),
-                kind,
-            });
-            return;
-        }
+    if let Some(kind) = parse_regex_repeat_kind(chars, idx) {
+        out.push(RegexToken::Repeat {
+            inner: Box::new(token),
+            kind,
+        });
+        return;
     }
     out.push(token);
+}
+
+fn parse_regex_repeat_kind(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    if *idx >= chars.len() {
+        return None;
+    }
+    match chars[*idx] {
+        '*' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrMore)
+        }
+        '+' => {
+            *idx += 1;
+            Some(RepeatKind::OneOrMore)
+        }
+        '?' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrOne)
+        }
+        '{' => parse_regex_braced_repeat(chars, idx),
+        _ => None,
+    }
+}
+
+fn parse_regex_braced_repeat(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    let start = *idx;
+    let mut cursor = start + 1;
+    let mut spec = String::new();
+    while cursor < chars.len() && chars[cursor] != '}' {
+        spec.push(chars[cursor]);
+        cursor += 1;
+    }
+    if cursor >= chars.len() {
+        return None;
+    }
+
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+
+    let kind = if let Some((min_raw, max_raw)) = spec.split_once(',') {
+        let min_raw = min_raw.trim();
+        let max_raw = max_raw.trim();
+        let min = if min_raw.is_empty() {
+            None
+        } else {
+            Some(min_raw.parse::<u32>().ok()?)
+        };
+        let max = if max_raw.is_empty() {
+            None
+        } else {
+            Some(max_raw.parse::<u32>().ok()?)
+        };
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return None;
+            }
+        }
+        RepeatKind::Range { min, max }
+    } else {
+        RepeatKind::Exact(spec.parse::<u32>().ok()?)
+    };
+
+    *idx = cursor + 1;
+    Some(kind)
 }
 
 fn normalize_ebnf(document: Document) -> Result<EbnfDocument, Diagnostic> {
@@ -424,7 +486,7 @@ fn parse_ebnf_seq(
                     "[W_EBNF_UNBALANCED] missing closing `]`",
                 ));
             }
-            out.push(EbnfToken::Optional(inner));
+            push_ebnf_with_repeat(EbnfToken::Optional(inner), chars, idx, &mut out);
             continue;
         }
         if ch == '{' {
@@ -437,7 +499,7 @@ fn parse_ebnf_seq(
                     "[W_EBNF_UNBALANCED] missing closing `}`",
                 ));
             }
-            out.push(EbnfToken::Repetition(inner));
+            push_ebnf_with_repeat(EbnfToken::Repetition(inner), chars, idx, &mut out);
             continue;
         }
         if ch.is_alphanumeric() || ch == '_' {
@@ -467,23 +529,80 @@ fn push_ebnf_with_repeat(
     idx: &mut usize,
     out: &mut Vec<EbnfToken>,
 ) {
-    if *idx < chars.len() {
-        let kind = match chars[*idx] {
-            '*' => Some(RepeatKind::ZeroOrMore),
-            '+' => Some(RepeatKind::OneOrMore),
-            '?' => Some(RepeatKind::ZeroOrOne),
-            _ => None,
-        };
-        if let Some(kind) = kind {
-            *idx += 1;
-            out.push(EbnfToken::Repeat {
-                inner: Box::new(token),
-                kind,
-            });
-            return;
-        }
+    if let Some(kind) = parse_ebnf_repeat_kind(chars, idx) {
+        out.push(EbnfToken::Repeat {
+            inner: Box::new(token),
+            kind,
+        });
+        return;
     }
     out.push(token);
+}
+
+fn parse_ebnf_repeat_kind(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    if *idx >= chars.len() {
+        return None;
+    }
+    match chars[*idx] {
+        '*' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrMore)
+        }
+        '+' => {
+            *idx += 1;
+            Some(RepeatKind::OneOrMore)
+        }
+        '?' => {
+            *idx += 1;
+            Some(RepeatKind::ZeroOrOne)
+        }
+        '{' => parse_ebnf_braced_repeat(chars, idx),
+        _ => None,
+    }
+}
+
+fn parse_ebnf_braced_repeat(chars: &[char], idx: &mut usize) -> Option<RepeatKind> {
+    let start = *idx;
+    let mut cursor = start + 1;
+    let mut spec = String::new();
+    while cursor < chars.len() && chars[cursor] != '}' {
+        spec.push(chars[cursor]);
+        cursor += 1;
+    }
+    if cursor >= chars.len() {
+        return None;
+    }
+
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+
+    let kind = if let Some((min_raw, max_raw)) = spec.split_once(',') {
+        let min_raw = min_raw.trim();
+        let max_raw = max_raw.trim();
+        let min = if min_raw.is_empty() {
+            None
+        } else {
+            Some(min_raw.parse::<u32>().ok()?)
+        };
+        let max = if max_raw.is_empty() {
+            None
+        } else {
+            Some(max_raw.parse::<u32>().ok()?)
+        };
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return None;
+            }
+        }
+        RepeatKind::Range { min, max }
+    } else {
+        RepeatKind::Exact(spec.parse::<u32>().ok()?)
+    };
+
+    *idx = cursor + 1;
+    Some(kind)
 }
 
 fn normalize_math(document: Document) -> Result<MathDocument, Diagnostic> {
@@ -591,6 +710,7 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
     let (title, body) = collect_raw_body(&document);
     let mut subtype = ChartSubtype::Bar;
     let mut data = Vec::new();
+    let mut style = ChartStyle::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut first_non_empty = true;
     for line in body {
@@ -598,18 +718,55 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         if line.is_empty() || line.starts_with('\'') {
             continue;
         }
+        if let Some(theme_name) = line.strip_prefix("!theme ") {
+            style = chart_style_from_sequence_theme(
+                &resolve_sequence_theme_preset(theme_name)
+                    .map_err(Diagnostic::error)?
+                    .style,
+            );
+            continue;
+        }
+        if line.to_ascii_lowercase().starts_with("skinparam ") {
+            let rest = line[10..].trim();
+            let mut parts = rest.splitn(2, char::is_whitespace);
+            let key = parts.next().unwrap_or("").trim();
+            let value = parts.next().unwrap_or("").trim();
+            use crate::theme::ChartSkinParamValue;
+            match classify_chart_skinparam(key, value) {
+                SkinParamSupport::SupportedNoop => {}
+                SkinParamSupport::SupportedWithValue(v) => match v {
+                    ChartSkinParamValue::BackgroundColor(c) => style.background_color = c,
+                    ChartSkinParamValue::AxisColor(c) => style.axis_color = c,
+                    ChartSkinParamValue::GridColor(c) => style.grid_color = c,
+                    ChartSkinParamValue::SeriesColor(c) => style.series_color = c,
+                    ChartSkinParamValue::BarColor(c) => style.bar_color = c,
+                    ChartSkinParamValue::LineColor(c) => style.line_color = c,
+                    ChartSkinParamValue::PieBorderColor(c) => style.pie_border_color = c,
+                    ChartSkinParamValue::FontColor(c) => style.font_color = c,
+                },
+                SkinParamSupport::UnsupportedKey => warnings.push(Diagnostic::warning(format!(
+                    "[W_SKINPARAM_UNSUPPORTED] unsupported skinparam `{}`",
+                    key
+                ))),
+                SkinParamSupport::UnsupportedValue => warnings.push(Diagnostic::warning(format!(
+                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                    value, key
+                ))),
+            }
+            continue;
+        }
         if first_non_empty {
             first_non_empty = false;
             match line.to_ascii_lowercase().as_str() {
-                "bar" | "bars" => {
+                "bar" | "bars" | "bar chart" | "barchart" => {
                     subtype = ChartSubtype::Bar;
                     continue;
                 }
-                "line" | "lines" => {
+                "line" | "lines" | "line chart" | "linechart" => {
                     subtype = ChartSubtype::Line;
                     continue;
                 }
-                "pie" => {
+                "pie" | "pie chart" | "piechart" => {
                     subtype = ChartSubtype::Pie;
                     continue;
                 }
@@ -621,13 +778,18 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         // Parse data point: "Label" value  OR  Label value
         let (label, rest) = if let Some(stripped) = line.strip_prefix('"') {
             if let Some(end) = stripped.find('"') {
-                (stripped[..end].to_string(), stripped[end + 1..].trim())
+                (
+                    stripped[..end].to_string(),
+                    stripped[end + 1..].trim().trim_start_matches(':').trim(),
+                )
             } else {
                 warnings.push(Diagnostic::warning(format!(
                     "[W_CHART_UNQUOTED] unterminated quoted label on line `{line}`"
                 )));
                 (stripped.to_string(), "")
             }
+        } else if let Some((head, tail)) = line.split_once(':') {
+            (head.trim().trim_matches('"').to_string(), tail.trim())
         } else {
             let mut parts = line.splitn(2, char::is_whitespace);
             let head = parts.next().unwrap_or("");
@@ -646,6 +808,7 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         title,
         subtype,
         data,
+        style,
         warnings,
     })
 }
@@ -655,6 +818,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
     let mut milestones = Vec::new();
     let mut constraints = Vec::new();
     let mut chronology_events = Vec::new();
+    let mut closed_weekdays = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -667,6 +831,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                 name,
                 start_date,
                 duration_days,
+                resources,
                 ..
             } => tasks.push(TimelineTask {
                 name,
@@ -675,9 +840,17 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                     .and_then(parse_iso_date_day)
                     .unwrap_or(0),
                 duration_days: duration_days.unwrap_or(1).max(1),
+                resources,
             }),
-            StatementKind::GanttMilestoneDecl { name } => {
-                milestones.push(TimelineMilestone { name })
+            StatementKind::GanttMilestoneDecl { name, happens_on } => {
+                if let Some(target) = &happens_on {
+                    constraints.push(TimelineConstraint {
+                        subject: name.clone(),
+                        kind: "happens".to_string(),
+                        target: target.clone(),
+                    });
+                }
+                milestones.push(TimelineMilestone { name, happens_on })
             }
             StatementKind::GanttConstraint {
                 subject,
@@ -688,6 +861,11 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                 kind,
                 target,
             }),
+            StatementKind::GanttCalendarClosed { day } => {
+                if !closed_weekdays.iter().any(|existing| existing == &day) {
+                    closed_weekdays.push(day);
+                }
+            }
             StatementKind::ChronologyHappensOn { subject, when } => {
                 chronology_events.push(TimelineChronologyEvent { subject, when })
             }
@@ -718,18 +896,32 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         }
     }
 
+    let project_start = constraints
+        .iter()
+        .find(|c| {
+            c.subject.eq_ignore_ascii_case("Project")
+                && c.kind.eq_ignore_ascii_case("starts")
+                && parse_iso_date_day(&c.target).is_some()
+        })
+        .map(|c| c.target.clone());
+    let project_start_day = project_start.as_deref().and_then(parse_iso_date_day);
+
     if document.kind == DiagramKind::Gantt && !tasks.is_empty() {
-        let fallback_anchor = tasks
-            .iter()
-            .filter(|t| t.start_day > 0)
-            .map(|t| t.start_day)
-            .min()
-            .unwrap_or(0);
+        let fallback_anchor = project_start_day.unwrap_or_else(|| {
+            tasks
+                .iter()
+                .filter(|t| t.start_day > 0)
+                .map(|t| t.start_day)
+                .min()
+                .unwrap_or(0)
+        });
         let mut cursor = fallback_anchor;
         for task in &mut tasks {
             if task.start_day == 0 {
                 task.start_day = cursor;
             }
+            task.duration_days =
+                scheduled_gantt_span_days(task.start_day, task.duration_days, &closed_weekdays);
             let task_end = task.start_day.saturating_add(task.duration_days);
             if task_end > cursor {
                 cursor = task_end;
@@ -743,6 +935,9 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         milestones,
         constraints,
         chronology_events,
+        closed_weekdays,
+        project_start,
+        project_start_day,
         title,
         header,
         footer,
@@ -771,6 +966,39 @@ fn parse_iso_date_day(raw: &str) -> Option<u32> {
         return None;
     }
     u32::try_from(days).ok()
+}
+
+fn scheduled_gantt_span_days(start_day: u32, work_days: u32, closed_weekdays: &[String]) -> u32 {
+    if closed_weekdays.is_empty() {
+        return work_days.max(1);
+    }
+    let mut day = start_day;
+    let mut remaining = work_days.max(1);
+    let mut span = 0u32;
+    while remaining > 0 {
+        if !is_gantt_closed_weekday(day, closed_weekdays) {
+            remaining -= 1;
+        }
+        day = day.saturating_add(1);
+        span = span.saturating_add(1);
+        if span > work_days.saturating_add(21) {
+            break;
+        }
+    }
+    span.max(1)
+}
+
+fn is_gantt_closed_weekday(day: u32, closed_weekdays: &[String]) -> bool {
+    let weekday = match (day + 3) % 7 {
+        0 => "monday",
+        1 => "tuesday",
+        2 => "wednesday",
+        3 => "thursday",
+        4 => "friday",
+        5 => "saturday",
+        _ => "sunday",
+    };
+    closed_weekdays.iter().any(|closed| closed == weekday)
 }
 
 fn collect_raw_block(document: &Document) -> (String, Option<String>) {
@@ -985,6 +1213,14 @@ fn normalize_archimate_document(document: Document) -> Result<ArchimateDocument,
                 continue;
             }
         }
+        // ArchiMate stdlib-style declarations:
+        // Business_Actor(customer, "Customer")
+        // Application_Component(service, "Order Service")
+        // Technology_Node(host, "Runtime")
+        if let Some(elem) = parse_archimate_macro_element(trimmed) {
+            elements.push(elem);
+            continue;
+        }
         // Relation macros: Rel_Association(a, b, "label"), Rel_Realization(a, b)
         if let Some(open) = trimmed.find('(') {
             let macro_name = trimmed[..open].trim();
@@ -1053,15 +1289,61 @@ fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
     Some(ArchimateElement { name, alias, layer })
 }
 
+fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
+    let open = line.find('(')?;
+    let macro_name = line[..open].trim();
+    let layer = archimate_layer_from_macro(macro_name)?;
+    let inside = line[open + 1..].trim_end_matches([')', ' ', '\t']);
+    let args = split_csv_args(inside);
+    let alias = args.first()?.trim().trim_matches('"').to_string();
+    if alias.is_empty() {
+        return None;
+    }
+    let name = args
+        .get(1)
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| alias.clone());
+    Some(ArchimateElement {
+        name,
+        alias: Some(alias),
+        layer: layer.to_string(),
+    })
+}
+
+fn archimate_layer_from_macro(name: &str) -> Option<&'static str> {
+    let lower = name.to_ascii_lowercase();
+    if lower.starts_with("strategy_") {
+        Some("strategy")
+    } else if lower.starts_with("business_") {
+        Some("business")
+    } else if lower.starts_with("application_") {
+        Some("application")
+    } else if lower.starts_with("technology_") || lower.starts_with("physical_") {
+        Some("technology")
+    } else if lower.starts_with("motivation_") {
+        Some("motivation")
+    } else if lower.starts_with("implementation_") || lower.starts_with("migration_") {
+        Some("strategy")
+    } else {
+        None
+    }
+}
+
 fn archimate_rel_kind_from_macro(name: &str) -> Option<&'static str> {
     match name {
+        "Rel_Access" => Some("access"),
+        "Rel_Aggregation" => Some("aggregation"),
         "Rel_Association" => Some("association"),
+        "Rel_Assignment" => Some("assignment"),
+        "Rel_Composition" => Some("composition"),
+        "Rel_Flow" => Some("flow"),
+        "Rel_Influence" => Some("influence"),
         "Rel_Realization" => Some("realization"),
         "Rel_Serving" => Some("serving"),
-        "Rel_Composition" => Some("composition"),
-        "Rel_Aggregation" => Some("aggregation"),
+        "Rel_Specialization" => Some("specialization"),
+        "Rel_Triggering" => Some("triggering"),
         "Rel_Used_By" => Some("used_by"),
-        "Rel_Flow" => Some("flow"),
         _ => None,
     }
 }
@@ -1199,10 +1481,18 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 }
             }
             StatementKind::JsonProjection { alias, body } => {
-                json_projections.push(crate::model::JsonProjection { alias, body });
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "json".to_string(),
+                });
             }
             StatementKind::YamlProjection { alias, body } => {
-                json_projections.push(crate::model::JsonProjection { alias, body });
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "yaml".to_string(),
+                });
             }
             StatementKind::ClassDecl(decl) => {
                 if node_kind != FamilyNodeKind::Class {
@@ -1212,16 +1502,19 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     ))
                     .with_span(stmt.span));
                 }
-                nodes.push(FamilyNode {
-                    kind: FamilyNodeKind::Class,
-                    name: decl.name,
-                    alias: decl.alias,
-                    members: decl.members,
-                    depth: 0,
-                    label: None,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                });
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::Class,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members: decl.members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    },
+                );
             }
             StatementKind::ObjectDecl(decl) => {
                 if node_kind != FamilyNodeKind::Object {
@@ -1235,16 +1528,19 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
                 let (clean_alias, c4_kind) = extract_c4_stereotype(decl.alias);
                 let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
-                nodes.push(FamilyNode {
-                    kind: resolved_kind,
-                    name: decl.name,
-                    alias: clean_alias,
-                    members: decl.members,
-                    depth: 0,
-                    label: None,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                });
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: resolved_kind,
+                        name: decl.name,
+                        alias: clean_alias,
+                        members: decl.members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    },
+                );
             }
             StatementKind::UseCaseDecl(decl) => {
                 if node_kind != FamilyNodeKind::UseCase {
@@ -1254,16 +1550,19 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     ))
                     .with_span(stmt.span));
                 }
-                nodes.push(FamilyNode {
-                    kind: FamilyNodeKind::UseCase,
-                    name: decl.name,
-                    alias: decl.alias,
-                    members: decl.members,
-                    depth: 0,
-                    label: None,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                });
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::UseCase,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members: decl.members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    },
+                );
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
                 from: rel.from,
@@ -1323,8 +1622,14 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
-            StatementKind::Theme(_)
-            | StatementKind::Pragma(_)
+            StatementKind::Theme(value) => {
+                class_style = class_style_from_sequence_theme(
+                    &resolve_sequence_theme_preset(&value)
+                        .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                        .style,
+                );
+            }
+            StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
@@ -1414,6 +1719,27 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings,
     })
+}
+
+fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {
+    let target_name = node.name.as_str();
+    let target_alias = node.alias.as_deref();
+    if let Some(existing) = nodes.iter_mut().find(|existing| {
+        existing.name == target_name
+            || existing.alias.as_deref() == Some(target_name)
+            || target_alias.is_some_and(|alias| existing.name == alias)
+            || (target_alias.is_some() && existing.alias.as_deref() == target_alias)
+    }) {
+        if existing.label.is_none() {
+            existing.label = node.label.take();
+        }
+        if existing.alias.is_none() {
+            existing.alias = node.alias.take();
+        }
+        existing.members.append(&mut node.members);
+        return;
+    }
+    nodes.push(node);
 }
 
 fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
@@ -1524,8 +1850,14 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
                     }
                 }
             }
-            StatementKind::Theme(_)
-            | StatementKind::Pragma(_)
+            StatementKind::Theme(value) => {
+                state_style = state_style_from_sequence_theme(
+                    &resolve_sequence_theme_preset(value)
+                        .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                        .style,
+                );
+            }
+            StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
@@ -2142,6 +2474,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let family_kind = document.kind;
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
+    let mut groups = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -2151,8 +2484,10 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut activity_active_partition: Option<String> = None;
     let mut activity_fork_depth: usize = 0;
     let mut activity_fork_branch: usize = 0;
+    let mut timing_current_time: Option<String> = None;
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
+    let mut timing_style = TimingStyle::default();
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in document.statements {
@@ -2227,13 +2562,24 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     wbs_checkbox: None,
                 });
             }
-            StatementKind::TimingDecl { kind, name, label } => {
+            StatementKind::TimingDecl {
+                kind,
+                name,
+                label,
+                controls,
+            } => {
                 let node_kind = timing_decl_node_kind(kind);
                 nodes.push(FamilyNode {
                     kind: node_kind,
                     name,
                     alias: None,
-                    members: Vec::new(),
+                    members: controls
+                        .into_iter()
+                        .map(|text| crate::ast::ClassMember {
+                            text,
+                            modifier: None,
+                        })
+                        .collect(),
                     depth: 0,
                     label,
                     mindmap_side: MindMapSide::Right,
@@ -2246,6 +2592,12 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 state,
                 note,
             } => {
+                let effective_time = if time.is_empty() {
+                    timing_current_time.clone().unwrap_or_default()
+                } else {
+                    timing_current_time = Some(time.clone());
+                    time
+                };
                 let display = match (&signal, &state, &note) {
                     (Some(s), Some(st), _) => format!("{s} is {st}"),
                     (None, None, Some(n)) => n.clone(),
@@ -2253,7 +2605,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 };
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::TimingEvent,
-                    name: time,
+                    name: effective_time,
                     alias: signal,
                     members: state
                         .into_iter()
@@ -2282,6 +2634,39 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 left_role: rel.left_role,
                 right_role: rel.right_role,
             }),
+            StatementKind::ClassGroup {
+                kind,
+                label,
+                members,
+            } => {
+                for member_id in &members {
+                    let already_exists = nodes.iter().any(|n: &FamilyNode| {
+                        n.name == *member_id || n.alias.as_deref() == Some(member_id.as_str())
+                    });
+                    if !already_exists {
+                        let fallback_kind = match family_kind {
+                            DiagramKind::Deployment => FamilyNodeKind::Node,
+                            DiagramKind::Component => FamilyNodeKind::Component,
+                            _ => FamilyNodeKind::Component,
+                        };
+                        nodes.push(FamilyNode {
+                            kind: fallback_kind,
+                            name: member_id.clone(),
+                            alias: None,
+                            members: Vec::new(),
+                            depth: 0,
+                            label: None,
+                            mindmap_side: MindMapSide::Right,
+                            wbs_checkbox: None,
+                        });
+                    }
+                }
+                groups.push(FamilyGroup {
+                    kind,
+                    label,
+                    member_ids: members,
+                });
+            }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -2369,6 +2754,51 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                         }
                     }
                 }
+                if !handled && matches!(family_kind, DiagramKind::Timing) {
+                    use crate::theme::TimingSkinParamValue;
+                    match classify_timing_skinparam(&key, &value) {
+                        SkinParamSupport::SupportedNoop => {
+                            handled = true;
+                        }
+                        SkinParamSupport::SupportedWithValue(v) => {
+                            handled = true;
+                            match v {
+                                TimingSkinParamValue::BackgroundColor(c) => {
+                                    timing_style.background_color = c;
+                                }
+                                TimingSkinParamValue::AxisColor(c) => {
+                                    timing_style.axis_color = c;
+                                }
+                                TimingSkinParamValue::GridColor(c) => {
+                                    timing_style.grid_color = c;
+                                }
+                                TimingSkinParamValue::SignalBackgroundColor(c) => {
+                                    timing_style.signal_background_color = c;
+                                }
+                                TimingSkinParamValue::SignalBorderColor(c) => {
+                                    timing_style.signal_border_color = c;
+                                }
+                                TimingSkinParamValue::ArrowColor(c) => {
+                                    timing_style.arrow_color = c;
+                                }
+                                TimingSkinParamValue::FontColor(c) => {
+                                    timing_style.font_color = c;
+                                }
+                            }
+                        }
+                        SkinParamSupport::UnsupportedKey => {}
+                        SkinParamSupport::UnsupportedValue => {
+                            handled = true;
+                            ext_warnings.push(
+                                Diagnostic::warning(format!(
+                                    "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                    value, key
+                                ))
+                                .with_span(stmt.span),
+                            );
+                        }
+                    }
+                }
                 if !handled {
                     ext_warnings.push(
                         Diagnostic::warning(format!(
@@ -2379,8 +2809,24 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     );
                 }
             }
-            StatementKind::Theme(_)
-            | StatementKind::Pragma(_)
+            StatementKind::Theme(value) => {
+                let style = resolve_sequence_theme_preset(&value)
+                    .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
+                    .style;
+                match family_kind {
+                    DiagramKind::Component | DiagramKind::Deployment => {
+                        component_style = component_style_from_sequence_theme(&style);
+                    }
+                    DiagramKind::Activity => {
+                        activity_style = activity_style_from_sequence_theme(&style);
+                    }
+                    DiagramKind::Timing => {
+                        timing_style = timing_style_from_sequence_theme(&style);
+                    }
+                    _ => {}
+                }
+            }
+            StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_)
@@ -2409,6 +2855,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
             Some(FamilyStyle::Component(component_style))
         }
         DiagramKind::Activity => Some(FamilyStyle::Activity(activity_style)),
+        DiagramKind::Timing => Some(FamilyStyle::Timing(timing_style)),
         _ => None,
     };
 
@@ -2426,7 +2873,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings: ext_warnings,
-        groups: Vec::new(),
+        groups,
         json_projections: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
@@ -2660,6 +3107,12 @@ pub fn normalize_with_options(
                             to: to.clone(),
                             arrow: parsed_arrow.render_arrow.clone(),
                             label: m.label.clone(),
+                            style: SequenceMessageStyle {
+                                color: m.style.color.clone(),
+                                hidden: m.style.hidden,
+                                dashed: m.style.dashed,
+                                dotted: m.style.dotted,
+                            },
                             from_virtual,
                             to_virtual,
                         },
@@ -3130,6 +3583,7 @@ pub fn normalize_with_options(
             | StatementKind::GanttTaskDecl { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
+            | StatementKind::GanttCalendarClosed { .. }
             | StatementKind::ChronologyHappensOn { .. }
             | StatementKind::ComponentDecl { .. }
             | StatementKind::ActivityStep(_)

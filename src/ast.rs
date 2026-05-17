@@ -61,14 +61,19 @@ pub enum StatementKind {
         start_date: Option<String>,
         duration_days: Option<u32>,
         depends_on: Vec<String>,
+        resources: Vec<String>,
     },
     GanttMilestoneDecl {
         name: String,
+        happens_on: Option<String>,
     },
     GanttConstraint {
         subject: String,
         kind: String,
         target: String,
+    },
+    GanttCalendarClosed {
+        day: String,
     },
     ChronologyHappensOn {
         subject: String,
@@ -85,6 +90,7 @@ pub enum StatementKind {
         kind: TimingDeclKind,
         name: String,
         label: Option<String>,
+        controls: Vec<String>,
     },
     TimingEvent {
         time: String,
@@ -337,8 +343,17 @@ pub struct Message {
     pub to: String,
     pub arrow: String,
     pub label: Option<String>,
+    pub style: MessageStyle,
     pub from_virtual: Option<VirtualEndpoint>,
     pub to_virtual: Option<VirtualEndpoint>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MessageStyle {
+    pub color: Option<String>,
+    pub hidden: bool,
+    pub dashed: bool,
+    pub dotted: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

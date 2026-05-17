@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::{
     ActivityStep, ActivityStepKind, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind,
-    Document, FamilyRelation, Group, MemberModifier, Message, Note, ObjectDecl, ParticipantDecl,
-    ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition, Statement,
-    StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
+    Document, FamilyRelation, Group, MemberModifier, Message, MessageStyle, Note, ObjectDecl,
+    ParticipantDecl, ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition,
+    Statement, StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
     VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
@@ -288,11 +288,7 @@ fn preprocess_text(
                         }
                         let var_name = parts[0].trim().trim_start_matches('$').to_string();
                         let rhs = expand_preprocessor_text(parts[1].trim(), state, 0)?;
-                        let items: Vec<String> = rhs
-                            .split(',')
-                            .map(|s| s.trim().trim_matches('"').to_string())
-                            .filter(|s| !s.is_empty())
-                            .collect();
+                        let items = preprocessor_list_items(&rhs);
                         let block = lines[i + 1..endfor].join("\n");
                         let prev = state.vars.get(&var_name).cloned();
                         for item in items {
@@ -453,7 +449,7 @@ fn preprocess_text(
                                 // whitespace for determinism.
                                 state.vars.insert(name, value.trim().to_string());
                             } else {
-                                let rendered = substitute_tokens_and_vars(&value, state);
+                                let rendered = expand_preprocessor_text(&value, state, call_depth)?;
                                 let resolved = rendered.trim();
                                 // If the resolved value is a simple integer arithmetic
                                 // expression (e.g. "0 + 1", "3 - 1"), evaluate it so
@@ -1211,7 +1207,13 @@ fn evaluate_preprocess_expr(expr: &str, state: &PreprocState) -> Result<bool, Di
     if let Some((lhs, rhs)) = split_top_level(raw, "||") {
         return Ok(evaluate_preprocess_expr(&lhs, state)? || evaluate_preprocess_expr(&rhs, state)?);
     }
+    if let Some((lhs, rhs)) = split_top_level_word(raw, "or") {
+        return Ok(evaluate_preprocess_expr(&lhs, state)? || evaluate_preprocess_expr(&rhs, state)?);
+    }
     if let Some((lhs, rhs)) = split_top_level(raw, "&&") {
+        return Ok(evaluate_preprocess_expr(&lhs, state)? && evaluate_preprocess_expr(&rhs, state)?);
+    }
+    if let Some((lhs, rhs)) = split_top_level_word(raw, "and") {
         return Ok(evaluate_preprocess_expr(&lhs, state)? && evaluate_preprocess_expr(&rhs, state)?);
     }
 
@@ -1261,35 +1263,57 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
     if let Some((lhs, rhs)) = split_top_level(trimmed, "||") {
         return Ok(evaluate_scalar_expr(&lhs)? || evaluate_scalar_expr(&rhs)?);
     }
+    if let Some((lhs, rhs)) = split_top_level_word(trimmed, "or") {
+        return Ok(evaluate_scalar_expr(&lhs)? || evaluate_scalar_expr(&rhs)?);
+    }
     if let Some((lhs, rhs)) = split_top_level(trimmed, "&&") {
         return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
     }
-
-    if let Some((lhs, rhs)) = trimmed.split_once("==") {
-        return Ok(normalize_expr_value(lhs) == normalize_expr_value(rhs));
+    if let Some((lhs, rhs)) = split_top_level_word(trimmed, "and") {
+        return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
     }
-    if let Some((lhs, rhs)) = trimmed.split_once("!=") {
-        return Ok(normalize_expr_value(lhs) != normalize_expr_value(rhs));
+
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "==") {
+        return Ok(normalize_expr_value(&lhs) == normalize_expr_value(&rhs));
+    }
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "!=") {
+        return Ok(normalize_expr_value(&lhs) != normalize_expr_value(&rhs));
     }
     // Numeric comparisons: check two-char operators before one-char to avoid splitting <=/>= wrong.
-    if let Some((lhs, rhs)) = trimmed.split_once("<=") {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "<=") {
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
         return Ok(a <= b);
     }
-    if let Some((lhs, rhs)) = trimmed.split_once(">=") {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
+    if let Some((lhs, rhs)) = split_top_level(trimmed, ">=") {
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
         return Ok(a >= b);
     }
-    if let Some((lhs, rhs)) = trimmed.split_once('<') {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MIN);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MAX);
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "<") {
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
         return Ok(a < b);
     }
-    if let Some((lhs, rhs)) = trimmed.split_once('>') {
-        let a = normalize_expr_value(lhs).parse::<i64>().unwrap_or(i64::MAX);
-        let b = normalize_expr_value(rhs).parse::<i64>().unwrap_or(i64::MIN);
+    if let Some((lhs, rhs)) = split_top_level(trimmed, ">") {
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
         return Ok(a > b);
     }
     if let Some(inner) = trimmed.strip_prefix('!') {
@@ -1388,13 +1412,97 @@ fn split_top_level(expr: &str, sep: &str) -> Option<(String, String)> {
     None
 }
 
+fn split_top_level_word(expr: &str, sep: &str) -> Option<(String, String)> {
+    let sep_lower = sep.to_ascii_lowercase();
+    let mut depth: i32 = 0;
+    let mut in_str = false;
+    let mut token_start: Option<usize> = None;
+    for (idx, ch) in expr.char_indices() {
+        if in_str {
+            if ch == '"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+                in_str = true;
+            }
+            '(' => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+                depth += 1;
+            }
+            ')' => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+                depth = depth.saturating_sub(1);
+            }
+            c if c.is_whitespace() => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+            }
+            _ => {
+                if token_start.is_none() {
+                    token_start = Some(idx);
+                }
+            }
+        }
+    }
+    if let Some(start) = token_start {
+        if is_top_level_word_match(expr, start, expr.len(), &sep_lower, depth) {
+            return split_word_at(expr, start, expr.len());
+        }
+    }
+    None
+}
+
+fn is_top_level_word_match(
+    expr: &str,
+    start: usize,
+    end: usize,
+    sep_lower: &str,
+    depth: i32,
+) -> bool {
+    depth == 0 && expr[start..end].eq_ignore_ascii_case(sep_lower)
+}
+
+fn split_word_at(expr: &str, start: usize, end: usize) -> Option<(String, String)> {
+    let lhs = expr[..start].trim().to_string();
+    let rhs = expr[end..].trim().to_string();
+    if lhs.is_empty() || rhs.is_empty() {
+        None
+    } else {
+        Some((lhs, rhs))
+    }
+}
+
 fn normalize_expr_value(value: &str) -> String {
-    value
+    let normalized = value
         .trim()
         .trim_matches('"')
         .trim_matches('\'')
         .trim()
-        .to_string()
+        .to_string();
+    if let Some(n) = eval_int_expr(&normalized) {
+        n.to_string()
+    } else {
+        normalized
+    }
 }
 
 /// Evaluate a simple two-operand integer arithmetic expression such as "3 + 1"
@@ -1402,30 +1510,70 @@ fn normalize_expr_value(value: &str) -> String {
 /// Returns `None` if the expression is not in this form (non-integer values or
 /// more complex expressions), so the caller can fall back to the raw string.
 fn eval_simple_arithmetic(expr: &str) -> Option<i64> {
-    // Try binary operators in order (longest match first to avoid splitting "-" from negative).
-    for op in ['+', '-', '*', '/'] {
-        // Scan from the end to give subtraction the right operand precedence for simple cases.
-        let bytes = expr.as_bytes();
-        let search_from = if op == '-' { 1 } else { 0 }; // skip leading minus (negative literal)
-        if let Some(pos) = bytes[search_from..]
-            .iter()
-            .rposition(|&b| b == op as u8)
-            .map(|p| p + search_from)
-        {
-            let lhs = expr[..pos].trim();
-            let rhs = expr[pos + 1..].trim();
-            if let (Ok(a), Ok(b)) = (lhs.parse::<i64>(), rhs.parse::<i64>()) {
-                return Some(match op {
-                    '+' => a + b,
-                    '-' => a - b,
-                    '*' => a * b,
-                    '/' if b != 0 => a / b,
-                    _ => return None,
-                });
+    eval_int_expr(expr)
+}
+
+fn eval_int_expr(expr: &str) -> Option<i64> {
+    let trimmed = expr.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(inner) = strip_outer_balanced_parens(trimmed) {
+        return eval_int_expr(inner);
+    }
+    if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['+', '-']) {
+        let a = eval_int_expr(lhs)?;
+        let b = eval_int_expr(rhs)?;
+        return Some(if op == '+' { a + b } else { a - b });
+    }
+    if let Some((lhs, op, rhs)) = split_top_level_arithmetic(trimmed, &['*', '/', '%']) {
+        let a = eval_int_expr(lhs)?;
+        let b = eval_int_expr(rhs)?;
+        return match op {
+            '*' => Some(a * b),
+            '/' if b != 0 => Some(a / b),
+            '%' if b != 0 => Some(a % b),
+            _ => None,
+        };
+    }
+    trimmed.parse::<i64>().ok()
+}
+
+fn split_top_level_arithmetic<'a>(expr: &'a str, ops: &[char]) -> Option<(&'a str, char, &'a str)> {
+    let mut depth = 0i32;
+    let mut in_str = false;
+    let mut last = None;
+    for (idx, ch) in expr.char_indices() {
+        if in_str {
+            if ch == '"' {
+                in_str = false;
             }
+            continue;
+        }
+        match ch {
+            '"' => in_str = true,
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ if depth == 0 && ops.contains(&ch) => {
+                if ch == '-' {
+                    let prev = expr[..idx].chars().rev().find(|c| !c.is_whitespace());
+                    if prev.is_none() || matches!(prev, Some('(' | '+' | '-' | '*' | '/' | '%')) {
+                        continue;
+                    }
+                }
+                last = Some((idx, ch));
+            }
+            _ => {}
         }
     }
-    None
+    let (idx, op) = last?;
+    let lhs = expr[..idx].trim();
+    let rhs = expr[idx + op.len_utf8()..].trim();
+    if lhs.is_empty() || rhs.is_empty() {
+        None
+    } else {
+        Some((lhs, op, rhs))
+    }
 }
 
 fn find_matching_endwhile(lines: &[&str], while_idx: usize) -> Result<usize, Diagnostic> {
@@ -1943,8 +2091,33 @@ fn expand_preprocessor_text(
     state: &PreprocState,
     call_depth: usize,
 ) -> Result<String, Diagnostic> {
-    let substituted = substitute_tokens_and_vars(raw_line, state);
-    expand_function_invocations(&substituted, state, call_depth)
+    let substituted = collapse_macro_concat(&substitute_tokens_and_vars(raw_line, state));
+    let expanded = expand_function_invocations(&substituted, state, call_depth)?;
+    Ok(collapse_macro_concat(&expanded))
+}
+
+fn collapse_macro_concat(line: &str) -> String {
+    if !line.contains("##") {
+        return line.to_string();
+    }
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars[i] == '#' && i + 1 < chars.len() && chars[i + 1] == '#' {
+            while out.ends_with(char::is_whitespace) {
+                out.pop();
+            }
+            i += 2;
+            while i < chars.len() && chars[i].is_whitespace() {
+                i += 1;
+            }
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
 }
 
 fn expand_function_invocations(
@@ -2048,7 +2221,8 @@ fn dispatch_builtin(
     let argc = expanded_args.len();
 
     let result: Option<String> = match name {
-        "strlen" | "size" => Some(arg(0).chars().count().to_string()),
+        "strlen" => Some(arg(0).chars().count().to_string()),
+        "size" => Some(preprocessor_size(&arg(0)).to_string()),
         "splitstr" => {
             // %splitstr(s, sep) → returns the comma-joined fields after
             // splitting `s` on `sep`. PlantUML returns a deterministic
@@ -2061,6 +2235,50 @@ fn dispatch_builtin(
                 Some(s.split(sep.as_str()).collect::<Vec<&str>>().join(","))
             }
         }
+        "split" => {
+            let s = arg(0);
+            let sep = arg(1);
+            if sep.is_empty() {
+                Some(s)
+            } else {
+                Some(
+                    s.split(sep.as_str())
+                        .map(|v| format!("\"{}\"", v.replace('"', "\\\"")))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                )
+            }
+        }
+        "join" => {
+            let list = preprocessor_list_items(&arg(0));
+            Some(list.join(&arg(1)))
+        }
+        "list" | "array" => Some(preprocessor_list_literal(&expanded_args)),
+        "list_size" | "array_size" | "map_size" => Some(preprocessor_size(&arg(0)).to_string()),
+        "list_contains" | "contains_list" => Some(
+            preprocessor_list_items(&arg(0))
+                .contains(&arg(1))
+                .to_string(),
+        ),
+        "list_get" => Some(
+            preprocessor_list_items(&arg(0))
+                .get(parse_int_lenient(&arg(1)).max(0) as usize)
+                .cloned()
+                .unwrap_or_default(),
+        ),
+        "list_add" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            items.push(arg(1));
+            Some(preprocessor_list_literal(&items))
+        }
+        "map" | "dict" => Some(preprocessor_map_literal(&expanded_args)),
+        "map_contains_key" | "contains_key" => {
+            Some(json_contains_key(&arg(0), &arg(1)).to_string())
+        }
+        "get" | "map_get" | "json_get" => Some(preprocessor_get(&arg(0), &arg(1))),
+        "set" | "put" | "json_set" | "map_put" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
+        "keys" | "map_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
+        "values" | "map_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "strpos" => {
             let s = arg(0);
             let sub = arg(1);
@@ -2091,7 +2309,16 @@ fn dispatch_builtin(
             Some(chars[start..end].iter().collect())
         }
         "intval" => Some(parse_int_lenient(&arg(0)).to_string()),
-        "str" => Some(arg(0)),
+        "str" | "string" | "stringify" | "json_stringify" => Some(arg(0)),
+        "quote" => Some(format!("\"{}\"", arg(0).replace('"', "\\\""))),
+        "unquote" => Some(strip_quotes(&arg(0))),
+        "trim" => Some(arg(0).trim().to_string()),
+        "ltrim" => Some(arg(0).trim_start().to_string()),
+        "rtrim" => Some(arg(0).trim_end().to_string()),
+        "replace" => Some(arg(0).replace(&arg(1), &arg(2))),
+        "startswith" | "starts_with" => Some(arg(0).starts_with(&arg(1)).to_string()),
+        "endswith" | "ends_with" => Some(arg(0).ends_with(&arg(1)).to_string()),
+        "contains" => Some(arg(0).contains(&arg(1)).to_string()),
         "boolval" => Some(boolval(&arg(0)).to_string()),
         "true" => Some("true".to_string()),
         "false" => Some("false".to_string()),
@@ -2204,6 +2431,8 @@ fn dispatch_builtin(
             let key = arg(1);
             Some(json_contains_key(&json, &key).to_string())
         }
+        "json_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
+        "json_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "false_then_true" => {
             let key = arg(0);
             let mut counts = state.false_then_true_counts.borrow_mut();
@@ -2382,6 +2611,13 @@ fn boolval(s: &str) -> bool {
 /// not valid JSON, the path is missing, or the value is a nested
 /// object/array (callers may then pass sub-JSON to a further call).
 fn get_json_attribute(json: &str, key: &str) -> String {
+    if let Ok(root) = serde_json::from_str::<serde_json::Value>(json.trim()) {
+        if let Some(value) = json_value_at_path(&root, key) {
+            return json_value_to_preproc_string(value);
+        }
+        return String::new();
+    }
+
     // Split the key path into segments: "a.b[2].c" → ["a", "b", "[2]", "c"]
     let segments = split_json_path(key);
     let mut current = json.trim().to_string();
@@ -2399,6 +2635,35 @@ fn get_json_attribute(json: &str, key: &str) -> String {
         }
     }
     current
+}
+
+fn json_value_at_path<'a>(
+    root: &'a serde_json::Value,
+    path: &str,
+) -> Option<&'a serde_json::Value> {
+    let mut current = root;
+    for segment in split_json_path(path) {
+        if let Some(idx) = segment
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .and_then(|s| s.trim().parse::<usize>().ok())
+        {
+            current = current.as_array()?.get(idx)?;
+        } else {
+            current = current.as_object()?.get(segment.as_str())?;
+        }
+    }
+    Some(current)
+}
+
+fn json_value_to_preproc_string(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => value.to_string(),
+    }
 }
 
 /// Split a JSON path like `users[0].name` into segments `["users", "[0]", "name"]`.
@@ -2524,9 +2789,129 @@ fn json_array_index(json: &str, idx: usize) -> String {
 }
 
 fn json_contains_key(json: &str, key: &str) -> bool {
+    if let Ok(root) = serde_json::from_str::<serde_json::Value>(json.trim()) {
+        return json_value_at_path(&root, key).is_some();
+    }
+
     // Reuse the top-level key scan rather than the full path traversal so that
     // an empty-value key still reports as present (PlantUML semantics).
     !get_json_top_level_key(json, key).is_empty()
+}
+
+fn preprocessor_list_items(raw: &str) -> Vec<String> {
+    let trimmed = raw.trim();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if let Some(items) = value.as_array() {
+            return items.iter().map(json_value_to_preproc_string).collect();
+        }
+    }
+    trimmed
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .split(',')
+        .map(|s| strip_quotes(s.trim()))
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn preprocessor_size(raw: &str) -> usize {
+    let trimmed = raw.trim();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if let Some(items) = value.as_array() {
+            return items.len();
+        }
+        if let Some(obj) = value.as_object() {
+            return obj.len();
+        }
+    }
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        return preprocessor_list_items(trimmed).len();
+    }
+    trimmed.chars().count()
+}
+
+fn preprocessor_list_literal(items: &[String]) -> String {
+    let values = items
+        .iter()
+        .map(|item| serde_json::Value::String(item.clone()))
+        .collect::<Vec<_>>();
+    serde_json::Value::Array(values).to_string()
+}
+
+fn preprocessor_map_literal(args: &[String]) -> String {
+    let mut obj = serde_json::Map::new();
+    for chunk in args.chunks(2) {
+        if let [key, value] = chunk {
+            obj.insert(key.clone(), serde_json::Value::String(value.clone()));
+        }
+    }
+    serde_json::Value::Object(obj).to_string()
+}
+
+fn preprocessor_get(container: &str, key: &str) -> String {
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
+        if let Ok(idx) = key.trim().parse::<usize>() {
+            return value
+                .as_array()
+                .and_then(|items| items.get(idx))
+                .map(json_value_to_preproc_string)
+                .unwrap_or_default();
+        }
+        return json_value_at_path(&value, key)
+            .map(json_value_to_preproc_string)
+            .unwrap_or_default();
+    }
+    preprocessor_list_items(container)
+        .get(key.trim().parse::<usize>().unwrap_or(usize::MAX))
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn preprocessor_set(container: &str, key: &str, replacement: &str) -> String {
+    if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
+        if let Some(obj) = value.as_object_mut() {
+            obj.insert(
+                key.to_string(),
+                serde_json::Value::String(replacement.to_string()),
+            );
+            return serde_json::Value::Object(obj.clone()).to_string();
+        }
+        if let Some(arr) = value.as_array_mut() {
+            if let Ok(idx) = key.trim().parse::<usize>() {
+                if let Some(slot) = arr.get_mut(idx) {
+                    *slot = serde_json::Value::String(replacement.to_string());
+                }
+            }
+            return serde_json::Value::Array(arr.clone()).to_string();
+        }
+    }
+    container.to_string()
+}
+
+fn preprocessor_json_keys(json: &str) -> Vec<String> {
+    serde_json::from_str::<serde_json::Value>(json.trim())
+        .ok()
+        .and_then(|value| {
+            value.as_object().map(|obj| {
+                obj.keys()
+                    .map(|key| format!("\"{}\"", key.replace('"', "\\\"")))
+                    .collect::<Vec<_>>()
+            })
+        })
+        .unwrap_or_default()
+}
+
+fn preprocessor_json_values(json: &str) -> Vec<String> {
+    serde_json::from_str::<serde_json::Value>(json.trim())
+        .ok()
+        .and_then(|value| {
+            value.as_object().map(|obj| {
+                obj.values()
+                    .map(json_value_to_preproc_string)
+                    .collect::<Vec<_>>()
+            })
+        })
+        .unwrap_or_default()
 }
 
 /// Read a JSON-ish scalar/object/array value starting at `*idx`, advancing
@@ -2663,12 +3048,6 @@ fn parse_callable_definition(
         ));
     }
     let params_raw = &sig[open + 1..close];
-    if params_raw.contains("##") {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_CONCAT_UNSUPPORTED",
-            "macro argument concatenation (`##`) is not supported in this deterministic subset",
-        ));
-    }
     let params = parse_params(params_raw)?;
     let callable = PreprocCallable {
         kind,
@@ -2680,7 +3059,8 @@ fn parse_callable_definition(
 
 fn parse_params(raw: &str) -> Result<Vec<PreprocParam>, Diagnostic> {
     let mut params = Vec::new();
-    for piece in split_args(raw)? {
+    let normalized = raw.replace("##", ",");
+    for piece in split_args(&normalized)? {
         let trimmed = piece.trim();
         if trimmed.is_empty() {
             continue;
@@ -2759,16 +3139,11 @@ fn bind_callable_args(
     state: &PreprocState,
     call_depth: usize,
 ) -> Result<BTreeMap<String, String>, Diagnostic> {
-    if args_raw.contains("##") {
-        return Err(Diagnostic::error_code(
-            "E_PREPROC_CONCAT_UNSUPPORTED",
-            "macro argument concatenation (`##`) is not supported in this deterministic subset",
-        ));
-    }
+    let args_normalized = args_raw.replace("##", ",");
     let mut bound = BTreeMap::new();
     let mut positional = Vec::new();
     let mut keyword = BTreeMap::new();
-    for arg in split_args(args_raw)? {
+    for arg in split_args(&args_normalized)? {
         if let Some((k, v)) = arg.split_once('=') {
             keyword.insert(
                 k.trim().trim_start_matches('$').to_string(),
@@ -3068,6 +3443,50 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        if matches!(
+            detected_kind,
+            None | Some(DiagramKind::Sequence | DiagramKind::Component | DiagramKind::Deployment)
+        ) {
+            if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+                    DiagramKind::Deployment
+                } else {
+                    DiagramKind::Component
+                };
+                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                statements.push(Statement { span, kind });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_component_decl(line) {
+                let family = match &kind {
+                    StatementKind::ComponentDecl { kind, .. }
+                        if matches!(
+                            kind,
+                            ComponentNodeKind::Node
+                                | ComponentNodeKind::Artifact
+                                | ComponentNodeKind::Cloud
+                                | ComponentNodeKind::Frame
+                                | ComponentNodeKind::Storage
+                                | ComponentNodeKind::Database
+                                | ComponentNodeKind::Package
+                                | ComponentNodeKind::Rectangle
+                                | ComponentNodeKind::Folder
+                                | ComponentNodeKind::File
+                                | ComponentNodeKind::Card
+                        ) =>
+                    {
+                        DiagramKind::Deployment
+                    }
+                    _ => DiagramKind::Component,
+                };
+                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
         if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
             let family = family_for_declaration(&kind);
             detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
@@ -3077,6 +3496,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 kind,
             });
             i = end_idx + 1;
+            continue;
+        }
+
+        if let Some(kind) = parse_family_member_row(line, detected_kind) {
+            statements.push(Statement { span, kind });
+            i += 1;
             continue;
         }
 
@@ -3106,6 +3531,8 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         if detected_kind.is_none() {
             if let Some(kind) = detect_non_sequence_family(line) {
                 detected_kind = Some(kind);
+            } else if parse_component_decl(line).is_some() {
+                detected_kind = Some(DiagramKind::Component);
             } else if looks_like_unsupported_family_syntax(line) {
                 detected_kind = Some(DiagramKind::Unknown);
             }
@@ -3116,11 +3543,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind,
             Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
         ) {
-            if let Some(kind) = parse_component_decl(line) {
-                statements.push(Statement { span, kind });
-                i += 1;
-                continue;
-            }
             // Try a relation again now that detection settled.
             if let Some(kind) = parse_family_relation(line, detected_kind) {
                 statements.push(Statement { span, kind });
@@ -3615,11 +4037,43 @@ fn parse_family_declaration(
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
-    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "class") {
+    for (keyword, marker) in [
+        ("abstract class", Some("<<abstract class>>")),
+        ("interface", Some("<<interface>>")),
+        ("enum", Some("<<enum>>")),
+        ("annotation", Some("<<annotation>>")),
+        ("protocol", Some("<<protocol>>")),
+        ("struct", Some("<<struct>>")),
+        ("abstract", Some("<<abstract>>")),
+        ("class", None),
+    ] {
+        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
+        else {
+            continue;
+        };
         let members = if has_block {
-            parse_family_decl_members(lines, start, "class", &name)?
+            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            if let Some(marker) = marker {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
+            members
         } else {
-            Vec::new()
+            declaration_marker_members(marker, stereotypes)
         };
         return Ok(Some((
             StatementKind::ClassDecl(ClassDecl {
@@ -3634,11 +4088,35 @@ fn parse_family_declaration(
             },
         )));
     }
-    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "object") {
+
+    for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
+        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
+        else {
+            continue;
+        };
         let members = if has_block {
-            parse_family_decl_members(lines, start, "object", &name)?
+            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            if let Some(marker) = marker {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
+            members
         } else {
-            Vec::new()
+            declaration_marker_members(marker, stereotypes)
         };
         return Ok(Some((
             StatementKind::ObjectDecl(ObjectDecl {
@@ -3653,11 +4131,50 @@ fn parse_family_declaration(
             },
         )));
     }
-    if let Some((name, alias, has_block)) = parse_named_family_decl(line, "usecase") {
+
+    if let Some((name, alias, has_block)) = parse_parenthesized_usecase_decl(line) {
+        return Ok(Some((
+            StatementKind::UseCaseDecl(UseCaseDecl {
+                name,
+                alias,
+                members: Vec::new(),
+            }),
+            if has_block {
+                find_family_decl_end(lines, start)
+            } else {
+                start
+            },
+        )));
+    }
+
+    for (keyword, marker) in [("actor", Some("<<actor>>")), ("usecase", None)] {
+        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
+        else {
+            continue;
+        };
         let members = if has_block {
-            parse_family_decl_members(lines, start, "usecase", &name)?
+            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            if let Some(marker) = marker {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
+            members
         } else {
-            Vec::new()
+            declaration_marker_members(marker, stereotypes)
         };
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -3675,8 +4192,19 @@ fn parse_family_declaration(
     Ok(None)
 }
 
-fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<String>, bool)> {
+fn parse_named_family_decl(
+    line: &str,
+    keyword: &str,
+) -> Option<(String, Option<String>, bool, Vec<String>)> {
     if !line.starts_with(keyword) {
+        return None;
+    }
+    if line.len() > keyword.len()
+        && !line[keyword.len()..]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+    {
         return None;
     }
     let rest = line[keyword.len()..].trim();
@@ -3697,12 +4225,73 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<
         (trimmed, None)
     };
 
-    let name = clean_ident(name_raw);
+    let (name_without_stereotypes, stereotypes) = strip_declaration_stereotypes(name_raw);
+    let name = clean_ident(&name_without_stereotypes);
     if name.is_empty() {
         return None;
     }
     let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
-    Some((name, alias, has_block))
+    Some((name, alias, has_block, stereotypes))
+}
+
+fn declaration_marker_members(marker: Option<&str>, stereotypes: Vec<String>) -> Vec<ClassMember> {
+    let mut members = Vec::new();
+    if let Some(marker) = marker {
+        members.push(ClassMember {
+            text: marker.to_string(),
+            modifier: None,
+        });
+    }
+    for stereotype in stereotypes {
+        members.push(ClassMember {
+            text: format!("<<{stereotype}>>"),
+            modifier: None,
+        });
+    }
+    members
+}
+
+fn strip_declaration_stereotypes(input: &str) -> (String, Vec<String>) {
+    let mut remaining = input.trim().to_string();
+    let mut stereotypes = Vec::new();
+    while let Some(start) = remaining.find("<<") {
+        let Some(end_rel) = remaining[start + 2..].find(">>") else {
+            break;
+        };
+        let end = start + 2 + end_rel;
+        let value = remaining[start + 2..end].trim();
+        if !value.is_empty() {
+            stereotypes.push(value.to_string());
+        }
+        remaining.replace_range(start..end + 2, "");
+    }
+    (remaining.trim().to_string(), stereotypes)
+}
+
+fn parse_parenthesized_usecase_decl(line: &str) -> Option<(String, Option<String>, bool)> {
+    let trimmed = line.trim();
+    let trimmed = trimmed.strip_prefix("usecase ").unwrap_or(trimmed).trim();
+    if !trimmed.starts_with('(') {
+        return None;
+    }
+    let close = trimmed.find(')')?;
+    let name_raw = trimmed[1..close].trim();
+    if name_raw.is_empty() {
+        return None;
+    }
+    let rest = trimmed[close + 1..].trim();
+    let has_block = rest.ends_with('{');
+    let rest = if has_block {
+        rest.trim_end_matches('{').trim()
+    } else {
+        rest
+    };
+    let alias = rest
+        .strip_prefix("as ")
+        .map(str::trim)
+        .map(clean_ident)
+        .filter(|v| !v.is_empty());
+    Some((clean_ident(name_raw), alias, has_block))
 }
 
 fn parse_family_decl_members(
@@ -3879,7 +4468,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         _ => return None,
     }
 
-    let (core, label) = split_message_label(line);
+    let (core, label) = split_family_relation_label(line);
     let (lhs, arrow, rhs) = split_family_arrow(core)?;
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
@@ -3898,6 +4487,41 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         left_role,
         right_role,
     }))
+}
+
+fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
+    let family = match family {
+        Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase) => family?,
+        _ => return None,
+    };
+    let (owner, member) = line.split_once(':')?;
+    if owner.contains("--") || owner.contains("..") || owner.contains("->") || owner.contains("<-")
+    {
+        return None;
+    }
+    let owner = clean_bracketed_ident(owner);
+    let member = member.trim();
+    if owner.is_empty() || member.is_empty() {
+        return None;
+    }
+    let members = vec![parse_class_member(member)];
+    Some(match family {
+        DiagramKind::Object => StatementKind::ObjectDecl(ObjectDecl {
+            name: owner,
+            alias: None,
+            members,
+        }),
+        DiagramKind::UseCase => StatementKind::UseCaseDecl(UseCaseDecl {
+            name: owner,
+            alias: None,
+            members,
+        }),
+        _ => StatementKind::ClassDecl(ClassDecl {
+            name: owner,
+            alias: None,
+            members,
+        }),
+    })
 }
 
 fn parse_relation_side_annotations(
@@ -3942,6 +4566,17 @@ fn parse_relation_side_annotations(
                     }
                 }
             }
+            if let Some(colon) = t.rfind(" :") {
+                let value = t[colon + 2..].trim();
+                let endpoint = t[..colon].trim_end();
+                if !value.is_empty() && !endpoint.is_empty() {
+                    if role.is_none() {
+                        role = Some(value.to_string());
+                    }
+                    rem = endpoint.to_string();
+                    continue;
+                }
+            }
             break;
         }
     } else {
@@ -3964,6 +4599,25 @@ fn parse_relation_side_annotations(
                 if let Some(end_bracket_rel) = rest.find(']') {
                     let value = rest[..end_bracket_rel].trim();
                     let endpoint = rest[end_bracket_rel + 1..].trim_start();
+                    if !value.is_empty() && !endpoint.is_empty() {
+                        if role.is_none() {
+                            role = Some(value.to_string());
+                        }
+                        rem = endpoint.to_string();
+                        continue;
+                    }
+                }
+            }
+            if let Some(rest) = t.strip_prefix(':') {
+                let value_len = rest
+                    .char_indices()
+                    .take_while(|(_, ch)| !ch.is_whitespace())
+                    .map(|(idx, ch)| idx + ch.len_utf8())
+                    .last()
+                    .unwrap_or(0);
+                if value_len > 0 {
+                    let value = rest[..value_len].trim();
+                    let endpoint = rest[value_len..].trim_start();
                     if !value.is_empty() && !endpoint.is_empty() {
                         if role.is_none() {
                             role = Some(value.to_string());
@@ -4143,12 +4797,15 @@ fn parse_class_scoping_block(
         let rest = line.strip_prefix("package ").unwrap_or("").trim();
         let label_raw = rest.trim_end_matches('{').trim();
         let label = clean_ident(label_raw.trim_matches('"'));
-        let end_idx = find_family_decl_end(lines, start);
+        let end_idx = find_scoping_block_end(lines, start);
         if end_idx == start {
             return Err(Diagnostic::error(
                 "[E_CLASS_PACKAGE_UNCLOSED] unclosed `package` block: missing `}`",
             )
             .with_span(lines[start].1));
+        }
+        if group_body_contains_component_family(lines, start, end_idx) {
+            return Ok(None);
         }
         let members: Vec<String> = lines[start + 1..end_idx]
             .iter()
@@ -4172,7 +4829,7 @@ fn parse_class_scoping_block(
         let rest = line.strip_prefix("namespace ").unwrap_or("").trim();
         let label_raw = rest.trim_end_matches('{').trim();
         let label = clean_ident(label_raw.trim_matches('"'));
-        let end_idx = find_family_decl_end(lines, start);
+        let end_idx = find_scoping_block_end(lines, start);
         if end_idx == start {
             return Err(Diagnostic::error(
                 "[E_CLASS_NAMESPACE_UNCLOSED] unclosed `namespace` block: missing `}`",
@@ -4199,12 +4856,130 @@ fn parse_class_scoping_block(
     Ok(None)
 }
 
+fn group_body_contains_component_family(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+) -> bool {
+    lines[start + 1..end_idx].iter().any(|(raw, _)| {
+        let line = strip_inline_plantuml_comment(raw).trim();
+        let lower = line.to_ascii_lowercase();
+        lower.starts_with("component ")
+            || lower.starts_with("node ")
+            || lower.starts_with("artifact ")
+            || lower.starts_with("database ")
+            || lower.starts_with("cloud ")
+            || lower.starts_with("frame ")
+            || lower.starts_with("storage ")
+            || lower.starts_with("rectangle ")
+            || lower.starts_with("folder ")
+            || lower.starts_with("file ")
+            || lower.starts_with("card ")
+            || lower.starts_with("actor ")
+            || lower.starts_with("port ")
+            || lower.starts_with("portin ")
+            || lower.starts_with("portout ")
+    })
+}
+
+fn parse_component_scoping_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let Some((kind, label_raw)) = lower
+        .starts_with("package ")
+        .then(|| {
+            (
+                "package",
+                trimmed.strip_prefix("package ").unwrap_or("").trim(),
+            )
+        })
+        .or_else(|| {
+            lower
+                .starts_with("node ")
+                .then(|| ("node", trimmed.strip_prefix("node ").unwrap_or("").trim()))
+        })
+        .or_else(|| {
+            lower
+                .starts_with("frame ")
+                .then(|| ("frame", trimmed.strip_prefix("frame ").unwrap_or("").trim()))
+        })
+        .or_else(|| {
+            lower
+                .starts_with("cloud ")
+                .then(|| ("cloud", trimmed.strip_prefix("cloud ").unwrap_or("").trim()))
+        })
+        .or_else(|| {
+            lower.starts_with("rectangle ").then(|| {
+                (
+                    "rectangle",
+                    trimmed.strip_prefix("rectangle ").unwrap_or("").trim(),
+                )
+            })
+        })
+    else {
+        return Ok(None);
+    };
+    if !trimmed.ends_with('{') {
+        return Ok(None);
+    }
+    let end_idx = find_scoping_block_end(lines, start);
+    if end_idx == start {
+        return Err(Diagnostic::error(format!(
+            "[E_COMPONENT_GROUP_UNCLOSED] unclosed `{kind}` block: missing `}}`",
+        ))
+        .with_span(lines[start].1));
+    }
+    let label = clean_ident(label_raw.trim_end_matches('{').trim().trim_matches('"'));
+    let members = lines[start + 1..end_idx]
+        .iter()
+        .map(|(raw, _)| raw.trim())
+        .filter(|s| !s.is_empty() && *s != "}")
+        .map(extract_component_group_member_name)
+        .filter(|s| !s.is_empty())
+        .collect();
+    Ok(Some((
+        StatementKind::ClassGroup {
+            kind: kind.to_string(),
+            label: if label.is_empty() { None } else { Some(label) },
+            members,
+        },
+        end_idx,
+    )))
+}
+
+fn find_scoping_block_end(lines: &[(&str, Span)], start: usize) -> usize {
+    let mut depth = 0usize;
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start) {
+        let trimmed = strip_inline_plantuml_comment(raw).trim();
+        if trimmed.ends_with('{') {
+            depth += 1;
+        }
+        if trimmed == "}" {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                return idx;
+            }
+        }
+    }
+    start
+}
+
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
     if line.starts_with("component ")
         || line.starts_with("interface ")
         || line.starts_with("port ")
         || line.starts_with("portin ")
         || line.starts_with("portout ")
+        || line.starts_with("package ")
+        || line.starts_with("rectangle ")
+        || line.starts_with("folder ")
+        || line.starts_with("file ")
+        || line.starts_with("card ")
+        || line.starts_with("actor ")
     {
         return Some(DiagramKind::Component);
     }
@@ -4214,6 +4989,7 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("cloud ")
         || line.starts_with("frame ")
         || line.starts_with("storage ")
+        || line.starts_with("database ")
     {
         return Some(DiagramKind::Deployment);
     }
@@ -4297,7 +5073,12 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     }
 
     if let Some(rest) = trimmed.strip_prefix("Project starts ") {
-        let date = rest.trim();
+        let date = rest
+            .trim()
+            .strip_prefix("on ")
+            .or_else(|| rest.trim().strip_prefix("the "))
+            .unwrap_or_else(|| rest.trim())
+            .trim();
         if is_iso_date_literal(date) {
             return Some(StatementKind::GanttConstraint {
                 subject: "Project".to_string(),
@@ -4306,6 +5087,9 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             });
         }
     }
+    if let Some(day) = parse_gantt_closed_weekday(trimmed) {
+        return Some(StatementKind::GanttCalendarClosed { day });
+    }
     let (subject, rest) = parse_bracket_subject(trimmed)?;
     if rest.is_empty() {
         return Some(StatementKind::GanttTaskDecl {
@@ -4313,15 +5097,28 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             start_date: None,
             duration_days: None,
             depends_on: Vec::new(),
+            resources: Vec::new(),
         });
     }
     let rest = rest.trim();
+    let (rest_without_resources, resources) = extract_gantt_resources(rest);
+    let rest = rest_without_resources.trim();
     if let Some(rest) = rest.strip_prefix(':') {
+        if subject.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            let label = rest.trim();
+            if !label.is_empty() {
+                return Some(StatementKind::GanttMilestoneDecl {
+                    name: label.to_string(),
+                    happens_on: Some(subject),
+                });
+            }
+        }
         return Some(StatementKind::GanttTaskDecl {
             name: rest.trim().to_string(),
             start_date: None,
             duration_days: None,
             depends_on: Vec::new(),
+            resources,
         });
     }
     if let Some((start_date, duration_days)) = parse_gantt_start_and_duration(rest) {
@@ -4330,6 +5127,7 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             start_date: Some(start_date),
             duration_days: Some(duration_days),
             depends_on: Vec::new(),
+            resources,
         });
     }
     if let Some(duration_days) = parse_gantt_duration_clause(rest) {
@@ -4338,63 +5136,196 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             start_date: None,
             duration_days: Some(duration_days),
             depends_on: Vec::new(),
+            resources,
+        });
+    }
+    if let Some(start_date) = parse_gantt_start_date_clause(rest) {
+        return Some(StatementKind::GanttTaskDecl {
+            name: subject,
+            start_date: Some(start_date),
+            duration_days: None,
+            depends_on: Vec::new(),
+            resources,
+        });
+    }
+    if !resources.is_empty() {
+        return Some(StatementKind::GanttTaskDecl {
+            name: subject,
+            start_date: None,
+            duration_days: None,
+            depends_on: Vec::new(),
+            resources,
         });
     }
     let lower = rest.to_ascii_lowercase();
     if lower.starts_with("happens") {
-        return Some(StatementKind::GanttMilestoneDecl { name: subject });
-    }
-    // `[date] : label` shorthand for milestones
-    if let Some(stripped) = rest.strip_prefix(':') {
-        let label = stripped.trim();
-        if !label.is_empty() && subject.chars().next().is_some_and(|c| c.is_ascii_digit()) {
-            return Some(StatementKind::GanttMilestoneDecl {
-                name: format!("{label} ({subject})"),
-            });
-        }
+        return Some(StatementKind::GanttMilestoneDecl {
+            name: subject,
+            happens_on: parse_gantt_happens_target(rest),
+        });
     }
     for kind in ["starts", "ends", "requires"] {
         if lower.starts_with(kind) {
+            let target = rest[kind.len()..]
+                .trim()
+                .strip_prefix("at ")
+                .unwrap_or_else(|| rest[kind.len()..].trim())
+                .trim()
+                .to_string();
             return Some(StatementKind::GanttConstraint {
                 subject,
                 kind: kind.to_string(),
-                target: rest.to_string(),
+                target,
             });
         }
     }
     None
 }
 
+fn parse_gantt_closed_weekday(line: &str) -> Option<String> {
+    let lower = line.trim().to_ascii_lowercase();
+    let day = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]
+    .into_iter()
+    .find(|day| {
+        lower == format!("{day} is closed")
+            || lower == format!("{day} are closed")
+            || lower == format!("{day}s are closed")
+    })?;
+    Some(day.to_string())
+}
+
 fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
     let lower = rest.to_ascii_lowercase();
-    let marker = " and lasts ";
-    let idx = lower.find(marker)?;
+    let (idx, marker_len) = lower
+        .find(" and lasts ")
+        .map(|idx| (idx, " and lasts ".len()))
+        .or_else(|| {
+            lower
+                .find(" and requires ")
+                .map(|idx| (idx, " and requires ".len()))
+        })?;
     let start_clause = rest[..idx].trim();
-    let duration_clause = rest[idx + marker.len()..].trim();
-    let start_date = start_clause.strip_prefix("starts ")?.trim();
+    let duration_clause = rest[idx + marker_len..].trim();
+    let start_date = parse_gantt_start_date_clause(start_clause)?;
+    Some((start_date, parse_gantt_duration_clause(duration_clause)?))
+}
+
+fn parse_gantt_start_date_clause(rest: &str) -> Option<String> {
+    let start_date = rest
+        .trim()
+        .strip_prefix("starts ")?
+        .trim()
+        .strip_prefix("at ")
+        .unwrap_or_else(|| rest.trim().strip_prefix("starts ").unwrap().trim())
+        .trim();
     if !is_iso_date_literal(start_date) {
         return None;
     }
-    let duration_days = parse_gantt_duration_clause(duration_clause)?;
-    Some((start_date.to_string(), duration_days))
+    Some(start_date.to_string())
 }
 
 fn parse_gantt_duration_clause(rest: &str) -> Option<u32> {
     let trimmed = rest.trim();
     let clause = trimmed
         .strip_prefix("lasts ")
+        .or_else(|| trimmed.strip_prefix("requires "))
         .map(str::trim)
         .unwrap_or(trimmed);
-    let mut parts = clause.split_whitespace();
-    let n = parts.next()?.parse::<u32>().ok()?;
-    let unit = parts.next()?.to_ascii_lowercase();
-    if parts.next().is_some() {
-        return None;
+    let mut total = 0u32;
+    let mut parts = clause.split_whitespace().peekable();
+    while parts.peek().is_some() {
+        if parts.peek().copied() == Some("and") {
+            parts.next();
+            continue;
+        }
+        let n = parts.next()?.parse::<u32>().ok()?;
+        let unit = parts.next()?.to_ascii_lowercase();
+        let days = match unit.as_str() {
+            "day" | "days" => n,
+            "week" | "weeks" => n.saturating_mul(7),
+            _ => return None,
+        };
+        total = total.saturating_add(days);
     }
-    match unit.as_str() {
-        "day" | "days" => Some(n.max(1)),
-        "week" | "weeks" => Some(n.saturating_mul(7).max(1)),
-        _ => None,
+    if total == 0 {
+        None
+    } else {
+        Some(total)
+    }
+}
+
+fn extract_gantt_resources(rest: &str) -> (String, Vec<String>) {
+    let lower = rest.to_ascii_lowercase();
+    let Some(on_idx) = lower
+        .find(" on {")
+        .or_else(|| lower.strip_prefix("on {").map(|_| 0))
+    else {
+        return (rest.to_string(), Vec::new());
+    };
+    let mut cursor = if on_idx == 0 {
+        "on ".len()
+    } else {
+        on_idx + " on ".len()
+    };
+    let mut resources = Vec::new();
+    while cursor < rest.len() {
+        let skipped = rest[cursor..].len() - rest[cursor..].trim_start().len();
+        cursor += skipped;
+        if !rest[cursor..].starts_with('{') {
+            break;
+        }
+        let Some(end_rel) = rest[cursor + 1..].find('}') else {
+            break;
+        };
+        let end = cursor + 1 + end_rel;
+        let resource = rest[cursor + 1..end].trim();
+        if !resource.is_empty() {
+            resources.push(resource.to_string());
+        }
+        cursor = end + 1;
+    }
+    if resources.is_empty() {
+        return (rest.to_string(), Vec::new());
+    }
+    let prefix = rest[..on_idx].trim_end();
+    let suffix = rest[cursor..]
+        .trim_start()
+        .strip_prefix("and ")
+        .unwrap_or_else(|| rest[cursor..].trim_start())
+        .trim_start();
+    let cleaned = if prefix.is_empty() {
+        suffix.to_string()
+    } else if suffix.is_empty() {
+        prefix.to_string()
+    } else {
+        format!("{prefix} {suffix}")
+    };
+    (cleaned, resources)
+}
+
+fn parse_gantt_happens_target(rest: &str) -> Option<String> {
+    let lower = rest.to_ascii_lowercase();
+    let target = lower
+        .strip_prefix("happens on ")
+        .and_then(|_| rest.get("happens on ".len()..))
+        .or_else(|| {
+            lower
+                .strip_prefix("happens at ")
+                .and_then(|_| rest.get("happens at ".len()..))
+        })?
+        .trim();
+    if target.is_empty() {
+        None
+    } else {
+        Some(target.to_string())
     }
 }
 
@@ -4498,6 +5429,64 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
     }
     // Anonymous shorthand: `[Name]` declares a component, `() Name` declares an interface.
     let trimmed = line.trim();
+    if let Some(rest) = trimmed.strip_prefix('[') {
+        if let Some(end) = rest.find(']') {
+            let inner = rest[..end].trim();
+            let suffix = rest[end + 1..].trim();
+            let alias = suffix
+                .strip_prefix("as ")
+                .map(str::trim)
+                .map(clean_ident)
+                .filter(|v| !v.is_empty());
+            if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
+                let name = alias.clone().unwrap_or_else(|| clean_ident(inner));
+                let label = alias.as_ref().map(|_| inner.to_string());
+                return Some(StatementKind::ComponentDecl {
+                    kind: ComponentNodeKind::Component,
+                    name,
+                    alias,
+                    label,
+                });
+            }
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("()") {
+        let rest = rest.trim();
+        if !rest.is_empty() {
+            let (label, rest_after_label) = if rest.starts_with('"') {
+                let stripped = rest.strip_prefix('"')?;
+                let end = stripped.find('"')?;
+                (
+                    Some(stripped[..end].to_string()),
+                    stripped[end + 1..].trim(),
+                )
+            } else {
+                (None, rest)
+            };
+            let (name_raw, alias) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
+                (
+                    label.as_deref().unwrap_or("").trim(),
+                    Some(clean_ident(alias.trim())),
+                )
+            } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
+                (lhs.trim(), Some(clean_ident(rhs.trim())))
+            } else {
+                (rest_after_label, None)
+            };
+            let name = alias
+                .clone()
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| clean_ident(name_raw));
+            if !name.is_empty() {
+                return Some(StatementKind::ComponentDecl {
+                    kind: ComponentNodeKind::Interface,
+                    name,
+                    alias: alias.filter(|v| !v.is_empty()),
+                    label,
+                });
+            }
+        }
+    }
     if let Some(inner) = trimmed.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
         if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
             return Some(StatementKind::ComponentDecl {
@@ -4589,6 +5578,24 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
             label: None,
         }));
     }
+    if trimmed == "split" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Fork,
+            label: Some("split".to_string()),
+        }));
+    }
+    if trimmed == "split again" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::ForkAgain,
+            label: Some("split again".to_string()),
+        }));
+    }
+    if trimmed == "end split" || trimmed == "endsplit" || trimmed == "end merge" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndFork,
+            label: Some("end split".to_string()),
+        }));
+    }
     if trimmed == "endwhile" || trimmed == "end while" {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::EndWhile,
@@ -4605,6 +5612,27 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::IfStart,
             label: Some(parse_activity_if_label(rest.trim())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("switch ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::IfStart,
+            label: Some(format!(
+                "switch {}",
+                extract_paren_label(rest.trim()).unwrap_or_else(|| rest.trim().to_string())
+            )),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("case ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Else,
+            label: extract_paren_label(rest.trim()).or_else(|| Some(rest.trim().to_string())),
+        }));
+    }
+    if trimmed == "endswitch" || trimmed == "end switch" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::EndIf,
+            label: Some("endswitch".to_string()),
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("while ") {
@@ -4640,6 +5668,39 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::PartitionEnd,
             label: None,
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("label ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(format!("label {}", rest.trim())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("goto ") {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(format!("goto {}", rest.trim())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("backward") {
+        let label = rest
+            .trim()
+            .trim_start_matches(':')
+            .trim_end_matches(';')
+            .trim();
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(if label.is_empty() {
+                "backward".to_string()
+            } else {
+                format!("backward {label}")
+            }),
+        }));
+    }
+    if trimmed == "kill" || trimmed == "detach" {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Stop,
+            label: Some(trimmed.to_string()),
         }));
     }
     None
@@ -4701,14 +5762,36 @@ fn parse_timing_decl(line: &str) -> Option<StatementKind> {
             } else {
                 (None, rest)
             };
-            let name = clean_ident(name_raw);
+            let (name_raw, controls) = split_timing_decl_controls(name_raw);
+            let name = clean_ident(&name_raw);
             if name.is_empty() {
                 return None;
             }
-            return Some(StatementKind::TimingDecl { kind, name, label });
+            return Some(StatementKind::TimingDecl {
+                kind,
+                name,
+                label,
+                controls,
+            });
         }
     }
     None
+}
+
+fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
+    let trimmed = input.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some(idx) = lower.find(" with ") {
+        let name = trimmed[..idx].trim().to_string();
+        let controls = trimmed[idx + " with ".len()..]
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect();
+        return (name, controls);
+    }
+    (trimmed.to_string(), Vec::new())
 }
 
 fn parse_timing_event(line: &str) -> Option<StatementKind> {
@@ -5284,6 +6367,7 @@ fn parse_participant(line: &str) -> Option<StatementKind> {
 fn parse_message(line: &str) -> Option<StatementKind> {
     let (core, label) = split_message_label(line);
     let (lhs_raw, arrow, rhs_raw) = split_arrow(core)?;
+    let style = parse_arrow_style(arrow);
     let parsed_arrow = parse_arrow(arrow)?;
     let (from_id_raw, from_modifier) = split_lifecycle_modifier(lhs_raw);
     let (to_id_raw, to_modifier) = split_lifecycle_modifier(rhs_raw);
@@ -5326,9 +6410,51 @@ fn parse_message(line: &str) -> Option<StatementKind> {
         to,
         arrow: arrow_encoded,
         label,
+        style,
         from_virtual,
         to_virtual,
     }))
+}
+
+fn parse_arrow_style(arrow: &str) -> MessageStyle {
+    let mut style = MessageStyle::default();
+    let mut chars = arrow.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '[' {
+            continue;
+        }
+        let mut body = String::new();
+        for inner in chars.by_ref() {
+            if inner == ']' {
+                break;
+            }
+            body.push(inner);
+        }
+        for token in body.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            let lower = token.to_ascii_lowercase();
+            match lower.as_str() {
+                "hidden" => style.hidden = true,
+                "dashed" => style.dashed = true,
+                "dotted" => style.dotted = true,
+                _ if token.starts_with('#')
+                    && matches!(token.len(), 4 | 5 | 7 | 9)
+                    && token[1..].bytes().all(|b| b.is_ascii_hexdigit()) =>
+                {
+                    style.color = Some(format!("#{}", token[1..].to_ascii_lowercase()));
+                }
+                _ if token.starts_with('#')
+                    && token[1..].bytes().all(|b| b.is_ascii_alphabetic()) =>
+                {
+                    style.color = Some(token[1..].to_ascii_lowercase());
+                }
+                _ if token.bytes().all(|b| b.is_ascii_alphabetic()) => {
+                    style.color = Some(lower);
+                }
+                _ => {}
+            }
+        }
+    }
+    style
 }
 
 fn ast_virtual_endpoint_from_id(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
@@ -5664,6 +6790,38 @@ fn extract_class_member_name(s: &str) -> String {
     clean_ident(t)
 }
 
+fn extract_component_group_member_name(s: &str) -> String {
+    if let Some(StatementKind::ComponentDecl { name, alias, .. }) = parse_component_decl(s) {
+        return alias.unwrap_or(name);
+    }
+    extract_class_member_name(s)
+}
+
+fn split_family_relation_label(line: &str) -> (&str, Option<String>) {
+    if split_family_arrow(line).is_none() {
+        return split_message_label(line);
+    }
+    if let Some(colon) = line.rfind(" :") {
+        let suffix = line[colon + 2..].trim();
+        if !suffix_has_family_relation_arrow(suffix) {
+            let text = line[colon + 2..].trim();
+            if !text.is_empty() {
+                return (line[..colon].trim_end(), Some(text.to_string()));
+            }
+        }
+    }
+    (line.trim_end(), None)
+}
+
+fn suffix_has_family_relation_arrow(suffix: &str) -> bool {
+    suffix.contains("--")
+        || suffix.contains("..")
+        || suffix.contains("->")
+        || suffix.contains("<-")
+        || suffix.contains("|>")
+        || suffix.contains("<|")
+}
+
 fn split_message_label(line: &str) -> (&str, Option<String>) {
     if let Some(colon) = line.find(':') {
         let text = line[colon + 1..].trim();
@@ -5682,16 +6840,25 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     }
 
     let mut run_start: Option<usize> = None;
+    let mut in_bracket = false;
     for (idx, ch) in core.char_indices() {
-        if is_arrow_char(ch) {
-            if run_start.is_none() {
-                run_start = Some(idx);
+        if let Some(start) = run_start {
+            if in_bracket {
+                if ch == ']' {
+                    in_bracket = false;
+                }
+                continue;
             }
-            continue;
-        }
-        if let Some(start) = run_start.take() {
+            if ch == '[' {
+                in_bracket = true;
+                continue;
+            }
+            if is_arrow_char(ch) {
+                continue;
+            }
             let candidate = &core[start..idx];
             if !candidate.contains('-') {
+                run_start = None;
                 continue;
             }
             let lhs = core[..start].trim();
@@ -5699,6 +6866,17 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
             if !lhs.is_empty() && !rhs.is_empty() {
                 return Some((lhs, candidate.trim(), rhs));
             }
+            run_start = None;
+            continue;
+        }
+        if is_arrow_char(ch) {
+            if run_start.is_none() {
+                run_start = Some(idx);
+            }
+            if ch == '[' {
+                in_bracket = true;
+            }
+            continue;
         }
     }
     if let Some(start) = run_start {
@@ -5719,6 +6897,7 @@ fn parse_arrow(arrow: &str) -> Option<String> {
     const VALID_BASE_ARROWS: &[&str] = &[
         "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
     ];
+    let arrow = strip_sequence_arrow_brackets(arrow);
     let mut squashed = String::with_capacity(arrow.len());
     let mut last_slash: Option<char> = None;
     let mut slash_run_len = 0usize;
@@ -5819,6 +6998,23 @@ fn parse_arrow(arrow: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn strip_sequence_arrow_brackets(arrow: &str) -> String {
+    let mut out = String::with_capacity(arrow.len());
+    let mut chars = arrow.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '[' {
+            for next in chars.by_ref() {
+                if next == ']' {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(ch);
+    }
+    out
 }
 
 fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
@@ -5946,24 +7142,34 @@ fn parse_json_projection_block(
 
     // If everything is on one line: `json $alias { ... }`
     if !inline_after_brace.is_empty() {
-        let mut j = 0;
-        let ib = inline_after_brace.as_bytes();
-        while j < ib.len() {
-            if ib[j] == b'{' {
-                depth += 1;
-            } else if ib[j] == b'}' {
-                depth -= 1;
-                if depth == 0 {
-                    let body = inline_after_brace[..j].trim().to_string();
-                    let kind = if is_yaml {
-                        StatementKind::YamlProjection { alias, body }
-                    } else {
-                        StatementKind::JsonProjection { alias, body }
-                    };
-                    return Ok(Some((kind, start)));
+        let mut in_quotes = false;
+        let mut prev_escape = false;
+        for (j, ch) in inline_after_brace.char_indices() {
+            if in_quotes {
+                if ch == '"' && !prev_escape {
+                    in_quotes = false;
                 }
+                prev_escape = ch == '\\' && !prev_escape;
+                continue;
             }
-            j += 1;
+            match ch {
+                '"' => in_quotes = true,
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let body = inline_after_brace[..j].trim().to_string();
+                        let kind = if is_yaml {
+                            StatementKind::YamlProjection { alias, body }
+                        } else {
+                            StatementKind::JsonProjection { alias, body }
+                        };
+                        return Ok(Some((kind, start)));
+                    }
+                }
+                _ => {}
+            }
+            prev_escape = false;
         }
         // Depth > 0: content continues on next lines.
         body_lines.push(inline_after_brace);
@@ -5977,17 +7183,30 @@ fn parse_json_projection_block(
         // Check for matching closing brace.
         let mut consumed_close = false;
         let mut close_pos = 0;
-        for (pos, b) in trimmed.as_bytes().iter().enumerate() {
-            if *b == b'{' {
-                depth += 1;
-            } else if *b == b'}' {
-                depth -= 1;
-                if depth == 0 {
-                    consumed_close = true;
-                    close_pos = pos;
-                    break;
+        let mut in_quotes = false;
+        let mut prev_escape = false;
+        for (pos, ch) in trimmed.char_indices() {
+            if in_quotes {
+                if ch == '"' && !prev_escape {
+                    in_quotes = false;
                 }
+                prev_escape = ch == '\\' && !prev_escape;
+                continue;
             }
+            match ch {
+                '"' => in_quotes = true,
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        consumed_close = true;
+                        close_pos = pos;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            prev_escape = false;
         }
         if consumed_close {
             // Everything before the closing `}` is part of the body.
@@ -6019,15 +7238,33 @@ fn parse_json_projection_block(
 /// Returns `None` if the line does not start with `|`.
 fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
-    if !trimmed.starts_with('|') {
+    let lower = trimmed.to_ascii_lowercase();
+    let whole_line_widget = lower.starts_with("{*")
+        || lower.starts_with("{/")
+        || lower.starts_with("{s")
+        || lower.starts_with("{t")
+        || lower == "tree"
+        || lower.starts_with("tree ")
+        || lower == "menu"
+        || lower.starts_with("menu ")
+        || lower == "tab"
+        || lower.starts_with("tab ")
+        || lower == "tabs"
+        || lower.starts_with("tabs ")
+        || lower.starts_with("scroll")
+        || lower.contains("scrollbar");
+    if whole_line_widget {
+        return Some(StatementKind::SaltGridRow {
+            cells: vec![SaltCell::Label(trimmed.to_string())],
+        });
+    }
+    if !trimmed.contains('|') {
         return None;
     }
     // Split on `|` and parse each cell token.
     let parts: Vec<&str> = trimmed.split('|').collect();
-    // The first element before the first `|` is always empty; skip it.
-    // The last element after the last `|` may also be empty; skip it.
     let mut cells = Vec::new();
-    for part in parts.iter().skip(1) {
+    for part in parts {
         let cell_text = part.trim();
         if cell_text.is_empty() {
             continue;
@@ -6080,7 +7317,7 @@ fn parse_salt_cell(text: &str) -> SaltCell {
 #[cfg(test)]
 mod tests {
     use super::{parse_with_options, ParseOptions};
-    use crate::ast::{DiagramKind, StatementKind};
+    use crate::ast::{ActivityStepKind, DiagramKind, StatementKind};
     use std::fs;
     use tempfile::tempdir;
 
@@ -6563,13 +7800,16 @@ mod tests {
     }
 
     #[test]
-    fn preprocessor_concat_and_arg_errors_are_deterministic() {
-        let concat = parse_with_options(
-            "@startuml\n!function Join($a##$b)\n!return $a\n!endfunction\nA -> B\n@enduml\n",
+    fn preprocessor_concat_signature_and_arg_errors_are_deterministic() {
+        let doc = parse_with_options(
+            "@startuml\n!function Join($a##$b)\n!return $a ## $b\n!endfunction\nA -> B: %Join(Al, ice)\n@enduml\n",
             &ParseOptions::default(),
         )
-        .unwrap_err();
-        assert!(concat.message.contains("E_PREPROC_CONCAT_UNSUPPORTED"));
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
 
         let missing = parse_with_options(
             "@startuml\n!function Need($a,$b)\n!return $a\n!endfunction\nA -> B: %Need(\"x\")\n@enduml\n",
@@ -6724,6 +7964,66 @@ mod tests {
         .unwrap();
         assert_eq!(doc.statements.len(), 1);
         assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
+    fn preprocessor_conditions_support_nested_integer_arithmetic() {
+        let doc = parse_with_options(
+            "@startuml\n!if (2 + 3 * (4 - 1)) == 11\nA -> B : math\n!endif\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 1);
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("math")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_macro_concat_collapses_expanded_function_body_tokens() {
+        let doc = parse_with_options(
+            "@startuml\n!function Join($a,$b)\n!return $a ## $b\n!endfunction\nA -> B : %Join(Al, ice)\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_json_helpers_return_nested_objects_and_empty_keys() {
+        let doc = parse_with_options(
+            "@startuml\n!$cfg = { \"users\": [{ \"name\": \"Ada\", \"meta\": { \"team\": \"core\" }}], \"empty\": \"\" }\n!if %json_key_exists($cfg, \"empty\")\nA -> B : %get_json_attribute($cfg, \"users[0].meta\")\n!endif\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.label.as_deref(), Some("{\"team\":\"core\"}"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_list_map_helpers_and_modulo_expand_inline() {
+        let doc = parse_with_options(
+            "@startuml\n!$cfg = { \"name\": \"Ada\", \"role\": \"core\" }\n!foreach $item in %split(\"red|blue\", \"|\")\nA -> B : $item\n!endfor\n!if 7 % 4 == 3\nA -> B : %get($cfg, \"name\")/%join([\"x\",\"y\"], \"-\")/%quote(ok)\n!endif\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        let labels = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::Message(m) => m.label.as_deref(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(labels, vec!["red", "blue", "Ada/x-y/\"ok\""]);
     }
 
     #[test]
@@ -6978,6 +8278,141 @@ mod tests {
     }
 
     #[test]
+    fn parses_core_uml_broad_partial_declaration_forms() {
+        let class_doc = parse_with_options(
+            "interface Gateway\nabstract class Shape\nannotation Trace\nstruct Payload\nGateway -[#blue,dashed]-> Shape : adapts\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(class_doc.kind, DiagramKind::Class);
+        match &class_doc.statements[0].kind {
+            StatementKind::ClassDecl(decl) => {
+                assert_eq!(decl.name, "Gateway");
+                assert_eq!(decl.members[0].text, "<<interface>>");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &class_doc.statements[1].kind {
+            StatementKind::ClassDecl(decl) => {
+                assert_eq!(decl.name, "Shape");
+                assert_eq!(decl.members[0].text, "<<abstract class>>");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        assert!(matches!(
+            class_doc.statements[4].kind,
+            StatementKind::FamilyRelation(_)
+        ));
+        match &class_doc.statements[4].kind {
+            StatementKind::FamilyRelation(rel) => assert_eq!(rel.arrow, "-->"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+
+        let object_doc = parse_with_options(
+            "map Settings {\n  theme => light\n}\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(object_doc.kind, DiagramKind::Object);
+        match &object_doc.statements[0].kind {
+            StatementKind::ObjectDecl(decl) => {
+                assert_eq!(decl.name, "Settings");
+                assert_eq!(decl.members[0].text, "<<map>>");
+                assert_eq!(decl.members[1].text, "theme => light");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+
+        let usecase_doc = parse_with_options(
+            "actor Customer as C\nusecase (Login) as UC1\nC ..> UC1 : <<include>>\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(usecase_doc.kind, DiagramKind::UseCase);
+        match &usecase_doc.statements[0].kind {
+            StatementKind::UseCaseDecl(decl) => {
+                assert_eq!(decl.name, "Customer");
+                assert_eq!(decl.alias.as_deref(), Some("C"));
+                assert_eq!(decl.members[0].text, "<<actor>>");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &usecase_doc.statements[1].kind {
+            StatementKind::UseCaseDecl(decl) => {
+                assert_eq!(decl.name, "Login");
+                assert_eq!(decl.alias.as_deref(), Some("UC1"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &usecase_doc.statements[2].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.arrow, "..>");
+                assert_eq!(rel.label.as_deref(), Some("<<include>>"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_sequence_decorated_arrow_styles_as_portable_arrow_core() {
+        let doc = parse_with_options(
+            "participant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Sequence);
+        match &doc.statements[2].kind {
+            StatementKind::Message(m) => assert_eq!(m.arrow, "->"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[3].kind {
+            StatementKind::Message(m) => assert_eq!(m.arrow, "-->"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_activity_switch_split_goto_and_terminal_controls() {
+        let doc = parse_with_options(
+            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\ncase (B)\ngoto retry\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\nbackward: retry path;\ndetach\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Activity);
+        let steps = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::ActivityStep(step) => Some(step),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::IfStart
+                && step.label.as_deref() == Some("switch kind?")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Else && step.label.as_deref() == Some("A")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Fork
+                && step.label.as_deref() == Some("split")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("goto retry")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("backward retry path")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Stop
+                && step.label.as_deref() == Some("detach")));
+    }
+
+    #[test]
     fn parses_family_declaration_blocks_with_members() {
         let doc = parse_with_options(
             "class User {\n  +id: UUID\n  +name: String\n}\n",
@@ -7022,12 +8457,15 @@ mod tests {
         ));
         assert!(matches!(
             doc.statements[1].kind,
-            StatementKind::GanttMilestoneDecl { .. }
+            StatementKind::GanttMilestoneDecl {
+                happens_on: Some(_),
+                ..
+            }
         ));
-        assert!(matches!(
-            doc.statements[2].kind,
-            StatementKind::GanttConstraint { .. }
-        ));
+        assert!(doc
+            .statements
+            .iter()
+            .any(|stmt| matches!(stmt.kind, StatementKind::GanttConstraint { .. })));
     }
 
     #[test]
@@ -7062,6 +8500,24 @@ mod tests {
                 duration_days: Some(14),
                 ..
             } if name == "Test" && d == "2026-05-06"
+        ));
+    }
+
+    #[test]
+    fn parses_gantt_closed_weekday_calendar_statements() {
+        let doc = parse_with_options(
+            "@startgantt\nProject starts 2026-05-01\nsaturday are closed\nsundays are closed\n[Build] lasts 2 days\n@endgantt\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Gantt);
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::GanttCalendarClosed { ref day } if day == "saturday"
+        ));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::GanttCalendarClosed { ref day } if day == "sunday"
         ));
     }
 

@@ -4,6 +4,8 @@
 /// These bypass the main AST parser pipeline and implement their own
 /// mini-parsers and SVG renderers.
 use crate::diagnostic::Diagnostic;
+use crate::theme::resolve_sequence_theme_preset;
+use std::collections::BTreeMap;
 
 // ─── Public dispatch ──────────────────────────────────────────────────────────
 
@@ -111,6 +113,8 @@ enum RailNode {
     Optional(Box<RailNode>),
     /// One-or-more (+ quantifier): item then loop.
     OneOrMore(Box<RailNode>),
+    /// Counted repeat ({n}, {n,m}, {n,}, {,m}) with exact source label.
+    CountedRepeat(Box<RailNode>, String),
     /// Non-terminal reference.
     NonTerminal(String),
     /// Anchor (^, $).
@@ -129,6 +133,41 @@ const RAIL_BOX_H: i32 = 28;
 const RAIL_GAP: i32 = 20; // horizontal gap between elements in a sequence
 const RAIL_ALT_GAP: i32 = 24; // vertical gap between alternation branches
 
+#[derive(Debug, Clone)]
+struct RailStyle {
+    literal_fill: String,
+    literal_stroke: String,
+    literal_text: String,
+    nonterminal_fill: String,
+    nonterminal_stroke: String,
+    nonterminal_text: String,
+    charclass_fill: String,
+    charclass_stroke: String,
+    charclass_text: String,
+    anchor_fill: String,
+    anchor_stroke: String,
+    anchor_text: String,
+}
+
+impl Default for RailStyle {
+    fn default() -> Self {
+        Self {
+            literal_fill: "#fff8e1".to_string(),
+            literal_stroke: "#f9a825".to_string(),
+            literal_text: "#333".to_string(),
+            nonterminal_fill: "#e8f5e9".to_string(),
+            nonterminal_stroke: "#388e3c".to_string(),
+            nonterminal_text: "#1b5e20".to_string(),
+            charclass_fill: "#fce4ec".to_string(),
+            charclass_stroke: "#c62828".to_string(),
+            charclass_text: "#b71c1c".to_string(),
+            anchor_fill: "#e3f2fd".to_string(),
+            anchor_stroke: "#1976d2".to_string(),
+            anchor_text: "#1565c0".to_string(),
+        }
+    }
+}
+
 fn rail_literal_width(text: &str) -> i32 {
     (text.len() as i32) * RAIL_FONT_W + RAIL_PAD_X * 2 + 8
 }
@@ -146,16 +185,23 @@ struct RailLayout {
 }
 
 fn layout_rail(node: &RailNode) -> RailLayout {
+    layout_rail_with_style(node, &RailStyle::default())
+}
+
+fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
     match node {
         RailNode::Literal(text) => {
             let w = rail_box_width(text);
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"14\" ry=\"14\" fill=\"#fff8e1\" stroke=\"#f9a825\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#333\">{}</text>",
+                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"14\" ry=\"14\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w, h,
+                style.literal_fill,
+                style.literal_stroke,
                 w / 2, mid,
+                style.literal_text,
                 escape_xml(text)
             );
             RailLayout {
@@ -170,10 +216,13 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#e8f5e9\" stroke=\"#388e3c\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#1b5e20\">{}</text>",
+                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w, h,
+                style.nonterminal_fill,
+                style.nonterminal_stroke,
                 w / 2, mid,
+                style.nonterminal_text,
                 escape_xml(name)
             );
             RailLayout {
@@ -188,10 +237,13 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"#e3f2fd\" stroke=\"#1976d2\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#1565c0\">{}</text>",
+                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w / 2, mid,
+                style.anchor_fill,
+                style.anchor_stroke,
                 w / 2, mid,
+                style.anchor_text,
                 escape_xml(sym)
             );
             RailLayout {
@@ -207,10 +259,13 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             let h = RAIL_BOX_H;
             let mid = h / 2;
             let svg = format!(
-                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#fce4ec\" stroke=\"#c62828\" stroke-width=\"1.5\"/>
-<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#b71c1c\">{}</text>",
+                "<rect x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>
+<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
                 w, h,
+                style.charclass_fill,
+                style.charclass_stroke,
                 w / 2, mid,
+                style.charclass_text,
                 escape_xml(&text)
             );
             RailLayout {
@@ -227,7 +282,10 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             mid_y: RAIL_BOX_H / 2,
         },
         RailNode::Sequence(items) => {
-            let children: Vec<RailLayout> = items.iter().map(layout_rail).collect();
+            let children: Vec<RailLayout> = items
+                .iter()
+                .map(|item| layout_rail_with_style(item, style))
+                .collect();
             if children.is_empty() {
                 return RailLayout {
                     svg: String::new(),
@@ -282,7 +340,10 @@ fn layout_rail(node: &RailNode) -> RailLayout {
                     mid_y: RAIL_BOX_H / 2,
                 };
             }
-            let children: Vec<RailLayout> = branches.iter().map(layout_rail).collect();
+            let children: Vec<RailLayout> = branches
+                .iter()
+                .map(|branch| layout_rail_with_style(branch, style))
+                .collect();
             let max_w = children.iter().map(|c| c.w_or_min()).max().unwrap_or(60);
             let total_h: i32 = children
                 .iter()
@@ -337,7 +398,7 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             }
         }
         RailNode::Repeat(inner) => {
-            let child = layout_rail(inner);
+            let child = layout_rail_with_style(inner, style);
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
@@ -393,7 +454,7 @@ fn layout_rail(node: &RailNode) -> RailLayout {
             }
         }
         RailNode::OneOrMore(inner) => {
-            let child = layout_rail(inner);
+            let child = layout_rail_with_style(inner, style);
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
@@ -428,8 +489,48 @@ fn layout_rail(node: &RailNode) -> RailLayout {
                 mid_y,
             }
         }
+        RailNode::CountedRepeat(inner, spec) => {
+            let child = layout_rail_with_style(inner, style);
+            let w = child.width + 40;
+            let h = child.height + 28;
+            let mid_y = child.mid_y;
+            let inner_label = match inner.as_ref() {
+                RailNode::Alternation(_) => format!("({})", rail_node_label(inner)),
+                _ => rail_node_label(inner),
+            };
+            let label = format!("{}{}", inner_label, spec);
+            let mut out = String::new();
+            out.push_str(&format!(
+                "<metadata data-regex-repeat=\"{}\"/>",
+                escape_xml(&label)
+            ));
+            out.push_str(&format!(
+                "<g transform=\"translate(20,0)\">{}</g>",
+                child.svg
+            ));
+            out.push_str(&format!(
+                "<line x1=\"0\" y1=\"{}\" x2=\"20\" y2=\"{}\" stroke=\"#666\" stroke-width=\"1.5\"/>",
+                mid_y, mid_y
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#666\" stroke-width=\"1.5\"/>",
+                20 + child.width, mid_y, w, mid_y
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#888\" text-anchor=\"middle\">{}</text>",
+                w / 2,
+                h - 6,
+                escape_xml(spec)
+            ));
+            RailLayout {
+                svg: out,
+                width: w,
+                height: h,
+                mid_y,
+            }
+        }
         RailNode::Optional(inner) => {
-            let child = layout_rail(inner);
+            let child = layout_rail_with_style(inner, style);
             let w = child.width + 40;
             let h = child.height + 24;
             let mid_y = child.mid_y;
@@ -467,6 +568,48 @@ fn layout_rail(node: &RailNode) -> RailLayout {
                 mid_y,
             }
         }
+    }
+}
+
+fn rail_node_label(node: &RailNode) -> String {
+    match node {
+        RailNode::Literal(text) => format!("'{text}'"),
+        RailNode::Sequence(items) => {
+            if items
+                .iter()
+                .all(|item| matches!(item, RailNode::Literal(_)))
+            {
+                let mut literal = String::new();
+                for item in items {
+                    if let RailNode::Literal(text) = item {
+                        literal.push_str(text);
+                    }
+                }
+                format!("'{literal}'")
+            } else {
+                items
+                    .iter()
+                    .map(rail_node_label)
+                    .collect::<Vec<_>>()
+                    .join("")
+            }
+        }
+        RailNode::Alternation(branches) => format!(
+            "alt({})",
+            branches
+                .iter()
+                .map(rail_node_label)
+                .collect::<Vec<_>>()
+                .join("|")
+        ),
+        RailNode::Repeat(inner) => format!("{}*", rail_node_label(inner)),
+        RailNode::Optional(inner) => format!("{}?", rail_node_label(inner)),
+        RailNode::OneOrMore(inner) => format!("{}+", rail_node_label(inner)),
+        RailNode::CountedRepeat(inner, spec) => format!("{}{}", rail_node_label(inner), spec),
+        RailNode::NonTerminal(name) => name.clone(),
+        RailNode::Anchor(sym) => sym.clone(),
+        RailNode::CharClass(text) => text.clone(),
+        RailNode::Empty => String::new(),
     }
 }
 
@@ -549,32 +692,100 @@ fn render_railroad(title: &str, root: &RailNode) -> String {
 
 fn render_regex(source: &str) -> Result<String, Diagnostic> {
     let (body, _title) = strip_block(source, "@startregex", "@endregex");
-    let pattern = body.trim();
+    let mut locale = RegexLocale::English;
+    let mut patterns = Vec::new();
+    for raw in body.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('\'') {
+            continue;
+        }
+        let lower = line.to_ascii_lowercase();
+        if let Some(rest) = lower
+            .strip_prefix("locale ")
+            .or_else(|| lower.strip_prefix("language "))
+            .or_else(|| lower.strip_prefix("lang "))
+        {
+            locale = RegexLocale::from_name(rest.trim());
+            continue;
+        }
+        patterns.push(line.to_string());
+    }
+    let pattern = patterns.join("\n");
     if pattern.is_empty() {
         return Err(Diagnostic::error(
             "[E_REGEX_EMPTY] @startregex body is empty",
         ));
     }
-    let node = parse_regex_to_rail(pattern);
-    let title = format!("/{}/", pattern);
+    let node = if patterns.len() == 1 {
+        parse_regex_to_rail(&patterns[0], locale)
+    } else {
+        RailNode::Alternation(
+            patterns
+                .iter()
+                .map(|pattern| parse_regex_to_rail(pattern, locale))
+                .collect(),
+        )
+    };
+    let title = format!("/{}/", pattern.replace('\n', " | "));
     Ok(render_railroad(&title, &node))
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RegexLocale {
+    English,
+    French,
+    Spanish,
+}
+
+impl RegexLocale {
+    fn from_name(name: &str) -> Self {
+        match name {
+            "fr" | "fra" | "fre" | "french" | "francais" | "français" => Self::French,
+            "es" | "spa" | "spanish" | "espanol" | "español" => Self::Spanish,
+            _ => Self::English,
+        }
+    }
+
+    fn label(self, key: &str) -> &'static str {
+        match (self, key) {
+            (Self::French, "digit") => "chiffre",
+            (Self::French, "word") => "mot",
+            (Self::French, "space") => "espace",
+            (Self::French, "any") => "tout",
+            (Self::French, "start") => "debut",
+            (Self::French, "end") => "fin",
+            (Self::Spanish, "digit") => "digito",
+            (Self::Spanish, "word") => "palabra",
+            (Self::Spanish, "space") => "espacio",
+            (Self::Spanish, "any") => "cualquiera",
+            (Self::Spanish, "start") => "inicio",
+            (Self::Spanish, "end") => "fin",
+            (_, "digit") => "digit",
+            (_, "word") => "word",
+            (_, "space") => "whitespace",
+            (_, "any") => "any char",
+            (_, "start") => "start",
+            (_, "end") => "end",
+            _ => "regex",
+        }
+    }
 }
 
 /// Parse a regex pattern string into a RailNode AST.
 /// Supports: literals, `.`, `|`, `(...)`, `[...]`, `*`, `+`, `?`, `^`, `$`.
-fn parse_regex_to_rail(pattern: &str) -> RailNode {
+fn parse_regex_to_rail(pattern: &str, locale: RegexLocale) -> RailNode {
     let chars: Vec<char> = pattern.chars().collect();
-    let (node, _) = parse_regex_alternation(&chars, 0);
+    let (node, _) = parse_regex_alternation(&chars, 0, locale);
     node
 }
 
-fn parse_regex_alternation(chars: &[char], start: usize) -> (RailNode, usize) {
+fn parse_regex_alternation(chars: &[char], start: usize, locale: RegexLocale) -> (RailNode, usize) {
     let mut branches = Vec::new();
-    let (first, mut pos) = parse_regex_sequence(chars, start);
+    let (first, mut pos) = parse_regex_sequence(chars, start, locale);
     branches.push(first);
     while pos < chars.len() && chars[pos] == '|' {
         pos += 1;
-        let (branch, new_pos) = parse_regex_sequence(chars, pos);
+        let (branch, new_pos) = parse_regex_sequence(chars, pos, locale);
         branches.push(branch);
         pos = new_pos;
     }
@@ -585,20 +796,24 @@ fn parse_regex_alternation(chars: &[char], start: usize) -> (RailNode, usize) {
     }
 }
 
-fn parse_regex_sequence(chars: &[char], start: usize) -> (RailNode, usize) {
+fn parse_regex_sequence(chars: &[char], start: usize, locale: RegexLocale) -> (RailNode, usize) {
     let mut items = Vec::new();
     let mut pos = start;
     while pos < chars.len() {
         match chars[pos] {
             ')' | '|' => break,
             '^' | '$' => {
-                let sym = chars[pos].to_string();
+                let sym = if chars[pos] == '^' {
+                    locale.label("start").to_string()
+                } else {
+                    locale.label("end").to_string()
+                };
                 pos += 1;
                 items.push(RailNode::Anchor(sym));
             }
             '(' => {
                 pos += 1; // consume '('
-                let (inner, new_pos) = parse_regex_alternation(chars, pos);
+                let (inner, new_pos) = parse_regex_alternation(chars, pos, locale);
                 pos = new_pos;
                 if pos < chars.len() && chars[pos] == ')' {
                     pos += 1;
@@ -628,18 +843,18 @@ fn parse_regex_sequence(chars: &[char], start: usize) -> (RailNode, usize) {
                 let escaped = if pos < chars.len() {
                     let c = chars[pos];
                     pos += 1;
-                    format!("\\{}", c)
+                    regex_escape_label(c, locale)
                 } else {
                     "\\".to_string()
                 };
-                let node = RailNode::Literal(escaped);
+                let node = RailNode::CharClass(escaped);
                 let (node, new_pos) = apply_quantifier(node, chars, pos);
                 pos = new_pos;
                 items.push(node);
             }
             '.' => {
                 pos += 1;
-                let node = RailNode::CharClass(".".to_string());
+                let node = RailNode::CharClass(locale.label("any").to_string());
                 let (node, new_pos) = apply_quantifier(node, chars, pos);
                 pos = new_pos;
                 items.push(node);
@@ -663,6 +878,20 @@ fn parse_regex_sequence(chars: &[char], start: usize) -> (RailNode, usize) {
     }
 }
 
+fn regex_escape_label(ch: char, locale: RegexLocale) -> String {
+    match ch {
+        'd' => format!("\\d {}", locale.label("digit")),
+        'D' => format!("\\D not {}", locale.label("digit")),
+        'w' => format!("\\w {}", locale.label("word")),
+        'W' => format!("\\W not {}", locale.label("word")),
+        's' => format!("\\s {}", locale.label("space")),
+        'S' => format!("\\S not {}", locale.label("space")),
+        't' => "\\t tab".to_string(),
+        'n' => "\\n newline".to_string(),
+        other => format!("\\{other}"),
+    }
+}
+
 fn apply_quantifier(node: RailNode, chars: &[char], pos: usize) -> (RailNode, usize) {
     if pos >= chars.len() {
         return (node, pos);
@@ -672,15 +901,15 @@ fn apply_quantifier(node: RailNode, chars: &[char], pos: usize) -> (RailNode, us
         '+' => (RailNode::OneOrMore(Box::new(node)), pos + 1),
         '?' => (RailNode::Optional(Box::new(node)), pos + 1),
         '{' => {
-            // consume {n,m} quantifier as "one or more" for simplicity
             let mut p = pos + 1;
             while p < chars.len() && chars[p] != '}' {
                 p += 1;
             }
-            if p < chars.len() {
-                p += 1;
+            if p < chars.len() && chars[p] == '}' {
+                let spec: String = chars[pos..=p].iter().collect();
+                return (RailNode::CountedRepeat(Box::new(node), spec), p + 1);
             }
-            (RailNode::Repeat(Box::new(node)), p)
+            (node, pos)
         }
         _ => (node, pos),
     }
@@ -690,9 +919,10 @@ fn apply_quantifier(node: RailNode, chars: &[char], pos: usize) -> (RailNode, us
 
 fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
     let (body, doc_title) = strip_block(source, "@startebnf", "@endebnf");
+    let (body, style, notes) = parse_ebnf_render_directives(body);
 
     // Parse rules: "name = body ;"
-    let rules = parse_ebnf_rules(body);
+    let rules = parse_ebnf_rules(&body);
     if rules.is_empty() {
         return Err(Diagnostic::error(
             "[E_EBNF_EMPTY] @startebnf body contains no rules",
@@ -713,11 +943,12 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
 
     let layouts: Vec<(String, RailLayout)> = rule_svgs
         .iter()
-        .map(|(name, node)| (name.clone(), layout_rail(node)))
+        .map(|(name, node)| (name.clone(), layout_rail_with_style(node, &style)))
         .collect();
 
     let max_inner_w = layouts.iter().map(|(_, l)| l.width).max().unwrap_or(200);
-    let svg_w = max_inner_w + margin * 2 + 40;
+    let note_w = if notes.is_empty() { 0 } else { 220 };
+    let svg_w = max_inner_w + margin * 2 + 40 + note_w;
     let total_h: i32 = layouts
         .iter()
         .map(|(_, l)| l.height + label_h + gap_between)
@@ -727,6 +958,7 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
     let mut out = String::new();
     out.push_str(&svg_header(svg_w, total_h));
     out.push_str(svg_white_bg());
+    out.push_str("<g data-ebnf-style=\"customizable\">");
 
     if let Some(title) = &doc_title {
         out.push_str(&format!(
@@ -744,6 +976,19 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
             "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"#555\">{} :=</text>",
             margin, y + 14, escape_xml(name)
         ));
+        if let Some(note) = notes.get(name) {
+            let nx = svg_w - note_w + 14;
+            out.push_str(&format!(
+                "<g data-ebnf-note-for=\"{}\"><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"34\" rx=\"6\" ry=\"6\" fill=\"#fff7ed\" stroke=\"#f97316\" stroke-width=\"1\"/><text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#7c2d12\">{}</text></g>",
+                escape_xml(name),
+                nx,
+                y - 4,
+                note_w - 28,
+                nx + 8,
+                y + 18,
+                escape_xml(note)
+            ));
+        }
         y += label_h;
 
         let mid_y = y + layout.mid_y + 10;
@@ -791,8 +1036,71 @@ fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
         y += layout.height + gap_between + 10;
     }
 
+    out.push_str("</g>");
     out.push_str("</svg>");
     Ok(out)
+}
+
+fn parse_ebnf_render_directives(body: &str) -> (String, RailStyle, BTreeMap<String, String>) {
+    let mut style = RailStyle::default();
+    let mut notes = BTreeMap::new();
+    let mut rule_lines = Vec::new();
+
+    for raw in body.lines() {
+        let line = raw.trim();
+        if line.is_empty() {
+            rule_lines.push(raw.to_string());
+            continue;
+        }
+        let lower = line.to_ascii_lowercase();
+        if let Some((name, note)) = parse_ebnf_note(line) {
+            notes.insert(name, note);
+            continue;
+        }
+        if lower.starts_with("style ") || lower.starts_with("skinparam ") {
+            apply_ebnf_style_directive(line, &mut style);
+            continue;
+        }
+        rule_lines.push(raw.to_string());
+    }
+
+    (rule_lines.join("\n"), style, notes)
+}
+
+fn parse_ebnf_note(line: &str) -> Option<(String, String)> {
+    let lower = line.to_ascii_lowercase();
+    let rest = lower.strip_prefix("note ")?;
+    let source_rest = &line[line.len() - rest.len()..];
+    let (name, note) = source_rest.split_once(':')?;
+    let name = name.trim().trim_matches('"').to_string();
+    let note = note.trim().trim_matches('"').to_string();
+    if name.is_empty() || note.is_empty() {
+        None
+    } else {
+        Some((name, note))
+    }
+}
+
+fn apply_ebnf_style_directive(line: &str, style: &mut RailStyle) {
+    let lower = line.to_ascii_lowercase();
+    let words: Vec<&str> = line.split_whitespace().collect();
+    let color = words
+        .iter()
+        .rev()
+        .find(|word| word.starts_with('#'))
+        .copied();
+    let Some(color) = color else {
+        return;
+    };
+    if lower.contains("terminal") && !lower.contains("nonterminal") {
+        style.literal_fill = color.to_string();
+    } else if lower.contains("nonterminal") || lower.contains("non-terminal") {
+        style.nonterminal_fill = color.to_string();
+    } else if lower.contains("charclass") || lower.contains("characterclass") {
+        style.charclass_fill = color.to_string();
+    } else if lower.contains("anchor") {
+        style.anchor_fill = color.to_string();
+    }
 }
 
 /// Parse EBNF rules: "name = body ;" lines, possibly multi-line.
@@ -807,15 +1115,24 @@ fn parse_ebnf_rules(body: &str) -> Vec<(String, String)> {
             continue;
         }
         // Check if line contains '=' (new rule start)
-        if let Some(eq_pos) = line.find('=') {
+        if let Some(eq_pos) = line.find('=').or_else(|| line.find("::=")) {
             // Save previous rule if any
             if let Some(name) = current_name.take() {
                 let trimmed = current_body.trim().trim_end_matches(';').trim().to_string();
                 rules.push((name, trimmed));
                 current_body.clear();
             }
-            let name = line[..eq_pos].trim().to_string();
-            let rest = line[eq_pos + 1..].trim();
+            let name = line[..eq_pos]
+                .trim()
+                .trim_end_matches(':')
+                .trim()
+                .to_string();
+            let rest_start = if line[eq_pos..].starts_with("::=") {
+                eq_pos + 3
+            } else {
+                eq_pos + 1
+            };
+            let rest = line[rest_start..].trim();
             current_name = Some(name);
             // Check if rule ends on same line
             if rest.ends_with(';') {
@@ -993,7 +1310,7 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
     if pos >= tokens.len() {
         return (RailNode::Empty, pos);
     }
-    match &tokens[pos] {
+    let (node, p) = match &tokens[pos] {
         EbnfToken::LBrace => {
             let (inner, p) = ebnf_parse_alternation(tokens, pos + 1);
             let p = if p < tokens.len() && tokens[p] == EbnfToken::RBrace {
@@ -1024,7 +1341,44 @@ fn ebnf_parse_item(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
         EbnfToken::Literal(s) => (RailNode::Literal(s.clone()), pos + 1),
         EbnfToken::Ident(s) => (RailNode::NonTerminal(s.clone()), pos + 1),
         _ => (RailNode::Empty, pos + 1),
+    };
+    if let Some((spec, next)) = parse_ebnf_counted_repeat(tokens, p) {
+        (RailNode::CountedRepeat(Box::new(node), spec), next)
+    } else {
+        (node, p)
     }
+}
+
+fn parse_ebnf_counted_repeat(tokens: &[EbnfToken], pos: usize) -> Option<(String, usize)> {
+    if pos >= tokens.len() || tokens[pos] != EbnfToken::LBrace {
+        return None;
+    }
+    let mut p = pos + 1;
+    let mut saw_digit = false;
+    let mut saw_comma = false;
+    let mut spec = String::new();
+    while p < tokens.len() {
+        match &tokens[p] {
+            EbnfToken::Ident(s) if s.chars().all(|ch| ch.is_ascii_digit()) => {
+                saw_digit = true;
+                spec.push_str(s);
+                p += 1;
+            }
+            EbnfToken::Comma if !saw_comma => {
+                saw_comma = true;
+                spec.push(',');
+                p += 1;
+            }
+            EbnfToken::RBrace => {
+                if saw_digit {
+                    return Some((format!("{{{spec}}}"), p + 1));
+                }
+                return None;
+            }
+            _ => return None,
+        }
+    }
+    None
 }
 
 // ─── Family 3: @startchart ────────────────────────────────────────────────────
@@ -1045,6 +1399,33 @@ struct ChartData {
     value: f64,
 }
 
+#[derive(Debug, Clone)]
+struct ChartAnnotation {
+    target: String,
+    text: String,
+}
+
+#[derive(Debug, Clone)]
+struct ChartRenderOptions {
+    background: String,
+    axis_color: Option<String>,
+    palette: Vec<String>,
+    annotations: Vec<ChartAnnotation>,
+    caption: Option<String>,
+}
+
+impl Default for ChartRenderOptions {
+    fn default() -> Self {
+        Self {
+            background: "white".to_string(),
+            axis_color: None,
+            palette: Vec::new(),
+            annotations: Vec::new(),
+            caption: None,
+        }
+    }
+}
+
 fn render_chart(source: &str) -> Result<String, Diagnostic> {
     // Parse @startchart <type> header
     let first_line = source.lines().next().unwrap_or("").trim();
@@ -1054,7 +1435,7 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         .unwrap_or("")
         .trim()
         .to_string();
-    let chart_type = match chart_type_str.split_whitespace().next().unwrap_or("") {
+    let mut chart_type = match chart_type_str.split_whitespace().next().unwrap_or("") {
         "line" => ChartType::Line,
         "area" => ChartType::Area,
         "scatter" => ChartType::Scatter,
@@ -1066,6 +1447,7 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
     let (body, _) = strip_block(source, "@startchart", "@endchart");
     let mut title: Option<String> = None;
     let mut data: Vec<ChartData> = Vec::new();
+    let mut options = ChartRenderOptions::default();
 
     for line in body.lines() {
         let line = line.trim();
@@ -1073,8 +1455,59 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
             continue;
         }
         let lower = line.to_ascii_lowercase();
+        match lower.as_str() {
+            "bar" | "bars" | "bar chart" | "barchart" => {
+                chart_type = ChartType::Bar;
+                continue;
+            }
+            "line" | "lines" | "line chart" | "linechart" => {
+                chart_type = ChartType::Line;
+                continue;
+            }
+            "area" | "area chart" | "areachart" => {
+                chart_type = ChartType::Area;
+                continue;
+            }
+            "scatter" | "scatter chart" | "scatterchart" => {
+                chart_type = ChartType::Scatter;
+                continue;
+            }
+            "pie" | "pie chart" | "piechart" => {
+                chart_type = ChartType::Pie;
+                continue;
+            }
+            "column" | "column chart" | "columnchart" => {
+                chart_type = ChartType::Column;
+                continue;
+            }
+            _ => {}
+        }
         if lower.starts_with("title ") {
             title = Some(line[6..].trim().to_string());
+            continue;
+        }
+        if lower.starts_with("caption ") {
+            options.caption = Some(line[8..].trim().to_string());
+            continue;
+        }
+        if let Some(theme_name) = line.strip_prefix("!theme ") {
+            let preset = resolve_sequence_theme_preset(theme_name).map_err(Diagnostic::error)?;
+            options.background = preset
+                .style
+                .background_color
+                .unwrap_or_else(|| "white".to_string());
+            options.axis_color = Some(preset.style.arrow_color);
+            options.palette = vec![
+                preset.style.participant_border_color,
+                preset.style.lifeline_border_color,
+                preset.style.group_border_color,
+            ];
+            continue;
+        }
+        if parse_chart_annotation(line, &mut options.annotations) {
+            continue;
+        }
+        if parse_chart_style(line, &mut options) {
             continue;
         }
         // Parse `"label" : value`, `label : value`, or `"label" value` (legacy)
@@ -1106,13 +1539,30 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         ));
     }
 
-    match chart_type {
+    let svg = match chart_type {
         ChartType::Bar | ChartType::Column => render_bar_chart(&data, &title, false),
         ChartType::Line => render_line_chart(&data, &title),
         ChartType::Area => render_area_chart(&data, &title),
         ChartType::Scatter => render_scatter_chart(&data, &title),
         ChartType::Pie => render_pie_chart(&data, &title),
-    }
+    }?;
+    let svg = add_chart_type_metadata(svg, chart_type);
+    Ok(apply_chart_render_options(svg, &options))
+}
+
+fn add_chart_type_metadata(svg: String, chart_type: ChartType) -> String {
+    let name = match chart_type {
+        ChartType::Bar => "bar",
+        ChartType::Line => "line",
+        ChartType::Area => "area",
+        ChartType::Scatter => "scatter",
+        ChartType::Pie => "pie",
+        ChartType::Column => "column",
+    };
+    svg.replace(
+        "</svg>",
+        &format!("<metadata data-chart-type=\"{name}\"/></svg>"),
+    )
 }
 
 const CHART_COLORS: &[&str] = &[
@@ -1122,6 +1572,123 @@ const CHART_COLORS: &[&str] = &[
 
 fn bar_color(idx: usize) -> &'static str {
     CHART_COLORS[idx % CHART_COLORS.len()]
+}
+
+fn parse_chart_annotation(line: &str, annotations: &mut Vec<ChartAnnotation>) -> bool {
+    let lower = line.to_ascii_lowercase();
+    if let Some(rest) = lower
+        .strip_prefix("annotation ")
+        .or_else(|| lower.strip_prefix("annotate "))
+    {
+        let source_rest = &line[line.len() - rest.len()..];
+        if let Some((target, text)) = source_rest.split_once(':') {
+            annotations.push(ChartAnnotation {
+                target: target.trim().trim_matches('"').to_string(),
+                text: text.trim().trim_matches('"').to_string(),
+            });
+            return true;
+        }
+    }
+    if let Some(rest) = lower.strip_prefix("note at ") {
+        let source_rest = &line[line.len() - rest.len()..];
+        if let Some((target, text)) = source_rest.split_once(':') {
+            annotations.push(ChartAnnotation {
+                target: target.trim().trim_matches('"').to_string(),
+                text: text.trim().trim_matches('"').to_string(),
+            });
+            return true;
+        }
+    }
+    if let Some(rest) = lower.strip_prefix("note ") {
+        let source_rest = &line[line.len() - rest.len()..];
+        if let Some((text, target)) = source_rest.split_once(" at ") {
+            annotations.push(ChartAnnotation {
+                target: target.trim().trim_matches('"').to_string(),
+                text: text.trim().trim_matches('"').to_string(),
+            });
+            return true;
+        }
+    }
+    false
+}
+
+fn parse_chart_style(line: &str, options: &mut ChartRenderOptions) -> bool {
+    let lower = line.to_ascii_lowercase();
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if lower.starts_with("skinparam ") && lower.contains("backgroundcolor") {
+        if let Some(color) = parts.last().filter(|part| part.starts_with('#')) {
+            options.background = (*color).to_string();
+        }
+        return true;
+    }
+    if lower.starts_with("skinparam ") && lower.contains("axiscolor") {
+        if let Some(color) = parts.last().filter(|part| part.starts_with('#')) {
+            options.axis_color = Some((*color).to_string());
+        }
+        return true;
+    }
+    if lower.starts_with("skinparam ") && lower.contains("chart") {
+        if let Some(color) = parts.last().filter(|part| part.starts_with('#')) {
+            options.palette.push((*color).to_string());
+        }
+        return true;
+    }
+    if lower.starts_with("palette ") {
+        options.palette = parts
+            .iter()
+            .skip(1)
+            .filter(|part| part.starts_with('#'))
+            .map(|part| (*part).to_string())
+            .collect();
+        return true;
+    }
+    false
+}
+
+fn apply_chart_render_options(mut svg: String, options: &ChartRenderOptions) -> String {
+    if options.background != "white" {
+        svg = svg.replacen(
+            "fill=\"white\"/>",
+            &format!("fill=\"{}\"/>", escape_xml(&options.background)),
+            1,
+        );
+    }
+    if let Some(axis_color) = &options.axis_color {
+        svg = svg.replace(
+            "stroke=\"#888\"",
+            &format!("stroke=\"{}\"", escape_xml(axis_color)),
+        );
+    }
+    let mut additions = String::new();
+    if !options.palette.is_empty() {
+        additions.push_str(&format!(
+            "<metadata data-chart-palette=\"{}\"/>",
+            escape_xml(&options.palette.join(" "))
+        ));
+    }
+    let mut y = 34;
+    for ann in &options.annotations {
+        additions.push_str(&format!(
+            "<g data-chart-annotation=\"{}\"><rect x=\"560\" y=\"{}\" width=\"190\" height=\"24\" rx=\"5\" ry=\"5\" fill=\"#fff7ed\" stroke=\"#f97316\" stroke-width=\"1\"/><text x=\"570\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#7c2d12\">{}: {}</text></g>",
+            escape_xml(&ann.target),
+            y,
+            y + 16,
+            escape_xml(&ann.target),
+            escape_xml(&ann.text)
+        ));
+        y += 30;
+    }
+    if let Some(caption) = &options.caption {
+        additions.push_str(&format!(
+            "<text data-chart-caption=\"true\" x=\"50%\" y=\"96%\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{}</text>",
+            escape_xml(caption)
+        ));
+    }
+    if additions.is_empty() {
+        svg
+    } else {
+        svg.replace("</svg>", &format!("{additions}</svg>"))
+    }
 }
 
 fn render_bar_chart(
@@ -1808,11 +2375,21 @@ fn render_sdl_state_node(
 #[derive(Debug, Clone)]
 enum Expr {
     Literal(String),
+    Text(String),
     Sub(Box<Expr>, Box<Expr>),
     Sup(Box<Expr>, Box<Expr>),
+    SubSup(Box<Expr>, Box<Expr>, Box<Expr>),
     Frac(Box<Expr>, Box<Expr>),
     Sqrt(Box<Expr>),
+    Accent {
+        kind: String,
+        inner: Box<Expr>,
+    },
     Greek(char),
+    Matrix {
+        env: String,
+        rows: Vec<Vec<Expr>>,
+    },
     BigOp {
         op: char,
         sub: Box<Expr>,
@@ -1970,10 +2547,34 @@ fn command_to_expr(name: &str) -> Expr {
         "cap" => Expr::Literal("∩".to_string()),
         "forall" => Expr::Literal("∀".to_string()),
         "exists" => Expr::Literal("∃".to_string()),
+        "emptyset" | "varnothing" => Expr::Literal("∅".to_string()),
+        "land" | "wedge" => Expr::Literal("∧".to_string()),
+        "lor" | "vee" => Expr::Literal("∨".to_string()),
+        "neg" | "lnot" => Expr::Literal("¬".to_string()),
+        "therefore" => Expr::Literal("∴".to_string()),
+        "because" => Expr::Literal("∵".to_string()),
+        "equiv" => Expr::Literal("≡".to_string()),
+        "propto" => Expr::Literal("∝".to_string()),
+        "sim" => Expr::Literal("∼".to_string()),
+        "simeq" => Expr::Literal("≃".to_string()),
+        "cong" => Expr::Literal("≅".to_string()),
+        "ll" => Expr::Literal("≪".to_string()),
+        "gg" => Expr::Literal("≫".to_string()),
+        "subseteq" => Expr::Literal("⊆".to_string()),
+        "supseteq" => Expr::Literal("⊇".to_string()),
+        "oplus" => Expr::Literal("⊕".to_string()),
+        "otimes" => Expr::Literal("⊗".to_string()),
+        "perp" => Expr::Literal("⊥".to_string()),
+        "parallel" => Expr::Literal("∥".to_string()),
+        "angle" => Expr::Literal("∠".to_string()),
+        "degree" => Expr::Literal("°".to_string()),
         "lfloor" => Expr::Literal("⌊".to_string()),
         "rfloor" => Expr::Literal("⌋".to_string()),
         "lceil" => Expr::Literal("⌈".to_string()),
         "rceil" => Expr::Literal("⌉".to_string()),
+        "sin" | "cos" | "tan" | "cot" | "sec" | "csc" | "log" | "ln" | "lim" | "min" | "max"
+        | "det" | "dim" | "ker" | "Pr" => Expr::Literal(name.to_string()),
+        "," | ";" | ":" | "quad" | "qquad" => Expr::Literal(" ".to_string()),
         // Ignore decorators
         "left" | "right" | "big" | "bigg" | "Big" | "Bigg" => Expr::Literal(String::new()),
         "text" | "mathrm" | "mathit" | "mathbf" | "mathbb" | "mathcal" | "operatorname" => {
@@ -2009,6 +2610,137 @@ fn is_sqrt(name: &str) -> bool {
     matches!(name, "sqrt" | "cbrt")
 }
 
+fn read_braced_literal(tokens: &[LatexToken], idx: &mut usize) -> Option<String> {
+    skip_spaces(tokens, idx);
+    if !matches!(tokens.get(*idx), Some(LatexToken::LBrace)) {
+        return None;
+    }
+    *idx += 1;
+    let mut out = String::new();
+    while *idx < tokens.len() {
+        match &tokens[*idx] {
+            LatexToken::RBrace => {
+                *idx += 1;
+                return Some(out);
+            }
+            LatexToken::Char(c) => {
+                out.push(*c);
+                *idx += 1;
+            }
+            LatexToken::Command(name) => {
+                out.push_str(name);
+                *idx += 1;
+            }
+            LatexToken::Space => {
+                out.push(' ');
+                *idx += 1;
+            }
+            LatexToken::Sub => {
+                out.push('_');
+                *idx += 1;
+            }
+            LatexToken::Sup => {
+                out.push('^');
+                *idx += 1;
+            }
+            LatexToken::LBrace => {
+                out.push('{');
+                *idx += 1;
+            }
+        }
+    }
+    None
+}
+
+fn peek_end_env(tokens: &[LatexToken], idx: usize, env: &str) -> Option<usize> {
+    if !matches!(tokens.get(idx), Some(LatexToken::Command(name)) if name == "end") {
+        return None;
+    }
+    let mut cursor = idx + 1;
+    let name = read_braced_literal(tokens, &mut cursor)?;
+    if name.trim() == env {
+        Some(cursor)
+    } else {
+        None
+    }
+}
+
+fn parse_cell_expr(tokens: &[LatexToken]) -> Expr {
+    let mut idx = 0;
+    Expr::Group(parse_expr_seq(tokens, &mut idx))
+}
+
+fn parse_matrix_env(tokens: &[LatexToken], idx: &mut usize, env: &str) -> Expr {
+    let mut rows: Vec<Vec<Expr>> = Vec::new();
+    let mut row: Vec<Expr> = Vec::new();
+    let mut cell: Vec<LatexToken> = Vec::new();
+    let mut depth = 0usize;
+
+    while *idx < tokens.len() {
+        if depth == 0 {
+            if let Some(end_idx) = peek_end_env(tokens, *idx, env) {
+                row.push(parse_cell_expr(&cell));
+                if !row.is_empty() {
+                    rows.push(row);
+                }
+                *idx = end_idx;
+                return Expr::Matrix {
+                    env: env.to_string(),
+                    rows,
+                };
+            }
+            match &tokens[*idx] {
+                LatexToken::Char('&') => {
+                    row.push(parse_cell_expr(&cell));
+                    cell.clear();
+                    *idx += 1;
+                    continue;
+                }
+                LatexToken::Char('\\') => {
+                    row.push(parse_cell_expr(&cell));
+                    cell.clear();
+                    rows.push(row);
+                    row = Vec::new();
+                    *idx += 1;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        match &tokens[*idx] {
+            LatexToken::LBrace => depth += 1,
+            LatexToken::RBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        cell.push(tokens[*idx].clone());
+        *idx += 1;
+    }
+
+    row.push(parse_cell_expr(&cell));
+    rows.push(row);
+    Expr::Matrix {
+        env: env.to_string(),
+        rows,
+    }
+}
+
+fn is_matrix_env(name: &str) -> bool {
+    matches!(
+        name,
+        "matrix"
+            | "pmatrix"
+            | "bmatrix"
+            | "Bmatrix"
+            | "vmatrix"
+            | "Vmatrix"
+            | "smallmatrix"
+            | "array"
+            | "aligned"
+            | "align"
+    )
+}
+
 /// Parse a sequence of LaTeX tokens into a Vec of Expr nodes.
 fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
     let mut exprs = Vec::new();
@@ -2033,14 +2765,27 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
                 *idx += 1;
                 let base = exprs.pop().unwrap_or(Expr::Literal(String::new()));
                 let sub = parse_single_expr(tokens, idx);
-                // Check if there's also a ^
-                exprs.push(Expr::Sub(Box::new(base), Box::new(sub)));
+                skip_spaces(tokens, idx);
+                if *idx < tokens.len() && matches!(tokens[*idx], LatexToken::Sup) {
+                    *idx += 1;
+                    let sup = parse_single_expr(tokens, idx);
+                    exprs.push(Expr::SubSup(Box::new(base), Box::new(sub), Box::new(sup)));
+                } else {
+                    exprs.push(Expr::Sub(Box::new(base), Box::new(sub)));
+                }
             }
             LatexToken::Sup => {
                 *idx += 1;
                 let base = exprs.pop().unwrap_or(Expr::Literal(String::new()));
                 let sup = parse_single_expr(tokens, idx);
-                exprs.push(Expr::Sup(Box::new(base), Box::new(sup)));
+                skip_spaces(tokens, idx);
+                if *idx < tokens.len() && matches!(tokens[*idx], LatexToken::Sub) {
+                    *idx += 1;
+                    let sub = parse_single_expr(tokens, idx);
+                    exprs.push(Expr::SubSup(Box::new(base), Box::new(sub), Box::new(sup)));
+                } else {
+                    exprs.push(Expr::Sup(Box::new(base), Box::new(sup)));
+                }
             }
             LatexToken::Char(c) => {
                 exprs.push(Expr::Literal(c.to_string()));
@@ -2049,7 +2794,15 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
             LatexToken::Command(name) => {
                 let name = name.clone();
                 *idx += 1;
-                if let Some(op_char) = is_big_op(&name) {
+                if name == "begin" {
+                    if let Some(env) = read_braced_literal(tokens, idx) {
+                        if is_matrix_env(env.trim()) {
+                            exprs.push(parse_matrix_env(tokens, idx, env.trim()));
+                        } else {
+                            exprs.push(Expr::Literal(format!("\\begin{{{}}}", env)));
+                        }
+                    }
+                } else if let Some(op_char) = is_big_op(&name) {
                     // Parse optional sub and sup
                     let mut sub = Expr::Literal(String::new());
                     let mut sup = Expr::Literal(String::new());
@@ -2103,19 +2856,36 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
                     exprs.push(Expr::Sqrt(Box::new(inner)));
                 } else if matches!(
                     name.as_str(),
+                    "hat" | "bar" | "overline" | "underline" | "vec" | "dot" | "ddot"
+                ) {
+                    skip_spaces(tokens, idx);
+                    let inner = parse_single_expr(tokens, idx);
+                    exprs.push(Expr::Accent {
+                        kind: name,
+                        inner: Box::new(inner),
+                    });
+                } else if matches!(
+                    name.as_str(),
                     "text" | "mathrm" | "mathit" | "mathbf" | "mathbb" | "mathcal" | "operatorname"
                 ) {
                     // Consume following group and render it as literal text
                     skip_spaces(tokens, idx);
-                    let inner = parse_single_expr(tokens, idx);
-                    exprs.push(inner);
+                    if let Some(text) = read_braced_literal(tokens, idx) {
+                        exprs.push(Expr::Text(text));
+                    } else {
+                        let inner = parse_single_expr(tokens, idx);
+                        exprs.push(inner);
+                    }
                 } else if matches!(
                     name.as_str(),
                     "left" | "right" | "big" | "bigg" | "Big" | "Bigg"
                 ) {
-                    // consume the following bracket char if any
+                    // consume and render the following delimiter; \left. / \right. are invisible
                     if *idx < tokens.len() {
-                        if let LatexToken::Char(_) = &tokens[*idx] {
+                        if let LatexToken::Char(c) = &tokens[*idx] {
+                            if *c != '.' {
+                                exprs.push(Expr::Literal(c.to_string()));
+                            }
                             *idx += 1;
                         }
                     }
@@ -2161,7 +2931,49 @@ fn parse_single_expr(tokens: &[LatexToken], idx: &mut usize) -> Expr {
         LatexToken::Command(name) => {
             let name = name.clone();
             *idx += 1;
-            command_to_expr(&name)
+            if name == "begin" {
+                if let Some(env) = read_braced_literal(tokens, idx) {
+                    if is_matrix_env(env.trim()) {
+                        parse_matrix_env(tokens, idx, env.trim())
+                    } else {
+                        Expr::Literal(format!("\\begin{{{}}}", env))
+                    }
+                } else {
+                    Expr::Literal("\\begin".to_string())
+                }
+            } else if is_frac(&name) {
+                skip_spaces(tokens, idx);
+                let num = parse_single_expr(tokens, idx);
+                skip_spaces(tokens, idx);
+                let den = parse_single_expr(tokens, idx);
+                Expr::Frac(Box::new(num), Box::new(den))
+            } else if is_sqrt(&name) {
+                skip_spaces(tokens, idx);
+                let inner = parse_single_expr(tokens, idx);
+                Expr::Sqrt(Box::new(inner))
+            } else if matches!(
+                name.as_str(),
+                "hat" | "bar" | "overline" | "underline" | "vec" | "dot" | "ddot"
+            ) {
+                skip_spaces(tokens, idx);
+                let inner = parse_single_expr(tokens, idx);
+                Expr::Accent {
+                    kind: name,
+                    inner: Box::new(inner),
+                }
+            } else if matches!(
+                name.as_str(),
+                "text" | "mathrm" | "mathit" | "mathbf" | "mathbb" | "mathcal" | "operatorname"
+            ) {
+                skip_spaces(tokens, idx);
+                if let Some(text) = read_braced_literal(tokens, idx) {
+                    Expr::Text(text)
+                } else {
+                    parse_single_expr(tokens, idx)
+                }
+            } else {
+                command_to_expr(&name)
+            }
         }
         LatexToken::Sub | LatexToken::Sup => Expr::Literal(String::new()),
         LatexToken::RBrace | LatexToken::Space => Expr::Literal(String::new()),
@@ -2224,6 +3036,24 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 ascent,
             }
         }
+        Expr::Text(s) => {
+            let char_w = char_width(font_size);
+            let width = s.chars().count() as f64 * char_w;
+            let height = font_size * 1.2;
+            let ascent = font_size * 0.8;
+            let svg = format!(
+                "<text x=\"0\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\">{}</text>",
+                ascent,
+                font_size,
+                escape_xml(s)
+            );
+            Layout {
+                svg,
+                width,
+                height,
+                ascent,
+            }
+        }
         Expr::Greek(c) => {
             let char_w = char_width(font_size);
             let width = char_w * 1.2; // Greek chars slightly wider
@@ -2239,6 +3069,93 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 svg,
                 width,
                 height,
+                ascent,
+            }
+        }
+        Expr::Matrix { env, rows } => {
+            let cell_pad_x = font_size * 0.45;
+            let row_gap = font_size * 0.25;
+            let layouts: Vec<Vec<Layout>> = rows
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|cell| layout_expr(cell, font_size * 0.9))
+                        .collect()
+                })
+                .collect();
+            let col_count = layouts.iter().map(|row| row.len()).max().unwrap_or(0);
+            let mut col_widths = vec![font_size * 0.6; col_count];
+            let mut row_heights = vec![font_size; layouts.len()];
+            let mut row_ascents = vec![font_size * 0.75; layouts.len()];
+            for (r, row) in layouts.iter().enumerate() {
+                for (c, cell) in row.iter().enumerate() {
+                    col_widths[c] = col_widths[c].max(cell.width);
+                    row_heights[r] = row_heights[r].max(cell.height);
+                    row_ascents[r] = row_ascents[r].max(cell.ascent);
+                }
+            }
+            let body_w = col_widths.iter().sum::<f64>() + cell_pad_x * 2.0 * col_count as f64;
+            let body_h =
+                row_heights.iter().sum::<f64>() + row_gap * layouts.len().saturating_sub(1) as f64;
+            let fence_w =
+                if env == "matrix" || env == "smallmatrix" || env == "aligned" || env == "align" {
+                    0.0
+                } else {
+                    font_size * 0.45
+                };
+            let total_w = body_w + fence_w * 2.0;
+            let total_h = body_h.max(font_size);
+            let ascent = total_h * 0.58;
+            let mut svg = format!("<g data-math-env=\"{}\">", escape_xml(env));
+
+            let mut y = 0.0;
+            for (r, row) in layouts.iter().enumerate() {
+                let mut x = fence_w;
+                for (c, cell) in row.iter().enumerate() {
+                    let cell_x = x + cell_pad_x + (col_widths[c] - cell.width) / 2.0;
+                    let cell_y = y + row_ascents[r] - cell.ascent;
+                    svg.push_str(&format!(
+                        "<g transform=\"translate({},{})\">{}</g>",
+                        cell_x, cell_y, cell.svg
+                    ));
+                    x += col_widths[c] + cell_pad_x * 2.0;
+                }
+                y += row_heights[r] + row_gap;
+            }
+
+            match env.as_str() {
+                "pmatrix" => {
+                    svg.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">(</text><text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">)</text>",
+                        fence_w / 2.0, ascent, total_h * 1.15, total_w - fence_w / 2.0, ascent, total_h * 1.15
+                    ));
+                }
+                "bmatrix" => {
+                    svg.push_str(&format!(
+                        "<path d=\"M {},0 L 0,0 L 0,{} L {},{}\" fill=\"none\" stroke=\"#333\" stroke-width=\"1.4\"/><path d=\"M {},0 L {},0 L {},{} L {},{}\" fill=\"none\" stroke=\"#333\" stroke-width=\"1.4\"/>",
+                        fence_w, total_h, fence_w, total_h, total_w - fence_w, total_w, total_w, total_h, total_w - fence_w, total_h
+                    ));
+                }
+                "Bmatrix" => {
+                    svg.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">{{</text><text x=\"{}\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">}}</text>",
+                        fence_w / 2.0, ascent, total_h * 1.15, total_w - fence_w / 2.0, ascent, total_h * 1.15
+                    ));
+                }
+                "vmatrix" | "Vmatrix" => {
+                    let sw = if env == "Vmatrix" { 2.2 } else { 1.4 };
+                    svg.push_str(&format!(
+                        "<line x1=\"{}\" y1=\"0\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"{}\"/><line x1=\"{}\" y1=\"0\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"{}\"/>",
+                        fence_w / 2.0, fence_w / 2.0, total_h, sw, total_w - fence_w / 2.0, total_w - fence_w / 2.0, total_h, sw
+                    ));
+                }
+                _ => {}
+            }
+            svg.push_str("</g>");
+            Layout {
+                svg,
+                width: total_w,
+                height: total_h,
                 ascent,
             }
         }
@@ -2283,6 +3200,37 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 format!(
                 "<g transform=\"translate(0,{})\">{}<g transform=\"translate({},{})\">{}</g></g>",
                 dy, base_l.svg, sup_x, sup_y + dy, sup_l.svg
+            );
+            Layout {
+                svg,
+                width: total_w,
+                height: total_h,
+                ascent,
+            }
+        }
+        Expr::SubSup(base, sub, sup) => {
+            let base_l = layout_expr(base, font_size);
+            let sub_l = layout_expr(sub, font_size * SUB_SCALE);
+            let sup_l = layout_expr(sup, font_size * SUP_SCALE);
+            let script_w = sub_l.width.max(sup_l.width);
+            let sup_shift = font_size * 0.5;
+            let sub_shift = font_size * 0.3;
+            let sup_y = base_l.ascent - sup_shift - sup_l.ascent;
+            let dy = if sup_y < 0.0 { -sup_y } else { 0.0 };
+            let sub_y = base_l.ascent + sub_shift + dy;
+            let total_w = base_l.width + script_w;
+            let total_h = (sub_y + sub_l.height - sub_l.ascent).max(base_l.height + dy);
+            let ascent = base_l.ascent + dy;
+            let svg = format!(
+                "<g transform=\"translate(0,{})\">{}<g transform=\"translate({},{})\">{}</g><g transform=\"translate({},{})\">{}</g></g>",
+                dy,
+                base_l.svg,
+                base_l.width,
+                sup_y + dy,
+                sup_l.svg,
+                base_l.width,
+                sub_y - sub_l.ascent,
+                sub_l.svg
             );
             Layout {
                 svg,
@@ -2352,6 +3300,78 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 svg,
                 width: total_w,
                 height: total_h,
+                ascent,
+            }
+        }
+        Expr::Accent { kind, inner } => {
+            let inner_l = layout_expr(inner, font_size);
+            let top_pad = if kind == "underline" {
+                2.0
+            } else {
+                font_size * 0.35
+            };
+            let bottom_pad = if kind == "underline" {
+                font_size * 0.25
+            } else {
+                0.0
+            };
+            let width = inner_l.width.max(font_size * 0.7);
+            let height = inner_l.height + top_pad + bottom_pad;
+            let ascent = inner_l.ascent + top_pad;
+            let inner_x = (width - inner_l.width) / 2.0;
+            let mut svg = String::new();
+            match kind.as_str() {
+                "hat" => svg.push_str(&format!(
+                    "<path d=\"M {},{} L {},{} L {},{}\" fill=\"none\" stroke=\"#333\" stroke-width=\"1.2\"/>",
+                    width * 0.2,
+                    top_pad,
+                    width * 0.5,
+                    1.0,
+                    width * 0.8,
+                    top_pad
+                )),
+                "vec" => svg.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.2\" marker-end=\"url(#math-arrow)\"/>",
+                    width * 0.15,
+                    top_pad * 0.55,
+                    width * 0.85,
+                    top_pad * 0.55
+                )),
+                "dot" | "ddot" => {
+                    svg.push_str(&format!(
+                        "<circle cx=\"{}\" cy=\"{}\" r=\"1.5\" fill=\"#333\"/>",
+                        width * 0.45,
+                        top_pad * 0.45
+                    ));
+                    if kind == "ddot" {
+                        svg.push_str(&format!(
+                            "<circle cx=\"{}\" cy=\"{}\" r=\"1.5\" fill=\"#333\"/>",
+                            width * 0.6,
+                            top_pad * 0.45
+                        ));
+                    }
+                }
+                "underline" => svg.push_str(&format!(
+                    "<line x1=\"0\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.2\"/>",
+                    inner_l.height + top_pad + 2.0,
+                    width,
+                    inner_l.height + top_pad + 2.0
+                )),
+                _ => svg.push_str(&format!(
+                    "<line x1=\"0\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#333\" stroke-width=\"1.2\"/>",
+                    top_pad * 0.45,
+                    width,
+                    top_pad * 0.45
+                )),
+            }
+            svg.push_str(&format!(
+                "<g transform=\"translate({},{})\">{}</g>",
+                inner_x, top_pad, inner_l.svg
+            ));
+            Layout {
+                svg,
+                width,
+                height,
                 ascent,
             }
         }
@@ -2455,6 +3475,9 @@ fn render_math(source: &str) -> Result<String, Diagnostic> {
     let mut out = String::new();
     out.push_str(&svg_header(w, h));
     out.push_str(svg_white_bg());
+    out.push_str(
+        "<defs><marker id=\"math-arrow\" markerWidth=\"7\" markerHeight=\"5\" refX=\"6\" refY=\"2.5\" orient=\"auto\"><path d=\"M0,0 L0,5 L7,2.5 z\" fill=\"#333\"/></marker></defs>",
+    );
 
     if let Some(t) = &title {
         out.push_str(&format!(
@@ -2554,7 +3577,7 @@ struct Connector {
 
 fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
     let (body, title) = strip_block(source, "@startditaa", "@endditaa");
-    let (scale, transparent) = parse_ditaa_options(source.lines().next().unwrap_or(""));
+    let options = parse_ditaa_options(source.lines().next().unwrap_or(""));
 
     if body.trim().is_empty() {
         return Err(Diagnostic::error(
@@ -2570,8 +3593,8 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         ));
     }
 
-    let cell_w = 10i32 * scale;
-    let cell_h = 16i32 * scale;
+    let cell_w = 10i32 * options.scale;
+    let cell_h = 16i32 * options.scale;
     let grid_rows = lines.len();
     let grid_cols = lines.iter().map(|r| r.len()).max().unwrap_or(0);
     let title_h = if title.is_some() { 28i32 } else { 0 };
@@ -2760,7 +3783,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                 let c_start = c;
                 c += 1;
                 let dashed = row[c] == '=';
-                while c < row.len() && matches!(row[c], '-' | '=') {
+                while c < row.len() && matches!(row[c], '-' | '=' | '+') {
                     c += 1;
                 }
                 let c_end = c;
@@ -2785,7 +3808,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
             } else if matches!(ch, '-' | '=') {
                 let c_start = c;
                 let dashed = ch == '=';
-                while c < row.len() && matches!(row[c], '-' | '=') {
+                while c < row.len() && matches!(row[c], '-' | '=' | '+') {
                     c += 1;
                 }
                 let has_head = c < row.len() && row[c] == '>';
@@ -2827,7 +3850,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
                 let r_start = r;
                 r += 1;
                 let dashed = get(r, col_idx) == ':';
-                while r < grid_rows && matches!(get(r, col_idx), '|' | ':') {
+                while r < grid_rows && matches!(get(r, col_idx), '|' | ':' | '+') {
                     r += 1;
                 }
                 let r_end = r;
@@ -2851,7 +3874,7 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
             } else if matches!(ch, '|' | ':') {
                 let r_start = r;
                 let dashed = ch == ':';
-                while r < grid_rows && matches!(get(r, col_idx), '|' | ':') {
+                while r < grid_rows && matches!(get(r, col_idx), '|' | ':' | '+') {
                     r += 1;
                 }
                 // Check if next char is 'v'
@@ -2883,12 +3906,86 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         }
     }
 
+    // Diagonal connectors, a common ditaa idiom for loose ASCII wiring.
+    for (row_idx, row) in lines.iter().enumerate() {
+        for (c, &ch) in row.iter().enumerate() {
+            if !matches!(ch, '/' | '\\') {
+                continue;
+            }
+            let in_shape = shapes
+                .iter()
+                .any(|s| row_idx >= s.r1 && row_idx <= s.r2 && c >= s.c1 && c <= s.c2);
+            if in_shape {
+                continue;
+            }
+            let x = margin + c as i32 * cell_w + cell_w / 2;
+            let y = margin + title_h + row_idx as i32 * cell_h + cell_h / 2;
+            let (x1, y1, x2, y2) = if ch == '/' {
+                (
+                    x - cell_w / 2,
+                    y + cell_h / 2,
+                    x + cell_w / 2,
+                    y - cell_h / 2,
+                )
+            } else {
+                (
+                    x - cell_w / 2,
+                    y - cell_h / 2,
+                    x + cell_w / 2,
+                    y + cell_h / 2,
+                )
+            };
+            let has_head_start = match ch {
+                '/' => {
+                    let r = (row_idx + 1).min(grid_rows.saturating_sub(1));
+                    (c.saturating_sub(3)..=c + 1).any(|cc| get(r, cc) == '<')
+                        || (c.saturating_sub(3)..=c).any(|cc| get(row_idx, cc) == '<')
+                        || (0..grid_cols).any(|cc| get(r, cc) == '<')
+                }
+                '\\' => {
+                    let r = row_idx.saturating_sub(1);
+                    (c.saturating_sub(3)..=c + 1).any(|cc| get(r, cc) == '<')
+                        || (c.saturating_sub(3)..=c).any(|cc| get(row_idx, cc) == '<')
+                        || (0..grid_cols).any(|cc| get(r, cc) == '<')
+                }
+                _ => false,
+            };
+            let has_head_end = match ch {
+                '/' => {
+                    c + 1 < grid_cols && row_idx > 0 && matches!(get(row_idx - 1, c + 1), '>' | '^')
+                }
+                '\\' => {
+                    c + 1 < grid_cols
+                        && row_idx + 1 < grid_rows
+                        && matches!(get(row_idx + 1, c + 1), '>' | 'v')
+                }
+                _ => false,
+            };
+            connectors.push(Connector {
+                x1,
+                y1,
+                x2,
+                y2,
+                has_head_end,
+                has_head_start,
+                dashed: false,
+            });
+        }
+    }
+
     // ── Pass 3: SVG emission ──────────────────────────────────────────────────
 
     let mut out = String::new();
     out.push_str(&svg_header(svg_w, svg_h));
-    if !transparent {
-        out.push_str(svg_white_bg());
+    if !options.transparent {
+        if let Some(background) = &options.background {
+            out.push_str(&format!(
+                "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
+                escape_xml(background)
+            ));
+        } else {
+            out.push_str(svg_white_bg());
+        }
     }
 
     // Arrow markers
@@ -2900,6 +3997,9 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
          <path d=\"M8,0 L8,6 L0,3 z\" fill=\"#444\"/></marker>\
          </defs>",
     );
+    if options.shadow {
+        out.push_str("<defs><filter id=\"ditaa-shadow\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\"><feDropShadow dx=\"2\" dy=\"2\" stdDeviation=\"1.5\" flood-color=\"#00000033\"/></filter></defs>");
+    }
 
     if let Some(t) = &title {
         out.push_str(&format!(
@@ -2919,18 +4019,23 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
         } else {
             ""
         };
+        let filter = if options.shadow {
+            "filter=\"url(#ditaa-shadow)\""
+        } else {
+            ""
+        };
 
         match shape.kind {
             ShapeKind::Rect => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
-                    rx, ry, rw, rh, shape.fill, stroke
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    rx, ry, rw, rh, shape.fill, stroke, filter
                 ));
             }
             ShapeKind::RoundedRect => {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" ry=\"12\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {}/>",
-                    rx, ry, rw, rh, shape.fill, stroke
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" ry=\"12\" fill=\"{}\" stroke=\"#3344aa\" stroke-width=\"1.5\" {} {}/>",
+                    rx, ry, rw, rh, shape.fill, stroke, filter
                 ));
             }
             ShapeKind::Document => {
@@ -3049,9 +4154,21 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
     Ok(out)
 }
 
-fn parse_ditaa_options(first_line: &str) -> (i32, bool) {
-    let mut scale = 1i32;
-    let mut transparent = false;
+#[derive(Debug, Clone)]
+struct DitaaOptions {
+    scale: i32,
+    transparent: bool,
+    shadow: bool,
+    background: Option<String>,
+}
+
+fn parse_ditaa_options(first_line: &str) -> DitaaOptions {
+    let mut options = DitaaOptions {
+        scale: 1,
+        transparent: false,
+        shadow: false,
+        background: None,
+    };
     let lower = first_line.to_ascii_lowercase();
     if let Some(pos) = lower.find("scale=") {
         let n: String = lower[pos + 6..]
@@ -3059,11 +4176,23 @@ fn parse_ditaa_options(first_line: &str) -> (i32, bool) {
             .take_while(|c| c.is_ascii_digit())
             .collect();
         if let Ok(v) = n.parse::<i32>() {
-            scale = v.clamp(1, 4);
+            options.scale = v.clamp(1, 4);
         }
     }
     if lower.contains("transparent=true") || lower.contains("transparent=yes") {
-        transparent = true;
+        options.transparent = true;
     }
-    (scale, transparent)
+    if lower.contains("shadow=true") || lower.contains("shadow=yes") {
+        options.shadow = true;
+    }
+    if let Some(pos) = lower.find("background=") {
+        let value: String = first_line[pos + "background=".len()..]
+            .chars()
+            .take_while(|c| !c.is_whitespace())
+            .collect();
+        if !value.is_empty() {
+            options.background = Some(value);
+        }
+    }
+    options
 }

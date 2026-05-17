@@ -1,5 +1,4 @@
 @startebnf
-' EBNF complex grammar (not yet supported)
 program = { statement } ;
 statement = assignment | conditional | loop ;
 assignment = identifier "=" expression ";" ;

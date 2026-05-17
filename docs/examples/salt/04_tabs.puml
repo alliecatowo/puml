@@ -1,5 +1,4 @@
 @startsalt
-' Salt tabs example (not yet supported)
 {+
   {/ Tab1 | Tab2 | Tab3 }
   Tab content here
