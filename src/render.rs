@@ -5999,7 +5999,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 let slot_y = current_slot_y;
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
-                node_layouts.push(NodeLayout { cx, slot_y, arrow_out_y, next_slot_y });
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
                 let else_cx = cx + branch_x_offset;
                 if_stack.push(IfFrame {
                     diamond_cx: cx,
@@ -6029,7 +6034,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 // Suppress standard prev→cur; add diamond→Else arrow
                 suppress_prev_arrow.insert(i);
                 extra_arrows.push((frame.diamond_cx, frame.diamond_arrow_out, else_cx, slot_y));
-                node_layouts.push(NodeLayout { cx: else_cx, slot_y, arrow_out_y, next_slot_y });
+                node_layouts.push(NodeLayout {
+                    cx: else_cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
                 current_slot_y = next_slot_y;
             }
             "EndIf" => {
@@ -6060,7 +6070,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 let slot_y = current_slot_y;
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
-                node_layouts.push(NodeLayout { cx, slot_y, arrow_out_y, next_slot_y });
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
                 current_slot_y = next_slot_y;
             }
         }

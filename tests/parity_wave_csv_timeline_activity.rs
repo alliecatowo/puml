@@ -418,12 +418,21 @@ stop
     let svg = puml::render_source_to_svg(src).expect("activity if/else render");
 
     // Both branch labels must be present
-    assert!(svg.contains("HandleOk"), "then-branch action missing from SVG");
-    assert!(svg.contains("HandleErr"), "else-branch action missing from SVG");
+    assert!(
+        svg.contains("HandleOk"),
+        "then-branch action missing from SVG"
+    );
+    assert!(
+        svg.contains("HandleErr"),
+        "else-branch action missing from SVG"
+    );
 
     // The (else) marker and (endif) merge node must be rendered
     assert!(svg.contains("(else)"), "(else) marker missing from SVG");
-    assert!(svg.contains("(endif)"), "(endif) merge node missing from SVG");
+    assert!(
+        svg.contains("(endif)"),
+        "(endif) merge node missing from SVG"
+    );
 
     // There must be at least two distinct x-coordinates in the arrows, proving
     // that the diagram is not purely linear (i.e., branching exists).
