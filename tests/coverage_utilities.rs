@@ -172,6 +172,14 @@ fn render_for_timeline_families_returns_timeline_preview() {
 }
 
 #[test]
+fn render_for_salt_family_returns_stub_svg() {
+    let src = "@startsalt\nwidget: login form\n@endsalt\n";
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Salt).unwrap();
+    assert!(svg.contains("Bootstrap stub for salt diagrams"));
+    assert!(svg.contains("widget"));
+}
+
+#[test]
 fn render_for_mismatched_family_reports_deterministic_error() {
     let src = "@startuml\nclass User\n@enduml\n";
     let err = render_source_to_svg_for_family(src, DiagramFamily::Sequence).unwrap_err();

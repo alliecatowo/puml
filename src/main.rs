@@ -1694,6 +1694,7 @@ fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
 fn timeline_model_to_json(model: &TimelineDocument) -> Value {
     json!({
         "kind": match model.kind {
+            DiagramKind::Salt => "Salt",
             DiagramKind::Gantt => "Gantt",
             DiagramKind::Chronology => "Chronology",
             _ => "Timeline",
@@ -1897,6 +1898,7 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
             json!({
                 "kind": "TimelineScene",
                 "family": match timeline.kind {
+                    DiagramKind::Salt => "Salt",
                     DiagramKind::Gantt => "Gantt",
                     DiagramKind::Chronology => "Chronology",
                     _ => "Timeline",

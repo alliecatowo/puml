@@ -299,6 +299,22 @@ fn parser_tags_all_wave1_non_sequence_families_deterministically() {
 }
 
 #[test]
+fn parser_supports_salt_baseline_marker_fixture() {
+    let src = fs::read_to_string(fixture("families/valid_salt_bootstrap.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    assert_eq!(doc.kind, puml::ast::DiagramKind::Salt);
+}
+
+#[test]
+fn parser_rejects_salt_marker_mismatch_fixture() {
+    let src = fs::read_to_string(fixture("errors/invalid_salt_block_mismatch.puml"))
+        .expect("fixture should load");
+    let err = parse(&src).unwrap_err();
+    assert!(err.message.contains("E_BLOCK_MISMATCH"));
+}
+
+#[test]
 fn parser_tags_additional_wave1_family_alias_tokens() {
     let cases = [
         (

@@ -606,6 +606,7 @@ pub enum FamilyNodeKind {
     Class,
     Object,
     UseCase,
+    Salt,
 }
 
 #[derive(Debug, Clone)]

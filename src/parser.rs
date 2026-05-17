@@ -4092,6 +4092,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
         DiagramKind::Chronology => "chronology",
+        DiagramKind::Salt => "salt",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -5286,6 +5287,9 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || (line.starts_with("scale ") && line.contains(" as "))
     {
         return Some(DiagramKind::Timing);
+    }
+    if line.starts_with("salt ") {
+        return Some(DiagramKind::Salt);
     }
 
     if line.starts_with("salt ") {

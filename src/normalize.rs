@@ -1714,6 +1714,18 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 });
             }
             StatementKind::Unknown(line) => {
+                if family_kind == DiagramKind::Salt {
+                    let text = line.trim();
+                    if !text.is_empty() {
+                        nodes.push(FamilyNode {
+                            kind: FamilyNodeKind::Salt,
+                            name: text.to_string(),
+                            alias: None,
+                            members: Vec::new(),
+                        });
+                    }
+                    continue;
+                }
                 return Err(Diagnostic::error(format!(
                     "[E_PARSE_UNKNOWN] unsupported syntax: `{}`",
                     line
@@ -2970,6 +2982,7 @@ fn family_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Wbs => "wbs",
         DiagramKind::Gantt => "gantt",
         DiagramKind::Chronology => "chronology",
+        DiagramKind::Salt => "salt",
         DiagramKind::Component => "component",
         DiagramKind::Deployment => "deployment",
         DiagramKind::State => "state",
@@ -3786,6 +3799,7 @@ fn unsupported_family_diagnostic(kind: DiagramKind) -> Diagnostic {
         DiagramKind::Timing => ("E_FAMILY_TIMING_UNSUPPORTED", "timing"),
         DiagramKind::Gantt => ("E_FAMILY_GANTT_UNSUPPORTED", "gantt"),
         DiagramKind::Chronology => ("E_FAMILY_CHRONOLOGY_UNSUPPORTED", "chronology"),
+        DiagramKind::Salt => ("E_FAMILY_SALT_UNSUPPORTED", "salt"),
         _ => ("E_FAMILY_UNSUPPORTED", "unknown"),
     };
 
