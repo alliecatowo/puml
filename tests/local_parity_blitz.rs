@@ -263,3 +263,67 @@ cluster --> db : <<deploys>> stores
     assert!(deployment_svg.contains("&lt;&lt;deploys&gt;&gt;"));
     assert!(deployment_svg.contains("stores"));
 }
+
+#[test]
+fn core_uml_next_wave_component_state_activity_and_skinparam_parity() {
+    let component_svg = puml::render_source_to_svg(
+        r##"@startuml
+skinparam deploymentArrowColor teal
+skinparam interfaceColor lightblue
+package "Edge" {
+  component "API Gateway" as api <<service>>
+  interface "Orders API" as orders <<REST>>
+  portin "HTTP" as http <<inbound>>
+}
+api -[#red,dashed]right-> orders <<provides>> : publishes
+http |-- api : mounted
+@enduml
+"##,
+    )
+    .expect("component next-wave render should succeed");
+    assert!(component_svg.contains("&lt;&lt;service&gt;&gt;"));
+    assert!(component_svg.contains("&lt;&lt;REST&gt;&gt;"));
+    assert!(component_svg.contains("&lt;&lt;inbound&gt;&gt;"));
+    assert!(component_svg.contains("&lt;&lt;provides&gt;&gt;"));
+    assert!(component_svg.contains("stroke=\"#ff0000\""));
+    assert!(component_svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(component_svg.contains("#add8e6"));
+    assert!(component_svg.contains("mounted"));
+
+    let state_svg = puml::render_source_to_svg(
+        r#"@startuml
+state Ready {
+  entry / setup
+  do / work
+  exit / cleanup
+}
+Ready --> [*] : done
+@enduml
+"#,
+    )
+    .expect("state bare internals render should succeed");
+    assert!(state_svg.contains("entry / setup"));
+    assert!(state_svg.contains("do / work"));
+    assert!(state_svg.contains("exit / cleanup"));
+
+    let activity_svg = puml::render_source_to_svg(
+        r##"@startuml
+skinparam activityDiamondColor #ffeeaa
+switch (kind?)
+case (fast)
+:fast path;
+split
+:one;
+split again
+:two;
+end split
+kill
+@enduml
+"##,
+    )
+    .expect("activity beta controls should detect and render");
+    assert!(activity_svg.contains("switch kind?"));
+    assert!(activity_svg.contains("(else) fast"));
+    assert!(activity_svg.contains("#ffeeaa"));
+    assert!(activity_svg.contains("kill"));
+}

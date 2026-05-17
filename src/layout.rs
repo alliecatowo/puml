@@ -890,8 +890,22 @@ fn message_label_lines(
     let tx = ((x1 + x2) / 2) + 2;
     let max_chars_by_span = (span_px / 7).max(1) as usize;
     let max_chars_by_left_edge = ((tx * 2) / 7).max(1) as usize;
-    let max_chars = max_chars_by_span.min(max_chars_by_left_edge);
+    let mut max_chars = max_chars_by_span.min(max_chars_by_left_edge);
+    if starts_with_autonumber_prefix(label) {
+        max_chars = max_chars.saturating_add(4);
+    }
     normalize_label_lines(label, max_chars, options.text_overflow_policy)
+}
+
+fn starts_with_autonumber_prefix(label: &str) -> bool {
+    let Some(first) = label.split_whitespace().next() else {
+        return false;
+    };
+    (first.contains('.')
+        && first
+            .split('.')
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit())))
+        || (first.contains('-') && first.bytes().any(|b| b.is_ascii_digit()))
 }
 
 fn row_units_for_height(height: i32, row_height: i32) -> i32 {
@@ -904,7 +918,7 @@ fn row_units_for_height(height: i32, row_height: i32) -> i32 {
 #[derive(Debug, Default)]
 struct AutonumberState {
     enabled: bool,
-    next: u64,
+    next: AutonumberCounter,
     step: u64,
     format: Option<String>,
 }
@@ -918,8 +932,8 @@ impl AutonumberState {
         }
 
         if value.is_empty() {
-            if self.next == 0 {
-                self.next = 1;
+            if self.next.is_zero() {
+                self.next = AutonumberCounter::from_number(1);
             }
             if self.step == 0 {
                 self.step = 1;
@@ -930,11 +944,13 @@ impl AutonumberState {
 
         let parsed = parse_autonumber_command(value);
         if parsed.resume_only {
-            if self.next == 0 {
-                self.next = 1;
+            if self.next.is_zero() {
+                self.next = AutonumberCounter::from_number(1);
             }
         } else {
-            self.next = parsed.start.unwrap_or(1);
+            self.next = parsed
+                .start
+                .unwrap_or_else(|| AutonumberCounter::from_number(1));
         }
         if let Some(step) = parsed.step {
             self.step = step.max(1);
@@ -951,16 +967,15 @@ impl AutonumberState {
         if !self.enabled {
             return label;
         }
-        if self.next == 0 {
-            self.next = 1;
+        if self.next.is_zero() {
+            self.next = AutonumberCounter::from_number(1);
         }
         if self.step == 0 {
             self.step = 1;
         }
 
-        let number = self.next;
-        self.next = self.next.saturating_add(self.step);
-        let number = format_autonumber(number, self.format.as_deref());
+        let number = format_autonumber(&self.next, self.format.as_deref());
+        self.next.advance(self.step);
         match label {
             Some(text) if !text.is_empty() => Some(format!("{number} {text}")),
             _ => Some(number.to_string()),
@@ -968,10 +983,74 @@ impl AutonumberState {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct AutonumberCounter {
+    prefix: Vec<String>,
+    current: u64,
+    width: usize,
+}
+
+impl AutonumberCounter {
+    fn from_number(value: u64) -> Self {
+        Self {
+            prefix: Vec::new(),
+            current: value,
+            width: 0,
+        }
+    }
+
+    fn from_token(token: &str) -> Option<Self> {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let parts: Vec<&str> = trimmed.split('.').collect();
+        if parts.is_empty()
+            || parts
+                .iter()
+                .any(|part| part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()))
+        {
+            return None;
+        }
+        let last = parts.last()?;
+        let current = last.parse::<u64>().ok()?;
+        let width = if last.len() > 1 { last.len() } else { 0 };
+        Some(Self {
+            prefix: parts[..parts.len().saturating_sub(1)]
+                .iter()
+                .map(|part| (*part).to_string())
+                .collect(),
+            current,
+            width,
+        })
+    }
+
+    fn is_zero(&self) -> bool {
+        self.prefix.is_empty() && self.current == 0
+    }
+
+    fn advance(&mut self, step: u64) {
+        self.current = self.current.saturating_add(step.max(1));
+    }
+
+    fn render(&self) -> String {
+        let tail = if self.width > 0 {
+            format!("{:0width$}", self.current, width = self.width)
+        } else {
+            self.current.to_string()
+        };
+        if self.prefix.is_empty() {
+            tail
+        } else {
+            format!("{}.{}", self.prefix.join("."), tail)
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct ParsedAutonumber {
     resume_only: bool,
-    start: Option<u64>,
+    start: Option<AutonumberCounter>,
     step: Option<u64>,
     format: Option<String>,
 }
@@ -995,27 +1074,32 @@ fn parse_autonumber_command(raw: &str) -> ParsedAutonumber {
         rest = before.trim_end();
     }
 
-    let nums: Vec<u64> = rest
-        .split_whitespace()
-        .filter_map(|v| v.parse::<u64>().ok())
-        .collect();
+    let tokens: Vec<&str> = rest.split_whitespace().collect();
+    let mut idx = 0usize;
     if parsed.resume_only {
-        if let Some(step) = nums.first() {
-            parsed.step = Some(*step);
+        if let Some(token) = tokens.get(idx) {
+            if let Ok(step) = token.parse::<u64>() {
+                parsed.step = Some(step);
+                idx += 1;
+            }
         }
     } else {
-        parsed.start = nums.first().copied();
-        parsed.step = nums.get(1).copied();
+        if let Some(token) = tokens.get(idx) {
+            if let Some(counter) = AutonumberCounter::from_token(token) {
+                parsed.start = Some(counter);
+                idx += 1;
+            }
+        }
+        if let Some(token) = tokens.get(idx) {
+            if let Ok(step) = token.parse::<u64>() {
+                parsed.step = Some(step);
+                idx += 1;
+            }
+        }
     }
 
     if parsed.format.is_none() {
-        parsed.format = rest.split_whitespace().find_map(|part| {
-            if part.parse::<u64>().is_ok() {
-                None
-            } else {
-                Some(part.to_string())
-            }
-        });
+        parsed.format = tokens.get(idx).map(|part| (*part).to_string());
     }
 
     parsed
@@ -1030,17 +1114,17 @@ fn trailing_quoted_format(raw: &str) -> Option<(String, &str)> {
     Some((format, prefix))
 }
 
-fn format_autonumber(value: u64, format: Option<&str>) -> String {
+fn format_autonumber(counter: &AutonumberCounter, format: Option<&str>) -> String {
     let Some(format) = format else {
-        return value.to_string();
+        return counter.render();
     };
     let fmt = format.trim();
     if fmt.is_empty() {
-        return value.to_string();
+        return counter.render();
     }
 
     if fmt.contains('#') {
-        return fmt.replace('#', &value.to_string());
+        return replace_hash_runs(fmt, counter.current);
     }
 
     let mut longest_zero_run = 0usize;
@@ -1064,13 +1148,37 @@ fn format_autonumber(value: u64, format: Option<&str>) -> String {
     }
 
     if longest_zero_run == 0 {
-        return format!("{fmt}{value}");
+        return format!("{fmt}{}", counter.current);
     }
 
-    let padded = format!("{:0width$}", value, width = longest_zero_run);
+    let padded = format!("{:0width$}", counter.current, width = longest_zero_run);
     let prefix = &fmt[..run_start];
     let suffix = &fmt[run_start + longest_zero_run..];
     format!("{prefix}{padded}{suffix}")
+}
+
+fn replace_hash_runs(format: &str, value: u64) -> String {
+    let mut out = String::with_capacity(format.len() + 8);
+    let bytes = format.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'#' {
+            out.push(bytes[i] as char);
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < bytes.len() && bytes[i] == b'#' {
+            i += 1;
+        }
+        let width = i - start;
+        if width > 1 {
+            out.push_str(&format!("{:0width$}", value, width = width));
+        } else {
+            out.push_str(&value.to_string());
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -1166,23 +1274,31 @@ mod tests {
         assert!(parsed.resume_only);
         let parsed_fmt = parse_autonumber_command("resume fmt");
         assert_eq!(parsed_fmt.format.as_deref(), Some("fmt"));
+        let parsed_dotted = parse_autonumber_command("1.02.003 4");
+        assert_eq!(
+            parsed_dotted.start.as_ref().map(AutonumberCounter::render),
+            Some("1.02.003".to_string())
+        );
+        assert_eq!(parsed_dotted.step, Some(4));
         let mut auton = AutonumberState::default();
         auton.update(None);
         assert_eq!(auton.apply(Some(String::new())).as_deref(), Some("1"));
-        assert_eq!(format_autonumber(7, Some("")), "7");
-        assert_eq!(format_autonumber(7, Some("item")), "item7");
-        assert_eq!(format_autonumber(7, Some("n=#")), "n=7");
+        let counter = AutonumberCounter::from_number(7);
+        assert_eq!(format_autonumber(&counter, Some("")), "7");
+        assert_eq!(format_autonumber(&counter, Some("item")), "item7");
+        assert_eq!(format_autonumber(&counter, Some("n=#")), "n=7");
+        assert_eq!(format_autonumber(&counter, Some("n=###")), "n=007");
     }
 
     #[test]
     fn autonumber_resume_and_zero_state_fallbacks_are_covered() {
         let mut state = AutonumberState::default();
         state.update(Some("resume"));
-        assert_eq!(state.next, 1);
+        assert_eq!(state.next.render(), "1");
 
         let mut state = AutonumberState {
             enabled: true,
-            next: 0,
+            next: AutonumberCounter::default(),
             step: 0,
             format: None,
         };
@@ -1190,12 +1306,23 @@ mod tests {
 
         let mut state = AutonumberState {
             enabled: false,
-            next: 8,
+            next: AutonumberCounter::from_number(8),
             step: 0,
             format: None,
         };
         state.update(Some("resume"));
         assert_eq!(state.step, 1);
+
+        let mut state = AutonumberState::default();
+        state.update(Some("1.02.003"));
+        assert_eq!(
+            state.apply(Some("dotted".to_string())).as_deref(),
+            Some("1.02.003 dotted")
+        );
+        assert_eq!(
+            state.apply(Some("next".to_string())).as_deref(),
+            Some("1.02.004 next")
+        );
 
         let bounds: BTreeMap<String, (i32, i32)> = BTreeMap::new();
         let (_gx, gw) = group_horizontal_bounds("group", None, &bounds, &LayoutOptions::default());

@@ -878,6 +878,7 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
 fn parse_chart_axis(line: &str, prefix: &str) -> ChartAxis {
     let mut rest = line[prefix.len()..].trim();
     let mut axis = ChartAxis::default();
+    parse_chart_axis_style(&mut axis, rest);
     if let Some((label, after)) = parse_optional_quoted_prefix(rest) {
         axis.label = Some(label);
         rest = after;
@@ -899,6 +900,34 @@ fn parse_chart_axis(line: &str, prefix: &str) -> ChartAxis {
         axis.tick_step = parse_chart_tick_step(rest);
     }
     axis
+}
+
+fn parse_chart_axis_style(axis: &mut ChartAxis, input: &str) {
+    let mut tokens = input
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .filter(|token| !token.is_empty())
+        .peekable();
+    while let Some(token) = tokens.next() {
+        let key = token
+            .trim_matches(|c: char| c == '[' || c == ']' || c == '"' || c == ':')
+            .to_ascii_lowercase();
+        let target = match key.as_str() {
+            "color" | "colour" | "axiscolor" | "linecolor" => Some("axis"),
+            "text" | "textcolor" | "fontcolor" | "labelcolor" => Some("label"),
+            "grid" | "gridcolor" => Some("grid"),
+            _ => None,
+        };
+        if let Some(target) = target {
+            if let Some(value) = tokens.next().and_then(normalize_chart_color) {
+                match target {
+                    "axis" => axis.color = Some(value),
+                    "label" => axis.label_color = Some(value),
+                    "grid" => axis.grid_color = Some(value),
+                    _ => {}
+                }
+            }
+        }
+    }
 }
 
 fn parse_chart_tick_step(input: &str) -> Option<f64> {
@@ -972,13 +1001,23 @@ fn parse_chart_legend(line: &str) -> ChartLegend {
         legend.visible = false;
         return legend;
     }
-    for token in rest.split_whitespace() {
+    let mut tokens = rest.split_whitespace().peekable();
+    while let Some(token) = tokens.next() {
         match token {
             "left" => legend.h_align = LegendHAlign::Left,
             "center" | "centre" => legend.h_align = LegendHAlign::Center,
             "right" => legend.h_align = LegendHAlign::Right,
             "top" => legend.v_align = LegendVAlign::Top,
             "bottom" => legend.v_align = LegendVAlign::Bottom,
+            "background" | "backgroundcolor" | "back" | "bg" | "fill" => {
+                legend.background_color = tokens.next().and_then(normalize_chart_color);
+            }
+            "border" | "bordercolor" | "line" | "stroke" => {
+                legend.border_color = tokens.next().and_then(normalize_chart_color);
+            }
+            "text" | "textcolor" | "font" | "fontcolor" | "color" | "colour" => {
+                legend.text_color = tokens.next().and_then(normalize_chart_color);
+            }
             _ => {}
         }
     }
@@ -3198,13 +3237,14 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 name,
                 alias,
                 label,
+                members,
             } => {
                 let node_kind = component_node_kind(kind);
                 nodes.push(FamilyNode {
                     kind: node_kind,
                     name,
                     alias,
-                    members: Vec::new(),
+                    members,
                     depth: 0,
                     label,
                     mindmap_side: MindMapSide::Right,
@@ -3364,6 +3404,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     let mut parts = member_id.split('\t');
                     let node_id = parts.next().unwrap_or(member_id.as_str()).to_string();
                     let display_label = parts.next().map(str::to_string);
+                    let node_kind_hint = parts.next();
                     let unscoped_alias = node_id
                         .rsplit("::")
                         .next()
@@ -3374,18 +3415,23 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                         n.name == node_id || n.alias.as_deref() == Some(node_id.as_str())
                     });
                     if !already_exists {
-                        let fallback_kind = match family_kind {
-                            DiagramKind::Deployment => FamilyNodeKind::Node,
-                            DiagramKind::Component => FamilyNodeKind::Component,
-                            _ => FamilyNodeKind::Component,
-                        };
+                        let fallback_kind = node_kind_hint
+                            .and_then(scoped_component_kind_hint)
+                            .unwrap_or(match family_kind {
+                                DiagramKind::Deployment => FamilyNodeKind::Node,
+                                DiagramKind::Component => FamilyNodeKind::Component,
+                                _ => FamilyNodeKind::Component,
+                            });
                         nodes.push(FamilyNode {
                             kind: fallback_kind,
                             name: node_id,
                             alias: unscoped_alias,
-                            members: Vec::new(),
+                            members: display_label
+                                .as_deref()
+                                .map(extract_inline_stereotype_members)
+                                .unwrap_or_default(),
                             depth: 0,
-                            label: display_label,
+                            label: display_label.map(strip_inline_stereotypes),
                             mindmap_side: MindMapSide::Right,
                             wbs_checkbox: None,
                             fill_color: None,
@@ -3660,6 +3706,63 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
     })
+}
+
+fn extract_inline_stereotype_members(label: &str) -> Vec<crate::ast::ClassMember> {
+    let (_, stereotypes) = strip_inline_stereotypes_with_values(label);
+    declaration_stereotype_members(stereotypes)
+}
+
+fn scoped_component_kind_hint(kind: &str) -> Option<FamilyNodeKind> {
+    Some(match kind {
+        "component" => FamilyNodeKind::Component,
+        "interface" => FamilyNodeKind::Interface,
+        "port" => FamilyNodeKind::Port,
+        "node" => FamilyNodeKind::Node,
+        "artifact" => FamilyNodeKind::Artifact,
+        "cloud" => FamilyNodeKind::Cloud,
+        "frame" => FamilyNodeKind::Frame,
+        "storage" => FamilyNodeKind::Storage,
+        "database" => FamilyNodeKind::Database,
+        "package" => FamilyNodeKind::Package,
+        "rectangle" => FamilyNodeKind::Rectangle,
+        "folder" => FamilyNodeKind::Folder,
+        "file" => FamilyNodeKind::File,
+        "card" => FamilyNodeKind::Card,
+        "actor" => FamilyNodeKind::Actor,
+        _ => return None,
+    })
+}
+
+fn strip_inline_stereotypes(label: String) -> String {
+    strip_inline_stereotypes_with_values(&label).0
+}
+
+fn strip_inline_stereotypes_with_values(label: &str) -> (String, Vec<String>) {
+    let mut remaining = label.trim().to_string();
+    let mut stereotypes = Vec::new();
+    while let Some(start) = remaining.find("<<") {
+        let Some(end_rel) = remaining[start + 2..].find(">>") else {
+            break;
+        };
+        let end = start + 2 + end_rel;
+        let value = remaining[start + 2..end].trim();
+        if !value.is_empty() {
+            stereotypes.push(value.to_string());
+        }
+        remaining.replace_range(start..end + 2, "");
+    }
+    (remaining.trim().to_string(), stereotypes)
+}
+
+fn declaration_stereotype_members(stereotypes: Vec<String>) -> Vec<crate::ast::ClassMember> {
+    stereotypes
+        .into_iter()
+        .map(|stereotype| crate::ast::ClassMember {
+            text: format!("<<{stereotype}>>"),
+            modifier: None,
+        })
+        .collect()
 }
 
 fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
@@ -5113,9 +5216,27 @@ fn validate_autonumber_raw(raw: &str) -> Result<(), String> {
     }
 
     let mut idx = 0usize;
-    let expected_numbers = if resume { 1 } else { 2 };
-    while idx < tokens.len() && idx < expected_numbers && tokens[idx].parse::<u64>().is_ok() {
-        idx += 1;
+    if resume {
+        if idx < tokens.len() && tokens[idx].parse::<u64>().is_ok() {
+            idx += 1;
+        }
+    } else if idx < tokens.len() {
+        if is_autonumber_counter_token(tokens[idx]) {
+            idx += 1;
+            if idx < tokens.len() && tokens[idx].parse::<u64>().is_ok() {
+                idx += 1;
+            } else if idx < tokens.len() && looks_like_autonumber_counter_token(tokens[idx]) {
+                return Err(
+                    "unsupported autonumber syntax; increment must be an unsigned integer"
+                        .to_string(),
+                );
+            }
+        } else if looks_like_autonumber_counter_token(tokens[idx]) {
+            return Err(
+                "malformed dotted autonumber start; expected dot-separated unsigned integers"
+                    .to_string(),
+            );
+        }
     }
 
     let unquoted_format = if idx < tokens.len() {
@@ -5137,6 +5258,23 @@ fn validate_autonumber_raw(raw: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn is_autonumber_counter_token(token: &str) -> bool {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    trimmed
+        .split('.')
+        .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn looks_like_autonumber_counter_token(token: &str) -> bool {
+    let trimmed = token.trim();
+    trimmed.contains('.')
+        && trimmed.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+        && trimmed.bytes().any(|b| b.is_ascii_digit())
 }
 
 fn trailing_quoted_format(raw: &str) -> Option<(String, &str)> {

@@ -347,6 +347,9 @@ pub struct ChartAxis {
     pub min: Option<f64>,
     pub max: Option<f64>,
     pub tick_step: Option<f64>,
+    pub color: Option<String>,
+    pub label_color: Option<String>,
+    pub grid_color: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -362,6 +365,9 @@ pub struct ChartLegend {
     pub explicit: bool,
     pub h_align: LegendHAlign,
     pub v_align: LegendVAlign,
+    pub background_color: Option<String>,
+    pub border_color: Option<String>,
+    pub text_color: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -377,6 +383,9 @@ impl Default for ChartLegend {
             explicit: false,
             h_align: LegendHAlign::Right,
             v_align: LegendVAlign::Top,
+            background_color: None,
+            border_color: None,
+            text_color: None,
         }
     }
 }

@@ -1286,6 +1286,12 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "assert" => Some(PreprocessDirective::Assert(arg.to_string())),
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
+        _ if let Some((call_name, call_args)) = parse_named_call(rest) => {
+            Some(PreprocessDirective::ProcedureCall {
+                name: call_name,
+                args: call_args,
+            })
+        }
         _ if name.starts_with('$') => parse_variable_assignment(name, arg, trimmed),
         "return" => Some(PreprocessDirective::Unsupported(name.to_string())),
         // `!startsub` / `!endsub` are markers used by `!includesub`. When a
@@ -1293,12 +1299,6 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         // marker lines and pass the body lines through.
         "startsub" | "endsub" => Some(PreprocessDirective::NoOp),
         "theme" | "pragma" => None,
-        _ if let Some((call_name, call_args)) = parse_named_call(rest) => {
-            Some(PreprocessDirective::ProcedureCall {
-                name: call_name,
-                args: call_args,
-            })
-        }
         _ if !name.is_empty() => Some(PreprocessDirective::Unsupported(name.to_string())),
         _ => None,
     }
@@ -1390,6 +1390,9 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
         return Ok(normalize_expr_value(&lhs) == normalize_expr_value(&rhs));
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, "!=") {
+        return Ok(normalize_expr_value(&lhs) != normalize_expr_value(&rhs));
+    }
+    if let Some((lhs, rhs)) = split_top_level(trimmed, "<>") {
         return Ok(normalize_expr_value(&lhs) != normalize_expr_value(&rhs));
     }
     // Numeric comparisons: check two-char operators before one-char to avoid splitting <=/>= wrong.
@@ -2362,7 +2365,11 @@ fn parse_named_call(rest: &str) -> Option<(String, String)> {
         return None;
     }
     let name = rest[..open].trim();
-    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+    let mut chars = name.chars();
+    let first = chars.next()?;
+    if !(first.is_ascii_alphabetic() || first == '_' || first == '$')
+        || !chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
         return None;
     }
     let args = rest[open + 1..close].trim().to_string();
@@ -2386,8 +2393,27 @@ fn collapse_macro_concat(line: &str) -> String {
     let chars: Vec<char> = line.chars().collect();
     let mut out = String::with_capacity(line.len());
     let mut i = 0usize;
+    let mut in_double_quote = false;
+    let mut in_single_quote = false;
     while i < chars.len() {
-        if chars[i] == '#' && i + 1 < chars.len() && chars[i + 1] == '#' {
+        if chars[i] == '"' && !in_single_quote {
+            in_double_quote = !in_double_quote;
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        if chars[i] == '\'' && !in_double_quote {
+            in_single_quote = !in_single_quote;
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        if !in_double_quote
+            && !in_single_quote
+            && chars[i] == '#'
+            && i + 1 < chars.len()
+            && chars[i + 1] == '#'
+        {
             while out.ends_with(char::is_whitespace) {
                 out.pop();
             }
@@ -2548,7 +2574,13 @@ fn dispatch_builtin(
         "list_size" | "array_size" | "map_size" => Some(preprocessor_size(&arg(0)).to_string()),
         "list_is_empty" | "array_is_empty" => Some((preprocessor_size(&arg(0)) == 0).to_string()),
         "list_clear" | "array_clear" => Some("[]".to_string()),
-        "list_contains" | "contains_list" => Some(
+        "is_empty" => {
+            Some((arg(0).trim().is_empty() || preprocessor_size(&arg(0)) == 0).to_string())
+        }
+        "is_number" | "is_int" | "is_integer" => {
+            Some(eval_int_expr(arg(0).trim()).is_some().to_string())
+        }
+        "list_contains" | "array_contains" | "contains_list" => Some(
             preprocessor_list_items(&arg(0))
                 .contains(&arg(1))
                 .to_string(),
@@ -2570,12 +2602,15 @@ fn dispatch_builtin(
             items.reverse();
             Some(preprocessor_list_literal(&items))
         }
-        "list_get" | "array_get" | "list_at" | "array_at" => Some(
-            preprocessor_list_items(&arg(0))
-                .get(parse_int_lenient(&arg(1)).max(0) as usize)
-                .cloned()
-                .unwrap_or_default(),
-        ),
+        "list_get" | "array_get" | "list_at" | "array_at" => {
+            let fallback = if argc >= 3 { arg(2) } else { String::new() };
+            Some(
+                preprocessor_list_items(&arg(0))
+                    .get(parse_int_lenient(&arg(1)).max(0) as usize)
+                    .cloned()
+                    .unwrap_or(fallback),
+            )
+        }
         "first" | "list_first" | "array_first" => Some(
             preprocessor_list_items(&arg(0))
                 .first()
@@ -2588,7 +2623,7 @@ fn dispatch_builtin(
                 .cloned()
                 .unwrap_or_default(),
         ),
-        "list_add" | "array_add" | "list_append" | "array_append" => {
+        "list_add" | "array_add" | "list_append" | "array_append" | "list_push" | "array_push" => {
             let mut items = preprocessor_list_items(&arg(0));
             items.push(arg(1));
             Some(preprocessor_list_literal(&items))
@@ -2636,7 +2671,10 @@ fn dispatch_builtin(
         "map_contains_value" | "contains_value" => {
             Some(json_contains_value(&arg(0), &arg(1)).to_string())
         }
-        "get" | "map_get" | "json_get" => Some(preprocessor_get(&arg(0), &arg(1))),
+        "get" | "map_get" | "json_get" => {
+            let fallback = if argc >= 3 { arg(2) } else { String::new() };
+            Some(preprocessor_get_opt(&arg(0), &arg(1)).unwrap_or(fallback))
+        }
         "set" | "put" | "json_set" | "map_put" | "map_set" => {
             Some(preprocessor_set(&arg(0), &arg(1), &arg(2)))
         }
@@ -2796,6 +2834,17 @@ fn dispatch_builtin(
                     .callables
                     .get(&key)
                     .map(|c| c.kind == PreprocCallableKind::Function)
+                    .unwrap_or(false)
+                    .to_string(),
+            )
+        }
+        "procedure_exists" => {
+            let key = arg(0);
+            Some(
+                state
+                    .callables
+                    .get(&key)
+                    .map(|c| c.kind == PreprocCallableKind::Procedure)
                     .unwrap_or(false)
                     .to_string(),
             )
@@ -3509,23 +3558,19 @@ fn preprocessor_str2json(raw: &str) -> String {
         .to_string()
 }
 
-fn preprocessor_get(container: &str, key: &str) -> String {
+fn preprocessor_get_opt(container: &str, key: &str) -> Option<String> {
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
         if let Ok(idx) = key.trim().parse::<usize>() {
             return value
                 .as_array()
                 .and_then(|items| items.get(idx))
-                .map(json_value_to_preproc_string)
-                .unwrap_or_default();
+                .map(json_value_to_preproc_string);
         }
-        return json_value_at_path(&value, key)
-            .map(json_value_to_preproc_string)
-            .unwrap_or_default();
+        return json_value_at_path(&value, key).map(json_value_to_preproc_string);
     }
     preprocessor_list_items(container)
         .get(key.trim().parse::<usize>().unwrap_or(usize::MAX))
         .cloned()
-        .unwrap_or_default()
 }
 
 fn preprocessor_set(container: &str, key: &str, replacement: &str) -> String {
@@ -4024,9 +4069,24 @@ fn execute_function_call(
         ));
     }
     let bindings = bind_callable_args(callable, args_raw, state, call_depth)?;
+    let mut local_state = state.clone();
+    for (k, v) in &bindings {
+        local_state.vars.insert(k.clone(), v.clone());
+    }
+    let mut local_out = String::new();
     for raw in &callable.body {
         let line = raw.trim();
         if !line.to_ascii_lowercase().starts_with("!return") {
+            preprocess_text(
+                raw,
+                &ParseOptions::default(),
+                &mut local_state,
+                &mut Vec::new(),
+                &mut BTreeSet::new(),
+                0,
+                call_depth + 1,
+                &mut local_out,
+            )?;
             continue;
         }
         let trimmed_return = raw.trim_start();
@@ -4034,10 +4094,6 @@ fn execute_function_call(
             .trim_start_matches("!return")
             .trim_start()
             .to_string();
-        let mut local_state = state.clone();
-        for (k, v) in &bindings {
-            local_state.vars.insert(k.clone(), v.clone());
-        }
         return expand_preprocessor_text(&expr, &local_state, call_depth + 1);
     }
     Err(Diagnostic::error_code(
@@ -4077,35 +4133,35 @@ fn execute_procedure_call(
         ));
     }
     let bindings = bind_callable_args(&callable, args_raw, state, call_depth)?;
-    let mut local = String::new();
-    for raw in &callable.body {
-        if raw.trim().to_ascii_lowercase().starts_with("!return") {
-            return Err(Diagnostic::error_code(
-                "E_PREPROC_RETURN_UNEXPECTED",
-                format!("procedure `{name}` cannot contain `!return`"),
-            ));
-        }
-        let mut local_state = state.clone();
-        for (k, v) in &bindings {
-            local_state.vars.insert(k.clone(), v.clone());
-        }
-        local.push_str(&expand_preprocessor_text(
-            raw,
-            &local_state,
-            call_depth + 1,
-        )?);
-        local.push('\n');
+    if callable
+        .body
+        .iter()
+        .any(|raw| raw.trim().to_ascii_lowercase().starts_with("!return"))
+    {
+        return Err(Diagnostic::error_code(
+            "E_PREPROC_RETURN_UNEXPECTED",
+            format!("procedure `{name}` cannot contain `!return`"),
+        ));
     }
-    preprocess_text(
-        &local,
-        options,
-        state,
-        include_stack,
-        include_once_seen,
-        depth,
-        call_depth + 1,
-        out,
-    )
+    let mut local_state = state.clone();
+    for (k, v) in &bindings {
+        local_state.vars.insert(k.clone(), v.clone());
+    }
+    let local = callable.body.join("\n");
+    if !local.trim().is_empty() {
+        preprocess_text(
+            &local,
+            options,
+            &mut local_state,
+            include_stack,
+            include_once_seen,
+            depth,
+            call_depth + 1,
+            out,
+        )
+    } else {
+        Ok(())
+    }
 }
 
 /// Execute a dynamic `%invoke_procedure("name"[, args...])` line-level
@@ -5434,6 +5490,9 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
 
     let (core, raw_label) = split_family_relation_label(line);
     let (lhs, arrow, relation_style, rhs) = split_family_arrow_styled(core)?;
+    if !arrow.contains('-') && !arrow.contains('.') {
+        return None;
+    }
     let (rhs, trailing_stereotype) = split_relation_trailing_stereotype(rhs);
     let (label, label_stereotype) = split_relation_label_stereotype(raw_label);
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
@@ -5697,7 +5756,7 @@ fn split_family_arrow_styled(
         if in_quote {
             continue;
         }
-        if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+') {
+        if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+' | '|') {
             continue;
         }
         let rest = &core[idx..];
@@ -5797,7 +5856,12 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
         let after_prefix = &s[prefix_len..];
         if let Some(after_directive) = after_prefix.strip_prefix('[') {
             if let Some(close) = after_directive.find(']') {
-                let after = &after_directive[close + 1..];
+                let after_with_optional_dir = &after_directive[close + 1..];
+                let after = dirs
+                    .iter()
+                    .find_map(|dir| after_with_optional_dir.strip_prefix(dir))
+                    .unwrap_or(after_with_optional_dir);
+                let dir_len = after_with_optional_dir.len().saturating_sub(after.len());
                 let suffix_len = after
                     .char_indices()
                     .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|'))
@@ -5805,7 +5869,7 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
                     .last()
                     .unwrap_or(0);
                 if suffix_len > 0 {
-                    return Some(prefix_len + close + 2 + suffix_len);
+                    return Some(prefix_len + close + 2 + dir_len + suffix_len);
                 }
             }
         }
@@ -6310,7 +6374,12 @@ fn collect_scoped_component_group_content(
             }
         }
         if let Some(StatementKind::ComponentDecl {
-            name, alias, label, ..
+            kind,
+            name,
+            alias,
+            label,
+            members,
+            ..
         }) = parse_component_decl(line)
         {
             let local_id = alias.clone().unwrap_or_else(|| name.clone());
@@ -6319,11 +6388,14 @@ fn collect_scoped_component_group_content(
                 .or_else(|| alias.as_ref().map(|_| name.clone()))
                 .or_else(|| (scoped_id != name).then(|| name.clone()))
                 .filter(|value| value != &scoped_id);
+            let display = append_component_declaration_metadata(display, &members);
             let mut encoded = scoped_id;
             if let Some(display) = display {
                 encoded.push('\t');
                 encoded.push_str(&display);
             }
+            encoded.push('\t');
+            encoded.push_str(component_decl_kind_name(kind));
             content.members.push(encoded);
         } else {
             let name = extract_component_group_member_name(line);
@@ -6341,6 +6413,46 @@ fn collect_scoped_component_group_content(
         idx += 1;
     }
     content
+}
+
+fn component_decl_kind_name(kind: ComponentNodeKind) -> &'static str {
+    match kind {
+        ComponentNodeKind::Component => "component",
+        ComponentNodeKind::Interface => "interface",
+        ComponentNodeKind::Port => "port",
+        ComponentNodeKind::Node => "node",
+        ComponentNodeKind::Artifact => "artifact",
+        ComponentNodeKind::Cloud => "cloud",
+        ComponentNodeKind::Frame => "frame",
+        ComponentNodeKind::Storage => "storage",
+        ComponentNodeKind::Database => "database",
+        ComponentNodeKind::Package => "package",
+        ComponentNodeKind::Rectangle => "rectangle",
+        ComponentNodeKind::Folder => "folder",
+        ComponentNodeKind::File => "file",
+        ComponentNodeKind::Card => "card",
+        ComponentNodeKind::Actor => "actor",
+    }
+}
+
+fn append_component_declaration_metadata(
+    display: Option<String>,
+    members: &[ClassMember],
+) -> Option<String> {
+    let stereotypes = members
+        .iter()
+        .map(|member| member.text.trim())
+        .filter(|text| text.starts_with("<<") && text.ends_with(">>"))
+        .collect::<Vec<_>>();
+    if stereotypes.is_empty() {
+        return display;
+    }
+    let mut label = display.unwrap_or_default();
+    if !label.is_empty() {
+        label.push(' ');
+    }
+    label.push_str(&stereotypes.join(" "));
+    Some(label)
 }
 
 fn find_scoping_block_end(lines: &[(&str, Span)], start: usize) -> usize {
@@ -6427,9 +6539,20 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("elseif ")
         || line == "else"
         || line.starts_with("endif")
+        || line.starts_with("switch ")
+        || line.starts_with("case ")
+        || line.starts_with("endswitch")
         || line.starts_with("repeat")
         || line.starts_with("while ")
         || line.starts_with("fork")
+        || line.starts_with("split")
+        || line.starts_with("end split")
+        || line.starts_with("kill")
+        || line.starts_with("break")
+        || line.starts_with("continue")
+        || line.starts_with("label ")
+        || line.starts_with("goto ")
+        || line.starts_with("backward")
         || line.starts_with("partition ")
         || line.starts_with("swimlane ")
         || line.starts_with('|')
@@ -6877,6 +7000,8 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             }
         }
         let rest = rest_raw.trim_end_matches('{').trim();
+        let (rest_without_stereotypes, stereotypes) = strip_declaration_stereotypes(rest);
+        let rest = rest_without_stereotypes.trim();
         let (label, rest_after_label) = if rest.starts_with('"') {
             let stripped = rest.strip_prefix('"')?;
             let end = stripped.find('"')?;
@@ -6904,6 +7029,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             name,
             alias,
             label,
+            members: declaration_marker_members(None, stereotypes),
         });
     }
     // Anonymous shorthand: `[Name]` declares a component, `() Name` declares an interface.
@@ -6934,6 +7060,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
                     name,
                     alias,
                     label,
+                    members: Vec::new(),
                 });
             }
         }
@@ -6971,6 +7098,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
                     name,
                     alias: alias.filter(|v| !v.is_empty()),
                     label,
+                    members: Vec::new(),
                 });
             }
         }
@@ -6988,6 +7116,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
                 name: clean_ident(inner),
                 alias: None,
                 label: None,
+                members: Vec::new(),
             });
         }
     }
@@ -6999,6 +7128,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
                 name: clean_ident(rest),
                 alias: None,
                 label: None,
+                members: Vec::new(),
             });
         }
     }
@@ -7520,7 +7650,7 @@ fn parse_state_statement(
 
         if has_block {
             // Parse nested children until matching `}`
-            let (children, region_dividers, end_idx) = parse_state_block(lines, start)?;
+            let (children, region_dividers, end_idx) = parse_state_block(lines, start, &name_raw)?;
             let decl = StateDecl {
                 name: name_raw,
                 alias,
@@ -7560,6 +7690,7 @@ fn parse_state_statement(
 fn parse_state_block(
     lines: &[(&str, Span)],
     start: usize,
+    parent_state: &str,
 ) -> Result<(Vec<Statement>, Vec<usize>, usize), Diagnostic> {
     let mut children: Vec<Statement> = Vec::new();
     let mut region_dividers: Vec<usize> = Vec::new();
@@ -7618,6 +7749,14 @@ fn parse_state_block(
                 continue;
             }
             if let Some(action) = parse_state_internal_action(inner) {
+                children.push(Statement {
+                    span,
+                    kind: StatementKind::StateInternalAction(action),
+                });
+                j += 1;
+                continue;
+            }
+            if let Some(action) = parse_state_bare_internal_action(parent_state, inner) {
                 children.push(Statement {
                     span,
                     kind: StatementKind::StateInternalAction(action),
@@ -7696,6 +7835,30 @@ fn parse_state_internal_action(line: &str) -> Option<StateInternalAction> {
     }
     Some(StateInternalAction {
         state: state.to_string(),
+        kind,
+        action,
+    })
+}
+
+fn parse_state_bare_internal_action(parent_state: &str, line: &str) -> Option<StateInternalAction> {
+    let trimmed = line.trim().trim_end_matches(';').trim();
+    if trimmed.is_empty() || trimmed.contains("-->") || trimmed.starts_with("state ") {
+        return None;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    let known_prefix = ["entry", "exit", "do"]
+        .into_iter()
+        .any(|prefix| lower == prefix || lower.starts_with(&format!("{prefix} /")));
+    if !known_prefix {
+        return None;
+    }
+    let (kind, action) = if let Some((k, a)) = trimmed.split_once('/') {
+        (k.trim().to_string(), a.trim().to_string())
+    } else {
+        (trimmed.to_string(), String::new())
+    };
+    Some(StateInternalAction {
+        state: parent_state.to_string(),
         kind,
         action,
     })

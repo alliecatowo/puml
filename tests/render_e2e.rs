@@ -280,6 +280,27 @@ fn render_svg_applies_autonumber_off_and_resume_edges() {
 }
 
 #[test]
+fn render_svg_applies_dotted_autonumber_and_hash_padding() {
+    let src = fixture("structure/valid_autonumber_dotted_and_hash_padding.puml");
+    let svg = puml::render_source_to_svg(&src).expect("render should succeed");
+
+    for expected in [
+        "1.02.003 dotted-start",
+        "1.02.004 dotted-next",
+        "ID-007 hash-padded",
+        "ID-009 hash-next",
+        "plain-gap",
+        "R-011 resume-hash-step",
+    ] {
+        assert!(
+            svg.contains(expected),
+            "expected autonumber label not found: {expected}"
+        );
+    }
+    assert!(!svg.contains("ID-011 plain-gap"));
+}
+
+#[test]
 fn render_svg_rejects_invalid_source() {
     let src = fixture("errors/invalid_plain.txt");
     let err = puml::render_source_to_svg(&src);

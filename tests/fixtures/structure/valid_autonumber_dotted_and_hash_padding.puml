@@ -1,0 +1,12 @@
+@startuml
+autonumber 1.02.003
+A -> B : dotted-start
+A -> B : dotted-next
+autonumber 7 2 "ID-###"
+B -> A : hash-padded
+B -> A : hash-next
+autonumber stop
+A -> B : plain-gap
+autonumber resume 5 "R-###"
+B -> A : resume-hash-step
+@enduml

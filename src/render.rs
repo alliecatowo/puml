@@ -4506,6 +4506,27 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
         kind_tag_y,
         kind_label
     ));
+    render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
+}
+
+fn render_node_stereotype_rows(out: &mut String, node: &FamilyNode, cx: i32, start_y: i32) {
+    for (idx, member) in node
+        .members
+        .iter()
+        .filter(|member| {
+            let text = member.text.trim();
+            text.starts_with("<<") && text.ends_with(">>")
+        })
+        .take(4)
+        .enumerate()
+    {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#64748b\">{}</text>",
+            cx,
+            start_y + idx as i32 * 12,
+            escape_text(member.text.trim())
+        ));
+    }
 }
 
 fn render_note_card(out: &mut String, x: i32, y: i32, w: i32, h: i32, text: &str) {
@@ -4713,6 +4734,7 @@ fn render_family_node_shape_styled(
         "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
         cx, kind_tag_y, kind_label
     ));
+    render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
 }
 
 pub fn render_activity_svg(doc: &FamilyDocument) -> String {
@@ -4856,6 +4878,14 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     y + 20,
                     act_style.fork_color
                 ));
+                if !label.is_empty() {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
+                        cx,
+                        y + 44,
+                        escape_text(&label)
+                    ));
+                }
             }
             FamilyNodeKind::ActivityAction => {
                 out.push_str(&format!(
@@ -6925,16 +6955,24 @@ fn render_chart_axes(
     plot: ChartPlotArea,
     style: &crate::theme::ChartStyle,
 ) {
+    let h_axis = document.h_axis.as_ref();
+    let v_axis = document.v_axis.as_ref();
+    let h_axis_color = chart_axis_color(h_axis, &style.axis_color);
+    let v_axis_color = chart_axis_color(v_axis, &style.axis_color);
+    let h_label_color = chart_axis_label_color(h_axis, &style.font_color);
+    let v_label_color = chart_axis_label_color(v_axis, &style.font_color);
+    let h_grid_color = chart_axis_grid_color(h_axis, &style.grid_color);
+    let v_grid_color = chart_axis_grid_color(v_axis, &style.grid_color);
     out.push_str(&format!(
         "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
-        escape_text(&style.axis_color),
+        escape_text(h_axis_color),
         l = plot.left,
         r = plot.right,
         b = plot.bottom
     ));
     out.push_str(&format!(
         "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
-        escape_text(&style.axis_color),
+        escape_text(v_axis_color),
         l = plot.left,
         t = plot.top,
         b = plot.bottom
@@ -6946,13 +6984,13 @@ fn render_chart_axes(
         let y = chart_y_for_value(value, min_value, max_value, plot);
         out.push_str(&format!(
             "<line x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
-            escape_text(&style.grid_color),
+            escape_text(v_grid_color),
             l = plot.left,
             r = plot.right
         ));
         out.push_str(&format!(
             "<text x=\"{x}\" y=\"{ty}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-            escape_text(&style.font_color),
+            escape_text(v_label_color),
             format_chart_value(value),
             x = plot.left - 8,
             ty = y + 4
@@ -6963,12 +7001,14 @@ fn render_chart_axes(
         format_chart_value(min_value),
         format_chart_value(max_value)
     ));
+    render_chart_axis_metadata(out, "h", h_axis);
+    render_chart_axis_metadata(out, "v", v_axis);
     if min_value <= 0.0 && max_value >= 0.0 {
         if document.horizontal {
             let x = chart_x_for_value(0.0, min_value, max_value, plot);
             out.push_str(&format!(
                 "<line class=\"chart-zero-axis\" x1=\"{x}\" y1=\"{t}\" x2=\"{x}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1.25\"/>",
-                escape_text(&style.axis_color),
+                escape_text(v_axis_color),
                 t = plot.top,
                 b = plot.bottom
             ));
@@ -6976,7 +7016,7 @@ fn render_chart_axes(
             let y = chart_y_for_value(0.0, min_value, max_value, plot);
             out.push_str(&format!(
                 "<line class=\"chart-zero-axis\" x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"1.25\"/>",
-                escape_text(&style.axis_color),
+                escape_text(v_axis_color),
                 l = plot.left,
                 r = plot.right
             ));
@@ -6986,7 +7026,7 @@ fn render_chart_axes(
         if let Some(label) = &axis.label {
             out.push_str(&format!(
                 "<text x=\"{x}\" y=\"{y}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
-                escape_text(&style.font_color),
+                escape_text(h_label_color),
                 escape_text(label),
                 x = (plot.left + plot.right) / 2,
                 y = plot.bottom + 42
@@ -6997,7 +7037,7 @@ fn render_chart_axes(
         if let Some(label) = &axis.label {
             out.push_str(&format!(
                 "<text x=\"18\" y=\"{y}\" transform=\"rotate(-90 18 {y})\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
-                escape_text(&style.font_color),
+                escape_text(v_label_color),
                 escape_text(label),
                 y = (plot.top + plot.bottom) / 2
             ));
@@ -7013,7 +7053,7 @@ fn render_chart_axes(
             let x = plot.left + ((idx as f64) * step) as i32;
             out.push_str(&format!(
                 "<line x1=\"{x}\" y1=\"{t}\" x2=\"{x}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
-                escape_text(&style.grid_color),
+                escape_text(h_grid_color),
                 t = plot.top,
                 b = plot.bottom
             ));
@@ -7041,16 +7081,26 @@ fn render_chart_legend(
     };
     let width = 132;
     let height = 18 + (series.len() as i32) * 18;
+    let background = document
+        .legend
+        .background_color
+        .as_deref()
+        .unwrap_or("#ffffff");
+    let border = document.legend.border_color.as_deref().unwrap_or("#cbd5e1");
+    let text_color = document.legend.text_color.as_deref().unwrap_or("#0f172a");
     out.push_str(&format!(
-        "<g data-chart-legend=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\" fill=\"#ffffff\" stroke=\"#cbd5e1\"/>",
-        chart_legend_position(document)
+        "<g data-chart-legend=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\" fill=\"{}\" stroke=\"{}\"/>",
+        chart_legend_position(document),
+        escape_text(background),
+        escape_text(border)
     ));
     for (idx, item) in series.iter().enumerate() {
         let cy = y + 18 + (idx as i32) * 18;
         let color = chart_series_color(document, item, idx, "#1d4ed8");
         out.push_str(&format!(
-            "<rect x=\"{x1}\" y=\"{y1}\" width=\"10\" height=\"10\" fill=\"{}\"/><text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            "<rect x=\"{x1}\" y=\"{y1}\" width=\"10\" height=\"10\" fill=\"{}\"/><text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
             escape_text(&color),
+            escape_text(text_color),
             escape_text(&item.name),
             x1 = x + 8,
             y1 = cy - 9,
@@ -7208,6 +7258,55 @@ fn chart_axis_ticks(document: &ChartDocument, min_value: f64, max_value: f64) ->
         ticks.push(max_value);
     }
     ticks
+}
+
+fn chart_axis_color<'a>(axis: Option<&'a crate::model::ChartAxis>, fallback: &'a str) -> &'a str {
+    axis.and_then(|axis| axis.color.as_deref())
+        .unwrap_or(fallback)
+}
+
+fn chart_axis_label_color<'a>(
+    axis: Option<&'a crate::model::ChartAxis>,
+    fallback: &'a str,
+) -> &'a str {
+    axis.and_then(|axis| axis.label_color.as_deref())
+        .unwrap_or(fallback)
+}
+
+fn chart_axis_grid_color<'a>(
+    axis: Option<&'a crate::model::ChartAxis>,
+    fallback: &'a str,
+) -> &'a str {
+    axis.and_then(|axis| axis.grid_color.as_deref())
+        .unwrap_or(fallback)
+}
+
+fn render_chart_axis_metadata(
+    out: &mut String,
+    name: &str,
+    axis: Option<&crate::model::ChartAxis>,
+) {
+    let Some(axis) = axis else {
+        return;
+    };
+    if let Some(color) = &axis.color {
+        out.push_str(&format!(
+            "<metadata data-chart-axis-{name}-color=\"{}\"/>",
+            escape_text(color)
+        ));
+    }
+    if let Some(color) = &axis.label_color {
+        out.push_str(&format!(
+            "<metadata data-chart-axis-{name}-text=\"{}\"/>",
+            escape_text(color)
+        ));
+    }
+    if let Some(color) = &axis.grid_color {
+        out.push_str(&format!(
+            "<metadata data-chart-axis-{name}-grid=\"{}\"/>",
+            escape_text(color)
+        ));
+    }
 }
 
 fn chart_series_color(
