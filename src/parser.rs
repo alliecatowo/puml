@@ -2221,13 +2221,51 @@ fn dispatch_builtin(
             Some(result.to_string())
         }
         "invoke_procedure" | "call_user_func" => {
-            return Err(Diagnostic::error_code(
-                "E_PREPROC_DYNAMIC_UNSUPPORTED",
-                format!(
-                    "dynamic preprocessor invocation `%{}(...)` is not supported in this deterministic subset",
-                    name
-                ),
-            ));
+            if expanded_args.is_empty() {
+                return Err(Diagnostic::error_code(
+                    "E_PREPROC_DYNAMIC_UNSUPPORTED",
+                    format!(
+                        "dynamic preprocessor invocation `%{}(...)` requires a callable name argument",
+                        name
+                    ),
+                ));
+            }
+            let callable_name = strip_quotes(&expanded_args[0]);
+            if callable_name.is_empty() {
+                return Err(Diagnostic::error_code(
+                    "E_PREPROC_DYNAMIC_UNSUPPORTED",
+                    format!(
+                        "dynamic preprocessor invocation `%{}(...)` requires a non-empty callable name",
+                        name
+                    ),
+                ));
+            }
+            let callable = state.callables.get(&callable_name).ok_or_else(|| {
+                Diagnostic::error_code(
+                    "E_PREPROC_CALL_UNKNOWN",
+                    format!("unknown callable `{callable_name}`"),
+                )
+            })?;
+            if callable.kind != PreprocCallableKind::Function {
+                return Err(Diagnostic::error_code(
+                    "E_PREPROC_DYNAMIC_UNSUPPORTED",
+                    format!(
+                        "dynamic preprocessor invocation `%{}(...)` only supports functions in expression context",
+                        name
+                    ),
+                ));
+            }
+            let tail = expanded_args[1..]
+                .iter()
+                .map(|v| format!("\"{}\"", v.replace('"', "\\\"")))
+                .collect::<Vec<_>>()
+                .join(", ");
+            Some(execute_function_call(
+                &callable_name,
+                &tail,
+                state,
+                call_depth + 1,
+            )?)
         }
         _ => None,
     };
@@ -6392,6 +6430,21 @@ mod tests {
             StatementKind::Message(m) => {
                 assert_eq!(m.to, "Bob");
                 assert_eq!(m.label.as_deref(), Some("hi"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preprocessor_call_user_func_supports_dynamic_function_invocation() {
+        let doc = parse_with_options(
+            "@startuml\n!function F($x,$y)\n!return $x + $y\n!endfunction\nA -> B : %call_user_func(\"F\", \"A\", \"B\")\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        match &doc.statements[0].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.label.as_deref(), Some("\"A\" + \"B\""));
             }
             other => panic!("unexpected statement: {other:?}"),
         }

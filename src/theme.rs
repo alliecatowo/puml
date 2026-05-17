@@ -1104,7 +1104,7 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
                 align,
             ))
         }
-        "responsemessagebelowarrow" => {
+        "responsemessagebelowarrow" | "sequenceresponsemessagebelowarrow" => {
             let lower = value.trim().to_ascii_lowercase();
             let enabled = match lower.as_str() {
                 "true" | "yes" | "on" => true,
@@ -1124,21 +1124,21 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
                 SequenceSkinParamSupport::UnsupportedValue
             }
         }
-        "sequencemessagelinecolor" => parse_color_value(value)
+        "messagelinecolor" | "sequencemessagelinecolor" => parse_color_value(value)
             .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
                     SequenceSkinParamValue::MessageLineColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
-        "sequencereferencebackgroundcolor" => parse_color_value(value)
+        "referencebackgroundcolor" | "sequencereferencebackgroundcolor" => parse_color_value(value)
             .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
                     SequenceSkinParamValue::ReferenceBackgroundColor(color),
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
-        "sequencereferencebordercolor" => parse_color_value(value)
+        "referencebordercolor" | "sequencereferencebordercolor" => parse_color_value(value)
             .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
                     SequenceSkinParamValue::ReferenceBorderColor(color),

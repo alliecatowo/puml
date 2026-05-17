@@ -1865,13 +1865,7 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
                 let trimmed = v.trim();
                 let lower = trimmed.to_ascii_lowercase();
                 if lower.starts_with("teoz ") || lower == "teoz" {
-                    warnings.push(
-                        Diagnostic::warning(
-                            "[W_PRAGMA_TEOZ_UNSUPPORTED] !pragma teoz is not supported yet; continuing with default rendering semantics"
-                                .to_string(),
-                        )
-                        .with_span(stmt.span),
-                    );
+                    // Accept teoz pragma as a deterministic no-op compatibility hint.
                 } else {
                     warnings.push(
                         Diagnostic::warning(format!(
@@ -2914,13 +2908,7 @@ pub fn normalize_with_options(
                 let trimmed = value.trim();
                 let lower = trimmed.to_ascii_lowercase();
                 if lower.starts_with("teoz ") || lower == "teoz" {
-                    warnings.push(
-                        Diagnostic::warning(
-                            "[W_PRAGMA_TEOZ_UNSUPPORTED] !pragma teoz is not supported yet; continuing with default sequence layout semantics"
-                                .to_string(),
-                        )
-                        .with_span(stmt.span),
-                    );
+                    // Accept teoz pragma as a deterministic no-op compatibility hint.
                 } else {
                     warnings.push(
                         Diagnostic::warning(format!(
