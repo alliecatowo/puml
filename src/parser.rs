@@ -9791,8 +9791,7 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
 
 fn parse_arrow(arrow: &str) -> Option<String> {
     const VALID_BASE_ARROWS: &[&str] = &[
-        "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>",
-        "<<-->>",
+        "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
     ];
     let arrow = strip_sequence_arrow_brackets(arrow);
     let mut squashed = String::with_capacity(arrow.len());
