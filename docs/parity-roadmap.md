@@ -345,7 +345,7 @@ All diagram families and preprocessor surface areas have landed. 438 tests pass.
 Landed (2026-05-15): `--check`, `--dump`, `--multi`, `--from-markdown`, `--diagnostics`, `--include-root`, `--output`, `--overwrite`, `--fail-on-warn`, `--charset`, `--duration`, `--quiet`, `--verbose`, `--format`, `--dialect`, `--compat`, `--determinism`, `--lint-input`, `--lint-glob`, `--lint-report`.
 
 Remaining open items under #87:
-- `hide unlinked` is currently a warning/hint only — not yet a layout filter. Tracked as a known gap.
+- `hide unlinked` now filters unreferenced explicit sequence participants; broader non-sequence `hide @unlinked` parity remains tracked separately.
 - `--format png` is a deterministic rejection (no raster output support).
 
 #### Differential Oracle — Deferred (keep #88 open)

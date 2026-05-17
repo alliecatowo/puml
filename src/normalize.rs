@@ -5274,18 +5274,21 @@ pub fn normalize_with_options(
         .with_span(open.span));
     }
 
+    let mut hidden_participants = Vec::new();
+
     // Apply `hide unlinked` filter: collect all participant IDs that appear in
-    // events, then drop explicit participant declarations that are never referenced.
+    // sequence links or participant-scoped events, then drop explicit declarations
+    // that never participate in the rendered interaction.
     if hide_unlinked {
         let mut referenced: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for ev in &events {
             match &ev.kind {
                 SequenceEventKind::Message { from, to, .. } => {
                     // Only count real (non-virtual) endpoints.
-                    if !from.starts_with('[') && from != "]" {
+                    if !is_virtual_endpoint(from) {
                         referenced.insert(from.clone());
                     }
-                    if !to.starts_with('[') && to != "]" {
+                    if !is_virtual_endpoint(to) {
                         referenced.insert(to.clone());
                     }
                 }
@@ -5294,7 +5297,10 @@ pub fn normalize_with_options(
                 } => {
                     // target may be comma-separated for `note over A,B`
                     for part in t.split(',') {
-                        referenced.insert(part.trim().to_string());
+                        let id = part.trim();
+                        if !id.is_empty() && !is_virtual_endpoint(id) {
+                            referenced.insert(id.to_string());
+                        }
                     }
                 }
                 SequenceEventKind::Note { target: None, .. } => {}
@@ -5315,14 +5321,14 @@ pub fn normalize_with_options(
                 _ => {}
             }
         }
-        let before_len = participants.len();
-        participants.retain(|p| !p.explicit || referenced.contains(&p.id));
-        let hidden_count = before_len - participants.len();
-        if hidden_count > 0 {
-            warnings.push(Diagnostic::warning(format!(
-                "[I_HIDE_UNLINKED_FILTERED] hide unlinked: removed {} unreferenced participant(s)",
-                hidden_count
-            )));
+        participants.retain(|p| {
+            let keep = !p.explicit || referenced.contains(&p.id);
+            if !keep {
+                hidden_participants.push(p.id.clone());
+            }
+            keep
+        });
+        if !hidden_participants.is_empty() {
             // Rebuild the participant index map.
             participant_ix.clear();
             for (idx, p) in participants.iter().enumerate() {
@@ -5377,7 +5383,7 @@ pub fn normalize_with_options(
         legend_valign,
         warnings,
         hide_unlinked,
-        hidden_participants: Vec::new(),
+        hidden_participants,
     })
 }
 

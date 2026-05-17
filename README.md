@@ -334,7 +334,7 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | Notes | Supported | `note left/right/over`, `hnote`, `rnote`, across/alignment behavior; multi-line `note ... end note`; `note over A, B`. |
 | Groups / fragments | Supported | `alt`/`else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `box`, `ref` (single- and multi-line `ref over A, B`), `end`; mis-nested forms produce deterministic errors. |
 | Separators + dividers | Supported | `== separator ==`, `...`, `||`, `newpage`. |
-| `hide unlinked` | Supported (warning only) | Parsed and recorded as a `hideUnlinked` hint; not yet a layout filter — emits a deterministic note. |
+| `hide unlinked` | Supported | Filters explicit sequence participants that are not referenced by messages, notes, or lifecycle events. |
 | Lifecycle / control | Supported | `activate`, `deactivate`, `create`, `destroy`, `return`, `autonumber` (start/stop/resume/format/step, dotted starts such as `1.02.003`, and repeated `#` zero-padding such as `"ID-###"`). |
 | Metadata | Supported | `title`, `header`, `footer`, `caption`, `legend`, `hide footbox`, `show footbox`. |
 | `skinparam` sequence subset | Supported | `maxmessagesize`, `footbox`/`sequenceFootbox`, `ArrowColor`/`SequenceArrowColor`, `SequenceLifeLineBorderColor`, `ParticipantBackgroundColor`, `ParticipantBorderColor`, `NoteBackgroundColor`, `NoteBorderColor`, `GroupBackgroundColor`, `GroupBorderColor` (all support `Sequence...` alias prefix). |
