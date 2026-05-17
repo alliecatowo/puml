@@ -68,9 +68,18 @@ jobs:
             git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
             git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "${CHANGED_FILES}"
             run_oracle=false
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+            git fetch --no-tags --depth=1 origin "${{ github.event.before }}"
+            git diff --name-only "${{ github.event.before }}" HEAD > "${CHANGED_FILES}"
+            run_oracle=true
           else
             git ls-files > "${CHANGED_FILES}"
             run_oracle=true
+          fi
+          run_oracle_smoke=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            run_oracle_smoke=true
           fi
 
           while IFS= read -r file; do
@@ -81,17 +90,28 @@ jobs:
                 run_oracle=true
                 ;;
             esac
+
+            case "${file}" in
+              tests/oracle_smoke.rs|scripts/oracle.sh|.github/workflows/oracle.yml)
+                run_oracle_smoke=true
+                ;;
+            esac
           done < "${CHANGED_FILES}"
 
           if [[ ! -s "${CHANGED_FILES}" ]]; then
             run_oracle=true
+            run_oracle_smoke=true
           fi
 
-          echo "run_oracle=${run_oracle}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "run_oracle=${run_oracle}"
+            echo "run_oracle_smoke=${run_oracle_smoke}"
+          } >> "${GITHUB_OUTPUT}"
 
           echo "Changed files:"
           sed 's/^/  - /' "${CHANGED_FILES}"
           echo "run_oracle=${run_oracle}"
+          echo "run_oracle_smoke=${run_oracle_smoke}"
 
       - name: Fast path for oracle-irrelevant changes
         if: steps.changes.outputs.run_oracle != 'true'
@@ -203,7 +223,8 @@ jobs:
           fi
           exit 0
 
-      # Run the always-on oracle_smoke sentinel tests (no --include-ignored).
+      # Run the oracle_smoke sentinel tests only for manual runs and changes
+      # to the oracle workflow/script/test files (no --include-ignored).
       # The oracle_report_schema_is_stable test is #[ignore] gated because it
       # re-invokes oracle.sh over the full fixture corpus, which is redundant
       # and slow in CI (we already ran oracle.sh above). The sentinel tests
@@ -211,7 +232,7 @@ jobs:
       # continue-on-error: true so sentinel test failures do not block the PR
       # — the oracle.sh step above is the hard gate.
       - name: Run oracle_smoke sentinel tests (cargo test --test oracle_smoke)
-        if: steps.changes.outputs.run_oracle == 'true'
+        if: steps.changes.outputs.run_oracle == 'true' && steps.changes.outputs.run_oracle_smoke == 'true'
         id: cargo-oracle-smoke
         continue-on-error: true
         env:
@@ -220,7 +241,7 @@ jobs:
           cargo test --test oracle_smoke 2>&1 | tee /tmp/oracle_smoke_test.log
           echo "cargo_exit_code=${PIPESTATUS[0]}" >> "${GITHUB_OUTPUT}"
 
-      # Upload artifacts: oracle_report.json + test log
+      # Upload artifacts: oracle_report.json, plus the smoke log when run.
       - name: Upload oracle artifacts
         if: always() && steps.changes.outputs.run_oracle == 'true'
         uses: actions/upload-artifact@v4
@@ -230,7 +251,15 @@ jobs:
           retention-days: 30
           path: |
             docs/benchmarks/oracle_report.json
-            /tmp/oracle_smoke_test.log
+
+      - name: Upload oracle_smoke test log
+        if: always() && steps.changes.outputs.run_oracle == 'true' && steps.changes.outputs.run_oracle_smoke == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-smoke-test-log-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: /tmp/oracle_smoke_test.log
 
       # Post a Markdown summary comment on the PR.
       # Guarded: only when we have real oracle data (total is a non-null number).

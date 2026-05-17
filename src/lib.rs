@@ -1,6 +1,7 @@
 pub mod ast;
 pub mod creole;
 pub mod diagnostic;
+pub mod formatter;
 mod frontend;
 pub mod layout;
 pub mod model;
