@@ -32,6 +32,7 @@ on:
           - P0
           - P1
           - P2
+          - P3
 
 permissions:
   contents: read
@@ -62,6 +63,7 @@ jobs:
       PRIORITY_P0_ID: 5f502b32
       PRIORITY_P1_ID: e87779b3
       PRIORITY_P2_ID: 011502f5
+      PRIORITY_P3_ID: e085bc1a
     steps:
       - name: Checkout
         if: env.HAS_PROJECT_TOKEN == 'true'
