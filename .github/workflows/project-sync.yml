@@ -1,0 +1,78 @@
+name: Project Sync
+
+on:
+  issues:
+    types: [opened, reopened, closed, labeled, unlabeled]
+  pull_request:
+    types: [opened, reopened, ready_for_review, converted_to_draft, synchronize, closed, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      content_url:
+        description: Issue or pull request URL to sync
+        required: true
+        type: string
+      status:
+        description: Status to set
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - todo
+          - in-progress
+          - merging
+          - done
+      priority:
+        description: Priority to set
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - P0
+          - P1
+          - P2
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  repository-projects: write
+
+concurrency:
+  group: project-sync-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: sync-project-v2-fields
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.PUML_PROJECT_TOKEN != '' && secrets.PUML_PROJECT_TOKEN || github.token }}
+      PROJECT_OWNER: alliecatowo
+      PROJECT_NUMBER: "3"
+      PROJECT_ID: PVT_kwHOBdlpmc4BX1zk
+      STATUS_FIELD_ID: PVTSSF_lAHOBdlpmc4BX1zkzhS_7BE
+      STATUS_TODO_ID: 332edcb8
+      STATUS_IN_PROGRESS_ID: 867a988e
+      STATUS_MERGING_ID: d4aa3b22
+      STATUS_DONE_ID: c603c19d
+      PRIORITY_FIELD_ID: PVTSSF_lAHOBdlpmc4BX1zkzhS_7FE
+      PRIORITY_P0_ID: 5f502b32
+      PRIORITY_P1_ID: e87779b3
+      PRIORITY_P2_ID: 011502f5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync issue or pull request to PUML project
+        if: github.event_name != 'workflow_dispatch'
+        run: ./scripts/project-v2-event-sync.sh
+
+      - name: Manual project sync
+        if: github.event_name == 'workflow_dispatch'
+        run: >
+          ./scripts/project-v2-event-sync.sh
+          --content-url "${{ inputs.content_url }}"
+          --status "${{ inputs.status }}"
+          --priority "${{ inputs.priority }}"
