@@ -4732,6 +4732,45 @@ fn preprocessor_next_wave_expression_callable_scope_and_helper_aliases_expand() 
 }
 
 #[test]
+fn preprocessor_loop_controls_and_foreach_object_key_iteration_expand() {
+    let src = "@startuml\n!$cfg = {\"alpha\":1,\"beta\":2,\"stop\":3}\n!foreach $key in $cfg\n!if $key == \"beta\"\n!continue\n!endif\n!if $key == \"stop\"\n!break\n!endif\nAlice -> Bob : $key\n!endfor\n!$i = 0\n!while $i < 5\n!$i = %eval_int($i + 1)\n!if $i == 2\n!continue\n!endif\n!if $i == 4\n!break\n!endif\nAlice -> Bob : loop-$i\n!endwhile\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["alpha", "loop-1", "loop-3"]);
+}
+
+#[test]
+fn preprocessor_loop_controls_outside_loop_report_stable_codes() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\n!break\nAlice -> Bob : unreachable\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_BREAK_OUTSIDE_LOOP"));
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\n!continue\nAlice -> Bob : unreachable\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_CONTINUE_OUTSIDE_LOOP"));
+}
+
+#[test]
 fn preprocessor_malformed_builtin_call_reports_syntax_code() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -6475,6 +6514,48 @@ skinparam saltInputBackgroundColor #eff6ff\n\
     assert!(svg.contains("data-salt-widget=\"scrollbar\""));
     assert!(svg.contains("Field"));
     assert!(svg.contains("Save"));
+}
+
+#[test]
+fn salt_compact_controls_textarea_advanced_table_and_style_blocks_render() {
+    let src = "@startsalt\n\
+<style>\n\
+saltDiagram {\n\
+  BackgroundColor #ecfeff\n\
+}\n\
+</style>\n\
+!option handwritten true\n\
+{+\n\
+This is a long\n\
+text in a textarea\n\
+.\n\
+\"                         \"\n\
+}\n\
+{SI\n\
+Scrolled notes\n\
+}\n\
+{#\n\
+. | Column 2 | Column 3\n\
+Row header 1 | [] unchecked | () radio\n\
+Row header 2 | value | *\n\
+}\n\
+{^ Profile Group}\n\
+^Role^ | [Save]\n\
+@endsalt\n";
+    let svg = render_source_to_svg(src).expect("advanced salt controls should render");
+    assert!(svg.contains("data-salt-widget=\"textarea\""));
+    assert!(svg.contains("data-salt-scroll-vertical=\"true\""));
+    assert!(svg.contains("data-salt-scroll-horizontal=\"false\""));
+    assert!(svg.contains("data-salt-widget=\"table-empty\""));
+    assert!(svg.contains("data-salt-widget=\"table-span\""));
+    assert!(svg.contains("data-salt-widget=\"header\""));
+    assert!(svg.contains("data-salt-widget=\"groupbox\""));
+    assert!(svg.contains("data-salt-widget=\"scrollbar\""));
+    assert!(svg.contains("Comic Sans MS, cursive"));
+    assert!(svg.contains("fill=\"#ecfeff\""));
+    assert!(svg.contains("unchecked"));
+    assert!(svg.contains("radio"));
+    assert!(svg.contains("Role"));
 }
 
 #[test]

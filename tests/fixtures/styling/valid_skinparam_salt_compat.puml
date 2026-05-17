@@ -1,0 +1,10 @@
+@startsalt
+skinparam saltBackgroundColor #f8fafc
+skinparam saltPanelColor #ecfeff
+skinparam saltBorderColor #0e7490
+skinparam saltFontColor #164e63
+{+
+  Login | "user"
+  [Submit]
+}
+@endsalt

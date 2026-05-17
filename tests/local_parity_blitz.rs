@@ -226,6 +226,68 @@ API -[#008800,bold]-> DB : persists
 }
 
 #[test]
+fn core_uml_directional_relation_styles_and_activity_note_forms_render() {
+    let class_svg = puml::render_source_to_svg(
+        r##"@startuml
+class API
+class Worker
+class Audit
+API -[#red;line.dashed;line.thickness=5]right-> Worker : emits
+Worker -[#blue;line.bold]up-> Audit : reports
+@enduml
+"##,
+    )
+    .expect("directional styled class relations should render");
+    assert!(class_svg.contains("data-uml-direction=\"right\""));
+    assert!(class_svg.contains("data-uml-direction=\"up\""));
+    assert!(class_svg.contains("stroke=\"#ff0000\""));
+    assert!(class_svg.contains("stroke-width=\"5\""));
+    assert!(class_svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(class_svg.contains("stroke=\"#0000ff\""));
+    assert!(class_svg.contains("reports"));
+
+    let component_svg = puml::render_source_to_svg(
+        r##"@startuml
+package "Edge" {
+  port "HTTP" as http
+  interface "Orders API" as orders
+  component "Gateway" as gateway
+  http -[#008800;line.thick]down-> gateway : mounted
+  gateway -[#orange;line.dotted]left-> orders : provides
+}
+@enduml
+"##,
+    )
+    .expect("component ports/interfaces direction styles should render");
+    assert!(component_svg.contains("port"));
+    assert!(component_svg.contains("Orders API"));
+    assert!(component_svg.contains("data-uml-direction=\"down\""));
+    assert!(component_svg.contains("data-uml-direction=\"left\""));
+    assert!(component_svg.contains("stroke=\"#008800\""));
+    assert!(component_svg.contains("stroke=\"#ffa500\""));
+
+    let activity_svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+if (ready?) is (yes) then (fast)
+:ship;
+else (slow)
+floating note right: manual review
+endif
+repeat
+:retry;
+repeat while (again?) is (yes) not (no)
+stop
+@enduml
+"#,
+    )
+    .expect("activity note and branch labels should render");
+    assert!(activity_svg.contains("ready? / yes / fast"));
+    assert!(activity_svg.contains("note right: manual review"));
+    assert!(activity_svg.contains("again? / yes / no"));
+}
+
+#[test]
 fn core_uml_relation_stereotypes_and_cardinality_survive_to_svg() {
     let component_svg = puml::render_source_to_svg(
         r##"@startuml
@@ -417,4 +479,71 @@ Cluster --> Orders : hosts
     .expect("deployment inline style render should succeed");
     assert!(deployment_svg.contains("#ffeeaa"));
     assert!(deployment_svg.contains("hosts"));
+}
+
+#[test]
+fn skinparam_family_compatibility_chunk_reaches_svg_for_non_sequence_families() {
+    let class_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/styling/valid_skinparam_class_object_usecase_compat.puml"
+    ))
+    .expect("class/object/usecase skinparam fixture should render");
+    assert!(class_svg.contains("#fef3c7"));
+    assert!(class_svg.contains("#7c2d12"));
+    assert!(class_svg.contains("#831843"));
+    assert!(class_svg.contains("#0f766e"));
+    assert!(class_svg.contains("FiraCode"));
+    assert!(class_svg.contains("font-size=\"15\""));
+
+    let component_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/styling/valid_skinparam_component_deployment_compat.puml"
+    ))
+    .expect("component/deployment skinparam fixture should render");
+    assert!(component_svg.contains("#ecfeff"));
+    assert!(component_svg.contains("#0e7490"));
+    assert!(component_svg.contains("#064e3b"));
+
+    let state_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/styling/valid_skinparam_state_compat.puml"
+    ))
+    .expect("state skinparam fixture should render");
+    assert!(state_svg.contains("#fef9c3"));
+    assert!(state_svg.contains("#854d0e"));
+    assert!(state_svg.contains("#1f2937"));
+    assert!(state_svg.contains("#7c2d12"));
+
+    let activity_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/styling/valid_skinparam_activity_compat.puml"
+    ))
+    .expect("activity skinparam fixture should render");
+    assert!(activity_svg.contains("#ecfdf5"));
+    assert!(activity_svg.contains("#047857"));
+    assert!(activity_svg.contains("#064e3b"));
+    assert!(activity_svg.contains("#bbf7d0"));
+
+    let timing_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/styling/valid_skinparam_timing_chart_salt_compat.puml"
+    ))
+    .expect("timing skinparam fixture should render");
+    assert!(timing_svg.contains("data-timing-style=\"#f8fafc #0f766e #ccfbf1"));
+    assert!(timing_svg.contains("#134e4a"));
+
+    let chart_svg = puml::render_source_to_svg_for_family(
+        include_str!("fixtures/styling/valid_skinparam_chart_compat.puml"),
+        puml::DiagramFamily::Chart,
+    )
+    .expect("chart skinparam fixture should render");
+    assert!(chart_svg.contains("#fff7ed"));
+    assert!(chart_svg.contains("#9a3412"));
+    assert!(chart_svg.contains("#fed7aa"));
+    assert!(chart_svg.contains("#2563eb"));
+    assert!(chart_svg.contains("#7c2d12"));
+
+    let salt_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/styling/valid_skinparam_salt_compat.puml"
+    ))
+    .expect("salt skinparam fixture should render");
+    assert!(salt_svg.contains("#f8fafc"));
+    assert!(salt_svg.contains("#ecfeff"));
+    assert!(salt_svg.contains("#0e7490"));
+    assert!(salt_svg.contains("#164e63"));
 }

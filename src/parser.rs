@@ -87,6 +87,8 @@ enum PreprocessDirective {
     EndWhile,
     Foreach(String),
     EndFor,
+    Break,
+    Continue,
     Function,
     EndFunction,
     Procedure,
@@ -96,6 +98,7 @@ enum PreprocessDirective {
     DumpMemory(String),
     DynamicInvocation(String),
     JsonPreproc(String),
+    Passthrough(String),
     Unsupported(String),
     NoOp,
     ProcedureCall {
@@ -121,6 +124,12 @@ enum PreprocVariableScope {
     Default,
     Local,
     Global,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PreprocLoopSignal {
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +165,8 @@ struct PreprocState {
     false_then_true_counts: RefCell<BTreeMap<String, u64>>,
     true_then_false_counts: RefCell<BTreeMap<String, u64>>,
     global_assigns: RefCell<BTreeSet<String>>,
+    loop_depth: usize,
+    loop_signal: Option<PreprocLoopSignal>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -273,7 +284,7 @@ fn preprocess_text(
                                     ),
                                 ));
                             }
-                            preprocess_text(
+                            let signal = preprocess_loop_block(
                                 &block,
                                 options,
                                 state,
@@ -283,6 +294,10 @@ fn preprocess_text(
                                 call_depth,
                                 out,
                             )?;
+                            match signal {
+                                Some(PreprocLoopSignal::Break) => break,
+                                Some(PreprocLoopSignal::Continue) | None => {}
+                            }
                         }
                     }
                     i = endwhile + 1;
@@ -330,11 +345,12 @@ fn preprocess_text(
                             .iter()
                             .map(|name| (name.clone(), state.vars.get(name).cloned()))
                             .collect::<Vec<_>>();
+                        let mut should_break = false;
                         for row in bindings {
                             for (name, value) in row {
                                 state.vars.insert(name, value);
                             }
-                            preprocess_text(
+                            let signal = preprocess_loop_block(
                                 &block,
                                 options,
                                 state,
@@ -344,6 +360,15 @@ fn preprocess_text(
                                 call_depth,
                                 out,
                             )?;
+                            match signal {
+                                Some(PreprocLoopSignal::Break) => {
+                                    should_break = true;
+                                }
+                                Some(PreprocLoopSignal::Continue) | None => {}
+                            }
+                            if should_break {
+                                break;
+                            }
                         }
                         for (name, value) in prev {
                             match value {
@@ -358,6 +383,30 @@ fn preprocess_text(
                     }
                     i = endfor + 1;
                     continue;
+                }
+                PreprocessDirective::Break => {
+                    if active {
+                        if state.loop_depth == 0 {
+                            return Err(Diagnostic::error_code(
+                                "E_PREPROC_BREAK_OUTSIDE_LOOP",
+                                "`!break` can only be used inside `!while` or `!foreach`",
+                            ));
+                        }
+                        state.loop_signal = Some(PreprocLoopSignal::Break);
+                        return Ok(());
+                    }
+                }
+                PreprocessDirective::Continue => {
+                    if active {
+                        if state.loop_depth == 0 {
+                            return Err(Diagnostic::error_code(
+                                "E_PREPROC_CONTINUE_OUTSIDE_LOOP",
+                                "`!continue` can only be used inside `!while` or `!foreach`",
+                            ));
+                        }
+                        state.loop_signal = Some(PreprocLoopSignal::Continue);
+                        return Ok(());
+                    }
                 }
                 PreprocessDirective::EndFor => {
                     return Err(Diagnostic::error_code(
@@ -618,6 +667,9 @@ fn preprocess_text(
                             call_depth,
                             out,
                         )?;
+                        if state.loop_signal.is_some() {
+                            return Ok(());
+                        }
                     }
                 }
                 PreprocessDirective::Unsupported(name) => {
@@ -626,6 +678,12 @@ fn preprocess_text(
                             "E_PREPROC_UNSUPPORTED",
                             format!("unsupported preprocessor directive `!{name}`"),
                         ));
+                    }
+                }
+                PreprocessDirective::Passthrough(line) => {
+                    if active {
+                        out.push_str(&line);
+                        out.push('\n');
                     }
                 }
                 PreprocessDirective::NoOp => {
@@ -651,6 +709,9 @@ fn preprocess_text(
                             call_depth,
                             out,
                         )?;
+                        if state.loop_signal.is_some() {
+                            return Ok(());
+                        }
                         i += 1;
                         continue;
                     }
@@ -675,6 +736,33 @@ fn preprocess_text(
 
 fn is_active(conditionals: &[ConditionalFrame]) -> bool {
     conditionals.iter().all(|f| f.current_active)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn preprocess_loop_block(
+    source: &str,
+    options: &ParseOptions,
+    state: &mut PreprocState,
+    include_stack: &mut Vec<PathBuf>,
+    include_once_seen: &mut BTreeSet<PathBuf>,
+    depth: usize,
+    call_depth: usize,
+    out: &mut String,
+) -> Result<Option<PreprocLoopSignal>, Diagnostic> {
+    state.loop_depth += 1;
+    let result = preprocess_text(
+        source,
+        options,
+        state,
+        include_stack,
+        include_once_seen,
+        depth,
+        call_depth,
+        out,
+    );
+    state.loop_depth = state.loop_depth.saturating_sub(1);
+    result?;
+    Ok(state.loop_signal.take())
 }
 
 /// On `wasm32` there is no filesystem available, so the entire `!include` /
@@ -1294,6 +1382,8 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "foreach" => Some(PreprocessDirective::Foreach(arg.to_string())),
         "endfor" => Some(PreprocessDirective::EndFor),
         "endwhile" => Some(PreprocessDirective::EndWhile),
+        "break" => Some(PreprocessDirective::Break),
+        "continue" => Some(PreprocessDirective::Continue),
         "function" => Some(PreprocessDirective::Function),
         "endfunction" => Some(PreprocessDirective::EndFunction),
         "procedure" => Some(PreprocessDirective::Procedure),
@@ -1301,6 +1391,7 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "assert" => Some(PreprocessDirective::Assert(arg.to_string())),
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
+        "option" => Some(PreprocessDirective::Passthrough(trimmed.to_string())),
         "local" => parse_scoped_variable_assignment(arg, trimmed, PreprocVariableScope::Local),
         "global" => parse_scoped_variable_assignment(arg, trimmed, PreprocVariableScope::Global),
         _ if let Some((call_name, call_args)) = parse_named_call(rest) => {
@@ -3377,6 +3468,16 @@ fn preprocessor_list_items(raw: &str) -> Vec<String> {
 }
 
 fn preprocessor_foreach_bindings(var_names: &[String], rhs: &str) -> Vec<Vec<(String, String)>> {
+    if var_names.len() == 1 {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(rhs.trim()) {
+            if let Some(obj) = value.as_object() {
+                return obj
+                    .keys()
+                    .map(|key| vec![(var_names[0].clone(), key.clone())])
+                    .collect();
+            }
+        }
+    }
     if var_names.len() == 2 {
         if let Ok(value) = serde_json::from_str::<serde_json::Value>(rhs.trim()) {
             if let Some(obj) = value.as_object() {
@@ -4282,6 +4383,9 @@ fn execute_procedure_call(
             call_depth + 1,
             out,
         )?;
+        if local_state.loop_signal.is_some() {
+            state.loop_signal = local_state.loop_signal.take();
+        }
         let globals = local_state.global_assigns.borrow().clone();
         for name in globals {
             if let Some(value) = local_state.vars.get(&name) {
@@ -4903,9 +5007,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i += 1;
                 continue;
             }
-            // Skip `{`, `}`, `{+`, `{-`, `---` markers inside salt blocks
+            // Skip structural braces and separator sentinels inside salt blocks.
+            // Rich containers such as `{+`, `{#`, `{SI`, and `{^` are parsed
+            // as Salt rows above so the renderer can preserve widget metadata.
             let trimmed = line.trim();
-            if matches!(trimmed, "{" | "}" | "{+" | "{-" | "---") || trimmed.is_empty() {
+            if matches!(trimmed, "{" | "{-" | "---") || trimmed.is_empty() {
                 i += 1;
                 continue;
             }
@@ -5770,6 +5876,7 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         dashed: relation_style.dashed,
         hidden: relation_style.hidden,
         thickness: relation_style.thickness,
+        direction: relation_style.direction,
         left_lollipop,
         right_lollipop,
     }))
@@ -5983,6 +6090,7 @@ struct ParsedFamilyRelationStyle {
     dashed: bool,
     hidden: bool,
     thickness: Option<u8>,
+    direction: Option<String>,
 }
 
 fn split_family_arrow(core: &str) -> Option<(&str, String, &str)> {
@@ -6021,7 +6129,9 @@ fn split_family_arrow_styled(
         if arrow.is_empty() {
             continue;
         }
-        return Some((lhs, arrow, parse_family_relation_style(raw_arrow), rhs));
+        let mut relation_style = parse_family_relation_style(raw_arrow);
+        relation_style.direction = parse_family_relation_direction(raw_arrow);
+        return Some((lhs, arrow, relation_style, rhs));
     }
     None
 }
@@ -6035,11 +6145,18 @@ fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
             break;
         };
         let content = &after_open[..close];
-        for part in content.split(',') {
+        for part in content.split(|ch: char| ch == ',' || ch == ';' || ch.is_whitespace()) {
             let token = part.trim();
-            let lower = token.to_ascii_lowercase();
-            match lower.as_str() {
-                "dashed" | "dotted" => style.dashed = true,
+            if token.is_empty() {
+                continue;
+            }
+            let lower_raw = token.to_ascii_lowercase();
+            let lower = lower_raw
+                .strip_prefix("line.")
+                .or_else(|| lower_raw.strip_prefix("line:"))
+                .unwrap_or(lower_raw.as_str());
+            match lower {
+                "dashed" | "dotted" | "dash" | "dot" => style.dashed = true,
                 "hidden" => style.hidden = true,
                 "bold" | "thick" => style.thickness = Some(style.thickness.unwrap_or(3).max(3)),
                 "thin" => style.thickness = Some(1),
@@ -6047,6 +6164,8 @@ fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
                     if let Some(value) = lower
                         .strip_prefix("thickness=")
                         .or_else(|| lower.strip_prefix("thickness:"))
+                        .or_else(|| lower.strip_prefix("weight="))
+                        .or_else(|| lower.strip_prefix("weight:"))
                     {
                         if let Ok(n) = value.trim().parse::<u8>() {
                             style.thickness = Some(n.clamp(1, 8));
@@ -6060,6 +6179,35 @@ fn parse_family_relation_style(raw_arrow: &str) -> ParsedFamilyRelationStyle {
         rest = &after_open[close + 1..];
     }
     style
+}
+
+fn parse_family_relation_direction(raw_arrow: &str) -> Option<String> {
+    let mut cleaned = String::new();
+    let mut in_bracket = false;
+    for ch in raw_arrow.chars() {
+        match ch {
+            '[' => in_bracket = true,
+            ']' => in_bracket = false,
+            _ if !in_bracket => cleaned.push(ch),
+            _ => {}
+        }
+    }
+    let lower = cleaned.to_ascii_lowercase();
+    for (needle, direction) in [
+        ("left", "left"),
+        ("right", "right"),
+        ("up", "up"),
+        ("down", "down"),
+        ("l", "left"),
+        ("r", "right"),
+        ("u", "up"),
+        ("d", "down"),
+    ] {
+        if lower.contains(needle) {
+            return Some(direction.to_string());
+        }
+    }
+    None
 }
 
 fn parse_relation_color_token(token: &str) -> Option<String> {
@@ -7756,6 +7904,12 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
             label: Some(format!("elseif {}", parse_activity_if_label(rest.trim()))),
         }));
     }
+    if let Some(label) = parse_activity_note_step(trimmed) {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(label),
+        }));
+    }
     if let Some(rest) = trimmed.strip_prefix("while ") {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::WhileStart,
@@ -7831,13 +7985,37 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
     None
 }
 
+fn parse_activity_note_step(line: &str) -> Option<String> {
+    let lower = line.to_ascii_lowercase();
+    let prefixes = [
+        "floating note left",
+        "floating note right",
+        "floating note",
+        "note left",
+        "note right",
+        "note top",
+        "note bottom",
+    ];
+    let prefix = prefixes.iter().find(|prefix| lower.starts_with(**prefix))?;
+    let rest = line[prefix.len()..]
+        .trim()
+        .trim_start_matches(':')
+        .trim_end_matches(';')
+        .trim();
+    let display_prefix = prefix.replace("floating ", "");
+    Some(if rest.is_empty() {
+        display_prefix
+    } else {
+        format!("{display_prefix}: {rest}")
+    })
+}
+
 fn parse_activity_if_label(input: &str) -> String {
     let lower = input.to_ascii_lowercase();
     if let Some(idx) = lower.find(" then ") {
         let condition_raw = input[..idx].trim();
         let then_raw = input[idx + " then ".len()..].trim();
-        let condition =
-            extract_paren_label(condition_raw).unwrap_or_else(|| condition_raw.to_string());
+        let condition = parse_activity_condition_with_branches(condition_raw);
         if let Some(branch) = extract_paren_label(then_raw) {
             if !branch.is_empty() {
                 return format!("{condition} / {branch}");
@@ -9749,6 +9927,10 @@ fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
         || lower.starts_with("{/")
         || lower.starts_with("{s")
         || lower.starts_with("{t")
+        || lower.starts_with("{+")
+        || lower.starts_with("{#")
+        || lower.starts_with("{!")
+        || lower.starts_with("{^")
         || lower == "tree"
         || lower.starts_with("tree ")
         || lower == "menu"
@@ -9790,7 +9972,7 @@ fn parse_salt_cell(text: &str) -> SaltCell {
         let inner = &text[1..text.len() - 1];
         return SaltCell::Input(inner.to_string());
     }
-    // `[X] label` or `[ ] label` → Checkbox
+    // `[X] label`, `[ ] label`, or compact `[] label` → Checkbox
     if text.starts_with("[X]") || text.starts_with("[x]") {
         let label = text[3..].trim().to_string();
         return SaltCell::CheckboxChecked(label);
@@ -9798,12 +9980,18 @@ fn parse_salt_cell(text: &str) -> SaltCell {
     if let Some(rest) = text.strip_prefix("[ ]") {
         return SaltCell::CheckboxUnchecked(rest.trim().to_string());
     }
-    // `(X) label` or `( ) label` → Radio
+    if let Some(rest) = text.strip_prefix("[]") {
+        return SaltCell::CheckboxUnchecked(rest.trim().to_string());
+    }
+    // `(X) label`, `( ) label`, or compact `() label` → Radio
     if text.starts_with("(X)") || text.starts_with("(x)") {
         let label = text[3..].trim().to_string();
         return SaltCell::RadioOn(label);
     }
     if let Some(rest) = text.strip_prefix("( )") {
+        return SaltCell::RadioOff(rest.trim().to_string());
+    }
+    if let Some(rest) = text.strip_prefix("()") {
         return SaltCell::RadioOff(rest.trim().to_string());
     }
     // `[button text]` → Button

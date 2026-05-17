@@ -340,6 +340,7 @@ pub enum ChartSubtype {
 pub struct ChartPoint {
     pub label: String,
     pub value: f64,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -648,6 +649,7 @@ pub struct FamilyRelation {
     pub dashed: bool,
     pub hidden: bool,
     pub thickness: Option<u8>,
+    pub direction: Option<String>,
     pub left_lollipop: bool,
     pub right_lollipop: bool,
 }

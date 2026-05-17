@@ -1,0 +1,11 @@
+@startuml
+skinparam ActivityBackgroundColor #ecfdf5
+skinparam ActivityBorderColor #047857
+skinparam ActivityFontColor #064e3b
+skinparam ActivityDiamondColor #bbf7d0
+start
+if (ready?) then (yes)
+:ship;
+endif
+stop
+@enduml

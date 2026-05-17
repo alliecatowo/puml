@@ -1,0 +1,8 @@
+@startuml
+skinparam nodeBackgroundColor #ecfeff
+skinparam databaseBorderColor #0e7490
+skinparam componentFontColor #064e3b
+node Cluster
+database Orders
+Cluster --> Orders : stores
+@enduml
