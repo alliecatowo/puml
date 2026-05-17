@@ -113,6 +113,8 @@ enum RailNode {
     Optional(Box<RailNode>),
     /// One-or-more (+ quantifier): item then loop.
     OneOrMore(Box<RailNode>),
+    /// Counted repeat ({n}, {n,m}, {n,}, {,m}) with exact source label.
+    CountedRepeat(Box<RailNode>, String),
     /// Non-terminal reference.
     NonTerminal(String),
     /// Anchor (^, $).
@@ -487,6 +489,46 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
                 mid_y,
             }
         }
+        RailNode::CountedRepeat(inner, spec) => {
+            let child = layout_rail_with_style(inner, style);
+            let w = child.width + 40;
+            let h = child.height + 28;
+            let mid_y = child.mid_y;
+            let inner_label = match inner.as_ref() {
+                RailNode::Alternation(_) => format!("({})", rail_node_label(inner)),
+                _ => rail_node_label(inner),
+            };
+            let label = format!("{}{}", inner_label, spec);
+            let mut out = String::new();
+            out.push_str(&format!(
+                "<metadata data-regex-repeat=\"{}\"/>",
+                escape_xml(&label)
+            ));
+            out.push_str(&format!(
+                "<g transform=\"translate(20,0)\">{}</g>",
+                child.svg
+            ));
+            out.push_str(&format!(
+                "<line x1=\"0\" y1=\"{}\" x2=\"20\" y2=\"{}\" stroke=\"#666\" stroke-width=\"1.5\"/>",
+                mid_y, mid_y
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#666\" stroke-width=\"1.5\"/>",
+                20 + child.width, mid_y, w, mid_y
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#888\" text-anchor=\"middle\">{}</text>",
+                w / 2,
+                h - 6,
+                escape_xml(spec)
+            ));
+            RailLayout {
+                svg: out,
+                width: w,
+                height: h,
+                mid_y,
+            }
+        }
         RailNode::Optional(inner) => {
             let child = layout_rail_with_style(inner, style);
             let w = child.width + 40;
@@ -526,6 +568,41 @@ fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> RailLayout {
                 mid_y,
             }
         }
+    }
+}
+
+fn rail_node_label(node: &RailNode) -> String {
+    match node {
+        RailNode::Literal(text) => format!("'{text}'"),
+        RailNode::Sequence(items) => {
+            if items.iter().all(|item| matches!(item, RailNode::Literal(_))) {
+                let mut literal = String::new();
+                for item in items {
+                    if let RailNode::Literal(text) = item {
+                        literal.push_str(text);
+                    }
+                }
+                format!("'{literal}'")
+            } else {
+                items.iter().map(rail_node_label).collect::<Vec<_>>().join("")
+            }
+        }
+        RailNode::Alternation(branches) => format!(
+            "alt({})",
+            branches
+                .iter()
+                .map(rail_node_label)
+                .collect::<Vec<_>>()
+                .join("|")
+        ),
+        RailNode::Repeat(inner) => format!("{}*", rail_node_label(inner)),
+        RailNode::Optional(inner) => format!("{}?", rail_node_label(inner)),
+        RailNode::OneOrMore(inner) => format!("{}+", rail_node_label(inner)),
+        RailNode::CountedRepeat(inner, spec) => format!("{}{}", rail_node_label(inner), spec),
+        RailNode::NonTerminal(name) => name.clone(),
+        RailNode::Anchor(sym) => sym.clone(),
+        RailNode::CharClass(text) => text.clone(),
+        RailNode::Empty => String::new(),
     }
 }
 
@@ -817,15 +894,15 @@ fn apply_quantifier(node: RailNode, chars: &[char], pos: usize) -> (RailNode, us
         '+' => (RailNode::OneOrMore(Box::new(node)), pos + 1),
         '?' => (RailNode::Optional(Box::new(node)), pos + 1),
         '{' => {
-            // consume {n,m} quantifier as "one or more" for simplicity
             let mut p = pos + 1;
             while p < chars.len() && chars[p] != '}' {
                 p += 1;
             }
-            if p < chars.len() {
-                p += 1;
+            if p < chars.len() && chars[p] == '}' {
+                let spec: String = chars[pos..=p].iter().collect();
+                return (RailNode::CountedRepeat(Box::new(node), spec), p + 1);
             }
-            (RailNode::Repeat(Box::new(node)), p)
+            (node, pos)
         }
         _ => (node, pos),
     }
