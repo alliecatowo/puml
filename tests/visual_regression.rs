@@ -33,6 +33,8 @@ struct Fixture {
     family: String,
     expected_text: Vec<String>,
     min_text_elements: usize,
+    #[serde(default)]
+    structural_only_reason: Option<String>,
 }
 
 fn load_manifest() -> Manifest {
@@ -545,6 +547,37 @@ fn run_text_sweep<'a>(fixtures: impl IntoIterator<Item = &'a Fixture>, total: us
         );
         panic!("{report}");
     }
+}
+
+#[test]
+fn manifest_requires_semantic_text_expectations_or_explicit_exception() {
+    let manifest = load_manifest();
+    let weak_fixtures = manifest
+        .fixtures
+        .iter()
+        .filter(|fixture| {
+            let has_exception = fixture
+                .structural_only_reason
+                .as_deref()
+                .is_some_and(|reason| !reason.trim().is_empty());
+            let has_blank_expected_text = fixture
+                .expected_text
+                .iter()
+                .any(|expected| expected.trim().is_empty());
+
+            has_blank_expected_text
+                || (!has_exception
+                    && (fixture.expected_text.is_empty() || fixture.min_text_elements == 0))
+        })
+        .map(|fixture| fixture.path.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        weak_fixtures.is_empty(),
+        "visual manifest fixtures must assert semantic expected_text and nonzero \
+         min_text_elements, or include non-empty structural_only_reason for \
+         machine/structural-only exceptions: {weak_fixtures:#?}"
+    );
 }
 
 #[test]
