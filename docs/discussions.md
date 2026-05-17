@@ -6,6 +6,18 @@ conversation that should not start as an actionable issue.
 ## API support checked
 
 Checked on 2026-05-17 with `gh api graphql` against `alliecatowo/puml`.
+Also rechecked with REST on 2026-05-17:
+
+- `GET /repos/alliecatowo/puml` reports `has_discussions: true`.
+- `GET /repos/alliecatowo/puml/discussions/301` returns the welcome
+  discussion in `Announcements`.
+
+Live state on 2026-05-17:
+
+- `#301` is globally pinned and titled `Welcome to puml Discussions`.
+- Existing category slugs are `announcements`, `general`, `ideas`, `polls`,
+  `q-a`, and `show-and-tell`.
+- `Parity reports` and `Swarm lab` still need to be created in the UI.
 
 Available through GitHub GraphQL:
 
@@ -24,6 +36,10 @@ commands:
 - Pin, unpin, or style pinned discussions.
 
 Those actions must be completed in the GitHub web UI.
+
+Discussion category forms are repo-managed files. The forms in
+`.github/DISCUSSION_TEMPLATE/` are named after the target category slugs and
+will apply once those categories exist on the default branch.
 
 ## Target category set
 
@@ -53,12 +69,15 @@ run explicit community polls.
 4. Click "New category" for `Parity reports` and `Swarm lab`.
 5. Use "Announcement" only for `Announcements`, "Question and Answer" only for
    `Q&A`, and "Open-ended discussion" for the remaining categories.
-6. Delete `Polls` if it should not be part of the final category set. If GitHub
+6. Keep category slugs aligned with the discussion form filenames:
+   `q-a`, `ideas`, `show-and-tell`, `parity-reports`, `swarm-lab`, and
+   `general`.
+7. Delete `Polls` if it should not be part of the final category set. If GitHub
    asks where to move existing posts, move them to `General`.
-7. Save each category.
-8. Open the welcome discussion:
+8. Save each category.
+9. Open the welcome discussion:
    <https://github.com/alliecatowo/puml/discussions/301>.
-9. If it is not pinned globally, use the right sidebar action "Pin discussion",
+10. If it is not pinned globally, use the right sidebar action "Pin discussion",
    choose a simple style, and confirm. GitHub allows up to four globally pinned
    discussions.
 

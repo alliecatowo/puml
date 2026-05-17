@@ -1,0 +1,28 @@
+title: "[Show and tell] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share diagrams, integrations, benchmarks, demos, writeups, or workflows built with `puml`.
+  - type: textarea
+    id: showcase
+    attributes:
+      label: What are you sharing?
+      description: Describe the diagram, integration, benchmark, demo, or writeup.
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Links, images, or snippets
+      description: Add repo links, screenshots, `.puml` snippets, generated output, or benchmark data.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback wanted
+      description: Tell maintainers or contributors what kind of response would be useful.
+    validations:
+      required: false

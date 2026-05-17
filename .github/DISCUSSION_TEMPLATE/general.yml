@@ -1,0 +1,16 @@
+title: "[General] "
+body:
+  - type: textarea
+    id: topic
+    attributes:
+      label: Topic
+      description: What would you like to discuss?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add links, snippets, examples, or background that would help others reply.
+    validations:
+      required: false

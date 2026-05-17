@@ -1,0 +1,28 @@
+title: "[Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for proposals that need shaping before they become implementation issues.
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should `puml` support or improve?
+      placeholder: "It would help if..."
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: Who benefits, and what workflow gets easier?
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Notes and tradeoffs
+      description: Add examples, alternatives, compatibility concerns, or open questions.
+    validations:
+      required: false

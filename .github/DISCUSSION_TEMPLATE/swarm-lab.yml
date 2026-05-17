@@ -1,0 +1,27 @@
+title: "[Swarm lab] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for AI-assisted development notes, agent workflow questions, and coordination experiments.
+  - type: textarea
+    id: topic
+    attributes:
+      label: Topic
+      description: What workflow, coordination question, or experiment are you discussing?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Include links to issues, PRs, runs, prompts, scripts, or decisions if useful.
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What decision, experiment, or follow-up would help?
+    validations:
+      required: false
