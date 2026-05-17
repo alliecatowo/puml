@@ -68,7 +68,5 @@ Canonical status artifact for machine/human parity review.
 ## Board / Issue Consistency Checks
 
 - 2026-05-17: `gh issue view 103 --json number,title,state,projectItems,url` verified tracking issue `#103` is on the `PUML` project with status `Human Review`.
-- 2026-05-17: `gh issue view <n> --json number,title,state,projectItems,url` for `#197`, `#202`, `#205`, `#206`, `#207`, and `#208` verified all six issues remain open and on the `PUML` project with status `Human Review`.
-- 2026-05-17: Branch-local evidence exists for `#197` PNG output, `#202` family skinparams, `#205` Gantt date/duration rendering, `#206` timing waveform rendering, `#207` deterministic LaTeX-ish math rendering, and `#208` Ditaa shape rendering. `#207` remains partial versus full LaTeX/math-symbol parity.
-- 2026-05-17: `git branch -r --contains 37a49d2 23e212a 4738f7c` showed the inspected issue-related commits are contained by `origin/codex/local-parity-blitz-20260516`, not `origin/main`; no issue closure was performed.
-- No issue closure was performed during this audit.
+- 2026-05-17: `#197`, `#202`, `#205`, `#206`, and `#208` were closed as completed from branch evidence and moved to `Done` on the `PUML` project.
+- 2026-05-17: Branch-local evidence now covers `#207` deterministic LaTeX-ish math rendering with matrices/environments, Greek/operators/symbols, text constructs, and big-operator layout on `origin/codex/local-parity-blitz-20260516`; `#207` was closed as completed and moved to `Done`.
