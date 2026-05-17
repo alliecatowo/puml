@@ -67,3 +67,13 @@ spans the participant range, and teoz-style parallel labels that reserve stable
 space before the next message row.
 
 Fixture: `tests/fixtures/e2e/sequence_parity_vertical_slice.puml`.
+
+## Advanced Sequence Parity Wave
+
+The current advanced slice also covers deterministic `autonumber inc A` edge
+formatting with mixed dotted/colon counters, `%autonumber%` substitution in
+message labels, PlantUML `|||` spacing, `!pragma sequenceMessageSpan true`
+wrapping, multiline `ref over A, C`, semicolon `line.*` arrow style payloads,
+and SVG metadata for circle/cross rare arrow endpoints.
+
+Fixture: `tests/fixtures/e2e/sequence_advanced_wave_autonumber_spacing.puml`.

@@ -242,3 +242,36 @@ legend at top center background #f8fafc border #0f172a text #111827
     assert!(svg.contains("class=\"chart-axis-grid chart-axis-grid-h\""));
     assert!(svg.contains("class=\"chart-legend\" data-chart-legend=\"top\""));
 }
+
+#[test]
+fn chart_label_position_modes_render_value_metadata_and_pie_callouts() {
+    let pie = "@startchart
+pie chart
+labels outside
+\"Frontend\" : 35 #0ea5e9
+\"Backend\" : 40 #f97316
+\"Ops\" : 25 #22c55e
+legend at bottom right
+@endchart
+";
+    let pie_svg = render_source_to_svg_for_family(pie, DiagramFamily::Chart)
+        .expect("pie outside labels should render");
+    assert!(pie_svg.contains("data-chart-label-mode=\"outside\""));
+    assert!(pie_svg.contains("class=\"chart-pie-callout\""));
+    assert!(pie_svg.contains("data-chart-legend-h=\"right\""));
+    assert!(pie_svg.contains("data-chart-legend-v=\"bottom\""));
+
+    let line = "@startchart
+line chart
+labels value
+h-axis [Sprint1,Sprint2]
+v-axis 0 --> 10
+line \"Actual\" [3,8]
+@endchart
+";
+    let line_svg = render_source_to_svg_for_family(line, DiagramFamily::Chart)
+        .expect("line value labels should render");
+    assert!(line_svg.contains("data-chart-label-mode=\"value\""));
+    assert!(line_svg.contains("class=\"chart-point\" data-chart-value=\"8\""));
+    assert!(line_svg.contains("class=\"chart-value-label\""));
+}

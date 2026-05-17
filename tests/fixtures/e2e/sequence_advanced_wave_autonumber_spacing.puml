@@ -1,0 +1,19 @@
+@startuml
+!pragma teoz true
+!pragma sequenceMessageSpan true
+participant A
+participant B
+participant C
+autonumber 1.02:003 2
+A -[#DodgerBlue;line.dotted;line.thickness=4]>> B : %autonumber% long label with enough words to exercise message span wrapping deterministically
+& B -[#orange;line.dashed]->o C : parallel circle
+autonumber inc A
+C x-[#red;line.thickness=5]-> A : increment-first
+|||80|||
+ref over A, C
+  multiline reference body
+  stays inside participant span
+end ref
+A -\\ B : lower half head
+B -/ C : upper half head
+@enduml

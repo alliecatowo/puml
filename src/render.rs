@@ -1,12 +1,13 @@
 use crate::ast::{DiagramKind, MemberModifier, NoteKind};
 use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::model::{
-    ArchimateDocument, ChartDocument, ChartSubtype, DitaaDocument, EbnfDocument, EbnfToken,
-    FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
-    JsonDocument, LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument,
-    ParticipantRole, RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind,
-    StateDocument, StateNode, StateNodeKind, TimelineChronologyEvent, TimelineDocument,
-    TimelineMilestone, TimelineTask, VirtualEndpointKind, WbsCheckbox, YamlDocument,
+    ArchimateDocument, ChartDocument, ChartLabelMode, ChartSubtype, DitaaDocument, EbnfDocument,
+    EbnfToken, FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation,
+    FamilyStyle, JsonDocument, LegendHAlign, LegendVAlign, MathDocument, MindMapSide,
+    NwdiagDocument, ParticipantRole, RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument,
+    SdlStateKind, StateDocument, StateNode, StateNodeKind, TimelineChronologyEvent,
+    TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpointKind, WbsCheckbox,
+    YamlDocument,
 };
 use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
 use crate::theme::css3_color_to_hex;
@@ -504,10 +505,11 @@ fn render_sequence_arrow_heads(
     let left_marker = arrow.chars().next().filter(|c| matches!(c, 'o' | 'x'));
     let right_marker = arrow.chars().last().filter(|c| matches!(c, 'o' | 'x'));
     let left_arrow = arrow.starts_with('<') || arrow.starts_with("<<");
-    let right_arrow = arrow.contains('>') && !matches!(right_marker, Some('o' | 'x'));
-    let open_head = arrow.contains(">>") || arrow.contains("<<");
     let left_slant = sequence_arrow_head_slant(raw_arrow, true);
     let right_slant = sequence_arrow_head_slant(raw_arrow, false);
+    let right_arrow =
+        (arrow.contains('>') || right_slant.is_some()) && !matches!(right_marker, Some('o' | 'x'));
+    let open_head = arrow.contains(">>") || arrow.contains("<<");
 
     if left_arrow {
         render_arrow_head(
@@ -629,10 +631,8 @@ fn sequence_arrow_head_slant(raw_arrow: &str, left: bool) -> Option<char> {
     }
     if left {
         None
-    } else if saw_head {
-        marker
     } else {
-        None
+        marker
     }
 }
 
@@ -647,11 +647,11 @@ fn render_arrow_endpoint_marker(
 ) {
     match marker {
         'o' => out.push_str(&format!(
-            "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"white\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+            "<circle class=\"sequence-arrow-end sequence-arrow-end-circle\" data-sequence-arrow-end=\"circle\" cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"white\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
             x, y, stroke_color, stroke_width, hidden
         )),
         'x' => out.push_str(&format!(
-            "<g stroke=\"{}\" stroke-width=\"{}\"{}><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
+            "<g class=\"sequence-arrow-end sequence-arrow-end-cross\" data-sequence-arrow-end=\"cross\" stroke=\"{}\" stroke-width=\"{}\"{}><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
             stroke_color,
             stroke_width,
             hidden,
@@ -1008,9 +1008,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
             .unwrap_or_default();
         out.push_str(&format!(
-            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
-            dash = stroke_dash
-        ));
+                "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
+                escape_text(&relation.from),
+                escape_text(&relation.to),
+                dash = stroke_dash
+            ));
         if relation.left_lollipop {
             render_lollipop_endpoint(&mut out, x1, y1, relation_color);
         }
@@ -1248,6 +1250,69 @@ fn parse_projection_json_value(body: &str) -> Option<serde_json::Value> {
     serde_json::from_str::<serde_json::Value>(trimmed)
         .ok()
         .or_else(|| serde_json::from_str::<serde_json::Value>(&format!("{{{trimmed}}}")).ok())
+}
+
+fn family_projection_extra_height(projections: &[crate::model::JsonProjection]) -> i32 {
+    if projections.is_empty() {
+        return 0;
+    }
+    projections.iter().fold(12, |acc, proj| {
+        let line_count = extract_projection_kv_lines(&proj.body, &proj.format)
+            .len()
+            .max(1) as i32;
+        acc + 22 + 16 + (line_count * 16) + 20
+    })
+}
+
+fn render_family_projection_boxes(
+    out: &mut String,
+    projections: &[crate::model::JsonProjection],
+    x: i32,
+    mut y: i32,
+    width: i32,
+) {
+    for proj in projections {
+        let kv_lines = extract_projection_kv_lines(&proj.body, &proj.format);
+        let lines = if kv_lines.is_empty() {
+            vec!["(empty)".to_string()]
+        } else {
+            kv_lines
+        };
+        let header_h = 22;
+        let line_h = 16;
+        let body_h = (lines.len() as i32) * line_h + 16;
+        let height = header_h + body_h;
+        out.push_str(&format!(
+            "<g class=\"uml-projection\" data-uml-projection=\"{}\" data-uml-projection-format=\"{}\" data-uml-projection-lines=\"{}\">",
+            escape_text(&proj.alias),
+            escape_text(&proj.format),
+            lines.len()
+        ));
+        out.push_str(&format!(
+            "<rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"5\" ry=\"5\" fill=\"#fffde7\" stroke=\"#f59e0b\" stroke-width=\"1.5\"/>"
+        ));
+        out.push_str(&format!(
+            "<rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{header_h}\" rx=\"5\" ry=\"5\" fill=\"#fef08a\" stroke=\"#f59e0b\" stroke-width=\"1.5\"/>"
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"#78350f\">{} ({})</text>",
+            x + 8,
+            y + 15,
+            escape_text(&proj.alias),
+            escape_text(&proj.format)
+        ));
+        for (idx, line) in lines.iter().enumerate() {
+            out.push_str(&format!(
+                "<text class=\"uml-projection-row\" data-uml-projection-row=\"{}\" x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">{}</text>",
+                idx,
+                x + 8,
+                y + header_h + 18 + (idx as i32 * line_h),
+                escape_text(line)
+            ));
+        }
+        out.push_str("</g>");
+        y += height + 12;
+    }
 }
 
 fn flatten_projection_json(prefix: &str, value: &serde_json::Value, lines: &mut Vec<String>) {
@@ -1875,10 +1940,18 @@ struct SaltRenderStyle {
     header_fill: String,
     input_fill: String,
     button_fill: String,
+    menu_fill: String,
+    tab_fill: String,
+    scroll_fill: String,
+    checkbox_fill: String,
+    radio_fill: String,
     accent_fill: String,
     border_color: String,
     grid_color: String,
     text_color: String,
+    header_text_color: String,
+    input_text_color: String,
+    button_text_color: String,
     muted_text_color: String,
     font_family: &'static str,
 }
@@ -1891,10 +1964,18 @@ impl Default for SaltRenderStyle {
             header_fill: "#e2e8f0".to_string(),
             input_fill: "white".to_string(),
             button_fill: "#e8e8e8".to_string(),
+            menu_fill: "#eef2ff".to_string(),
+            tab_fill: "#eef2ff".to_string(),
+            scroll_fill: "#eef2ff".to_string(),
+            checkbox_fill: "white".to_string(),
+            radio_fill: "white".to_string(),
             accent_fill: "#eef2ff".to_string(),
             border_color: "#555".to_string(),
             grid_color: "#ccc".to_string(),
             text_color: "#222".to_string(),
+            header_text_color: "#222".to_string(),
+            input_text_color: "#222".to_string(),
+            button_text_color: "#222".to_string(),
             muted_text_color: "#aaa".to_string(),
             font_family: "monospace",
         }
@@ -1925,7 +2006,27 @@ impl SaltRenderStyle {
                 self.button_fill = value;
                 true
             }
-            "saltaccentcolor" | "accentcolor" | "saltmenucolor" | "salttabcolor" => {
+            "saltmenucolor" | "saltmenubackgroundcolor" | "menubackgroundcolor" => {
+                self.menu_fill = value;
+                true
+            }
+            "salttabcolor" | "salttabbackgroundcolor" | "tabbackgroundcolor" => {
+                self.tab_fill = value;
+                true
+            }
+            "saltscrollbarcolor" | "scrollbarcolor" | "scrollbarbackgroundcolor" => {
+                self.scroll_fill = value;
+                true
+            }
+            "saltcheckboxcolor" | "checkboxbackgroundcolor" => {
+                self.checkbox_fill = value;
+                true
+            }
+            "saltradiocolor" | "radiobackgroundcolor" => {
+                self.radio_fill = value;
+                true
+            }
+            "saltaccentcolor" | "accentcolor" => {
                 self.accent_fill = value;
                 true
             }
@@ -1941,6 +2042,18 @@ impl SaltRenderStyle {
                 self.text_color = value;
                 true
             }
+            "saltheaderfontcolor" | "headerfontcolor" => {
+                self.header_text_color = value;
+                true
+            }
+            "saltinputfontcolor" | "inputfontcolor" => {
+                self.input_text_color = value;
+                true
+            }
+            "saltbuttonfontcolor" | "buttonfontcolor" => {
+                self.button_text_color = value;
+                true
+            }
             "saltmutedfontcolor" | "mutedfontcolor" => {
                 self.muted_text_color = value;
                 true
@@ -1951,6 +2064,40 @@ impl SaltRenderStyle {
             }
             _ => false,
         }
+    }
+
+    fn set_scoped(&mut self, scope: Option<&str>, key: &str, value: &str) -> bool {
+        let Some(scope) = scope else {
+            return self.set(key, value);
+        };
+        let scope = scope
+            .trim()
+            .trim_matches('{')
+            .split_whitespace()
+            .last()
+            .unwrap_or(scope)
+            .to_ascii_lowercase();
+        let key = key.trim();
+        let lower_key = key.to_ascii_lowercase();
+        let mapped = match (scope.as_str(), lower_key.as_str()) {
+            ("saltdiagram" | "salt", _) => key.to_string(),
+            ("button", "backgroundcolor") => "saltButtonBackgroundColor".to_string(),
+            ("button", "fontcolor") => "saltButtonFontColor".to_string(),
+            ("input" | "textfield" | "textarea", "backgroundcolor") => {
+                "saltInputBackgroundColor".to_string()
+            }
+            ("input" | "textfield" | "textarea", "fontcolor") => "saltInputFontColor".to_string(),
+            ("header", "backgroundcolor") => "saltHeaderColor".to_string(),
+            ("header", "fontcolor") => "saltHeaderFontColor".to_string(),
+            ("menu", "backgroundcolor") => "saltMenuBackgroundColor".to_string(),
+            ("tab", "backgroundcolor") => "saltTabBackgroundColor".to_string(),
+            ("scrollbar", "backgroundcolor") => "saltScrollbarColor".to_string(),
+            ("checkbox", "backgroundcolor") => "saltCheckboxColor".to_string(),
+            ("radio", "backgroundcolor") => "saltRadioColor".to_string(),
+            (_, "linecolor" | "bordercolor") => "saltBorderColor".to_string(),
+            _ => key.to_string(),
+        };
+        self.set(&mapped, value)
     }
 }
 
@@ -2002,6 +2149,8 @@ enum SaltCellRender {
     Header(String),
     TableEmpty,
     TableSpan,
+    SpriteDef(String),
+    SpriteRef(String),
     Input(String),
     Button(String),
     Combo(String),
@@ -2044,6 +2193,7 @@ impl SaltCellRender {
             | Self::RadioOff(t) => t,
             Self::TableEmpty => "",
             Self::TableSpan => "span",
+            Self::SpriteDef(name) | Self::SpriteRef(name) => name,
             Self::TreeItem { label, .. } => label,
             Self::TextAreaLine { text, .. } => text,
             Self::GroupBox(label) => label,
@@ -2059,6 +2209,7 @@ struct SaltTransformState {
     in_tree: bool,
     in_text_area: bool,
     in_style: bool,
+    style_scope: Option<String>,
     table_header_pending: bool,
 }
 
@@ -2083,14 +2234,20 @@ fn transform_salt_row(
     }
     if lower == "</style>" {
         state.in_style = false;
+        state.style_scope = None;
         return None;
     }
     if state.in_style {
-        if trimmed.ends_with('{') || trimmed == "}" {
+        if trimmed.ends_with('{') {
+            state.style_scope = Some(trimmed.trim_end_matches('{').trim().to_string());
+            return None;
+        }
+        if trimmed == "}" {
+            state.style_scope = None;
             return None;
         }
         if let Some((key, value)) = trimmed.split_once(char::is_whitespace) {
-            style.set(key.trim(), value.trim());
+            style.set_scoped(state.style_scope.as_deref(), key.trim(), value.trim());
         }
         return None;
     }
@@ -2112,6 +2269,10 @@ fn transform_salt_row(
         state.table_header_pending = true;
         state.in_text_area = false;
         return None;
+    }
+
+    if let Some(name) = parse_salt_sprite_def(trimmed) {
+        return Some(vec![SaltCellRender::SpriteDef(name)]);
     }
 
     if lower.starts_with("{+") {
@@ -2200,6 +2361,8 @@ fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool) -> SaltCell
                 SaltCellRender::TableEmpty
             } else if trimmed == "*" {
                 SaltCellRender::TableSpan
+            } else if let Some(name) = parse_salt_sprite_ref(trimmed) {
+                SaltCellRender::SpriteRef(name)
             } else if header_row {
                 SaltCellRender::Header(trimmed.trim_start_matches('=').trim().to_string())
             } else {
@@ -2216,11 +2379,39 @@ fn promote_salt_header_cell(cell: SaltCellRender) -> SaltCellRender {
             let trimmed = text.trim();
             if let Some(rest) = trimmed.strip_prefix('=') {
                 SaltCellRender::Header(rest.trim().to_string())
+            } else if let Some(name) = parse_salt_sprite_ref(trimmed) {
+                SaltCellRender::SpriteRef(name)
             } else {
                 SaltCellRender::Label(text)
             }
         }
         other => other,
+    }
+}
+
+fn parse_salt_sprite_def(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    let inner = trimmed.strip_prefix("<<")?;
+    let name = inner
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .trim_end_matches(">>")
+        .trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
+fn parse_salt_sprite_ref(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    let inner = trimmed.strip_prefix("<<")?.strip_suffix(">>")?.trim();
+    if inner.is_empty() || inner.contains(char::is_whitespace) {
+        None
+    } else {
+        Some(inner.to_string())
     }
 }
 
@@ -2324,6 +2515,56 @@ fn estimate_text_width(text: &str) -> i32 {
     (text.chars().count() as i32) * 7
 }
 
+fn salt_text(out: &mut String, x: i32, y: i32, attrs: &str, text: &str, color: &str) {
+    let icon_names = extract_salt_icon_names(text);
+    let mut extra_attrs = attrs.to_string();
+    if salt_text_has_creole(text) {
+        extra_attrs.push_str(" data-salt-creole=\"true\"");
+    }
+    if !icon_names.is_empty() {
+        extra_attrs.push_str(&format!(
+            " data-salt-icons=\"{}\"",
+            escape_text(&icon_names.join(","))
+        ));
+    }
+    out.push_str(&creole_text(x, y, &extra_attrs, text, color));
+}
+
+fn salt_text_has_creole(text: &str) -> bool {
+    text.contains("**")
+        || text.contains("//")
+        || text.contains("\"\"")
+        || text.contains("__")
+        || text.contains("--")
+        || text.contains("[[")
+        || text.contains("<color")
+        || text.contains("<size")
+        || text.contains("<b>")
+        || text.contains("<B>")
+        || text.contains("<i>")
+        || text.contains("<I>")
+        || text.contains("<u>")
+        || text.contains("<U>")
+        || text.contains("<&")
+}
+
+fn extract_salt_icon_names(text: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = text;
+    while let Some(start) = rest.find("<&") {
+        rest = &rest[start + 2..];
+        let Some(end) = rest.find('>') else {
+            break;
+        };
+        let name = rest[..end].trim();
+        if !name.is_empty() {
+            names.push(name.to_string());
+        }
+        rest = &rest[end + 1..];
+    }
+    names
+}
+
 /// Render a single salt cell into SVG, appending to `out`.
 fn render_salt_cell_svg(
     out: &mut String,
@@ -2338,14 +2579,17 @@ fn render_salt_cell_svg(
     let text_y = y + h / 2 + 4;
     match cell {
         SaltCellRender::Label(text) => {
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+            salt_text(
+                out,
                 x + pad,
                 text_y,
-                style.font_family,
-                style.text_color,
-                escape_text(text)
-            ));
+                &format!(
+                    "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                    style.font_family, style.text_color
+                ),
+                text,
+                &style.text_color,
+            );
         }
         SaltCellRender::Header(text) => {
             out.push_str(&format!(
@@ -2357,14 +2601,17 @@ fn render_salt_cell_svg(
                 style.header_fill,
                 style.grid_color
             ));
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" font-weight=\"700\" fill=\"{}\">{}</text>",
+            salt_text(
+                out,
                 x + pad,
                 text_y,
-                style.font_family,
-                style.text_color,
-                escape_text(text)
-            ));
+                &format!(
+                    "font-family=\"{}\" font-size=\"12\" font-weight=\"700\" fill=\"{}\"",
+                    style.font_family, style.header_text_color
+                ),
+                text,
+                &style.header_text_color,
+            );
         }
         SaltCellRender::TableEmpty => {
             out.push_str(&format!(
@@ -2379,7 +2626,7 @@ fn render_salt_cell_svg(
         }
         SaltCellRender::TableSpan => {
             out.push_str(&format!(
-                "<rect data-salt-widget=\"table-span\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\" stroke-dasharray=\"4 3\"/>",
+                "<rect data-salt-widget=\"table-span\" data-salt-colspan=\"left\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\" stroke-dasharray=\"4 3\"/>",
                 x + 1,
                 y + 1,
                 w - 2,
@@ -2395,6 +2642,38 @@ fn render_salt_cell_svg(
                 style.muted_text_color
             ));
         }
+        SaltCellRender::SpriteDef(name) => {
+            out.push_str(&format!(
+                "<g data-salt-widget=\"sprite\" data-salt-sprite=\"{}\"><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-dasharray=\"3 2\"/><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">sprite:{}</text></g>",
+                escape_text(name),
+                x + 4,
+                y + 4,
+                w - 8,
+                h - 8,
+                style.accent_fill,
+                style.border_color,
+                x + pad,
+                text_y,
+                style.font_family,
+                style.muted_text_color,
+                escape_text(name)
+            ));
+        }
+        SaltCellRender::SpriteRef(name) => {
+            out.push_str(&format!(
+                "<g data-salt-widget=\"sprite-ref\" data-salt-sprite-ref=\"{}\"><rect x=\"{}\" y=\"{}\" width=\"18\" height=\"18\" fill=\"{}\" stroke=\"{}\"/><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text></g>",
+                escape_text(name),
+                x + pad,
+                y + 5,
+                style.accent_fill,
+                style.border_color,
+                x + pad + 24,
+                text_y,
+                style.font_family,
+                style.text_color,
+                escape_text(name)
+            ));
+        }
         SaltCellRender::Input(placeholder) => {
             // Bordered rectangle with gray placeholder text
             out.push_str(&format!(
@@ -2406,14 +2685,17 @@ fn render_salt_cell_svg(
                 style.input_fill,
                 style.border_color
             ));
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
+            salt_text(
+                out,
                 x + pad + 4,
                 text_y,
-                style.font_family,
-                style.muted_text_color,
-                escape_text(placeholder)
-            ));
+                &format!(
+                    "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                    style.font_family, style.input_text_color
+                ),
+                placeholder,
+                &style.input_text_color,
+            );
         }
         SaltCellRender::Button(label) => {
             // Rounded rectangle with bold text
@@ -2426,14 +2708,17 @@ fn render_salt_cell_svg(
                 style.button_fill,
                 style.border_color
             ));
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"12\" font-weight=\"bold\" fill=\"{}\">{}</text>",
+            salt_text(
+                out,
                 x + w / 2,
                 text_y,
-                style.font_family,
-                style.text_color,
-                escape_text(label)
-            ));
+                &format!(
+                    "text-anchor=\"middle\" font-family=\"{}\" font-size=\"12\" font-weight=\"bold\" fill=\"{}\"",
+                    style.font_family, style.button_text_color
+                ),
+                label,
+                &style.button_text_color,
+            );
         }
         SaltCellRender::Combo(label) => {
             // Rectangle with down-arrow indicator
@@ -2446,14 +2731,17 @@ fn render_salt_cell_svg(
                 style.input_fill,
                 style.border_color
             ));
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
+            salt_text(
+                out,
                 x + pad + 4,
                 text_y,
-                style.font_family,
-                style.text_color,
-                escape_text(label)
-            ));
+                &format!(
+                    "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                    style.font_family, style.input_text_color
+                ),
+                label,
+                &style.input_text_color,
+            );
             // Down arrow triangle
             let ax = x + w - pad - 10;
             let ay = y + h / 2;
@@ -2474,7 +2762,7 @@ fn render_salt_cell_svg(
             // Box
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                bx, by, style.input_fill, style.border_color
+                bx, by, style.checkbox_fill, style.border_color
             ));
             // Checkmark (×)
             out.push_str(&format!(
@@ -2486,14 +2774,17 @@ fn render_salt_cell_svg(
                 bx + 10, by + 2, bx + 2, by + 10, style.text_color
             ));
             if !label.is_empty() {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                salt_text(
+                    out,
                     bx + 16,
                     text_y,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(label)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                        style.font_family, style.text_color
+                    ),
+                    label,
+                    &style.text_color,
+                );
             }
         }
         SaltCellRender::CheckboxUnchecked(label) => {
@@ -2501,17 +2792,20 @@ fn render_salt_cell_svg(
             let by = y + h / 2 - 6;
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                bx, by, style.input_fill, style.border_color
+                bx, by, style.checkbox_fill, style.border_color
             ));
             if !label.is_empty() {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                salt_text(
+                    out,
                     bx + 16,
                     text_y,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(label)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                        style.font_family, style.text_color
+                    ),
+                    label,
+                    &style.text_color,
+                );
             }
         }
         SaltCellRender::RadioOn(label) => {
@@ -2519,7 +2813,7 @@ fn render_salt_cell_svg(
             let cy = y + h / 2;
             out.push_str(&format!(
                 "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                cx, cy, style.input_fill, style.border_color
+                cx, cy, style.radio_fill, style.border_color
             ));
             // Filled dot
             out.push_str(&format!(
@@ -2527,14 +2821,17 @@ fn render_salt_cell_svg(
                 cx, cy, style.text_color
             ));
             if !label.is_empty() {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                salt_text(
+                    out,
                     cx + 10,
                     text_y,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(label)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                        style.font_family, style.text_color
+                    ),
+                    label,
+                    &style.text_color,
+                );
             }
         }
         SaltCellRender::RadioOff(label) => {
@@ -2542,17 +2839,20 @@ fn render_salt_cell_svg(
             let cy = y + h / 2;
             out.push_str(&format!(
                 "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                cx, cy, style.input_fill, style.border_color
+                cx, cy, style.radio_fill, style.border_color
             ));
             if !label.is_empty() {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                salt_text(
+                    out,
                     cx + 10,
                     text_y,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(label)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                        style.font_family, style.text_color
+                    ),
+                    label,
+                    &style.text_color,
+                );
             }
         }
         SaltCellRender::TreeItem { depth, label } => {
@@ -2560,7 +2860,8 @@ fn render_salt_cell_svg(
             let branch_x = x + pad + indent;
             let cy = y + h / 2;
             out.push_str(&format!(
-                "<g data-salt-widget=\"tree\"><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\"/><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text></g>",
+                "<g data-salt-widget=\"tree\" data-salt-tree-depth=\"{}\"><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\"/>",
+                depth,
                 branch_x,
                 y + 4,
                 branch_x,
@@ -2573,13 +2874,20 @@ fn render_salt_cell_svg(
                 style.grid_color,
                 branch_x + 10,
                 cy,
-                style.border_color,
+                style.border_color
+            ));
+            salt_text(
+                out,
                 branch_x + 18,
                 text_y,
-                style.font_family,
-                style.text_color,
-                escape_text(label)
-            ));
+                &format!(
+                    "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                    style.font_family, style.text_color
+                ),
+                label,
+                &style.text_color,
+            );
+            out.push_str("</g>");
         }
         SaltCellRender::TextAreaLine {
             text,
@@ -2598,14 +2906,17 @@ fn render_salt_cell_svg(
                 style.border_color
             ));
             if !text.is_empty() {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                salt_text(
+                    out,
                     x + pad,
                     text_y,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(text)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                        style.font_family, style.input_text_color
+                    ),
+                    text,
+                    &style.input_text_color,
+                );
             }
             if *scroll_vertical {
                 let track_x = x + w - pad - 10;
@@ -2614,7 +2925,7 @@ fn render_salt_cell_svg(
                     track_x,
                     y + 6,
                     h - 12,
-                    style.accent_fill,
+                    style.scroll_fill,
                     style.border_color
                 ));
             }
@@ -2624,7 +2935,7 @@ fn render_salt_cell_svg(
                     x + pad,
                     y + h - 10,
                     w - pad * 2,
-                    style.accent_fill,
+                    style.scroll_fill,
                     style.border_color
                 ));
             }
@@ -2640,39 +2951,49 @@ fn render_salt_cell_svg(
             ));
             if !label.is_empty() {
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"12\" fill=\"{}\"/><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"12\" fill=\"{}\"/>",
                     x + pad,
                     y + 1,
                     estimate_text_width(label) + 8,
-                    style.panel_fill,
+                    style.panel_fill
+                ));
+                salt_text(
+                    out,
                     x + pad + 4,
                     y + 11,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(label)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                        style.font_family, style.text_color
+                    ),
+                    label,
+                    &style.text_color,
+                );
             }
         }
         SaltCellRender::MenuBar(items) => {
             out.push_str(&format!(
-                "<rect data-salt-widget=\"menu\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<rect data-salt-widget=\"menu\" data-salt-open=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                items.len() > 4,
                 x + 1,
                 y + 2,
                 w - 2,
                 h - 4,
-                style.accent_fill,
+                style.menu_fill,
                 style.border_color
             ));
             let mut item_x = x + pad;
             for item in items {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                salt_text(
+                    out,
                     item_x,
                     text_y,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(item)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                        style.font_family, style.text_color
+                    ),
+                    item,
+                    &style.text_color,
+                );
                 item_x += estimate_text_width(item) + 24;
             }
         }
@@ -2684,7 +3005,7 @@ fn render_salt_cell_svg(
                 let fill = if active_tab {
                     style.panel_fill.as_str()
                 } else {
-                    style.accent_fill.as_str()
+                    style.tab_fill.as_str()
                 };
                 let stroke = style.border_color.as_str();
                 out.push_str(&format!(
@@ -2696,14 +3017,17 @@ fn render_salt_cell_svg(
                     fill,
                     stroke
                 ));
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"12\" fill=\"{}\">{}</text>",
+                salt_text(
+                    out,
                     tab_x + 12,
                     text_y,
-                    style.font_family,
-                    style.text_color,
-                    escape_text(tab)
-                ));
+                    &format!(
+                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                        style.font_family, style.text_color
+                    ),
+                    tab,
+                    &style.text_color,
+                );
                 tab_x += tab_w - 1;
             }
             out.push_str(&format!(
@@ -2722,7 +3046,7 @@ fn render_salt_cell_svg(
             let track_h = if *vertical { h - 10 } else { 12 };
             out.push_str(&format!(
                 "<rect data-salt-widget=\"scrollbar\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                track_x, track_y, track_w, track_h, style.accent_fill, style.border_color
+                track_x, track_y, track_w, track_h, style.scroll_fill, style.border_color
             ));
             if *vertical {
                 let thumb_h = ((track_h as f32) * (*percent as f32 / 100.0)).round() as i32;
@@ -2759,6 +3083,26 @@ fn parse_visibility_member(member: &str) -> (Option<&'static str>, &'static str,
         Some('#') => (Some("#"), "#d97706", trimmed[1..].trim_start()),
         Some('~') => (Some("~"), "#7c3aed", trimmed[1..].trim_start()),
         _ => (None, "#334155", trimmed),
+    }
+}
+
+fn uml_visibility_name(symbol: &str) -> &'static str {
+    match symbol {
+        "+" => "public",
+        "-" => "private",
+        "#" => "protected",
+        "~" => "package",
+        _ => "unknown",
+    }
+}
+
+fn member_modifier_name(modifier: Option<&MemberModifier>) -> Option<&'static str> {
+    match modifier {
+        Some(MemberModifier::Field) => Some("field"),
+        Some(MemberModifier::Method) => Some("method"),
+        Some(MemberModifier::Abstract) => Some("abstract"),
+        Some(MemberModifier::Static) => Some("static"),
+        None => None,
     }
 }
 
@@ -3005,8 +3349,15 @@ fn render_class_node(
         } else {
             text_after_mod.to_string()
         };
+        let visibility_attr = vis_sym
+            .map(uml_visibility_name)
+            .map(|name| format!(" data-uml-visibility=\"{name}\""))
+            .unwrap_or_default();
+        let modifier_attr = member_modifier_name(member.modifier.as_ref())
+            .map(|name| format!(" data-uml-modifier=\"{name}\""))
+            .unwrap_or_default();
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{my}\" font-family=\"{}\" font-size=\"{}\" fill=\"{vc}\"{sa}>{m}</text>",
+            "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{}\" font-size=\"{}\" fill=\"{vc}\"{sa}>{m}</text>",
             escape_text(font_family),
             member_font_size,
             tx = x + 10,
@@ -4514,13 +4865,15 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .unwrap_or(0);
     let header_h = 40 + title_lines * 22;
     let width = (margin_x * 2) + (cols * cell_w) + ((cols - 1).max(0) * gap);
+    let projection_extra_height = family_projection_extra_height(&doc.json_projections);
     let height = header_h
         + margin_y
         + (rows.max(1) * cell_h)
         + ((rows - 1).max(0) * gap)
         + 60
         + (doc.groups.len() as i32 * 12)
-        + ((max_group_depth as i32) * 24);
+        + ((max_group_depth as i32) * 24)
+        + projection_extra_height;
 
     // Position lookup by name and alias.
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
@@ -4722,6 +5075,17 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 escape_text(right_role)
             ));
         }
+    }
+
+    if !doc.json_projections.is_empty() {
+        let proj_y = header_h
+            + margin_y
+            + (rows.max(1) * cell_h)
+            + ((rows - 1).max(0) * gap)
+            + 24
+            + (doc.groups.len() as i32 * 12)
+            + ((max_group_depth as i32) * 24);
+        render_family_projection_boxes(&mut out, &doc.json_projections, margin_x, proj_y, 340);
     }
 
     out.push_str("</svg>");
@@ -5603,6 +5967,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
         }
         let cx = lane_center(lane_index(&lane_name));
+        out.push_str(&format!(
+            "<metadata data-activity-kind=\"{}\" data-activity-lane=\"{}\" data-activity-branch=\"{}\"/>",
+            escape_text(&step_kind),
+            escape_text(&lane_name),
+            fork_branch
+        ));
         match node.kind {
             FamilyNodeKind::ActivityStart => {
                 out.push_str(&format!(
@@ -6580,13 +6950,26 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 let cpx = x1 + loop_rx;
                 let cpy = y1 - loop_ry;
                 out.push_str(&format!(
-                    "<path d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
-                    state_style.arrow_color
+                    "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    escape_text(&t.from),
+                    escape_text(&t.to),
+                    escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color)),
+                    t.thickness.unwrap_or(2).clamp(1, 8),
+                    state_dash_attr(t.dashed),
+                    state_hidden_attr(t.hidden),
+                    state_direction_attr(t.direction.as_deref())
                 ));
             } else {
                 out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" marker-end=\"url(#arrow)\"/>",
-                    x1, y1, x2, y2, state_style.arrow_color
+                    "<line class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    escape_text(&t.from),
+                    escape_text(&t.to),
+                    x1, y1, x2, y2,
+                    escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color)),
+                    t.thickness.unwrap_or(2).clamp(1, 8),
+                    state_dash_attr(t.dashed),
+                    state_hidden_attr(t.hidden),
+                    state_direction_attr(t.direction.as_deref())
                 ));
             }
             if let Some(label) = &t.label {
@@ -7528,6 +7911,10 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             escape_text(&names)
         ));
     }
+    out.push_str(&format!(
+        "<metadata data-chart-label-mode=\"{}\"/>",
+        chart_label_mode_name(document.label_mode)
+    ));
     let legend_visible = chart_legend_visible(document, &series);
     let legend_left = legend_visible && document.legend.h_align == crate::model::LegendHAlign::Left;
     let legend_right =
@@ -7653,7 +8040,8 @@ fn render_chart_bars(
                 color = escape_text(&color)
             ));
             out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                "<text class=\"chart-value-label\" data-chart-label-mode=\"{}\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                chart_label_mode_name(document.label_mode),
                 format_chart_value(value),
                 tx = bx + bar_w / 2,
                 ty = if value >= 0.0 { by - 4 } else { by + bh + 12 }
@@ -7696,9 +8084,19 @@ fn render_chart_line(
             }
             points.push_str(&format!("{px},{py}"));
             out.push_str(&format!(
-                "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                "<circle class=\"chart-point\" data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                format_chart_value(value),
                 escape_text(&color)
             ));
+            if !matches!(document.label_mode, ChartLabelMode::None) {
+                out.push_str(&format!(
+                    "<text class=\"chart-value-label\" data-chart-label-mode=\"{}\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                    chart_label_mode_name(document.label_mode),
+                    format_chart_value(value),
+                    tx = px,
+                    ty = py - 7
+                ));
+            }
             if series_idx == 0 {
                 out.push_str(&format!(
                     "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
@@ -7845,17 +8243,36 @@ fn render_chart_pie(
             large = large
         ));
         let mid = (start + end) / 2.0;
-        let lx = cx as f64 + ((radius as f64) * 0.6) * mid.cos();
-        let ly = cy as f64 + ((radius as f64) * 0.6) * mid.sin();
-        out.push_str(&format!(
-            "<text class=\"chart-pie-label\" data-chart-slice-label=\"{}\" x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{} {}</text>",
-            escape_text(&point.label),
-            escape_text(&style.font_color),
-            escape_text(&point.label),
-            format_chart_percent(v, total),
-            lx = lx,
-            ly = ly
-        ));
+        if !matches!(document.label_mode, ChartLabelMode::None) {
+            let label_radius = if matches!(document.label_mode, ChartLabelMode::Outside) {
+                1.23
+            } else {
+                0.6
+            };
+            let lx = cx as f64 + ((radius as f64) * label_radius) * mid.cos();
+            let ly = cy as f64 + ((radius as f64) * label_radius) * mid.sin();
+            let label_text = chart_pie_label_text(document.label_mode, point, v, total);
+            if matches!(document.label_mode, ChartLabelMode::Outside) {
+                let c1x = cx as f64 + ((radius as f64) * 0.82) * mid.cos();
+                let c1y = cy as f64 + ((radius as f64) * 0.82) * mid.sin();
+                let c2x = cx as f64 + ((radius as f64) * 1.08) * mid.cos();
+                let c2y = cy as f64 + ((radius as f64) * 1.08) * mid.sin();
+                out.push_str(&format!(
+                    "<line class=\"chart-pie-callout\" data-chart-slice-callout=\"{}\" x1=\"{c1x:.0}\" y1=\"{c1y:.0}\" x2=\"{c2x:.0}\" y2=\"{c2y:.0}\" stroke=\"{}\" stroke-width=\"0.75\"/>",
+                    escape_text(&point.label),
+                    escape_text(&style.axis_color),
+                ));
+            }
+            out.push_str(&format!(
+                "<text class=\"chart-pie-label\" data-chart-label-mode=\"{}\" data-chart-slice-label=\"{}\" x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                chart_label_mode_name(document.label_mode),
+                escape_text(&point.label),
+                escape_text(&style.font_color),
+                escape_text(&label_text),
+                lx = lx,
+                ly = ly
+            ));
+        }
     }
 }
 
@@ -8026,8 +8443,10 @@ fn render_chart_legend(
     let border = document.legend.border_color.as_deref().unwrap_or("#cbd5e1");
     let text_color = document.legend.text_color.as_deref().unwrap_or("#0f172a");
     out.push_str(&format!(
-        "<g class=\"chart-legend\" data-chart-legend=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\" fill=\"{}\" stroke=\"{}\"/>",
+        "<g class=\"chart-legend\" data-chart-legend=\"{}\" data-chart-legend-h=\"{}\" data-chart-legend-v=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\" fill=\"{}\" stroke=\"{}\"/>",
         chart_legend_position(document),
+        chart_legend_h_name(document.legend.h_align),
+        chart_legend_v_name(document.legend.v_align),
         escape_text(background),
         escape_text(border)
     ));
@@ -8357,6 +8776,50 @@ fn format_chart_percent(value: f64, total: f64) -> String {
     }
 }
 
+fn chart_label_mode_name(mode: ChartLabelMode) -> &'static str {
+    match mode {
+        ChartLabelMode::Auto => "auto",
+        ChartLabelMode::Inside => "inside",
+        ChartLabelMode::Outside => "outside",
+        ChartLabelMode::None => "none",
+        ChartLabelMode::Value => "value",
+        ChartLabelMode::Percent => "percent",
+    }
+}
+
+fn chart_pie_label_text(
+    mode: ChartLabelMode,
+    point: &crate::model::ChartPoint,
+    value: f64,
+    total: f64,
+) -> String {
+    match mode {
+        ChartLabelMode::Value => format!("{} {}", point.label, format_chart_value(point.value)),
+        ChartLabelMode::Percent => {
+            format!("{} {}", point.label, format_chart_percent(value, total))
+        }
+        ChartLabelMode::None => String::new(),
+        ChartLabelMode::Auto | ChartLabelMode::Inside | ChartLabelMode::Outside => {
+            format!("{} {}", point.label, format_chart_percent(value, total))
+        }
+    }
+}
+
+fn chart_legend_h_name(value: LegendHAlign) -> &'static str {
+    match value {
+        LegendHAlign::Left => "left",
+        LegendHAlign::Center => "center",
+        LegendHAlign::Right => "right",
+    }
+}
+
+fn chart_legend_v_name(value: LegendVAlign) -> &'static str {
+    match value {
+        LegendVAlign::Top => "top",
+        LegendVAlign::Bottom => "bottom",
+    }
+}
+
 /// Compute start and end points for a transition arrow between two nodes.
 fn state_node_bbox(node: &StateNode) -> (i32, i32) {
     match node.kind {
@@ -8369,6 +8832,41 @@ fn state_node_bbox(node: &StateNode) -> (i32, i32) {
             (STATE_NODE_W, STATE_NODE_H + actions_h)
         }
     }
+}
+
+fn state_node_kind_name(kind: &StateNodeKind) -> &'static str {
+    match kind {
+        StateNodeKind::Normal => "normal",
+        StateNodeKind::StartEnd => "start-end",
+        StateNodeKind::HistoryShallow => "history-shallow",
+        StateNodeKind::HistoryDeep => "history-deep",
+        StateNodeKind::Fork => "fork",
+        StateNodeKind::Join => "join",
+        StateNodeKind::Choice => "choice",
+        StateNodeKind::End => "end",
+    }
+}
+
+fn state_dash_attr(dashed: bool) -> &'static str {
+    if dashed {
+        " stroke-dasharray=\"5 3\""
+    } else {
+        ""
+    }
+}
+
+fn state_hidden_attr(hidden: bool) -> &'static str {
+    if hidden {
+        " visibility=\"hidden\""
+    } else {
+        ""
+    }
+}
+
+fn state_direction_attr(direction: Option<&str>) -> String {
+    direction
+        .map(|direction| format!(" data-state-direction=\"{}\"", escape_text(direction)))
+        .unwrap_or_default()
 }
 
 fn transition_endpoints(
@@ -8427,6 +8925,15 @@ fn render_state_node_svg_styled(
     let base_h = STATE_NODE_H;
     let action_rows = node.internal_actions.len() as i32;
     let h = base_h + action_rows * 14;
+    out.push_str(&format!(
+        "<metadata data-state-node=\"{}\" data-state-kind=\"{}\"{} />",
+        escape_text(&node.name),
+        state_node_kind_name(&node.kind),
+        node.stereotype
+            .as_deref()
+            .map(|stereotype| format!(" data-state-stereotype=\"{}\"", escape_text(stereotype)))
+            .unwrap_or_default()
+    ));
 
     match node.kind {
         StateNodeKind::StartEnd => {
@@ -9019,15 +9526,21 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     let right_w = (max_right_depth as i32) * X_STEP + 240;
     let left_w = (max_left_depth as i32) * X_STEP + 240;
     let canvas_w = left_w + root_w + right_w + 2 * MARGIN;
+    let mindmap_leaves = (0..n)
+        .filter(|&idx| family_tree_child_indices(nodes, idx).is_empty())
+        .count();
     let root_cx = MARGIN + left_w + root_w / 2;
     let root_cy = canvas_h / 2;
 
     let mut out = String::new();
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-mindmap-orientation=\"{orientation}\">",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-mindmap-orientation=\"{orientation}\" data-mindmap-node-count=\"{node_count}\" data-mindmap-leaf-count=\"{leaf_count}\" data-mindmap-max-depth=\"{max_depth}\">",
         w = canvas_w,
         h = canvas_h,
-        orientation = wbs_orientation_attr(doc.orientation)
+        orientation = wbs_orientation_attr(doc.orientation),
+        node_count = n,
+        leaf_count = mindmap_leaves,
+        max_depth = max_right_depth.max(max_left_depth)
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
@@ -9061,8 +9574,9 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     let rx = root_cx - root_w / 2;
     let ry = root_cy - NODE_H / 2;
     out.push_str(&format!(
-        "<rect class=\"mindmap-node mindmap-root\" data-mindmap-depth=\"0\" data-mindmap-fill=\"{fill}\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
+        "<rect class=\"mindmap-node mindmap-root mindmap-branch\" data-mindmap-depth=\"0\" data-mindmap-child-count=\"{child_count}\" data-mindmap-fill=\"{fill}\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
         rx = rx, ry = ry, rw = root_w, h = NODE_H,
+        child_count = family_tree_child_indices(nodes, 0).len(),
         fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
     ));
     out.push_str(&format!(
@@ -9173,6 +9687,31 @@ fn subtree_leaf_count_render(nodes: &[crate::model::FamilyNode], idx: usize) -> 
         .sum()
 }
 
+fn family_tree_child_indices(nodes: &[crate::model::FamilyNode], idx: usize) -> Vec<usize> {
+    let depth = nodes[idx].depth;
+    (idx + 1..nodes.len())
+        .take_while(|&j| nodes[j].depth > depth)
+        .filter(|&j| nodes[j].depth == depth + 1)
+        .collect()
+}
+
+fn node_sibling_index(nodes: &[crate::model::FamilyNode], idx: usize) -> usize {
+    if idx == 0 {
+        return 0;
+    }
+    let depth = nodes[idx].depth;
+    let mut count = 0usize;
+    for prev in (0..idx).rev() {
+        if nodes[prev].depth < depth {
+            break;
+        }
+        if nodes[prev].depth == depth {
+            count += 1;
+        }
+    }
+    count
+}
+
 #[allow(clippy::too_many_arguments)]
 fn draw_mindmap_subtree(
     out: &mut String,
@@ -9208,11 +9747,23 @@ fn draw_mindmap_subtree(
         ny = ny
     ));
 
+    let children = family_tree_child_indices(nodes, idx);
+    let child_count = children.len();
+    let sibling_index = node_sibling_index(nodes, idx);
+    let branch_class = if child_count == 0 {
+        "mindmap-leaf"
+    } else {
+        "mindmap-branch"
+    };
+
     // Node rectangle (rounded, pastel by depth)
     out.push_str(&format!(
-        "<rect class=\"mindmap-node mindmap-depth-{depth}\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" data-mindmap-fill=\"{fill}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+        "<rect class=\"mindmap-node mindmap-depth-{depth} {branch_class}\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" data-mindmap-child-count=\"{child_count}\" data-mindmap-sibling-index=\"{sibling_index}\" data-mindmap-fill=\"{fill}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
         depth = node.depth,
+        branch_class = branch_class,
         side = if is_left { "left" } else { "right" },
+        child_count = child_count,
+        sibling_index = sibling_index,
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
         fill = escape_text(family_node_fill(node, mindmap_node_fill(node.depth)))
     ));
@@ -9223,12 +9774,6 @@ fn draw_mindmap_subtree(
         cy = ny
     ));
 
-    // Recurse into children
-    let depth = node.depth;
-    let children: Vec<usize> = (idx + 1..nodes.len())
-        .take_while(|&j| nodes[j].depth > depth)
-        .filter(|&j| nodes[j].depth == depth + 1)
-        .collect();
     let next_x_center = if is_left {
         node_x_center - x_step
     } else {
@@ -9401,10 +9946,13 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
 
     let mut out = String::new();
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-wbs-orientation=\"{orientation}\">",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" data-wbs-orientation=\"{orientation}\" data-wbs-node-count=\"{node_count}\" data-wbs-leaf-count=\"{leaf_count}\" data-wbs-max-depth=\"{max_depth}\">",
         w = canvas_w,
         h = canvas_h,
-        orientation = wbs_orientation_attr(doc.orientation)
+        orientation = wbs_orientation_attr(doc.orientation),
+        node_count = n,
+        leaf_count = total_leaves,
+        max_depth = max_depth
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
@@ -9468,7 +10016,8 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
                 ),
             };
             out.push_str(&format!(
-                "<line x1=\"{px}\" y1=\"{py}\" x2=\"{cx}\" y2=\"{cy}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+                "<line class=\"wbs-edge\" data-wbs-edge-depth=\"{depth}\" x1=\"{px}\" y1=\"{py}\" x2=\"{cx}\" y2=\"{cy}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+                depth = nodes[i].depth,
                 px = px, py = py, cx = cx, cy = cy
             ));
         }
@@ -9507,10 +10056,19 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
             ),
             None => ("", String::new()),
         };
+        let child_count = family_tree_child_indices(nodes, i).len();
+        let branch_class = if child_count == 0 {
+            " wbs-leaf"
+        } else {
+            " wbs-branch"
+        };
         out.push_str(&format!(
-            "<rect class=\"wbs-node wbs-depth-{depth}{checkbox_class}\" data-wbs-depth=\"{depth}\" data-wbs-fill=\"{fill}\"{checkbox_attr} x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            "<rect class=\"wbs-node wbs-depth-{depth}{checkbox_class}{branch_class}\" data-wbs-depth=\"{depth}\" data-wbs-child-count=\"{child_count}\" data-wbs-sibling-index=\"{sibling_index}\" data-wbs-fill=\"{fill}\"{checkbox_attr} x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
             depth = node.depth,
             checkbox_class = checkbox_class,
+            branch_class = branch_class,
+            child_count = child_count,
+            sibling_index = node_sibling_index(nodes, i),
             checkbox_attr = checkbox_attr,
             nx = nx,
             ny = ny,

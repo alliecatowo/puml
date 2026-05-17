@@ -261,6 +261,42 @@ fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
 }
 
 #[test]
+fn mermaid_flowchart_style_and_picouml_multitarget_notes_adapt() {
+    let mermaid = "flowchart LR
+classDef hot fill:#fef3c7,stroke:#92400e
+A[API]:::hot -->|calls| B[(Database)]
+style B fill:#dbeafe,stroke:#1d4ed8
+class A hot
+";
+    let options = ParsePipelineOptions {
+        frontend: FrontendSelection::Mermaid,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    let parsed = parse_with_pipeline_options(mermaid, &options)
+        .expect("mermaid flowchart style/class syntax should adapt");
+    assert!(
+        parsed.statements.len() >= 3,
+        "adapted flowchart should emit component statements and relations"
+    );
+
+    let picouml = "@startpicouml
+A => B : request
+note A,B : shared context
+@endpicouml
+";
+    let pico_options = ParsePipelineOptions {
+        frontend: FrontendSelection::Picouml,
+        compat: CompatMode::Strict,
+        determinism: DeterminismMode::Strict,
+        include_root: None,
+    };
+    parse_with_pipeline_options(picouml, &pico_options)
+        .expect("picouml multi-target shorthand note should adapt");
+}
+
+#[test]
 fn mermaid_pipeline_supports_cross_and_open_sequence_arrows() {
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Mermaid,

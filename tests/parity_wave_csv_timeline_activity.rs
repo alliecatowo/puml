@@ -410,7 +410,8 @@ A --> E
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("state render");
-    assert!(svg.contains("<path d=\"M "));
+    assert!(svg.contains("class=\"state-transition\""));
+    assert!(svg.contains("data-state-from=\"A\" data-state-to=\"A\""));
     assert!(svg.contains("r=\"14\""));
 }
 

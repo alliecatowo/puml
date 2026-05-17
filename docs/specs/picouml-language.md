@@ -22,6 +22,9 @@ This baseline defines first-class PicoUML surface routing into the shared sequen
   - `A <= B : msg` becomes a sync call message from `B` to `A`.
   - `A ~> B : msg` becomes an async signal message from `A` to `B`.
   - `A <~ B : msg` becomes an async signal message from `B` to `A`.
+- Shorthand multi-target notes route through PlantUML `note over`:
+  - `note A,B : text` becomes `note over A,B: text`.
+  - `note over A,B : text` is accepted directly.
 
 ## Deterministic diagnostics
 

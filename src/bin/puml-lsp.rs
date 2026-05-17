@@ -1633,7 +1633,7 @@ mod tests {
     #[test]
     fn publish_diagnostics_includes_diagnostic_code_when_present() {
         let mut out = Vec::new();
-        let src = "@startuml\nA -x B: malformed\n@enduml\n";
+        let src = "@startuml\nA ->\n@enduml\n";
         pub_diag(&mut out, "file:///a.puml", 3, src).expect("publish diagnostics");
 
         let raw = String::from_utf8(out).expect("utf8");

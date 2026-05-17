@@ -16,8 +16,8 @@ Bob ->x Alice : lost message
     assert!(svg.contains("stroke=\"#ff0000\""));
     assert!(svg.contains("stroke-dasharray=\"2 4\""));
     assert!(svg.contains("<polyline points="));
-    assert!(svg.contains("<circle cx="));
-    assert!(svg.contains("<g stroke="));
+    assert!(svg.contains("data-sequence-arrow-end=\"circle\""));
+    assert!(svg.contains("data-sequence-arrow-end=\"cross\""));
     assert!(svg.contains("text-anchor=\"middle\""));
 }
 
@@ -135,6 +135,43 @@ binary FLAG
     assert!(timing_svg.contains("Scheduler"));
     assert!(timing_svg.contains("period 10"));
     assert!(timing_svg.contains("checkpoint"));
+}
+
+#[test]
+fn json_yaml_projection_boxes_render_in_component_and_deployment_contexts() {
+    let component = r#"@startuml
+component API
+json $cfg {
+  "service": {"name": "orders", "replicas": 3},
+  "ports": [8080, 9090]
+}
+API --> $cfg : config
+@enduml
+"#;
+    let component_svg =
+        puml::render_source_to_svg(component).expect("component projection should render");
+    assert!(component_svg.contains("class=\"uml-projection\""));
+    assert!(component_svg.contains("data-uml-projection=\"$cfg\""));
+    assert!(component_svg.contains("data-uml-projection-format=\"json\""));
+    assert!(component_svg.contains("service.name: orders"));
+    assert!(component_svg.contains("ports[1]: 9090"));
+
+    let deployment = r#"@startuml
+node Runtime
+yaml $settings {
+  image: puml
+  resources:
+    cpu: 2
+}
+Runtime --> $settings : reads
+@enduml
+"#;
+    let deployment_svg =
+        puml::render_source_to_svg(deployment).expect("deployment projection should render");
+    assert!(deployment_svg.contains("data-uml-projection=\"$settings\""));
+    assert!(deployment_svg.contains("data-uml-projection-format=\"yaml\""));
+    assert!(deployment_svg.contains("image: puml"));
+    assert!(deployment_svg.contains("cpu: 2"));
 }
 
 #[test]
@@ -546,4 +583,83 @@ fn skinparam_family_compatibility_chunk_reaches_svg_for_non_sequence_families() 
     assert!(salt_svg.contains("#ecfeff"));
     assert!(salt_svg.contains("#0e7490"));
     assert!(salt_svg.contains("#164e63"));
+}
+
+#[test]
+fn core_uml_advanced_metadata_wave_for_members_states_and_activity_beta() {
+    let class_svg = puml::render_source_to_svg(
+        r#"@startuml
+class Account <<entity>> {
+  +id: UUID
+  -secret: String
+  #protected_id: String
+  ~package_id: String
+  {static} +find(id)
+  {abstract} +close()
+}
+@enduml
+"#,
+    )
+    .expect("class metadata render should succeed");
+    assert!(class_svg.contains("data-uml-visibility=\"public\""));
+    assert!(class_svg.contains("data-uml-visibility=\"private\""));
+    assert!(class_svg.contains("data-uml-visibility=\"protected\""));
+    assert!(class_svg.contains("data-uml-visibility=\"package\""));
+    assert!(class_svg.contains("data-uml-modifier=\"static\""));
+    assert!(class_svg.contains("data-uml-modifier=\"abstract\""));
+    assert!(class_svg.contains("&lt;&lt;entity&gt;&gt;"));
+
+    let state_svg = puml::render_source_to_svg(
+        r##"@startuml
+state "Composite" as Comp {
+  [H]
+  state Idle
+  ||
+  state Active
+}
+choice Choose
+fork Split
+join Merge
+[*] -[#red,dashed,thickness=4]right-> Choose : begin
+Choose --> Split : yes
+Split --> Merge : done
+Merge --> [*]
+@enduml
+"##,
+    )
+    .expect("state pseudo-state metadata render should succeed");
+    assert!(state_svg.contains("data-state-kind=\"choice\""));
+    assert!(state_svg.contains("data-state-kind=\"fork\""));
+    assert!(state_svg.contains("data-state-kind=\"join\""));
+    assert!(state_svg.contains("data-state-kind=\"history-shallow\""));
+    assert!(state_svg.contains("data-state-direction=\"right\""));
+    assert!(state_svg.contains("stroke=\"#ff0000\""));
+    assert!(state_svg.contains("stroke-width=\"4\""));
+    assert!(state_svg.contains("stroke-dasharray=\"5 3\""));
+
+    let activity_svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+switch (kind?)
+case (fast)
+:ship;
+case (slow)
+detach
+endswitch
+fork
+:left;
+fork again
+:right;
+end fork
+kill
+@enduml
+"#,
+    )
+    .expect("activity metadata render should succeed");
+    assert!(activity_svg.contains("data-activity-kind=\"IfStart\""));
+    assert!(activity_svg.contains("data-activity-kind=\"Fork\""));
+    assert!(activity_svg.contains("data-activity-kind=\"ForkAgain\""));
+    assert!(activity_svg.contains("data-activity-kind=\"EndFork\""));
+    assert!(activity_svg.contains(">detach<"));
+    assert!(activity_svg.contains(">kill<"));
 }

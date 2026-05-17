@@ -715,6 +715,26 @@ fn adapt_picouml_reverse_arrow(
 /// Convert `note left A : text` / `note right A : text` to `note left of A : text`.
 fn adapt_picouml_note(line: &str) -> Option<String> {
     let lower = line.to_ascii_lowercase();
+    if lower.starts_with("note over ") {
+        let rest = &line["note over ".len()..];
+        let (target, text) = rest.split_once(':')?;
+        let target = target.trim();
+        let text = text.trim();
+        if target.is_empty() || text.is_empty() {
+            return None;
+        }
+        return Some(format!("note over {target}: {text}"));
+    }
+    if lower.starts_with("note ") {
+        let rest = &line["note ".len()..];
+        let (target, text) = rest.split_once(':')?;
+        let target = target.trim();
+        let text = text.trim();
+        if target.is_empty() || text.is_empty() || !target.contains(',') {
+            return None;
+        }
+        return Some(format!("note over {target}: {text}"));
+    }
     let suffix = if lower.starts_with("note left ") {
         Some(("left", &line["note left ".len()..]))
     } else if lower.starts_with("note right ") {
@@ -978,9 +998,12 @@ fn adapt_mermaid_sequence(source: &str) -> Result<String, Diagnostic> {
 ///   `A -->|cond| B`     → `A --> B : cond`
 ///   `A -- text --> B`   → `A --> B : text`
 fn adapt_mermaid_flowchart(source: &str) -> Result<String, Diagnostic> {
+    use std::collections::BTreeMap;
+
     let mut out = Vec::new();
     out.push("@startuml".to_string());
     let mut first = true;
+    let mut class_defs: BTreeMap<String, String> = BTreeMap::new();
 
     for raw_line in source.lines() {
         let line = strip_mermaid_comment(raw_line).trim();
@@ -990,6 +1013,16 @@ fn adapt_mermaid_flowchart(source: &str) -> Result<String, Diagnostic> {
         if first {
             first = false;
             // Skip the `flowchart TD` / `graph TD` directive line.
+            continue;
+        }
+
+        if let Some((class_name, fill)) = parse_flowchart_class_def(line) {
+            class_defs.insert(class_name, fill);
+            continue;
+        }
+
+        if let Some(converted) = adapt_flowchart_style(line, &class_defs) {
+            out.push(converted);
             continue;
         }
 
@@ -1050,15 +1083,90 @@ fn adapt_flowchart_node(line: &str) -> Option<String> {
     if line.contains("-->") || line.contains("---") || line.contains("-.->") {
         return None;
     }
-    let (id, label) = parse_flowchart_node_id_label(line);
+    let (id, label, class_name) = parse_flowchart_node_token(line);
     if id.is_empty() {
         return None;
     }
+    Some(format_flowchart_node_declaration(
+        &id,
+        label.as_deref(),
+        class_name.as_deref(),
+    ))
+}
+
+fn parse_flowchart_node_token(token: &str) -> (String, Option<String>, Option<String>) {
+    let (node_part, class_name) = token.split_once(":::").unwrap_or((token, ""));
+    let (id, label) = parse_flowchart_node_id_label(node_part);
+    let class_name = (!class_name.trim().is_empty()).then(|| class_name.trim().to_string());
+    (id, label, class_name)
+}
+
+fn format_flowchart_node_declaration(
+    id: &str,
+    label: Option<&str>,
+    class_name: Option<&str>,
+) -> String {
+    let class_suffix = class_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| format!(" <<{value}>>"))
+        .unwrap_or_default();
     if let Some(lbl) = label {
-        Some(format!("component \"{lbl}\" as {id}"))
+        format!("component \"{lbl}\" as {id}{class_suffix}")
     } else {
-        Some(format!("component {id}"))
+        format!("component {id}{class_suffix}")
     }
+}
+
+fn parse_flowchart_class_def(line: &str) -> Option<(String, String)> {
+    let rest = line.trim().strip_prefix("classDef ")?;
+    let (name, attrs) = rest.split_once(char::is_whitespace)?;
+    let fill = parse_mermaid_style_fill(attrs)?;
+    Some((name.trim().to_string(), fill))
+}
+
+fn adapt_flowchart_style(
+    line: &str,
+    class_defs: &std::collections::BTreeMap<String, String>,
+) -> Option<String> {
+    if let Some(rest) = line.trim().strip_prefix("style ") {
+        let (id, attrs) = rest.split_once(char::is_whitespace)?;
+        let fill = parse_mermaid_style_fill(attrs)?;
+        let id = id.trim();
+        return Some(format!("component \"{id}\" as {id} {fill}"));
+    }
+    if let Some(rest) = line.trim().strip_prefix("class ") {
+        let mut parts = rest.split_ascii_whitespace();
+        let ids = parts.next()?;
+        let class_name = parts.next()?;
+        let fill = class_defs.get(class_name)?;
+        let lines = ids
+            .split(',')
+            .filter(|id| !id.trim().is_empty())
+            .map(|id| {
+                let id = id.trim();
+                format!("component \"{id}\" as {id} {fill}")
+            })
+            .collect::<Vec<_>>();
+        if lines.is_empty() {
+            return None;
+        }
+        return Some(lines.join("\n"));
+    }
+    None
+}
+
+fn parse_mermaid_style_fill(attrs: &str) -> Option<String> {
+    attrs
+        .split(',')
+        .find_map(|part| part.trim().strip_prefix("fill:"))
+        .map(str::trim)
+        .filter(|value| value.starts_with('#') || crate::theme::css3_color_to_hex(value).is_some())
+        .map(|value| {
+            crate::theme::css3_color_to_hex(value)
+                .unwrap_or(value)
+                .to_string()
+        })
 }
 
 /// Parse a Mermaid flowchart edge: `A --> B`, `A -->|label| B`,
@@ -1102,8 +1210,8 @@ fn adapt_flowchart_edge(line: &str) -> Option<String> {
         (lhs_raw, None)
     };
 
-    let (from_id, _) = parse_flowchart_node_id_label(lhs_token);
-    let (to_id, _) = parse_flowchart_node_id_label(rhs_token);
+    let (from_id, from_label, from_class) = parse_flowchart_node_token(lhs_token);
+    let (to_id, to_label, to_class) = parse_flowchart_node_token(rhs_token);
 
     if from_id.is_empty() || to_id.is_empty() {
         return None;
@@ -1111,11 +1219,27 @@ fn adapt_flowchart_edge(line: &str) -> Option<String> {
 
     let label = edge_label.or(lhs_label);
     let plantuml_arrow = if arrow_str == "-.->)" { "..>" } else { "-->" };
-    if let Some(lbl) = label {
-        Some(format!("{from_id} {plantuml_arrow} {to_id} : {lbl}"))
-    } else {
-        Some(format!("{from_id} {plantuml_arrow} {to_id}"))
+    let mut out = Vec::new();
+    if from_label.is_some() || from_class.is_some() {
+        out.push(format_flowchart_node_declaration(
+            &from_id,
+            from_label.as_deref(),
+            from_class.as_deref(),
+        ));
     }
+    if to_label.is_some() || to_class.is_some() {
+        out.push(format_flowchart_node_declaration(
+            &to_id,
+            to_label.as_deref(),
+            to_class.as_deref(),
+        ));
+    }
+    if let Some(lbl) = label {
+        out.push(format!("{from_id} {plantuml_arrow} {to_id} : {lbl}"));
+    } else {
+        out.push(format!("{from_id} {plantuml_arrow} {to_id}"));
+    }
+    Some(out.join("\n"))
 }
 
 // ---------------------------------------------------------------------------

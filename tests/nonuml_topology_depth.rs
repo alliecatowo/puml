@@ -96,12 +96,12 @@ right side
 "##;
     let svg = puml::render_source_to_svg(src).expect("mindmap render");
 
-    assert!(svg.contains("class=\"mindmap-node mindmap-root\""));
+    assert!(svg.contains("mindmap-root"));
     assert!(svg.contains("data-mindmap-orientation=\"top-to-bottom\""));
     assert!(svg.contains("data-mindmap-side=\"left\""));
     assert!(svg.contains("data-mindmap-side=\"right\""));
     assert!(svg.contains("data-mindmap-depth=\"2\""));
-    assert!(svg.contains("class=\"mindmap-node mindmap-depth-2\""));
+    assert!(svg.contains("mindmap-depth-2"));
     assert!(svg.contains("data-mindmap-fill=\"#fecaca\""));
     assert!(svg.contains("#fef3c7"));
     assert!(svg.contains("#fecaca"));
@@ -125,9 +125,54 @@ left to right direction
     assert!(svg.contains("data-wbs-checkbox=\"checked\""));
     assert!(svg.contains("data-wbs-checkbox=\"progress\" data-wbs-progress=\"60\""));
     assert!(svg.contains("data-wbs-checkbox=\"unchecked\""));
-    assert!(svg.contains("class=\"wbs-node wbs-depth-1 wbs-checked\""));
+    assert!(svg.contains("wbs-depth-1"));
+    assert!(svg.contains("wbs-checked"));
     assert!(svg.contains("data-wbs-annotation-style=\"checked\""));
     assert!(svg.contains("class=\"wbs-progress-fill\" data-wbs-progress-fill=\"60\""));
+}
+
+#[test]
+fn mindmap_and_wbs_large_tree_metadata_and_branch_classes_render() {
+    let mindmap = r##"@startmindmap
+* Platform
+** Delivery
+*** Build
+*** Test
+** Operations
+*** Observe
+*** Respond
+left side
+** Risks
+*** Security
+*** Compliance
+@endmindmap
+"##;
+    let mindmap_svg = puml::render_source_to_svg(mindmap).expect("mindmap render");
+    assert!(mindmap_svg.contains("data-mindmap-node-count=\"10\""));
+    assert!(mindmap_svg.contains("data-mindmap-leaf-count=\"6\""));
+    assert!(mindmap_svg.contains("data-mindmap-child-count=\"3\""));
+    assert!(mindmap_svg.contains("mindmap-branch"));
+    assert!(mindmap_svg.contains("mindmap-leaf"));
+    assert!(mindmap_svg.contains("data-mindmap-sibling-index=\"1\""));
+
+    let wbs = r##"@startwbs
+top to bottom direction
+* Program
+** Build [x]
+*** Parser
+*** Renderer
+** Launch [%75]
+*** Docs
+*** Release
+@endwbs
+"##;
+    let wbs_svg = puml::render_source_to_svg(wbs).expect("wbs render");
+    assert!(wbs_svg.contains("data-wbs-node-count=\"7\""));
+    assert!(wbs_svg.contains("data-wbs-leaf-count=\"4\""));
+    assert!(wbs_svg.contains("data-wbs-child-count=\"2\""));
+    assert!(wbs_svg.contains("class=\"wbs-edge\" data-wbs-edge-depth=\"2\""));
+    assert!(wbs_svg.contains("wbs-branch"));
+    assert!(wbs_svg.contains("wbs-leaf"));
 }
 
 #[test]

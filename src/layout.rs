@@ -139,7 +139,13 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     &options,
                 );
                 let label = autonumber.apply(label.clone());
-                let label_lines = message_label_lines(label.as_deref(), x1, x2, &options);
+                let label_lines = message_label_lines(
+                    label.as_deref(),
+                    x1,
+                    x2,
+                    document.style.sequence_message_span,
+                    &options,
+                );
                 let has_label_lines = !label_lines.is_empty();
                 let row_units = (label_lines.len() as i32).max(1);
                 messages.push(MessageLine {
@@ -171,7 +177,13 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         .copied()
                         .unwrap_or(options.margin + options.participant_width / 2);
                     let label = autonumber.apply(label.clone());
-                    let label_lines = message_label_lines(label.as_deref(), x1, x2, &options);
+                    let label_lines = message_label_lines(
+                        label.as_deref(),
+                        x1,
+                        x2,
+                        document.style.sequence_message_span,
+                        &options,
+                    );
                     let row_units = (label_lines.len() as i32).max(1);
                     messages.push(MessageLine {
                         from_id: from_id.clone(),
@@ -376,7 +388,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 });
                 event_rows += 1;
             }
-            SequenceEventKind::Spacer => {
+            SequenceEventKind::Spacer(pixels) => {
                 let y = events_top + (event_rows * options.message_row_height);
                 let (x1, x2) = structure_bounds(&centers_by_id, &options);
                 structures.push(StructureLine {
@@ -386,7 +398,8 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     x2,
                     label: None,
                 });
-                event_rows += 1;
+                let pixels = pixels.unwrap_or(options.message_row_height).max(1);
+                event_rows += row_units_for_height(pixels, options.message_row_height);
             }
             _ => {}
         }
@@ -773,7 +786,8 @@ fn group_horizontal_bounds(
 ) -> (i32, i32) {
     let (min_content_width, _) = group_content_min_size(kind, label);
     if let Some(raw) = label {
-        if let Some(target_spec) = raw.strip_prefix("over ") {
+        let header = raw.lines().next().unwrap_or(raw);
+        if let Some(target_spec) = header.strip_prefix("over ") {
             let bounds = note_target_bounds(target_spec.trim(), bounds_by_id, options);
             if !bounds.is_empty() {
                 let min_left = bounds
@@ -894,13 +908,18 @@ fn message_label_lines(
     label: Option<&str>,
     x1: i32,
     x2: i32,
+    sequence_message_span: bool,
     options: &LayoutOptions,
 ) -> Vec<String> {
     let Some(label) = label else {
         return Vec::new();
     };
     let min_span = (options.participant_spacing - 20).max(56);
-    let span_px = (x2 - x1).abs().max(min_span) - 16;
+    let span_px = if sequence_message_span {
+        (options.participant_spacing * 2).max((x2 - x1).abs())
+    } else {
+        (x2 - x1).abs().max(min_span) - 16
+    };
     let tx = ((x1 + x2) / 2) + 2;
     let max_chars_by_span = (span_px / 7).max(1) as usize;
     let max_chars_by_left_edge = ((tx * 2) / 7).max(1) as usize;
@@ -957,6 +976,11 @@ impl AutonumberState {
         }
 
         let parsed = parse_autonumber_command(value);
+        if let Some(level) = parsed.increment_level {
+            self.next.increment_level(level, self.step.max(1));
+            self.enabled = true;
+            return;
+        }
         if parsed.resume_only {
             if self.next.is_zero() {
                 self.next = AutonumberCounter::from_number(1);
@@ -991,6 +1015,9 @@ impl AutonumberState {
         let number = format_autonumber(&self.next, self.format.as_deref());
         self.next.advance(self.step);
         match label {
+            Some(text) if text.contains("%autonumber%") => {
+                Some(text.replace("%autonumber%", &number))
+            }
             Some(text) if !text.is_empty() => Some(format!("{number} {text}")),
             _ => Some(number.to_string()),
         }
@@ -1000,6 +1027,7 @@ impl AutonumberState {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct AutonumberCounter {
     prefix: Vec<String>,
+    separators: Vec<char>,
     current: u64,
     width: usize,
 }
@@ -1008,6 +1036,7 @@ impl AutonumberCounter {
     fn from_number(value: u64) -> Self {
         Self {
             prefix: Vec::new(),
+            separators: Vec::new(),
             current: value,
             width: 0,
         }
@@ -1018,7 +1047,26 @@ impl AutonumberCounter {
         if trimmed.is_empty() {
             return None;
         }
-        let parts: Vec<&str> = trimmed.split('.').collect();
+        let mut parts = Vec::new();
+        let mut separators = Vec::new();
+        let mut current_part = String::new();
+        for ch in trimmed.chars() {
+            if matches!(ch, '.' | ';' | ',' | ':') {
+                if current_part.is_empty() {
+                    return None;
+                }
+                parts.push(current_part);
+                separators.push(ch);
+                current_part = String::new();
+            } else if ch.is_ascii_digit() {
+                current_part.push(ch);
+            } else {
+                return None;
+            }
+        }
+        if !current_part.is_empty() {
+            parts.push(current_part);
+        }
         if parts.is_empty()
             || parts
                 .iter()
@@ -1034,6 +1082,7 @@ impl AutonumberCounter {
                 .iter()
                 .map(|part| (*part).to_string())
                 .collect(),
+            separators,
             current,
             width,
         })
@@ -1047,6 +1096,25 @@ impl AutonumberCounter {
         self.current = self.current.saturating_add(step.max(1));
     }
 
+    fn increment_level(&mut self, level: usize, step: u64) {
+        if level == 0 {
+            return;
+        }
+        if level <= self.prefix.len() {
+            if let Some(part) = self.prefix.get_mut(level - 1) {
+                let width = part.len();
+                let next = part.parse::<u64>().unwrap_or(0).saturating_add(step.max(1));
+                *part = if width > 1 {
+                    format!("{:0width$}", next, width = width)
+                } else {
+                    next.to_string()
+                };
+            }
+        } else {
+            self.advance(step);
+        }
+    }
+
     fn render(&self) -> String {
         let tail = if self.width > 0 {
             format!("{:0width$}", self.current, width = self.width)
@@ -1056,7 +1124,13 @@ impl AutonumberCounter {
         if self.prefix.is_empty() {
             tail
         } else {
-            format!("{}.{}", self.prefix.join("."), tail)
+            let mut out = String::new();
+            for (idx, part) in self.prefix.iter().enumerate() {
+                out.push_str(part);
+                out.push(*self.separators.get(idx).unwrap_or(&'.'));
+            }
+            out.push_str(&tail);
+            out
         }
     }
 }
@@ -1067,6 +1141,7 @@ struct ParsedAutonumber {
     start: Option<AutonumberCounter>,
     step: Option<u64>,
     format: Option<String>,
+    increment_level: Option<usize>,
 }
 
 fn parse_autonumber_command(raw: &str) -> ParsedAutonumber {
@@ -1075,6 +1150,15 @@ fn parse_autonumber_command(raw: &str) -> ParsedAutonumber {
 
     if rest.eq_ignore_ascii_case("resume") {
         parsed.resume_only = true;
+        return parsed;
+    }
+
+    if rest
+        .get(..4)
+        .is_some_and(|head| head.eq_ignore_ascii_case("inc "))
+    {
+        let level = &rest[4..];
+        parsed.increment_level = autonumber_increment_level(level.trim());
         return parsed;
     }
 
@@ -1117,6 +1201,14 @@ fn parse_autonumber_command(raw: &str) -> ParsedAutonumber {
     }
 
     parsed
+}
+
+fn autonumber_increment_level(raw: &str) -> Option<usize> {
+    let ch = raw.trim().chars().next()?;
+    if !ch.is_ascii_alphabetic() {
+        return None;
+    }
+    Some((ch.to_ascii_uppercase() as u8 - b'A' + 1) as usize)
 }
 
 fn trailing_quoted_format(raw: &str) -> Option<(String, &str)> {

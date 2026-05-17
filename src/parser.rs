@@ -147,7 +147,7 @@ struct PreprocCallable {
 
 #[derive(Debug, Clone)]
 struct PreprocMacro {
-    params: Vec<String>,
+    params: Vec<PreprocParam>,
     body: String,
 }
 
@@ -1433,6 +1433,9 @@ fn evaluate_preprocess_expr(expr: &str, state: &PreprocState) -> Result<bool, Di
     if let Some((lhs, rhs)) = split_top_level_word(raw, "and") {
         return Ok(evaluate_preprocess_expr(&lhs, state)? && evaluate_preprocess_expr(&rhs, state)?);
     }
+    if let Some((lhs, rhs)) = split_top_level_word(raw, "xor") {
+        return Ok(evaluate_preprocess_expr(&lhs, state)? ^ evaluate_preprocess_expr(&rhs, state)?);
+    }
 
     if let Some((negated, name)) = parse_defined_call(raw) {
         let defined = state.defines.contains_key(name) || state.vars.contains_key(name);
@@ -1488,6 +1491,9 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
     }
     if let Some((lhs, rhs)) = split_top_level_word(trimmed, "and") {
         return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
+    }
+    if let Some((lhs, rhs)) = split_top_level_word(trimmed, "xor") {
+        return Ok(evaluate_scalar_expr(&lhs)? ^ evaluate_scalar_expr(&rhs)?);
     }
 
     let lower_trimmed = trimmed.to_ascii_lowercase();
@@ -2214,11 +2220,7 @@ fn parse_macro_define(body: &str) -> Result<Option<(String, PreprocMacro)>, Diag
     let chars = trimmed.chars().collect::<Vec<_>>();
     let (params_raw, close_next) = extract_parenthesized_args(&chars, open)?;
     let rest = trimmed[close_next..].trim();
-    let params = split_args(&params_raw)?
-        .into_iter()
-        .map(|param| param.trim().trim_start_matches('$').to_string())
-        .filter(|param| !param.is_empty())
-        .collect::<Vec<_>>();
+    let params = parse_params(&params_raw)?;
     Ok(Some((
         name.to_string(),
         PreprocMacro {
@@ -2280,16 +2282,35 @@ fn substitute_defines(
 }
 
 fn expand_macro_body(mac: &PreprocMacro, args: &[String]) -> String {
-    let bindings = mac
-        .params
-        .iter()
-        .enumerate()
-        .map(|(idx, name)| (name.as_str(), args.get(idx).cloned().unwrap_or_default()))
-        .collect::<BTreeMap<_, _>>();
+    let mut positional = Vec::new();
+    let mut keyword = BTreeMap::new();
+    for arg in args {
+        if let Some((key, value)) = arg.split_once('=') {
+            keyword.insert(
+                key.trim().trim_start_matches('$').to_string(),
+                value.trim().to_string(),
+            );
+        } else {
+            positional.push(arg.clone());
+        }
+    }
+    let mut bindings = BTreeMap::new();
+    let mut pos_idx = 0usize;
+    for param in &mac.params {
+        let value = if let Some(value) = keyword.remove(&param.name) {
+            value
+        } else if let Some(value) = positional.get(pos_idx) {
+            pos_idx += 1;
+            value.clone()
+        } else {
+            param.default.clone().unwrap_or_default()
+        };
+        bindings.insert(param.name.clone(), value);
+    }
     substitute_macro_params(&mac.body, &bindings)
 }
 
-fn substitute_macro_params(body: &str, bindings: &BTreeMap<&str, String>) -> String {
+fn substitute_macro_params(body: &str, bindings: &BTreeMap<String, String>) -> String {
     let mut out = String::with_capacity(body.len());
     let chars = body.chars().collect::<Vec<_>>();
     let mut i = 0usize;
@@ -2308,7 +2329,7 @@ fn substitute_macro_params(body: &str, bindings: &BTreeMap<&str, String>) -> Str
                 j += 1;
             }
             let name = chars[i + 1..j].iter().collect::<String>();
-            if let Some(value) = bindings.get(name.as_str()) {
+            if let Some(value) = bindings.get(&name) {
                 out.push_str(value);
             } else {
                 out.push('$');
@@ -2323,7 +2344,7 @@ fn substitute_macro_params(body: &str, bindings: &BTreeMap<&str, String>) -> Str
                 j += 1;
             }
             let name = chars[i..j].iter().collect::<String>();
-            if let Some(value) = bindings.get(name.as_str()) {
+            if let Some(value) = bindings.get(&name) {
                 out.push_str(value);
             } else {
                 out.push_str(&name);
@@ -2695,6 +2716,11 @@ fn dispatch_builtin(
                 .unwrap_or_else(|| arg(0)),
         ),
         "eval_bool" | "eval_boolean" => Some(evaluate_scalar_expr(&arg(0))?.to_string()),
+        "if" | "ternary" | "iif" => Some(if evaluate_scalar_expr(&arg(0))? {
+            arg(1)
+        } else {
+            arg(2)
+        }),
         "splitstr" => {
             // %splitstr(s, sep) → returns the comma-joined fields after
             // splitting `s` on `sep`. PlantUML returns a deterministic
@@ -2782,6 +2808,9 @@ fn dispatch_builtin(
                     .unwrap_or(fallback),
             )
         }
+        "list_slice" | "array_slice" | "list_sublist" | "array_sublist" | "sublist" => Some(
+            preprocessor_list_slice(&arg(0), &arg(1), expanded_args.get(2).map(String::as_str)),
+        ),
         "first" | "list_first" | "array_first" => Some(
             preprocessor_list_items(&arg(0))
                 .first()
@@ -2831,6 +2860,18 @@ fn dispatch_builtin(
             }
             Some(preprocessor_list_literal(&items))
         }
+        "list_pop" | "array_pop" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            let _ = items.pop();
+            Some(preprocessor_list_literal(&items))
+        }
+        "list_shift" | "array_shift" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            if !items.is_empty() {
+                items.remove(0);
+            }
+            Some(preprocessor_list_literal(&items))
+        }
         "map" | "dict" | "newmap" => Some(preprocessor_map_literal(&expanded_args)),
         "map_clear" | "dict_clear" => Some("{}".to_string()),
         "map_is_empty" | "dict_is_empty" => Some((preprocessor_size(&arg(0)) == 0).to_string()),
@@ -2838,13 +2879,16 @@ fn dispatch_builtin(
             Some(preprocessor_json_merge(&arg(0), &arg(1)))
         }
         "map_entries" | "dict_entries" | "entries" => Some(preprocessor_map_entries(&arg(0))),
-        "map_contains_key" | "dict_contains_key" | "contains_key" | "map_has_key"
-        | "dict_has_key" | "json_contains_key" | "json_has_key" => {
-            Some(json_contains_key(&arg(0), &arg(1)).to_string())
-        }
-        "map_contains_value" | "dict_contains_value" | "contains_value" | "json_contains_value" => {
-            Some(json_contains_value(&arg(0), &arg(1)).to_string())
-        }
+        "map_contains_key" | "dict_contains_key" | "contains_key" | "has_key" | "map_has_key"
+        | "dict_has_key" | "json_contains_key" | "json_has_key" | "map_includes_key"
+        | "dict_includes_key" => Some(json_contains_key(&arg(0), &arg(1)).to_string()),
+        "map_contains_value"
+        | "dict_contains_value"
+        | "contains_value"
+        | "has_value"
+        | "json_contains_value"
+        | "map_includes_value"
+        | "dict_includes_value" => Some(json_contains_value(&arg(0), &arg(1)).to_string()),
         "get" | "map_get" | "dict_get" | "json_get" => {
             let fallback = if argc >= 3 { arg(2) } else { String::new() };
             Some(preprocessor_get_opt(&arg(0), &arg(1)).unwrap_or(fallback))
@@ -2859,9 +2903,16 @@ fn dispatch_builtin(
             Some(preprocessor_json_values(&arg(0)).join(","))
         }
         "json_type" | "get_json_type" => Some(preprocessor_json_type(&arg(0))),
-        "json_is_valid" | "is_json" => Some(
+        "json_is_valid" | "is_json" | "is_object" | "is_map" => Some(
             serde_json::from_str::<serde_json::Value>(arg(0).trim())
                 .is_ok()
+                .to_string(),
+        ),
+        "is_list" | "is_array" => Some(
+            serde_json::from_str::<serde_json::Value>(arg(0).trim())
+                .ok()
+                .and_then(|value| value.as_array().map(|_| true))
+                .unwrap_or(false)
                 .to_string(),
         ),
         "str2json" => Some(preprocessor_str2json(&arg(0))),
@@ -2903,9 +2954,31 @@ fn dispatch_builtin(
         "ltrim" => Some(arg(0).trim_start().to_string()),
         "rtrim" => Some(arg(0).trim_end().to_string()),
         "replace" => Some(arg(0).replace(&arg(1), &arg(2))),
+        "equals" | "eq" | "strcmp" => Some((arg(0) == arg(1)).to_string()),
+        "equals_ignore_case" | "eq_ignore_case" | "strcmp_ignore_case" => {
+            Some(arg(0).eq_ignore_ascii_case(&arg(1)).to_string())
+        }
         "startswith" | "starts_with" => Some(arg(0).starts_with(&arg(1)).to_string()),
+        "startswith_ignore_case" | "starts_with_ignore_case" => Some(
+            arg(0)
+                .to_ascii_lowercase()
+                .starts_with(&arg(1).to_ascii_lowercase())
+                .to_string(),
+        ),
         "endswith" | "ends_with" => Some(arg(0).ends_with(&arg(1)).to_string()),
+        "endswith_ignore_case" | "ends_with_ignore_case" => Some(
+            arg(0)
+                .to_ascii_lowercase()
+                .ends_with(&arg(1).to_ascii_lowercase())
+                .to_string(),
+        ),
         "contains" => Some(arg(0).contains(&arg(1)).to_string()),
+        "contains_ignore_case" => Some(
+            arg(0)
+                .to_ascii_lowercase()
+                .contains(&arg(1).to_ascii_lowercase())
+                .to_string(),
+        ),
         "boolval" => Some(boolval(&arg(0)).to_string()),
         "true" => Some("true".to_string()),
         "false" => Some("false".to_string()),
@@ -3125,6 +3198,22 @@ fn dispatch_builtin(
             )?)
         }
         "abs" => Some(parse_int_lenient(&arg(0)).abs().to_string()),
+        "min" => Some(
+            expanded_args
+                .iter()
+                .map(|value| parse_int_lenient(value))
+                .min()
+                .unwrap_or(0)
+                .to_string(),
+        ),
+        "max" => Some(
+            expanded_args
+                .iter()
+                .map(|value| parse_int_lenient(value))
+                .max()
+                .unwrap_or(0)
+                .to_string(),
+        ),
         "is_dark" => Some(is_dark_color(&arg(0)).to_string()),
         "reverse_color" => Some(
             parse_hex_rgb(&arg(0))
@@ -3465,6 +3554,27 @@ fn preprocessor_list_items(raw: &str) -> Vec<String> {
         .map(|s| strip_quotes(s.trim()))
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+fn preprocessor_list_slice(raw: &str, start: &str, len: Option<&str>) -> String {
+    let items = preprocessor_list_items(raw);
+    if items.is_empty() {
+        return "[]".to_string();
+    }
+    let start = parse_int_lenient(start).max(0) as usize;
+    let start = start.min(items.len());
+    let end = match len {
+        Some(value) => {
+            let len = parse_int_lenient(value);
+            if len < 0 {
+                items.len()
+            } else {
+                start.saturating_add(len as usize).min(items.len())
+            }
+        }
+        None => items.len(),
+    };
+    preprocessor_list_literal(&items[start..end])
 }
 
 fn preprocessor_foreach_bindings(var_names: &[String], rhs: &str) -> Vec<Vec<(String, String)>> {
@@ -4646,6 +4756,28 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
+        // Inline JSON/YAML projection: `json $alias {` / `yaml $alias {` ... `}`.
+        // In a UML block this should not force the document to class-family if
+        // a component/deployment/etc. family has already been established.
+        if let Some((kind, end_idx)) = parse_json_projection_block(&lines, i, line)? {
+            let projection_family = match detected_kind {
+                Some(DiagramKind::Component) => DiagramKind::Component,
+                Some(DiagramKind::Deployment) => DiagramKind::Deployment,
+                Some(DiagramKind::Object) => DiagramKind::Object,
+                Some(DiagramKind::UseCase) => DiagramKind::UseCase,
+                Some(DiagramKind::Class) | None => DiagramKind::Class,
+                Some(other) => other,
+            };
+            detected_kind = Some(select_diagram_kind(detected_kind, projection_family, span)?);
+            let block_span = Span::new(span.start, lines[end_idx].1.end);
+            statements.push(Statement {
+                span: block_span,
+                kind,
+            });
+            i = end_idx + 1;
+            continue;
+        }
+
         if matches!(
             detected_kind,
             None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
@@ -4986,9 +5118,8 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        // Inline JSON/YAML projection: `json $alias {` / `yaml $alias {` ... `}`
-        // Valid inside @startuml/@enduml blocks for object-diagram-like use.
-        // Marks the document as Class family (rendered via render_class_svg).
+        // Legacy position kept as a fallback for projection-like lines that
+        // did not match before family/member/relation parsing.
         if let Some((kind, end_idx)) = parse_json_projection_block(&lines, i, line)? {
             detected_kind = Some(select_diagram_kind(
                 detected_kind,
@@ -8411,6 +8542,40 @@ fn parse_state_statement(
         return Ok(Some((StatementKind::StateHistory { deep: true }, start)));
     }
 
+    for (keyword, stereotype) in [
+        ("choice", "choice"),
+        ("fork", "fork"),
+        ("join", "join"),
+        ("end", "end"),
+    ] {
+        if let Some(rest) = line.strip_prefix(keyword).map(str::trim) {
+            if rest.is_empty() {
+                continue;
+            }
+            let (name_raw, alias) = if let Some((lhs, rhs)) = rest.split_once(" as ") {
+                let alias = clean_ident(rhs.trim());
+                (
+                    clean_ident(lhs.trim()),
+                    (!alias.is_empty()).then_some(alias),
+                )
+            } else {
+                (clean_ident(rest), None)
+            };
+            if !name_raw.is_empty() {
+                return Ok(Some((
+                    StatementKind::StateDecl(StateDecl {
+                        name: name_raw,
+                        alias,
+                        stereotype: Some(stereotype.to_string()),
+                        children: Vec::new(),
+                        region_dividers: Vec::new(),
+                    }),
+                    start,
+                )));
+            }
+        }
+    }
+
     // `state Name` or `state Name <<stereotype>>` or `state Name { ... }`
     if line.starts_with("state ") {
         let rest = line.strip_prefix("state ").unwrap_or("").trim();
@@ -8540,6 +8705,18 @@ fn parse_state_block(
                 j += 1;
                 continue;
             }
+            if let Some((kind, end_idx)) = parse_state_statement(lines, j, inner)? {
+                children.push(Statement {
+                    span: if end_idx > j {
+                        Span::new(span.start, lines[end_idx].1.end)
+                    } else {
+                        span
+                    },
+                    kind,
+                });
+                j = end_idx + 1;
+                continue;
+            }
             if let Some(transition) = parse_state_transition(inner) {
                 children.push(Statement {
                     span,
@@ -8564,21 +8741,6 @@ fn parse_state_block(
                 j += 1;
                 continue;
             }
-            if inner.starts_with("state ") {
-                if let Some((kind, end_idx)) = parse_state_statement(lines, j, inner)? {
-                    let block_span = if end_idx > j {
-                        Span::new(span.start, lines[end_idx].1.end)
-                    } else {
-                        span
-                    };
-                    children.push(Statement {
-                        span: block_span,
-                        kind,
-                    });
-                    j = end_idx + 1;
-                    continue;
-                }
-            }
             if let Some(kind) = parse_keyword(inner) {
                 children.push(Statement { span, kind });
                 j += 1;
@@ -8600,7 +8762,7 @@ fn parse_state_block(
 /// Parse `From --> To` or `From --> To : label`
 fn parse_state_transition(line: &str) -> Option<StateTransition> {
     let (core, label) = split_message_label(line);
-    let (from_raw, arrow, to_raw) = split_family_arrow(core)?;
+    let (from_raw, arrow, relation_style, to_raw) = split_family_arrow_styled(core)?;
 
     if !arrow.contains('>') || from_raw.is_empty() || to_raw.is_empty() {
         return None;
@@ -8610,6 +8772,11 @@ fn parse_state_transition(line: &str) -> Option<StateTransition> {
         from: clean_bracketed_ident(from_raw),
         to: clean_bracketed_ident(to_raw),
         label,
+        line_color: relation_style.line_color,
+        dashed: relation_style.dashed,
+        hidden: relation_style.hidden,
+        thickness: relation_style.thickness,
+        direction: relation_style.direction,
     })
 }
 
@@ -9261,12 +9428,18 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
     }
 
     if line == "..." {
-        return Some(StatementKind::Spacer);
+        return Some(StatementKind::Spacer(None));
     }
     if lower.starts_with("...") && line.ends_with("...") && line.len() >= 6 {
         return Some(StatementKind::Divider(Some(
             line.trim_matches('.').trim().to_string(),
         )));
+    }
+    if lower.starts_with("|||") && line.ends_with("|||") {
+        let body = line.trim_matches('|').trim();
+        return Some(StatementKind::Spacer(
+            body.parse::<i32>().ok().map(|n| n.clamp(1, 400)),
+        ));
     }
     if lower.starts_with("||") && line.ends_with("||") && line.len() >= 4 {
         return Some(StatementKind::Delay(Some(
@@ -9536,7 +9709,10 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
                 continue;
             }
             let candidate = &core[start..idx];
-            if !candidate.contains('-') && !candidate.contains('.') {
+            if !candidate.contains('-')
+                && !(candidate.contains('.')
+                    && (candidate.contains('<') || candidate.contains('>')))
+            {
                 run_start = None;
                 continue;
             }
@@ -9599,7 +9775,9 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     }
     if let Some(start) = run_start {
         let candidate = &core[start..];
-        if !candidate.contains('-') && !candidate.contains('.') {
+        if !candidate.contains('-')
+            && !(candidate.contains('.') && (candidate.contains('<') || candidate.contains('>')))
+        {
             return None;
         }
         let lhs = core[..start].trim();
@@ -9613,7 +9791,8 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
 
 fn parse_arrow(arrow: &str) -> Option<String> {
     const VALID_BASE_ARROWS: &[&str] = &[
-        "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
+        "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>",
+        "<<-->>",
     ];
     let arrow = strip_sequence_arrow_brackets(arrow);
     let mut squashed = String::with_capacity(arrow.len());
@@ -9655,6 +9834,10 @@ fn parse_arrow(arrow: &str) -> Option<String> {
     let has_slash_marker = squashed.contains('/') || squashed.contains('\\');
     let has_dot_marker = squashed.contains('.');
     let expanded_marker = squashed.contains("-/") || squashed.contains("-\\");
+
+    if has_slash_marker && matches!(canonical.as_str(), "-" | "--") {
+        return Some(squashed);
+    }
 
     if VALID_BASE_ARROWS.contains(&canonical.as_str()) {
         if has_dot_marker {
@@ -9802,7 +9985,7 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
             | StatementKind::Delay(_)
             | StatementKind::Divider(_)
             | StatementKind::Separator(_)
-            | StatementKind::Spacer
+            | StatementKind::Spacer(_)
             | StatementKind::NewPage(_)
             | StatementKind::IgnoreNewPage
             | StatementKind::Autonumber(_)

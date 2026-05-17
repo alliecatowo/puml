@@ -719,6 +719,7 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
     let mut legend = ChartLegend::default();
     let mut palette = Vec::new();
     let mut annotations = Vec::new();
+    let mut label_mode = crate::model::ChartLabelMode::Auto;
     let mut horizontal = false;
     let mut stacked = false;
     let mut style = ChartStyle::default();
@@ -811,6 +812,10 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
             legend = parse_chart_legend(line);
             continue;
         }
+        if let Some(mode) = parse_chart_label_mode(line) {
+            label_mode = mode;
+            continue;
+        }
         if lower == "horizontal" || lower == "horizontal true" || lower == "mode horizontal" {
             horizontal = true;
             continue;
@@ -873,11 +878,33 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
         legend,
         palette,
         annotations,
+        label_mode,
         horizontal,
         stacked,
         style,
         warnings,
     })
+}
+
+fn parse_chart_label_mode(line: &str) -> Option<crate::model::ChartLabelMode> {
+    let lower = line.trim().to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("labels ")
+        .or_else(|| lower.strip_prefix("label "))
+        .or_else(|| lower.strip_prefix("show labels "))
+        .or_else(|| lower.strip_prefix("show label "))?
+        .trim();
+    match rest {
+        "inside" | "in" | "inner" => Some(crate::model::ChartLabelMode::Inside),
+        "outside" | "out" | "outer" | "callout" | "callouts" => {
+            Some(crate::model::ChartLabelMode::Outside)
+        }
+        "off" | "none" | "false" | "hidden" => Some(crate::model::ChartLabelMode::None),
+        "value" | "values" => Some(crate::model::ChartLabelMode::Value),
+        "percent" | "percentage" | "percentages" => Some(crate::model::ChartLabelMode::Percent),
+        "auto" | "on" | "true" => Some(crate::model::ChartLabelMode::Auto),
+        _ => None,
+    }
 }
 
 fn parse_chart_axis(line: &str, prefix: &str) -> ChartAxis {
@@ -2895,6 +2922,11 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
                     from: t.from.clone(),
                     to: t.to.clone(),
                     label: t.label.clone(),
+                    line_color: t.line_color.clone(),
+                    dashed: t.dashed,
+                    hidden: t.hidden,
+                    thickness: t.thickness,
+                    direction: t.direction.clone(),
                 });
             }
             StatementKind::StateInternalAction(a) => {
@@ -2927,6 +2959,7 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
                             "H".to_string()
                         }),
                         kind,
+                        stereotype: None,
                         internal_actions: Vec::new(),
                         regions: Vec::new(),
                     },
@@ -3064,6 +3097,7 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                     } else {
                         StateNodeKind::HistoryShallow
                     },
+                    stereotype: None,
                     internal_actions: Vec::new(),
                     regions: Vec::new(),
                 });
@@ -3095,6 +3129,7 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
         name: decl.alias.clone().unwrap_or_else(|| decl.name.clone()),
         display: Some(decl.name.clone()),
         kind,
+        stereotype: decl.stereotype.clone(),
         internal_actions,
         regions,
     }
@@ -3121,6 +3156,7 @@ fn ensure_state_node(nodes: &mut Vec<StateNode>, name: &str) {
         name: name.to_string(),
         display,
         kind,
+        stereotype: None,
         internal_actions: Vec::new(),
         regions: Vec::new(),
     });
@@ -3137,6 +3173,9 @@ fn upsert_state_node(nodes: &mut Vec<StateNode>, node: StateNode) {
             existing.regions = node.regions;
         }
         existing.internal_actions.extend(node.internal_actions);
+        if node.stereotype.is_some() && existing.stereotype.is_none() {
+            existing.stereotype = node.stereotype;
+        }
         if node.display.is_some() && existing.display.is_none() {
             existing.display = node.display;
         }
@@ -3334,6 +3373,14 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
                 let lower = trimmed.to_ascii_lowercase();
                 if lower.starts_with("teoz ") || lower == "teoz" {
                     // Accept teoz pragma as a deterministic no-op compatibility hint.
+                } else if lower == "sequencemessagespan true"
+                    || lower == "sequence message span true"
+                {
+                    style.sequence_message_span = true;
+                } else if lower == "sequencemessagespan false"
+                    || lower == "sequence message span false"
+                {
+                    style.sequence_message_span = false;
                 } else {
                     warnings.push(
                         Diagnostic::warning(format!(
@@ -3642,6 +3689,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
     let mut groups = Vec::new();
+    let mut json_projections: Vec<crate::model::JsonProjection> = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -4085,6 +4133,20 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     _ => {}
                 }
             }
+            StatementKind::JsonProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "json".to_string(),
+                });
+            }
+            StatementKind::YamlProjection { alias, body } => {
+                json_projections.push(crate::model::JsonProjection {
+                    alias,
+                    body,
+                    format: "yaml".to_string(),
+                });
+            }
             StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
@@ -4149,7 +4211,6 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         DiagramKind::Timing => Some(FamilyStyle::Timing(timing_style)),
         _ => None,
     };
-
     Ok(FamilyDocument {
         kind: family_kind,
         nodes,
@@ -4165,7 +4226,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings: ext_warnings,
         groups,
-        json_projections: Vec::new(),
+        json_projections,
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
     })
@@ -4769,6 +4830,14 @@ pub fn normalize_with_options(
                 let lower = trimmed.to_ascii_lowercase();
                 if lower.starts_with("teoz ") || lower == "teoz" {
                     // Accept teoz pragma as a deterministic no-op compatibility hint.
+                } else if lower == "sequencemessagespan true"
+                    || lower == "sequence message span true"
+                {
+                    style.sequence_message_span = true;
+                } else if lower == "sequencemessagespan false"
+                    || lower == "sequence message span false"
+                {
+                    style.sequence_message_span = false;
                 } else {
                     warnings.push(
                         Diagnostic::warning(format!(
@@ -4804,11 +4873,11 @@ pub fn normalize_with_options(
                     kind: SequenceEventKind::Separator(v),
                 })
             }
-            StatementKind::Spacer => {
+            StatementKind::Spacer(pixels) => {
                 mark_group_content(&mut group_stack);
                 events.push(SequenceEvent {
                     span: stmt.span,
-                    kind: SequenceEventKind::Spacer,
+                    kind: SequenceEventKind::Spacer(pixels),
                 })
             }
             StatementKind::NewPage(v) => {
@@ -5681,6 +5750,12 @@ fn validate_autonumber_raw(raw: &str) -> Result<(), String> {
 
     let mut tokens: Vec<&str> = body.split_whitespace().collect();
     let mut resume = false;
+    if tokens.len() == 2
+        && tokens[0].eq_ignore_ascii_case("inc")
+        && is_autonumber_increment_level(tokens[1])
+    {
+        return Ok(());
+    }
     if matches!(tokens.first(), Some(token) if token.eq_ignore_ascii_case("resume")) {
         resume = true;
         tokens.remove(0);
@@ -5737,15 +5812,23 @@ fn is_autonumber_counter_token(token: &str) -> bool {
         return false;
     }
     trimmed
-        .split('.')
+        .split(['.', ';', ',', ':'])
         .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
 }
 
 fn looks_like_autonumber_counter_token(token: &str) -> bool {
     let trimmed = token.trim();
-    trimmed.contains('.')
-        && trimmed.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+    trimmed
+        .bytes()
+        .any(|b| matches!(b, b'.' | b';' | b',' | b':'))
+        && trimmed
+            .bytes()
+            .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b';' | b',' | b':'))
         && trimmed.bytes().any(|b| b.is_ascii_digit())
+}
+
+fn is_autonumber_increment_level(token: &str) -> bool {
+    token.len() == 1 && token.bytes().all(|b| b.is_ascii_alphabetic())
 }
 
 fn trailing_quoted_format(raw: &str) -> Option<(String, &str)> {
