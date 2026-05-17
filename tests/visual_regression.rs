@@ -92,8 +92,8 @@ const PIXEL_DIFF_THRESHOLD: u8 = 3;
 /// Returns `(width, height, rgba_bytes)`.
 fn svg_to_rgba(svg: &str) -> Result<(u32, u32, Vec<u8>), String> {
     let opt = resvg::usvg::Options::default();
-    let tree = resvg::usvg::Tree::from_str(svg, &opt)
-        .map_err(|e| format!("usvg parse failed: {e}"))?;
+    let tree =
+        resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| format!("usvg parse failed: {e}"))?;
 
     let size = tree.size();
     let natural_w = (size.width() * (BASELINE_DPI / 96.0)).round() as u32;
@@ -114,7 +114,11 @@ fn svg_to_rgba(svg: &str) -> Result<(u32, u32, Vec<u8>), String> {
 
     let mut pixmap = tiny_skia::Pixmap::new(width, height)
         .ok_or_else(|| format!("failed to allocate pixmap {width}x{height}"))?;
-    resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
     Ok((width, height, pixmap.data().to_vec()))
 }
 
@@ -144,12 +148,7 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u8>), String> {
 /// Compare two RGBA buffers of identical dimensions. Returns the number of
 /// pixels that exceeded `PIXEL_DIFF_THRESHOLD` in any channel, and also
 /// writes a diff PNG where differing pixels are painted bright red.
-fn pixel_diff(
-    width: u32,
-    height: u32,
-    actual: &[u8],
-    baseline: &[u8],
-) -> (u32, Vec<u8>) {
+fn pixel_diff(width: u32, height: u32, actual: &[u8], baseline: &[u8]) -> (u32, Vec<u8>) {
     assert_eq!(actual.len(), baseline.len());
     assert_eq!(actual.len(), (width * height * 4) as usize);
 
@@ -457,10 +456,7 @@ fn check_png_fixture(fixture: &Fixture) -> Option<Failure> {
     if !path.exists() {
         return Some(Failure {
             fixture: fixture.path.clone(),
-            reasons: vec![format!(
-                "fixture file not found: {}",
-                path.display()
-            )],
+            reasons: vec![format!("fixture file not found: {}", path.display())],
         });
     }
 
@@ -531,7 +527,10 @@ fn check_png_fixture(fixture: &Fixture) -> Option<Failure> {
                 "PNG dimensions changed: baseline is {}x{}, render is {}x{}. \
                  Inspect the new render at {}. \
                  If the change is intentional, run the bless command.",
-                bw, bh, width, height,
+                bw,
+                bh,
+                width,
+                height,
                 rendered_path.display(),
             )],
         });
@@ -656,17 +655,17 @@ fn bless_baselines() {
     let mut blessed = 0u32;
     let mut failed = 0u32;
     let mut report = String::from("\nBless baselines\n");
-    report.push_str(&format!("  Threshold: {} per-channel delta\n", PIXEL_DIFF_THRESHOLD));
+    report.push_str(&format!(
+        "  Threshold: {} per-channel delta\n",
+        PIXEL_DIFF_THRESHOLD
+    ));
     report.push_str(&format!("  Max width: {} px\n", MAX_BASELINE_WIDTH_PX));
     report.push_str(&format!("  DPI: {}\n\n", BASELINE_DPI));
 
     for fixture in &manifest.fixtures {
         let path = root.join(&fixture.path);
         if !path.exists() {
-            report.push_str(&format!(
-                "  SKIP (fixture not found): {}\n",
-                fixture.path
-            ));
+            report.push_str(&format!("  SKIP (fixture not found): {}\n", fixture.path));
             failed += 1;
             continue;
         }
@@ -674,10 +673,7 @@ fn bless_baselines() {
         let svg = match render_svg(&path) {
             Ok(s) => s,
             Err(e) => {
-                report.push_str(&format!(
-                    "  FAIL (render error): {} — {e}\n",
-                    fixture.path
-                ));
+                report.push_str(&format!("  FAIL (render error): {} — {e}\n", fixture.path));
                 failed += 1;
                 continue;
             }
@@ -698,10 +694,7 @@ fn bless_baselines() {
         let png = match rgba_to_png(width, height, &rgba) {
             Ok(p) => p,
             Err(e) => {
-                report.push_str(&format!(
-                    "  FAIL (encode error): {} — {e}\n",
-                    fixture.path
-                ));
+                report.push_str(&format!("  FAIL (encode error): {} — {e}\n", fixture.path));
                 failed += 1;
                 continue;
             }
@@ -710,10 +703,7 @@ fn bless_baselines() {
         let baseline_path = baseline_png_path(&root, fixture);
         if let Some(parent) = baseline_path.parent() {
             if let Err(e) = fs::create_dir_all(parent) {
-                report.push_str(&format!(
-                    "  FAIL (mkdir {}): {e}\n",
-                    parent.display()
-                ));
+                report.push_str(&format!("  FAIL (mkdir {}): {e}\n", parent.display()));
                 failed += 1;
                 continue;
             }
@@ -759,9 +749,7 @@ fn bless_baselines() {
     // Always print the report (even on success) so the developer sees what changed.
     println!("{report}");
     if failed > 0 {
-        panic!(
-            "bless_baselines: {failed} fixture(s) could not be rendered — see report above."
-        );
+        panic!("bless_baselines: {failed} fixture(s) could not be rendered — see report above.");
     }
 }
 
@@ -809,7 +797,10 @@ fn text_extractor_decodes_entities() {
 fn pixel_diff_identical_images_pass() {
     let rgba = vec![128u8, 64, 200, 255, 10, 20, 30, 255];
     let (differing, _) = pixel_diff(2, 1, &rgba, &rgba);
-    assert_eq!(differing, 0, "identical RGBA should report 0 differing pixels");
+    assert_eq!(
+        differing, 0,
+        "identical RGBA should report 0 differing pixels"
+    );
 }
 
 #[test]
@@ -827,9 +818,18 @@ fn pixel_diff_above_threshold_fails() {
     let (differing, diff_rgba) = pixel_diff(1, 1, &actual, &baseline);
     assert_eq!(differing, 1, "delta > threshold should count as differing");
     // Differing pixel should be painted red.
-    assert_eq!(diff_rgba[0], 255, "red channel should be 255 for differing pixel");
-    assert_eq!(diff_rgba[1], 0, "green channel should be 0 for differing pixel");
-    assert_eq!(diff_rgba[2], 0, "blue channel should be 0 for differing pixel");
+    assert_eq!(
+        diff_rgba[0], 255,
+        "red channel should be 255 for differing pixel"
+    );
+    assert_eq!(
+        diff_rgba[1], 0,
+        "green channel should be 0 for differing pixel"
+    );
+    assert_eq!(
+        diff_rgba[2], 0,
+        "blue channel should be 0 for differing pixel"
+    );
 }
 
 #[test]
@@ -846,9 +846,7 @@ fn svg_to_rgba_produces_deterministic_output() {
 fn png_roundtrip_preserves_dimensions() {
     let width = 4u32;
     let height = 2u32;
-    let rgba: Vec<u8> = (0..(width * height * 4))
-        .map(|i| (i % 256) as u8)
-        .collect();
+    let rgba: Vec<u8> = (0..(width * height * 4)).map(|i| (i % 256) as u8).collect();
     let png = rgba_to_png(width, height, &rgba).expect("encode");
     // Write to a tempfile and load back.
     let tmp = tempfile::NamedTempFile::new().expect("tempfile");
