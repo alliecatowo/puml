@@ -1,0 +1,17 @@
+@startuml
+class Vehicle {
+  +make: String
+  +model: String
+  +start()
+}
+class Car {
+  +doors: Int
+  +drive()
+}
+class Truck {
+  +payload: Float
+  +haul()
+}
+Vehicle <|-- Car
+Vehicle <|-- Truck
+@enduml

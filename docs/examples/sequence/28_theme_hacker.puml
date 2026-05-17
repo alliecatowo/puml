@@ -1,0 +1,8 @@
+@startuml
+!theme hacker
+title Hacker Theme
+Attacker -> Server: exploit
+Server -> DB: query
+DB --> Server: data
+Server --> Attacker: exfiltrate
+@enduml

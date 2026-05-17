@@ -1,0 +1,4 @@
+@startebnf
+grammar = { rule } ;
+rule = identifier , "=" , expression , ";" ;
+@endebnf

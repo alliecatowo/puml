@@ -10,10 +10,18 @@ Legend:
 - `missing`: not implemented in current `puml`
 
 Current `puml` baseline used for parity status:
+
+Staleness note, 2026-05-17: this surface inventory is retained as historical planning input and contains older row-level baseline language. Use `docs/audits/plantuml_parity_source_of_truth.md` as the canonical current status, with `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` as aligned exports.
 - Sequence parsing/rendering is implemented.
 - Class/object/usecase families now have bootstrap parser + model + deterministic stub SVG routing.
 - Non-bootstrap families (`component`, `deployment`, `state`, `activity`, `timing`) return deterministic unsupported-family diagnostics with explicit family codes.
 - Preprocessor support currently focuses on `!include` (local path), `!define`, `!undef`, and deterministic include safety checks.
+
+Audit evidence update, 2026-05-16:
+- Core UML broad partials now include class-like declarations (`interface`, `enum`, `annotation`, `protocol`, `struct`, `abstract class`), object `map` declarations, use-case `actor` and parenthesized use-case declarations, component/deployment node primitives, state aliases/stereotypes/history/composite basics, and activity switch/case/split/goto/label/kill/detach parsing through deterministic render paths.
+- Sequence `!pragma teoz true` remains a compatibility boundary: accepted and rendered deterministically with the standard sequence layout, without PlantUML teoz-specific layout semantics.
+- Evidence anchors: `src/parser.rs::parses_core_uml_broad_partial_declaration_forms`, `src/parser.rs::parses_activity_switch_split_goto_and_terminal_controls`, and `tests/render_e2e.rs::render_core_uml_broad_partials_surface_expected_labels`.
+- Remaining gaps: semantic visual parity for advanced class/object/usecase stereotypes and packages, full activity branch layout semantics, full state pseudostate/entry-point breadth, and teoz-specific sequence layout.
 
 ## Class Family
 
@@ -22,9 +30,9 @@ Current `puml` baseline used for parity status:
 | Declarative element forms | Class-like declarations (`class`, `interface`, `enum`, etc.) | partial | Bootstrap supports `class` declarations/aliases only. | https://plantuml.com/class-diagram |
 | Relationship syntaxes | Inheritance, implementation, composition, aggregation, dependency links | partial | Bootstrap captures generic arrow relations; no semantic relation typing yet. | https://plantuml.com/class-diagram |
 | Relation labels and cardinality | Labeled links, cardinalities, directional labels | partial | Simple `: label` relation text is preserved; cardinality semantics are absent. | https://plantuml.com/class-diagram |
-| Attributes/methods | Fields, methods, grouped class bodies | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
-| Visibility markers | `+ - # ~` visibility and class visibility controls | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
-| Abstract/static/interface semantics | Abstract/static members, interfaces, abstract classes | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
+| Attributes/methods | Fields, methods, grouped class bodies | partial | Member blocks and modifier markers are preserved; semantic grouping/render parity remains narrower. | https://plantuml.com/class-diagram |
+| Visibility markers | `+ - # ~` visibility and class visibility controls | partial | Visibility text is preserved and rendered; full PlantUML visibility controls remain narrower. | https://plantuml.com/class-diagram |
+| Abstract/static/interface semantics | Abstract/static members, interfaces, abstract classes | partial | Member modifiers plus broad declaration markers are preserved; full semantic rendering remains narrower. | https://plantuml.com/class-diagram |
 | Notes/stereotypes | Notes on classes, links, fields, methods; stereotype rendering | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
 | Hide/remove controls | Hide/remove members/classes/tags/wildcards | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
 | Packages/namespaces | Package and namespace blocks, automatic package creation | missing | Non-sequence families are rejected. | https://plantuml.com/class-diagram |
@@ -37,8 +45,8 @@ Current `puml` baseline used for parity status:
 | Object declarations | Object instances and aliases | partial | Bootstrap supports `object` declarations/aliases. | https://plantuml.com/object-diagram |
 | Object relations | Links between object instances | partial | Bootstrap captures generic object relation arrows and labels. | https://plantuml.com/object-diagram |
 | Object associations | Association-style object links | partial | Association-like arrows are captured as generic relations only. | https://plantuml.com/object-diagram |
-| Object fields | Adding attributes/fields to objects | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
-| Map/associative-array syntax | Map table support in object diagrams | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
+| Object fields | Adding attributes/fields to objects | partial | Object member blocks are parsed and rendered deterministically. | https://plantuml.com/object-diagram |
+| Map/associative-array syntax | Map table support in object diagrams | partial | `map` declarations route as object-family broad partials; full table/map semantics remain narrower. | https://plantuml.com/object-diagram |
 | PERT via map | PERT-style map usage in object surface | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
 | JSON display crossover | JSON display support on class/object pages | missing | Non-sequence families are rejected. | https://plantuml.com/object-diagram |
 
@@ -46,7 +54,7 @@ Current `puml` baseline used for parity status:
 
 | Feature | PlantUML surface | `puml` status | Notes | Source |
 |---|---|---|---|---|
-| Actor/usecase declarations | Actor and use case declarations | partial | Bootstrap supports `usecase` declarations/aliases (actor forms still missing). | https://plantuml.com/use-case-diagram |
+| Actor/usecase declarations | Actor and use case declarations | partial | Bootstrap supports `usecase`, parenthesized use-case, and actor declarations/aliases. | https://plantuml.com/use-case-diagram |
 | Actor styles | Actor visual style variants | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
 | Usecase descriptions | Use case text/description forms | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
 | Packaging | Use case packages/boundaries | missing | Non-sequence families are rejected. | https://plantuml.com/use-case-diagram |
@@ -108,13 +116,13 @@ Current `puml` baseline used for parity status:
 
 | Feature | PlantUML surface | `puml` status | Notes | Source |
 |---|---|---|---|---|
-| New syntax actions | Simple/list actions and flow syntax | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
-| Start/stop/end | Start/end markers and flow termination | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
-| If/then/else | Conditional branching blocks | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
-| Switch/case | Switch/case/endswitch constructs | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
+| New syntax actions | Simple/list actions and flow syntax | partial | Action nodes render deterministically; full branch/arrow semantics remain narrower. | https://plantuml.com/activity-diagram-beta |
+| Start/stop/end | Start/end markers and flow termination | partial | Start/stop/end plus kill/detach terminal controls parse/render through baseline shapes. | https://plantuml.com/activity-diagram-beta |
+| If/then/else | Conditional branching blocks | partial | If/else/endif parse and render as deterministic decision/merge nodes. | https://plantuml.com/activity-diagram-beta |
+| Switch/case | Switch/case/endswitch constructs | partial | Switch/case/endswitch parse via deterministic decision/merge broad partials. | https://plantuml.com/activity-diagram-beta |
 | Repeat/while loops | Repeat/while plus loop controls (`break`) | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
-| Goto/label | Label and goto processing | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
-| Parallel/split processing | Fork/fork again/end fork/end merge and split processing | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
+| Goto/label | Label and goto processing | partial | Labels and gotos are preserved as deterministic action labels; control-flow semantics remain absent. | https://plantuml.com/activity-diagram-beta |
+| Parallel/split processing | Fork/fork again/end fork/end merge and split processing | partial | Fork and split tokens parse/render through baseline fork bars; full parallel layout semantics remain narrower. | https://plantuml.com/activity-diagram-beta |
 | Notes/connectors/arrows | Notes, connector circles, line/arrow styling | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
 | Partition/swimlanes | Grouping partitions and swimlanes | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |
 | Kill/detach | Activity stop controls (`kill`, `detach`) | missing | Non-sequence families are rejected. | https://plantuml.com/activity-diagram-beta |

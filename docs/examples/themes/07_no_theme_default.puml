@@ -1,0 +1,7 @@
+@startuml
+title Default Theme (no !theme directive)
+actor User
+participant App
+User -> App: action
+App --> User: result
+@enduml

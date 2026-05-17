@@ -1,0 +1,15 @@
+@startuml
+robust "Server" as S
+robust "Client" as C
+@0
+S is Idle
+C is Idle
+@50
+C is Connecting
+@100
+S is Connected
+C is Connected
+@200
+S is Idle
+C is Idle
+@enduml

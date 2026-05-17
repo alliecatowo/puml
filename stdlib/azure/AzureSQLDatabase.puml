@@ -1,0 +1,6 @@
+' Deterministic Azure SQL Database compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureSQLDatabase($alias, $label="", $descr="")
+AzureIcon($alias, AzureSQLDatabase, $label, $descr)
+!endprocedure

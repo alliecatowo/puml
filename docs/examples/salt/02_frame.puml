@@ -1,0 +1,8 @@
+@startsalt
+{+
+  Login Form
+  Name: | "           "
+  Pass: | "           "
+  [Login]
+}
+@endsalt

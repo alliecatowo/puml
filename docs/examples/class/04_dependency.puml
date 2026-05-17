@@ -1,0 +1,7 @@
+@startuml
+class OrderService
+class PaymentGateway
+class EmailService
+OrderService --> PaymentGateway : uses
+OrderService --> EmailService : notifies
+@enduml

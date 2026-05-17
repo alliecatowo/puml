@@ -1,0 +1,7 @@
+@startarchimate
+Application_Component(web, "Web App")
+Technology_Node(api, "API Server")
+Data_Object(db, "Database")
+Rel_Serving(api, web, "calls")
+Rel_Access(api, db, "reads/writes")
+@endarchimate

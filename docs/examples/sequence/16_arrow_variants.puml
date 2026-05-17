@@ -1,0 +1,13 @@
+@startuml
+title Arrow Variants
+Alice -> Bob: synchronous
+Alice ->> Bob: thin arrow  
+Alice --> Bob: dashed
+Alice -->> Bob: dashed thin
+Bob <- Alice: reverse sync
+Bob <<- Alice: reverse thin
+Alice ->o Bob: circle endpoint
+Alice ->x Bob: cross endpoint
+Alice <-> Bob: bidirectional
+Alice <--> Bob: dashed bidirectional
+@enduml

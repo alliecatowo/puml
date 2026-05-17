@@ -1,4 +1,4 @@
 @startuml
-!assert %true() : unsupported builtin in deterministic subset
+!assert %nosuchbuiltin() : unknown builtin must surface deterministic diagnostic
 Alice -> Bob: unreachable
 @enduml

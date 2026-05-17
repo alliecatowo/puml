@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 chart-bar icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_CHART_BAR($alias, $label="chart_bar", $descr="")
+FontAwesomeIcon($alias, fa5_chart_bar, $label, $descr)
+!endprocedure

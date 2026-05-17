@@ -1,0 +1,12 @@
+@startuml
+participant Browser
+participant ReactApp
+participant API
+participant DB
+Browser -> ReactApp: click
+ReactApp -> API: fetch /data
+API -> DB: SELECT
+DB --> API: rows
+API --> ReactApp: JSON
+ReactApp --> Browser: render
+@enduml

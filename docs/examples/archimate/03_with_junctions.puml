@@ -1,0 +1,7 @@
+@startarchimate
+Application_Service(service_a, "Service A")
+Application_Service(service_b, "Service B")
+Application_Service(service_c, "Service C")
+Rel_Flow(service_a, service_b, "routes")
+Rel_Flow(service_b, service_c, "routes")
+@endarchimate

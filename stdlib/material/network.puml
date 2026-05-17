@@ -1,0 +1,6 @@
+' Deterministic Material network icon stub.
+!include <material/common>
+
+!procedure MA_NETWORK($alias, $label="network", $descr="")
+MaterialIcon($alias, network, $label, $descr)
+!endprocedure

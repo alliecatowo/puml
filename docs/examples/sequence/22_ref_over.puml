@@ -1,0 +1,9 @@
+@startuml
+title Ref Over Multiple Participants
+Alice -> Bob: request
+ref over Alice, Bob, Charlie
+  See authentication flow
+  in diagram AUTH-001
+end ref
+Bob --> Alice: response
+@enduml

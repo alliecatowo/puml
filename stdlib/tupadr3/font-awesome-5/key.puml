@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 key icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_KEY($alias, $label="key", $descr="")
+FontAwesomeIcon($alias, fa5_key, $label, $descr)
+!endprocedure

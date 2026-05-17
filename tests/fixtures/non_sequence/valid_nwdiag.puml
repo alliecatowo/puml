@@ -1,0 +1,11 @@
+@startnwdiag
+network dmz {
+    address = "10.0.0.0/24"
+    web01 [address = "10.0.0.10"]
+    web02 [address = "10.0.0.11"]
+}
+network internal {
+    address = "10.1.0.0/24"
+    db01 [address = "10.1.0.10"]
+}
+@endnwdiag

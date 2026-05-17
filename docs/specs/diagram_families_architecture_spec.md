@@ -15,10 +15,10 @@ In scope:
 - Public family routing contract in core API.
 - Shared IR envelope between parser/normalizer and family layout engines.
 - Family layout-engine interface and deterministic behavior contract.
-- Error boundary for unsupported families during sequence-first rollout.
+- Error boundary for unsupported families during staged parity rollout.
 
-Out of scope:
-- Full non-sequence parser semantics.
+Out of scope (current scaffold slice):
+- Additional family-specific semantics not yet implemented in each active lane.
 - Concrete class/state/activity renderers.
 - Plugin/editor protocol changes.
 
@@ -33,8 +33,8 @@ Pipeline target:
 5. Render scene(s) into SVG.
 
 Current rollout state:
-- Sequence family: fully implemented path.
-- Non-sequence families: recognized at API boundary, rejected with deterministic unsupported-family diagnostics.
+- Sequence family: stable baseline path with active parity hardening.
+- Additional families: routed by family-aware APIs and currently in progressive parity lanes; unsupported families return deterministic diagnostics until implemented.
 
 ## Shared IR Boundary
 

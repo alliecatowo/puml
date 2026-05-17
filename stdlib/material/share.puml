@@ -1,0 +1,6 @@
+' Deterministic Material share icon stub.
+!include <material/common>
+
+!procedure MA_SHARE($alias, $label="share", $descr="")
+MaterialIcon($alias, share, $label, $descr)
+!endprocedure

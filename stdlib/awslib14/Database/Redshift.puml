@@ -1,0 +1,6 @@
+' Deterministic AWS Redshift compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Redshift($alias, $label="", $descr="")
+AWSIcon($alias, Redshift, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic Azure Virtual Machine compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureVM($alias, $label="", $descr="")
+AzureIcon($alias, AzureVM, $label, $descr)
+!endprocedure

@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 plug icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_PLUG($alias, $label="plug", $descr="")
+FontAwesomeIcon($alias, fa5_plug, $label, $descr)
+!endprocedure

@@ -1,0 +1,9 @@
+@startuml
+class UserController <<controller>>
+class UserService <<service>>
+class UserRepository <<repository>>
+class User <<entity>>
+UserController --> UserService : delegates
+UserService --> UserRepository : persists
+UserRepository --> User : maps
+@enduml

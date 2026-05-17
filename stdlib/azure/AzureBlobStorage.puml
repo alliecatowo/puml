@@ -1,0 +1,6 @@
+' Deterministic Azure Blob Storage compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureBlobStorage($alias, $label="", $descr="")
+AzureIcon($alias, AzureBlobStorage, $label, $descr)
+!endprocedure

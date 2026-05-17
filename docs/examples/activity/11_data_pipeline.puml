@@ -1,0 +1,19 @@
+@startuml
+title Data Pipeline
+start
+:Ingest Raw Data;
+fork
+  :Validate Schema;
+fork again
+  :Check Duplicates;
+end fork
+if (All checks pass?) then (yes)
+  :Transform Data;
+  :Enrich;
+  :Load to Warehouse;
+else (no)
+  :Quarantine;
+  :Alert;
+endif
+stop
+@enduml

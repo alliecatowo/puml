@@ -1,0 +1,8 @@
+@startjson
+{
+  "name": "puml",
+  "version": 1,
+  "active": true,
+  "tags": ["alpha", "beta"]
+}
+@endjson

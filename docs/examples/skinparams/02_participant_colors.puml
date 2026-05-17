@@ -1,0 +1,6 @@
+@startuml
+skinparam participantBackgroundColor #e8f4f8
+skinparam participantBorderColor #2196f3
+Alice -> Bob: styled participants
+Bob --> Alice: response
+@enduml

@@ -1,0 +1,10 @@
+@startuml
+title Return Shorthand
+Alice -> Bob: authenticate()
+activate Bob
+Bob -> Cache: lookup()
+activate Cache
+return hit
+Bob -> Alice: token
+deactivate Bob
+@enduml

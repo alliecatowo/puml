@@ -1,0 +1,6 @@
+' Deterministic AWS S3 compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure S3($alias, $label="", $descr="")
+AWSIcon($alias, S3, $label, $descr)
+!endprocedure

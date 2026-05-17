@@ -1,0 +1,9 @@
+@startuml
+hide unlinked
+box "External"
+participant Alice
+participant Bob
+end box
+participant Unused
+Alice -> Bob: hi
+@enduml

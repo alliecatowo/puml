@@ -1,0 +1,5 @@
+@startebnf
+program = { statement } ;
+statement = assignment | conditional | loop ;
+assignment = identifier "=" expression ";" ;
+@endebnf

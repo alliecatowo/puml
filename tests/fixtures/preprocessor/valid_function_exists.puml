@@ -1,0 +1,8 @@
+@startuml
+!function MyFn($x)
+!return $x
+!endfunction
+!if %function_exists("MyFn") == "true"
+A -> B : exists
+!endif
+@enduml

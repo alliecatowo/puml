@@ -1,0 +1,15 @@
+@startmindmap
+* Learning Rust
+** Ownership
+*** Borrowing
+*** Lifetimes
+** Traits
+*** Generics
+*** Associated Types
+** Async
+*** Tokio
+*** Futures
+** Tools
+*** Cargo
+*** Clippy
+@endmindmap

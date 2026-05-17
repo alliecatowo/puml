@@ -1,0 +1,7 @@
+@startuml
+(*) --> "Init"
+#gold:Compile;
+#lightblue:Test;
+#lightgreen:Deploy;
+"Deploy" --> (*)
+@enduml

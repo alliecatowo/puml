@@ -1,0 +1,6 @@
+' Deterministic GCP BigQuery compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure BigQuery($alias, $label="", $descr="")
+GCPIcon($alias, BigQuery, $label, $descr)
+!endprocedure

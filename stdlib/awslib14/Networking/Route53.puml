@@ -1,0 +1,6 @@
+' Deterministic AWS Route53 compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Route53($alias, $label="", $descr="")
+AWSIcon($alias, Route53, $label, $descr)
+!endprocedure

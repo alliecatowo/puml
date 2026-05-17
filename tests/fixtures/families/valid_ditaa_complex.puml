@@ -1,0 +1,18 @@
+@startditaa
++----------+
+|  Client  |
+|  cBLU    |
++----------+
+     |
+     v
++----------+
+|  Server  |
+|  cGRE    |
++----------+
+     |
+     v
++----------+
+| Database |
+|  cYEL    |
++----------+
+@endditaa

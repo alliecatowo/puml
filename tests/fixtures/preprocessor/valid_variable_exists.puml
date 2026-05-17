@@ -1,0 +1,9 @@
+@startuml
+!$myvar = set
+!if %variable_exists("myvar") == "true"
+A -> B : variable exists
+!endif
+!if %variable_exists("notset") == "false"
+A -> B : notset absent
+!endif
+@enduml

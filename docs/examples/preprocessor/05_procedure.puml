@@ -1,0 +1,10 @@
+@startuml
+!function Echo($x)
+  !return $x
+!endfunction
+!procedure Emit($x)
+  !log inside procedure
+!endprocedure
+!assert true : should pass
+Alice -> Bob: %Echo("hello")
+@enduml

@@ -1,0 +1,10 @@
+@startuml
+!theme spacelab
+participant Auth
+participant Orders
+participant Client
+Client -> Auth: login
+Auth --> Client: token
+Client -> Orders: get orders
+Orders --> Client: list
+@enduml

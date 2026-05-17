@@ -1,0 +1,13 @@
+' PicoUML stdlib stub — Office icon macros
+
+!procedure OFFICE_ICON($alias, $label, $icon="office")
+object $label as $alias <<office-$icon>>
+!endprocedure
+
+!procedure OFF_ICON($alias, $label, $icon="office")
+object $label as $alias <<office-$icon>>
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure

@@ -1,0 +1,10 @@
+@startsalt
+{
+  Header
+  ..
+  Body content
+  ==
+  Footer
+  [OK]
+}
+@endsalt

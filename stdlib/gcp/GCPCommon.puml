@@ -1,5 +1,15 @@
-' Deterministic GCP stdlib compatibility stub.
-!procedure GCPIcon($alias, $service, $label="", $descr="")
-participant $alias
-$alias -> $alias : [GCP $service] $label
+' Merged GCP stdlib compatibility surface.
+
+!procedure GCPIcon($alias, $service_or_label, $label_or_technology="", $descr="")
+object $service_or_label as $alias <<gcp-$label_or_technology>>
+!endprocedure
+
+!procedure GCPGroupColoring($groupDefinition, $bgColor, $fontColor, $borderColor)
+!endprocedure
+
+!procedure Rel($from, $to, $label)
+$from --> $to : $label
+!endprocedure
+
+!procedure LAYOUT_WITH_LEGEND()
 !endprocedure

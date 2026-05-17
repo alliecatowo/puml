@@ -1,0 +1,10 @@
+@startuml
+class Customer
+class Order
+class Invoice
+class API
+class DB
+Customer "1" -- "*" Order : places
+Order "1" o-- "0..1" Invoice : may-generate
+API "1" --> "*" DB : reads
+@enduml

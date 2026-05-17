@@ -1,0 +1,8 @@
+@startuml
+title Service Topology
+component API
+interface Gateway
+component Worker
+API --> Gateway : depends
+Worker --> API : posts
+@enduml

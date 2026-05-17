@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons jenkins stub.
+!include <tupadr3/common>
+
+!procedure DEV_JENKINS($alias, $label="jenkins", $descr="")
+FontAwesomeIcon($alias, devicons_jenkins, $label, $descr)
+!endprocedure

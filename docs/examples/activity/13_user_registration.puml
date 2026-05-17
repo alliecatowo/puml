@@ -1,0 +1,24 @@
+@startuml
+title User Registration
+start
+:Enter Details;
+:Validate Input;
+if (Valid?) then (yes)
+  :Check Email Unique;
+  if (Unique?) then (yes)
+    :Create Account;
+    :Send Verification;
+    :Wait for Confirm;
+    if (Confirmed?) then (yes)
+      :Activate Account;
+    else (no)
+      :Resend Email;
+    endif
+  else (no)
+    :Show Error;
+  endif
+else (no)
+  :Show Validation Errors;
+endif
+stop
+@enduml

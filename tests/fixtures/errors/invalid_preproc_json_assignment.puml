@@ -1,4 +1,4 @@
 @startuml
-!$foo = { "name": "John" }
+!$foo { "name": "John" }
 Alice -> Bob: unreachable
 @enduml

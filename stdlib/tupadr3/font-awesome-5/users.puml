@@ -1,0 +1,6 @@
+' Deterministic Font Awesome 5 users icon stub.
+!include <tupadr3/common>
+
+!procedure FA5_USERS($alias, $label="users", $descr="")
+FontAwesomeIcon($alias, fa5_users, $label, $descr)
+!endprocedure

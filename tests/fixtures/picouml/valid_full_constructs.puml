@@ -1,0 +1,23 @@
+@startpicouml
+actor "Alice" as A
+boundary B
+control C
+entity E
+database D
+
+A -> B : standard message
+A => B : sync call
+A ~> C : async signal
+
+note left A : left note shorthand
+note right B : right note shorthand
+
+group Main Flow / authentication
+A -> C : request
+C -> E : lookup
+end
+
+[/* this block comment should be stripped */]
+
+A -> D : store result
+@endpicouml

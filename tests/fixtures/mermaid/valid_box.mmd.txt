@@ -1,0 +1,6 @@
+sequenceDiagram
+box "Tier 1"
+participant A
+participant B
+end
+A->>B: ping

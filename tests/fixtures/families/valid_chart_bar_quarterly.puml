@@ -1,0 +1,7 @@
+@startchart bar
+title Quarterly Revenue
+"Q1" : 10
+"Q2" : 15
+"Q3" : 25
+"Q4" : 18
+@endchart

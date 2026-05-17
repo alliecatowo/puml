@@ -1,0 +1,6 @@
+' Deterministic AWS API Gateway compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure APIGateway($alias, $label="", $descr="")
+AWSIcon($alias, APIGateway, $label, $descr)
+!endprocedure

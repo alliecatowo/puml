@@ -1,0 +1,6 @@
+' Deterministic Material data_object icon stub.
+!include <material/common>
+
+!procedure MA_DATA_OBJECT($alias, $label="data_object", $descr="")
+MaterialIcon($alias, data_object, $label, $descr)
+!endprocedure

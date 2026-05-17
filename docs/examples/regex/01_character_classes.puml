@@ -1,0 +1,6 @@
+@startregex
+[a-z]
+[A-Z0-9]
+\d+
+\w+
+@endregex

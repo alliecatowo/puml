@@ -1,0 +1,6 @@
+' Deterministic Azure Cosmos DB compatibility stub.
+!include <azure/AzureCommon>
+
+!procedure AzureCosmosDB($alias, $label="", $descr="")
+AzureIcon($alias, AzureCosmosDB, $label, $descr)
+!endprocedure

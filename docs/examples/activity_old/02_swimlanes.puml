@@ -1,0 +1,10 @@
+@startuml
+|Build|
+(*) --> "Init"
+:Compile;
+|Test|
+--> "Run Tests"
+|Deploy|
+--> "Deploy"
+"Deploy" --> (*)
+@enduml

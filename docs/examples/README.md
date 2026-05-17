@@ -1,33 +1,29 @@
 # Docs Examples Corpus
 
-This markdown is the canonical top-layer docs parity source for `scripts/parity_harness.py`.
+This directory is the canonical docs-as-tests corpus consumed by `scripts/parity_harness.py`.
 
-## Canonical Pages
+## Corpus location and size
 
-- [Top-level corpus](README.md)
-- [Sequence canonical examples](sequence/README.md)
-- [Supported primitives matrix](supported_primitives.md)
+- Root: `docs/examples/`
+- Diagram sources: `254` `*.puml` files
+- Render artifacts: `258` `*.svg` files
+- Additional docs/index files are also present in this tree
 
-## Linked Source Files
+## Primary indexes
 
-- [basic_hello.puml](basic_hello.puml) -> [basic_hello.svg](basic_hello.svg)
-- [groups_notes.puml](groups_notes.puml) -> [groups_notes.svg](groups_notes.svg)
-- [lifecycle_autonumber.puml](lifecycle_autonumber.puml) -> [lifecycle_autonumber.svg](lifecycle_autonumber.svg)
-- [supported_primitives_participants_messages.puml](supported_primitives_participants_messages.puml) -> [supported_primitives_participants_messages.svg](supported_primitives_participants_messages.svg)
-- [supported_primitives_lifecycle_structure.puml](supported_primitives_lifecycle_structure.puml) -> [supported_primitives_lifecycle_structure.svg](supported_primitives_lifecycle_structure.svg)
-- [supported_primitives_styling_groups_notes.puml](supported_primitives_styling_groups_notes.puml) -> [supported_primitives_styling_groups_notes.svg](supported_primitives_styling_groups_notes.svg)
-- [supported_primitives.md](supported_primitives.md)
+- [GALLERY.md](GALLERY.md): family-by-family browse index for examples and renders
+- [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md): current behavior gaps (feature-depth limits, not family rejection)
+- [supported_primitives.md](supported_primitives.md): primitive-level quick reference
 
-## Inline Snippet
+## Coverage summary (high level)
 
-The harness also discovers fenced snippets and expects an artifact named `<markdown-stem>_snippet_<n>.svg`.
+| Area | Status |
+|---|---|
+| Core UML families (sequence/class/object/usecase/component/deployment/state/activity/timing) | Implemented with mixed depth (`implemented` + `partial` features) |
+| Non-UML families (gantt/chronology/salt/mindmap/wbs/json/yaml/nwdiag/archimate/regex/ebnf/chart/math/sdl/ditaa) | Implemented baseline render paths; deeper semantics vary by family |
+| Preprocessor/themes/skinparams/creole | Broad support with deterministic boundaries and documented partial areas |
 
-```puml
-@startuml
-participant Web
-participant API
+## Notes
 
-Web -> API: GET /health
-API --> Web: 200 OK
-@enduml
-```
+- This corpus is intentionally larger than minimal fixtures; it is used as executable documentation evidence.
+- When behavior changes, update the corresponding `.svg` artifacts in the same change.

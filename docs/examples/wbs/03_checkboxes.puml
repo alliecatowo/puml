@@ -1,0 +1,11 @@
+@startwbs
+* Sprint 5 Tasks
+** Backend
+*** [x] User endpoint
+*** [x] Auth middleware
+*** [ ] Order endpoint
+** Frontend
+*** [x] Login page
+*** [ ] Dashboard
+*** [ ] Settings page
+@endwbs

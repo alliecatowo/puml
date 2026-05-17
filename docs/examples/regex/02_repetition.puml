@@ -1,0 +1,7 @@
+@startregex
+a*
+b+
+c?
+d{3}
+e{2,5}
+@endregex

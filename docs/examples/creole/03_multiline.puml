@@ -1,0 +1,9 @@
+@startuml
+Alice -> Bob: line one\nline two\nline three
+note right of Bob
+  Multiline
+  note content
+  third line
+end note
+Bob --> Alice: done
+@enduml

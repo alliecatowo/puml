@@ -1,0 +1,10 @@
+@startuml
+skinparam footbox hide
+skinparam lifelineBorderColor #cccccc
+skinparam participantBackgroundColor #ffffff
+skinparam participantBorderColor #999999
+skinparam arrowColor #555555
+title Minimal Style
+Alice -> Bob: clean
+Bob --> Alice: simple
+@enduml

@@ -1,0 +1,6 @@
+' Deterministic GCP Cloud Load Balancing compatibility stub.
+!include <gcp/GCPCommon>
+
+!procedure CloudLoadBalancing($alias, $label="", $descr="")
+GCPIcon($alias, CloudLoadBalancing, $label, $descr)
+!endprocedure

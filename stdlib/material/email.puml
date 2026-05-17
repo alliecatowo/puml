@@ -1,0 +1,6 @@
+' Deterministic Material email icon stub.
+!include <material/common>
+
+!procedure MA_EMAIL($alias, $label="email", $descr="")
+MaterialIcon($alias, email, $label, $descr)
+!endprocedure

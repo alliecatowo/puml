@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons apple stub.
+!include <tupadr3/common>
+
+!procedure DEV_APPLE($alias, $label="apple", $descr="")
+FontAwesomeIcon($alias, devicons_apple, $label, $descr)
+!endprocedure

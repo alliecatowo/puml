@@ -1,0 +1,8 @@
+@startsdl
+title Basic SDL Process
+start Idle
+state Processing
+stop Done
+Idle -> Processing : signal
+Processing -> Done : response
+@endsdl

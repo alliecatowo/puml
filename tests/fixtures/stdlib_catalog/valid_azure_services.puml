@@ -1,0 +1,21 @@
+@startuml
+!include <azure/AzureFunction>
+!include <azure/AzureSQLDatabase>
+!include <azure/AzureCosmosDB>
+!include <azure/AzureVM>
+!include <azure/AzureBlobStorage>
+!include <azure/AzureKubernetesService>
+!include <azure/AzureKeyVault>
+!include <azure/AzureServiceBus>
+AzureFunction(fn, "ProcessOrder", "Timer Trigger")
+AzureSQLDatabase(sql, "Orders DB", "S3 tier")
+AzureCosmosDB(cosmos, "Events Store", "Serverless")
+AzureVM(vm, "Worker VM", "D2s_v3")
+AzureBlobStorage(blob, "Media Storage", "Cool tier")
+AzureKubernetesService(aks, "App Cluster", "v1.28")
+AzureKeyVault(kv, "Secrets", "Standard")
+AzureServiceBus(sb, "Message Bus", "Standard")
+fn -> sql : writes
+fn -> sb : publishes
+aks -> cosmos : reads
+@enduml

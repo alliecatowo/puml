@@ -1,0 +1,6 @@
+' Deterministic Material queue icon stub.
+!include <material/common>
+
+!procedure MA_QUEUE($alias, $label="queue", $descr="")
+MaterialIcon($alias, queue, $label, $descr)
+!endprocedure

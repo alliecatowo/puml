@@ -1,0 +1,7 @@
+@startuml
+|#lightblue|Client|
+(*) --> "Request"
+|#lightyellow|Server|
+"Request" --> "Process"
+"Process" --> (*)
+@enduml

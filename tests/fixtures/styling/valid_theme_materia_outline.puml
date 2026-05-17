@@ -1,0 +1,5 @@
+@startuml
+!theme materia-outline
+Alice -> Bob: Material outline
+Bob --> Alice: Response
+@enduml

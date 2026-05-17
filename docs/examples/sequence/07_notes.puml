@@ -1,0 +1,9 @@
+@startuml
+Alice -> Bob: request
+note right of Bob: server routing
+Bob -> Carol: delegate
+note over Bob, Carol: internal exchange
+Carol --> Bob: response
+Bob --> Alice: reply
+note over Alice: client received
+@enduml

@@ -1,0 +1,16 @@
+@startuml
+title Hide Options
+hide circle
+hide stereotype
+hide empty members
+
+class Visible {
+  +name: String
+}
+class Empty
+class WithMembers {
+  -secret: Int
+}
+
+Visible --> Empty
+@enduml

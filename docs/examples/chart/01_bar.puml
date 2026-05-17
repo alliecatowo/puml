@@ -1,0 +1,7 @@
+@startchart
+bar chart
+  Q1 : 42
+  Q2 : 58
+  Q3 : 73
+  Q4 : 91
+@endchart

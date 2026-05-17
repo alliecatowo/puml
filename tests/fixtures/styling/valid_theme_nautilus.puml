@@ -1,0 +1,5 @@
+@startuml
+!theme nautilus
+Alice -> Bob: Deep blue teal
+Bob --> Alice: Nautilus response
+@enduml

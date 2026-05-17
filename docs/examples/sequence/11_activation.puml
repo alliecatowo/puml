@@ -1,0 +1,10 @@
+@startuml
+Alice -> Bob: call
+activate Bob
+Bob -> Carol: sub-call
+activate Carol
+Carol --> Bob: result
+deactivate Carol
+Bob --> Alice: response
+deactivate Bob
+@enduml

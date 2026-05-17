@@ -1,0 +1,9 @@
+@startuml
+[*] --> Draft
+Draft --> Submitted : submit()
+Submitted --> Approved : approve()
+Submitted --> Rejected : reject()
+Approved --> Published : publish()
+Rejected --> Draft : revise()
+Published --> [*]
+@enduml

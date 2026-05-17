@@ -1,0 +1,6 @@
+' Deterministic Material schedule icon stub.
+!include <material/common>
+
+!procedure MA_SCHEDULE($alias, $label="schedule", $descr="")
+MaterialIcon($alias, schedule, $label, $descr)
+!endprocedure

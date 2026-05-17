@@ -1,0 +1,11 @@
+@startuml
+state Processing {
+  state "Parsing" as Parse
+  state "Validating" as Validate
+  ||
+  state "Logging" as Log
+  state "Auditing" as Audit
+}
+[*] --> Processing
+Processing --> [*]
+@enduml

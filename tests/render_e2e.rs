@@ -3,7 +3,6 @@ use puml::model::{
     Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
 };
 use puml::scene::LayoutOptions;
-use puml::theme::SequenceStyle;
 use puml::{
     extract_markdown_diagrams, layout, parse_with_pipeline_options, render, FrontendSelection,
     ParsePipelineOptions,
@@ -40,6 +39,74 @@ fn render_svg_pragma_teoz_boundary_keeps_sequence_render_output_stable() {
     let pragma_svg = puml::render_source_to_svg(with_pragma).expect("pragma render");
 
     assert_eq!(base_svg, pragma_svg);
+}
+
+#[test]
+fn render_core_uml_broad_partials_surface_expected_labels() {
+    let cases = [
+        (
+            "class",
+            "@startuml\ninterface Gateway\nabstract class Shape\nGateway -[#blue,dashed]-> Shape : adapts\n@enduml\n",
+            vec!["Gateway", "&lt;&lt;interface&gt;&gt;", "Shape", "adapts"],
+        ),
+        (
+            "object",
+            "@startuml\nmap Settings {\n  theme => light\n}\nobject Runtime\nSettings --> Runtime : configures\n@enduml\n",
+            vec![
+                "Settings",
+                "&lt;&lt;map&gt;&gt;",
+                "theme =&gt; light",
+                "configures",
+            ],
+        ),
+        (
+            "usecase",
+            "@startuml\nactor Customer as C\nusecase (Login) as UC1\nC ..> UC1 : <<include>>\n@enduml\n",
+            vec!["Customer", "&lt;&lt;actor&gt;&gt;", "Login", "&lt;&lt;include&gt;&gt;"],
+        ),
+        (
+            "activity",
+            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ngoto retry\nbackward: retry path;\nkill\n@enduml\n",
+            vec![
+                "switch kind?",
+                "(else) A",
+                "Do A",
+                "branch 2",
+                "goto retry",
+                "backward retry path",
+            ],
+        ),
+        (
+            "state",
+            "@startuml\nstate Waiting as W\nstate Choice <<choice>>\nstate Done <<end>>\n[*] --> W : begin\nW --> Choice : choose\nChoice --> Done : ok\n@enduml\n",
+            vec!["Waiting", "begin", "choose", "ok"],
+        ),
+    ];
+
+    for (name, src, expected) in cases {
+        let svg = puml::render_source_to_svg(src).unwrap_or_else(|err| {
+            panic!("{name} broad partial should render, got {}", err.message)
+        });
+        for needle in expected {
+            assert!(
+                svg.contains(needle),
+                "{name} render should contain `{needle}`"
+            );
+        }
+    }
+}
+
+#[test]
+fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
+    let src = "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("decorated sequence render");
+
+    assert!(svg.contains("styled"));
+    assert!(svg.contains("hidden"));
+    assert!(svg.contains("<polygon points=\""));
+    assert!(svg.contains("stroke=\"#ff0000\""));
+    assert!(svg.contains("stroke-dasharray=\"6 4\""));
+    assert!(svg.contains("visibility=\"hidden\""));
 }
 
 #[test]
@@ -207,6 +274,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("found".to_string()),
+                    style: Default::default(),
                     from_virtual: Some(puml::model::VirtualEndpoint {
                         side: puml::model::VirtualEndpointSide::Left,
                         kind: puml::model::VirtualEndpointKind::Filled,
@@ -221,6 +289,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "A".to_string(),
                     arrow: "->".to_string(),
                     label: Some("self".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: None,
                 },
@@ -232,6 +301,7 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "[*]".to_string(),
                     arrow: "->".to_string(),
                     label: Some("lost".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: Some(puml::model::VirtualEndpoint {
                         side: puml::model::VirtualEndpointSide::Right,
@@ -246,20 +316,13 @@ fn render_svg_handles_self_found_lost_and_modifiers() {
                     to: "B".to_string(),
                     arrow: "-->".to_string(),
                     label: Some("modifier-syntax-safe".to_string()),
+                    style: Default::default(),
                     from_virtual: None,
                     to_virtual: None,
                 },
             },
         ],
-        title: None,
-        header: None,
-        footer: None,
-        caption: None,
-        legend: None,
-        skinparams: vec![],
-        style: SequenceStyle::default(),
-        footbox_visible: true,
-        warnings: vec![],
+        ..puml::model::SequenceDocument::default()
     };
     let scene = layout::layout(&doc, LayoutOptions::default());
     let first = render::render_svg(&scene);

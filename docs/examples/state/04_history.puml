@@ -1,0 +1,8 @@
+@startuml
+[*] --> Active
+Active --> [H]
+[H] --> Running
+[H*] --> Paused
+Running --> Paused : pause
+Paused --> Running : resume
+@enduml

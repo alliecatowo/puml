@@ -1,0 +1,4 @@
+@startregex
+cat|dog
+(foo|bar)+
+@endregex

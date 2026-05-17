@@ -1,0 +1,6 @@
+@startuml
+!function $Greet($name)
+!return hi $name
+!endfunction
+A -> B : %call_user_func("$Greet", Bob)
+@enduml

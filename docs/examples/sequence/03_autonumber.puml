@@ -1,0 +1,7 @@
+@startuml
+autonumber
+Alice -> Bob: request
+Bob -> Carol: forward
+Carol --> Bob: ack
+Bob --> Alice: done
+@enduml

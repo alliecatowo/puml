@@ -1,0 +1,7 @@
+@startarchimate
+archimate "Customer" as cust <<motivation>>
+archimate "Order Service" as svc <<application>>
+archimate "Database" as db <<technology>>
+Rel_Serving(svc, cust, "serves")
+Rel_Realization(db, svc)
+@endarchimate

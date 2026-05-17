@@ -1,0 +1,25 @@
+@startuml
+title Purchase Flow
+start
+:Add to Cart;
+:View Cart;
+if (Checkout?) then (yes)
+  :Enter Shipping;
+  :Select Payment;
+  if (Card?) then (yes)
+    :Process Card;
+  else (no, PayPal)
+    :Redirect PayPal;
+  endif
+  if (Payment OK?) then (yes)
+    :Create Order;
+    :Send Receipt;
+    :Fulfill Order;
+  else (no)
+    :Show Error;
+  endif
+else (no)
+  :Continue Shopping;
+endif
+stop
+@enduml

@@ -1,0 +1,13 @@
+@startuml
+!include <C4/C4_Container>
+title Data Platform Containers
+!Person(analyst, "Data Analyst")
+!Container(ingest, "Ingestion", "Kafka", "Streams events")
+!Container(transform, "Transform", "Spark", "Processes data")
+!Container(warehouse, "Warehouse", "BigQuery", "Stores results")
+!Container(viz, "Dashboard", "Looker", "Visualizes")
+!Rel(analyst, viz, "Queries")
+!Rel(ingest, transform, "Feeds")
+!Rel(transform, warehouse, "Loads")
+!Rel(viz, warehouse, "Reads")
+@enduml

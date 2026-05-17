@@ -1,0 +1,17 @@
+@startuml
+!include <C4/C4_Container>
+title Microservices Architecture
+!Person(client, "Client")
+!Container(gw, "API Gateway", "Kong", "Routes")
+!Container(users, "User Service", "Go", "Users")
+!Container(orders, "Order Service", "Java", "Orders")
+!Container(products, "Product Service", "Node.js", "Catalog")
+!System_Ext(db1, "User DB")
+!System_Ext(db2, "Order DB")
+!Rel(client, gw, "API calls")
+!Rel(gw, users, "Routes")
+!Rel(gw, orders, "Routes")
+!Rel(gw, products, "Routes")
+!Rel(users, db1, "Reads/writes")
+!Rel(orders, db2, "Reads/writes")
+@enduml

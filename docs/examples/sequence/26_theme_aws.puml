@@ -1,0 +1,8 @@
+@startuml
+!theme aws-orange
+title AWS Theme
+Client -> Lambda: invoke
+Lambda -> DynamoDB: query
+DynamoDB --> Lambda: items
+Lambda --> Client: response
+@enduml

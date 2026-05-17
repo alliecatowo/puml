@@ -105,6 +105,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 to,
                 arrow,
                 label,
+                style,
                 from_virtual,
                 to_virtual,
             } => {
@@ -129,6 +130,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     arrow: arrow.clone(),
                     label,
                     label_lines,
+                    style: style.clone(),
                     from_virtual: *from_virtual,
                     to_virtual: *to_virtual,
                 });
@@ -157,6 +159,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         arrow: "-->".to_string(),
                         label,
                         label_lines,
+                        style: Default::default(),
                         from_virtual: None,
                         to_virtual: None,
                     });
@@ -394,6 +397,10 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         groups,
         structures,
         style: document.style.clone(),
+        scale: document.scale.clone(),
+        legend_text: document.legend.clone(),
+        legend_halign: document.legend_halign,
+        legend_valign: document.legend_valign,
     }
 }
 
@@ -920,7 +927,6 @@ mod tests {
         Participant, ParticipantRole, SequenceDocument, SequenceEvent, SequenceEventKind,
     };
     use crate::source::Span;
-    use crate::theme::SequenceStyle;
 
     #[test]
     fn return_event_with_ids_is_laid_out_with_default_centers_for_unknown_participants() {
@@ -939,15 +945,7 @@ mod tests {
                     to: Some("missing-to".to_string()),
                 },
             }],
-            title: None,
-            header: None,
-            footer: None,
-            caption: None,
-            legend: None,
-            skinparams: vec![],
-            style: SequenceStyle::default(),
-            footbox_visible: true,
-            warnings: vec![],
+            ..SequenceDocument::default()
         };
         let scene = layout(&doc, LayoutOptions::default());
         assert_eq!(scene.messages.len(), 1);

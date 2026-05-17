@@ -1,6 +1,9 @@
-' Deterministic AWS EC2 compatibility stub.
-!include <awslib14/AWSCommon>
+' Merged AWS EC2 compatibility surface.
 
-!procedure EC2($alias, $label="", $descr="")
-AWSIcon($alias, EC2, $label, $descr)
+!procedure EC2($alias, $label="", $description="")
+object $label as $alias <<aws-ec2>>
+!endprocedure
+
+!procedure EC2Spotfleet($alias, $label, $description="")
+object $label as $alias <<aws-ec2-spotfleet>>
 !endprocedure

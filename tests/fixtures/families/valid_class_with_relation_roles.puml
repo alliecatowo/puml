@@ -1,0 +1,5 @@
+@startuml
+class User
+class Order
+User [buyer] "1" --> "0..*" [items] Order : places
+@enduml

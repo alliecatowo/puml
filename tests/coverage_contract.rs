@@ -53,10 +53,10 @@ fn family_routing_stub_renders_class_deterministically() {
     let second = render_source_to_svgs_for_family(src, DiagramFamily::Class)
         .expect("class routing should render via stub");
 
-    assert_eq!(first, second, "stub output should be deterministic");
+    assert_eq!(first, second, "class render should be deterministic");
     assert!(
-        first[0].contains("Bootstrap stub for class diagrams"),
-        "stub render should include family marker"
+        first[0].contains("<svg") && first[0].contains("A"),
+        "class render should include svg + class name"
     );
 }
 

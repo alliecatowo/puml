@@ -1,0 +1,6 @@
+@startchart
+pie chart
+  Frontend : 35
+  Backend : 40
+  DevOps : 25
+@endchart

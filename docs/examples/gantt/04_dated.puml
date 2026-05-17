@@ -1,0 +1,6 @@
+@startgantt
+[2026-01-01] : Kickoff
+[2026-01-10] : Architecture review
+[2026-02-01] : First sprint complete
+[2026-03-01] : Beta release
+@endgantt

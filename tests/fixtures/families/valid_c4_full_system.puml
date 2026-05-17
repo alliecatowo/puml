@@ -1,0 +1,12 @@
+@startuml
+!include <C4/C4_Container>
+
+!Person(customer, "Customer")
+!Person_Ext(admin, "Admin")
+!System(webapp, "Web Application")
+!System_Ext(payment, "Payment System")
+!Container(api, "API Gateway", "Node.js", "Handles API calls")
+!Rel(customer, webapp, "Uses")
+!Rel(webapp, api, "API calls")
+!Rel_U(api, payment, "Processes payments")
+@enduml

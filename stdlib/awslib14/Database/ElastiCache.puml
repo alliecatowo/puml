@@ -1,0 +1,6 @@
+' Deterministic AWS ElastiCache compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure ElastiCache($alias, $label="", $descr="")
+AWSIcon($alias, ElastiCache, $label, $descr)
+!endprocedure

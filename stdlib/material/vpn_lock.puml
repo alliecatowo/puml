@@ -1,0 +1,6 @@
+' Deterministic Material vpn_lock icon stub.
+!include <material/common>
+
+!procedure MA_VPN_LOCK($alias, $label="vpn_lock", $descr="")
+MaterialIcon($alias, vpn_lock, $label, $descr)
+!endprocedure

@@ -1,0 +1,4 @@
+@startmath
+\begin{pmatrix} \alpha & \beta \\ \gamma & \delta \end{pmatrix}
+\sum_{i=0}^{n} \frac{x^i}{i!} = e^x \quad \int_{0}^{\infty} e^{-x^2} dx
+@endmath

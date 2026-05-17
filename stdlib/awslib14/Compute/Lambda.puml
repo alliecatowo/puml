@@ -1,0 +1,6 @@
+' Deterministic AWS Lambda compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Lambda($alias, $label="", $descr="")
+AWSIcon($alias, Lambda, $label, $descr)
+!endprocedure

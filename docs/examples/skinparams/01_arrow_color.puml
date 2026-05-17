@@ -1,0 +1,5 @@
+@startuml
+skinparam arrowColor #ff5500
+Alice -> Bob: colored arrows
+Bob --> Alice: reply
+@enduml

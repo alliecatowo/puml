@@ -1,0 +1,7 @@
+@startsalt
+{+
+  {/ Tab1 | Tab2 | Tab3 }
+  Tab content here
+  [OK] | [Cancel]
+}
+@endsalt

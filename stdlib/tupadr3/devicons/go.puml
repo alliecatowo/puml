@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons go stub.
+!include <tupadr3/common>
+
+!procedure DEV_GO($alias, $label="go", $descr="")
+FontAwesomeIcon($alias, devicons_go, $label, $descr)
+!endprocedure

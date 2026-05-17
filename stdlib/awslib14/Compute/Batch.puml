@@ -1,0 +1,6 @@
+' Deterministic AWS Batch compatibility stub.
+!include <awslib14/AWSCommon>
+
+!procedure Batch($alias, $label="", $descr="")
+AWSIcon($alias, Batch, $label, $descr)
+!endprocedure

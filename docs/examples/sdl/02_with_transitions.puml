@@ -1,0 +1,11 @@
+@startsdl
+title SDL With Transitions
+start Idle
+state Processing
+state Waiting
+stop Done
+Idle -> Processing : request
+Processing -> Waiting : response
+Waiting -> Idle : retry
+Waiting -> Done : complete
+@endsdl

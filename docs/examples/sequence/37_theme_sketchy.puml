@@ -1,0 +1,8 @@
+@startuml
+!theme sketchy
+title Sketchy Theme
+Idea -> Design: sketch
+Design -> Dev: implement
+Dev --> Design: review
+Design --> Idea: iterate
+@enduml

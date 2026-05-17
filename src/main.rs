@@ -20,8 +20,9 @@ use puml::model::{
 use puml::scene::LayoutOptions;
 use puml::source::Span;
 use puml::{
-    extract_markdown_diagrams, normalize_family, render, CompatMode, DeterminismMode, Diagnostic,
-    DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument, ParsePipelineOptions,
+    extract_markdown_diagrams, normalize_family, render, specialized, CompatMode, DeterminismMode,
+    Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument,
+    ParsePipelineOptions,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -30,6 +31,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Instant;
 
 const EXIT_OK: u8 = 0;
 const EXIT_VALIDATION: u8 = 1;
@@ -166,7 +168,20 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: Cli) -> Result<(), (u8, String)> {
+fn run(mut cli: Cli) -> Result<(), (u8, String)> {
+    let started = Instant::now();
+    if cli.stdrpt {
+        cli.diagnostics = DiagnosticsFormat::Stdrpt;
+    }
+    if !cli.charset.eq_ignore_ascii_case("utf-8") {
+        return Err((
+            EXIT_VALIDATION,
+            format!(
+                "[E_CHARSET_UNSUPPORTED] unsupported charset `{}`",
+                cli.charset
+            ),
+        ));
+    }
     if cli.dump_capabilities {
         println!(
             "{}",
@@ -238,7 +253,11 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     if cli.check {
+        let mut had_warnings = false;
         for source in &diagrams {
+            if cli.verbose {
+                eprintln!("[verbose] parse");
+            }
             let doc = parse_for_cli(
                 &source.source,
                 include_root.clone(),
@@ -250,7 +269,20 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
             let model = normalize_family(doc)
                 .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
-            emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+            let warnings = normalized_warnings(&model);
+            had_warnings |= !warnings.is_empty();
+            if !cli.quiet {
+                emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics);
+            }
+        }
+        if cli.duration {
+            eprintln!("elapsed: {:?}", started.elapsed());
+        }
+        if cli.fail_on_warn && had_warnings {
+            return Err((
+                EXIT_VALIDATION,
+                "[E_WARNINGS_PRESENT] warnings present".to_string(),
+            ));
         }
         return Ok(());
     }
@@ -327,6 +359,17 @@ fn run(cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
+        // Short-circuit for specialized families (math, ditaa, etc.)
+        if let Some(result) = specialized::try_render_specialized(&source.source) {
+            let svg = result
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            let name_hint = source
+                .output_name_hint
+                .as_ref()
+                .map(|base| format!("{base}.svg"));
+            all.push(RenderedOutput { name_hint, svg });
+            return Ok(all);
+        }
         let doc = parse_for_cli(
             &source.source,
             include_root.clone(),
@@ -577,6 +620,9 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                         lint_json_diagnostics.push(json);
                     }
                 }
+                DiagnosticsFormat::Stdrpt => {
+                    emit_warnings_for_model(&model, &raw, source.source_span, cli.diagnostics)
+                }
             }
         }
 
@@ -667,6 +713,7 @@ fn emit_lint_diagnostic(
             json.file = Some(path.display().to_string());
             lint_json_diagnostics.push(json);
         }
+        DiagnosticsFormat::Stdrpt => eprintln!("{}", diagnostic_stdrpt(&d, source)),
     }
 }
 
@@ -759,7 +806,18 @@ fn diag_err_with_source(source: &str, d: Diagnostic, fmt: DiagnosticsFormat) -> 
     match fmt {
         DiagnosticsFormat::Human => (EXIT_VALIDATION, d.render_with_source(source)),
         DiagnosticsFormat::Json => (EXIT_VALIDATION, diagnostics_json_payload(vec![d], source)),
+        DiagnosticsFormat::Stdrpt => (EXIT_VALIDATION, diagnostic_stdrpt(&d, source)),
     }
+}
+
+fn diagnostic_stdrpt(d: &Diagnostic, source: &str) -> String {
+    let json = d.to_json_with_source(source);
+    let code = json.code.unwrap_or_default();
+    let location = match (json.line, json.column) {
+        (Some(line), Some(col)) => format!("-:{line}:{col}"),
+        _ => "-".to_string(),
+    };
+    format!("{}\t{}\t{}\t{}", json.severity, code, location, d.message)
 }
 
 fn diag_err_mapped(
@@ -785,6 +843,7 @@ fn emit_warnings_for_model(
             DiagnosticsFormat::Json => {
                 eprintln!("{}", diagnostics_json_payload(vec![warning], source));
             }
+            DiagnosticsFormat::Stdrpt => eprintln!("{}", diagnostic_stdrpt(&warning, source)),
         }
     }
 }
@@ -795,6 +854,16 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Family(family) => &family.warnings,
         NormalizedDocument::Timeline(timeline) => &timeline.warnings,
         NormalizedDocument::State(state) => &state.warnings,
+        NormalizedDocument::Json(doc) => &doc.warnings,
+        NormalizedDocument::Yaml(doc) => &doc.warnings,
+        NormalizedDocument::Nwdiag(doc) => &doc.warnings,
+        NormalizedDocument::Archimate(doc) => &doc.warnings,
+        NormalizedDocument::Regex(doc) => &doc.warnings,
+        NormalizedDocument::Ebnf(doc) => &doc.warnings,
+        NormalizedDocument::Math(doc) => &doc.warnings,
+        NormalizedDocument::Sdl(doc) => &doc.warnings,
+        NormalizedDocument::Ditaa(doc) => &doc.warnings,
+        NormalizedDocument::Chart(doc) => &doc.warnings,
     }
 }
 
@@ -804,9 +873,30 @@ fn render_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
             let scenes = layout::layout_pages(sequence, LayoutOptions::default());
             scenes.iter().map(render::render_svg).collect::<Vec<_>>()
         }
-        NormalizedDocument::Family(family) => vec![render::render_family_stub_svg(family)],
+        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
         NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
+        NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
+        NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
+        NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
+        NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
+        NormalizedDocument::Regex(doc) => vec![render::render_regex_svg(doc)],
+        NormalizedDocument::Ebnf(doc) => vec![render::render_ebnf_svg(doc)],
+        NormalizedDocument::Math(doc) => vec![render::render_math_svg(doc)],
+        NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
+        NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
+        NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
+    }
+}
+
+fn render_family_document_svg(family: &puml::FamilyDocument) -> String {
+    match family.kind {
+        DiagramKind::Salt => render::render_salt_svg(family),
+        DiagramKind::Component => render::render_component_svg(family),
+        DiagramKind::Deployment => render::render_deployment_svg(family),
+        DiagramKind::Activity => render::render_activity_svg(family),
+        DiagramKind::Timing => render::render_timing_svg(family),
+        _ => render::render_family_stub_svg(family),
     }
 }
 
@@ -1316,6 +1406,17 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::State => "State",
             DiagramKind::Activity => "Activity",
             DiagramKind::Timing => "Timing",
+            DiagramKind::Salt => "Salt",
+            DiagramKind::Json => "Json",
+            DiagramKind::Yaml => "Yaml",
+            DiagramKind::Nwdiag => "Nwdiag",
+            DiagramKind::Archimate => "Archimate",
+            DiagramKind::Regex => "Regex",
+            DiagramKind::Ebnf => "Ebnf",
+            DiagramKind::Math => "Math",
+            DiagramKind::Sdl => "Sdl",
+            DiagramKind::Ditaa => "Ditaa",
+            DiagramKind::Chart => "Chart",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
@@ -1356,9 +1457,11 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         }
         StatementKind::StateRegionDivider => json!("StateRegionDivider"),
         StatementKind::StateHistory { deep } => json!({"StateHistory": {"deep": deep}}),
-        StatementKind::GanttTaskDecl { name, .. } => json!({"GanttTaskDecl": {"name": name}}),
-        StatementKind::GanttMilestoneDecl { name } => {
-            json!({"GanttMilestoneDecl": {"name": name}})
+        StatementKind::GanttTaskDecl {
+            name, resources, ..
+        } => json!({"GanttTaskDecl": {"name": name, "resources": resources}}),
+        StatementKind::GanttMilestoneDecl { name, happens_on } => {
+            json!({"GanttMilestoneDecl": {"name": name, "happens_on": happens_on}})
         }
         StatementKind::GanttConstraint {
             subject,
@@ -1366,6 +1469,9 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
             target,
         } => {
             json!({"GanttConstraint": {"subject": subject, "kind": kind, "target": target}})
+        }
+        StatementKind::GanttCalendarClosed { day } => {
+            json!({"GanttCalendarClosed": {"day": day}})
         }
         StatementKind::ChronologyHappensOn { subject, when } => {
             json!({"ChronologyHappensOn": {"subject": subject, "when": when}})
@@ -1399,6 +1505,13 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
+        StatementKind::JsonProjection { alias, body } => json!({
+            "JsonProjection": {"alias": alias, "body": body}
+        }),
+        StatementKind::YamlProjection { alias, body } => json!({
+            "YamlProjection": {"alias": alias, "body": body}
+        }),
+        other => json!({"Other": format!("{other:?}")}),
     }
 }
 
@@ -1471,6 +1584,20 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Family(family) => family_model_to_json(family),
         NormalizedDocument::Timeline(timeline) => timeline_model_to_json(timeline),
         NormalizedDocument::State(state) => state_model_to_json(state),
+        NormalizedDocument::Json(doc) => json!({"kind": "Json", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Yaml(doc) => json!({"kind": "Yaml", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Nwdiag(doc) => {
+            json!({"kind": "Nwdiag", "warnings": doc.warnings.len()})
+        }
+        NormalizedDocument::Archimate(doc) => {
+            json!({"kind": "Archimate", "warnings": doc.warnings.len()})
+        }
+        NormalizedDocument::Regex(doc) => json!({"kind": "Regex", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Ebnf(doc) => json!({"kind": "Ebnf", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Math(doc) => json!({"kind": "Math", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Sdl(doc) => json!({"kind": "Sdl", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Ditaa(doc) => json!({"kind": "Ditaa", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Chart(doc) => json!({"kind": "Chart", "warnings": doc.warnings.len()}),
     }
 }
 
@@ -1515,38 +1642,29 @@ fn model_to_json(model: &SequenceDocument) -> Value {
         "caption": model.caption,
         "legend": model.legend,
         "skinparams": model.skinparams,
+        "style": {
+            "arrow_color": model.style.arrow_color,
+            "lifeline_border_color": model.style.lifeline_border_color,
+            "participant_background_color": model.style.participant_background_color,
+            "participant_border_color": model.style.participant_border_color,
+            "note_background_color": model.style.note_background_color,
+            "note_border_color": model.style.note_border_color,
+            "group_background_color": model.style.group_background_color,
+            "group_border_color": model.style.group_border_color
+        },
         "footbox_visible": model.footbox_visible
     })
 }
 
 fn family_model_to_json(model: &puml::FamilyDocument) -> Value {
     json!({
-        "kind": match model.kind {
-            DiagramKind::Class => "Class",
-            DiagramKind::Object => "Object",
-            DiagramKind::UseCase => "UseCase",
-            DiagramKind::Gantt => "Gantt",
-            DiagramKind::Chronology => "Chronology",
-            DiagramKind::MindMap => "MindMap",
-            DiagramKind::Wbs => "Wbs",
-            DiagramKind::Component => "Component",
-            DiagramKind::Deployment => "Deployment",
-            DiagramKind::State => "State",
-            DiagramKind::Activity => "Activity",
-            DiagramKind::Timing => "Timing",
-            DiagramKind::Sequence => "Sequence",
-            DiagramKind::Unknown => "Unknown",
-        },
+        "kind": format!("{:?}", model.kind),
         "nodes": model
             .nodes
             .iter()
             .map(|n| {
                 json!({
-                    "kind": match n.kind {
-                        puml::model::FamilyNodeKind::Class => "Class",
-                        puml::model::FamilyNodeKind::Object => "Object",
-                        puml::model::FamilyNodeKind::UseCase => "UseCase",
-                    },
+                    "kind": format!("{:?}", n.kind),
                     "name": n.name,
                     "alias": n.alias
                 })
@@ -1583,9 +1701,9 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
         "tasks": model
             .tasks
             .iter()
-            .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days}))
+            .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days, "resources": t.resources}))
             .collect::<Vec<_>>(),
-        "milestones": model.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
+        "milestones": model.milestones.iter().map(|m| json!({"name": m.name, "happens_on": m.happens_on})).collect::<Vec<_>>(),
         "constraints": model
             .constraints
             .iter()
@@ -1596,6 +1714,8 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             .iter()
             .map(|e| json!({"subject": e.subject, "when": e.when}))
             .collect::<Vec<_>>(),
+        "project_start": model.project_start,
+        "project_start_day": model.project_start_day,
         "title": model.title,
         "header": model.header,
         "footer": model.footer,
@@ -1641,6 +1761,7 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
             to,
             arrow,
             label,
+            style: _,
             from_virtual,
             to_virtual,
         } => {
@@ -1745,32 +1866,13 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
             let svg = render::render_family_stub_svg(family);
             json!({
                 "kind": "FamilyStub",
-                "family": match family.kind {
-                    DiagramKind::Class => "Class",
-                    DiagramKind::Object => "Object",
-                    DiagramKind::UseCase => "UseCase",
-                    DiagramKind::MindMap => "MindMap",
-                    DiagramKind::Wbs => "Wbs",
-                    DiagramKind::Gantt => "Gantt",
-                    DiagramKind::Chronology => "Chronology",
-                    DiagramKind::Component => "Component",
-                    DiagramKind::Deployment => "Deployment",
-                    DiagramKind::State => "State",
-                    DiagramKind::Activity => "Activity",
-                    DiagramKind::Timing => "Timing",
-                    DiagramKind::Sequence => "Sequence",
-                    DiagramKind::Unknown => "Unknown",
-                },
+                "family": format!("{:?}", family.kind),
                 "nodes": family
                     .nodes
                     .iter()
                     .map(|n| {
                         json!({
-                            "kind": match n.kind {
-                                puml::model::FamilyNodeKind::Class => "Class",
-                                puml::model::FamilyNodeKind::Object => "Object",
-                                puml::model::FamilyNodeKind::UseCase => "UseCase",
-                            },
+                            "kind": format!("{:?}", n.kind),
                             "name": n.name,
                             "alias": n.alias
                         })
@@ -1802,11 +1904,13 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "tasks": timeline
                     .tasks
                     .iter()
-                    .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days}))
+                    .map(|t| json!({"name": t.name, "start_day": t.start_day, "duration_days": t.duration_days, "resources": t.resources}))
                     .collect::<Vec<_>>(),
-                "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name})).collect::<Vec<_>>(),
+                "milestones": timeline.milestones.iter().map(|m| json!({"name": m.name, "happens_on": m.happens_on})).collect::<Vec<_>>(),
                 "constraints": timeline.constraints.iter().map(|c| json!({"subject": c.subject, "kind": c.kind, "target": c.target})).collect::<Vec<_>>(),
                 "chronology_events": timeline.chronology_events.iter().map(|e| json!({"subject": e.subject, "when": e.when})).collect::<Vec<_>>(),
+                "project_start": timeline.project_start,
+                "project_start_day": timeline.project_start_day,
                 "title": timeline.title,
                 "header": timeline.header,
                 "footer": timeline.footer,
@@ -1825,5 +1929,6 @@ fn normalized_scene_to_json(model: &NormalizedDocument) -> Value {
                 "svg_preview": svg
             })
         }
+        other => normalized_model_to_json(other),
     }
 }

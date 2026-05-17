@@ -1,0 +1,11 @@
+@startuml
+skinparam noteBackgroundColor #fffacd
+skinparam noteBorderColor #cc9900
+skinparam roundCorner 8
+Alice -> Bob: request
+note right of Bob
+  Response memo
+  with styled note
+end note
+Bob --> Alice: response
+@enduml

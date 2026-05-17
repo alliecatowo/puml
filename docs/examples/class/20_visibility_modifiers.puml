@@ -1,0 +1,15 @@
+@startuml
+title Visibility and Modifiers
+class Example {
+  +publicField: String
+  -privateField: int
+  #protectedField: boolean
+  ~packageField: double
+  +{static} CLASS_CONSTANT: String
+  -{static} instanceCount: int
+  +publicMethod(): void
+  -privateMethod(): void
+  #{abstract} abstractMethod(): String
+  +{static} staticMethod(): int
+}
+@enduml

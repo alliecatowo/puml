@@ -1,0 +1,12 @@
+@startgantt
+title Project Timeline
+[Design]
+[Build]
+[Test]
+[Kickoff] happens on 2026-01-01
+[Design] starts 2026-01-02
+[Build] starts 2026-01-15
+[Build] requires [Design]
+[Test] starts 2026-02-01
+[Test] requires [Build]
+@endgantt

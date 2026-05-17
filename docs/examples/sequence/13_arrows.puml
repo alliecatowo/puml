@@ -1,0 +1,9 @@
+@startuml
+A -> B: sync call
+A ->> B: async call
+A --> B: dashed reply
+A -->> B: dashed async
+A ->x B: lost message
+A ->o B: open arrow
+A <-> B: bidirectional
+@enduml

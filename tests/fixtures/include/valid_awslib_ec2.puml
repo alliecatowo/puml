@@ -1,0 +1,8 @@
+@startuml
+!include <awslib14/Compute/EC2>
+!include <awslib14/AWSCommon>
+
+!EC2(server, "App Server")
+!EC2(cache, "Cache Server")
+!Rel(server, cache, "reads from")
+@enduml

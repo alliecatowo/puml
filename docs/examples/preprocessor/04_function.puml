@@ -1,0 +1,8 @@
+@startuml
+!function MakeMsg($from, $to)
+  !return $from + " calls " + $to
+!endfunction
+participant Alice
+participant Bob
+Alice -> Bob: %MakeMsg("Alice", "Bob")
+@enduml

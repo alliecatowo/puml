@@ -1,0 +1,9 @@
+@startuml
+!include <C4/C4_Dynamic>
+Container(spa, "SPA", "JavaScript", "Single-page app")
+Container(api, "API", "Rust", "Backend API")
+ContainerDb(db, "DB", "Postgres", "Database")
+Rel_Dynamic(spa, api, "1. POST /login", "HTTPS")
+Rel_Dynamic(api, db, "2. SELECT user", "SQL")
+Rel_Dynamic(api, spa, "3. JWT token", "HTTPS")
+@enduml

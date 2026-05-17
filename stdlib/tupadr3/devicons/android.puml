@@ -1,0 +1,6 @@
+' Deterministic tupadr3 devicons android stub.
+!include <tupadr3/common>
+
+!procedure DEV_ANDROID($alias, $label="android", $descr="")
+FontAwesomeIcon($alias, devicons_android, $label, $descr)
+!endprocedure

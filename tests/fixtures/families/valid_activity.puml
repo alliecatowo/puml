@@ -1,0 +1,12 @@
+@startuml
+title Order Flow
+start
+:Receive order;
+:Validate payment;
+if (in stock?) then (yes)
+:Ship order;
+else (no)
+:Notify customer;
+endif
+stop
+@enduml
