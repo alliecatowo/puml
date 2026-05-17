@@ -191,6 +191,7 @@ Useful local commands:
 ./scripts/dev.sh              # fmt + clippy + tests
 ./scripts/check-all.sh --quick
 ./scripts/check-all.sh        # full quality gate
+./scripts/branch-protection.sh verify
 cargo run -- --help
 cargo run -- --check docs/examples/basic_hello.puml
 cargo run -- docs/examples/basic_hello.puml
