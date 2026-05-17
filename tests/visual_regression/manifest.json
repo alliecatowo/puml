@@ -22,8 +22,8 @@
     {
       "path": "docs/examples/class/02_inheritance.puml",
       "family": "class",
-      "expected_text": ["Animal", "Dog", "Cat"],
-      "min_text_elements": 3
+      "expected_text": ["Vehicle", "Car", "Truck", "+make: String", "+drive()", "+haul()"],
+      "min_text_elements": 9
     },
     {
       "path": "docs/examples/activity/01_simple_flow.puml",
