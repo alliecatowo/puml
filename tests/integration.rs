@@ -4626,7 +4626,10 @@ fn component_and_deployment_groups_render_labeled_frames_and_nested_members() {
         deployment_svg.contains(">node Edge Site<"),
         "deployment node frame label should render"
     );
-    assert!(deployment_svg.contains(">App<"), "artifact member should render");
+    assert!(
+        deployment_svg.contains(">App<"),
+        "artifact member should render"
+    );
     assert!(
         deployment_svg.contains(">Cache<"),
         "database member should render"
@@ -5626,6 +5629,24 @@ fn preproc_while_loop_with_variable_counter_expands_correctly() {
 }
 
 #[test]
+fn preproc_expression_word_operators_and_string_builtins_expand() {
+    let src = "@startuml\n!$raw = \"  Alpha-Beta  \"\n!assert %contains(%trim($raw), \"Alpha\") and %startswith(%trim($raw), \"Alpha\")\nA -> B : %replace(%lower(%trim($raw)), \"-\", \":\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("string builtins should expand");
+    assert!(svg.contains("alpha:beta"), "expected replacement output");
+}
+
+#[test]
+fn preproc_list_and_map_builtins_are_deterministic_json_strings() {
+    let src = "@startuml\n!$items = %list(\"red\", \"blue\")\n!$items = %list_add($items, \"green\")\n!$cfg = %map(\"name\", \"Ada\", \"role\", \"admin\")\n!$cfg = %map_put($cfg, \"team\", %join($items, \"/\"))\n!assert %list_contains($items, \"blue\") and %map_contains_key($cfg, \"team\")\nA -> B : %list_get($items, 2) / %get($cfg, \"team\")\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("list/map builtins should expand");
+    assert!(svg.contains("green /"), "expected list_get output");
+    assert!(
+        svg.contains("red/blue/green"),
+        "expected joined map value output"
+    );
+}
+
+#[test]
 fn preproc_undef_removes_define() {
     // After !undef, the define should no longer expand
     let src = "@startuml\n!define GREETING hello\n!undef GREETING\nA -> B : ok\n@enduml\n";
@@ -5748,8 +5769,27 @@ fn json_projection_inline_parse_roundtrip() {
 fn json_projection_flattens_nested_values() {
     let src = "@startuml\njson $cfg { \"user\": { \"name\": \"Ada\" }, \"roles\": [\"admin\"] }\n@enduml\n";
     let svg = render_source_to_svg(src).expect("nested json projection should render");
-    assert!(svg.contains("user.name"), "SVG must contain nested object key");
+    assert!(
+        svg.contains("user.name"),
+        "SVG must contain nested object key"
+    );
     assert!(svg.contains("roles[0]"), "SVG must contain array index key");
+}
+
+#[test]
+fn json_projection_accepts_partial_rows_and_quoted_braces() {
+    let src =
+        "@startuml\njson $cfg {\n  \"name\": \"Ada\"\n  \"template\": \"{literal}\"\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("partial JSON projection rows should render");
+    assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
+    assert!(
+        svg.contains("name: Ada"),
+        "SVG must contain partial row key"
+    );
+    assert!(
+        svg.contains("template: {literal}"),
+        "quoted braces must not close the projection"
+    );
 }
 
 #[test]
@@ -5809,7 +5849,7 @@ fn salt_login_form_fixture_renders_svg() {
 
 #[test]
 fn salt_wireframe_grid_renders_button_and_input() {
-    let src = "@startsalt\n{\n| Name | \"Enter name\" |\n| [OK] | [Cancel]    |\n}\n@endsalt\n";
+    let src = "@startsalt\n{\nName: | \"Enter name\"\n[OK]  | [Cancel]\n}\n@endsalt\n";
     let svg = render_source_to_svg(src).expect("salt grid should render");
     assert!(
         svg.contains("Enter name"),
@@ -5881,6 +5921,54 @@ fn regex_exact_and_ranged_quantifiers_render_as_supported_repeats() {
         !svg.contains("?{3}?"),
         "counted quantifiers should not render as unsupported tokens"
     );
+}
+
+#[test]
+fn ebnf_exact_and_ranged_quantifiers_render_as_supported_repeats() {
+    let src = "@startebnf\nidentifier = letter{1,} , digit{2} , [ \"-\" ]{0,1} ;\n@endebnf\n";
+    let svg = render_source_to_svg(src).expect("ebnf counted quantifiers should render");
+    assert!(
+        svg.contains("letter{1,}"),
+        "expected open-ended EBNF repeat"
+    );
+    assert!(svg.contains("digit{2}"), "expected exact EBNF repeat");
+    assert!(
+        svg.contains("[&quot;-&quot;]{0,1}"),
+        "expected counted repeat on optional group"
+    );
+    assert!(
+        !svg.contains("?{2}?"),
+        "counted EBNF repeats should not render as unsupported tokens"
+    );
+}
+
+#[test]
+fn chart_plantuml_style_named_subtypes_and_colon_points_render() {
+    let cases = [
+        (
+            "@startchart\nbar chart\nQ1 : 42\nQ2 : 58\n@endchart\n",
+            "bar chart",
+        ),
+        (
+            "@startchart\nline chart\nJan : 10\nFeb : 15\n@endchart\n",
+            "line chart",
+        ),
+        (
+            "@startchart\npie chart\nFrontend : 35\nBackend : 65\n@endchart\n",
+            "pie chart",
+        ),
+    ];
+    for (src, label) in cases {
+        let svg = render_source_to_svg(src).expect("chart should render");
+        assert!(svg.contains(label), "expected subtype label `{label}`");
+        assert!(
+            svg.contains("42")
+                || svg.contains("10")
+                || svg.contains("Frontend")
+                || svg.contains("Backend"),
+            "expected colon-delimited chart data to render"
+        );
+    }
 }
 
 #[test]
