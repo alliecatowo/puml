@@ -14,6 +14,7 @@ on:
       - 'docs/examples/**'
       - 'stdlib/**'
       - 'scripts/oracle.sh'
+      - 'scripts/oracle_report_summary.py'
       - '.github/workflows/oracle.yml'
   push:
     branches:
@@ -28,6 +29,7 @@ on:
       - 'docs/examples/**'
       - 'stdlib/**'
       - 'scripts/oracle.sh'
+      - 'scripts/oracle_report_summary.py'
       - '.github/workflows/oracle.yml'
   workflow_dispatch:
 
@@ -38,6 +40,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
+  pages: write
 
 jobs:
   oracle:
@@ -86,13 +89,13 @@ jobs:
             [[ -n "${file}" ]] || continue
 
             case "${file}" in
-              Cargo.toml|Cargo.lock|src/*|crates/*|tests/fixtures/*|tests/oracle_smoke.rs|docs/examples/*|stdlib/*|scripts/oracle.sh|.github/workflows/oracle.yml)
+              Cargo.toml|Cargo.lock|src/*|crates/*|tests/fixtures/*|tests/oracle_smoke.rs|docs/examples/*|stdlib/*|scripts/oracle.sh|scripts/oracle_report_summary.py|.github/workflows/oracle.yml)
                 run_oracle=true
                 ;;
             esac
 
             case "${file}" in
-              tests/oracle_smoke.rs|scripts/oracle.sh|.github/workflows/oracle.yml)
+              tests/oracle_smoke.rs|scripts/oracle.sh|scripts/oracle_report_summary.py|.github/workflows/oracle.yml)
                 run_oracle_smoke=true
                 ;;
             esac
@@ -223,6 +226,23 @@ jobs:
           fi
           exit 0
 
+      - name: Publish oracle report summary
+        if: always() && steps.changes.outputs.run_oracle == 'true'
+        id: oracle-summary
+        run: |
+          if [[ ! -f docs/benchmarks/oracle_report.json ]]; then
+            echo "Oracle JSON report was not produced; skipping summary publication."
+            exit 0
+          fi
+
+          python3 scripts/oracle_report_summary.py \
+            --input docs/benchmarks/oracle_report.json \
+            --markdown docs/benchmarks/oracle_report.md \
+            --json docs/benchmarks/oracle_report_summary.json \
+            --pages-dir target/oracle-report-pages
+
+          cat docs/benchmarks/oracle_report.md >> "${GITHUB_STEP_SUMMARY}"
+
       # Run the oracle_smoke sentinel tests only for manual runs and changes
       # to the oracle workflow/script/test files (no --include-ignored).
       # The oracle_report_schema_is_stable test is #[ignore] gated because it
@@ -248,9 +268,19 @@ jobs:
         with:
           name: oracle-report-${{ github.run_number }}
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 90
           path: |
             docs/benchmarks/oracle_report.json
+            docs/benchmarks/oracle_report_summary.json
+            docs/benchmarks/oracle_report.md
+            target/oracle-report-pages/**
+
+      - name: Upload oracle Pages artifact
+        if: always() && steps.changes.outputs.run_oracle == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: oracle-report-pages-${{ github.run_number }}
+          path: target/oracle-report-pages
 
       - name: Upload oracle_smoke test log
         if: always() && steps.changes.outputs.run_oracle == 'true' && steps.changes.outputs.run_oracle_smoke == 'true'
@@ -258,7 +288,7 @@ jobs:
         with:
           name: oracle-smoke-test-log-${{ github.run_number }}
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 90
           path: /tmp/oracle_smoke_test.log
 
       # Post a Markdown summary comment on the PR.
@@ -301,7 +331,14 @@ jobs:
 
           # Write body to a temp file to avoid any shell quoting issues.
           BODY_FILE="$(mktemp)"
-          cat > "${BODY_FILE}" <<BODY_EOF
+          if [[ -f docs/benchmarks/oracle_report.md ]]; then
+            cat docs/benchmarks/oracle_report.md > "${BODY_FILE}"
+            {
+              echo ""
+              echo "Actions artifact: [oracle-report-${RUN_NUMBER}](${REPORT_URL})"
+            } >> "${BODY_FILE}"
+          else
+            cat > "${BODY_FILE}" <<BODY_EOF
           ## Oracle Conformance Report -- ${STATUS}
 
           PlantUML JAR: ${JAR_VERSION}  |  Run: [oracle-report-${RUN_NUMBER}](${REPORT_URL})
@@ -310,6 +347,7 @@ jobs:
 
           SVG layout divergence is advisory (puml uses a different layout engine). Parse failures on JAR-accepted files are hard failures.
           BODY_EOF
+          fi
 
           gh pr comment "${PR_NUMBER}" \
             --body-file "${BODY_FILE}" \
