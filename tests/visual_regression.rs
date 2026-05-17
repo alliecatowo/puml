@@ -858,7 +858,7 @@ fn png_regression_committed_baselines() {
          and commit a reviewed baseline from tests/visual_baselines/"
     );
 
-    run_png_sweep("Committed PNG regression", fixtures.into_iter(), total);
+    run_png_sweep("Committed PNG regression", fixtures, total);
 }
 
 /// PNG perceptual baseline sweep.
