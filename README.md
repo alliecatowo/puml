@@ -1,6 +1,6 @@
 # puml
 
-Fast, deterministic sequence-diagram rendering to SVG/PNG with a first-class polymorphic multi-language frontend (PicoUML, PlantUML, Mermaid), strict validation, and scriptable CLI modes.
+Fast, deterministic diagram rendering to SVG/PNG with a polymorphic multi-language frontend (PicoUML, PlantUML, Mermaid), strict validation, and scriptable CLI modes.
 
 ![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)
 ![rust](https://img.shields.io/badge/rust-2021-f97316)
@@ -10,13 +10,13 @@ Fast, deterministic sequence-diagram rendering to SVG/PNG with a first-class pol
 ![determinism](https://img.shields.io/badge/svg-deterministic-0f766e)
 ![agent harness](https://img.shields.io/badge/codex%2Fclaude-harness--ready-f59e0b)
 
-## Why full PlantUML parity?
+## PlantUML parity roadmap
 
-`puml` is committed to full 1:1 parity with PlantUML across all diagram families, with staged family-lane implementation to preserve deterministic parser/normalizer/layout/render contracts.
+`puml` is pursuing full 1:1 parity with PlantUML as a roadmap goal, with staged family-lane implementation to preserve deterministic parser/normalizer/layout/render contracts. Current support is not yet full PlantUML parity: the canonical current status is tracked in [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md), where many advanced rows are intentionally marked `partial`.
 
 Language and compatibility statement:
 - PicoUML is the first-class canonical language surface for this engine.
-- PlantUML is a first-class 1:1 compatibility target across all implemented and planned diagram families.
+- PlantUML is a first-class compatibility target across implemented and planned diagram families; full 1:1 parity remains the roadmap ambition, not the current claim.
 - Mermaid is first-class for `sequenceDiagram`, `flowchart`/`graph`, `classDiagram`, `stateDiagram`/`stateDiagram-v2`, and `erDiagram` families, with deterministic diagnostics for unsupported constructs.
 
 ## Install And Dev
@@ -104,7 +104,7 @@ cargo run -- --dialect plantuml --check tests/fixtures/basic/hello.puml
 # stdin + include support
 cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --include-root ./tests/fixtures/include -
 
-# runtime flags (PlantUML parity)
+# runtime compatibility flags
 #   --duration         print elapsed wall time to stderr
 #   --quiet / -q       suppress non-error stderr
 #   --verbose / -v     emit per-stage parse/normalize/render timings
@@ -139,6 +139,7 @@ $ cargo run -- --check hello.puml
 
 Canonical examples live in [`docs/examples/README.md`](docs/examples/README.md), with committed source/output pairs.
 Supported primitive catalog page: [`docs/examples/supported_primitives.md`](docs/examples/supported_primitives.md).
+These examples are coverage seeds and executable documentation artifacts, not proof of full PlantUML 1:1 parity. Use [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md) for current implemented/partial/missing status.
 Current docs corpus footprint: `docs/examples/` contains `254` `.puml` sources and `258` `.svg` artifacts.
 
 Re-generate all committed examples:

@@ -5,6 +5,10 @@ Last updated: 2026-05-16 (America/Los_Angeles)
 
 This matrix tracks deterministic parser/frontend conformance for block boundaries,
 directive handling edges, comments/quoted-text behavior, and multi-block extraction.
+It is scoped to exercised frontend behaviors only. It does not assert full
+PlantUML 1:1 parity; use
+[`docs/audits/plantuml_parity_source_of_truth.md`](audits/plantuml_parity_source_of_truth.md)
+as the canonical current implemented/partial/missing status.
 
 ## Matrix
 
@@ -30,3 +34,4 @@ directive handling edges, comments/quoted-text behavior, and multi-block extract
 
 - Matrix rows are intentionally fixture-first so each behavior is executable in CI.
 - This matrix is not a broad PlantUML language parity claim; it is a deterministic runtime contract for the implemented frontend slice.
+- Fixture and example coverage here should be treated as coverage seeds, not exhaustive parity proof.

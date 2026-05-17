@@ -1,6 +1,10 @@
 # Docs Examples Corpus
 
 This directory is the canonical docs-as-tests corpus consumed by `scripts/parity_harness.py`.
+The corpus is executable documentation and parity evidence, but it is not proof
+of full PlantUML 1:1 parity. The canonical current status is
+[`docs/audits/plantuml_parity_source_of_truth.md`](../audits/plantuml_parity_source_of_truth.md),
+where support is tracked conservatively as `implemented`, `partial`, or `missing`.
 
 ## Corpus location and size
 
@@ -15,15 +19,16 @@ This directory is the canonical docs-as-tests corpus consumed by `scripts/parity
 - [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md): current behavior gaps (feature-depth limits, not family rejection)
 - [supported_primitives.md](supported_primitives.md): primitive-level quick reference
 
-## Coverage summary (high level)
+## Coverage evidence summary (high level)
 
 | Area | Status |
 |---|---|
-| Core UML families (sequence/class/object/usecase/component/deployment/state/activity/timing) | Implemented with mixed depth (`implemented` + `partial` features) |
-| Non-UML families (gantt/chronology/salt/mindmap/wbs/json/yaml/nwdiag/archimate/regex/ebnf/chart/math/sdl/ditaa) | Implemented baseline render paths; deeper semantics vary by family |
-| Preprocessor/themes/skinparams/creole | Broad support with deterministic boundaries and documented partial areas |
+| Core UML families (sequence/class/object/usecase/component/deployment/state/activity/timing) | Exercised with mixed depth; many core rows are implemented, while advanced rows remain partial |
+| Non-UML families (gantt/chronology/salt/mindmap/wbs/json/yaml/nwdiag/archimate/regex/ebnf/chart/math/sdl/ditaa) | Baseline render paths are exercised for many families; deeper semantics vary and several advanced rows remain partial |
+| Preprocessor/themes/skinparams/creole | Broad exercised support with deterministic boundaries and documented partial areas |
 
 ## Notes
 
 - This corpus is intentionally larger than minimal fixtures; it is used as executable documentation evidence.
+- Examples are coverage seeds for implemented behavior, not exhaustive proof of PlantUML compatibility.
 - When behavior changes, update the corresponding `.svg` artifacts in the same change.
