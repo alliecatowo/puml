@@ -4061,7 +4061,7 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
 }
 
 fn is_family_arrow_token(token: &str) -> bool {
-    token.contains('-') || token.contains('.') || token.contains('<') || token.contains('>')
+    token.contains('-') || token.contains('<') || token.contains('>') || token.contains("..")
 }
 
 fn normalize_family_arrow_token(token: &str) -> String {
