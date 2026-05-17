@@ -7197,13 +7197,16 @@ fn mindmap_root_is_centered_and_children_distributed_both_sides() {
         xs
     }
 
-    let root_rx: i32 = extract_x_after_marker(&svg, "mindmap-root")
-        .expect("root rect must have x attribute");
+    let root_rx: i32 =
+        extract_x_after_marker(&svg, "mindmap-root").expect("root rect must have x attribute");
     let left_xs = extract_x_for_side(&svg, "left");
     let right_xs = extract_x_for_side(&svg, "right");
 
     assert!(!left_xs.is_empty(), "must have at least one left-side node");
-    assert!(!right_xs.is_empty(), "must have at least one right-side node");
+    assert!(
+        !right_xs.is_empty(),
+        "must have at least one right-side node"
+    );
 
     let max_left_x = left_xs.iter().copied().max().unwrap_or(0);
     let min_right_x = right_xs.iter().copied().min().unwrap_or(i32::MAX);
