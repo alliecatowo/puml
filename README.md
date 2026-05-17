@@ -206,6 +206,23 @@ for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/contributing.md](docs/contributing.md) for the full workflow.
 
+## Autonomy Harness
+
+This repo is intentionally set up for human plus agent development. The harness
+commands below validate the agent pack, MCP smoke tests, docs gallery drift, and
+the broader autonomous quality chain:
+
+```bash
+./scripts/harness-check.sh --quick
+./scripts/harness-check.sh
+./scripts/autonomy-check.sh --quick
+./scripts/autonomy-check.sh
+python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
+```
+
+The detailed runbooks live in [docs/codex-workflow.md](docs/codex-workflow.md)
+and [docs/autonomous-workflow-cookbook.md](docs/autonomous-workflow-cookbook.md).
+
 ## Project Status
 
 This project is young, ambitious, and intentionally transparent. Some parts are polished; some are still sharp. PlantUML compatibility is a serious target with substantial implemented support, but the honest answer for any advanced construct is: check the audit table, try `puml --check`, and file the gap if it surprises you.
