@@ -1253,6 +1253,10 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
         return Ok(false);
     }
 
+    if let Some(inner) = strip_outer_balanced_parens(trimmed) {
+        return evaluate_scalar_expr(inner);
+    }
+
     // Compound boolean: try top-level || then && (split outside quotes/parens)
     if let Some((lhs, rhs)) = split_top_level(trimmed, "||") {
         return Ok(evaluate_scalar_expr(&lhs)? || evaluate_scalar_expr(&rhs)?);
@@ -1311,6 +1315,42 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
         return Ok(n != 0);
     }
     Ok(false)
+}
+
+fn strip_outer_balanced_parens(expr: &str) -> Option<&str> {
+    if !expr.starts_with('(') || !expr.ends_with(')') {
+        return None;
+    }
+    let bytes = expr.as_bytes();
+    let mut depth: i32 = 0;
+    let mut in_str = false;
+    for (idx, b) in bytes.iter().enumerate() {
+        if in_str {
+            if *b == b'"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match *b {
+            b'"' => in_str = true,
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth < 0 {
+                    return None;
+                }
+                if depth == 0 && idx != bytes.len() - 1 {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+    if depth == 0 {
+        Some(expr[1..expr.len() - 1].trim())
+    } else {
+        None
+    }
 }
 
 /// Split `expr` on the first top-level occurrence of `sep`, respecting
@@ -6354,6 +6394,17 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.message.contains("E_PREPROC_COND_ORDER"));
+    }
+
+    #[test]
+    fn preprocessor_parenthesized_logical_conditions_are_supported() {
+        let doc = parse_with_options(
+            "@startuml\n!if (1 && (0 || 1))\nA -> B : yes\n!endif\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.statements.len(), 1);
+        assert!(matches!(doc.statements[0].kind, StatementKind::Message(_)));
     }
 
     #[test]
