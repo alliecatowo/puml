@@ -449,7 +449,7 @@ fn preprocess_text(
                                 // whitespace for determinism.
                                 state.vars.insert(name, value.trim().to_string());
                             } else {
-                                let rendered = substitute_tokens_and_vars(&value, state);
+                                let rendered = expand_preprocessor_text(&value, state, call_depth)?;
                                 let resolved = rendered.trim();
                                 // If the resolved value is a simple integer arithmetic
                                 // expression (e.g. "0 + 1", "3 - 1"), evaluate it so
@@ -1207,7 +1207,13 @@ fn evaluate_preprocess_expr(expr: &str, state: &PreprocState) -> Result<bool, Di
     if let Some((lhs, rhs)) = split_top_level(raw, "||") {
         return Ok(evaluate_preprocess_expr(&lhs, state)? || evaluate_preprocess_expr(&rhs, state)?);
     }
+    if let Some((lhs, rhs)) = split_top_level_word(raw, "or") {
+        return Ok(evaluate_preprocess_expr(&lhs, state)? || evaluate_preprocess_expr(&rhs, state)?);
+    }
     if let Some((lhs, rhs)) = split_top_level(raw, "&&") {
+        return Ok(evaluate_preprocess_expr(&lhs, state)? && evaluate_preprocess_expr(&rhs, state)?);
+    }
+    if let Some((lhs, rhs)) = split_top_level_word(raw, "and") {
         return Ok(evaluate_preprocess_expr(&lhs, state)? && evaluate_preprocess_expr(&rhs, state)?);
     }
 
@@ -1257,7 +1263,13 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
     if let Some((lhs, rhs)) = split_top_level(trimmed, "||") {
         return Ok(evaluate_scalar_expr(&lhs)? || evaluate_scalar_expr(&rhs)?);
     }
+    if let Some((lhs, rhs)) = split_top_level_word(trimmed, "or") {
+        return Ok(evaluate_scalar_expr(&lhs)? || evaluate_scalar_expr(&rhs)?);
+    }
     if let Some((lhs, rhs)) = split_top_level(trimmed, "&&") {
+        return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
+    }
+    if let Some((lhs, rhs)) = split_top_level_word(trimmed, "and") {
         return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
     }
 
@@ -1269,23 +1281,39 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
     }
     // Numeric comparisons: check two-char operators before one-char to avoid splitting <=/>= wrong.
     if let Some((lhs, rhs)) = split_top_level(trimmed, "<=") {
-        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MIN);
-        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MAX);
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
         return Ok(a <= b);
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, ">=") {
-        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MAX);
-        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MIN);
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
         return Ok(a >= b);
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, "<") {
-        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MIN);
-        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MAX);
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
         return Ok(a < b);
     }
     if let Some((lhs, rhs)) = split_top_level(trimmed, ">") {
-        let a = normalize_expr_value(&lhs).parse::<i64>().unwrap_or(i64::MAX);
-        let b = normalize_expr_value(&rhs).parse::<i64>().unwrap_or(i64::MIN);
+        let a = normalize_expr_value(&lhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MAX);
+        let b = normalize_expr_value(&rhs)
+            .parse::<i64>()
+            .unwrap_or(i64::MIN);
         return Ok(a > b);
     }
     if let Some(inner) = trimmed.strip_prefix('!') {
@@ -1382,6 +1410,85 @@ fn split_top_level(expr: &str, sep: &str) -> Option<(String, String)> {
         i += 1;
     }
     None
+}
+
+fn split_top_level_word(expr: &str, sep: &str) -> Option<(String, String)> {
+    let sep_lower = sep.to_ascii_lowercase();
+    let mut depth: i32 = 0;
+    let mut in_str = false;
+    let mut token_start: Option<usize> = None;
+    for (idx, ch) in expr.char_indices() {
+        if in_str {
+            if ch == '"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+                in_str = true;
+            }
+            '(' => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+                depth += 1;
+            }
+            ')' => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+                depth = depth.saturating_sub(1);
+            }
+            c if c.is_whitespace() => {
+                if let Some(start) = token_start.take() {
+                    if is_top_level_word_match(expr, start, idx, &sep_lower, depth) {
+                        return split_word_at(expr, start, idx);
+                    }
+                }
+            }
+            _ => {
+                if token_start.is_none() {
+                    token_start = Some(idx);
+                }
+            }
+        }
+    }
+    if let Some(start) = token_start {
+        if is_top_level_word_match(expr, start, expr.len(), &sep_lower, depth) {
+            return split_word_at(expr, start, expr.len());
+        }
+    }
+    None
+}
+
+fn is_top_level_word_match(
+    expr: &str,
+    start: usize,
+    end: usize,
+    sep_lower: &str,
+    depth: i32,
+) -> bool {
+    depth == 0 && expr[start..end].eq_ignore_ascii_case(sep_lower)
+}
+
+fn split_word_at(expr: &str, start: usize, end: usize) -> Option<(String, String)> {
+    let lhs = expr[..start].trim().to_string();
+    let rhs = expr[end..].trim().to_string();
+    if lhs.is_empty() || rhs.is_empty() {
+        None
+    } else {
+        Some((lhs, rhs))
+    }
 }
 
 fn normalize_expr_value(value: &str) -> String {
@@ -2145,8 +2252,29 @@ fn dispatch_builtin(
             let list = preprocessor_list_items(&arg(0));
             Some(list.join(&arg(1)))
         }
+        "list" | "array" => Some(preprocessor_list_literal(&expanded_args)),
+        "list_contains" | "contains_list" => Some(
+            preprocessor_list_items(&arg(0))
+                .contains(&arg(1))
+                .to_string(),
+        ),
+        "list_get" => Some(
+            preprocessor_list_items(&arg(0))
+                .get(parse_int_lenient(&arg(1)).max(0) as usize)
+                .cloned()
+                .unwrap_or_default(),
+        ),
+        "list_add" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            items.push(arg(1));
+            Some(preprocessor_list_literal(&items))
+        }
+        "map" => Some(preprocessor_map_literal(&expanded_args)),
+        "map_contains_key" | "contains_key" => {
+            Some(json_contains_key(&arg(0), &arg(1)).to_string())
+        }
         "get" => Some(preprocessor_get(&arg(0), &arg(1))),
-        "set" | "put" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
+        "set" | "put" | "json_set" | "map_put" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
         "keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
         "values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "strpos" => {
@@ -2182,6 +2310,13 @@ fn dispatch_builtin(
         "str" | "string" => Some(arg(0)),
         "quote" => Some(format!("\"{}\"", arg(0).replace('"', "\\\""))),
         "unquote" => Some(strip_quotes(&arg(0))),
+        "trim" => Some(arg(0).trim().to_string()),
+        "ltrim" => Some(arg(0).trim_start().to_string()),
+        "rtrim" => Some(arg(0).trim_end().to_string()),
+        "replace" => Some(arg(0).replace(&arg(1), &arg(2))),
+        "startswith" | "starts_with" => Some(arg(0).starts_with(&arg(1)).to_string()),
+        "endswith" | "ends_with" => Some(arg(0).ends_with(&arg(1)).to_string()),
+        "contains" => Some(arg(0).contains(&arg(1)).to_string()),
         "boolval" => Some(boolval(&arg(0)).to_string()),
         "true" => Some("true".to_string()),
         "false" => Some("false".to_string()),
@@ -2675,6 +2810,24 @@ fn preprocessor_list_items(raw: &str) -> Vec<String> {
         .map(|s| strip_quotes(s.trim()))
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+fn preprocessor_list_literal(items: &[String]) -> String {
+    let values = items
+        .iter()
+        .map(|item| serde_json::Value::String(item.clone()))
+        .collect::<Vec<_>>();
+    serde_json::Value::Array(values).to_string()
+}
+
+fn preprocessor_map_literal(args: &[String]) -> String {
+    let mut obj = serde_json::Map::new();
+    for chunk in args.chunks(2) {
+        if let [key, value] = chunk {
+            obj.insert(key.clone(), serde_json::Value::String(value.clone()));
+        }
+    }
+    serde_json::Value::Object(obj).to_string()
 }
 
 fn preprocessor_get(container: &str, key: &str) -> String {
@@ -4010,6 +4163,7 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<(String, Option<
 
 fn parse_parenthesized_usecase_decl(line: &str) -> Option<(String, Option<String>, bool)> {
     let trimmed = line.trim();
+    let trimmed = trimmed.strip_prefix("usecase ").unwrap_or(trimmed).trim();
     if !trimmed.starts_with('(') {
         return None;
     }
@@ -4595,7 +4749,12 @@ fn parse_component_scoping_block(
     let lower = trimmed.to_ascii_lowercase();
     let Some((kind, label_raw)) = lower
         .starts_with("package ")
-        .then(|| ("package", trimmed.strip_prefix("package ").unwrap_or("").trim()))
+        .then(|| {
+            (
+                "package",
+                trimmed.strip_prefix("package ").unwrap_or("").trim(),
+            )
+        })
         .or_else(|| {
             lower
                 .starts_with("node ")
@@ -4612,9 +4771,12 @@ fn parse_component_scoping_block(
                 .then(|| ("cloud", trimmed.strip_prefix("cloud ").unwrap_or("").trim()))
         })
         .or_else(|| {
-            lower
-                .starts_with("rectangle ")
-                .then(|| ("rectangle", trimmed.strip_prefix("rectangle ").unwrap_or("").trim()))
+            lower.starts_with("rectangle ").then(|| {
+                (
+                    "rectangle",
+                    trimmed.strip_prefix("rectangle ").unwrap_or("").trim(),
+                )
+            })
         })
     else {
         return Ok(None);
@@ -4903,7 +5065,11 @@ fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
     let (idx, marker_len) = lower
         .find(" and lasts ")
         .map(|idx| (idx, " and lasts ".len()))
-        .or_else(|| lower.find(" and requires ").map(|idx| (idx, " and requires ".len())))?;
+        .or_else(|| {
+            lower
+                .find(" and requires ")
+                .map(|idx| (idx, " and requires ".len()))
+        })?;
     let start_clause = rest[..idx].trim();
     let duration_clause = rest[idx + marker_len..].trim();
     let start_date = parse_gantt_start_date_clause(start_clause)?;
@@ -4962,7 +5128,11 @@ fn extract_gantt_resources(rest: &str) -> (String, Vec<String>) {
     else {
         return (rest.to_string(), Vec::new());
     };
-    let mut cursor = if on_idx == 0 { "on ".len() } else { on_idx + " on ".len() };
+    let mut cursor = if on_idx == 0 {
+        "on ".len()
+    } else {
+        on_idx + " on ".len()
+    };
     let mut resources = Vec::new();
     while cursor < rest.len() {
         let skipped = rest[cursor..].len() - rest[cursor..].trim_start().len();
@@ -5310,6 +5480,21 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::Action,
             label: Some(format!("goto {}", rest.trim())),
+        }));
+    }
+    if let Some(rest) = trimmed.strip_prefix("backward") {
+        let label = rest
+            .trim()
+            .trim_start_matches(':')
+            .trim_end_matches(';')
+            .trim();
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(if label.is_empty() {
+                "backward".to_string()
+            } else {
+                format!("backward {label}")
+            }),
         }));
     }
     if trimmed == "kill" || trimmed == "detach" {
@@ -6412,16 +6597,25 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     }
 
     let mut run_start: Option<usize> = None;
+    let mut in_bracket = false;
     for (idx, ch) in core.char_indices() {
-        if is_arrow_char(ch) {
-            if run_start.is_none() {
-                run_start = Some(idx);
+        if let Some(start) = run_start {
+            if in_bracket {
+                if ch == ']' {
+                    in_bracket = false;
+                }
+                continue;
             }
-            continue;
-        }
-        if let Some(start) = run_start.take() {
+            if ch == '[' {
+                in_bracket = true;
+                continue;
+            }
+            if is_arrow_char(ch) {
+                continue;
+            }
             let candidate = &core[start..idx];
             if !candidate.contains('-') {
+                run_start = None;
                 continue;
             }
             let lhs = core[..start].trim();
@@ -6429,6 +6623,17 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
             if !lhs.is_empty() && !rhs.is_empty() {
                 return Some((lhs, candidate.trim(), rhs));
             }
+            run_start = None;
+            continue;
+        }
+        if is_arrow_char(ch) {
+            if run_start.is_none() {
+                run_start = Some(idx);
+            }
+            if ch == '[' {
+                in_bracket = true;
+            }
+            continue;
         }
     }
     if let Some(start) = run_start {
@@ -6449,6 +6654,7 @@ fn parse_arrow(arrow: &str) -> Option<String> {
     const VALID_BASE_ARROWS: &[&str] = &[
         "->", "-->", "->>", "-->>", "<-", "<--", "<<-", "<<--", "<->", "<-->", "<<->>", "<<-->>",
     ];
+    let arrow = strip_sequence_arrow_brackets(arrow);
     let mut squashed = String::with_capacity(arrow.len());
     let mut last_slash: Option<char> = None;
     let mut slash_run_len = 0usize;
@@ -6549,6 +6755,23 @@ fn parse_arrow(arrow: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn strip_sequence_arrow_brackets(arrow: &str) -> String {
+    let mut out = String::with_capacity(arrow.len());
+    let mut chars = arrow.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '[' {
+            for next in chars.by_ref() {
+                if next == ']' {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(ch);
+    }
+    out
 }
 
 fn split_lifecycle_modifier(endpoint: &str) -> (&str, Option<&'static str>) {
@@ -6676,24 +6899,34 @@ fn parse_json_projection_block(
 
     // If everything is on one line: `json $alias { ... }`
     if !inline_after_brace.is_empty() {
-        let mut j = 0;
-        let ib = inline_after_brace.as_bytes();
-        while j < ib.len() {
-            if ib[j] == b'{' {
-                depth += 1;
-            } else if ib[j] == b'}' {
-                depth -= 1;
-                if depth == 0 {
-                    let body = inline_after_brace[..j].trim().to_string();
-                    let kind = if is_yaml {
-                        StatementKind::YamlProjection { alias, body }
-                    } else {
-                        StatementKind::JsonProjection { alias, body }
-                    };
-                    return Ok(Some((kind, start)));
+        let mut in_quotes = false;
+        let mut prev_escape = false;
+        for (j, ch) in inline_after_brace.char_indices() {
+            if in_quotes {
+                if ch == '"' && !prev_escape {
+                    in_quotes = false;
                 }
+                prev_escape = ch == '\\' && !prev_escape;
+                continue;
             }
-            j += 1;
+            match ch {
+                '"' => in_quotes = true,
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let body = inline_after_brace[..j].trim().to_string();
+                        let kind = if is_yaml {
+                            StatementKind::YamlProjection { alias, body }
+                        } else {
+                            StatementKind::JsonProjection { alias, body }
+                        };
+                        return Ok(Some((kind, start)));
+                    }
+                }
+                _ => {}
+            }
+            prev_escape = false;
         }
         // Depth > 0: content continues on next lines.
         body_lines.push(inline_after_brace);
@@ -6707,17 +6940,30 @@ fn parse_json_projection_block(
         // Check for matching closing brace.
         let mut consumed_close = false;
         let mut close_pos = 0;
-        for (pos, b) in trimmed.as_bytes().iter().enumerate() {
-            if *b == b'{' {
-                depth += 1;
-            } else if *b == b'}' {
-                depth -= 1;
-                if depth == 0 {
-                    consumed_close = true;
-                    close_pos = pos;
-                    break;
+        let mut in_quotes = false;
+        let mut prev_escape = false;
+        for (pos, ch) in trimmed.char_indices() {
+            if in_quotes {
+                if ch == '"' && !prev_escape {
+                    in_quotes = false;
                 }
+                prev_escape = ch == '\\' && !prev_escape;
+                continue;
             }
+            match ch {
+                '"' => in_quotes = true,
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        consumed_close = true;
+                        close_pos = pos;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            prev_escape = false;
         }
         if consumed_close {
             // Everything before the closing `}` is part of the body.
@@ -6749,15 +6995,13 @@ fn parse_json_projection_block(
 /// Returns `None` if the line does not start with `|`.
 fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
-    if !trimmed.starts_with('|') {
+    if !trimmed.contains('|') {
         return None;
     }
     // Split on `|` and parse each cell token.
     let parts: Vec<&str> = trimmed.split('|').collect();
-    // The first element before the first `|` is always empty; skip it.
-    // The last element after the last `|` may also be empty; skip it.
     let mut cells = Vec::new();
-    for part in parts.iter().skip(1) {
+    for part in parts {
         let cell_text = part.trim();
         if cell_text.is_empty() {
             continue;
@@ -7773,7 +8017,7 @@ mod tests {
     #[test]
     fn parses_core_uml_broad_partial_declaration_forms() {
         let class_doc = parse_with_options(
-            "interface Gateway\nabstract class Shape\nannotation Trace\nstruct Payload\nGateway --> Shape : adapts\n",
+            "interface Gateway\nabstract class Shape\nannotation Trace\nstruct Payload\nGateway -[#blue,dashed]-> Shape : adapts\n",
             &ParseOptions::default(),
         )
         .unwrap();
@@ -7796,6 +8040,10 @@ mod tests {
             class_doc.statements[4].kind,
             StatementKind::FamilyRelation(_)
         ));
+        match &class_doc.statements[4].kind {
+            StatementKind::FamilyRelation(rel) => assert_eq!(rel.arrow, "-->"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
 
         let object_doc = parse_with_options(
             "map Settings {\n  theme => light\n}\n",
@@ -7813,7 +8061,7 @@ mod tests {
         }
 
         let usecase_doc = parse_with_options(
-            "actor Customer as C\n(Login) as UC1\nC --> UC1 : starts\n",
+            "actor Customer as C\nusecase (Login) as UC1\nC ..> UC1 : <<include>>\n",
             &ParseOptions::default(),
         )
         .unwrap();
@@ -7833,12 +8081,37 @@ mod tests {
             }
             other => panic!("unexpected statement: {other:?}"),
         }
+        match &usecase_doc.statements[2].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.arrow, "..>");
+                assert_eq!(rel.label.as_deref(), Some("<<include>>"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_sequence_decorated_arrow_styles_as_portable_arrow_core() {
+        let doc = parse_with_options(
+            "participant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Sequence);
+        match &doc.statements[2].kind {
+            StatementKind::Message(m) => assert_eq!(m.arrow, "->"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[3].kind {
+            StatementKind::Message(m) => assert_eq!(m.arrow, "-->"),
+            other => panic!("unexpected statement: {other:?}"),
+        }
     }
 
     #[test]
     fn parses_activity_switch_split_goto_and_terminal_controls() {
         let doc = parse_with_options(
-            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\ncase (B)\ngoto retry\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ndetach\n@enduml\n",
+            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\ncase (B)\ngoto retry\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\nbackward: retry path;\ndetach\n@enduml\n",
             &ParseOptions::default(),
         )
         .unwrap();
@@ -7857,8 +8130,7 @@ mod tests {
                 && step.label.as_deref() == Some("switch kind?")));
         assert!(steps
             .iter()
-            .any(|step| step.kind == ActivityStepKind::Else
-                && step.label.as_deref() == Some("A")));
+            .any(|step| step.kind == ActivityStepKind::Else && step.label.as_deref() == Some("A")));
         assert!(steps
             .iter()
             .any(|step| step.kind == ActivityStepKind::Fork
@@ -7867,6 +8139,10 @@ mod tests {
             .iter()
             .any(|step| step.kind == ActivityStepKind::Action
                 && step.label.as_deref() == Some("goto retry")));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("backward retry path")));
         assert!(steps
             .iter()
             .any(|step| step.kind == ActivityStepKind::Stop

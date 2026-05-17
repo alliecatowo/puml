@@ -46,7 +46,7 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
     let cases = [
         (
             "class",
-            "@startuml\ninterface Gateway\nabstract class Shape\nGateway --> Shape : adapts\n@enduml\n",
+            "@startuml\ninterface Gateway\nabstract class Shape\nGateway -[#blue,dashed]-> Shape : adapts\n@enduml\n",
             vec!["Gateway", "&lt;&lt;interface&gt;&gt;", "Shape", "adapts"],
         ),
         (
@@ -61,13 +61,20 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
         ),
         (
             "usecase",
-            "@startuml\nactor Customer as C\n(Login) as UC1\nC --> UC1 : starts\n@enduml\n",
-            vec!["Customer", "&lt;&lt;actor&gt;&gt;", "Login", "starts"],
+            "@startuml\nactor Customer as C\nusecase (Login) as UC1\nC ..> UC1 : <<include>>\n@enduml\n",
+            vec!["Customer", "&lt;&lt;actor&gt;&gt;", "Login", "&lt;&lt;include&gt;&gt;"],
         ),
         (
             "activity",
-            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ngoto retry\nkill\n@enduml\n",
-            vec!["switch kind?", "(else) A", "Do A", "branch 2", "goto retry"],
+            "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ngoto retry\nbackward: retry path;\nkill\n@enduml\n",
+            vec![
+                "switch kind?",
+                "(else) A",
+                "Do A",
+                "branch 2",
+                "goto retry",
+                "backward retry path",
+            ],
         ),
         (
             "state",
@@ -87,6 +94,17 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
             );
         }
     }
+}
+
+#[test]
+fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
+    let src = "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("decorated sequence render");
+
+    assert!(svg.contains("styled"));
+    assert!(svg.contains("hidden"));
+    assert!(svg.contains("<polygon points=\""));
+    assert!(svg.contains("stroke-dasharray=\"6 4\""));
 }
 
 #[test]

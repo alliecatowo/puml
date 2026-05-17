@@ -281,11 +281,11 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | Sequence diagrams (`@startuml`) | Supported | End-to-end parser/normalize/layout/render path with full parity for participants, arrows, notes, groups, lifecycle, metadata, and skinparam subset. |
 | Class diagrams | Supported | Declarations, relations, fields/methods, visibility, stereotypes, packages/namespaces, notes, generics, association classes, lollipop notation, hide/show. |
 | Object diagrams | Supported | Object instance nodes, field-value lists, map/associative-array forms, and object links. |
-| Use-case diagrams | Supported | Actor declarations/styles, use-case descriptions, packages/boundaries, include/extend/generalization semantics, notes, stereotypes, and direction controls. |
+| Use-case diagrams | Supported | Actor declarations/styles, parenthesized `usecase (Name) as Alias`, use-case descriptions, packages/boundaries, include/extend/generalization semantics, notes, stereotypes, and direction controls. |
 | Component diagrams | Supported | `component`/`interface`/`port` declarations, dependencies, packages, and notation mode baseline. |
 | Deployment diagrams | Supported | `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations, links, and nesting. |
 | State diagrams | Supported | `state` declarations, `[*]` initial/final markers, transitions with guards, composite/history/fork-join forms. |
-| Activity diagrams (new style) | Supported | `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `partition`/swimlane constructs. |
+| Activity diagrams (new style) | Supported | `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `backward`, `partition`/swimlane constructs. |
 | Timing diagrams | Supported | `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>` instants, and `signal is state` transitions. |
 | Salt / wireframe (`@startsalt`) | Supported | Widget/grid/menu/tab/tree/table primitives, nested structures, scrolling markers, and metadata blocks. |
 | MindMap (`@startmindmap`) | Supported | Hierarchical OrgMode-style tree, directional controls, boxless markers, color/style hooks, deterministic layout. |
@@ -309,7 +309,7 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 |---|---|---|
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`. |
-| Messages + arrows | Supported | `->`, `-->`, `->>`, `-->>`, `<-`, `<--`, `->x`, `-\`, `-\\`, `-/`, `-//`, `->o`, `<->`, `<-->`, and synchronous/async forms. |
+| Messages + arrows | Supported | `->`, `-->`, `->>`, `-->>`, `<-`, `<--`, `->x`, `-\`, `-\\`, `-/`, `-//`, `->o`, `<->`, `<-->`, bracketed PlantUML arrow color/style decorations such as `-[#red,dashed]>` (normalized to the portable arrow core), and synchronous/async forms. |
 | Virtual endpoints | Supported | `[`, `]` incoming/outgoing messages; `[*]`, found/lost directionality semantics. |
 | Notes | Supported | `note left/right/over`, `hnote`, `rnote`, across/alignment behavior; multi-line `note ... end note`; `note over A, B`. |
 | Groups / fragments | Supported | `alt`/`else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `box`, `ref` (single- and multi-line `ref over A, B`), `end`; mis-nested forms produce deterministic errors. |
@@ -330,16 +330,17 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | `!includesub` | Supported | Extracts `!startsub … !endsub` named blocks. |
 | `!includeurl` / `!include http(s)://…` | Rejected (deterministic) | Emits `E_INCLUDE_URL_UNSUPPORTED`; URL fetching would break determinism. |
 | `!define` / `!undef` | Supported | Simple token substitution before normalizer. |
-| `!if` / `!elseif` / `!else` / `!endif` | Supported | Deterministic conditional evaluation: `defined()`, `==`, `!=`, numeric/bool literals; compound `&&`/`||` at top level (short-circuit; respects parens depth and quoted strings). |
+| `!if` / `!elseif` / `!else` / `!endif` | Supported | Deterministic conditional evaluation: `defined()`, `==`, `!=`, numeric/bool literals; compound `&&`/`||` and word `and`/`or` at top level (short-circuit; respects parens depth and quoted strings). |
 | `!ifdef` / `!ifndef` | Supported | Defined/undefined guards. |
 | `!while` / `!endwhile` | Supported (bounded) | Bounded iterations; exceeding limit emits `E_PREPROC_WHILE_LIMIT`. |
 | `!foreach` / `!endfor` | Supported | `!foreach $var in v1, v2, v3` (or `$var in $listvar`) iterates over comma-separated items; nested foreach OK; restores prior `$var` on exit. |
 | `!function` / `!procedure` / `!return` | Supported | User-defined functions and procedures with default/keyword/unquoted args; `!return` for early exit. |
-| Preprocessor builtins | Supported | `%strlen`, `%size`, `%strpos`, `%substr`, `%splitstr`, `%intval`, `%str`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`, `%feature`, `%variable_exists`, `%function_exists`, `%newline`, `%retrieve_procedure_return`. Time/env-sensitive builtins (`%date`, `%getenv`) return empty for byte-stable output. |
+| Preprocessor builtins | Supported | `%strlen`, `%size`, `%strpos`, `%substr`, `%splitstr`/`%split`, `%join`, `%list`/`%array`, `%list_get`, `%list_add`, `%list_contains`, `%map`, `%map_put`, `%map_contains_key`, `%get`, `%set`/`%put`, `%keys`/`%values`, `%trim`/`%ltrim`/`%rtrim`, `%replace`, `%startswith`/`%endswith`/`%contains`, `%intval`, `%str`, `%quote`/`%unquote`, `%boolval`, `%true`/`%false`/`%not`, `%upper`/`%lower`, `%chr`/`%ord`, `%dec2hex`/`%hex2dec`, `%dirpath`/`%filename`/`%filenameroot`, `%get_json_attribute`/`%json_key_exists`, `%false_then_true`/`%true_then_false`, `%invoke_procedure`, `%feature`, `%variable_exists`, `%function_exists`, `%newline`, `%retrieve_procedure_return`. Time/env-sensitive builtins (`%date`, `%getenv`) return empty for byte-stable output. |
 | JSON variable assignment | Supported | `!$var = { ... }` JSON-literal assignment parsed before normalization. |
 | `!import` / stdlib | Supported | Deterministic stdlib catalog resolution; unknown modules emit `E_IMPORT_UNSUPPORTED`. |
 | `!theme` | Supported | Local theme catalog semantics; unknown themes emit a deterministic warning and continue. |
 | `!assert` / `!log` / `!dump_memory` | Supported | Deterministic diagnostic forms; `!assert` failure emits `E_PREPROC_ASSERT_FAIL`. |
+| Inline JSON/YAML projection partial rows | Supported | Object-like `json $alias { ... }` / `yaml $alias { ... }` blocks accept partial key rows and quoted braces without leaking into UML rendering. |
 
 ### Frontends
 
