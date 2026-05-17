@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { runWasmSmoke } from '../../scripts/wasm-smoke.mjs';
 
 const args = process.argv.slice(2);
 const requireWasm = args.includes('--require-wasm');
+const liveWasm = requireWasm || args.includes('--live-wasm');
 const siteArg = args.find((arg) => !arg.startsWith('--')) || 'site';
 const siteRoot = resolve(siteArg);
 const publicRoot = join(siteRoot, 'public');
@@ -41,6 +43,7 @@ function writeReport(ok, message = '') {
         siteRoot,
         publicRoot,
         requireWasm,
+        liveWasm,
         checks,
       },
       null,
@@ -130,6 +133,21 @@ for (const [name, needle] of [
 if (requireWasm) {
   assert(existsSync(wasmJsPath), `missing built WASM JS bundle: ${wasmJsPath}`, 'WASM JS bundle exists', { wasmJsPath });
   assert(existsSync(wasmPath), `missing built WASM binary: ${wasmPath}`, 'WASM binary exists', { wasmPath });
+}
+
+if (liveWasm) {
+  assert(existsSync(wasmJsPath), `missing built WASM JS bundle for live smoke: ${wasmJsPath}`, 'live WASM JS bundle exists', { wasmJsPath });
+  assert(existsSync(wasmPath), `missing built WASM binary for live smoke: ${wasmPath}`, 'live WASM binary exists', { wasmPath });
+
+  try {
+    const results = await runWasmSmoke(join(publicRoot, 'wasm'));
+    for (const result of results) {
+      const { name, ...detail } = result;
+      pass(`live WASM renderer: ${name}`, detail);
+    }
+  } catch (e) {
+    fail(`live WASM renderer failed: ${e.message || e}`);
+  }
 }
 
 writeReport(true);

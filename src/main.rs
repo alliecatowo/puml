@@ -1636,7 +1636,10 @@ fn render_output_bytes(
 }
 
 fn svg_to_png_bytes(svg: &str, dpi: f32) -> Result<Vec<u8>, (u8, String)> {
-    let opt = resvg::usvg::Options::default();
+    let mut opt = resvg::usvg::Options::default();
+    let fontdb = opt.fontdb_mut();
+    fontdb.load_system_fonts();
+    fontdb.set_monospace_family("Liberation Mono");
     let tree = resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| {
         (
             EXIT_VALIDATION,

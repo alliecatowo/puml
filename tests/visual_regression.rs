@@ -108,8 +108,8 @@ fn svg_shape_failures(svg: &str) -> Vec<String> {
 // PNG rasterisation (resvg + tiny-skia, same chain as the CLI uses)
 // ---------------------------------------------------------------------------
 
-/// Fixed DPI for baseline PNG rasterisation. Must stay constant so that
-/// regenerated baselines are bit-for-bit identical across machines.
+/// Fixed DPI for baseline PNG rasterisation. Must stay constant so regenerated
+/// baselines are stable for a given renderer/font stack.
 const BASELINE_DPI: f32 = 96.0;
 
 /// Maximum width (px) for baseline PNGs. The SVG viewBox is scaled to fit
@@ -128,7 +128,10 @@ const PIXEL_DIFF_THRESHOLD: u8 = 3;
 ///
 /// Returns `(width, height, rgba_bytes)`.
 fn svg_to_rgba(svg: &str) -> Result<(u32, u32, Vec<u8>), String> {
-    let opt = resvg::usvg::Options::default();
+    let mut opt = resvg::usvg::Options::default();
+    let fontdb = opt.fontdb_mut();
+    fontdb.load_system_fonts();
+    fontdb.set_monospace_family("Liberation Mono");
     let tree =
         resvg::usvg::Tree::from_str(svg, &opt).map_err(|e| format!("usvg parse failed: {e}"))?;
 
@@ -506,8 +509,7 @@ fn check_fixture_with_required_text(
     if empty_count > 0 {
         reasons.push(format!(
             "found {} empty `<text>` element(s); rendered {} non-empty out of {} total. \
-             This is the missing-label bug class (see #238). \
-             Inspect the SVG at {}",
+             This is the missing-label bug class. Inspect the SVG at {}",
             empty_count,
             texts.len() - empty_count,
             texts.len(),
@@ -677,7 +679,6 @@ fn visual_smoke_representative_docs_examples_matrix() {
 }
 
 #[test]
-#[ignore]
 fn visual_regression_all_fixtures() {
     let manifest = load_manifest();
     run_text_sweep(manifest.fixtures.iter(), manifest.fixtures.len());
@@ -808,44 +809,15 @@ fn check_png_fixture(fixture: &Fixture) -> Option<Failure> {
     })
 }
 
-/// PNG perceptual baseline sweep.
-///
-/// For every fixture in `manifest.json`:
-///   1. Render SVG via `puml`.
-///   2. Rasterise to PNG at 96 DPI (scaled to ≤640 px wide).
-///   3. Load the stored baseline from `tests/visual_baselines/<family>/<fixture>.png`.
-///   4. Run a per-pixel RGBA diff with threshold `PIXEL_DIFF_THRESHOLD`.
-///   5. On any mismatch, write `target/visual-diff/<family>/<fixture>.png.new`
-///      (current render) and `<fixture>.diff.png` (diff overlay, changed
-///      pixels in red).
-///
-/// The test is `#[ignore]` for two reasons:
-///   a) The renderer has a widespread missing-label bug (#238) that makes
-///      baseline PNG generation meaningless right now.
-///   b) No baselines exist yet — they are generated after #238 lands by
-///      running: `cargo test --test visual_regression bless_baselines -- --ignored`
-///
-/// Once #238 is fixed and baselines are blessed, remove the `#[ignore]`
-/// to gate this in CI.
-///
-/// # TODO(post-#238): add png_regression_all_fixtures to PR Gate
-#[test]
-#[ignore]
-fn png_regression_all_fixtures() {
-    let manifest = load_manifest();
+fn run_png_sweep<'a>(label: &str, fixtures: impl IntoIterator<Item = &'a Fixture>, total: usize) {
     let mut failures: Vec<Failure> = Vec::new();
-    for fixture in &manifest.fixtures {
+    for fixture in fixtures {
         if let Some(f) = check_png_fixture(fixture) {
             failures.push(f);
         }
     }
     if !failures.is_empty() {
-        let total = manifest.fixtures.len();
-        let mut report = format!(
-            "\nPNG regression: {}/{} fixtures failed\n",
-            failures.len(),
-            total
-        );
+        let mut report = format!("\n{label}: {}/{} fixtures failed\n", failures.len(), total);
         for f in &failures {
             report.push_str(&format!("\n  FIXTURE: {}\n", f.fixture));
             for r in &f.reasons {
@@ -861,6 +833,63 @@ fn png_regression_all_fixtures() {
         );
         panic!("{report}");
     }
+}
+
+/// Compare every reviewed PNG baseline currently committed to git.
+///
+/// This is intentionally narrower than `png_regression_all_fixtures`: the
+/// full sweep stays ignored while baseline coverage is expanded fixture by
+/// fixture, but each committed PNG is enforced by the default test suite.
+#[test]
+fn png_regression_committed_baselines() {
+    let manifest = load_manifest();
+    let root = workspace_root();
+    let fixtures = manifest
+        .fixtures
+        .iter()
+        .filter(|fixture| baseline_png_path(&root, fixture).exists())
+        .collect::<Vec<_>>();
+    let total = fixtures.len();
+
+    assert!(
+        total > 0,
+        "visual regression should include at least one committed PNG baseline; \
+         run `cargo test --test visual_regression bless_baselines -- --ignored` \
+         and commit a reviewed baseline from tests/visual_baselines/"
+    );
+
+    run_png_sweep("Committed PNG regression", fixtures, total);
+}
+
+/// PNG perceptual baseline sweep.
+///
+/// For every fixture in `manifest.json`:
+///   1. Render SVG via `puml`.
+///   2. Rasterise to PNG at 96 DPI (scaled to ≤640 px wide).
+///   3. Load the stored baseline from `tests/visual_baselines/<family>/<fixture>.png`.
+///   4. Run a per-pixel RGBA diff with threshold `PIXEL_DIFF_THRESHOLD`.
+///   5. On any mismatch, write `target/visual-diff/<family>/<fixture>.png.new`
+///      (current render) and `<fixture>.diff.png` (diff overlay, changed
+///      pixels in red).
+///
+/// The test is `#[ignore]` while reviewed baseline coverage is still being
+/// expanded. The default `png_regression_committed_baselines` test gates every
+/// baseline that has already been committed, and this full sweep becomes useful
+/// once all manifest fixtures have reviewed PNG baselines.
+///
+/// Once all manifest fixtures are blessed, remove the `#[ignore]` to gate this
+/// in CI.
+///
+/// # TODO: add png_regression_all_fixtures to PR Gate after full baseline coverage.
+#[test]
+#[ignore]
+fn png_regression_all_fixtures() {
+    let manifest = load_manifest();
+    run_png_sweep(
+        "PNG regression",
+        manifest.fixtures.iter(),
+        manifest.fixtures.len(),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1103,6 +1132,21 @@ fn svg_to_rgba_produces_deterministic_output() {
     let (w2, h2, rgba2) = svg_to_rgba(svg).expect("rasterise call 2");
     assert_eq!((w1, h1), (w2, h2), "dimensions must be deterministic");
     assert_eq!(rgba1, rgba2, "pixel data must be deterministic");
+}
+
+#[test]
+fn svg_to_rgba_renders_text_pixels() {
+    let with_text = r#"<svg xmlns="http://www.w3.org/2000/svg" width="120" height="50"><rect width="120" height="50" fill="white"/><text x="8" y="30" font-family="monospace" font-size="20" fill="black">Text</text></svg>"#;
+    let without_text = r#"<svg xmlns="http://www.w3.org/2000/svg" width="120" height="50"><rect width="120" height="50" fill="white"/></svg>"#;
+
+    let (text_w, text_h, text_rgba) = svg_to_rgba(with_text).expect("rasterise with text");
+    let (blank_w, blank_h, blank_rgba) = svg_to_rgba(without_text).expect("rasterise blank");
+
+    assert_eq!((text_w, text_h), (blank_w, blank_h));
+    assert_ne!(
+        text_rgba, blank_rgba,
+        "rasterized text should change output pixels"
+    );
 }
 
 #[test]
