@@ -9,9 +9,9 @@ Rust-native, deterministic diagram rendering for people, docs, and agents.
 [![PlantUML compatibility target](https://img.shields.io/badge/PlantUML-compatible%20target-14b8a6)](docs/audits/plantuml_parity_source_of_truth.md)
 [![deterministic SVG](https://img.shields.io/badge/output-deterministic%20SVG-0f766e)](docs/benchmarks/README.md)
 
-`puml` is a no-Java, PlantUML-compatible diagram renderer written in Rust. It parses diagram sources, lowers them through deterministic compiler stages, and emits SVG or PNG from a single CLI without needing a JVM, Graphviz install, or rendering server.
+`puml` is the Rust renderer binary and engine: a no-Java, PlantUML-compatible diagram renderer. It parses diagram sources, lowers them through deterministic compiler stages, and emits SVG or PNG from a single CLI without needing a JVM, Graphviz install, or rendering server.
 
-It is also the home of PicoUML: our small, aspirational, agent-friendly diagram language for diagrams that need to stay easy to author, diff, validate, and render in automation.
+PlantUML is the compatibility target. PicoUML is our own language surface and superset path for diagrams that need to stay easy to author, diff, validate, and render in automation. Mermaid support is a frontend adapter for selected families, not a JavaScript runtime dependency.
 
 ```plantuml
 @startuml
@@ -98,6 +98,7 @@ Use compatibility controls when you need them:
 
 ```bash
 puml --dialect plantuml --compat strict --determinism strict hello.puml
+puml --check design.picouml
 puml --format png --dpi 192 hello.puml -o hello@2x.png
 puml --from-markdown --check docs/examples/README.md
 puml --check --lint-glob 'docs/**/*.md' --lint-report json
@@ -115,7 +116,7 @@ puml --no-url-includes --check hello.puml
 | Planning and structure | Gantt, chronology, mindmap, WBS, nwdiag, Archimate, C4-style examples, and more. |
 | Data and text families | JSON, YAML, EBNF, regex, math/LaTeX, SDL, Ditaa, and chart renderers. |
 | Preprocessor | Deterministic support for many PlantUML preprocessor forms, includes, URL includes by default, macros, functions, loops, assertions, and stdlib imports. |
-| Frontends | PlantUML is the compatibility target; PicoUML is ours and evolving; Mermaid support exists for selected families. |
+| Frontends | PlantUML is the compatibility target; `.picouml` files and `--dialect picouml` route through PicoUML; Mermaid support exists for selected families. |
 | Outputs | Deterministic SVG by default; PNG rasterization is available through the same scene pipeline. |
 | Tool surfaces | CLI is primary; WASM and LSP integrations are emerging and kept close to the same parser/render pipeline. |
 
