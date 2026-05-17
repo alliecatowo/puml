@@ -1,0 +1,29 @@
+title: "[Q&A] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask usage questions, support questions, or "how should this render?" questions here.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and where are you stuck?
+      placeholder: "I am trying to render..."
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example input or context
+      description: Add the smallest relevant `.puml` snippet, command, screenshot, or link.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What you tried
+      description: Include commands, docs links, or comparisons you already checked.
+    validations:
+      required: false
