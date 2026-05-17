@@ -4,6 +4,7 @@
 /// These bypass the main AST parser pipeline and implement their own
 /// mini-parsers and SVG renderers.
 use crate::diagnostic::Diagnostic;
+use crate::theme::resolve_sequence_theme_preset;
 use std::collections::BTreeMap;
 
 // ─── Public dispatch ──────────────────────────────────────────────────────────
@@ -1339,6 +1340,20 @@ fn render_chart(source: &str) -> Result<String, Diagnostic> {
         }
         if lower.starts_with("caption ") {
             options.caption = Some(line[8..].trim().to_string());
+            continue;
+        }
+        if let Some(theme_name) = line.strip_prefix("!theme ") {
+            let preset = resolve_sequence_theme_preset(theme_name).map_err(Diagnostic::error)?;
+            options.background = preset
+                .style
+                .background_color
+                .unwrap_or_else(|| "white".to_string());
+            options.axis_color = Some(preset.style.arrow_color);
+            options.palette = vec![
+                preset.style.participant_border_color,
+                preset.style.lifeline_border_color,
+                preset.style.group_border_color,
+            ];
             continue;
         }
         if parse_chart_annotation(line, &mut options.annotations) {

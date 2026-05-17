@@ -2583,10 +2583,20 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         ));
     }
 
-    // Build column index for tasks + milestones
+    let has_resource_lanes = document.tasks.iter().any(|t| !t.resources.is_empty());
+    let mut ordered_tasks: Vec<&TimelineTask> = document.tasks.iter().collect();
+    if has_resource_lanes {
+        ordered_tasks.sort_by(|a, b| {
+            resource_lane_label(a)
+                .cmp(&resource_lane_label(b))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+    }
+
+    // Build row index for tasks + milestones
     let mut row_index: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
     let mut row_counter: i32 = 0;
-    for task in &document.tasks {
+    for task in &ordered_tasks {
         row_index.insert(task.name.clone(), row_counter);
         row_counter += 1;
     }
@@ -2596,20 +2606,70 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         row_counter += 1;
     }
 
-    let min_day = document
+    let task_end_day: std::collections::BTreeMap<&str, u32> = document
         .tasks
         .iter()
-        .map(|t| t.start_day)
+        .map(|t| {
+            (
+                t.name.as_str(),
+                t.start_day.saturating_add(t.duration_days.max(1)),
+            )
+        })
+        .collect();
+    let preliminary_min_day = document
+        .project_start_day
+        .into_iter()
+        .chain(document.tasks.iter().map(|t| t.start_day))
+        .min()
+        .unwrap_or(0);
+    let milestone_anchor = document.project_start_day.unwrap_or(preliminary_min_day);
+    let mut milestone_day: std::collections::BTreeMap<&str, u32> =
+        std::collections::BTreeMap::new();
+    for ms in &document.milestones {
+        if let Some(day) = ms
+            .happens_on
+            .as_deref()
+            .and_then(|target| resolve_gantt_milestone_day(target, milestone_anchor, &task_end_day))
+        {
+            milestone_day.insert(ms.name.as_str(), day);
+            continue;
+        }
+        for c in &document.constraints {
+            if c.subject != ms.name {
+                continue;
+            }
+            if let Some(day) =
+                resolve_gantt_milestone_day(&c.target, milestone_anchor, &task_end_day)
+            {
+                milestone_day.insert(ms.name.as_str(), day);
+                break;
+            }
+        }
+    }
+
+    let min_day = document
+        .project_start_day
+        .into_iter()
+        .chain(document.tasks.iter().map(|t| t.start_day))
+        .chain(milestone_day.values().copied())
         .min()
         .unwrap_or(0);
     let max_day_exclusive = document
+        .project_start_day
+        .map(|d| d.saturating_add(1))
+        .into_iter()
+        .chain(
+            document
         .tasks
         .iter()
-        .map(|t| t.start_day.saturating_add(t.duration_days.max(1)))
+                .map(|t| t.start_day.saturating_add(t.duration_days.max(1))),
+        )
+        .chain(milestone_day.values().map(|d| d.saturating_add(1)))
         .max()
         .unwrap_or(min_day.saturating_add(1));
     let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
     let tick_count = total_days.clamp(1, 8);
+    let date_axis = document.project_start_day.is_some() || min_day > 366;
 
     // Axis header bar
     out.push_str(&format!(
@@ -2628,10 +2688,14 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             y2 = chart_top + chart_h
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">D+{n}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{label}</text>",
             tx = x + 6,
             ty = chart_top - 10,
-            n = day_offset
+            label = escape_text(&format_gantt_axis_label(
+                min_day.saturating_add(day_offset),
+                min_day,
+                date_axis
+            ))
         ));
     }
 
@@ -2645,19 +2709,35 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let start_offset = day.saturating_sub(min_day);
         chart_left + ((chart_w as u32 * start_offset) / total_days) as i32
     };
-    let task_end_day: std::collections::BTreeMap<&str, u32> = document
-        .tasks
-        .iter()
-        .map(|t| {
-            (
-                t.name.as_str(),
-                t.start_day.saturating_add(t.duration_days.max(1)),
-            )
-        })
-        .collect();
+    if has_resource_lanes {
+        let mut lane_start = 0usize;
+        while lane_start < ordered_tasks.len() {
+            let lane = resource_lane_label(ordered_tasks[lane_start]);
+            let mut lane_end = lane_start + 1;
+            while lane_end < ordered_tasks.len()
+                && resource_lane_label(ordered_tasks[lane_end]) == lane
+            {
+                lane_end += 1;
+            }
+            let y = chart_top + lane_start as i32 * (bar_height + row_gap);
+            let h = (lane_end - lane_start) as i32 * (bar_height + row_gap);
+            out.push_str(&format!(
+                "<rect class=\"resource-lane\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#eff6ff\" stroke=\"#bfdbfe\" stroke-width=\"1\" opacity=\"0.72\"/>",
+                x = chart_left,
+                w = chart_w
+            ));
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#1d4ed8\">{label}</text>",
+                x = chart_left + 6,
+                y = y + 14,
+                label = escape_text(&lane)
+            ));
+            lane_start = lane_end;
+        }
+    }
 
     // Render tasks as horizontal bars
-    for (i, task) in document.tasks.iter().enumerate() {
+    for (i, task) in ordered_tasks.iter().enumerate() {
         let row = i as i32;
         let y = chart_top + row * (bar_height + row_gap) + row_gap / 2;
         // Label
@@ -2672,30 +2752,13 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             "<rect x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#3b82f6\" stroke=\"#1e40af\" stroke-width=\"1\"/>",
             bh = bar_height
         ));
-    }
-
-    // Render milestones as diamonds (position derived from constraints when possible)
-    let mut milestone_day: std::collections::BTreeMap<&str, u32> =
-        std::collections::BTreeMap::new();
-    for ms in &document.milestones {
-        for c in &document.constraints {
-            if c.subject != ms.name {
-                continue;
-            }
-            if let Some(task_name) = extract_bracketed_name(&c.target) {
-                if let Some(day) = task_end_day.get(task_name.as_str()) {
-                    milestone_day.insert(ms.name.as_str(), *day);
-                    break;
-                }
-            }
-            if let Some(day) = parse_relative_day(&c.target) {
-                milestone_day.insert(ms.name.as_str(), min_day.saturating_add(day));
-                break;
-            }
-            if let Some(abs_day) = parse_iso_date_day_number(&c.target) {
-                milestone_day.insert(ms.name.as_str(), abs_day.max(min_day));
-                break;
-            }
+        if !task.resources.is_empty() {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#1e40af\">{txt}</text>",
+                x = chart_right - 6,
+                y = y + bar_height - 6,
+                txt = escape_text(&task.resources.join(", "))
+            ));
         }
     }
 
@@ -2774,7 +2837,11 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     // Render textual constraint annotations beneath chart (start/requires with date strings)
     let mut note_y = chart_top + chart_h + 10;
     for constraint in &document.constraints {
-        if row_index.contains_key(&constraint.target) {
+        if row_index.contains_key(&constraint.target)
+            || extract_bracketed_name(&constraint.target)
+                .as_deref()
+                .is_some_and(|target| row_index.contains_key(target))
+        {
             continue;
         }
         out.push_str(&format!(
@@ -2801,10 +2868,42 @@ fn extract_bracketed_name(target: &str) -> Option<String> {
     Some(target[start + 1..end].trim().to_string())
 }
 
+fn resource_lane_label(task: &TimelineTask) -> String {
+    if task.resources.is_empty() {
+        "Unassigned".to_string()
+    } else {
+        task.resources.join(", ")
+    }
+}
+
 fn parse_relative_day(raw: &str) -> Option<u32> {
     let t = raw.trim();
     let rest = t.strip_prefix("D+").or_else(|| t.strip_prefix("d+"))?;
     rest.trim().parse::<u32>().ok()
+}
+
+fn resolve_gantt_milestone_day(
+    target: &str,
+    anchor_day: u32,
+    task_end_day: &std::collections::BTreeMap<&str, u32>,
+) -> Option<u32> {
+    if let Some(task_name) = extract_bracketed_name(target) {
+        if let Some(day) = task_end_day.get(task_name.as_str()) {
+            return Some(*day);
+        }
+    }
+    if let Some(day) = parse_relative_day(target) {
+        return Some(anchor_day.saturating_add(day));
+    }
+    parse_iso_date_day_number(target)
+}
+
+fn format_gantt_axis_label(day: u32, min_day: u32, date_axis: bool) -> String {
+    if date_axis {
+        day_number_to_iso(day).unwrap_or_else(|| format!("D+{}", day.saturating_sub(min_day)))
+    } else {
+        format!("D+{}", day.saturating_sub(min_day))
+    }
 }
 
 fn parse_iso_date_tuple(raw: &str) -> Option<(i32, i32, i32)> {
@@ -2838,6 +2937,36 @@ fn parse_iso_date_day_number(raw: &str) -> Option<u32> {
     }
     days = days.saturating_add((d - 1) as u32);
     Some(days)
+}
+
+fn day_number_to_iso(mut day: u32) -> Option<String> {
+    let mut year = 0i32;
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if day < days_in_year {
+            break;
+        }
+        day -= days_in_year;
+        year += 1;
+    }
+    const MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut month = 1u32;
+    for base_days in MONTH {
+        let days_in_month = if month == 2 && is_leap_year(year) {
+            29
+        } else {
+            base_days
+        };
+        if day < days_in_month {
+            return Some(format!(
+                "{year:04}-{month:02}-{dom:02}",
+                dom = day + 1
+            ));
+        }
+        day -= days_in_month;
+        month += 1;
+    }
+    None
 }
 
 fn is_leap_year(y: i32) -> bool {
