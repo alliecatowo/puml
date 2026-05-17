@@ -152,3 +152,48 @@ highlight 12 to 18 : cooldown
     assert!(svg.contains("active window"));
     assert!(svg.contains("cooldown"));
 }
+
+#[test]
+fn class_nested_package_frames_render_from_scoped_blocks() {
+    let src = r#"@startuml
+title Nested class packages
+package Domain {
+namespace Core {
+class User
+class Account
+}
+}
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("class render should succeed");
+
+    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Domain\""));
+    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Domain::Core\""));
+    assert!(svg.contains(">package Domain<"));
+    assert!(svg.contains(">package Core<"));
+    assert!(svg.contains("class Domain::Core::User"));
+}
+
+#[test]
+fn component_nested_package_frames_render_from_scoped_blocks() {
+    let src = r#"@startuml
+title Nested component packages
+package Edge {
+node Rack {
+component "API Gateway" as api
+interface Gateway
+}
+}
+api --> Gateway : exposes
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("component render should succeed");
+
+    assert!(svg.contains("component diagram"));
+    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Edge\""));
+    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Edge::Rack\""));
+    assert!(svg.contains(">package Edge<"));
+    assert!(svg.contains(">package Rack<"));
+    assert!(svg.contains("API Gateway"));
+    assert!(svg.contains("exposes"));
+}

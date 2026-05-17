@@ -1999,6 +1999,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                         label: None,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
+                        fill_color: None,
                     });
                     continue;
                 }
@@ -2093,6 +2094,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                         label: None,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
+                        fill_color: None,
                     },
                 );
             }
@@ -2119,6 +2121,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                         label: None,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
+                        fill_color: None,
                     },
                 );
             }
@@ -2141,6 +2144,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                         label: None,
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
+                        fill_color: None,
                     },
                 );
             }
@@ -2222,6 +2226,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                             label: None,
                             mindmap_side: MindMapSide::Right,
                             wbs_checkbox: None,
+                            fill_color: None,
                         });
                     }
                 }
@@ -2306,6 +2311,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     label: None,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
+                    fill_color: None,
                 });
             }
             StatementKind::Unknown(line) if family_kind == DiagramKind::Salt => {
@@ -2322,6 +2328,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     label: None,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
+                    fill_color: None,
                 });
             }
             StatementKind::Unknown(line) => {
@@ -2337,6 +2344,7 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                             label: None,
                             mindmap_side: MindMapSide::Right,
                             wbs_checkbox: None,
+                            fill_color: None,
                         });
                     }
                     continue;
@@ -2915,6 +2923,7 @@ fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnosti
                         label: None,
                         mindmap_side: node_info.side,
                         wbs_checkbox: node_info.checkbox,
+                        fill_color: node_info.fill_color,
                     });
                     continue;
                 }
@@ -3056,11 +3065,13 @@ struct MindMapWbsNode {
     name: String,
     side: MindMapSide,
     checkbox: Option<WbsCheckbox>,
+    fill_color: Option<String>,
 }
 
 /// Parse a MindMap / WBS node line. Handles:
 ///
 /// - `* Root`, `** Child`, `*** Grandchild` — star-depth (depth = stars - 1)
+/// - `*[#Orange] Root`, `**[#fef3c7] Child` — PlantUML-style node color tags
 /// - `** Left child` after a `left side` keyword (tracked externally)
 /// - `+** Right`, `-** Left` — explicit side prefix on first depth-2+ star
 /// - WBS annotations: `[x]` checked, `[ ]` unchecked, `[%NN]` progress
@@ -3084,6 +3095,7 @@ fn parse_mindmap_or_wbs_node(line: &str) -> Option<MindMapWbsNode> {
     }
 
     let mut label = rest[star_prefix..].trim().to_string();
+    let fill_color = parse_mindmap_wbs_color_tag(&mut label);
     if label.is_empty() {
         return None;
     }
@@ -3100,7 +3112,31 @@ fn parse_mindmap_or_wbs_node(line: &str) -> Option<MindMapWbsNode> {
         name: label,
         side,
         checkbox,
+        fill_color,
     })
+}
+
+/// Parse a leading PlantUML color tag from MindMap/WBS labels.
+///
+/// PlantUML examples use tags such as `[#Orange]` and `[#lightgreen]`; SVG
+/// accepts named colors without the leading `#`, while hex colors keep it.
+fn parse_mindmap_wbs_color_tag(label: &mut String) -> Option<String> {
+    let trimmed = label.trim_start();
+    let rest = trimmed.strip_prefix('[')?;
+    let close = rest.find(']')?;
+    let raw = rest[..close].trim();
+    let value = raw.strip_prefix('#')?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let normalized =
+        if matches!(value.len(), 3 | 6 | 8) && value.chars().all(|ch| ch.is_ascii_hexdigit()) {
+            format!("#{value}")
+        } else {
+            value.to_string()
+        };
+    *label = rest[close + 1..].trim_start().to_string();
+    Some(normalized)
 }
 
 /// Try to parse a WBS checkbox annotation from the end of a label, stripping it
@@ -3173,6 +3209,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     label,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
+                    fill_color: None,
                 });
             }
             StatementKind::StateDecl(decl) => nodes.push(FamilyNode {
@@ -3184,6 +3221,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 label: None,
                 mindmap_side: MindMapSide::Right,
                 wbs_checkbox: None,
+                fill_color: None,
             }),
             StatementKind::ActivityStep(step) => {
                 activity_step_counter += 1;
@@ -3225,6 +3263,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     label: step.label,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
+                    fill_color: None,
                 });
             }
             StatementKind::TimingDecl {
@@ -3249,6 +3288,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     label,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
+                    fill_color: None,
                 });
             }
             StatementKind::TimingEvent {
@@ -3289,6 +3329,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     },
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
+                    fill_color: None,
                 });
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
@@ -3347,6 +3388,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                             label: display_label,
                             mindmap_side: MindMapSide::Right,
                             wbs_checkbox: None,
+                            fill_color: None,
                         });
                     }
                 }
@@ -3569,6 +3611,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                         label: Some(trimmed.to_string()),
                         mindmap_side: MindMapSide::Right,
                         wbs_checkbox: None,
+                        fill_color: None,
                     });
                     continue;
                 }
@@ -3702,6 +3745,7 @@ fn family_note_node(idx: usize, note: crate::ast::Note) -> FamilyNode {
         label: Some(label),
         mindmap_side: MindMapSide::Right,
         wbs_checkbox: None,
+        fill_color: None,
     }
 }
 
@@ -4781,7 +4825,7 @@ fn parse_message_arrow(raw: &str) -> Option<ParsedMessageArrow> {
             "->".to_string()
         }
     } else {
-        canonical_base
+        base
     };
     Some(ParsedMessageArrow {
         render_arrow,

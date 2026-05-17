@@ -2,11 +2,11 @@ use crate::ast::{DiagramKind, MemberModifier, NoteKind};
 use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
 use crate::model::{
     ArchimateDocument, ChartDocument, ChartSubtype, DitaaDocument, EbnfDocument, EbnfToken,
-    FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle, JsonDocument,
-    LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument, ParticipantRole,
-    RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind, StateDocument,
-    StateNode, StateNodeKind, TimelineChronologyEvent, TimelineDocument, TimelineTask,
-    VirtualEndpointKind, WbsCheckbox, YamlDocument,
+    FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
+    JsonDocument, LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument,
+    ParticipantRole, RegexDocument, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlStateKind,
+    StateDocument, StateNode, StateNodeKind, TimelineChronologyEvent, TimelineDocument,
+    TimelineTask, VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
 use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
 use crate::theme::css3_color_to_hex;
@@ -489,33 +489,42 @@ fn render_sequence_arrow_heads(
         .map(f32::from)
         .unwrap_or(1.0)
         .clamp(1.0, 8.0);
-    let arrow = m.arrow.replace(['/', '\\'], "");
+    let raw_arrow = m.arrow.as_str();
+    let arrow = raw_arrow.replace(['/', '\\'], "");
     let left_marker = arrow.chars().next().filter(|c| matches!(c, 'o' | 'x'));
     let right_marker = arrow.chars().last().filter(|c| matches!(c, 'o' | 'x'));
     let left_arrow = arrow.starts_with('<') || arrow.starts_with("<<");
     let right_arrow = arrow.contains('>') && !matches!(right_marker, Some('o' | 'x'));
     let open_head = arrow.contains(">>") || arrow.contains("<<");
+    let left_slant = sequence_arrow_head_slant(raw_arrow, true);
+    let right_slant = sequence_arrow_head_slant(raw_arrow, false);
 
     if left_arrow {
         render_arrow_head(
             out,
-            (m.x1, m.y),
-            (m.x2, m.x1),
-            open_head,
-            (stroke_color, fill_color),
-            head_stroke_width,
-            hidden,
+            ArrowHeadRender {
+                point: (m.x1, m.y),
+                from_to_x: (m.x2, m.x1),
+                open: open_head,
+                slant: left_slant,
+                colors: (stroke_color, fill_color),
+                stroke_width: head_stroke_width,
+                hidden,
+            },
         );
     }
     if right_arrow {
         render_arrow_head(
             out,
-            (m.x2, m.y),
-            (m.x1, m.x2),
-            open_head,
-            (stroke_color, fill_color),
-            head_stroke_width,
-            hidden,
+            ArrowHeadRender {
+                point: (m.x2, m.y),
+                from_to_x: (m.x1, m.x2),
+                open: open_head,
+                slant: right_slant,
+                colors: (stroke_color, fill_color),
+                stroke_width: head_stroke_width,
+                hidden,
+            },
         );
     }
     if let Some(marker) = left_marker {
@@ -526,21 +535,41 @@ fn render_sequence_arrow_heads(
     }
 }
 
-fn render_arrow_head(
-    out: &mut String,
+struct ArrowHeadRender<'a> {
     point: (i32, i32),
     from_to_x: (i32, i32),
     open: bool,
-    colors: (&str, &str),
+    slant: Option<char>,
+    colors: (&'a str, &'a str),
     stroke_width: f32,
-    hidden: &str,
-) {
-    let (x, y) = point;
-    let (from_x, to_x) = from_to_x;
-    let (stroke_color, fill_color) = colors;
+    hidden: &'a str,
+}
+
+fn render_arrow_head(out: &mut String, head: ArrowHeadRender<'_>) {
+    let (x, y) = head.point;
+    let (from_x, to_x) = head.from_to_x;
+    let (stroke_color, fill_color) = head.colors;
     let dir = if to_x >= from_x { 1 } else { -1 };
     let back = x - (dir * 8);
-    if open {
+    if let Some(slant) = head.slant {
+        let back_y = match slant {
+            '/' => y + (dir * 5),
+            '\\' => y - (dir * 5),
+            _ => y,
+        };
+        let slant_name = if slant == '/' { "slash" } else { "backslash" };
+        out.push_str(&format!(
+            "<line class=\"sequence-arrow-head sequence-arrow-head-{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+            slant_name,
+            back,
+            back_y,
+            x,
+            y,
+            stroke_color,
+            head.stroke_width,
+            head.hidden
+        ));
+    } else if head.open {
         out.push_str(&format!(
             "<polyline points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
             back,
@@ -550,8 +579,8 @@ fn render_arrow_head(
             back,
             y + 5,
             stroke_color,
-            stroke_width,
-            hidden
+            head.stroke_width,
+            head.hidden
         ));
     } else {
         out.push_str(&format!(
@@ -564,9 +593,36 @@ fn render_arrow_head(
             y + 5,
             fill_color,
             stroke_color,
-            stroke_width,
-            hidden
+            head.stroke_width,
+            head.hidden
         ));
+    }
+}
+
+fn sequence_arrow_head_slant(raw_arrow: &str, left: bool) -> Option<char> {
+    let mut marker = None;
+    let mut saw_head = false;
+    for ch in raw_arrow.chars() {
+        if matches!(ch, '/' | '\\') {
+            marker = Some(ch);
+            continue;
+        }
+        if left && ch == '<' {
+            return marker;
+        }
+        if !left && ch == '>' {
+            saw_head = true;
+        }
+        if saw_head && matches!(ch, '/' | '\\') {
+            return Some(ch);
+        }
+    }
+    if left {
+        None
+    } else if saw_head {
+        marker
+    } else {
+        None
     }
 }
 
@@ -701,6 +757,17 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let member_line_height: i32 = 16;
     let member_padding: i32 = 8;
     let empty_member_pad: i32 = 8;
+    let group_frames = collect_render_group_frames(&document.groups);
+    let max_group_depth = group_frames
+        .iter()
+        .map(|frame| frame.depth)
+        .max()
+        .unwrap_or(0);
+    let group_top_reserve = if group_frames.is_empty() {
+        0
+    } else {
+        ((max_group_depth as i32) + 1) * 24
+    };
 
     // Compute heights per node
     struct NodeBox {
@@ -757,7 +824,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     // Second pass: assign coordinates
     let mut row_y_offsets: Vec<i32> = vec![0; row_heights.len()];
     {
-        let mut y = margin_top + title_block_height;
+        let mut y = margin_top + title_block_height + group_top_reserve;
         for (i, h) in row_heights.iter().enumerate() {
             row_y_offsets[i] = y;
             y += h + row_gap;
@@ -993,7 +1060,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
     // Render groups (together/package/namespace) as labeled frames BEFORE nodes
     // so node rectangles visually sit on top of the frame borders.
-    for group in &document.groups {
+    for group in &group_frames {
         // Compute bounding box around all member nodes in this group
         let mut gx_min = i32::MAX;
         let mut gy_min = i32::MAX;
@@ -1013,21 +1080,20 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             continue;
         }
         // Add padding around the member bounding box
-        let pad = 12;
-        let label_header = 20; // extra space at top for the group label
+        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
+        let pad = 12 + depth_outset;
+        let label_header = 20 + depth_outset; // extra space at top for the group label
         let fx = gx_min - pad;
         let fy = gy_min - pad - label_header;
         let fw = (gx_max - gx_min) + pad * 2;
         let fh = (gy_max - gy_min) + pad * 2 + label_header;
 
-        let group_label = match group.label.as_deref() {
-            Some(lbl) => format!("{} {}", group.kind, lbl),
-            None => group.kind.clone(),
-        };
+        let group_label = group.display_label();
 
         // Frame rectangle
         out.push_str(&format!(
-            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
+            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
+            escape_text(&group.scope)
         ));
         // Group label text
         out.push_str(&format!(
@@ -3820,6 +3886,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let gap = 40i32;
     let n = doc.nodes.len() as i32;
     let rows = (n + cols - 1) / cols;
+    let group_frames = collect_render_group_frames(&doc.groups);
+    let max_group_depth = group_frames
+        .iter()
+        .map(|frame| frame.depth)
+        .max()
+        .unwrap_or(0);
     let title_lines = doc
         .title
         .as_deref()
@@ -3832,7 +3904,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         + (rows.max(1) * cell_h)
         + ((rows - 1).max(0) * gap)
         + 60
-        + (doc.groups.len() as i32 * 12);
+        + (doc.groups.len() as i32 * 12)
+        + ((max_group_depth as i32) * 24);
 
     // Position lookup by name and alias.
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
@@ -3882,7 +3955,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         }
     }
 
-    for group in &doc.groups {
+    for group in &group_frames {
         let mut gx_min = i32::MAX;
         let mut gy_min = i32::MAX;
         let mut gx_max = i32::MIN;
@@ -3900,18 +3973,17 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         if !found_any {
             continue;
         }
-        let pad = 14;
-        let label_h = 20;
+        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
+        let pad = 14 + depth_outset;
+        let label_h = 20 + depth_outset;
         let fx = gx_min - pad;
         let fy = gy_min - pad - label_h;
         let fw = gx_max - gx_min + pad * 2;
         let fh = gy_max - gy_min + pad * 2 + label_h;
-        let label = match group.label.as_deref() {
-            Some(v) => format!("{} {}", group.kind, v),
-            None => group.kind.clone(),
-        };
+        let label = group.display_label();
         out.push_str(&format!(
-            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"6 4\"/>",
+            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"6 4\"/>",
+            escape_text(&group.scope),
             comp_style.border_color
         ));
         out.push_str(&format!(
@@ -4469,6 +4541,96 @@ fn render_lollipop_endpoint(out: &mut String, x: i32, y: i32, stroke: &str) {
         y,
         stroke
     ));
+}
+
+#[derive(Debug, Clone)]
+struct RenderGroupFrame {
+    kind: String,
+    label: Option<String>,
+    scope: String,
+    member_ids: Vec<String>,
+    depth: usize,
+}
+
+impl RenderGroupFrame {
+    fn display_label(&self) -> String {
+        match self.label.as_deref() {
+            Some(label) if !label.is_empty() => format!("{} {}", self.kind, label),
+            _ => self.kind.clone(),
+        }
+    }
+}
+
+fn collect_render_group_frames(groups: &[FamilyGroup]) -> Vec<RenderGroupFrame> {
+    let mut frames: std::collections::BTreeMap<String, RenderGroupFrame> =
+        std::collections::BTreeMap::new();
+
+    for group in groups {
+        let explicit_scope = group
+            .label
+            .as_deref()
+            .filter(|label| !label.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| group.kind.clone());
+        if !group.member_ids.is_empty() {
+            let scope = explicit_scope;
+            let depth = scope.split("::").filter(|part| !part.is_empty()).count();
+            let key = format!("{}\x1f{}", group.kind, scope);
+            let entry = frames.entry(key).or_insert_with(|| RenderGroupFrame {
+                kind: group.kind.clone(),
+                label: group.label.clone(),
+                scope: scope.clone(),
+                member_ids: Vec::new(),
+                depth: depth.saturating_sub(1),
+            });
+            entry.member_ids.extend(group.member_ids.iter().cloned());
+        }
+
+        for member_id in &group.member_ids {
+            let node_id = member_id
+                .split('\t')
+                .next()
+                .unwrap_or(member_id.as_str())
+                .trim();
+            if node_id.is_empty() {
+                continue;
+            }
+            let parts = node_id
+                .split("::")
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>();
+            if parts.len() < 2 {
+                continue;
+            }
+            for prefix_len in 1..parts.len() {
+                let scope = parts[..prefix_len].join("::");
+                let key = format!("{}\x1f{}", group.kind, scope);
+                let label = parts.get(prefix_len - 1).map(|value| (*value).to_string());
+                let entry = frames.entry(key).or_insert_with(|| RenderGroupFrame {
+                    kind: group.kind.clone(),
+                    label,
+                    scope: scope.clone(),
+                    member_ids: Vec::new(),
+                    depth: prefix_len.saturating_sub(1),
+                });
+                entry.member_ids.push(node_id.to_string());
+            }
+        }
+    }
+
+    let mut frames = frames.into_values().collect::<Vec<_>>();
+    for frame in &mut frames {
+        frame.member_ids.sort();
+        frame.member_ids.dedup();
+    }
+    frames.sort_by(|a, b| {
+        (a.depth, a.scope.as_str(), a.kind.as_str()).cmp(&(
+            b.depth,
+            b.scope.as_str(),
+            b.kind.as_str(),
+        ))
+    });
+    frames
 }
 
 /// Styled variant of `render_family_node_shape` that applies `comp_style` for
@@ -7648,6 +7810,10 @@ fn mindmap_node_fill(depth: usize) -> &'static str {
     MINDMAP_PALETTE[depth % MINDMAP_PALETTE.len()]
 }
 
+fn family_node_fill<'a>(node: &'a crate::model::FamilyNode, fallback: &'a str) -> &'a str {
+    node.fill_color.as_deref().unwrap_or(fallback)
+}
+
 /// Render a `@startmindmap` document as SVG.
 ///
 /// Layout: horizontal tree — root centred; right-side branches extend right,
@@ -7798,7 +7964,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     out.push_str(&format!(
         "<rect x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
         rx = rx, ry = ry, rw = root_w, h = NODE_H,
-        fill = mindmap_node_fill(0)
+        fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
     ));
     out.push_str(&format!(
         "<text x=\"{cx}\" y=\"{cy}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\">{}</text>",
@@ -7946,7 +8112,7 @@ fn draw_mindmap_subtree(
     out.push_str(&format!(
         "<rect x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
-        fill = mindmap_node_fill(node.depth)
+        fill = escape_text(family_node_fill(node, mindmap_node_fill(node.depth)))
     ));
     out.push_str(&format!(
         "<text x=\"{cx}\" y=\"{cy}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
@@ -8018,6 +8184,10 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
     }
 
     let n = nodes.len();
+
+    fn wbs_node_width(node: &crate::model::FamilyNode) -> i32 {
+        (node.name.chars().count() as i32 * 7 + 24).clamp(80, 200)
+    }
 
     // Count leaves in each subtree for horizontal distribution.
     fn wbs_leaf_count(nodes: &[crate::model::FamilyNode], idx: usize) -> usize {
@@ -8167,10 +8337,34 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
     // Draw edges (parent → child).
     for i in 0..n {
         if let Some(p) = parent_of[i] {
-            let px = x_positions[p];
-            let py = y_positions[p] + NODE_H / 2;
-            let cx = x_positions[i];
-            let cy = y_positions[i] - NODE_H / 2;
+            let parent_w = wbs_node_width(&nodes[p]);
+            let child_w = wbs_node_width(&nodes[i]);
+            let (px, py, cx, cy) = match doc.orientation {
+                FamilyOrientation::TopToBottom => (
+                    x_positions[p],
+                    y_positions[p] + NODE_H / 2,
+                    x_positions[i],
+                    y_positions[i] - NODE_H / 2,
+                ),
+                FamilyOrientation::BottomToTop => (
+                    x_positions[p],
+                    y_positions[p] - NODE_H / 2,
+                    x_positions[i],
+                    y_positions[i] + NODE_H / 2,
+                ),
+                FamilyOrientation::LeftToRight => (
+                    x_positions[p] + parent_w / 2,
+                    y_positions[p],
+                    x_positions[i] - child_w / 2,
+                    y_positions[i],
+                ),
+                FamilyOrientation::RightToLeft => (
+                    x_positions[p] - parent_w / 2,
+                    y_positions[p],
+                    x_positions[i] + child_w / 2,
+                    y_positions[i],
+                ),
+            };
             out.push_str(&format!(
                 "<line x1=\"{px}\" y1=\"{py}\" x2=\"{cx}\" y2=\"{cy}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
                 px = px, py = py, cx = cx, cy = cy
@@ -8183,14 +8377,15 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         let node = &nodes[i];
         let cx = x_positions[i];
         let cy = y_positions[i];
-        let nw = (node.name.chars().count() as i32 * 7 + 24).clamp(80, 200);
+        let nw = wbs_node_width(node);
         let nx = cx - nw / 2;
         let ny = cy - NODE_H / 2;
-        let fill = if node.depth == 0 {
+        let default_fill = if node.depth == 0 {
             "#fde68a"
         } else {
             "#f1f5f9"
         };
+        let fill = family_node_fill(node, default_fill);
         let stroke = if node.depth == 0 {
             "#92400e"
         } else {

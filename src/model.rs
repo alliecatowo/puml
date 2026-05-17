@@ -533,6 +533,8 @@ pub struct FamilyNode {
     pub mindmap_side: MindMapSide,
     /// WBS checkbox annotation (only meaningful for Wbs kind)
     pub wbs_checkbox: Option<WbsCheckbox>,
+    /// Optional per-node fill color for MindMap/WBS color tags.
+    pub fill_color: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

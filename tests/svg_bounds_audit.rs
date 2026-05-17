@@ -272,8 +272,8 @@ fn differential_oracle_smoke_report_schema_is_stable_in_dry_mode() {
 
     let raw = fs::read_to_string(&path).expect("report should be written");
     let json: Value = serde_json::from_str(&raw).expect("report must be valid JSON");
-    assert_eq!(json["schema_version"], "1.0.0");
-    assert_eq!(json["oracle"]["mode"], "plantuml-smoke");
+    assert_eq!(json["schema_version"], "1.1.0");
+    assert_eq!(json["oracle"]["mode"], "metadata-dry-run");
     assert_eq!(json["tool"]["dry_run"], true);
     assert_eq!(json["tool"]["quick_mode"], true);
     let fixtures = json["fixtures"]

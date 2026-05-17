@@ -2,7 +2,7 @@
 # oracle.sh — Differential SVG conformance suite against the Java PlantUML reference JAR.
 #
 # Usage:
-#   ./scripts/oracle.sh [--corpus-dir <dir>] [--examples-dir <dir>]
+#   ./scripts/oracle.sh [--corpus-dir <dir>] [--examples-dir <dir>] [--report-file <path>]
 #
 # Environment:
 #   PUML_ORACLE_JAR   Absolute path to plantuml.jar.
@@ -10,7 +10,7 @@
 #   PUML_ORACLE_JAVA  Path to java binary (falls back to "java" on PATH).
 #
 # Output (stdout): newline-terminated JSON object (sentinel or full report).
-# Report written to: docs/benchmarks/oracle_report.json
+# Report written to: docs/benchmarks/oracle_report.json unless --report-file is set.
 #
 # Metrics per fixture (when both sides render):
 #   elem_count  — count of <rect>, <text>, <line>, <polygon>, <circle>, <path> tags
@@ -62,6 +62,14 @@ while [[ $# -gt 0 ]]; do
       EXAMPLES_DIR="${1#*=}"
       shift
       ;;
+    --report-file)
+      REPORT_FILE="$2"
+      shift 2
+      ;;
+    --report-file=*)
+      REPORT_FILE="${1#*=}"
+      shift
+      ;;
     -h|--help)
       grep '^#' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -77,7 +85,7 @@ done
 # Skip sentinel: PUML_ORACLE_JAR not set
 # ---------------------------------------------------------------------------
 if [[ -z "${PUML_ORACLE_JAR:-}" ]]; then
-  SENTINEL='{"skipped":true,"reason":"PUML_ORACLE_JAR not set"}'
+  SENTINEL='{"schema_version":"1.0","skipped":true,"reason":"PUML_ORACLE_JAR not set","comparison_only":true,"runtime_dependency":false,"build_dependency":false,"java_attempted":false}'
   printf '%s\n' "${SENTINEL}"
   mkdir -p "$(dirname "${REPORT_FILE}")"
   printf '%s\n' "${SENTINEL}" > "${REPORT_FILE}"
@@ -90,7 +98,7 @@ JAR="${PUML_ORACLE_JAR}"
 # Skip sentinel: JAR file not found
 # ---------------------------------------------------------------------------
 if [[ ! -f "${JAR}" ]]; then
-  SENTINEL="$(printf '{"skipped":true,"reason":"JAR file not found: %s"}' "${JAR}")"
+  SENTINEL="$(printf '{"schema_version":"1.0","skipped":true,"reason":"JAR file not found: %s","comparison_only":true,"runtime_dependency":false,"build_dependency":false,"java_attempted":false}' "${JAR}")"
   printf '%s\n' "${SENTINEL}"
   mkdir -p "$(dirname "${REPORT_FILE}")"
   printf '%s\n' "${SENTINEL}" > "${REPORT_FILE}"
@@ -101,7 +109,7 @@ fi
 # Skip sentinel: java not available
 # ---------------------------------------------------------------------------
 if ! command -v "${JAVA_BIN}" >/dev/null 2>&1; then
-  SENTINEL="$(printf '{"skipped":true,"reason":"java binary not found: %s"}' "${JAVA_BIN}")"
+  SENTINEL="$(printf '{"schema_version":"1.0","skipped":true,"reason":"java binary not found: %s","comparison_only":true,"runtime_dependency":false,"build_dependency":false,"java_attempted":false}' "${JAVA_BIN}")"
   printf '%s\n' "${SENTINEL}"
   mkdir -p "$(dirname "${REPORT_FILE}")"
   printf '%s\n' "${SENTINEL}" > "${REPORT_FILE}"

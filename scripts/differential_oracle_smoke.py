@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
 DEFAULT_OUTPUT = ROOT / "docs" / "benchmarks" / "oracle_smoke_latest.json"
 SVG_TAG_RE = re.compile(r"<\s*([a-zA-Z][a-zA-Z0-9:_-]*)\b")
 VIEWBOX_RE = re.compile(r'viewBox\s*=\s*"([^"]+)"', re.IGNORECASE)
@@ -22,19 +22,84 @@ VIEWBOX_RE = re.compile(r'viewBox\s*=\s*"([^"]+)"', re.IGNORECASE)
 FIXTURES: List[Dict[str, Any]] = [
     {
         "fixture": "basic/hello.puml",
+        "category": "sequence-core",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_reason": "baseline sequence render should stay close to the reference SVG shape",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["Alice", "Bob", "hello"],
     },
     {
         "fixture": "participants/valid_aliases.puml",
+        "category": "sequence-core",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_reason": "participant aliases are part of the implemented sequence subset",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["User", "API", "request"],
     },
     {
         "fixture": "groups/valid_ref_and_else_rendering.puml",
+        "category": "sequence-fragments",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_reason": "fragment labels and branch text should survive both renderers",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["ref", "else"],
     },
     {
         "fixture": "notes/valid_multiline_blocks.puml",
+        "category": "sequence-notes",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_reason": "multiline notes are supported but remain useful text-presence sentinels",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram",
         "expect_tokens": ["note"],
+    },
+    {
+        "fixture": "styling/valid_skinparam_unsupported.puml",
+        "category": "styling-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_reason": "unsupported skinparam keys are accepted as deterministic warnings rather than full PlantUML styling",
+        "plantuml_reference": "https://plantuml.com/skinparam",
+        "expect_tokens": ["Alice", "Bob"],
+    },
+    {
+        "fixture": "errors/invalid_preproc_dynamic_invoke.puml",
+        "category": "preprocessor-advanced",
+        "support_status": "partial",
+        "expected_oracle_category": "jar-only",
+        "drift_reason": "dynamic invocation remains outside the deterministic preprocessor subset",
+        "plantuml_reference": "https://plantuml.com/preprocessing",
+        "expect_tokens": [],
+    },
+    {
+        "fixture": "families/valid_salt_login_form.puml",
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_reason": "Salt widget breadth is intentionally narrower than the Java PlantUML reference",
+        "plantuml_reference": "https://plantuml.com/salt",
+        "expect_tokens": ["Login"],
+    },
+    {
+        "fixture": "families/valid_chart_bar_quarterly.puml",
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_reason": "chart axis, legend, and style semantics remain fixture-backed partial parity",
+        "plantuml_reference": "https://plantuml.com/chart-diagram",
+        "expect_tokens": [],
+    },
+    {
+        "fixture": "families/valid_mindmap_orientation.puml",
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_reason": "mindmap orientation metadata is deterministic but not full PlantUML layout parity",
+        "plantuml_reference": "https://plantuml.com/mindmap-diagram",
+        "expect_tokens": [],
     },
 ]
 
@@ -59,6 +124,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--dry",
+        "--dry-run",
+        dest="dry",
         action="store_true",
         help="write report metadata without executing render commands",
     )
@@ -116,14 +183,34 @@ def normalize_svg(svg: str) -> str:
     return svg.rstrip("\r\n")
 
 
+def classification_for(fixture: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "category": fixture["category"],
+        "support_status": fixture["support_status"],
+        "expected_oracle_category": fixture["expected_oracle_category"],
+        "drift_reason": fixture["drift_reason"],
+        "plantuml_reference": fixture["plantuml_reference"],
+    }
+
+
+def count_by(fixtures: List[Dict[str, Any]], field: str) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for row in fixtures:
+        value = str(row["classification"][field])
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def evaluate_fixture(fixture: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
     rel = fixture["fixture"]
     src_path = ROOT / "tests" / "fixtures" / rel
     src = src_path.read_text(encoding="utf-8")
+    classification = classification_for(fixture)
 
     if args.dry:
         return {
             "fixture": rel,
+            "classification": classification,
             "local": {"attempted": False, "exit_code": None, "stderr": "", "svg_bytes": None},
             "oracle": {
                 "attempted": False,
@@ -133,8 +220,9 @@ def evaluate_fixture(fixture: Dict[str, Any], args: argparse.Namespace) -> Dict[
                 "command": args.oracle_command,
             },
             "comparison": {
-                "passed": True,
-                "notes": ["dry run"],
+                "state": "not-run",
+                "passed": None,
+                "notes": ["dry run: local and oracle render commands were not executed"],
                 "token_checks": [],
                 "local_viewbox": None,
                 "oracle_viewbox": None,
@@ -182,6 +270,7 @@ def evaluate_fixture(fixture: Dict[str, Any], args: argparse.Namespace) -> Dict[
 
     return {
         "fixture": rel,
+        "classification": classification,
         "local": {
             "attempted": True,
             "exit_code": local.returncode,
@@ -196,6 +285,7 @@ def evaluate_fixture(fixture: Dict[str, Any], args: argparse.Namespace) -> Dict[
             "command": args.oracle_command,
         },
         "comparison": {
+            "state": "passed" if passed else "failed",
             "passed": passed,
             "notes": notes,
             "token_checks": token_checks,
@@ -212,8 +302,14 @@ def main() -> int:
     selected = FIXTURES[:2] if args.quick else FIXTURES
 
     fixtures = [evaluate_fixture(fix, args) for fix in selected]
-    passed = sum(1 for row in fixtures if row["comparison"]["passed"])
-    failed = len(fixtures) - passed
+    if args.dry:
+        passed = 0
+        failed = 0
+        not_run = len(fixtures)
+    else:
+        passed = sum(1 for row in fixtures if row["comparison"]["passed"])
+        failed = len(fixtures) - passed
+        not_run = 0
 
     report = {
         "schema_version": SCHEMA_VERSION,
@@ -230,11 +326,16 @@ def main() -> int:
         },
         "oracle": {
             "interface_version": "1",
-            "mode": "plantuml-smoke",
+            "mode": "metadata-dry-run" if args.dry else "plantuml-smoke",
             "enabled": not args.dry,
             "command": args.oracle_command,
+            "comparison_only": True,
+            "runtime_dependency": False,
+            "build_dependency": False,
+            "normal_cargo_test_uses_oracle": False,
             "deterministic_controls": [
                 "fixed fixture corpus ordering",
+                "fixture-backed expected oracle categories",
                 "exact token-presence checks",
                 "viewBox presence checks",
                 "structured JSON report schema",
@@ -244,6 +345,10 @@ def main() -> int:
             "total": len(fixtures),
             "passed": passed,
             "failed": failed,
+            "not_run": not_run,
+            "by_fixture_category": count_by(fixtures, "category"),
+            "by_support_status": count_by(fixtures, "support_status"),
+            "by_expected_oracle_category": count_by(fixtures, "expected_oracle_category"),
         },
         "fixtures": fixtures,
     }

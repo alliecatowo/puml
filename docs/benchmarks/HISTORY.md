@@ -41,6 +41,26 @@ Each `fixtures[]` entry contains:
 When the PlantUML oracle is active (`oracle.status != "todo"`), the `oracle.comparison`
 field will hold a structured diff summary (see `scripts/oracle.sh` output format).
 
+### `oracle_smoke_latest.json`
+Machine-readable differential smoke report produced by
+`scripts/differential_oracle_smoke.py`.
+
+Schema version: `1.1.0`
+
+Top-level keys:
+- `schema_version` — currently `"1.1.0"`.
+- `generated_at_utc` — ISO-8601 UTC timestamp of the run.
+- `tool` — runner metadata, including `dry_run`.
+- `oracle` — comparison-only contract flags and optional oracle command.
+- `summary` — aggregate counts, including `not_run`, `by_fixture_category`,
+  `by_support_status`, and `by_expected_oracle_category`.
+- `fixtures` — per-fixture render/comparison records plus `classification`.
+
+Dry-run mode is Java-free and command-free. It sets `oracle.enabled: false`,
+marks every fixture `comparison.state: "not-run"`, and records expected oracle
+categories such as `match`, `drift`, and `jar-only` so remaining partial
+PlantUML gaps stay fixture-backed even when the external oracle is unavailable.
+
 ### `latest_trend.json`
 Trend data produced by `scripts/bench.sh`. Tracks per-scenario mean render
 times across successive runs.  Keys: `generated_at_utc`, `mode` (`full`|`quick`),
@@ -66,20 +86,21 @@ appropriate baseline.  Baselines are **not** auto-updated; use
    - Any `gate_passed: false` entry is a regression against the baseline.
    - `mean_ms` values > `gate_limit_ms` indicate absolute limit breaches.
 
-## Oracle Diffs (future)
+## Oracle Diffs
 
-When `scripts/oracle.sh` is enabled (PlantUML JAR present), each fixture's
-`oracle.comparison` will contain:
+When `scripts/oracle.sh` is enabled explicitly with `PUML_ORACLE_JAR`, each
+fixture is classified as:
 ```json
 {
-  "strategy": "byte",
-  "identical": false,
-  "diff_bytes": 42,
-  "notes": "SVG whitespace difference at byte offset 1024"
+  "path": "tests/fixtures/basic/hello.puml",
+  "category": "drift",
+  "metrics": {
+    "elem_count": { "ours": 12, "ref": 11, "drift_pct": 9 }
+  }
 }
 ```
-The `parity-report-<sha>` artifact will then include a `oracle_diff_count` summary
-field at the top level.
+The JAR is not a runtime dependency, not a build dependency, and is not used by
+normal `cargo test` or render commands.
 
 ## Artifact Retention Policy
 

@@ -197,6 +197,44 @@ left to right direction
 }
 
 #[test]
+fn mindmap_and_wbs_node_color_tags_render_from_model() {
+    let mindmap = r##"@startmindmap
+*[#Orange] Root
+**[#lightgreen] Delivery
+left side
+**[#fef3c7] Risks
+@endmindmap
+"##;
+    let mindmap_svg = puml::render_source_to_svg(mindmap).expect("mindmap render");
+    assert!(mindmap_svg.contains("fill=\"Orange\""));
+    assert!(mindmap_svg.contains("fill=\"lightgreen\""));
+    assert!(mindmap_svg.contains("fill=\"#fef3c7\""));
+
+    let doc = parse_with_options(mindmap, &ParseOptions::default()).expect("parse mindmap");
+    let NormalizedDocument::Family(model) = puml::normalize_family(doc).expect("normalize mindmap")
+    else {
+        panic!("expected family model");
+    };
+    assert_eq!(model.nodes[0].fill_color.as_deref(), Some("Orange"));
+    assert_eq!(model.nodes[1].fill_color.as_deref(), Some("lightgreen"));
+    assert_eq!(model.nodes[2].fill_color.as_deref(), Some("#fef3c7"));
+
+    let wbs = r##"@startwbs
+right to left direction
+*[#dbeafe] Program
+**[#pink] Stream A [%40]
+**[#c7f9cc] Stream B [x]
+@endwbs
+"##;
+    let wbs_svg = puml::render_source_to_svg(wbs).expect("wbs render");
+    assert!(wbs_svg.contains("data-wbs-orientation=\"RightToLeft\""));
+    assert!(wbs_svg.contains("fill=\"#dbeafe\""));
+    assert!(wbs_svg.contains("fill=\"pink\""));
+    assert!(wbs_svg.contains("fill=\"#c7f9cc\""));
+    assert!(wbs_svg.contains("[40%]"));
+}
+
+#[test]
 fn chart_respects_axis_range_and_negative_values() {
     let src = r##"@startchart
 bar chart

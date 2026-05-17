@@ -5,14 +5,22 @@ what the exit-code thresholds mean, and how to run the suite locally.
 
 ## Overview
 
-The oracle suite is a comparison-only conformance harness. It compares SVG
-output produced by **puml** (our Rust renderer) against the **Java PlantUML
-reference JAR** on every `.puml` fixture under `tests/fixtures/` and
-`docs/examples/`.
+The oracle suite is comparison-only conformance tooling. The full shell oracle
+compares SVG output produced by **puml** (our Rust renderer) against the
+**Java PlantUML reference JAR** on every `.puml` fixture under
+`tests/fixtures/` and `docs/examples/`.
 
 The Java PlantUML JAR is never part of the `puml` runtime path, never a fallback
 renderer, and never required for normal CLI/library rendering. It is used only
 when an audit, local run, or CI workflow explicitly sets `PUML_ORACLE_JAR`.
+Normal `cargo test`, `cargo run`, and rendering paths do not need Java and do
+not download or execute a JAR.
+
+For Java-free audits, `scripts/differential_oracle_smoke.py --dry-run` emits the
+same fixture manifest and expected comparison categories without executing the
+local renderer, PlantUML, Java, or any JAR. This makes partial PlantUML gaps
+visible as fixture-backed expected drift categories before an optional external
+oracle is available.
 
 Each fixture is placed into exactly one category:
 
@@ -23,6 +31,42 @@ Each fixture is placed into exactly one category:
 | `puml-only` | Our renderer produces SVG; the reference JAR fails or produces nothing |
 | `jar-only` | The reference JAR produces SVG; our renderer fails |
 | `both-fail` | Neither side produces usable SVG |
+
+These categories are report classifications, not runtime behavior. A fixture
+classified as `drift`, `jar-only`, or `puml-only` is evidence for a known parity
+gap; it does not enable a fallback renderer.
+
+## Dry-run schema
+
+`scripts/differential_oracle_smoke.py --dry-run` writes
+`docs/benchmarks/oracle_smoke_latest.json` by default, or a custom path via
+`--output`. Schema `1.1.0` adds `classification` metadata to every fixture:
+
+```json
+{
+  "fixture": "families/valid_salt_login_form.puml",
+  "classification": {
+    "category": "family-partial",
+    "support_status": "partial",
+    "expected_oracle_category": "drift",
+    "drift_reason": "Salt widget breadth is intentionally narrower than the Java PlantUML reference",
+    "plantuml_reference": "https://plantuml.com/salt"
+  },
+  "local": { "attempted": false },
+  "oracle": { "attempted": false },
+  "comparison": { "state": "not-run", "passed": null }
+}
+```
+
+The dry-run summary includes:
+
+- `not_run` — all selected fixtures in dry-run mode.
+- `by_fixture_category` — deterministic fixture category counts.
+- `by_support_status` — implemented vs partial fixture counts.
+- `by_expected_oracle_category` — expected `match`, `drift`, `jar-only`, `puml-only`, or `both-fail` counts.
+
+The report also states `comparison_only: true`, `runtime_dependency: false`,
+`build_dependency: false`, and `normal_cargo_test_uses_oracle: false`.
 
 ## Metrics
 
@@ -171,6 +215,16 @@ from any CI pipeline.
 
 The skip sentinel means "comparison not run"; it does not mean parity passed or
 failed.
+
+### Run the Java-free dry-run manifest
+
+```sh
+python3 ./scripts/differential_oracle_smoke.py --dry-run --output target/oracle-smoke-dry.json
+```
+
+This command is suitable for normal Rust development environments because it
+does not execute Java, does not require `plantuml.jar`, and does not invoke
+`cargo run`.
 
 ## CI integration
 

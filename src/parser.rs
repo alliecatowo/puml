@@ -127,9 +127,16 @@ struct PreprocCallable {
     body: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+struct PreprocMacro {
+    params: Vec<String>,
+    body: String,
+}
+
 #[derive(Debug, Clone, Default)]
 struct PreprocState {
     defines: BTreeMap<String, String>,
+    macros: BTreeMap<String, PreprocMacro>,
     vars: BTreeMap<String, String>,
     callables: BTreeMap<String, PreprocCallable>,
     // Counters used by the deterministic builtins `%false_then_true` /
@@ -441,12 +448,18 @@ fn preprocess_text(
                 }
                 PreprocessDirective::Define(body) => {
                     if active {
-                        let (name, value) = body.split_once(' ').unwrap_or((body.as_str(), ""));
-                        let name = name.trim();
-                        if !name.is_empty() {
-                            state
-                                .defines
-                                .insert(name.to_string(), value.trim().to_string());
+                        if let Some((name, mac)) = parse_macro_define(&body)? {
+                            state.defines.remove(&name);
+                            state.macros.insert(name, mac);
+                        } else {
+                            let (name, value) = body.split_once(' ').unwrap_or((body.as_str(), ""));
+                            let name = name.trim();
+                            if !name.is_empty() {
+                                state.macros.remove(name);
+                                state
+                                    .defines
+                                    .insert(name.to_string(), value.trim().to_string());
+                            }
                         }
                     }
                 }
@@ -454,7 +467,9 @@ fn preprocess_text(
                     if active {
                         let name = name.trim();
                         if !name.is_empty() {
+                            let name = name.split_once('(').map_or(name, |(n, _)| n).trim();
                             state.defines.remove(name);
+                            state.macros.remove(name);
                         }
                     }
                 }
@@ -1367,6 +1382,10 @@ fn evaluate_scalar_expr(expr: &str) -> Result<bool, Diagnostic> {
         return Ok(evaluate_scalar_expr(&lhs)? && evaluate_scalar_expr(&rhs)?);
     }
 
+    let lower_trimmed = trimmed.to_ascii_lowercase();
+    if lower_trimmed.starts_with("not ") {
+        return evaluate_scalar_expr(trimmed[3..].trim_start()).map(|v| !v);
+    }
     if let Some((lhs, rhs)) = split_top_level(trimmed, "==") {
         return Ok(normalize_expr_value(&lhs) == normalize_expr_value(&rhs));
     }
@@ -2072,41 +2091,138 @@ fn normalize_path(path: PathBuf) -> PathBuf {
     out
 }
 
-fn substitute_tokens(line: &str, defines: &BTreeMap<String, String>) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut token = String::new();
-    let mut in_quotes = false;
-
-    let flush_token = |token: &mut String, out: &mut String, defines: &BTreeMap<String, String>| {
-        if token.is_empty() {
-            return;
-        }
-        if let Some(v) = defines.get(token.as_str()) {
-            out.push_str(v);
-        } else {
-            out.push_str(token);
-        }
-        token.clear();
+fn parse_macro_define(body: &str) -> Result<Option<(String, PreprocMacro)>, Diagnostic> {
+    let trimmed = body.trim();
+    let Some(open) = trimmed.find('(') else {
+        return Ok(None);
     };
+    let name = trimmed[..open].trim();
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Ok(None);
+    }
+    let chars = trimmed.chars().collect::<Vec<_>>();
+    let (params_raw, close_next) = extract_parenthesized_args(&chars, open)?;
+    let rest = trimmed[close_next..].trim();
+    let params = split_args(&params_raw)?
+        .into_iter()
+        .map(|param| param.trim().trim_start_matches('$').to_string())
+        .filter(|param| !param.is_empty())
+        .collect::<Vec<_>>();
+    Ok(Some((
+        name.to_string(),
+        PreprocMacro {
+            params,
+            body: rest.to_string(),
+        },
+    )))
+}
 
-    for ch in line.chars() {
+fn substitute_defines(
+    line: &str,
+    defines: &BTreeMap<String, String>,
+    macros: &BTreeMap<String, PreprocMacro>,
+) -> Result<String, Diagnostic> {
+    let mut out = String::with_capacity(line.len());
+    let chars = line.chars().collect::<Vec<_>>();
+    let mut i = 0usize;
+    let mut in_quotes = false;
+    while i < chars.len() {
+        let ch = chars[i];
         if ch == '"' {
-            flush_token(&mut token, &mut out, defines);
             in_quotes = !in_quotes;
             out.push(ch);
+            i += 1;
             continue;
         }
-
-        if !in_quotes && (ch.is_ascii_alphanumeric() || ch == '_') {
-            token.push(ch);
+        if !in_quotes && (ch.is_ascii_alphabetic() || ch == '_') {
+            let start = i;
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            let token = chars[start..j].iter().collect::<String>();
+            let mut k = j;
+            while k < chars.len() && chars[k].is_whitespace() {
+                k += 1;
+            }
+            if k < chars.len() && chars[k] == '(' {
+                if let Some(mac) = macros.get(&token) {
+                    let (args_raw, next_idx) = extract_parenthesized_args(&chars, k)?;
+                    let args = split_args(&args_raw)?;
+                    out.push_str(&expand_macro_body(mac, &args));
+                    i = next_idx;
+                    continue;
+                }
+            }
+            if let Some(value) = defines.get(token.as_str()) {
+                out.push_str(value);
+            } else {
+                out.push_str(&token);
+            }
+            i = j;
             continue;
         }
-
-        flush_token(&mut token, &mut out, defines);
         out.push(ch);
+        i += 1;
     }
+    Ok(out)
+}
 
-    flush_token(&mut token, &mut out, defines);
+fn expand_macro_body(mac: &PreprocMacro, args: &[String]) -> String {
+    let bindings = mac
+        .params
+        .iter()
+        .enumerate()
+        .map(|(idx, name)| (name.as_str(), args.get(idx).cloned().unwrap_or_default()))
+        .collect::<BTreeMap<_, _>>();
+    substitute_macro_params(&mac.body, &bindings)
+}
+
+fn substitute_macro_params(body: &str, bindings: &BTreeMap<&str, String>) -> String {
+    let mut out = String::with_capacity(body.len());
+    let chars = body.chars().collect::<Vec<_>>();
+    let mut i = 0usize;
+    let mut in_quotes = false;
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+        if !in_quotes && ch == '$' && i + 1 < chars.len() {
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            let name = chars[i + 1..j].iter().collect::<String>();
+            if let Some(value) = bindings.get(name.as_str()) {
+                out.push_str(value);
+            } else {
+                out.push('$');
+                out.push_str(&name);
+            }
+            i = j;
+            continue;
+        }
+        if !in_quotes && (ch.is_ascii_alphabetic() || ch == '_') {
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            let name = chars[i..j].iter().collect::<String>();
+            if let Some(value) = bindings.get(name.as_str()) {
+                out.push_str(value);
+            } else {
+                out.push_str(&name);
+            }
+            i = j;
+            continue;
+        }
+        out.push(ch);
+        i += 1;
+    }
     out
 }
 
@@ -2211,9 +2327,9 @@ fn collect_json_path_suffix(chars: &[char], start: usize) -> (String, usize) {
     (path, i)
 }
 
-fn substitute_tokens_and_vars(line: &str, state: &PreprocState) -> String {
-    let with_tokens = substitute_tokens(line, &state.defines);
-    substitute_vars(&with_tokens, &state.vars)
+fn substitute_tokens_and_vars(line: &str, state: &PreprocState) -> Result<String, Diagnostic> {
+    let with_tokens = substitute_defines(line, &state.defines, &state.macros)?;
+    Ok(substitute_vars(&with_tokens, &state.vars))
 }
 
 fn parse_variable_assignment(name: &str, arg: &str, raw: &str) -> Option<PreprocessDirective> {
@@ -2258,7 +2374,7 @@ fn expand_preprocessor_text(
     state: &PreprocState,
     call_depth: usize,
 ) -> Result<String, Diagnostic> {
-    let substituted = collapse_macro_concat(&substitute_tokens_and_vars(raw_line, state));
+    let substituted = collapse_macro_concat(&substitute_tokens_and_vars(raw_line, state)?);
     let expanded = expand_function_invocations(&substituted, state, call_depth)?;
     Ok(collapse_macro_concat(&expanded))
 }
@@ -2389,7 +2505,14 @@ fn dispatch_builtin(
 
     let result: Option<String> = match name {
         "strlen" => Some(arg(0).chars().count().to_string()),
+        "count" => Some(preprocessor_size(&arg(0)).to_string()),
         "size" => Some(preprocessor_size(&arg(0)).to_string()),
+        "eval" | "eval_int" => Some(
+            eval_int_expr(&arg(0))
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| arg(0)),
+        ),
+        "eval_bool" | "eval_boolean" => Some(evaluate_scalar_expr(&arg(0))?.to_string()),
         "splitstr" => {
             // %splitstr(s, sep) → returns the comma-joined fields after
             // splitting `s` on `sep`. PlantUML returns a deterministic
@@ -2423,6 +2546,8 @@ fn dispatch_builtin(
         }
         "list" | "array" => Some(preprocessor_list_literal(&expanded_args)),
         "list_size" | "array_size" | "map_size" => Some(preprocessor_size(&arg(0)).to_string()),
+        "list_is_empty" | "array_is_empty" => Some((preprocessor_size(&arg(0)) == 0).to_string()),
+        "list_clear" | "array_clear" => Some("[]".to_string()),
         "list_contains" | "contains_list" => Some(
             preprocessor_list_items(&arg(0))
                 .contains(&arg(1))
@@ -2445,7 +2570,7 @@ fn dispatch_builtin(
             items.reverse();
             Some(preprocessor_list_literal(&items))
         }
-        "list_get" => Some(
+        "list_get" | "array_get" | "list_at" | "array_at" => Some(
             preprocessor_list_items(&arg(0))
                 .get(parse_int_lenient(&arg(1)).max(0) as usize)
                 .cloned()
@@ -2463,9 +2588,22 @@ fn dispatch_builtin(
                 .cloned()
                 .unwrap_or_default(),
         ),
-        "list_add" => {
+        "list_add" | "array_add" | "list_append" | "array_append" => {
             let mut items = preprocessor_list_items(&arg(0));
             items.push(arg(1));
+            Some(preprocessor_list_literal(&items))
+        }
+        "list_set" | "array_set" => {
+            let mut items = preprocessor_list_items(&arg(0));
+            let idx = parse_int_lenient(&arg(1)).max(0) as usize;
+            if idx < items.len() {
+                items[idx] = arg(2);
+            } else {
+                while items.len() < idx {
+                    items.push(String::new());
+                }
+                items.push(arg(2));
+            }
             Some(preprocessor_list_literal(&items))
         }
         "list_insert" | "array_insert" => {
@@ -2488,14 +2626,23 @@ fn dispatch_builtin(
             Some(preprocessor_list_literal(&items))
         }
         "map" | "dict" => Some(preprocessor_map_literal(&expanded_args)),
+        "map_clear" | "dict_clear" => Some("{}".to_string()),
+        "map_is_empty" | "dict_is_empty" => Some((preprocessor_size(&arg(0)) == 0).to_string()),
         "map_merge" | "json_merge" => Some(preprocessor_json_merge(&arg(0), &arg(1))),
         "map_entries" | "entries" => Some(preprocessor_map_entries(&arg(0))),
         "map_contains_key" | "contains_key" => {
             Some(json_contains_key(&arg(0), &arg(1)).to_string())
         }
+        "map_contains_value" | "contains_value" => {
+            Some(json_contains_value(&arg(0), &arg(1)).to_string())
+        }
         "get" | "map_get" | "json_get" => Some(preprocessor_get(&arg(0), &arg(1))),
-        "set" | "put" | "json_set" | "map_put" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
-        "remove" | "map_remove" | "json_remove" => Some(preprocessor_remove(&arg(0), &arg(1))),
+        "set" | "put" | "json_set" | "map_put" | "map_set" => {
+            Some(preprocessor_set(&arg(0), &arg(1), &arg(2)))
+        }
+        "remove" | "map_remove" | "map_delete" | "json_remove" | "json_delete" => {
+            Some(preprocessor_remove(&arg(0), &arg(1)))
+        }
         "keys" | "map_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
         "values" | "map_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "json_type" | "get_json_type" => Some(preprocessor_json_type(&arg(0))),
@@ -2592,7 +2739,8 @@ fn dispatch_builtin(
         "random" | "rand" => Some("0".to_string()),
         // Local/remote IO helpers are disabled rather than implicitly reading
         // host state during preprocessing.
-        "load_file" | "load_data" | "load_json" | "load_yaml" | "load_csv" => {
+        "load_file" | "load_text" | "load_string" | "load_data" | "load_bytes" | "load_json"
+        | "load_yaml" | "load_csv" | "load_sprite" | "load_sprites" => {
             return Err(Diagnostic::error_code(
                 "E_PREPROC_UNSAFE_BUILTIN",
                 format!(
@@ -3039,6 +3187,30 @@ fn json_contains_key(json: &str, key: &str) -> bool {
     !get_json_top_level_key(json, key).is_empty()
 }
 
+fn json_contains_value(json: &str, needle: &str) -> bool {
+    let Ok(root) = serde_json::from_str::<serde_json::Value>(json.trim()) else {
+        return preprocessor_list_items(json)
+            .iter()
+            .any(|item| item == needle);
+    };
+    json_value_contains_preproc_string(&root, needle)
+}
+
+fn json_value_contains_preproc_string(value: &serde_json::Value, needle: &str) -> bool {
+    if json_value_to_preproc_string(value) == needle {
+        return true;
+    }
+    match value {
+        serde_json::Value::Array(items) => items
+            .iter()
+            .any(|item| json_value_contains_preproc_string(item, needle)),
+        serde_json::Value::Object(obj) => obj
+            .values()
+            .any(|item| json_value_contains_preproc_string(item, needle)),
+        _ => false,
+    }
+}
+
 fn preprocessor_list_items(raw: &str) -> Vec<String> {
     let trimmed = raw.trim();
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
@@ -3297,7 +3469,7 @@ fn preprocessor_size(raw: &str) -> usize {
 fn preprocessor_list_literal(items: &[String]) -> String {
     let values = items
         .iter()
-        .map(|item| serde_json::Value::String(item.clone()))
+        .map(|item| json_value_from_preproc(item))
         .collect::<Vec<_>>();
     serde_json::Value::Array(values).to_string()
 }
@@ -3306,7 +3478,7 @@ fn preprocessor_map_literal(args: &[String]) -> String {
     let mut obj = serde_json::Map::new();
     for chunk in args.chunks(2) {
         if let [key, value] = chunk {
-            obj.insert(key.clone(), serde_json::Value::String(value.clone()));
+            obj.insert(key.clone(), json_value_from_preproc(value));
         }
     }
     serde_json::Value::Object(obj).to_string()
@@ -9611,6 +9783,24 @@ mod tests {
             StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
             other => panic!("unexpected statement: {other:?}"),
         }
+    }
+
+    #[test]
+    fn preprocessor_function_like_define_and_collection_aliases_expand_inline() {
+        let doc = parse_with_options(
+            "@startuml\n!define EDGE(a,b,label) a -> b : %upper(label)\n!$items = %list(\"red\", %map(\"name\", \"blue\"))\n!$items = %list_set($items, 0, \"green\")\n!$cfg = %map(\"items\", $items)\n!assert not %map_is_empty($cfg) and %map_contains_value($cfg, \"blue\")\nEDGE(Alice, Bob, ok)\nA -> B : %eval_int(\"2 + 3 * 4\")/%get($cfg, \"items[1].name\")/%list_get(%get($cfg, \"items\"), 0)\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        let labels = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::Message(m) => m.label.as_deref(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(labels, vec!["OK", "14/blue/green"]);
     }
 
     #[test]
