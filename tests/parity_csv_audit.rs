@@ -45,6 +45,31 @@ fn load_csv(rel: &str) -> (Vec<String>, Vec<Vec<String>>) {
     (header, rows)
 }
 
+fn markdown_table_rows(rel: &str) -> Vec<Vec<String>> {
+    let raw = fs::read_to_string(repo_path(rel)).expect("markdown should exist");
+    let mut rows = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with('|') || !trimmed.ends_with('|') {
+            continue;
+        }
+        // Skip separator rows like |---|---|
+        if trimmed
+            .chars()
+            .all(|c| c == '|' || c == '-' || c == ' ' || c == ':')
+        {
+            continue;
+        }
+        let cols = trimmed
+            .trim_matches('|')
+            .split('|')
+            .map(|s| s.trim().to_string())
+            .collect::<Vec<_>>();
+        rows.push(cols);
+    }
+    rows
+}
+
 #[test]
 fn parity_gap_csv_statuses_are_machine_readable_and_non_blank() {
     let allowed: BTreeSet<&str> = ["implemented", "partial", "missing"].into_iter().collect();
@@ -76,6 +101,88 @@ fn parity_gap_csv_statuses_are_machine_readable_and_non_blank() {
                 idx + 2
             );
         }
+    }
+}
+
+#[test]
+fn parity_source_of_truth_markdown_statuses_are_machine_readable() {
+    let allowed: BTreeSet<&str> = ["implemented", "partial", "missing"].into_iter().collect();
+    let rows = markdown_table_rows("docs/audits/plantuml_parity_source_of_truth.md");
+    assert!(!rows.is_empty(), "source-of-truth table should not be empty");
+
+    // First encountered row is header in this parser output.
+    let header = &rows[0];
+    let status_idx = header
+        .iter()
+        .position(|h| h.eq_ignore_ascii_case("status"))
+        .expect("markdown table must include status column");
+    let ref_idx = header
+        .iter()
+        .position(|h| h.to_ascii_lowercase().contains("reference"))
+        .expect("markdown table must include reference column");
+
+    for (i, row) in rows.iter().enumerate().skip(1) {
+        if row[status_idx].eq_ignore_ascii_case("status") {
+            continue;
+        }
+        assert_eq!(
+            row.len(),
+            header.len(),
+            "markdown row {} has malformed column count",
+            i + 1
+        );
+        let status = row[status_idx].trim();
+        assert!(
+            !status.is_empty(),
+            "markdown row {} has blank status",
+            i + 1
+        );
+        assert!(
+            allowed.contains(status),
+            "markdown row {} has malformed status `{status}`",
+            i + 1
+        );
+        let reference = row[ref_idx].trim();
+        assert!(
+            reference.starts_with("https://plantuml.com/"),
+            "markdown row {} has non-PlantUML reference `{reference}`",
+            i + 1
+        );
+    }
+}
+
+#[test]
+fn parity_source_of_truth_contains_required_official_reference_pages() {
+    let raw = fs::read_to_string(repo_path("docs/audits/plantuml_parity_source_of_truth.md"))
+        .expect("source-of-truth markdown");
+    let required = [
+        "https://plantuml.com/sequence-diagram",
+        "https://plantuml.com/skinparam",
+        "https://plantuml.com/preprocessing",
+        "https://plantuml.com/preprocessing-json",
+        "https://plantuml.com/timing-diagram",
+        "https://plantuml.com/component-diagram",
+        "https://plantuml.com/deployment-diagram",
+        "https://plantuml.com/state-diagram",
+        "https://plantuml.com/gantt-diagram",
+        "https://plantuml.com/chronology-diagram",
+        "https://plantuml.com/mindmap-diagram",
+        "https://plantuml.com/wbs-diagram",
+        "https://plantuml.com/salt",
+        "https://plantuml.com/nwdiag",
+        "https://plantuml.com/json",
+        "https://plantuml.com/yaml",
+        "https://plantuml.com/regex",
+        "https://plantuml.com/ebnf",
+        "https://plantuml.com/ascii-math",
+        "https://plantuml.com/ditaa",
+        "https://plantuml.com/chart-diagram",
+    ];
+    for url in required {
+        assert!(
+            raw.contains(url),
+            "missing required official reference url: {url}"
+        );
     }
 }
 
