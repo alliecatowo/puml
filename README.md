@@ -23,7 +23,8 @@ Source-of-truth hierarchy:
 - Current support status: [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md)
 - Machine-readable exports: [`docs/audits/parity_gap_core.csv`](docs/audits/parity_gap_core.csv) and [`docs/audits/parity_gap_nonuml.csv`](docs/audits/parity_gap_nonuml.csv)
 - Remaining high-impact planning slices: [`docs/audits/post_blitz_gap_table.md`](docs/audits/post_blitz_gap_table.md)
-- Examples and oracle reports are evidence inputs, not independent parity claims.
+- **Oracle differential report**: [`docs/benchmarks/oracle_report.json`](docs/benchmarks/oracle_report.json) — produced on every PR by the [Oracle CI workflow](.github/workflows/oracle.yml) running fixture-by-fixture SVG comparison against PlantUML JAR v1.2024.7 (Temurin JDK 17). This is the measured, per-fixture evidence source for "what is actually at parity". Download the `oracle-report-<run>` artifact from any CI run for the latest fixture-match numbers.
+- The oracle is comparison-only and never part of the puml runtime or build; local `cargo test` still passes without Java or a JAR.
 
 ## Install And Dev
 
@@ -55,6 +56,13 @@ GitHub Actions enforces gate scripts from this repo directly:
 - Main gate workflow: `.github/workflows/main-gate.yml`
   runs `./scripts/check-all.sh` (full gate)
   publishes benchmark evidence artifacts (`latest*`, `latest_trend*`, baselines, `parity_latest.json`)
+- Oracle workflow: `.github/workflows/oracle.yml`
+  runs on every PR to main and on pushes to main
+  installs JDK 17 (Temurin) and downloads PlantUML JAR v1.2024.7 (pinned, cached)
+  runs `scripts/oracle.sh` (fixture-by-fixture SVG diff) and `cargo test --test oracle_smoke -- --include-ignored`
+  uploads `oracle-report-<run>` artifact with `oracle_report.json` as the measured parity source of truth
+  posts a fixture-match summary comment on each PR
+  SVG layout divergence is advisory; parse failures on JAR-accepted fixtures are hard failures
 - Branch protection/ruleset contract: [`docs/branch-protection.md`](docs/branch-protection.md)
   validation command: `./scripts/branch-protection.sh verify`
 
