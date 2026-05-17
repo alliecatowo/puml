@@ -174,14 +174,19 @@ fn render_activity_nested_if_else_reserves_outer_else_column_after_inner_branch(
 
 #[test]
 fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
-    let src = "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n@enduml\n";
+    let src = "@startuml\n!pragma teoz true\nparticipant A\nparticipant B\nA -[#red,dashed]> B : styled\nB ->[#blue,dashed]> A : open styled\nB -[hidden]-> A : hidden\n@enduml\n";
     let svg = puml::render_source_to_svg(src).expect("decorated sequence render");
 
     assert!(svg.contains("styled"));
+    assert!(svg.contains("open styled"));
     assert!(svg.contains("hidden"));
     assert!(svg.contains("<polygon points=\""));
+    assert!(svg.contains("<polyline points=\""));
     assert!(svg.contains("stroke=\"#ff0000\""));
+    assert!(svg.contains("stroke=\"#0000ff\""));
     assert!(svg.contains("stroke-dasharray=\"6 4\""));
+    assert!(svg.contains("class=\"sequence-message-line sequence-message-line-colored sequence-message-line-dashed\""));
+    assert!(svg.contains("data-sequence-message-style=\"color dashed\""));
     assert!(svg.contains("visibility=\"hidden\""));
 }
 
@@ -200,7 +205,15 @@ B -[line.dashed;line.hidden]-> A : hidden dashed
     assert!(svg.contains("stroke=\"#1e90ff\""));
     assert!(svg.contains("stroke-width=\"4\""));
     assert!(svg.contains("stroke-dasharray=\"2 4\""));
+    assert!(svg.contains(
+        "class=\"sequence-message-line sequence-message-line-colored sequence-message-line-dotted sequence-message-line-thick\""
+    ));
+    assert!(svg.contains("data-sequence-message-style=\"color dotted thickness\""));
     assert!(svg.contains("hidden dashed"));
+    assert!(svg.contains(
+        "class=\"sequence-message-line sequence-message-line-dashed sequence-message-line-hidden\""
+    ));
+    assert!(svg.contains("data-sequence-message-style=\"dashed hidden\""));
     assert!(svg.contains("visibility=\"hidden\""));
 }
 

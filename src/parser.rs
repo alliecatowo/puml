@@ -9507,7 +9507,7 @@ fn split_parallel_message_prefix(line: &str) -> (&str, bool) {
 
 fn parse_arrow_style(arrow: &str) -> MessageStyle {
     let mut style = MessageStyle::default();
-    if arrow.contains('.') {
+    if strip_sequence_arrow_brackets(arrow).contains('.') {
         style.dotted = true;
     }
     let mut chars = arrow.chars().peekable();
@@ -11885,17 +11885,34 @@ mod tests {
     #[test]
     fn parses_sequence_decorated_arrow_styles_as_portable_arrow_core() {
         let doc = parse_with_options(
-            "participant A\nparticipant B\nA -[#red,dashed]> B : styled\nB -[hidden]-> A : hidden\n",
+            "participant A\nparticipant B\nA -[#red,dashed]> B : styled\nB ->[#blue,dashed]> A : open styled\nA -[hidden]-> B : hidden\n",
             &ParseOptions::default(),
         )
         .unwrap();
         assert_eq!(doc.kind, DiagramKind::Sequence);
         match &doc.statements[2].kind {
-            StatementKind::Message(m) => assert_eq!(m.arrow, "->"),
+            StatementKind::Message(m) => {
+                assert_eq!(m.arrow, "->");
+                assert_eq!(m.style.color.as_deref(), Some("red"));
+                assert!(m.style.dashed);
+                assert!(!m.style.hidden);
+            }
             other => panic!("unexpected statement: {other:?}"),
         }
         match &doc.statements[3].kind {
-            StatementKind::Message(m) => assert_eq!(m.arrow, "-->"),
+            StatementKind::Message(m) => {
+                assert_eq!(m.arrow, "->>");
+                assert_eq!(m.style.color.as_deref(), Some("blue"));
+                assert!(m.style.dashed);
+                assert!(!m.style.hidden);
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[4].kind {
+            StatementKind::Message(m) => {
+                assert_eq!(m.arrow, "-->");
+                assert!(m.style.hidden);
+            }
             other => panic!("unexpected statement: {other:?}"),
         }
     }
