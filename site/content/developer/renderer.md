@@ -8,17 +8,19 @@ The [studio editor](@/editor.md) on this site runs the puml renderer entirely in
 
 ## How it works
 
-The `crates/puml-wasm/` crate exposes the lib API (`render_source_to_svg`, `render_source_to_svgs`, `detect_diagram_family`) to JavaScript via `wasm-bindgen`. The Pages CI job builds it with `wasm-pack build --release --target web` and drops the artifact in `site/static/wasm/`. The editor dynamically imports `puml_wasm.js`, initializes the `.wasm` module, and calls into it on every keystroke (debounced 400 ms).
+The `crates/puml-wasm/` crate exposes the lib API (`render_source_to_svg`, `render_source_to_svgs`, `detect_diagram_family`) to JavaScript via `wasm-bindgen`. The Pages CI job builds it with `wasm-pack build --release --target web` and drops the artifact in `site/static/wasm/`. The editor dynamically imports `puml_wasm.js`, initializes the `.wasm` module, and calls into it on every keystroke (debounced 400 ms). Browser callers can pass a frontend hint (`auto`, `plantuml`, `picouml`, or `mermaid`) so Markdown fences render through the same dialect adapter selected by the CLI.
 
 ```typescript
 // Simplified view of the JS surface the editor uses.
 declare function render_svg(source: string): string;
 declare function render_svgs(source: string): string[];
 declare function render_svgs_json(source: string): string;
+declare function render_svgs_json_with_frontend(source: string, frontend: string): string;
 declare function detect_family(source: string): string;
+declare function detect_family_with_frontend(source: string, frontend: string): string;
 ```
 
-`render_svgs_json` returns a JSON string of `{ ok: string[] } | { error: Diagnostic }`, which is convenient because diagnostics survive the WASM boundary as one round-trip.
+`render_svgs_json` and `render_svgs_json_with_frontend` return a JSON string of `{ ok: string[] } | { error: Diagnostic }`, which is convenient because diagnostics survive the WASM boundary as one round-trip.
 
 ## What's different from the CLI
 

@@ -51,7 +51,7 @@ fn release_docs_capture_release_gate_contract() {
         "release checklist must include coverage gate command"
     );
     assert!(
-        script.contains("src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\\.rs|src/(frontend|render)/.*\\.rs"),
+        script.contains("src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\\.rs|src/(frontend|normalize|render)/.*\\.rs"),
         "full gate should scope coverage away from entrypoint and high-churn parity implementation modules"
     );
     assert!(
