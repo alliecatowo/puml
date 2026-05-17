@@ -2226,10 +2226,10 @@ fn normalize_archimate_document(document: Document) -> Result<ArchimateDocument,
 fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
     // expect: "Name" as alias <<layer>>  OR  Name <<layer>>  OR  "Name" <<layer>>
     let mut s = rest.trim().to_string();
-    let mut layer = "business".to_string();
+    let mut stereotype = "business".to_string();
     if let Some(open) = s.find("<<") {
         if let Some(close) = s[open + 2..].find(">>") {
-            layer = s[open + 2..open + 2 + close].trim().to_string();
+            stereotype = s[open + 2..open + 2 + close].trim().to_string();
             s = format!("{} {}", &s[..open], &s[open + 2 + close + 2..]);
         }
     }
@@ -2251,10 +2251,13 @@ fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
         (name, alias)
     };
     let (name, fill) = split_archimate_inline_color(name);
+    let layer = archimate_layer_from_stereotype(&stereotype);
+    let kind = archimate_kind_from_stereotype(&stereotype);
     Some(ArchimateElement {
         name,
         alias,
-        layer,
+        layer: layer.to_string(),
+        kind,
         fill,
         stroke: None,
     })
@@ -2263,7 +2266,7 @@ fn parse_archimate_element(rest: &str) -> Option<ArchimateElement> {
 fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
     let open = line.find('(')?;
     let macro_name = line[..open].trim();
-    let layer = archimate_layer_from_macro(macro_name)?;
+    let (layer, kind) = archimate_layer_and_kind_from_macro(macro_name)?;
     let inside = line[open + 1..].trim_end_matches([')', ' ', '\t']);
     let args = split_csv_args(inside);
     let alias = args.first()?.trim().trim_matches('"').to_string();
@@ -2283,30 +2286,71 @@ fn parse_archimate_macro_element(line: &str) -> Option<ArchimateElement> {
         name,
         alias: Some(alias),
         layer: layer.to_string(),
+        kind,
         fill,
         stroke: None,
     })
 }
 
-fn archimate_layer_from_macro(name: &str) -> Option<&'static str> {
+fn archimate_layer_and_kind_from_macro(name: &str) -> Option<(&'static str, String)> {
     let lower = name.to_ascii_lowercase();
-    if lower.starts_with("strategy_") {
-        Some("strategy")
+    let layer = if lower.starts_with("strategy_") {
+        "strategy"
     } else if lower.starts_with("business_") {
-        Some("business")
-    } else if lower.starts_with("application_") {
-        Some("application")
+        "business"
+    } else if lower.starts_with("application_") || lower.starts_with("data_") {
+        "application"
     } else if lower.starts_with("technology_") || lower.starts_with("physical_") {
-        Some("technology")
+        "technology"
     } else if lower.starts_with("motivation_") {
-        Some("motivation")
+        "motivation"
     } else if lower.starts_with("junction_") {
-        Some("junction")
+        "junction"
     } else if lower.starts_with("implementation_") || lower.starts_with("migration_") {
-        Some("strategy")
+        "strategy"
     } else {
-        None
+        return None;
+    };
+    Some((layer, archimate_kind_from_macro_name(name)))
+}
+
+fn archimate_kind_from_macro_name(name: &str) -> String {
+    let lower = name.to_ascii_lowercase();
+    if lower.starts_with("data_") {
+        return lower.replace('_', "-");
     }
+    name.split_once('_')
+        .map(|(_, suffix)| suffix)
+        .unwrap_or(name)
+        .trim_matches('_')
+        .replace('_', "-")
+        .to_ascii_lowercase()
+}
+
+fn archimate_layer_from_stereotype(stereotype: &str) -> String {
+    let lower = stereotype.to_ascii_lowercase().replace('_', "-");
+    if lower.starts_with("strategy")
+        || lower.starts_with("implementation")
+        || lower.starts_with("migration")
+    {
+        "strategy".to_string()
+    } else if lower.starts_with("business") {
+        "business".to_string()
+    } else if lower.starts_with("application") || lower.starts_with("data") {
+        "application".to_string()
+    } else if lower.starts_with("technology") || lower.starts_with("physical") {
+        "technology".to_string()
+    } else if lower.starts_with("motivation") {
+        "motivation".to_string()
+    } else if lower.starts_with("junction") {
+        "junction".to_string()
+    } else {
+        lower
+    }
+}
+
+fn archimate_kind_from_stereotype(stereotype: &str) -> String {
+    stereotype.trim().replace('_', "-").to_ascii_lowercase()
 }
 
 fn archimate_rel_kind_from_macro(name: &str) -> Option<&'static str> {

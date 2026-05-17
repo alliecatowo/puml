@@ -5424,6 +5424,43 @@ fn archimate_family_renders_deterministic_svg_with_layers() {
     assert!(a.contains("Customer"));
 }
 
+#[test]
+fn archimate_docs_examples_render_typed_shapes_and_edges() {
+    let root = env!("CARGO_MANIFEST_DIR");
+    let layered =
+        fs::read_to_string(format!("{root}/docs/examples/archimate/01_layered.puml")).unwrap();
+    let relations = fs::read_to_string(format!(
+        "{root}/docs/examples/archimate/02_with_relations.puml"
+    ))
+    .unwrap();
+    let flows = fs::read_to_string(format!(
+        "{root}/docs/examples/archimate/03_with_junctions.puml"
+    ))
+    .unwrap();
+
+    let layered_svg = render_source_to_svg(&layered).expect("render layered archimate example");
+    assert!(layered_svg.contains("data-archimate-kind=\"component\""));
+    assert!(layered_svg.contains("data-archimate-kind=\"node\""));
+    assert!(layered_svg.contains("data-archimate-kind=\"data-object\""));
+    assert!(layered_svg.contains("data-archimate-kind=\"serving\""));
+    assert!(layered_svg.contains("data-archimate-kind=\"access\""));
+    assert!(layered_svg.contains("class=\"archimate-relation-edge\""));
+    assert!(!layered_svg.contains("<text class=\"archimate-relation\""));
+
+    let relations_svg =
+        render_source_to_svg(&relations).expect("render relation archimate example");
+    assert!(relations_svg.contains("data-archimate-kind=\"process\""));
+    assert!(relations_svg.contains("data-archimate-kind=\"service\""));
+    assert!(relations_svg.contains("data-archimate-kind=\"assignment\""));
+    assert!(relations_svg.contains("marker-start=\"url(#archimate-assignment)\""));
+    assert!(relations_svg.contains("assigned"));
+
+    let flows_svg = render_source_to_svg(&flows).expect("render flow archimate example");
+    assert!(flows_svg.contains("data-archimate-kind=\"flow\""));
+    assert!(flows_svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(flows_svg.contains("routes"));
+}
+
 // ---- stdlib catalog tests (#173) ----
 
 #[test]
@@ -6791,10 +6828,13 @@ Rel_Access(service, runtime, \"uses\")\n\
     assert!(svg.contains("Customer"));
     assert!(svg.contains("Order Service"));
     assert!(svg.contains("Runtime"));
-    assert!(svg.contains("-[assignment]-&gt;"));
-    assert!(svg.contains("-[access]-&gt;"));
+    assert!(svg.contains("data-archimate-kind=\"assignment\""));
+    assert!(svg.contains("data-archimate-kind=\"access\""));
+    assert!(svg.contains("marker-start=\"url(#archimate-assignment)\""));
+    assert!(svg.contains("stroke-dasharray=\"5 3\""));
     assert!(svg.contains("places order"));
     assert!(svg.contains("uses"));
+    assert!(!svg.contains("<text class=\"archimate-relation\""));
 }
 
 // ── skinparam classify: class/state/component/activity (#202) ─────────────────

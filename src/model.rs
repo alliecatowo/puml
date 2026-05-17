@@ -202,6 +202,7 @@ pub struct ArchimateElement {
     pub name: String,
     pub alias: Option<String>,
     pub layer: String,
+    pub kind: String,
     pub fill: Option<String>,
     pub stroke: Option<String>,
 }

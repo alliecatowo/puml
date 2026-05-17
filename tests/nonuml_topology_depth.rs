@@ -78,8 +78,15 @@ Rel_Triggering_Right(service, j1, "branches", "dashed")
     assert!(svg.contains("class=\"archimate-element\""));
     assert!(svg.contains("#dbeafe"));
     assert!(svg.contains("class=\"archimate-junction\""));
-    assert!(svg.contains("flow direction=down style=#2563eb"));
-    assert!(svg.contains("triggering direction=right style=dashed"));
+    assert!(svg.contains("data-archimate-kind=\"flow\""));
+    assert!(svg.contains("data-archimate-direction=\"down\""));
+    assert!(svg.contains("data-archimate-style=\"#2563eb\""));
+    assert!(svg.contains("data-archimate-kind=\"triggering\""));
+    assert!(svg.contains("data-archimate-direction=\"right\""));
+    assert!(svg.contains("data-archimate-style=\"dashed\""));
+    assert!(svg.contains("routes"));
+    assert!(svg.contains("branches"));
+    assert!(!svg.contains("<text class=\"archimate-relation\""));
 }
 
 #[test]
