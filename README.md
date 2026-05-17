@@ -1,6 +1,6 @@
 # puml
 
-Fast, deterministic sequence-diagram rendering to SVG with a first-class polymorphic multi-language frontend (PicoUML, PlantUML, Mermaid), strict validation, and scriptable CLI modes.
+Fast, deterministic sequence-diagram rendering to SVG/PNG with a first-class polymorphic multi-language frontend (PicoUML, PlantUML, Mermaid), strict validation, and scriptable CLI modes.
 
 ![version](https://img.shields.io/badge/version-0.1.0-0ea5e9)
 ![rust](https://img.shields.io/badge/rust-2021-f97316)
@@ -60,6 +60,10 @@ cargo run -- --help
 
 # 1) FILE INPUT -> renders <input-stem>.svg
 cargo run -- tests/fixtures/basic/hello.puml
+
+# PNG output (rasterized from deterministic SVG)
+cargo run -- --format png tests/fixtures/basic/hello.puml
+cargo run -- --format png --dpi 192 tests/fixtures/basic/hello.puml -o hello@2x.png
 
 # 2) STDIN INPUT (explicit '-') -> render SVG to stdout
 cat tests/fixtures/basic/hello.puml | cargo run -- -
@@ -166,6 +170,8 @@ Inputs:
 
 Modes:
 - default renders SVG
+- `--format svg|png` selects output format (default `svg`)
+- `--dpi FLOAT` controls PNG rasterization DPI (default `96`; only used with `--format png`)
 - `--check` parses + normalizes only
 - `--lint-input INPUT` adds repeatable check/lint inputs (check mode only)
 - `--lint-glob GLOB` adds repeatable glob-expanded check/lint inputs (check mode only)
@@ -194,9 +200,13 @@ Modes:
 
 Outputs:
 - single diagram from file writes `<input-stem>.svg`
+- with `--format png`, single diagram from file writes `<input-stem>.png`
 - single diagram from stdin writes SVG to stdout
+- with `--format png`, single diagram from stdin writes PNG bytes to stdout
 - multipage file inputs (`newpage`) write numbered files (`<stem>-1.svg`, `<stem>-2.svg`, ...)
+- with `--format png`, multipage file inputs write numbered PNG files (`<stem>-1.png`, `<stem>-2.png`, ...)
 - multipage stdin inputs require `--multi`; with `--multi`, stdout is a deterministic JSON array of `{name, svg}`
+- multipage stdin + `--multi` is only supported for SVG output
 - `ignore newpage` collapses multipage splits and keeps single-output behavior
 - multi diagram from stdin + `--multi` writes JSON array to stdout
   markdown stdin naming is deterministic: `snippet-<n>.svg` (or `snippet-<n>-<page>.svg` for multipage fences)
