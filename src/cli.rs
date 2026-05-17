@@ -125,6 +125,9 @@ pub struct Cli {
 pub enum OutputFormat {
     Svg,
     Png,
+    Txt,
+    Atxt,
+    Utxt,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
