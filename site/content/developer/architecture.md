@@ -56,6 +56,6 @@ Every error and warning carries a stable code (e.g. `E_PICOUML_MARKER_MIXED`). T
 
 - A standalone `puml-syntax` crate for textmate / tree-sitter grammars &mdash; tracked in the [syntax highlighting spec](@/developer/specs/syntax-highlighting.md). The studio editor uses a CodeMirror `StreamLanguage` (in `site/static/js/puml-lang.js`) until that crate exists.
 
-The rendered Markdown fence previews on this site are separate from syntax highlighting. They hydrate supported `puml`, `plantuml`, and `picouml` fences in the browser and call the real `puml-wasm` renderer, so preview correctness comes from the engine rather than the temporary CodeMirror highlighter.
+The rendered Markdown fence previews on this site are separate from syntax highlighting. They hydrate supported `puml`, `plantuml`, `picouml`, and `mermaid` fences in the browser and call the real `puml-wasm` renderer with the fence language as a frontend hint, so preview correctness comes from the engine rather than the temporary CodeMirror highlighter.
 
 The renderer itself is shipped end-to-end: native via the CLI and in-browser via WASM. See [In-browser renderer](@/developer/renderer.md) for the puml-wasm bridge.

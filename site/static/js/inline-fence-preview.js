@@ -1,7 +1,7 @@
 import { siteBaseUrl } from './manifest.js';
 import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 
-const SUPPORTED_LANGS = new Set(['puml', 'plantuml', 'picouml']);
+const SUPPORTED_LANGS = new Set(['puml', 'pumlx', 'plantuml', 'uml', 'puml-sequence', 'uml-sequence', 'picouml', 'mermaid']);
 
 let engine;
 let nextPreviewId = 1;
@@ -84,7 +84,7 @@ function hydrateFence(pre) {
       isRendering = true;
       renderLoading(panel);
       try {
-        const result = await getEngine().render(source);
+        const result = await getEngine().render(source, { frontend: lang });
         if (result.ok) {
           renderSvgs(panel, result.svgs);
           hasRendered = true;
