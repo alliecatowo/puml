@@ -1,7 +1,7 @@
 # PlantUML Core Surface Audit (UML Families + Preprocessor)
 
 Date: 2026-05-15
-Superseded status note: refreshed 2026-05-17 after PR `#232` (`04a0d387703d1cbe9a5bfe24889d72ca904b1781`). This file is retained as a historical feature-surface inventory and official-doc index, not as a current support matrix.
+Superseded status note: refreshed 2026-05-17 after PR `#235` (`61894e625d0e265647d223080cff0a0dd1375e6c`). This file is retained as a historical feature-surface inventory and official-doc index, not as a current support matrix.
 
 Scope: authoritative feature inventory for PlantUML core UML families plus preprocessing/theme/stdlib surface, mapped against current `puml` runtime behavior.
 
@@ -10,11 +10,11 @@ Legend:
 - `partial`: some behavior exists but does not match PlantUML breadth/semantics
 - `missing`: not implemented in current `puml`
 
-Current status source after PR `#232`:
+Current status source after PR `#235`:
 
 Staleness note, 2026-05-17: this surface inventory is retained as historical planning input and contains older row-level baseline language, including rows that describe now-implemented families as missing or rejected. Use `docs/audits/plantuml_parity_source_of_truth.md` as the canonical current status, with `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` as aligned exports.
 - Current support spans sequence plus core UML, timing, preprocessor/theme/stdlib, and non-UML family baselines through deterministic parser/model/render paths.
-- PR `#232` further expanded dotted/hash-padded autonumbering, participant ordering/layout safety, component/deployment/state/activity relation and skinparam surfaces, chart axis/legend styling, and preprocessor collection/function breadth.
+- PRs `#232` through `#235` further expanded dotted/hash-padded autonumbering, participant ordering/layout safety, component/deployment/state/activity relation and skinparam surfaces, optional oracle dry-run evidence, Gantt/calendar/resource metadata, Salt widget/style breadth, chart axis/legend/slice styling, preprocessor loop controls/collection/function breadth, and non-sequence skinparam compatibility.
 - Remaining work should be read from rows marked `partial` in the canonical source-of-truth and CSV exports, not from the historical row text below.
 
 Audit evidence update, 2026-05-16:

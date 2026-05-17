@@ -3,7 +3,7 @@
 Date: 2026-05-15
 Scope: official PlantUML non-UML families + special diagrams for parity planning.
 Runtime baseline in this repo: this inventory is historical planning input. Current canonical status lives in `docs/audits/plantuml_parity_source_of_truth.md`, with aligned CSV exports in `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv`.
-Superseded status note: refreshed 2026-05-17 after PR `#232` (`04a0d387703d1cbe9a5bfe24889d72ca904b1781`). Treat the grouped lists below as official-surface inventory, not as current implementation status. As of the canonical audit, non-UML family baselines are implemented for gantt/chronology, mindmap/WBS, Salt, Archimate, nwdiag, JSON/YAML, regex, EBNF, math, SDL, ditaa, and chart, with remaining `partial` rows concentrated in advanced layout/style/semantics breadth.
+Superseded status note: refreshed 2026-05-17 after PR `#235` (`61894e625d0e265647d223080cff0a0dd1375e6c`). Treat the grouped lists below as official-surface inventory, not as current implementation status. As of the canonical audit, non-UML family baselines are implemented for gantt/chronology, mindmap/WBS, Salt, Archimate, nwdiag, JSON/YAML, regex, EBNF, math, SDL, ditaa, and chart, with remaining `partial` rows concentrated in advanced layout/style/semantics breadth.
 
 ## Gantt
 Official source: https://plantuml.com/gantt-diagram

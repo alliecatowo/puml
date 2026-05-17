@@ -616,6 +616,18 @@ fn adapt_picouml_line(line: &str, in_group_block: &mut bool) -> Option<String> {
             return Some(converted);
         }
     }
+    // Reverse aliases keep PicoUML's compact call notation symmetric:
+    // `A <= B : msg` means `B -> A : msg <<sync>>`.
+    // `A <~ B : msg` means `B -> A : msg <<async>>`.
+    for (pico_arrow, plantuml_arrow, stereotype) in
+        [("<=", "->", "<<sync>>"), ("<~", "->", "<<async>>")]
+    {
+        if let Some(converted) =
+            adapt_picouml_reverse_arrow(line, pico_arrow, plantuml_arrow, stereotype)
+        {
+            return Some(converted);
+        }
+    }
 
     // `note left A : text`  →  `note left of A : text`
     // `note right A : text`  →  `note right of A : text`
@@ -659,6 +671,37 @@ fn adapt_picouml_arrow(
     };
 
     if to.is_empty() {
+        return None;
+    }
+
+    Some(if let Some(lbl) = label {
+        format!("{from} {plantuml_arrow} {to} : {lbl} {stereotype}")
+    } else {
+        format!("{from} {plantuml_arrow} {to} : {stereotype}")
+    })
+}
+
+/// Convert reverse PicoUML custom arrow syntax to PlantUML with stereotype suffix.
+fn adapt_picouml_reverse_arrow(
+    line: &str,
+    pico_arrow: &str,
+    plantuml_arrow: &str,
+    stereotype: &str,
+) -> Option<String> {
+    let arrow_idx = line.find(pico_arrow)?;
+    let before = &line[..arrow_idx];
+    let after = &line[arrow_idx + pico_arrow.len()..];
+    let to = before.trim();
+    if to.is_empty() {
+        return None;
+    }
+
+    let (from, label) = if let Some((from_part, msg)) = after.split_once(':') {
+        (from_part.trim(), Some(msg.trim()))
+    } else {
+        (after.trim(), None)
+    };
+    if from.is_empty() {
         return None;
     }
 
@@ -1543,6 +1586,10 @@ fn adapt_mermaid_message(line: &str) -> Option<String> {
         "-->>" => "-->>",
         "->" => "->",
         "-->" => "-->",
+        "-x" => "->x",
+        "--x" => "-->x",
+        "-)" => "->>",
+        "--)" => "-->>",
         _ => return None,
     };
 
@@ -1606,7 +1653,7 @@ fn adapt_mermaid_lifecycle(line: &str) -> Option<String> {
 }
 
 fn split_mermaid_message_core(core: &str) -> Option<(&str, &str, &str)> {
-    for arrow in ["-->>", "->>", "-->", "->"] {
+    for arrow in ["-->>", "--)", "--x", "->>", "-->", "-)", "-x", "->"] {
         if let Some(idx) = core.find(arrow) {
             let lhs = core[..idx].trim();
             let rhs = core[idx + arrow.len()..].trim();

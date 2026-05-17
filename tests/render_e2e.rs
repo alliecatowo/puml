@@ -130,6 +130,25 @@ fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
 }
 
 #[test]
+fn render_sequence_plantuml_line_style_arrow_payloads() {
+    let src = r##"@startuml
+participant A
+participant B
+A -[#DodgerBlue;line.dotted;line.thickness=4]>> B : semicolon style
+B -[line.dashed;line.hidden]-> A : hidden dashed
+@enduml
+"##;
+    let svg = puml::render_source_to_svg(src).expect("line-style sequence arrows render");
+
+    assert!(svg.contains("semicolon style"));
+    assert!(svg.contains("stroke=\"#1e90ff\""));
+    assert!(svg.contains("stroke-width=\"4\""));
+    assert!(svg.contains("stroke-dasharray=\"2 4\""));
+    assert!(svg.contains("hidden dashed"));
+    assert!(svg.contains("visibility=\"hidden\""));
+}
+
+#[test]
 fn render_sequence_rare_arrow_styles_and_note_positions() {
     let src = fixture("arrows/valid_rare_arrow_styles.puml");
     let svg = puml::render_source_to_svg(&src).expect("rare arrow styles render");

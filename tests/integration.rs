@@ -6464,6 +6464,65 @@ fn non_uml_advanced_ditaa_junctions_and_diagonal_arrowheads_render() {
     );
 }
 
+#[test]
+fn specialized_renderer_wave_ditaa_shape_tags_and_junction_metadata_render() {
+    let src = "@startditaa\n\
++------+   +------+\n\
+| cAAA |---+-->{io}\n\
+| {c}  |   | {s} |\n\
++------+   +------+\n\
+    |          ^\n\
+    +----------+\n\
+\n\
++------+\n\
+| {s}  |\n\
++------+\n\
+@endditaa\n";
+    let svg = render_source_to_svg(src).expect("ditaa shape tags should render");
+    assert!(svg.contains("data-ditaa-shape=\"choice\""));
+    assert!(svg.contains("data-ditaa-shape=\"storage\""));
+    assert!(svg.contains("data-ditaa-junction=\"true\""));
+    assert!(svg.contains("data-ditaa-arrow-end=\"true\""));
+}
+
+#[test]
+fn specialized_renderer_wave_math_binom_cases_and_construct_metadata_render() {
+    let src = "@startlatex\n\\binom{n}{k} + \\begin{cases} x^2 & x \\geq 0 \\\\ -x & x < 0 \\end{cases}\n@endlatex\n";
+    let svg = render_source_to_svg(src).expect("math binom/cases should render");
+    assert!(svg.contains("data-math-construct=\"binom\""));
+    assert!(svg.contains("data-math-env=\"cases\""));
+    assert!(svg.contains("≥"));
+    assert!(svg.contains(">n<"));
+    assert!(svg.contains(">k<"));
+}
+
+#[test]
+fn specialized_renderer_wave_regex_unicode_lazy_and_repeat_metadata_render() {
+    let src = "@startregex\nlang es\n^\\p{Lu}+?\\P{Nd}{2,4}?$\n@endregex\n";
+    let svg = render_source_to_svg(src).expect("regex unicode classes should render");
+    assert!(svg.contains("data-regex-locale=\"es\""));
+    assert!(svg.contains("unicode uppercase letter"));
+    assert!(svg.contains("not unicode decimal digit"));
+    assert!(svg.contains("data-rail-repeat-label=\"2 to 4\""));
+    assert!(svg.contains("class=\"regex-token regex-charclass\""));
+}
+
+#[test]
+fn specialized_renderer_wave_ebnf_special_sequences_style_block_and_prefix_repeat_render() {
+    let src = "@startebnf\n\
+<style>\n\
+element { ebnf { BackgroundColor #ecfeff FontColor #155e75 LineColor #0891b2 } }\n\
+</style>\n\
+title Tokens\n\
+token = ? unicode category ? | 4 * \"x\" | [ name ];\n\
+@endebnf\n";
+    let svg = render_source_to_svg(src).expect("ebnf special sequence should render");
+    assert!(svg.contains("data-ebnf-special=\"unicode category\""));
+    assert!(svg.contains("? unicode category ?"));
+    assert!(svg.contains("data-rail-repeat-label=\"exactly 4\""));
+    assert!(svg.contains("class=\"ebnf-token ebnf-optional\""));
+}
+
 fn extract_svg_width_attr(svg: &str) -> Option<i32> {
     let key = "width=\"";
     let start = svg.find(key)? + key.len();

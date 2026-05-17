@@ -1,6 +1,6 @@
 ---
 source: tests/integration.rs
-assertion_line: 632
+assertion_line: 649
 expression: json
 ---
 {
@@ -30,26 +30,34 @@ expression: json
       "name": "Kickoff"
     }
   ],
+  "open_ranges": [],
   "project_start": null,
   "project_start_day": null,
+  "separators": [],
   "tasks": [
     {
       "duration_days": 1,
       "name": "Design",
+      "resource_allocations": [],
       "resources": [],
-      "start_day": 20575
+      "start_day": 20575,
+      "workload_days": 1
     },
     {
       "duration_days": 1,
       "name": "Build",
+      "resource_allocations": [],
       "resources": [],
-      "start_day": 20576
+      "start_day": 20576,
+      "workload_days": 1
     },
     {
       "duration_days": 1,
       "name": "Build",
+      "resource_allocations": [],
       "resources": [],
-      "start_day": 20575
+      "start_day": 20575,
+      "workload_days": 1
     }
   ],
   "title": null,

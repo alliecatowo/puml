@@ -129,3 +129,79 @@ left to right direction
     assert!(svg.contains("data-wbs-annotation-style=\"checked\""));
     assert!(svg.contains("class=\"wbs-progress-fill\" data-wbs-progress-fill=\"60\""));
 }
+
+#[test]
+fn topology_breadth_archimate_nwdiag_and_deployment_metadata_render() {
+    let nwdiag = r##"@startnwdiag
+nwdiag {
+  group dmz {
+    description = "DMZ group"
+    color = "#fef3c7"
+    style = "dashed"
+    web01;
+  }
+  network public {
+    address = "203.0.113.0/24"
+    description = "Public edge"
+    shape = "swimlane"
+    style = "dashed"
+    web01 [address = "203.0.113.10, 2001:db8::10", description = "Web Edge", shape = "roundedbox", style = "dashed", width = 320];
+  }
+}
+@endnwdiag
+"##;
+    let nwdiag_svg = puml::render_source_to_svg(nwdiag).expect("nwdiag render");
+    assert!(nwdiag_svg.contains("Public edge"));
+    assert!(nwdiag_svg.contains("data-nwdiag-style=\"dashed\""));
+    assert!(nwdiag_svg.contains("data-nwdiag-name=\"web01\""));
+    assert!(nwdiag_svg.contains("data-nwdiag-addresses=\"203.0.113.10, 2001:db8::10\""));
+    assert!(nwdiag_svg.contains("width=\"320\""));
+    assert!(nwdiag_svg.contains("DMZ group"));
+
+    let archimate = r##"@startarchimate
+Business_Actor(customer, "Customer", "#fef3c7")
+Application_Component(app, "Order App", "#dbeafe")
+Technology_Node(node, "Kubernetes", "#dcfce7")
+Junction_And(j_and, "AND")
+Rel_Serving_Right(app, customer, "serves", "#2563eb")
+Rel_Flow_Down(node, app, "deploys", "dashed")
+Rel_Triggering_Left(customer, j_and, "chooses", "bold")
+@endarchimate
+"##;
+    let archimate_svg = puml::render_source_to_svg(archimate).expect("archimate render");
+    assert!(archimate_svg.contains("class=\"archimate-relation-edge\""));
+    assert!(archimate_svg.contains("data-archimate-kind=\"serving\""));
+    assert!(archimate_svg.contains("data-archimate-direction=\"right\""));
+    assert!(archimate_svg.contains("data-archimate-style=\"#2563eb\""));
+    assert!(archimate_svg.contains("data-archimate-style=\"dashed\""));
+    assert!(archimate_svg.contains("data-archimate-style=\"bold\""));
+    assert!(archimate_svg.contains("class=\"archimate-junction\""));
+
+    let deployment = r##"@startuml
+node "K8s Cluster" as k8s #dcfce7
+database "Orders DB" as db #fef3c7
+cloud "Public Cloud" as cloud
+folder "Manifests" as manifests
+artifact "orders.jar-free" as artifact
+portin "HTTPS" as https
+portout "SQL" as sql
+component "API" as api
+cloud -[#2563eb;line.dashed;line.thickness=3]-> https : ingress
+https --> api
+api -down-> sql
+sql -[#b45309;line.bold]right-> db : queries
+k8s --> manifests
+manifests --> artifact
+@enduml
+"##;
+    let deployment_svg = puml::render_source_to_svg(deployment).expect("deployment render");
+    assert!(deployment_svg.contains("data-uml-kind=\"database\""));
+    assert!(deployment_svg.contains("data-uml-kind=\"cloud\""));
+    assert!(deployment_svg.contains("data-uml-kind=\"folder\""));
+    assert!(deployment_svg.contains("data-uml-kind=\"artifact\""));
+    assert!(deployment_svg.contains("data-uml-port-direction=\"in\""));
+    assert!(deployment_svg.contains("data-uml-port-direction=\"out\""));
+    assert!(deployment_svg.contains("data-uml-direction=\"right\""));
+    assert!(deployment_svg.contains("stroke=\"#2563eb\""));
+    assert!(deployment_svg.contains("stroke-width=\"3\""));
+}

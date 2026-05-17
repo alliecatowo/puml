@@ -154,7 +154,10 @@ pub struct NwdiagDocument {
 pub struct NwdiagNetwork {
     pub name: String,
     pub address: Option<String>,
+    pub label: Option<String>,
     pub color: Option<String>,
+    pub shape: Option<String>,
+    pub style: Option<String>,
     pub nodes: Vec<NwdiagNode>,
 }
 
@@ -162,16 +165,21 @@ pub struct NwdiagNetwork {
 pub struct NwdiagNode {
     pub name: String,
     pub address: Option<String>,
+    pub addresses: Vec<String>,
     pub label: Option<String>,
     pub color: Option<String>,
     pub shape: Option<String>,
     pub style: Option<String>,
+    pub width: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
 pub struct NwdiagGroup {
     pub name: String,
+    pub label: Option<String>,
     pub color: Option<String>,
+    pub shape: Option<String>,
+    pub style: Option<String>,
     pub nodes: Vec<String>,
 }
 
@@ -398,6 +406,7 @@ pub struct TimelineDocument {
     pub kind: DiagramKind,
     pub tasks: Vec<TimelineTask>,
     pub milestones: Vec<TimelineMilestone>,
+    pub separators: Vec<TimelineSeparator>,
     pub constraints: Vec<TimelineConstraint>,
     pub chronology_events: Vec<TimelineChronologyEvent>,
     pub closed_weekdays: Vec<String>,
@@ -432,6 +441,12 @@ pub struct TimelineMilestone {
     pub name: String,
     pub happens_on: Option<String>,
     pub is_critical: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineSeparator {
+    pub label: String,
+    pub target: Option<String>,
 }
 
 #[derive(Debug, Clone)]

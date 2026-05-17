@@ -4616,23 +4616,27 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             if !ambiguous_class_interface && !actor_prefers_non_component && !ambiguous_class_scope
             {
                 if let Some(kind) = parse_component_decl(line) {
-                    let family = match &kind {
-                        StatementKind::ComponentDecl {
-                            kind:
-                                ComponentNodeKind::Node
-                                | ComponentNodeKind::Artifact
-                                | ComponentNodeKind::Cloud
-                                | ComponentNodeKind::Frame
-                                | ComponentNodeKind::Storage
-                                | ComponentNodeKind::Database
-                                | ComponentNodeKind::Package
-                                | ComponentNodeKind::Rectangle
-                                | ComponentNodeKind::Folder
-                                | ComponentNodeKind::File
-                                | ComponentNodeKind::Card,
-                            ..
-                        } => DiagramKind::Deployment,
-                        _ => DiagramKind::Component,
+                    let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+                        DiagramKind::Deployment
+                    } else {
+                        match &kind {
+                            StatementKind::ComponentDecl {
+                                kind:
+                                    ComponentNodeKind::Node
+                                    | ComponentNodeKind::Artifact
+                                    | ComponentNodeKind::Cloud
+                                    | ComponentNodeKind::Frame
+                                    | ComponentNodeKind::Storage
+                                    | ComponentNodeKind::Database
+                                    | ComponentNodeKind::Package
+                                    | ComponentNodeKind::Rectangle
+                                    | ComponentNodeKind::Folder
+                                    | ComponentNodeKind::File
+                                    | ComponentNodeKind::Card,
+                                ..
+                            } => DiagramKind::Deployment,
+                            _ => DiagramKind::Component,
+                        }
                     };
                     detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
                     statements.push(Statement { span, kind });
@@ -7207,6 +7211,16 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
     if let Some(day) = parse_gantt_open_weekday(trimmed) {
         return Some(StatementKind::GanttCalendarOpen { day });
     }
+    if let Some(label) = parse_gantt_horizontal_separator(trimmed) {
+        return Some(StatementKind::Separator(Some(label)));
+    }
+    if let Some((label, target)) = parse_gantt_vertical_separator(trimmed) {
+        return Some(StatementKind::GanttConstraint {
+            subject: format!("__separator::{label}"),
+            kind: "separator".to_string(),
+            target,
+        });
+    }
     let (subject, rest) = parse_bracket_subject(trimmed)?;
     if rest.is_empty() {
         return Some(StatementKind::GanttTaskDecl {
@@ -7426,6 +7440,34 @@ fn parse_gantt_scale_directive(line: &str) -> Option<String> {
     Some(normalized.to_string())
 }
 
+fn parse_gantt_vertical_separator(line: &str) -> Option<(String, String)> {
+    let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("separator just ")
+        .and_then(|_| trimmed.get("Separator just ".len()..))
+        .or_else(|| {
+            lower
+                .strip_prefix("separator ")
+                .and_then(|_| trimmed.get("Separator ".len()..))
+        })?
+        .trim();
+    if rest.is_empty() {
+        return None;
+    }
+    Some(("Separator".to_string(), rest.to_string()))
+}
+
+fn parse_gantt_horizontal_separator(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    let inner = trimmed.strip_prefix("--")?.strip_suffix("--")?.trim();
+    Some(if inner.is_empty() {
+        "Separator".to_string()
+    } else {
+        inner.to_string()
+    })
+}
+
 fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
     let lower = rest.to_ascii_lowercase();
     let (idx, marker_len) = lower
@@ -7475,6 +7517,7 @@ fn parse_gantt_duration_clause(rest: &str) -> Option<u32> {
         let days = match unit.as_str() {
             "day" | "days" => n,
             "week" | "weeks" => n.saturating_mul(7),
+            "month" | "months" => n.saturating_mul(30),
             _ => return None,
         };
         total = total.saturating_add(days);
@@ -7609,6 +7652,12 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         if rest_raw.is_empty() {
             return None;
         }
+        if looks_like_family_relation_tail(rest_raw) {
+            continue;
+        }
+        if rest_raw.starts_with('-') || rest_raw.starts_with('.') || rest_raw.starts_with('<') {
+            return None;
+        }
         // Must be followed by whitespace OR the rest is a non-identifier prefix; require space.
         if !line
             .as_bytes()
@@ -7662,6 +7711,17 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         }
         let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
         let mut members = declaration_marker_members(None, stereotypes);
+        match kw {
+            "portin" => members.push(ClassMember {
+                text: "<<portin>>".to_string(),
+                modifier: None,
+            }),
+            "portout" => members.push(ClassMember {
+                text: "<<portout>>".to_string(),
+                modifier: None,
+            }),
+            _ => {}
+        }
         append_inline_fill_member(&mut members, fill_color);
         return Some(StatementKind::ComponentDecl {
             kind,
@@ -7772,6 +7832,15 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         }
     }
     None
+}
+
+fn looks_like_family_relation_tail(rest: &str) -> bool {
+    rest.contains("--")
+        || rest.contains("..")
+        || rest.contains("->")
+        || rest.contains("<-")
+        || rest.contains("-[")
+        || rest.contains(".[")
 }
 
 fn parse_activity_step(line: &str) -> Option<StatementKind> {
@@ -8178,7 +8247,7 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
             return Some(StatementKind::TimingEvent {
                 time,
                 signal: Some(sig),
-                state: Some(state),
+                state: Some(normalize_timing_state_literal(&state)),
                 note: None,
             });
         }
@@ -8189,15 +8258,51 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
             note: Some(after.to_string()),
         });
     }
+    if let Some((time, state)) = parse_timing_oriented_state(trimmed) {
+        return Some(StatementKind::TimingEvent {
+            time,
+            signal: None,
+            state: Some(normalize_timing_state_literal(&state)),
+            note: None,
+        });
+    }
     if let Some((sig, state)) = split_is(trimmed) {
         return Some(StatementKind::TimingEvent {
             time: String::new(),
             signal: Some(sig),
-            state: Some(state),
+            state: Some(normalize_timing_state_literal(&state)),
             note: None,
         });
     }
     None
+}
+
+fn parse_timing_oriented_state(line: &str) -> Option<(String, String)> {
+    let (time, state) = split_is(line)?;
+    if time.trim().is_empty()
+        || !time
+            .trim()
+            .chars()
+            .next()
+            .is_some_and(|c| c == '+' || c == '-' || c.is_ascii_digit() || c == ':')
+    {
+        return None;
+    }
+    Some((time.trim().to_string(), state.trim().to_string()))
+}
+
+fn normalize_timing_state_literal(state: &str) -> String {
+    let trimmed = state.trim().trim_matches('"').trim();
+    let body = trimmed
+        .strip_prefix('{')
+        .and_then(|v| v.strip_suffix('}'))
+        .unwrap_or(trimmed)
+        .trim();
+    match body.to_ascii_lowercase().as_str() {
+        "up" | "hi" | "high" | "on" | "true" => "high".to_string(),
+        "down" | "lo" | "low" | "off" | "false" => "low".to_string(),
+        _ => body.to_string(),
+    }
 }
 
 fn parse_timing_range_after_time(after: &str) -> Option<(String, String)> {
@@ -8920,14 +9025,18 @@ fn parse_arrow_style(arrow: &str) -> MessageStyle {
             }
             body.push(inner);
         }
-        for token in body.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        for token in body
+            .split([',', ';'])
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
             let lower = token.to_ascii_lowercase();
             match lower.as_str() {
-                "hidden" => style.hidden = true,
-                "dashed" => style.dashed = true,
-                "dotted" => style.dotted = true,
-                "bold" | "thick" => style.thickness = Some(3),
-                "thin" => style.thickness = Some(1),
+                "hidden" | "line.hidden" => style.hidden = true,
+                "dashed" | "line.dashed" => style.dashed = true,
+                "dotted" | "line.dotted" => style.dotted = true,
+                "bold" | "thick" | "line.bold" | "line.thick" => style.thickness = Some(3),
+                "thin" | "line.thin" => style.thickness = Some(1),
                 _ if token.starts_with('#')
                     && matches!(token.len(), 4 | 5 | 7 | 9)
                     && token[1..].bytes().all(|b| b.is_ascii_hexdigit()) =>
@@ -8947,6 +9056,9 @@ fn parse_arrow_style(arrow: &str) -> MessageStyle {
                         .strip_prefix("thickness=")
                         .or_else(|| lower.strip_prefix("thickness:"))
                         .or_else(|| lower.strip_prefix("thickness "))
+                        .or_else(|| lower.strip_prefix("line.thickness="))
+                        .or_else(|| lower.strip_prefix("line.thickness:"))
+                        .or_else(|| lower.strip_prefix("line.thickness "))
                     {
                         if let Ok(n) = value.trim().parse::<u8>() {
                             style.thickness = Some(n.clamp(1, 8));

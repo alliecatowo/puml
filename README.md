@@ -146,7 +146,7 @@ $ cargo run -- --check hello.puml
 Canonical examples live in [`docs/examples/README.md`](docs/examples/README.md), with committed source/output pairs.
 Supported primitive catalog page: [`docs/examples/supported_primitives.md`](docs/examples/supported_primitives.md).
 These examples are coverage seeds and executable documentation artifacts, not proof of full PlantUML 1:1 parity and not a replacement for the source-of-truth audit table. Use [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md) for current implemented/partial/missing status.
-Current docs corpus footprint: `docs/examples/` contains `254` `.puml` sources and `258` `.svg` artifacts.
+Current docs corpus footprint: `docs/examples/` contains `255` `.puml` sources and `258` `.svg` artifacts.
 
 Re-generate all committed examples:
 
@@ -192,13 +192,13 @@ Modes:
 - `--dialect auto|plantuml|mermaid|picouml` selects frontend input dialect (default `auto`)
   `auto|plantuml`: parse PlantUML sequence syntax through the shared first-class pipeline
   `mermaid`: supports the following diagram families:
-    - `sequenceDiagram`: participants/actors, message arrows, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, all group blocks (`alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box`), `create`/`destroy`, `link` (collapsed to benign comment); unknown constructs emit deterministic `E_MERMAID_*` diagnostics
+    - `sequenceDiagram`: participants/actors, message arrows including solid/dotted arrow, cross/lost (`-x`, `--x`), and open async (`-)`, `--)`) forms, `Note over|left of|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, all group blocks (`alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box`), `create`/`destroy`, `link` (collapsed to benign comment); unknown constructs emit deterministic `E_MERMAID_*` diagnostics
     - `flowchart TD|LR|...` / `graph TD|LR|...`: nodes with bracket/brace/paren labels, `-->` and `-->|label|` edges, subgraph blocks — adapted to PlantUML component-style
     - `classDiagram`: class declarations with `{ members }` blocks and `ClassName : member` lines, inheritance/association relations — adapted to PlantUML class diagram
     - `stateDiagram` / `stateDiagram-v2`: `[*]` pseudo-states, `-->` transitions — adapted to PlantUML state diagram
     - `erDiagram`: entity declarations and `||--o{` cardinality relations — adapted to PlantUML class-style diagram
     Unsupported diagram families (e.g. `pie`, `gitDiagram`) emit a deterministic `E_MERMAID_FAMILY_UNSUPPORTED` diagnostic
-  `picouml`: canonical first-class language surface; explicit frontend selection routes through the shared deterministic baseline path
+  `picouml`: canonical first-class language surface; explicit frontend selection routes through the shared deterministic baseline path, including compact forward/reverse call arrows (`=>`, `<=`, `~>`, `<~`)
 - `--compat strict|extended` sets semantic compatibility policy (default `strict`)
   `strict`: no ambient include-root fallback; stdin `!include` requires explicit `--include-root`
   `extended`: when `--include-root` is omitted, stdin `!include` falls back to current working directory
@@ -289,25 +289,25 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | Class diagrams | Supported, partial PlantUML parity | Declarations, relations, fields/methods, visibility, stereotypes, packages/namespaces, notes, generics, association classes, lollipop notation, hide/show; full styling and edge semantics remain partial. |
 | Object diagrams | Supported, partial PlantUML parity | Object instance nodes, field-value lists, map/associative-array forms, and object links; advanced object semantics remain partial. |
 | Use-case diagrams | Supported, partial PlantUML parity | Actor declarations/styles, parenthesized `usecase (Name) as Alias`, use-case descriptions, packages/boundaries, include/extend/generalization semantics, notes, stereotypes, and direction controls; full style breadth remains partial. |
-| Component diagrams | Supported, partial PlantUML parity | `component`/`interface`/`port` declarations, dependencies, packages, and notation mode baseline; port/interface/style breadth remains partial. |
-| Deployment diagrams | Supported, partial PlantUML parity | `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations, links, and nesting; advanced deployment controls remain partial. |
+| Component diagrams | Supported, partial PlantUML parity | `component`/`interface`/`port`/`portIn`/`portOut` declarations, dependencies, packages, scoped ports/interfaces, directional/styled links, and notation mode baseline; wider port/interface/style breadth remains partial. |
+| Deployment diagrams | Supported, partial PlantUML parity | `node`/`artifact`/`cloud`/`frame`/`storage`/`database`/`package`/`folder`/`file`/`card`/`rectangle` declarations, deployment shape rendering, links, nesting, inline colors, ports/interfaces, and directional/styled links; advanced deployment controls remain partial. |
 | State diagrams | Supported, partial PlantUML parity | `state` declarations, `[*]` initial/final markers, transitions with guards, composite/history/fork-join forms; advanced styling/edge semantics remain partial. |
 | Activity diagrams (new style) | Supported, partial PlantUML parity | `start`/`stop`/`end`, `:action;`, `if (cond) then (yes)`/`else`/`endif`, `while`/`endwhile`, `repeat`/`repeat while`, `fork`/`fork again`/`end fork`, `backward`, `partition`/swimlane constructs; full beta breadth remains partial. |
-| Timing diagrams | Supported, partial PlantUML parity | `concise`/`robust`/`clock`/`binary` signal declarations, `@<time>`/relative instants, `signal is state` transitions, and range/highlight bands; full timing semantics remain partial. |
+| Timing diagrams | Supported, partial PlantUML parity | `concise`/`robust`/`clock`/`binary` signal declarations, participant-oriented blocks, `@<time>`/relative/clock-derived instants, `signal is state` transitions, binary state aliases, clock period/pulse/offset metadata, and range/highlight bands; full timing semantics remain partial. |
 | Salt / wireframe (`@startsalt`) | Supported, partial PlantUML parity | Widget/grid/menu/tab/tree/table primitives, nested structures, scrolling markers, and metadata blocks; advanced widget/style breadth remains partial. |
 | MindMap (`@startmindmap`) | Supported, partial PlantUML parity | Hierarchical OrgMode-style tree, directional controls, boxless markers, color/style hooks, deterministic layout; large-tree/orientation/style parity remains partial. |
 | WBS (`@startwbs`) | Supported, partial PlantUML parity | Work-breakdown structure trees with orientation, style, and deterministic geometry; large-tree/orientation/style parity remains partial. |
-| Gantt (`@startgantt`) | Supported, partial PlantUML parity | Task/milestone declarations, starts/ends/requires constraints, project start/end date-axis markers, daily/weekly/monthly scale hints, closed weekday/date calendar notes, resource lanes, deterministic SVG timeline; full calendar/resource/scale semantics remain partial. |
+| Gantt (`@startgantt`) | Supported, partial PlantUML parity | Task/milestone declarations, starts/ends/requires constraints including relative task offsets, project start/end date-axis markers, daily/weekly/monthly/quarterly/yearly scale hints, closed/open weekday/date calendar notes, horizontal/vertical separators, resource lanes/load metadata, deterministic SVG timeline; full calendar/resource/scale semantics remain partial. |
 | Chronology (`@startchronology`) | Supported, partial PlantUML parity | `happens on` event statements, timestamp placement, deterministic timeline render; advanced chronology/time-axis semantics remain partial. |
 | JSON family (`@startjson`) | Supported | Parses body as JSON via `serde_json`; flattens object/array/value tree into deterministic indented SVG node tree (falls back to raw line list on parse error). |
 | YAML family (`@startyaml`) | Supported | Indentation-based two-space mapping/sequence tree; rendered as a deterministic indented SVG node tree. |
-| nwdiag (`@startnwdiag`) | Supported, partial PlantUML parity | `network` and `group` blocks with address/color/label attributes; horizontal swimlanes plus group membership sections with deterministic node ordering; richer topology semantics remain partial. |
-| Archimate (`@startarchimate`) | Supported, partial PlantUML parity | `archimate "Name" as alias <<layer>>` declarations, stdlib element/junction macros, relation macros with direction/style suffixes, and layered strategy/business/application/technology/motivation/junction swimlanes; full relation/style breadth remains partial. |
-| Regex diagrams (`@startregex`) | Supported, partial PlantUML parity | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, `\|`, `(...)`, `\d`, `.`, anchors) into a deterministic railroad-style SVG; broader Unicode/category semantics remain partial. |
-| EBNF diagrams (`@startebnf`) | Supported, partial PlantUML parity | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, `*`, `+`, `?` into a deterministic railroad SVG; broader railroad styling remains partial. |
-| Math / LaTeX (`@startmath` / `@startlatex`) | Supported | Best-effort LaTeX SVG renderer: handles `\sum`, `\int`, `\prod`, `\frac{a}{b}`, `\sqrt{x}`, Greek letters (`\alpha`…`\omega`, `\infty`), sub/sup scripts via tspan baseline shifts and nested scaling. |
+| nwdiag (`@startnwdiag`) | Supported, partial PlantUML parity | `network` and `group` blocks with address/color/label/shape/style attributes, node address/description/color/shape/style/width metadata, horizontal swimlanes plus group membership sections with deterministic node ordering; richer topology semantics remain partial. |
+| Archimate (`@startarchimate`) | Supported, partial PlantUML parity | `archimate "Name" as alias <<layer>>` declarations, stdlib element/junction macros, relation macros with direction/style suffixes, styled relation-edge SVG metadata, and layered strategy/business/application/technology/motivation/junction swimlanes; full relation/style breadth remains partial. |
+| Regex diagrams (`@startregex`) | Supported, partial PlantUML parity | Parses regex literals (`a`, `[abc]`, `a*`, `a+`, `a?`, lazy suffixes, counted repeats, `\|`, `(...)`, `\d`, `\p{Lu}`-style Unicode category labels, `.`, anchors, and localized labels) into deterministic railroad-style SVG; broader regex engine semantics remain partial. |
+| EBNF diagrams (`@startebnf`) | Supported, partial PlantUML parity | Parses rules `name = body ;` with terminals, non-terminals, `\|`, `(...)`, `[...]`, `{...}`, counted repeats, PlantUML `? special ?` sequences, prefix repeat forms like `4 * "x"`, and simple style blocks into deterministic railroad SVG; broader railroad styling remains partial. |
+| Math / LaTeX (`@startmath` / `@startlatex`) | Supported | Best-effort LaTeX SVG renderer: handles `\sum`, `\int`, `\prod`, `\frac{a}{b}`, `\binom{n}{k}`, `\sqrt{x}`, Greek letters (`\alpha`…`\omega`, `\infty`), cases/matrix environments, sub/sup scripts, accents, fences, and nested scaling. |
 | SDL diagrams (`@startsdl`) | Supported | Parses `state Name` declarations and `from -> to : signal` transitions; renders SDL-style rounded-corner rectangles with labeled arrow transitions in a 2-column grid. |
-| Ditaa diagrams (`@startditaa`) | Supported | Corner-detection parser finds `+...+` rectangles from the ASCII grid, renders them as SVG `<rect>` with extracted inner text, and converts `--->` connector runs to SVG lines with arrowheads. |
+| Ditaa diagrams (`@startditaa`) | Supported | Corner-detection parser finds ASCII boxes, ditaa color/shape tags (`{c}`, `{d}`, `{io}`, `{mo}`, `{o}`, `{s}`, `{tr}`), dashed/rounded/storage/document/choice shapes, junctions, diagonal connectors, and arrowheads, then renders deterministic SVG. |
 | Chart diagrams (`@startchart`) | Supported, partial PlantUML parity | Parses bar/column/line/pie plus selected area/scatter forms, label/value and colon-delimited points, palette/caption/annotation hooks, axis ranges/tick-step/categories, per-axis color/text/grid suffixes, and styled legend positioning; full chart parity remains partial. |
 
 ### Sequence Diagram Primitives
@@ -316,7 +316,7 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 |---|---|---|
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
 | Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`; PlantUML `order` placement hints such as `participant First order 10`. |
-| Messages + arrows | Supported | `->`, `-->`, `->>`, `-->>`, `<-`, `<--`, `->x`, `-\`, `-\\`, `-/`, `-//`, `->o`, `<->`, `<-->`, expanded slanted half-head forms such as `-/->` and `-\->`, bracketed PlantUML arrow color/style decorations such as `-[#red,dashed]>` (normalized to the portable arrow core), and synchronous/async forms. |
+| Messages + arrows | Supported | `->`, `-->`, `->>`, `-->>`, `<-`, `<--`, `->x`, `-\`, `-\\`, `-/`, `-//`, `->o`, `<->`, `<-->`, expanded slanted half-head forms such as `-/->` and `-\->`, bracketed PlantUML arrow color/style decorations such as `-[#red,dashed]>` and semicolon `line.*` payloads such as `-[#red;line.dotted;line.thickness=4]>>` (normalized to the portable arrow core), and synchronous/async forms. |
 | Virtual endpoints | Supported | `[`, `]` incoming/outgoing messages; `[*]`, found/lost directionality semantics. |
 | Notes | Supported | `note left/right/over`, `hnote`, `rnote`, across/alignment behavior; multi-line `note ... end note`; `note over A, B`. |
 | Groups / fragments | Supported | `alt`/`else`, `opt`, `loop`, `par`, `critical`, `break`, `group`, `box`, `ref` (single- and multi-line `ref over A, B`), `end`; mis-nested forms produce deterministic errors. |
@@ -355,8 +355,8 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | Area | Status | Notes |
 |---|---|---|
 | PlantUML frontend | Supported, partial parity | First-class compatibility target across implemented diagram families; full 1:1 PlantUML parity is the roadmap goal, not the current support claim. |
-| Mermaid frontend (`sequenceDiagram`) | Supported | Participants/actors, message arrows, `Note over\|left of\|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, `alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box "label"`, `create [participant] X`, `destroy X`, `link X: name @ url` (collapsed to benign comment). Unknown constructs emit deterministic `E_MERMAID_*` diagnostics. |
-| PicoUML frontend | Supported (baseline) | Canonical first-class language surface; baseline canonical routing implemented. Full spec: `docs/specs/picouml-language.md`. |
+| Mermaid frontend (`sequenceDiagram`) | Supported | Participants/actors, message arrows including solid/dotted arrow, cross/lost (`-x`, `--x`), and open async (`-)`, `--)`) forms, `Note over\|left of\|right of`, `activate`/`deactivate`/`destroy`, `autonumber`, `title`, `%%` comments, `alt`/`else`/`end`, `opt`, `loop`, `par`/`and`, `critical`/`option`, `break`, `rect rgb(...)`, `box "label"`, `create [participant] X`, `destroy X`, `link X: name @ url` (collapsed to benign comment). Unknown constructs emit deterministic `E_MERMAID_*` diagnostics. |
+| PicoUML frontend | Supported (baseline) | Canonical first-class language surface; baseline canonical routing implemented, with compact forward/reverse sync/async arrows (`=>`, `<=`, `~>`, `<~`). Full spec: `docs/specs/picouml-language.md`. |
 
 ### CLI Flags
 
