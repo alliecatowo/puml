@@ -177,6 +177,13 @@ Before release or branch-policy changes, verify the protected-main checks:
 ./scripts/branch-protection.sh verify
 ```
 
+Benchmark baselines only move explicitly after review:
+
+```bash
+./scripts/bench.sh --quick --update-baseline
+./scripts/bench.sh --update-baseline
+```
+
 Regenerate committed example SVGs after renderer changes:
 
 ```bash
