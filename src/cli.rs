@@ -1,4 +1,4 @@
-use clap::{ArgAction, Parser, ValueEnum};
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Parser)]
@@ -8,6 +8,9 @@ use std::path::PathBuf;
     about = "Rust-native PlantUML-compatible diagram renderer"
 )]
 pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
     /// Print puml-lsp capability manifest and exit.
     #[arg(long, action = ArgAction::SetTrue)]
     pub dump_capabilities: bool,
@@ -123,6 +126,27 @@ pub struct Cli {
     /// are enabled (matching PlantUML behaviour).
     #[arg(long, action = ArgAction::SetTrue)]
     pub no_url_includes: bool,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum Command {
+    /// Format PlantUML source files in place, or verify/print formatting changes.
+    Format(FormatArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct FormatArgs {
+    /// Exit with code 1 when any file would be reformatted.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub check: bool,
+
+    /// Print a readable unified diff instead of writing files.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub diff: bool,
+
+    /// PlantUML source files to format.
+    #[arg(value_name = "FILE", required = true)]
+    pub files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]

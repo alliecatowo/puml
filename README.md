@@ -115,6 +115,14 @@ puml --check --lint-glob 'docs/**/*.md' --lint-report json
 puml --no-url-includes --check hello.puml
 ```
 
+Format PlantUML source in place, check formatting in CI, or inspect a diff:
+
+```bash
+puml format hello.puml
+puml format --check hello.puml
+puml format --diff hello.puml
+```
+
 ## What Works Today
 
 `puml` already supports a broad set of diagram families and CLI workflows. It is not perfect PlantUML parity yet; compatibility is tracked conservatively and tested continuously.
