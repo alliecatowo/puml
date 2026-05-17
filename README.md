@@ -111,13 +111,13 @@ cat tests/fixtures/include/include_ok_child.puml | cargo run -- --check --includ
 #   --fail-on-warn     exit 1 if any warnings are emitted
 #   --overwrite        no-op (outputs are always overwritten)
 #   --charset UTF-8    no-op compatibility (only UTF-8 is supported)
-#   --format svg|png   only `svg` is supported; `png` exits 1 deterministically
+#   --format svg|png   render as deterministic SVG or PNG
 cargo run -- --verbose --duration --check tests/fixtures/basic/hello.puml
 ```
 
 Runtime parity flag notes:
 - When stdin is a TTY and no input file is supplied, the CLI prints help instead of blocking forever.
-- `--format png` is recognized but unsupported (SVG only); rerun with `--format svg`.
+- `--format png` rasterizes deterministic SVG output; use `--dpi` to control PNG scale.
 - `--charset` accepts only `UTF-8` (case-insensitive); other charsets are rejected with `E_CHARSET_UNSUPPORTED`.
 
 ## Asciicast-Style Example
@@ -366,7 +366,7 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | `--duration` | Supported | Prints elapsed wall time to stderr. |
 | `--quiet` / `-q` | Supported | Suppresses non-error stderr output. |
 | `--verbose` / `-v` | Supported | Emits per-stage parse/normalize/render timings. |
-| `--format svg\|png` | Supported (svg only) | `png` emits a deterministic rejection diagnostic; `svg` is the only supported format. |
+| `--format svg\|png` | Supported | `svg` writes deterministic vector output; `png` rasterizes the same deterministic SVG scene. |
 | `--dialect auto\|plantuml\|mermaid\|picouml` | Supported | Selects frontend input dialect. |
 | `--compat strict\|extended` | Supported | Controls stdin include-root fallback policy. |
 | `--determinism strict\|full` | Supported | Controls determinism policy level. |

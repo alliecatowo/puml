@@ -12,7 +12,7 @@ that diagram families are unsupported overall.
 
 ### Cross-cutting
 
-- PNG output is not implemented (`--format png` is a deterministic rejection).
+- PNG output is implemented via deterministic SVG rasterization; advanced PlantUML raster flags beyond DPI remain out of scope.
 - URL-based include/import sources are intentionally rejected for deterministic/safety reasons.
 - Differential oracle is smoke-level in CI (not a full semantic pixel-parity oracle yet).
 
