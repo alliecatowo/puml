@@ -5,7 +5,7 @@ Last measured: 2026-05-16 (America/Los_Angeles)
 Command:
 
 ```console
-cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|specialized)\.rs|src/(frontend|render)/.*\.rs'
+cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|render)/.*\.rs'
 ```
 
 Result:
