@@ -4825,14 +4825,36 @@ fn parse_timing_decl(line: &str) -> Option<StatementKind> {
             } else {
                 (None, rest)
             };
-            let name = clean_ident(name_raw);
+            let (name_raw, controls) = split_timing_decl_controls(name_raw);
+            let name = clean_ident(&name_raw);
             if name.is_empty() {
                 return None;
             }
-            return Some(StatementKind::TimingDecl { kind, name, label });
+            return Some(StatementKind::TimingDecl {
+                kind,
+                name,
+                label,
+                controls,
+            });
         }
     }
     None
+}
+
+fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
+    let trimmed = input.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some(idx) = lower.find(" with ") {
+        let name = trimmed[..idx].trim().to_string();
+        let controls = trimmed[idx + " with ".len()..]
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect();
+        return (name, controls);
+    }
+    (trimmed.to_string(), Vec::new())
 }
 
 fn parse_timing_event(line: &str) -> Option<StatementKind> {

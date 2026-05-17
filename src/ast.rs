@@ -87,6 +87,7 @@ pub enum StatementKind {
         kind: TimingDeclKind,
         name: String,
         label: Option<String>,
+        controls: Vec<String>,
     },
     TimingEvent {
         time: String,

@@ -2285,6 +2285,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
     let mut activity_active_partition: Option<String> = None;
     let mut activity_fork_depth: usize = 0;
     let mut activity_fork_branch: usize = 0;
+    let mut timing_current_time: Option<String> = None;
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
     let mut timing_style = TimingStyle::default();
@@ -2362,13 +2363,24 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                     wbs_checkbox: None,
                 });
             }
-            StatementKind::TimingDecl { kind, name, label } => {
+            StatementKind::TimingDecl {
+                kind,
+                name,
+                label,
+                controls,
+            } => {
                 let node_kind = timing_decl_node_kind(kind);
                 nodes.push(FamilyNode {
                     kind: node_kind,
                     name,
                     alias: None,
-                    members: Vec::new(),
+                    members: controls
+                        .into_iter()
+                        .map(|text| crate::ast::ClassMember {
+                            text,
+                            modifier: None,
+                        })
+                        .collect(),
                     depth: 0,
                     label,
                     mindmap_side: MindMapSide::Right,
@@ -2381,6 +2393,12 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 state,
                 note,
             } => {
+                let effective_time = if time.is_empty() {
+                    timing_current_time.clone().unwrap_or_default()
+                } else {
+                    timing_current_time = Some(time.clone());
+                    time
+                };
                 let display = match (&signal, &state, &note) {
                     (Some(s), Some(st), _) => format!("{s} is {st}"),
                     (None, None, Some(n)) => n.clone(),
@@ -2388,7 +2406,7 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 };
                 nodes.push(FamilyNode {
                     kind: FamilyNodeKind::TimingEvent,
-                    name: time,
+                    name: effective_time,
                     alias: signal,
                     members: state
                         .into_iter()

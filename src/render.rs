@@ -4240,12 +4240,13 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         ));
 
         // Signal name label (left column)
+        let signal_label = signal.label.as_deref().unwrap_or(&signal.name);
         out.push_str(&format!(
             "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"{}\" text-anchor=\"end\">{name}</text>",
             escape_text(&style.font_color),
             x = left_pad - 8,
             ty = wave_mid + 4,
-            name = escape_text(&signal.name)
+            name = escape_text(signal_label)
         ));
         // Signal kind tag
         out.push_str(&format!(
@@ -4340,14 +4341,20 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             FamilyNodeKind::TimingClock => {
                 // Clock: square wave. If edge events exist for this signal, use
                 // their spacing as the period baseline; otherwise fallback.
-                let period = if sig_events.len() >= 2 {
+                let controlled_period = timing_control_i64(signal, "period");
+                let controlled_pulse = timing_control_i64(signal, "pulse");
+                let period = if let Some(period) = controlled_period {
+                    period.max(1)
+                } else if sig_events.len() >= 2 {
                     (sig_events[1].0 - sig_events[0].0).max(1)
                 } else if time_vals.len() >= 2 {
                     (time_vals[1] - time_vals[0]).max(1)
                 } else {
                     t_span / 4
                 };
-                let half = period / 2;
+                let half = controlled_pulse
+                    .unwrap_or_else(|| (period / 2).max(1))
+                    .clamp(1, period.max(1));
                 let t_end = t_max + period;
 
                 let mut path_pts = String::new();
@@ -4497,6 +4504,20 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn timing_control_i64(signal: &FamilyNode, key: &str) -> Option<i64> {
+    for member in &signal.members {
+        let mut parts = member.text.split_whitespace();
+        while let Some(part) = parts.next() {
+            if part.eq_ignore_ascii_case(key) {
+                if let Some(value) = parts.next().and_then(|v| v.parse::<i64>().ok()) {
+                    return Some(value);
+                }
+            }
+        }
+    }
+    None
 }
 
 pub fn render_json_svg(document: &JsonDocument) -> String {
