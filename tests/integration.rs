@@ -5331,7 +5331,10 @@ title Project Timeline\n\
         .collect();
     assert_eq!(bar_x_vals.len(), 3, "should have 3 bar x coordinates");
     for &x in &bar_x_vals {
-        assert!(x > 100, "bar x={x} is unexpectedly small (left of label column)");
+        assert!(
+            x > 100,
+            "bar x={x} is unexpectedly small (left of label column)"
+        );
     }
 }
 

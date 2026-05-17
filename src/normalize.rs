@@ -1187,8 +1187,7 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
                         let workload = d.max(1);
                         let new_allocs = parse_timeline_resource_allocations(&resources);
                         existing.workload_days = workload;
-                        existing.duration_days =
-                            resource_adjusted_work_days(workload, &new_allocs);
+                        existing.duration_days = resource_adjusted_work_days(workload, &new_allocs);
                         if !new_allocs.is_empty() {
                             existing.resource_allocations = new_allocs;
                         }
