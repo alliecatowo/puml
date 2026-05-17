@@ -49,12 +49,21 @@ fn workspace_root() -> PathBuf {
 // ---------------------------------------------------------------------------
 
 fn render_svg(fixture_path: &Path) -> Result<String, String> {
+    let source = fs::read_to_string(fixture_path)
+        .map_err(|e| format!("read {} failed: {e}", fixture_path.display()))?;
+    let include_root = fixture_path
+        .parent()
+        .ok_or_else(|| format!("fixture has no parent: {}", fixture_path.display()))?;
+
     let output = Command::cargo_bin("puml")
         .map_err(|e| format!("cargo_bin(puml) failed: {e}"))?
-        .arg(fixture_path)
+        .arg("-")
         .arg("--format")
         .arg("svg")
+        .arg("--include-root")
+        .arg(include_root)
         .arg("--quiet")
+        .write_stdin(source)
         .output()
         .map_err(|e| format!("spawn puml failed: {e}"))?;
     if !output.status.success() {
@@ -64,7 +73,15 @@ fn render_svg(fixture_path: &Path) -> Result<String, String> {
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    let svg = String::from_utf8_lossy(&output.stdout).into_owned();
+    if !svg.contains("<svg") {
+        return Err(format!(
+            "puml produced no SVG on stdout ({} bytes); stderr:\n{}",
+            output.stdout.len(),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(svg)
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +255,18 @@ fn diff_png_path(root: &Path, fixture: &Fixture) -> PathBuf {
         .join(format!("{stem}.diff.png"))
 }
 
+fn rendered_svg_path(root: &Path, fixture: &Fixture) -> PathBuf {
+    let file_path = Path::new(&fixture.path);
+    let stem = file_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+    root.join("target")
+        .join("visual-diff")
+        .join(&fixture.family)
+        .join(format!("{stem}.svg"))
+}
+
 // ---------------------------------------------------------------------------
 // SVG text extraction (unchanged from PR #249)
 // ---------------------------------------------------------------------------
@@ -325,6 +354,14 @@ struct Failure {
     reasons: Vec<String>,
 }
 
+const FOCUSED_TEXT_SWEEP_FIXTURES: &[&str] = &[
+    "docs/examples/sequence/01_basic.puml",
+    "docs/examples/class/01_basic.puml",
+    "docs/examples/activity/01_simple_flow.puml",
+    "docs/examples/state/01_basic.puml",
+    "docs/examples/sdl/02_with_transitions.puml",
+];
+
 fn check_fixture(fixture: &Fixture) -> Option<Failure> {
     let root = workspace_root();
     let path = root.join(&fixture.path);
@@ -348,14 +385,11 @@ fn check_fixture(fixture: &Fixture) -> Option<Failure> {
     };
 
     // Persist the SVG to target/visual-diff/<family>/<basename>.svg for inspection.
-    let diff_dir = root
-        .join("target")
-        .join("visual-diff")
-        .join(&fixture.family);
-    let _ = fs::create_dir_all(&diff_dir);
-    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-        let _ = fs::write(diff_dir.join(format!("{stem}.svg")), &svg);
+    let artifact_path = rendered_svg_path(&root, fixture);
+    if let Some(diff_dir) = artifact_path.parent() {
+        let _ = fs::create_dir_all(diff_dir);
     }
+    let _ = fs::write(&artifact_path, &svg);
 
     let mut reasons = Vec::new();
     let texts = extract_text_contents(&svg);
@@ -366,12 +400,11 @@ fn check_fixture(fixture: &Fixture) -> Option<Failure> {
         reasons.push(format!(
             "found {} empty `<text>` element(s); rendered {} non-empty out of {} total. \
              This is the missing-label bug class (see #238). \
-             Inspect the SVG at target/visual-diff/{}/{}.svg",
+             Inspect the SVG at {}",
             empty_count,
             texts.len() - empty_count,
             texts.len(),
-            fixture.family,
-            path.file_stem().and_then(|s| s.to_str()).unwrap_or("?"),
+            artifact_path.display(),
         ));
     }
 
@@ -405,23 +438,14 @@ fn check_fixture(fixture: &Fixture) -> Option<Failure> {
     }
 }
 
-// NOTE: This sweep is `#[ignore]` until the missing-label renderer bug
-// (#238) is fixed — running it on main today would fail every fixture.
-// Once #238 lands, remove the `#[ignore]` so this test guards the
-// regression in CI. To run locally regardless:
-//   cargo test --test visual_regression -- --ignored
-#[test]
-#[ignore]
-fn visual_regression_all_fixtures() {
-    let manifest = load_manifest();
+fn run_text_sweep<'a>(fixtures: impl IntoIterator<Item = &'a Fixture>, total: usize) {
     let mut failures: Vec<Failure> = Vec::new();
-    for fixture in &manifest.fixtures {
+    for fixture in fixtures {
         if let Some(f) = check_fixture(fixture) {
             failures.push(f);
         }
     }
     if !failures.is_empty() {
-        let total = manifest.fixtures.len();
         let mut report = String::new();
         report.push_str(&format!(
             "\nVisual regression: {}/{} fixtures failed\n",
@@ -441,6 +465,29 @@ fn visual_regression_all_fixtures() {
         );
         panic!("{report}");
     }
+}
+
+#[test]
+fn visual_regression_focused_text_presence_sweep() {
+    let manifest = load_manifest();
+    let fixtures = manifest
+        .fixtures
+        .iter()
+        .filter(|fixture| FOCUSED_TEXT_SWEEP_FIXTURES.contains(&fixture.path.as_str()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        fixtures.len(),
+        FOCUSED_TEXT_SWEEP_FIXTURES.len(),
+        "focused visual text sweep fixture list must match manifest entries"
+    );
+    run_text_sweep(fixtures.into_iter(), FOCUSED_TEXT_SWEEP_FIXTURES.len());
+}
+
+#[test]
+#[ignore]
+fn visual_regression_all_fixtures() {
+    let manifest = load_manifest();
+    run_text_sweep(manifest.fixtures.iter(), manifest.fixtures.len());
 }
 
 // ---------------------------------------------------------------------------
@@ -787,6 +834,29 @@ fn text_extractor_decodes_entities() {
     let svg = r#"<svg><text>Foo &amp; Bar &lt;baz&gt;</text></svg>"#;
     let texts = extract_text_contents(svg);
     assert_eq!(texts[0], "Foo & Bar <baz>");
+}
+
+#[test]
+fn render_svg_uses_stdout_without_mutating_fixture_directory() {
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    let fixture_path = tempdir.path().join("fixture.puml");
+    fs::write(
+        &fixture_path,
+        "@startuml\nAlice -> Bob: hello from stdin\n@enduml\n",
+    )
+    .expect("write fixture");
+
+    let svg = render_svg(&fixture_path).expect("render svg");
+
+    assert!(svg.contains("<svg"), "rendered stdout should contain SVG");
+    assert!(
+        svg.contains("hello from stdin"),
+        "rendered stdout should contain fixture text"
+    );
+    assert!(
+        !fixture_path.with_extension("svg").exists(),
+        "rendering through the visual harness must not create sibling SVGs"
+    );
 }
 
 // ---------------------------------------------------------------------------
