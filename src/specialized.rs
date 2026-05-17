@@ -2288,6 +2288,7 @@ fn render_sdl_state_node(
 #[derive(Debug, Clone)]
 enum Expr {
     Literal(String),
+    Text(String),
     Sub(Box<Expr>, Box<Expr>),
     Sup(Box<Expr>, Box<Expr>),
     SubSup(Box<Expr>, Box<Expr>, Box<Expr>),
@@ -2774,8 +2775,12 @@ fn parse_expr_seq(tokens: &[LatexToken], idx: &mut usize) -> Vec<Expr> {
                 ) {
                     // Consume following group and render it as literal text
                     skip_spaces(tokens, idx);
-                    let inner = parse_single_expr(tokens, idx);
-                    exprs.push(inner);
+                    if let Some(text) = read_braced_literal(tokens, idx) {
+                        exprs.push(Expr::Text(text));
+                    } else {
+                        let inner = parse_single_expr(tokens, idx);
+                        exprs.push(inner);
+                    }
                 } else if matches!(
                     name.as_str(),
                     "left" | "right" | "big" | "bigg" | "Big" | "Bigg"
@@ -2866,7 +2871,11 @@ fn parse_single_expr(tokens: &[LatexToken], idx: &mut usize) -> Expr {
                 "text" | "mathrm" | "mathit" | "mathbf" | "mathbb" | "mathcal" | "operatorname"
             ) {
                 skip_spaces(tokens, idx);
-                parse_single_expr(tokens, idx)
+                if let Some(text) = read_braced_literal(tokens, idx) {
+                    Expr::Text(text)
+                } else {
+                    parse_single_expr(tokens, idx)
+                }
             } else {
                 command_to_expr(&name)
             }
@@ -2915,6 +2924,24 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 };
             }
             // Estimate width: each char is ~char_w
+            let char_w = char_width(font_size);
+            let width = s.chars().count() as f64 * char_w;
+            let height = font_size * 1.2;
+            let ascent = font_size * 0.8;
+            let svg = format!(
+                "<text x=\"0\" y=\"{}\" font-family=\"serif\" font-size=\"{}\" fill=\"#111\">{}</text>",
+                ascent,
+                font_size,
+                escape_xml(s)
+            );
+            Layout {
+                svg,
+                width,
+                height,
+                ascent,
+            }
+        }
+        Expr::Text(s) => {
             let char_w = char_width(font_size);
             let width = s.chars().count() as f64 * char_w;
             let height = font_size * 1.2;
