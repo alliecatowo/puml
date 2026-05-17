@@ -5505,6 +5505,18 @@ fn salt_wireframe_grid_renders_button_and_input() {
     assert!(svg.contains("OK"), "expected button label in SVG");
 }
 
+#[test]
+fn salt_advanced_widgets_render_tree_menu_tab_scroll_and_table() {
+    let src = "@startsalt\n{\n{T\n+ Root\n++ Leaf\n}\n{* File | Edit | View}\n{/ General | Advanced}\n{S vertical 55%}\n| Name | \"Search\" |\n}\n@endsalt\n";
+    let svg = render_source_to_svg(src).expect("advanced salt widgets should render");
+    assert!(svg.contains("data-salt-widget=\"tree\""));
+    assert!(svg.contains("data-salt-widget=\"menu\""));
+    assert!(svg.contains("data-salt-widget=\"tab\""));
+    assert!(svg.contains("data-salt-widget=\"scrollbar\""));
+    assert!(svg.contains("Leaf"));
+    assert!(svg.contains("Search"));
+}
+
 // ── skinparam classify: class/state/component/activity (#202) ─────────────────
 
 #[test]

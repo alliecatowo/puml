@@ -592,7 +592,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
-        let style = arrow_style(&normalized_arrow);
+        let mut style = arrow_style(&normalized_arrow);
+        let usecase_dependency = matches!(document.kind, crate::ast::DiagramKind::UseCase)
+            .then(|| usecase_dependency_label(relation.label.as_deref()))
+            .flatten();
+        if usecase_dependency.is_some() {
+            style.dashed = true;
+            if style.end_marker.is_none() {
+                style.end_marker = Some("arrow-open");
+            }
+        }
         let (x1, y1, x2, y2) =
             compute_edge_anchors_tuple((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h));
         let stroke_dash = if style.dashed {
@@ -611,7 +620,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"{dash}{markers}/>",
             dash = stroke_dash
         ));
-        if let Some(label) = &relation.label {
+        let rendered_label = usecase_dependency.or(relation.label.as_deref());
+        if let Some(label) = rendered_label {
             let lx = (x1 + x2) / 2;
             let ly = (y1 + y2) / 2 - 4;
             out.push_str(&format!(
@@ -1170,10 +1180,13 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
 
     // Parse rows from the encoded node names.
     let mut rows: Vec<Vec<SaltCellRender>> = Vec::new();
+    let mut in_tree = false;
     for node in &document.nodes {
         if let Some(rest) = node.name.strip_prefix("SALT_ROW\x1f") {
             let cells: Vec<SaltCellRender> = rest.split('\x1e').map(decode_salt_cell).collect();
-            rows.push(cells);
+            if let Some(cells) = transform_salt_row(cells, &mut in_tree) {
+                rows.push(cells);
+            }
         }
     }
 
@@ -1285,6 +1298,10 @@ enum SaltCellRender {
     CheckboxUnchecked(String),
     RadioOn(String),
     RadioOff(String),
+    TreeItem { depth: usize, label: String },
+    MenuBar(Vec<String>),
+    TabBar { tabs: Vec<String>, active: usize },
+    ScrollBar { vertical: bool, percent: u8 },
 }
 
 impl SaltCellRender {
@@ -1298,8 +1315,118 @@ impl SaltCellRender {
             | Self::CheckboxUnchecked(t)
             | Self::RadioOn(t)
             | Self::RadioOff(t) => t,
+            Self::TreeItem { label, .. } => label,
+            Self::MenuBar(items) => items.first().map(String::as_str).unwrap_or("menu"),
+            Self::TabBar { tabs, .. } => tabs.first().map(String::as_str).unwrap_or("tab"),
+            Self::ScrollBar { .. } => "scrollbar",
         }
     }
+}
+
+fn transform_salt_row(
+    cells: Vec<SaltCellRender>,
+    in_tree: &mut bool,
+) -> Option<Vec<SaltCellRender>> {
+    if cells.len() != 1 {
+        return Some(cells);
+    }
+
+    let SaltCellRender::Label(text) = &cells[0] else {
+        return Some(cells);
+    };
+    let trimmed = text.trim();
+    let lower = trimmed.to_ascii_lowercase();
+
+    if matches!(trimmed, "{" | "}") {
+        if trimmed == "}" {
+            *in_tree = false;
+        }
+        return None;
+    }
+
+    if lower.starts_with("{t") || lower == "tree" || lower.starts_with("tree ") {
+        *in_tree = true;
+        return None;
+    }
+
+    if let Some((depth, label)) = parse_salt_tree_line(trimmed) {
+        return Some(vec![SaltCellRender::TreeItem { depth, label }]);
+    }
+
+    if let Some(items) = parse_salt_items(trimmed, &["{*", "menu"]) {
+        return Some(vec![SaltCellRender::MenuBar(items)]);
+    }
+
+    if let Some(tabs) = parse_salt_items(trimmed, &["{/", "tab", "tabs"]) {
+        return Some(vec![SaltCellRender::TabBar { tabs, active: 0 }]);
+    }
+
+    if let Some((vertical, percent)) = parse_salt_scrollbar(trimmed) {
+        return Some(vec![SaltCellRender::ScrollBar { vertical, percent }]);
+    }
+
+    if *in_tree {
+        *in_tree = false;
+    }
+
+    Some(cells)
+}
+
+fn parse_salt_tree_line(line: &str) -> Option<(usize, String)> {
+    let depth = line.chars().take_while(|&ch| ch == '+').count();
+    if depth == 0 {
+        return None;
+    }
+    let label = line[depth..].trim().trim_matches('"').to_string();
+    if label.is_empty() {
+        None
+    } else {
+        Some((depth.saturating_sub(1), label))
+    }
+}
+
+fn parse_salt_items(line: &str, prefixes: &[&str]) -> Option<Vec<String>> {
+    let lower = line.to_ascii_lowercase();
+    let mut rest = None;
+    for prefix in prefixes {
+        if lower.starts_with(prefix)
+            && (prefix.starts_with('{')
+                || lower.len() == prefix.len()
+                || lower
+                    .as_bytes()
+                    .get(prefix.len())
+                    .is_some_and(|ch| ch.is_ascii_whitespace()))
+        {
+            rest = Some(line[prefix.len()..].trim());
+            break;
+        }
+    }
+    let rest = rest?;
+    let rest = rest.trim_matches('{').trim_matches('}').trim();
+    let items: Vec<String> = rest
+        .split(['|', ','])
+        .map(|item| item.trim().trim_matches('"').to_string())
+        .filter(|item| !item.is_empty())
+        .collect();
+    if items.is_empty() {
+        None
+    } else {
+        Some(items)
+    }
+}
+
+fn parse_salt_scrollbar(line: &str) -> Option<(bool, u8)> {
+    let lower = line.to_ascii_lowercase();
+    if !(lower.starts_with("{s") || lower.starts_with("scroll") || lower.contains("scrollbar")) {
+        return None;
+    }
+    let vertical = !lower.contains("horizontal");
+    let percent = lower
+        .split(|ch: char| !ch.is_ascii_digit())
+        .find_map(|part| part.parse::<u8>().ok())
+        .unwrap_or(40)
+        .min(100);
+    Some((vertical, percent))
 }
 
 /// Decode a salt cell from the encoded string `"X:text"`.
@@ -1479,6 +1606,107 @@ fn render_salt_cell_svg(out: &mut String, cell: &SaltCellRender, x: i32, y: i32,
                     cx + 10,
                     text_y,
                     escape_text(label)
+                ));
+            }
+        }
+        SaltCellRender::TreeItem { depth, label } => {
+            let indent = (*depth as i32) * 16;
+            let branch_x = x + pad + indent;
+            let cy = y + h / 2;
+            out.push_str(&format!(
+                "<g data-salt-widget=\"tree\"><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#9ca3af\" stroke-width=\"1\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#9ca3af\" stroke-width=\"1\"/><circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"#475569\"/><text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1f2937\">{}</text></g>",
+                branch_x,
+                y + 4,
+                branch_x,
+                y + h - 4,
+                branch_x,
+                cy,
+                branch_x + 10,
+                cy,
+                branch_x + 10,
+                cy,
+                branch_x + 18,
+                text_y,
+                escape_text(label)
+            ));
+        }
+        SaltCellRender::MenuBar(items) => {
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"menu\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#eef2ff\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+                x + 1,
+                y + 2,
+                w - 2,
+                h - 4
+            ));
+            let mut item_x = x + pad;
+            for item in items {
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#1e293b\">{}</text>",
+                    item_x,
+                    text_y,
+                    escape_text(item)
+                ));
+                item_x += estimate_text_width(item) + 24;
+            }
+        }
+        SaltCellRender::TabBar { tabs, active } => {
+            let mut tab_x = x + pad;
+            for (idx, tab) in tabs.iter().enumerate() {
+                let tab_w = estimate_text_width(tab) + 24;
+                let active_tab = idx == *active;
+                let fill = if active_tab { "white" } else { "#e2e8f0" };
+                let stroke = if active_tab { "#334155" } else { "#94a3b8" };
+                out.push_str(&format!(
+                    "<rect data-salt-widget=\"tab\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    tab_x,
+                    y + 4,
+                    tab_w,
+                    h - 5,
+                    fill,
+                    stroke
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#0f172a\">{}</text>",
+                    tab_x + 12,
+                    text_y,
+                    escape_text(tab)
+                ));
+                tab_x += tab_w - 1;
+            }
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#334155\" stroke-width=\"1\"/>",
+                x + pad,
+                y + h - 1,
+                x + w - pad,
+                y + h - 1
+            ));
+        }
+        SaltCellRender::ScrollBar { vertical, percent } => {
+            let track_x = if *vertical { x + w - pad - 12 } else { x + pad };
+            let track_y = if *vertical { y + 5 } else { y + h - 13 };
+            let track_w = if *vertical { 12 } else { w - pad * 2 };
+            let track_h = if *vertical { h - 10 } else { 12 };
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"scrollbar\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"#e5e7eb\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+                track_x, track_y, track_w, track_h
+            ));
+            if *vertical {
+                let thumb_h = ((track_h as f32) * (*percent as f32 / 100.0)).round() as i32;
+                out.push_str(&format!(
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"#64748b\"/>",
+                    track_x + 2,
+                    track_y + 2,
+                    track_w - 4,
+                    thumb_h.max(8).min(track_h - 4)
+                ));
+            } else {
+                let thumb_w = ((track_w as f32) * (*percent as f32 / 100.0)).round() as i32;
+                out.push_str(&format!(
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"#64748b\"/>",
+                    track_x + 2,
+                    track_y + 2,
+                    thumb_w.max(12).min(track_w - 4),
+                    track_h - 4
                 ));
             }
         }
@@ -2122,6 +2350,47 @@ fn arrow_style(arrow: &str) -> ArrowStyle {
     }
 }
 
+fn usecase_dependency_label(label: Option<&str>) -> Option<&'static str> {
+    let normalized = label?.trim().to_ascii_lowercase();
+    let compact = normalized.split_whitespace().collect::<String>();
+    if matches!(compact.as_str(), "<<include>>" | "include" | "includes") {
+        Some("<<include>>")
+    } else if matches!(compact.as_str(), "<<extend>>" | "extend" | "extends") {
+        Some("<<extend>>")
+    } else {
+        None
+    }
+}
+
+fn render_relation_marker_defs(out: &mut String, arrow_stroke: &str) {
+    out.push_str("<defs>");
+    out.push_str(&format!(
+        "<marker id=\"arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
+         markerWidth=\"10\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+         markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
+         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
+         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
+         </marker>",
+    ));
+    out.push_str("</defs>");
+}
+
 fn compute_edge_anchors_tuple(
     from: (i32, i32, i32, i32),
     to: (i32, i32, i32, i32),
@@ -2517,6 +2786,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         width, height, width, height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    render_relation_marker_defs(&mut out, &comp_style.arrow_color);
 
     let mut y_cursor = 28;
     if let Some(title) = &doc.title {
@@ -2553,8 +2823,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
     // Draw relations as straight arrows between node center boundaries.
     for rel in &doc.relations {
-        let from_box = positions.get(&rel.from);
-        let to_box = positions.get(&rel.to);
+        let (from_name, to_name, normalized_arrow) =
+            normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+        let from_box = positions.get(&from_name);
+        let to_box = positions.get(&to_name);
         let (Some(&(fx, fy, fw, fh)), Some(&(tx, ty, tw, th))) = (from_box, to_box) else {
             continue;
         };
@@ -2564,18 +2836,23 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let cy2 = ty + th / 2;
         let (x1, y1) = clip_to_box_edge((cx1, cy1), (cx2, cy2), (fx, fy, fw, fh));
         let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
-        let dashed = rel.arrow.contains("..") || rel.arrow.contains("--");
-        let dash = if dashed && rel.arrow.contains("..") {
+        let style = arrow_style(&normalized_arrow);
+        let dash = if style.dashed {
             " stroke-dasharray=\"4 4\""
         } else {
             ""
         };
+        let mut markers = String::new();
+        if let Some(end) = style.end_marker {
+            markers.push_str(&format!(" marker-end=\"url(#{end})\""));
+        }
+        if let Some(start) = style.start_marker {
+            markers.push_str(&format!(" marker-start=\"url(#{start})\""));
+        }
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
-            x1, y1, x2, y2, comp_style.arrow_color, dash
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}{} />",
+            x1, y1, x2, y2, comp_style.arrow_color, dash, markers
         ));
-        // arrowhead
-        out.push_str(&arrowhead_svg(x1, y1, x2, y2, &comp_style.arrow_color));
         if let Some(label) = &rel.label {
             let mx = (x1 + x2) / 2;
             let my = (y1 + y2) / 2 - 6;
@@ -3053,6 +3330,18 @@ fn render_family_node_shape_styled(
                 x - 4, y + h - 20, comp_style.background_color, comp_style.border_color
             ));
         }
+        FamilyNodeKind::Port => {
+            let size = 24;
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"3\" ry=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                cx - size / 2,
+                cy - size / 2,
+                size,
+                size,
+                comp_style.interface_color,
+                comp_style.border_color
+            ));
+        }
         _ => {
             // Delegate to the non-styled version for all other shapes
             render_family_node_shape(out, node, x, y, w, h);
@@ -3062,7 +3351,7 @@ fn render_family_node_shape_styled(
 
     // Label
     let (label_x, label_y) = match node.kind {
-        FamilyNodeKind::Interface => (cx, cy + 28),
+        FamilyNodeKind::Interface | FamilyNodeKind::Port => (cx, cy + 28),
         _ => (cx, cy + 6),
     };
     out.push_str(&format!(
@@ -3070,7 +3359,7 @@ fn render_family_node_shape_styled(
         label_x, label_y, escape_text(&display)
     ));
     let kind_tag_y = match node.kind {
-        FamilyNodeKind::Interface => label_y + 14,
+        FamilyNodeKind::Interface | FamilyNodeKind::Port => label_y + 14,
         _ => y + 14,
     };
     out.push_str(&format!(
