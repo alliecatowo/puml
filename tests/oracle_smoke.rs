@@ -414,7 +414,10 @@ fn oracle_report_summary_publishes_top_drift_families() {
         serde_json::from_str(&summary_raw).expect("summary JSON should parse");
 
     assert_eq!(summary["schema_version"].as_str(), Some("1.0"));
-    assert_eq!(summary["jar_version"].as_str(), Some("PlantUML version 1.2024.7"));
+    assert_eq!(
+        summary["jar_version"].as_str(),
+        Some("PlantUML version 1.2024.7")
+    );
     assert_eq!(summary["fixture_count"].as_u64(), Some(5));
     assert_eq!(summary["match_pct"].as_u64(), Some(40));
     assert_eq!(summary["gate_status"].as_str(), Some("fail"));
