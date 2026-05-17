@@ -1,0 +1,8 @@
+@startuml
+!$items = %list("alpha", "beta", "gamma")
+!$cfg = %map("name", "Ada", "role", "admin")
+!assert %size($items) == 3 : list size should pass
+!assert %map_contains_key($cfg, "role") : map key should pass
+!log %stringify($cfg)
+A -> B : %list_get($items, 1)|%join($items, "+")|%map_get($cfg, "name")|%size($cfg)|%keys($cfg)|%values($cfg)|%quote(%map_get($cfg, "role"))
+@enduml

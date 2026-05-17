@@ -1502,16 +1502,19 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     ))
                     .with_span(stmt.span));
                 }
-                nodes.push(FamilyNode {
-                    kind: FamilyNodeKind::Class,
-                    name: decl.name,
-                    alias: decl.alias,
-                    members: decl.members,
-                    depth: 0,
-                    label: None,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                });
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::Class,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members: decl.members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    },
+                );
             }
             StatementKind::ObjectDecl(decl) => {
                 if node_kind != FamilyNodeKind::Object {
@@ -1525,16 +1528,19 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
                 let (clean_alias, c4_kind) = extract_c4_stereotype(decl.alias);
                 let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
-                nodes.push(FamilyNode {
-                    kind: resolved_kind,
-                    name: decl.name,
-                    alias: clean_alias,
-                    members: decl.members,
-                    depth: 0,
-                    label: None,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                });
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: resolved_kind,
+                        name: decl.name,
+                        alias: clean_alias,
+                        members: decl.members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    },
+                );
             }
             StatementKind::UseCaseDecl(decl) => {
                 if node_kind != FamilyNodeKind::UseCase {
@@ -1544,16 +1550,19 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                     ))
                     .with_span(stmt.span));
                 }
-                nodes.push(FamilyNode {
-                    kind: FamilyNodeKind::UseCase,
-                    name: decl.name,
-                    alias: decl.alias,
-                    members: decl.members,
-                    depth: 0,
-                    label: None,
-                    mindmap_side: MindMapSide::Right,
-                    wbs_checkbox: None,
-                });
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::UseCase,
+                        name: decl.name,
+                        alias: decl.alias,
+                        members: decl.members,
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                    },
+                );
             }
             StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
                 from: rel.from,
@@ -1710,6 +1719,27 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings,
     })
+}
+
+fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {
+    let target_name = node.name.as_str();
+    let target_alias = node.alias.as_deref();
+    if let Some(existing) = nodes.iter_mut().find(|existing| {
+        existing.name == target_name
+            || existing.alias.as_deref() == Some(target_name)
+            || target_alias.is_some_and(|alias| existing.name == alias)
+            || (target_alias.is_some() && existing.alias.as_deref() == target_alias)
+    }) {
+        if existing.label.is_none() {
+            existing.label = node.label.take();
+        }
+        if existing.alias.is_none() {
+            existing.alias = node.alias.take();
+        }
+        existing.members.append(&mut node.members);
+        return;
+    }
+    nodes.push(node);
 }
 
 fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {

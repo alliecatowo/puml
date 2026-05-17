@@ -712,6 +712,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_builtin_strlen.puml",
         "preprocessor/valid_builtin_boolval.puml",
         "preprocessor/valid_builtin_chain.puml",
+        "preprocessor/valid_builtin_list_map_stringification_assert_log.puml",
         "include/valid_include_once.puml",
         "include/valid_include_many.puml",
         "include/valid_includesub.puml",
@@ -4426,6 +4427,30 @@ fn preprocessor_builtin_chain_composes_substr_upper_intval_dec2hex() {
 }
 
 #[test]
+fn preprocessor_builtin_list_map_stringification_assert_and_log_surface_passes() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_builtin_list_map_stringification_assert_log.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        label,
+        "beta|alpha+beta+gamma|Ada|2|\"name\",\"role\"|Ada,admin|\"admin\""
+    );
+}
+
+#[test]
 fn preprocessor_dynamic_call_user_func_invokes_function_expression() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
@@ -5834,6 +5859,21 @@ fn json_projection_accepts_partial_rows_and_quoted_braces() {
     assert!(
         svg.contains("template: {literal}"),
         "quoted braces must not close the projection"
+    );
+}
+
+#[test]
+fn yaml_projection_accepts_partial_rows_and_quoted_braces() {
+    let src = "@startuml\nyaml $cfg {\n  name: Ada\n  template: \"{literal}\"\n}\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("partial YAML projection rows should render");
+    assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
+    assert!(
+        svg.contains("name: Ada"),
+        "SVG must contain partial YAML row key"
+    );
+    assert!(
+        svg.contains("template: {literal}"),
+        "quoted braces must not close the YAML projection"
     );
 }
 

@@ -2221,7 +2221,8 @@ fn dispatch_builtin(
     let argc = expanded_args.len();
 
     let result: Option<String> = match name {
-        "strlen" | "size" => Some(arg(0).chars().count().to_string()),
+        "strlen" => Some(arg(0).chars().count().to_string()),
+        "size" => Some(preprocessor_size(&arg(0)).to_string()),
         "splitstr" => {
             // %splitstr(s, sep) → returns the comma-joined fields after
             // splitting `s` on `sep`. PlantUML returns a deterministic
@@ -2253,6 +2254,7 @@ fn dispatch_builtin(
             Some(list.join(&arg(1)))
         }
         "list" | "array" => Some(preprocessor_list_literal(&expanded_args)),
+        "list_size" | "array_size" | "map_size" => Some(preprocessor_size(&arg(0)).to_string()),
         "list_contains" | "contains_list" => Some(
             preprocessor_list_items(&arg(0))
                 .contains(&arg(1))
@@ -2269,14 +2271,14 @@ fn dispatch_builtin(
             items.push(arg(1));
             Some(preprocessor_list_literal(&items))
         }
-        "map" => Some(preprocessor_map_literal(&expanded_args)),
+        "map" | "dict" => Some(preprocessor_map_literal(&expanded_args)),
         "map_contains_key" | "contains_key" => {
             Some(json_contains_key(&arg(0), &arg(1)).to_string())
         }
-        "get" => Some(preprocessor_get(&arg(0), &arg(1))),
+        "get" | "map_get" | "json_get" => Some(preprocessor_get(&arg(0), &arg(1))),
         "set" | "put" | "json_set" | "map_put" => Some(preprocessor_set(&arg(0), &arg(1), &arg(2))),
-        "keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
-        "values" => Some(preprocessor_json_values(&arg(0)).join(",")),
+        "keys" | "map_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
+        "values" | "map_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "strpos" => {
             let s = arg(0);
             let sub = arg(1);
@@ -2307,7 +2309,7 @@ fn dispatch_builtin(
             Some(chars[start..end].iter().collect())
         }
         "intval" => Some(parse_int_lenient(&arg(0)).to_string()),
-        "str" | "string" => Some(arg(0)),
+        "str" | "string" | "stringify" | "json_stringify" => Some(arg(0)),
         "quote" => Some(format!("\"{}\"", arg(0).replace('"', "\\\""))),
         "unquote" => Some(strip_quotes(&arg(0))),
         "trim" => Some(arg(0).trim().to_string()),
@@ -2810,6 +2812,22 @@ fn preprocessor_list_items(raw: &str) -> Vec<String> {
         .map(|s| strip_quotes(s.trim()))
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+fn preprocessor_size(raw: &str) -> usize {
+    let trimmed = raw.trim();
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if let Some(items) = value.as_array() {
+            return items.len();
+        }
+        if let Some(obj) = value.as_object() {
+            return obj.len();
+        }
+    }
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        return preprocessor_list_items(trimmed).len();
+    }
+    trimmed.chars().count()
 }
 
 fn preprocessor_list_literal(items: &[String]) -> String {
@@ -3425,6 +3443,50 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        if matches!(
+            detected_kind,
+            None | Some(DiagramKind::Sequence | DiagramKind::Component | DiagramKind::Deployment)
+        ) {
+            if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+                    DiagramKind::Deployment
+                } else {
+                    DiagramKind::Component
+                };
+                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                statements.push(Statement { span, kind });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some(kind) = parse_component_decl(line) {
+                let family = match &kind {
+                    StatementKind::ComponentDecl { kind, .. }
+                        if matches!(
+                            kind,
+                            ComponentNodeKind::Node
+                                | ComponentNodeKind::Artifact
+                                | ComponentNodeKind::Cloud
+                                | ComponentNodeKind::Frame
+                                | ComponentNodeKind::Storage
+                                | ComponentNodeKind::Database
+                                | ComponentNodeKind::Package
+                                | ComponentNodeKind::Rectangle
+                                | ComponentNodeKind::Folder
+                                | ComponentNodeKind::File
+                                | ComponentNodeKind::Card
+                        ) =>
+                    {
+                        DiagramKind::Deployment
+                    }
+                    _ => DiagramKind::Component,
+                };
+                detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
         if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
             let family = family_for_declaration(&kind);
             detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
@@ -3434,6 +3496,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 kind,
             });
             i = end_idx + 1;
+            continue;
+        }
+
+        if let Some(kind) = parse_family_member_row(line, detected_kind) {
+            statements.push(Statement { span, kind });
+            i += 1;
             continue;
         }
 
@@ -3475,16 +3543,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             detected_kind,
             Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
         ) {
-            if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
-                statements.push(Statement { span, kind });
-                i = end_idx + 1;
-                continue;
-            }
-            if let Some(kind) = parse_component_decl(line) {
-                statements.push(Statement { span, kind });
-                i += 1;
-                continue;
-            }
             // Try a relation again now that detection settled.
             if let Some(kind) = parse_family_relation(line, detected_kind) {
                 statements.push(Statement { span, kind });
@@ -4429,6 +4487,41 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         left_role,
         right_role,
     }))
+}
+
+fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
+    let family = match family {
+        Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase) => family?,
+        _ => return None,
+    };
+    let (owner, member) = line.split_once(':')?;
+    if owner.contains("--") || owner.contains("..") || owner.contains("->") || owner.contains("<-")
+    {
+        return None;
+    }
+    let owner = clean_bracketed_ident(owner);
+    let member = member.trim();
+    if owner.is_empty() || member.is_empty() {
+        return None;
+    }
+    let members = vec![parse_class_member(member)];
+    Some(match family {
+        DiagramKind::Object => StatementKind::ObjectDecl(ObjectDecl {
+            name: owner,
+            alias: None,
+            members,
+        }),
+        DiagramKind::UseCase => StatementKind::UseCaseDecl(UseCaseDecl {
+            name: owner,
+            alias: None,
+            members,
+        }),
+        _ => StatementKind::ClassDecl(ClassDecl {
+            name: owner,
+            alias: None,
+            members,
+        }),
+    })
 }
 
 fn parse_relation_side_annotations(

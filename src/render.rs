@@ -10,7 +10,7 @@ use crate::model::{
 };
 use crate::scene::{ParticipantBox, Scene, StructureKind};
 use crate::theme::css3_color_to_hex;
-use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle};
+use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle, MessageAlign};
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
 
@@ -207,36 +207,36 @@ pub fn render_svg(scene: &Scene) -> String {
         } else {
             ""
         };
-        out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
-            m.x1, m.y, m.x2, m.y, stroke_color, stroke_dash, hidden
-        ));
-        let arrow_size = 6;
-        if m.x2 >= m.x1 {
+        if m.x1 == m.x2 {
+            let loop_w = 46;
+            let loop_h = 26;
+            let dir = if m.arrow.starts_with('<') { -1 } else { 1 };
+            let x2 = m.x1 + dir * loop_w;
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"{}/>",
-                m.x2,
+                "<path d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
+                m.x1,
                 m.y,
-                m.x2 - arrow_size,
-                m.y - 4,
-                m.x2 - arrow_size,
-                m.y + 4,
-                arrow_fill,
+                x2,
+                m.y,
+                x2,
+                m.y + loop_h,
+                m.x1,
+                m.y + loop_h,
+                x2,
+                m.y + loop_h * 2,
+                m.x1,
+                m.y + loop_h * 2,
+                stroke_color,
+                stroke_dash,
                 hidden
             ));
         } else {
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"{}/>",
-                m.x2,
-                m.y,
-                m.x2 + arrow_size,
-                m.y - 4,
-                m.x2 + arrow_size,
-                m.y + 4,
-                arrow_fill,
-                hidden
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
+                m.x1, m.y, m.x2, m.y, stroke_color, stroke_dash, hidden
             ));
         }
+        render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, hidden);
 
         if let Some(virtual_ep) = m.from_virtual {
             render_virtual_endpoint_marker(&mut out, m.x1, m.y, virtual_ep.kind);
@@ -246,24 +246,33 @@ pub fn render_svg(scene: &Scene) -> String {
         }
 
         if !m.label_lines.is_empty() {
-            let tx = ((m.x1 + m.x2) / 2) + 2;
-            let start_y = m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP);
+            let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
+            let below = scene.style.response_message_below_arrow && m.arrow.starts_with('<');
+            let start_y = if below {
+                m.y + 16
+            } else {
+                m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
+            };
             for (idx, line) in m.label_lines.iter().enumerate() {
                 out.push_str(&creole_text(
                     tx,
                     start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
-                    "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\"",
+                    &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                     line,
                     "black",
                 ));
             }
         } else if let Some(label) = &m.label {
-            let tx = ((m.x1 + m.x2) / 2) + 2;
-            let ty = m.y - 8;
+            let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
+            let ty = if scene.style.response_message_below_arrow && m.arrow.starts_with('<') {
+                m.y + 16
+            } else {
+                m.y - 8
+            };
             out.push_str(&creole_text(
                 tx,
                 ty,
-                "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\"",
+                &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                 label,
                 "black",
             ));
@@ -355,6 +364,135 @@ pub fn render_svg(scene: &Scene) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn sequence_message_label_anchor(x1: i32, x2: i32, align: MessageAlign) -> (i32, &'static str) {
+    let left = x1.min(x2);
+    let right = x1.max(x2);
+    match align {
+        MessageAlign::Left => (left + 8, "start"),
+        MessageAlign::Center => (((x1 + x2) / 2) + 2, "middle"),
+        MessageAlign::Right => (right - 8, "end"),
+    }
+}
+
+fn render_sequence_arrow_heads(
+    out: &mut String,
+    m: &crate::scene::MessageLine,
+    stroke_color: &str,
+    fill_color: &str,
+    hidden: &str,
+) {
+    let arrow = m.arrow.replace(['/', '\\'], "");
+    let left_marker = arrow.chars().next().filter(|c| matches!(c, 'o' | 'x'));
+    let right_marker = arrow.chars().last().filter(|c| matches!(c, 'o' | 'x'));
+    let left_arrow = arrow.starts_with('<') || arrow.starts_with("<<");
+    let right_arrow = arrow.contains('>') && !matches!(right_marker, Some('o' | 'x'));
+    let open_head = arrow.contains(">>") || arrow.contains("<<");
+
+    if left_arrow {
+        render_arrow_head(
+            out,
+            m.x1,
+            m.y,
+            m.x2,
+            m.x1,
+            open_head,
+            stroke_color,
+            fill_color,
+            hidden,
+        );
+    }
+    if right_arrow {
+        render_arrow_head(
+            out,
+            m.x2,
+            m.y,
+            m.x1,
+            m.x2,
+            open_head,
+            stroke_color,
+            fill_color,
+            hidden,
+        );
+    }
+    if let Some(marker) = left_marker {
+        render_arrow_endpoint_marker(out, m.x1, m.y, marker, stroke_color, hidden);
+    }
+    if let Some(marker) = right_marker {
+        render_arrow_endpoint_marker(out, m.x2, m.y, marker, stroke_color, hidden);
+    }
+}
+
+fn render_arrow_head(
+    out: &mut String,
+    x: i32,
+    y: i32,
+    from_x: i32,
+    to_x: i32,
+    open: bool,
+    stroke_color: &str,
+    fill_color: &str,
+    hidden: &str,
+) {
+    let dir = if to_x >= from_x { 1 } else { -1 };
+    let back = x - (dir * 8);
+    if open {
+        out.push_str(&format!(
+            "<polyline points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
+            back,
+            y - 5,
+            x,
+            y,
+            back,
+            y + 5,
+            stroke_color,
+            hidden
+        ));
+    } else {
+        out.push_str(&format!(
+            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
+            x,
+            y,
+            back,
+            y - 5,
+            back,
+            y + 5,
+            fill_color,
+            stroke_color,
+            hidden
+        ));
+    }
+}
+
+fn render_arrow_endpoint_marker(
+    out: &mut String,
+    x: i32,
+    y: i32,
+    marker: char,
+    stroke_color: &str,
+    hidden: &str,
+) {
+    match marker {
+        'o' => out.push_str(&format!(
+            "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
+            x, y, stroke_color, hidden
+        )),
+        'x' => out.push_str(&format!(
+            "<g stroke=\"{}\" stroke-width=\"1.5\"{}><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
+            stroke_color,
+            hidden,
+            x - 4,
+            y - 4,
+            x + 4,
+            y + 4,
+            x - 4,
+            y + 4,
+            x + 4,
+            y - 4
+        )),
+        _ => {}
+    }
 }
 
 fn normalize_message_color(value: &str) -> Option<&str> {
@@ -4074,11 +4212,16 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     act_style.fork_color
                 ));
                 if step_kind.contains("ForkAgain") {
+                    let branch_label = if label.is_empty() {
+                        format!("branch {}", fork_branch + 1)
+                    } else {
+                        format!("branch {} / {}", fork_branch + 1, label)
+                    };
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">branch {}</text>",
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
                         cx,
                         y + 20,
-                        fork_branch + 1
+                        escape_text(&branch_label)
                     ));
                 }
                 if step_kind.contains("Fork") && !step_kind.contains("ForkAgain") {
@@ -4422,6 +4565,20 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             ty = wave_mid + 16,
             kind = family_node_label(signal.kind)
         ));
+        if !signal.members.is_empty() {
+            let controls = signal
+                .members
+                .iter()
+                .map(|m| m.text.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"9\" fill=\"#64748b\" text-anchor=\"end\">{controls}</text>",
+                x = left_pad - 8,
+                ty = wave_mid + 28,
+                controls = escape_text(&controls)
+            ));
+        }
 
         // Collect events for this signal, sorted by time.
         let mut sig_events: Vec<(i64, String)> = events
