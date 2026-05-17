@@ -1357,16 +1357,11 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         })
         .map(|c| c.target.clone());
     let project_start_day = project_start.as_deref().and_then(parse_iso_date_day);
+    let inferred_gantt_anchor_day =
+        infer_gantt_anchor_day(project_start_day, &tasks, &milestones, &constraints);
 
     if document.kind == DiagramKind::Gantt && !tasks.is_empty() {
-        let fallback_anchor = project_start_day.unwrap_or_else(|| {
-            tasks
-                .iter()
-                .filter(|t| t.start_day > 0)
-                .map(|t| t.start_day)
-                .min()
-                .unwrap_or(0)
-        });
+        let fallback_anchor = inferred_gantt_anchor_day.unwrap_or(0);
         let mut cursor = fallback_anchor;
         for task in &mut tasks {
             if task.start_day == 0 {
@@ -1428,6 +1423,43 @@ fn normalize_timeline_baseline(document: Document) -> Result<TimelineDocument, D
         legend,
         warnings: Vec::new(),
     })
+}
+
+fn infer_gantt_anchor_day(
+    project_start_day: Option<u32>,
+    tasks: &[TimelineTask],
+    milestones: &[TimelineMilestone],
+    constraints: &[TimelineConstraint],
+) -> Option<u32> {
+    let task_starts = tasks
+        .iter()
+        .filter(|task| task.start_day > 0)
+        .map(|task| task.start_day);
+    let milestone_dates = milestones
+        .iter()
+        .filter_map(|milestone| milestone.happens_on.as_deref())
+        .filter_map(parse_iso_date_day);
+    let constraint_dates = constraints
+        .iter()
+        .flat_map(|constraint| gantt_constraint_absolute_days(&constraint.target));
+
+    project_start_day
+        .into_iter()
+        .chain(task_starts)
+        .chain(milestone_dates)
+        .chain(constraint_dates)
+        .min()
+}
+
+fn gantt_constraint_absolute_days(target: &str) -> Vec<u32> {
+    let mut days = Vec::new();
+    if let Some(day) = parse_iso_date_day(target) {
+        days.push(day);
+    }
+    if let Some((start_day, _)) = parse_gantt_baseline_target(target) {
+        days.push(start_day);
+    }
+    days
 }
 
 fn parse_iso_date_day(raw: &str) -> Option<u32> {

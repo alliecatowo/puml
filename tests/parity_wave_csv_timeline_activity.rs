@@ -1,5 +1,39 @@
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::{DiagramFamily, NormalizedDocument};
+use std::fs;
+
+fn timeline_fixture(name: &str) -> String {
+    format!(
+        "{}/tests/fixtures/timeline/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    )
+}
+
+fn svg_attr(tag: &str, key: &str) -> Option<String> {
+    let pat = format!("{key}=\"");
+    let start = tag.find(&pat)? + pat.len();
+    let rest = &tag[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
+fn svg_viewbox_size(svg: &str) -> Option<(i32, i32)> {
+    let svg_tag = svg.split("<svg ").nth(1)?.split('>').next()?;
+    let viewbox = svg_attr(svg_tag, "viewBox")?;
+    let mut parts = viewbox.split_whitespace();
+    let _min_x = parts.next()?;
+    let _min_y = parts.next()?;
+    let width = parts.next()?.parse::<i32>().ok()?;
+    let height = parts.next()?.parse::<i32>().ok()?;
+    Some((width, height))
+}
+
+fn gantt_task_widths(svg: &str) -> Vec<i32> {
+    svg.split("<rect class=\"gantt-task")
+        .skip(1)
+        .filter_map(|chunk| svg_attr(chunk, "width")?.parse::<i32>().ok())
+        .collect()
+}
 
 #[test]
 fn gantt_places_milestone_using_constraint_day_or_task_reference() {
@@ -17,6 +51,39 @@ fn gantt_places_milestone_using_constraint_day_or_task_reference() {
     assert!(svg.contains("Release"));
     assert!(svg.contains("marker-end=\"url(#gantt-arrow)\""));
     assert!(svg.contains("class=\"gantt-milestone"));
+}
+
+#[test]
+fn gantt_without_project_start_uses_absolute_milestone_as_epoch_anchor() {
+    let src = fs::read_to_string(timeline_fixture("valid_gantt_render.puml")).unwrap();
+    let svg = puml::render_source_to_svg(&src).expect("gantt render");
+
+    assert!(
+        !svg.contains("1970-"),
+        "undated tasks should not force an epoch-to-absolute-date axis"
+    );
+    assert!(
+        svg.contains("data-gantt-start=\"2026-05-01\""),
+        "bare tasks should be anchored to the earliest explicit absolute date"
+    );
+    assert!(
+        svg.contains("data-gantt-tick-day=\"2026-05-04\""),
+        "date range should stay near the resolved task and milestone span"
+    );
+
+    let (viewbox_w, viewbox_h) = svg_viewbox_size(&svg).expect("svg should include a viewBox");
+    assert_eq!(viewbox_w, 800);
+    assert!(
+        viewbox_h <= 300,
+        "regression fixture should render as a compact Gantt, got viewBox height {viewbox_h}"
+    );
+
+    let widths = gantt_task_widths(&svg);
+    assert_eq!(widths.len(), 3, "fixture should render three task bars");
+    assert!(
+        widths.iter().all(|width| *width >= 120),
+        "task bars should not collapse to tiny epoch-spanning widths: {widths:?}"
+    );
 }
 
 #[test]
