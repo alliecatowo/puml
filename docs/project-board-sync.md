@@ -2,9 +2,15 @@
 
 ## Purpose
 
-`scripts/project-board-sync.sh` automates keeping the GitHub Project (v2) board
-up to date by transitioning items linked to closed issues from "In Progress" (or
-uncategorised) to "Done".
+`scripts/project-board-sync.sh` is the manual/backfill sweep for keeping the
+GitHub Project (v2) board up to date by transitioning items linked to closed
+issues from "In Progress" (or uncategorised) to "Done".
+
+`.github/workflows/project-sync.yml` and `scripts/project-v2-event-sync.sh` are
+the event-driven fallback automation for the PUML board. GitHub's GraphQL API
+can list Projects v2 workflows, but it does not currently expose create/update
+mutations for enabling native workflow rules. The repo workflow therefore edits
+only the existing `Status` and `Priority` fields on issue/PR events.
 
 ## Prerequisites
 
@@ -51,7 +57,28 @@ uncategorised) to "Done".
 
 ## CI Integration
 
-Run this as a scheduled workflow or in response to issue-closed events:
+The event-driven workflow is installed as `.github/workflows/project-sync.yml`.
+It runs on issue and pull request events and can also be run manually with a
+specific issue or PR URL.
+
+Behavior:
+
+- issue opened/reopened -> `Status: Todo`
+- issue closed -> `Status: Done`
+- draft PR opened/updated -> `Status: In Progress`
+- ready PR opened/reopened/ready/synchronized -> `Status: Merging`
+- PR merged -> `Status: Done`
+- closing issues referenced by an open PR -> `Status: Merging`
+- closing issues referenced by a merged PR -> `Status: Done`
+- labels named `P0`, `P1`, or `P2` -> matching `Priority`
+
+The workflow uses `secrets.PUML_PROJECT_TOKEN`. For user-owned Projects v2
+boards, a PAT with `project` scope is required in practice because repository
+`GITHUB_TOKEN` cannot add or edit items on the user project. If the secret is
+missing or unavailable for an event, the workflow exits successfully with a
+warning instead of failing unrelated PRs.
+
+The older sweep can still be run as a scheduled workflow or manually:
 
 ```yaml
 on:
@@ -65,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: read
-      projects: write
+      repository-projects: write
     steps:
       - uses: actions/checkout@v4
       - run: ./scripts/project-board-sync.sh
@@ -74,9 +101,9 @@ jobs:
           PUML_PROJECT_TITLE: PUML
 ```
 
-Note: `projects: write` permission is required for the token used.
-Classic `GITHUB_TOKEN` may lack project write access depending on org settings;
-in that case use a PAT with `project` scope stored as a repository secret.
+Note: project write permission is required for the token used. Classic
+`GITHUB_TOKEN` may lack user Project v2 write access depending on owner/repo
+settings; in that case use `PUML_PROJECT_TOKEN`.
 
 ## Limitations
 
@@ -85,3 +112,6 @@ in that case use a PAT with `project` scope stored as a repository secret.
 - GraphQL fallback may be needed if `gh project item-list` output format changes
   across gh CLI versions.
 - Does not handle the case where a project has no Status field.
+- Native Projects v2 workflow rules such as "Item closed", "Pull request
+  merged", and "Pull request linked to issue" remain UI-managed; the GraphQL
+  schema currently exposes them as readable/deletable, not configurable.
