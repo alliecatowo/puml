@@ -58,6 +58,7 @@ pub struct StateNode {
     pub name: String,
     pub display: Option<String>,
     pub kind: StateNodeKind,
+    pub stereotype: Option<String>,
     pub internal_actions: Vec<StateInternalAction>,
     /// For composite states: children per region (concurrent → multiple vecs)
     pub regions: Vec<Vec<StateNode>>,
@@ -93,6 +94,11 @@ pub struct StateTransition {
     pub from: String,
     pub to: String,
     pub label: Option<String>,
+    pub line_color: Option<String>,
+    pub dashed: bool,
+    pub hidden: bool,
+    pub thickness: Option<u8>,
+    pub direction: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -331,10 +337,22 @@ pub struct ChartDocument {
     pub legend: ChartLegend,
     pub palette: Vec<String>,
     pub annotations: Vec<ChartAnnotation>,
+    pub label_mode: ChartLabelMode,
     pub horizontal: bool,
     pub stacked: bool,
     pub style: ChartStyle,
     pub warnings: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ChartLabelMode {
+    #[default]
+    Auto,
+    Inside,
+    Outside,
+    None,
+    Value,
+    Percent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -787,7 +805,7 @@ pub enum SequenceEventKind {
     Delay(Option<String>),
     Divider(Option<String>),
     Separator(Option<String>),
-    Spacer,
+    Spacer(Option<i32>),
     NewPage(Option<String>),
     Autonumber(Option<String>),
     Activate(String),

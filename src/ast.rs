@@ -127,7 +127,7 @@ pub enum StatementKind {
     Delay(Option<String>),
     Divider(Option<String>),
     Separator(Option<String>),
-    Spacer,
+    Spacer(Option<i32>),
     NewPage(Option<String>),
     IgnoreNewPage,
     Autonumber(Option<String>),
@@ -213,6 +213,11 @@ pub struct StateTransition {
     pub from: String,
     pub to: String,
     pub label: Option<String>,
+    pub line_color: Option<String>,
+    pub dashed: bool,
+    pub hidden: bool,
+    pub thickness: Option<u8>,
+    pub direction: Option<String>,
 }
 
 /// An internal action or entry/exit: `State : entry / action` or `State : exit / action`

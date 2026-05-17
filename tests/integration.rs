@@ -4771,6 +4771,38 @@ fn preprocessor_loop_controls_outside_loop_report_stable_codes() {
 }
 
 #[test]
+fn preprocessor_deep_parity_macro_defaults_dynamic_and_collection_helpers_expand() {
+    let src = "@startuml\n!define EMIT(from=Alice,to=Bob,label=hi) from -> to : label\n!function Choice($name=\"Ada\", $suffix=\"!\")\n!return $name ## $suffix\n!endfunction\n!$fn = \"Choice\"\n!$items = %list(\"zero\", \"one\", \"two\", \"three\")\nEMIT(label=kw, to=Carol)\n!foreach $outer in %list(\"A\", \"B\")\n!foreach $inner in %list(\"1\", \"skip\", \"2\")\n!if $inner == \"skip\"\n!continue\n!endif\nAlice -> Bob : $outer$inner\n!if $outer == \"B\" and $inner == \"1\"\n!break\n!endif\n!endfor\n!endfor\nAlice -> Bob : %if(%equals_ignore_case(\"Ada\", \"ada\"), %call_user_func($fn, Ada, ?), \"no\")/%join(%list_slice($items, 1, 2), \"|\")/%min(9, 3, 5)/%max(9, 3, 5)/%abs(-7)/%join(%list_pop($items), \"|\")/%join(%list_shift($items), \"|\")/%contains_ignore_case(\"PlantUML\", \"uml\")\n!if true xor false\nAlice -> Bob : xor-ok\n!endif\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        vec![
+            "kw",
+            "A1",
+            "A2",
+            "B1",
+            "Ada?/one|two/3/9/7/zero|one|two/one|two|three/true",
+            "xor-ok",
+        ]
+    );
+}
+
+#[test]
 fn preprocessor_malformed_builtin_call_reports_syntax_code() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -6615,6 +6647,83 @@ Row header 2 | value | *\n\
     assert!(svg.contains("unchecked"));
     assert!(svg.contains("radio"));
     assert!(svg.contains("Role"));
+}
+
+#[test]
+fn salt_creole_icons_sprites_and_scoped_widget_styles_render() {
+    let src = "@startsalt\n\
+<style>\n\
+saltDiagram {\n\
+  BackgroundColor #f0fdfa\n\
+  FontColor #134e4a\n\
+}\n\
+button {\n\
+  BackgroundColor #fed7aa\n\
+  FontColor #7c2d12\n\
+}\n\
+input {\n\
+  BackgroundColor #ecfeff\n\
+  FontColor #155e75\n\
+}\n\
+header {\n\
+  BackgroundColor #ccfbf1\n\
+  FontColor #115e59\n\
+}\n\
+menu {\n\
+  BackgroundColor #ede9fe\n\
+}\n\
+tab {\n\
+  BackgroundColor #fef3c7\n\
+}\n\
+scrollbar {\n\
+  BackgroundColor #c7d2fe\n\
+}\n\
+checkbox {\n\
+  BackgroundColor #fef9c3\n\
+}\n\
+radio {\n\
+  BackgroundColor #fee2e2\n\
+}\n\
+</style>\n\
+{\n\
+|= **Field** | = <color:blue>Value</color> |\n\
+| Login<&person> | \"//Ada//\" |\n\
+| [] <b>Remember</b> | () <&key> OTP |\n\
+| Action | [<b>Save</b> <&account-login>] |\n\
+{* File | Edit | Refactor | Open | Close}\n\
+{/ <b>General | Advanced}\n\
+{SI\n\
+<&code> //scroll body//\n\
+}\n\
+<<folder\n\
+.XX.\n\
+XXXX\n\
+>>\n\
+<<folder>> | Done\n\
+}\n\
+@endsalt\n";
+    let svg = render_source_to_svg(src).expect("rich salt style/creole should render");
+    assert!(svg.contains("data-salt-creole=\"true\""));
+    assert!(svg.contains("data-salt-icons=\"person\""));
+    assert!(svg.contains("data-salt-icons=\"account-login\""));
+    assert!(svg.contains("data-salt-widget=\"sprite\""));
+    assert!(svg.contains("data-salt-sprite=\"folder\""));
+    assert!(svg.contains("data-salt-widget=\"sprite-ref\""));
+    assert!(svg.contains("data-salt-sprite-ref=\"folder\""));
+    assert!(svg.contains("fill=\"#fed7aa\""));
+    assert!(svg.contains("fill=\"#7c2d12\""));
+    assert!(svg.contains("fill=\"#ecfeff\""));
+    assert!(svg.contains("fill=\"#155e75\""));
+    assert!(svg.contains("fill=\"#ccfbf1\""));
+    assert!(svg.contains("fill=\"#115e59\""));
+    assert!(svg.contains("fill=\"#ede9fe\""));
+    assert!(svg.contains("fill=\"#fef3c7\""));
+    assert!(svg.contains("fill=\"#c7d2fe\""));
+    assert!(svg.contains("fill=\"#fef9c3\""));
+    assert!(svg.contains("fill=\"#fee2e2\""));
+    assert!(svg.contains("data-salt-open=\"true\""));
+    assert!(svg.contains("[person]"));
+    assert!(svg.contains("[account-login]"));
 }
 
 #[test]

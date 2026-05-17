@@ -261,6 +261,42 @@ fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
 }
 
 #[test]
+fn render_sequence_advanced_wave_autonumber_spacing_and_rare_heads() {
+    let src = fixture("e2e/sequence_advanced_wave_autonumber_spacing.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    assert!(doc.style.sequence_message_span);
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    assert_eq!(scene.messages.len(), 5);
+    assert_eq!(
+        scene.messages[0].y, scene.messages[1].y,
+        "ampersand teoz-ish parallel messages should share a row"
+    );
+    assert!(
+        scene.messages[3].y - scene.messages[2].y
+            >= LayoutOptions::default().message_row_height * 3,
+        "explicit |||80||| spacer should reserve multiple deterministic rows"
+    );
+    assert!(
+        scene.groups.iter().any(|group| group.kind == "ref"
+            && group.width >= LayoutOptions::default().participant_spacing * 2),
+        "ref over A,C should span the participant range"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("1.02:003 long label"));
+    assert!(svg.contains("3.02:007 increment-first"));
+    assert!(svg.contains("data-sequence-arrow-end=\"circle\""));
+    assert!(svg.contains("data-sequence-arrow-end=\"cross\""));
+    assert!(svg.contains("sequence-arrow-head-slash"));
+    assert!(svg.contains("sequence-arrow-head-backslash"));
+    assert!(svg.contains("stroke=\"#1e90ff\""));
+    assert!(svg.contains("stroke-width=\"4\""));
+    assert!(svg.ends_with("</svg>"));
+}
+
+#[test]
 fn render_sequence_lifecycle_shortcuts_have_visible_markers() {
     let src = fixture("lifecycle/valid_shortcuts_expansion.puml");
     let svg = puml::render_source_to_svg(&src).expect("lifecycle shortcut render");

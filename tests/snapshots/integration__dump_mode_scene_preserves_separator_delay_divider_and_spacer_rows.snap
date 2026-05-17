@@ -49,7 +49,9 @@ expression: json
     },
     {
       "event": {
-        "kind": "Spacer",
+        "kind": {
+          "Spacer": null
+        },
         "span": {
           "end": 70,
           "start": 67

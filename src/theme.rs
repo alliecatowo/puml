@@ -212,6 +212,8 @@ pub struct SequenceStyle {
     pub group_header_font_color: Option<String>,
     /// Font style for group header labels (normal/bold/italic).
     pub group_header_font_style: GroupHeaderFontStyle,
+    /// Allow long message labels to span beyond the sender/receiver gap in teoz-style layouts.
+    pub sequence_message_span: bool,
 }
 
 /// Alignment of sequence message labels.
@@ -277,6 +279,7 @@ impl Default for SequenceStyle {
             reference_border_color: None,
             group_header_font_color: None,
             group_header_font_style: GroupHeaderFontStyle::Normal,
+            sequence_message_span: false,
         }
     }
 }
