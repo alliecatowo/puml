@@ -7531,15 +7531,17 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
             let elem_y = layer_y + 22;
             render_archimate_element_shape(
                 &mut element_markup,
-                &elem.layer,
-                &elem.kind,
-                elem.alias.as_deref().unwrap_or(""),
-                x,
-                elem_y,
-                140,
-                40,
-                fill,
-                stroke,
+                ArchimateElementRender {
+                    layer: &elem.layer,
+                    kind: &elem.kind,
+                    alias: elem.alias.as_deref().unwrap_or(""),
+                    x,
+                    y: elem_y,
+                    w: 140,
+                    h: 40,
+                    fill,
+                    stroke,
+                },
             );
             element_bounds.insert(elem.name.clone(), (x, elem_y, 140, 40));
             if let Some(alias) = &elem.alias {
@@ -7605,6 +7607,18 @@ struct ArchimateRelationStyle<'a> {
     marker_end: &'static str,
 }
 
+struct ArchimateElementRender<'a> {
+    layer: &'a str,
+    kind: &'a str,
+    alias: &'a str,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    fill: &'a str,
+    stroke: &'a str,
+}
+
 fn archimate_relation_style<'a>(
     kind: &str,
     inline_style: Option<&'a str>,
@@ -7643,18 +7657,18 @@ fn archimate_relation_style<'a>(
     }
 }
 
-fn render_archimate_element_shape(
-    out: &mut String,
-    layer: &str,
-    kind: &str,
-    alias: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    fill: &str,
-    stroke: &str,
-) {
+fn render_archimate_element_shape(out: &mut String, element: ArchimateElementRender<'_>) {
+    let ArchimateElementRender {
+        layer,
+        kind,
+        alias,
+        x,
+        y,
+        w,
+        h,
+        fill,
+        stroke,
+    } = element;
     out.push_str(&format!(
         "<g class=\"archimate-element\" data-archimate-layer=\"{}\" data-archimate-kind=\"{}\" data-archimate-alias=\"{}\">",
         escape_text(layer),
@@ -8220,7 +8234,7 @@ pub fn render_ditaa_svg(document: &DitaaDocument) -> String {
 
 pub fn render_sdl_svg(document: &SdlDocument) -> String {
     let state_count = document.states.len().max(1) as i32;
-    let cols = state_count.min(2).max(1);
+    let cols = state_count.clamp(1, 2);
     let col_w = 260;
     let row_h = 96;
     let margin_x = 40;
