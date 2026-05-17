@@ -7,15 +7,15 @@ use crate::ast::{
 use crate::diagnostic::Diagnostic;
 use crate::model::FamilyStyle;
 use crate::model::{
-    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartAxis, ChartDocument, ChartLegend,
-    ChartPoint, ChartSeries, ChartSubtype, DitaaDocument, EbnfDocument, EbnfRule, EbnfToken,
-    FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation,
-    FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode, LegendHAlign, LegendVAlign,
-    MathDocument, MindMapSide, NormalizedDocument, NwdiagDocument, NwdiagNetwork, NwdiagNode,
-    Participant, ParticipantRole, RegexDocument, RegexPattern, RegexToken, RepeatKind, ScaleSpec,
-    SdlDocument, SdlState, SdlStateKind, SdlTransition, SequenceDocument, SequenceEvent,
-    SequenceEventKind, SequenceMessageStyle, SequencePage, StateDocument,
-    StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
+    ArchimateDocument, ArchimateElement, ArchimateRelation, ChartAnnotation, ChartAxis,
+    ChartDocument, ChartLegend, ChartPoint, ChartSeries, ChartSubtype, DitaaDocument, EbnfDocument,
+    EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind,
+    FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode,
+    LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NormalizedDocument, NwdiagDocument,
+    NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument, RegexPattern,
+    RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind, SdlTransition,
+    SequenceDocument, SequenceEvent, SequenceEventKind, SequenceMessageStyle, SequencePage,
+    StateDocument, StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind,
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineClosedRange,
     TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineTask, VirtualEndpoint,
     VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
@@ -708,12 +708,15 @@ fn normalize_sdl(document: Document) -> Result<SdlDocument, Diagnostic> {
 
 fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
     let (title, body) = collect_raw_body(&document);
+    let mut caption = None;
     let mut subtype = ChartSubtype::Bar;
     let mut data = Vec::new();
     let mut h_axis: Option<ChartAxis> = None;
     let mut v_axis: Option<ChartAxis> = None;
     let mut series: Vec<ChartSeries> = Vec::new();
     let mut legend = ChartLegend::default();
+    let mut palette = Vec::new();
+    let mut annotations = Vec::new();
     let mut horizontal = false;
     let mut stacked = false;
     let mut style = ChartStyle::default();
@@ -782,6 +785,18 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
             }
         }
         let lower = line.to_ascii_lowercase();
+        if lower.starts_with("caption ") {
+            caption = Some(line[8..].trim().trim_matches('"').to_string());
+            continue;
+        }
+        if lower.starts_with("palette ") {
+            palette = parse_chart_palette(line);
+            continue;
+        }
+        if let Some(annotation) = parse_chart_annotation(line) {
+            annotations.push(annotation);
+            continue;
+        }
         if lower.starts_with("h-axis ") || lower == "h-axis" {
             h_axis = Some(parse_chart_axis(line, "h-axis"));
             continue;
@@ -843,12 +858,15 @@ fn normalize_chart(document: Document) -> Result<ChartDocument, Diagnostic> {
     }
     Ok(ChartDocument {
         title,
+        caption,
         subtype,
         data,
         h_axis,
         v_axis,
         series,
         legend,
+        palette,
+        annotations,
         horizontal,
         stacked,
         style,
@@ -873,15 +891,79 @@ fn parse_chart_axis(line: &str, prefix: &str) -> ChartAxis {
     if let Some((left, right)) = rest.split_once("-->") {
         axis.min = last_numeric_token(left);
         axis.max = first_numeric_token(right);
+        axis.tick_step = parse_chart_tick_step(right);
     } else if axis.label.is_none() && !rest.is_empty() && !rest.starts_with('[') {
         axis.label = Some(rest.trim().trim_matches('"').to_string());
+    } else {
+        axis.tick_step = parse_chart_tick_step(rest);
     }
     axis
+}
+
+fn parse_chart_tick_step(input: &str) -> Option<f64> {
+    let mut tokens = input
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .filter(|token| !token.is_empty())
+        .peekable();
+    while let Some(token) = tokens.next() {
+        if matches!(
+            token.to_ascii_lowercase().as_str(),
+            "step" | "tick" | "ticks" | "by"
+        ) {
+            if let Some(value) = tokens.next().and_then(|v| v.parse::<f64>().ok()) {
+                if value > 0.0 {
+                    return Some(value);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn parse_chart_palette(line: &str) -> Vec<String> {
+    line.split_whitespace()
+        .skip(1)
+        .filter_map(normalize_chart_color)
+        .collect()
+}
+
+fn normalize_chart_color(token: &str) -> Option<String> {
+    if token.starts_with('#') {
+        Some(token.to_string())
+    } else {
+        crate::theme::css3_color_to_hex(token).map(ToString::to_string)
+    }
+}
+
+fn parse_chart_annotation(line: &str) -> Option<ChartAnnotation> {
+    let lower = line.to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("annotation ")
+        .or_else(|| lower.strip_prefix("annotate "))
+        .or_else(|| lower.strip_prefix("note at "))
+        .map(|suffix| &line[line.len() - suffix.len()..]);
+    if let Some(rest) = rest {
+        let (target, text) = rest.split_once(':')?;
+        return Some(ChartAnnotation {
+            target: target.trim().trim_matches('"').to_string(),
+            text: text.trim().trim_matches('"').to_string(),
+        });
+    }
+    if let Some(rest) = lower.strip_prefix("note ") {
+        let source_rest = &line[line.len() - rest.len()..];
+        let (text, target) = source_rest.split_once(" at ")?;
+        return Some(ChartAnnotation {
+            target: target.trim().trim_matches('"').to_string(),
+            text: text.trim().trim_matches('"').to_string(),
+        });
+    }
+    None
 }
 
 fn parse_chart_legend(line: &str) -> ChartLegend {
     let mut legend = ChartLegend {
         visible: true,
+        explicit: true,
         ..ChartLegend::default()
     };
     let rest = line[6..].trim().to_ascii_lowercase();
@@ -1849,6 +1931,10 @@ fn normalize_stub_family(document: Document) -> Result<FamilyDocument, Diagnosti
                 right_cardinality: rel.right_cardinality,
                 left_role: rel.left_role,
                 right_role: rel.right_role,
+                line_color: rel.line_color,
+                dashed: rel.dashed,
+                hidden: rel.hidden,
+                thickness: rel.thickness,
             }),
             StatementKind::Note(note) => {
                 note_counter += 1;
@@ -2652,6 +2738,10 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
                 right_cardinality: None,
                 left_role: None,
                 right_role: None,
+                line_color: None,
+                dashed: false,
+                hidden: false,
+                thickness: None,
             });
         }
         parents.push(idx);
@@ -2960,6 +3050,10 @@ fn normalize_extended_family(document: Document) -> Result<FamilyDocument, Diagn
                 right_cardinality: rel.right_cardinality,
                 left_role: rel.left_role,
                 right_role: rel.right_role,
+                line_color: rel.line_color,
+                dashed: rel.dashed,
+                hidden: rel.hidden,
+                thickness: rel.thickness,
             }),
             StatementKind::Note(note) => {
                 note_counter += 1;

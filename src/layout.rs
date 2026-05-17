@@ -4,8 +4,9 @@ use crate::model::{SequenceDocument, SequenceEventKind, SequencePage};
 use crate::model::{VirtualEndpoint, VirtualEndpointSide};
 use crate::normalize;
 use crate::scene::{
-    GroupBox, GroupSeparator, Label, LayoutOptions, Lifeline, MessageLine, NoteBox, ParticipantBox,
-    Scene, StructureKind, StructureLine, TextOverflowPolicy,
+    ActivationBox, GroupBox, GroupSeparator, Label, LayoutOptions, LifecycleMarker,
+    LifecycleMarkerKind, Lifeline, MessageLine, NoteBox, ParticipantBox, Scene, StructureKind,
+    StructureLine, TextOverflowPolicy,
 };
 
 const TEXT_LINE_HEIGHT: i32 = 16;
@@ -91,6 +92,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
 
     let events_top = participant_top + participant_height + 24;
     let mut messages = Vec::new();
+    let mut activations = Vec::new();
+    let mut lifecycle_markers = Vec::new();
+    let mut activation_stack: Vec<OpenActivation> = Vec::new();
     let mut notes = Vec::new();
     let mut groups: Vec<GroupBox> = Vec::new();
     let mut structures = Vec::new();
@@ -168,6 +172,65 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             }
             SequenceEventKind::Autonumber(raw) => {
                 autonumber.update(raw.as_deref());
+            }
+            SequenceEventKind::Activate(id) => {
+                let y = events_top + (event_rows * options.message_row_height);
+                let depth = activation_stack
+                    .iter()
+                    .filter(|open| open.participant_id == *id)
+                    .count();
+                activation_stack.push(OpenActivation {
+                    participant_id: id.clone(),
+                    y1: y,
+                    depth,
+                });
+            }
+            SequenceEventKind::Deactivate(id) => {
+                let y = events_top + (event_rows * options.message_row_height);
+                if let Some(pos) = activation_stack
+                    .iter()
+                    .rposition(|open| open.participant_id == *id)
+                {
+                    let open = activation_stack.remove(pos);
+                    let x = centers_by_id
+                        .get(id)
+                        .copied()
+                        .unwrap_or_else(|| default_center(&options));
+                    activations.push(ActivationBox {
+                        participant_id: id.clone(),
+                        x,
+                        y1: open.y1,
+                        y2: y.max(open.y1 + 12),
+                        depth: open.depth,
+                    });
+                }
+            }
+            SequenceEventKind::Create(id) => {
+                let y = events_top + (event_rows * options.message_row_height);
+                let x = centers_by_id
+                    .get(id)
+                    .copied()
+                    .unwrap_or_else(|| default_center(&options));
+                lifecycle_markers.push(LifecycleMarker {
+                    participant_id: id.clone(),
+                    x,
+                    y,
+                    kind: LifecycleMarkerKind::Create,
+                });
+            }
+            SequenceEventKind::Destroy(id) => {
+                let y = events_top + (event_rows * options.message_row_height);
+                let x = centers_by_id
+                    .get(id)
+                    .copied()
+                    .unwrap_or_else(|| default_center(&options));
+                lifecycle_markers.push(LifecycleMarker {
+                    participant_id: id.clone(),
+                    x,
+                    y,
+                    kind: LifecycleMarkerKind::Destroy,
+                });
+                event_rows += 1;
             }
             SequenceEventKind::Note {
                 kind,
@@ -316,6 +379,20 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         let (_, min_height) = group_content_min_size(&groups[ix].kind, groups[ix].label.as_deref());
         groups[ix].height = groups[ix].height.max(min_height);
     }
+    let fallback_activation_end = end_y.max(events_top + options.message_row_height);
+    for open in activation_stack {
+        let x = centers_by_id
+            .get(&open.participant_id)
+            .copied()
+            .unwrap_or_else(|| default_center(&options));
+        activations.push(ActivationBox {
+            participant_id: open.participant_id,
+            x,
+            y1: open.y1,
+            y2: fallback_activation_end.max(open.y1 + 12),
+            depth: open.depth,
+        });
+    }
 
     let events_height = if event_rows > 0 {
         (event_rows - 1) * options.message_row_height
@@ -400,6 +477,8 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         footboxes,
         lifelines,
         messages,
+        activations,
+        lifecycle_markers,
         notes,
         groups,
         structures,
@@ -409,6 +488,13 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         legend_halign: document.legend_halign,
         legend_valign: document.legend_valign,
     }
+}
+
+#[derive(Debug, Clone)]
+struct OpenActivation {
+    participant_id: String,
+    y1: i32,
+    depth: usize,
 }
 
 fn normalize_label_lines(text: &str, max_chars: usize, policy: TextOverflowPolicy) -> Vec<String> {

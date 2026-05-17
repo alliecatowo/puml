@@ -8,7 +8,7 @@ use crate::model::{
     StateNode, StateNodeKind, TimelineChronologyEvent, TimelineDocument, TimelineTask,
     VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
-use crate::scene::{ParticipantBox, Scene, StructureKind};
+use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
 use crate::theme::css3_color_to_hex;
 use crate::theme::{ActivityStyle, ClassStyle, ComponentStyle, MessageAlign};
 
@@ -78,6 +78,21 @@ pub fn render_svg(scene: &Scene) -> String {
         out.push_str(&format!(
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"6 4\"/>",
             l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color, lifeline_stroke_width
+        ));
+    }
+
+    for a in &scene.activations {
+        let offset = (a.depth as i32) * 6;
+        let x = a.x + offset - 5;
+        let y = a.y1.min(a.y2);
+        let height = (a.y2 - a.y1).abs().max(12);
+        out.push_str(&format!(
+            "<rect class=\"sequence-activation\" data-participant=\"{}\" x=\"{}\" y=\"{}\" width=\"10\" height=\"{}\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1\"/>",
+            escape_text(&a.participant_id),
+            x,
+            y,
+            height,
+            scene.style.lifeline_border_color
         ));
     }
 
@@ -299,6 +314,33 @@ pub fn render_svg(scene: &Scene) -> String {
                 "black",
             ));
             text_y += 16;
+        }
+    }
+
+    for marker in &scene.lifecycle_markers {
+        match marker.kind {
+            LifecycleMarkerKind::Create => {
+                out.push_str(&format!(
+                    "<circle class=\"sequence-create\" data-participant=\"{}\" cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"#dcfce7\" stroke=\"#15803d\" stroke-width=\"1.5\"/>",
+                    escape_text(&marker.participant_id),
+                    marker.x,
+                    marker.y
+                ));
+            }
+            LifecycleMarkerKind::Destroy => {
+                out.push_str(&format!(
+                    "<g class=\"sequence-destroy\" data-participant=\"{}\" stroke=\"#b91c1c\" stroke-width=\"2\"><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
+                    escape_text(&marker.participant_id),
+                    marker.x - 6,
+                    marker.y - 6,
+                    marker.x + 6,
+                    marker.y + 6,
+                    marker.x - 6,
+                    marker.y + 6,
+                    marker.x + 6,
+                    marker.y - 6
+                ));
+            }
         }
     }
 
@@ -803,8 +845,18 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
         let (x1, y1, x2, y2) =
             compute_edge_anchors_tuple((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h));
-        let stroke_dash = if style.dashed {
+        let relation_color = relation
+            .line_color
+            .as_deref()
+            .unwrap_or(arrow_stroke.as_str());
+        let stroke_width = relation.thickness.unwrap_or(2).clamp(1, 8);
+        let stroke_dash = if style.dashed || relation.dashed {
             " stroke-dasharray=\"5 3\""
+        } else {
+            ""
+        };
+        let visibility = if relation.hidden {
+            " visibility=\"hidden\""
         } else {
             ""
         };
@@ -816,7 +868,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             markers.push_str(&format!(" marker-start=\"url(#{start})\""));
         }
         out.push_str(&format!(
-            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"{dash}{markers}/>",
+            "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{markers}/>",
             dash = stroke_dash
         ));
         if let Some(left) = &relation.left_cardinality {
@@ -3544,8 +3596,15 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let (x1, y1) = clip_to_box_edge((cx1, cy1), (cx2, cy2), (fx, fy, fw, fh));
         let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
         let style = arrow_style(&normalized_arrow);
-        let dash = if style.dashed {
+        let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
+        let stroke_width = rel.thickness.unwrap_or(2).clamp(1, 8);
+        let dash = if style.dashed || rel.dashed {
             " stroke-dasharray=\"5 3\""
+        } else {
+            ""
+        };
+        let visibility = if rel.hidden {
+            " visibility=\"hidden\""
         } else {
             ""
         };
@@ -3557,8 +3616,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             markers.push_str(&format!(" marker-start=\"url(#{start})\""));
         }
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}{} />",
-            x1, y1, x2, y2, comp_style.arrow_color, dash, markers
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} />",
+            x1, y1, x2, y2, relation_color, stroke_width, dash, visibility, markers
         ));
         if let Some(label) = &rel.label {
             let label = usecase_dependency_label(Some(label)).unwrap_or(label);
@@ -5865,15 +5924,38 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
         "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">{}</text>",
         type_name
     ));
-    let plot_top = y + 16;
-    let plot_bottom = height - 74;
-    let plot_left = 78;
-    let plot_right = width
-        - if chart_legend_visible(document, &series) {
-            160
+    if !document.palette.is_empty() {
+        out.push_str(&format!(
+            "<metadata data-chart-palette=\"{}\"/>",
+            escape_text(&document.palette.join(" "))
+        ));
+    }
+    if !series.is_empty() {
+        let names = series
+            .iter()
+            .map(|item| item.name.as_str())
+            .collect::<Vec<_>>()
+            .join("|");
+        out.push_str(&format!(
+            "<metadata data-chart-series=\"{}\"/>",
+            escape_text(&names)
+        ));
+    }
+    let legend_visible = chart_legend_visible(document, &series);
+    let legend_left = legend_visible && document.legend.h_align == crate::model::LegendHAlign::Left;
+    let legend_right =
+        legend_visible && document.legend.h_align == crate::model::LegendHAlign::Right;
+    let legend_bottom =
+        legend_visible && document.legend.v_align == crate::model::LegendVAlign::Bottom;
+    let plot_top =
+        y + if legend_visible && document.legend.v_align == crate::model::LegendVAlign::Top {
+            54
         } else {
-            40
+            16
         };
+    let plot_bottom = height - if legend_bottom { 122 } else { 74 };
+    let plot_left = if legend_left { 218 } else { 78 };
+    let plot_right = width - if legend_right { 178 } else { 40 };
     let plot = ChartPlotArea {
         left: plot_left,
         top: plot_top,
@@ -5898,7 +5980,9 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
             style,
         ),
     }
-    render_chart_legend(&mut out, document, &series, plot_right + 20, plot_top + 8);
+    render_chart_annotations(&mut out, document, plot);
+    render_chart_caption(&mut out, document, width, height);
+    render_chart_legend(&mut out, document, &series, plot);
     out.push_str("</svg>");
     out
 }
@@ -5967,7 +6051,7 @@ fn render_chart_bars(
             let y2 = chart_y_for_value(to, min_value, max_value, plot);
             let by = y1.min(y2);
             let bh = (y1 - y2).abs().max(1);
-            let color = chart_series_color(item, series_idx, style.bar_color.as_str());
+            let color = chart_series_color(document, item, series_idx, style.bar_color.as_str());
             out.push_str(&format!(
                 "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                 escape_text(&style.axis_color),
@@ -6010,7 +6094,7 @@ fn render_chart_line(
     let count = categories.len() as i32;
     let step = ((plot.right - plot.left) as f64) / ((count.max(2) - 1) as f64).max(1.0);
     for (series_idx, item) in series.iter().enumerate() {
-        let color = chart_series_color(item, series_idx, style.line_color.as_str());
+        let color = chart_series_color(document, item, series_idx, style.line_color.as_str());
         let mut points = String::new();
         for (idx, category) in categories.iter().enumerate() {
             let value = item.values.get(idx).copied().unwrap_or(0.0);
@@ -6094,7 +6178,7 @@ fn render_chart_horizontal_bars(
                 } else {
                     (series_idx as i32) * bar_h
                 };
-            let color = chart_series_color(item, series_idx, style.bar_color.as_str());
+            let color = chart_series_color(document, item, series_idx, style.bar_color.as_str());
             out.push_str(&format!(
                 "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                 escape_text(&style.axis_color),
@@ -6203,10 +6287,11 @@ fn render_chart_axes(
         t = plot.top,
         b = plot.bottom
     ));
-    for tick in 0..=4 {
-        let y = plot.bottom - ((plot.bottom - plot.top) * tick / 4);
-        let (min_value, max_value) = chart_value_range(document, &effective_chart_series(document));
-        let value = min_value + ((max_value - min_value) * (tick as f64) / 4.0);
+    let series = effective_chart_series(document);
+    let (min_value, max_value) = chart_value_range(document, &series);
+    let ticks = chart_axis_ticks(document, min_value, max_value);
+    for value in ticks {
+        let y = chart_y_for_value(value, min_value, max_value, plot);
         out.push_str(&format!(
             "<line x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
             escape_text(&style.grid_color),
@@ -6221,8 +6306,11 @@ fn render_chart_axes(
             ty = y + 4
         ));
     }
-    let series = effective_chart_series(document);
-    let (min_value, max_value) = chart_value_range(document, &series);
+    out.push_str(&format!(
+        "<metadata data-chart-axis-v-range=\"{}..{}\"/>",
+        format_chart_value(min_value),
+        format_chart_value(max_value)
+    ));
     if min_value <= 0.0 && max_value >= 0.0 {
         if document.horizontal {
             let x = chart_x_for_value(0.0, min_value, max_value, plot);
@@ -6285,20 +6373,19 @@ fn render_chart_legend(
     out: &mut String,
     document: &ChartDocument,
     series: &[crate::model::ChartSeries],
-    default_x: i32,
-    default_y: i32,
+    plot: ChartPlotArea,
 ) {
     if !chart_legend_visible(document, series) {
         return;
     }
     let x = match document.legend.h_align {
         crate::model::LegendHAlign::Left => 24,
-        crate::model::LegendHAlign::Center => 340,
-        crate::model::LegendHAlign::Right => default_x,
+        crate::model::LegendHAlign::Center => ((plot.left + plot.right) / 2) - 66,
+        crate::model::LegendHAlign::Right => plot.right + 20,
     };
     let y = match document.legend.v_align {
-        crate::model::LegendVAlign::Top => default_y,
-        crate::model::LegendVAlign::Bottom => 356,
+        crate::model::LegendVAlign::Top => (plot.top - 44).max(44),
+        crate::model::LegendVAlign::Bottom => plot.bottom + 46,
     };
     let width = 132;
     let height = 18 + (series.len() as i32) * 18;
@@ -6308,7 +6395,7 @@ fn render_chart_legend(
     ));
     for (idx, item) in series.iter().enumerate() {
         let cy = y + 18 + (idx as i32) * 18;
-        let color = chart_series_color(item, idx, "#1d4ed8");
+        let color = chart_series_color(document, item, idx, "#1d4ed8");
         out.push_str(&format!(
             "<rect x=\"{x1}\" y=\"{y1}\" width=\"10\" height=\"10\" fill=\"{}\"/><text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
             escape_text(&color),
@@ -6320,6 +6407,37 @@ fn render_chart_legend(
         ));
     }
     out.push_str("</g>");
+}
+
+fn render_chart_annotations(out: &mut String, document: &ChartDocument, plot: ChartPlotArea) {
+    if document.annotations.is_empty() {
+        return;
+    }
+    let mut y = plot.top + 8;
+    for annotation in &document.annotations {
+        out.push_str(&format!(
+            "<g data-chart-annotation=\"{}\"><rect x=\"{x}\" y=\"{y}\" width=\"190\" height=\"24\" rx=\"5\" ry=\"5\" fill=\"#fff7ed\" stroke=\"#f97316\" stroke-width=\"1\"/><text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"10\" fill=\"#7c2d12\">{}: {}</text></g>",
+            escape_text(&annotation.target),
+            escape_text(&annotation.target),
+            escape_text(&annotation.text),
+            x = plot.right - 196,
+            y = y,
+            tx = plot.right - 186,
+            ty = y + 16
+        ));
+        y += 30;
+    }
+}
+
+fn render_chart_caption(out: &mut String, document: &ChartDocument, width: i32, height: i32) {
+    if let Some(caption) = &document.caption {
+        out.push_str(&format!(
+            "<text data-chart-caption=\"true\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{}</text>",
+            width / 2,
+            height - 18,
+            escape_text(caption)
+        ));
+    }
 }
 
 fn effective_chart_series(document: &ChartDocument) -> Vec<crate::model::ChartSeries> {
@@ -6408,12 +6526,48 @@ fn chart_x_for_value(value: f64, min_value: f64, max_value: f64, plot: ChartPlot
     plot.left + (ratio * ((plot.right - plot.left) as f64)) as i32
 }
 
+fn chart_axis_ticks(document: &ChartDocument, min_value: f64, max_value: f64) -> Vec<f64> {
+    let Some(step) = document
+        .v_axis
+        .as_ref()
+        .and_then(|axis| axis.tick_step)
+        .filter(|step| *step > 0.0)
+    else {
+        return (0..=4)
+            .map(|tick| min_value + ((max_value - min_value) * (tick as f64) / 4.0))
+            .collect();
+    };
+    let mut ticks = Vec::new();
+    let mut value = (min_value / step).ceil() * step;
+    while value <= max_value + 1e-9 && ticks.len() < 64 {
+        ticks.push(value);
+        value += step;
+    }
+    if ticks
+        .first()
+        .is_none_or(|first| (*first - min_value).abs() > 1e-9)
+    {
+        ticks.insert(0, min_value);
+    }
+    if ticks
+        .last()
+        .is_none_or(|last| (*last - max_value).abs() > 1e-9)
+    {
+        ticks.push(max_value);
+    }
+    ticks
+}
+
 fn chart_series_color(
+    document: &ChartDocument,
     series: &crate::model::ChartSeries,
     idx: usize,
     first_fallback: &str,
 ) -> String {
     series.color.clone().unwrap_or_else(|| {
+        if let Some(color) = document.palette.get(idx) {
+            return color.clone();
+        }
         if idx == 0 {
             first_fallback.to_string()
         } else {
@@ -6423,7 +6577,7 @@ fn chart_series_color(
 }
 
 fn chart_legend_visible(document: &ChartDocument, series: &[crate::model::ChartSeries]) -> bool {
-    document.legend.visible || series.len() > 1
+    document.legend.visible || (!document.legend.explicit && series.len() > 1)
 }
 
 fn chart_legend_position(document: &ChartDocument) -> &'static str {

@@ -37,7 +37,7 @@ Canonical status artifact for machine/human parity review.
 | timing | core | Timing participants/state transitions baseline | implemented | `tests/fixtures/families/valid_timing.puml` | https://plantuml.com/timing-diagram |
 | timing | advanced | Full timing semantics breadth | partial | `tests/fixtures/families/valid_timing_waveform.puml`, `tests/parity_state_activity_timing_depth.rs` | https://plantuml.com/timing-diagram |
 | preprocessor | core | include/define/undef/conditionals/loops/functions/procedures | implemented | `tests/fixtures/preprocessor/valid_if_elseif_else.puml` | https://plantuml.com/preprocessing |
-| preprocessor | advanced | Dynamic invocation and full expression breadth | partial | `tests/fixtures/errors/invalid_preproc_concat_unsupported.puml` | https://plantuml.com/preprocessing |
+| preprocessor | advanced | Dynamic invocation and full expression/data-helper breadth | partial | `tests/fixtures/errors/invalid_preproc_concat_unsupported.puml`, `tests/integration.rs::preproc_nested_json_mutation_and_projection_helpers_expand` | https://plantuml.com/preprocessing |
 | preprocessor | policy | URL include/remote source behavior | partial | `tests/fixtures/errors/invalid_include_url.puml` | https://plantuml.com/preprocessing |
 | preprocessor | core | Theme + stdlib integration baseline | implemented | `tests/fixtures/include/valid_c4_context.puml` | https://plantuml.com/skinparam |
 | preprocessor-json | advanced | JSON preprocessor surface | partial | `tests/fixtures/non_sequence/valid_json.puml` | https://plantuml.com/preprocessing-json |
@@ -67,7 +67,7 @@ Canonical status artifact for machine/human parity review.
 | sdl | core+advanced | @startsdl parser/model/render with stereotype-driven start/end/input/output/decision shapes; deeper activity-beta semantics remain tracked under activity advanced | implemented | `tests/fixtures/non_sequence/valid_sdl.puml`, `tests/integration.rs` | https://plantuml.com/activity-diagram-beta#SDL-Specification-and-Description-Language-with-SDL-sterotype |
 | ditaa | core+advanced | @startditaa baseline plus options, color hints, advanced box kinds, junction connectors, diagonal connectors, and arrowheads | implemented | `tests/fixtures/non_sequence/valid_ditaa.puml`, `tests/fixtures/families/valid_ditaa_complex.puml`, `tests/integration.rs` | https://plantuml.com/ditaa |
 | chart | core | @startchart baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_chart_bar.puml`, `tests/fixtures/non_sequence/valid_chart_pie.puml` | https://plantuml.com/chart-diagram |
-| chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg`, `tests/integration.rs`; accepts PlantUML-style chart labels, colon-delimited points, annotations, palette, and selected skinparams, but full axis/legend semantics remain partial | https://plantuml.com/chart-diagram |
+| chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg`, `tests/integration.rs`, `tests/chart_parity.rs`; accepts PlantUML-style chart labels, colon-delimited points, normalized palette/caption/annotations, explicit v-axis tick step, legend off/positioning, and selected skinparams, but full axis/legend semantics remain partial | https://plantuml.com/chart-diagram |
 
 ## Board / Issue Consistency Checks
 

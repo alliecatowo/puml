@@ -319,6 +319,10 @@ pub struct FamilyRelation {
     pub right_cardinality: Option<String>,
     pub left_role: Option<String>,
     pub right_role: Option<String>,
+    pub line_color: Option<String>,
+    pub dashed: bool,
+    pub hidden: bool,
+    pub thickness: Option<u8>,
 }
 
 #[derive(Debug, Clone)]
