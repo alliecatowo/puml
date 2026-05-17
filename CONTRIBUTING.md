@@ -72,6 +72,22 @@ Then re-run `./scripts/install-hooks.sh`.
 
 ---
 
+## Issues and discussions
+
+Use [GitHub Discussions](https://github.com/alliecatowo/puml/discussions) for
+questions, early ideas, show-and-tell posts, parity reports that still need
+clarification, and AI-swarm workflow notes.
+
+Open an issue when the work is actionable: a reproducible bug, scoped
+compatibility gap, failing test, docs task, CLI/site/LSP/WASM task, or
+release-blocking defect. When a discussion produces concrete follow-up work,
+open an issue and link back to the discussion.
+
+The full routing guide and maintainer setup notes live in
+[docs/discussions.md](docs/discussions.md).
+
+---
+
 ## CI
 
 GitHub Actions is the **source of truth** for all quality gates. The PR gate
