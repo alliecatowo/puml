@@ -117,6 +117,89 @@ fn render_core_uml_nested_scopes_lollipops_and_relation_annotations() {
 }
 
 #[test]
+fn render_component_style_oracle_slice_exposes_relation_dom_semantics() {
+    let src = fixture("families/valid_component_style_oracle_slice.puml");
+    let svg = puml::render_source_to_svg(&src).expect("component style oracle slice should render");
+    let lines = parse_svg_lines(&svg);
+
+    let publishes = lines
+        .iter()
+        .find(|line| {
+            line.from.as_deref() == Some("Edge::api") && line.to.as_deref() == Some("Edge::orders")
+        })
+        .unwrap_or_else(|| panic!("missing styled api -> orders relation in {lines:#?}"));
+    assert_eq!(publishes.stroke, "#dc2626");
+    assert_eq!(publishes.stroke_width, 4);
+    assert_eq!(publishes.dash.as_deref(), Some("5 3"));
+    assert_eq!(publishes.direction.as_deref(), Some("right"));
+    assert!(
+        publishes.x2 > publishes.x1,
+        "right-directed relation should progress left-to-right: {publishes:?}"
+    );
+    assert_eq!(
+        publishes.y1, publishes.y2,
+        "same-row right-directed relation should stay horizontal: {publishes:?}"
+    );
+    assert!(
+        publishes
+            .relation_style
+            .as_deref()
+            .is_some_and(|style| style.contains("color:#dc2626")
+                && style.contains("dashed")
+                && style.contains("thickness:4")),
+        "styled relation should publish color/dash/thickness metadata: {publishes:?}"
+    );
+    let marker_end = publishes
+        .marker_end
+        .as_deref()
+        .expect("styled arrow relation should have an end marker");
+    assert!(
+        marker_end.starts_with("url(#uml-rel-"),
+        "colored relation should use a per-relation marker: {marker_end}"
+    );
+    let marker_id = marker_end
+        .strip_prefix("url(#")
+        .and_then(|value| value.strip_suffix(')'))
+        .expect("marker url should contain an id");
+    assert!(
+        svg.contains(&format!("id=\"{marker_id}\""))
+            && svg.contains(&format!("stroke=\"{}\"", publishes.stroke)),
+        "colored marker def should be emitted with the relation stroke"
+    );
+
+    let hidden = lines
+        .iter()
+        .find(|line| {
+            line.from.as_deref() == Some("Edge::orders")
+                && line.to.as_deref() == Some("Edge::https")
+        })
+        .unwrap_or_else(|| panic!("missing hidden orders -> https relation in {lines:#?}"));
+    assert_eq!(hidden.visibility.as_deref(), Some("hidden"));
+    assert!(
+        hidden
+            .relation_style
+            .as_deref()
+            .is_some_and(|style| style.contains("hidden")),
+        "hidden relation should publish hidden metadata: {hidden:?}"
+    );
+
+    let port = parse_svg_rect_tags(&svg)
+        .into_iter()
+        .find(|tag| parse_svg_attr(tag, "data-uml-port-direction").as_deref() == Some("in"))
+        .expect("portin node should expose port direction metadata");
+    assert_eq!(parse_svg_attr(port, "fill").as_deref(), Some("#dbeafe"));
+
+    let lollipops = parse_svg_circles(&svg)
+        .into_iter()
+        .filter(|circle| circle.class.as_deref() == Some("uml-lollipop"))
+        .collect::<Vec<_>>();
+    assert!(
+        lollipops.iter().any(|circle| circle.stroke == "#0f766e"),
+        "lollipop endpoint should inherit styled relation stroke: {lollipops:#?}"
+    );
+}
+
+#[test]
 fn render_activity_if_else_branches_use_distinct_columns() {
     let svg = puml::render_source_to_svg(include_str!(
         "../docs/examples/activity/02_if_then_else.puml"
@@ -1129,12 +1212,95 @@ struct SvgText {
     text: String,
 }
 
+#[derive(Debug, Clone)]
+struct SvgLine {
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    stroke: String,
+    stroke_width: i32,
+    dash: Option<String>,
+    visibility: Option<String>,
+    marker_end: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
+    direction: Option<String>,
+    relation_style: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct SvgCircle {
+    stroke: String,
+    class: Option<String>,
+}
+
 fn parse_svg_attr(tag: &str, key: &str) -> Option<String> {
     let pat = format!("{key}=\"");
     let start = tag.find(&pat)? + pat.len();
     let rest = &tag[start..];
     let end = rest.find('"')?;
     Some(rest[..end].to_string())
+}
+
+fn parse_svg_lines(svg: &str) -> Vec<SvgLine> {
+    let mut lines = Vec::new();
+    for tag in parse_svg_line_tags(svg) {
+        let (Some(x1), Some(y1), Some(x2), Some(y2), Some(stroke), Some(stroke_width)) = (
+            parse_svg_attr(tag, "x1").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "y1").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "x2").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "y2").and_then(|v| v.parse::<i32>().ok()),
+            parse_svg_attr(tag, "stroke"),
+            parse_svg_attr(tag, "stroke-width").and_then(|v| v.parse::<i32>().ok()),
+        ) else {
+            continue;
+        };
+        lines.push(SvgLine {
+            x1,
+            y1,
+            x2,
+            y2,
+            stroke,
+            stroke_width,
+            dash: parse_svg_attr(tag, "stroke-dasharray"),
+            visibility: parse_svg_attr(tag, "visibility"),
+            marker_end: parse_svg_attr(tag, "marker-end"),
+            from: parse_svg_attr(tag, "data-uml-from"),
+            to: parse_svg_attr(tag, "data-uml-to"),
+            direction: parse_svg_attr(tag, "data-uml-direction"),
+            relation_style: parse_svg_attr(tag, "data-uml-relation-style"),
+        });
+    }
+    lines
+}
+
+fn parse_svg_line_tags(svg: &str) -> Vec<&str> {
+    parse_svg_self_closing_tags(svg, "line")
+}
+
+fn parse_svg_rect_tags(svg: &str) -> Vec<&str> {
+    parse_svg_self_closing_tags(svg, "rect")
+}
+
+fn parse_svg_self_closing_tags<'a>(svg: &'a str, tag_name: &str) -> Vec<&'a str> {
+    let needle = format!("<{tag_name} ");
+    svg.split(&needle)
+        .skip(1)
+        .filter_map(|chunk| chunk.find("/>").map(|end| &chunk[..end]))
+        .collect()
+}
+
+fn parse_svg_circles(svg: &str) -> Vec<SvgCircle> {
+    parse_svg_self_closing_tags(svg, "circle")
+        .into_iter()
+        .filter_map(|tag| {
+            Some(SvgCircle {
+                stroke: parse_svg_attr(tag, "stroke")?,
+                class: parse_svg_attr(tag, "class"),
+            })
+        })
+        .collect()
 }
 
 fn parse_svg_rects(svg: &str) -> Vec<SvgRect> {

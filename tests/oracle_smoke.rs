@@ -303,6 +303,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         .expect("dry-run report should contain fixture array");
     let mut saw_salt = false;
     let mut saw_preproc = false;
+    let mut saw_component_style = false;
     for fixture in fixtures {
         assert_eq!(fixture["local"]["attempted"].as_bool(), Some(false));
         assert_eq!(fixture["oracle"]["attempted"].as_bool(), Some(false));
@@ -334,12 +335,27 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
                 Some("jar-only")
             );
         }
+        if rel == "families/valid_component_style_oracle_slice.puml" {
+            saw_component_style = true;
+            assert_eq!(
+                fixture["classification"]["support_status"].as_str(),
+                Some("implemented")
+            );
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("match")
+            );
+        }
     }
 
     assert!(saw_salt, "Salt partial fixture should be in dry-run corpus");
     assert!(
         saw_preproc,
         "advanced preprocessor partial fixture should be in dry-run corpus"
+    );
+    assert!(
+        saw_component_style,
+        "component style oracle slice should be in dry-run corpus"
     );
 }
 
