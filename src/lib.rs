@@ -116,6 +116,9 @@ pub struct ParsePipelineOptions {
     pub compat: CompatMode,
     pub determinism: DeterminismMode,
     pub include_root: Option<PathBuf>,
+    /// When true, reject all `!include https://...` targets with a clear diagnostic.
+    /// Default: false (URL includes are enabled, matching PlantUML behaviour).
+    pub no_url_includes: bool,
 }
 
 impl Default for ParsePipelineOptions {
@@ -125,6 +128,7 @@ impl Default for ParsePipelineOptions {
             compat: CompatMode::Strict,
             determinism: DeterminismMode::Strict,
             include_root: None,
+            no_url_includes: false,
         }
     }
 }
@@ -162,7 +166,10 @@ fn interpret_parser_contract(
         CompatMode::Strict => options.include_root.clone(),
         CompatMode::Extended => options.include_root.clone(),
     };
-    Ok(parser::ParseOptions { include_root })
+    Ok(parser::ParseOptions {
+        include_root,
+        allow_url_includes: !options.no_url_includes,
+    })
 }
 
 fn interpret_determinism_contract(_mode: DeterminismMode) {

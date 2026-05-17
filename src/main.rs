@@ -208,6 +208,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.compat,
             cli.determinism,
             None,
+            cli.no_url_includes,
         )
         .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
         let model =
@@ -265,6 +266,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.compat,
                 cli.determinism,
                 source.frontend_hint,
+                cli.no_url_includes,
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
             let model = normalize_family(doc)
@@ -299,6 +301,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.compat,
                         cli.determinism,
                         source.frontend_hint,
+                        cli.no_url_includes,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     Ok(ast_to_json(&doc))
@@ -311,6 +314,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.compat,
                         cli.determinism,
                         source.frontend_hint,
+                        cli.no_url_includes,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize_family(doc).map_err(|d| {
@@ -327,6 +331,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.compat,
                         cli.determinism,
                         source.frontend_hint,
+                        cli.no_url_includes,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize_family(doc).map_err(|d| {
@@ -377,6 +382,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.compat,
             cli.determinism,
             source.frontend_hint,
+            cli.no_url_includes,
         )
         .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
         let model = normalize_family(doc)
@@ -575,6 +581,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 cli.compat,
                 cli.determinism,
                 source.frontend_hint,
+                cli.no_url_includes,
             ) {
                 Ok(doc) => doc,
                 Err(d) => {
@@ -909,6 +916,7 @@ fn parse_for_cli(
     cli_compat: CliCompatMode,
     cli_determinism: CliDeterminismMode,
     frontend_hint: Option<FrontendSelection>,
+    no_url_includes: bool,
 ) -> Result<Document, Diagnostic> {
     let include_root = include_root.or_else(|| match cli_compat {
         CliCompatMode::Strict => None,
@@ -919,6 +927,7 @@ fn parse_for_cli(
         compat: map_compat(cli_compat),
         determinism: map_determinism(cli_determinism),
         include_root,
+        no_url_includes,
     };
     puml::parse_with_pipeline_options(source, &options)
 }

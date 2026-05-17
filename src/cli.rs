@@ -109,6 +109,12 @@ pub struct Cli {
     /// source-context output. Exit codes are unchanged.
     #[arg(long, action = ArgAction::SetTrue)]
     pub stdrpt: bool,
+
+    /// Disable URL includes (`!include https://...`). Any URL include target will
+    /// produce a clear diagnostic instead of fetching. By default URL includes
+    /// are enabled (matching PlantUML behaviour).
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub no_url_includes: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]

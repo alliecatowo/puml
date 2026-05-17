@@ -7,6 +7,11 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
+#[cfg(not(target_arch = "wasm32"))]
+use hex;
+#[cfg(not(target_arch = "wasm32"))]
+use sha2::{Digest, Sha256};
+
 use crate::ast::{
     ActivityStep, ActivityStepKind, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind,
     Document, FamilyRelation, Group, MemberModifier, Message, MessageStyle, Note, ObjectDecl,
@@ -28,9 +33,22 @@ struct IncludeTarget {
     tag: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ParseOptions {
     pub include_root: Option<PathBuf>,
+    /// When true (the default), `!include https://...` fetches the URL and
+    /// inlines its content. Set to false via `--no-url-includes` to reject
+    /// all URL include targets with a clear diagnostic.
+    pub allow_url_includes: bool,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        Self {
+            include_root: None,
+            allow_url_includes: true,
+        }
+    }
 }
 
 pub fn parse(source: &str) -> Result<Document, Diagnostic> {
@@ -634,10 +652,34 @@ fn preprocess_text(
                 }
                 PreprocessDirective::IncludeUrl(raw_target) => {
                     if active {
-                        return Err(Diagnostic::error_code(
-                            "E_INCLUDE_URL_UNSUPPORTED",
-                            format!("!includeurl URL targets are not supported: {raw_target}"),
-                        ));
+                        if !options.allow_url_includes {
+                            return Err(Diagnostic::error_code(
+                                "E_INCLUDE_URL_DISABLED",
+                                format!("!includeurl URL includes are disabled: {raw_target}"),
+                            ));
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let url = extract_url(&raw_target);
+                            let content = fetch_url_include(url)?;
+                            preprocess_text(
+                                &content,
+                                options,
+                                state,
+                                include_stack,
+                                include_once_seen,
+                                depth + 1,
+                                call_depth,
+                                out,
+                            )?;
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            return Err(Diagnostic::error_code(
+                                "E_INCLUDE_URL_UNSUPPORTED",
+                                format!("!includeurl URL targets are not supported in WASM: {raw_target}"),
+                            ));
+                        }
                     }
                 }
                 PreprocessDirective::Import(raw_target) => {
@@ -850,10 +892,29 @@ fn process_include_directive(
     }
 
     if is_url_include_target(raw_target) {
-        return Err(Diagnostic::error_code(
-            "E_INCLUDE_URL_UNSUPPORTED",
-            format!("{directive_name} URL targets are not supported: {raw_target}"),
-        ));
+        if !options.allow_url_includes {
+            return Err(Diagnostic::error_code(
+                "E_INCLUDE_URL_DISABLED",
+                format!(
+                    "{directive_name} URL includes are disabled (pass --no-url-includes to see this error or remove the flag to enable): {}",
+                    raw_target
+                ),
+            ));
+        }
+        let url = extract_url(raw_target);
+        let content = fetch_url_include(url)?;
+        // Preprocess the fetched content recursively (without pushing to include_stack
+        // since there's no local path — use the current stack as-is).
+        return preprocess_text(
+            &content,
+            options,
+            state,
+            include_stack,
+            include_once_seen,
+            depth + 1,
+            call_depth,
+            out,
+        );
     }
 
     // Angle-bracket form `!include <Library/Module>` resolves through the stdlib root,
@@ -977,10 +1038,24 @@ fn process_include_many_directive(
         ));
     }
     if is_url_include_target(raw_target) {
-        return Err(Diagnostic::error_code(
-            "E_INCLUDE_URL_UNSUPPORTED",
-            format!("!include_many URL targets are not supported: {raw_target}"),
-        ));
+        if !options.allow_url_includes {
+            return Err(Diagnostic::error_code(
+                "E_INCLUDE_URL_DISABLED",
+                format!("!include_many URL includes are disabled: {}", raw_target),
+            ));
+        }
+        let url = extract_url(raw_target);
+        let content = fetch_url_include(url)?;
+        return preprocess_text(
+            &content,
+            options,
+            state,
+            include_stack,
+            include_once_seen,
+            depth + 1,
+            call_depth,
+            out,
+        );
     }
 
     let target = parse_include_target(raw_target);
@@ -1284,10 +1359,24 @@ fn process_import_directive(
         ));
     }
     if is_url_include_target(raw_target) {
-        return Err(Diagnostic::error_code(
-            "E_IMPORT_URL_UNSUPPORTED",
-            format!("!import URL targets are not supported: {raw_target}"),
-        ));
+        if !options.allow_url_includes {
+            return Err(Diagnostic::error_code(
+                "E_INCLUDE_URL_DISABLED",
+                format!("!import URL includes are disabled: {}", raw_target),
+            ));
+        }
+        let url = extract_url(raw_target);
+        let content = fetch_url_include(url)?;
+        return preprocess_text(
+            &content,
+            options,
+            state,
+            include_stack,
+            include_once_seen,
+            depth + 1,
+            call_depth,
+            out,
+        );
     }
 
     let target = parse_import_target(raw_target)?;
@@ -2007,7 +2096,124 @@ fn is_url_include_target(raw_target: &str) -> bool {
         .trim_end_matches('>')
         .trim();
     let lower = trimmed.to_ascii_lowercase();
-    lower.starts_with("http://") || lower.starts_with("https://")
+    lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("file://")
+}
+
+/// Extract the canonical URL string from a raw include target (strips quotes/angle brackets).
+#[cfg(not(target_arch = "wasm32"))]
+fn extract_url(raw_target: &str) -> &str {
+    raw_target
+        .trim()
+        .trim_matches('"')
+        .trim_start_matches('<')
+        .trim_end_matches('>')
+        .trim()
+}
+
+/// Resolve the on-disk cache path for a URL include.
+/// Uses `~/.cache/puml/includes/<sha256-of-url>`.
+#[cfg(not(target_arch = "wasm32"))]
+fn url_cache_path(url: &str) -> Option<std::path::PathBuf> {
+    let mut hasher = Sha256::new();
+    hasher.update(url.as_bytes());
+    let hash = hex::encode(hasher.finalize());
+
+    let cache_base = std::env::var_os("XDG_CACHE_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".cache")))?;
+
+    Some(cache_base.join("puml").join("includes").join(hash))
+}
+
+/// Fetch a URL include, using a local disk cache keyed by SHA-256 of the URL.
+/// Returns the fetched content as a string.
+/// Handles `file://` URLs by reading from the local filesystem directly.
+#[cfg(not(target_arch = "wasm32"))]
+fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
+    // Handle file:// URLs by stripping the scheme and reading from the local fs.
+    if url.to_ascii_lowercase().starts_with("file://") {
+        let path_str = &url["file://".len()..];
+        return fs::read_to_string(path_str).map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_URL_FETCH",
+                format!("failed to read file URL '{}': {e}", url),
+            )
+        });
+    }
+
+    // Check cache first.
+    if let Some(cache_path) = url_cache_path(url) {
+        if cache_path.exists() {
+            return fs::read_to_string(&cache_path).map_err(|e| {
+                Diagnostic::error_code(
+                    "E_INCLUDE_URL_CACHE_READ",
+                    format!("failed to read cache for '{}': {e}", url),
+                )
+            });
+        }
+
+        // Fetch via HTTP(S).
+        let response = ureq::get(url).call().map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_URL_FETCH",
+                format!("failed to fetch '{}': {e}", url),
+            )
+        })?;
+
+        if response.status() < 200 || response.status() >= 300 {
+            return Err(Diagnostic::error_code(
+                "E_INCLUDE_URL_FETCH",
+                format!(
+                    "HTTP {} fetching '{}': {}",
+                    response.status(),
+                    url,
+                    response.status_text()
+                ),
+            ));
+        }
+
+        let content = response.into_string().map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_URL_FETCH",
+                format!("failed to read response body from '{}': {e}", url),
+            )
+        })?;
+
+        // Write to cache (best-effort; failures are non-fatal).
+        if let Some(parent) = cache_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(&cache_path, &content);
+
+        Ok(content)
+    } else {
+        // No cache path available; fetch directly without caching.
+        let response = ureq::get(url).call().map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_URL_FETCH",
+                format!("failed to fetch '{}': {e}", url),
+            )
+        })?;
+
+        if response.status() < 200 || response.status() >= 300 {
+            return Err(Diagnostic::error_code(
+                "E_INCLUDE_URL_FETCH",
+                format!(
+                    "HTTP {} fetching '{}': {}",
+                    response.status(),
+                    url,
+                    response.status_text()
+                ),
+            ));
+        }
+
+        response.into_string().map_err(|e| {
+            Diagnostic::error_code(
+                "E_INCLUDE_URL_FETCH",
+                format!("failed to read response body from '{}': {e}", url),
+            )
+        })
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -10472,6 +10678,7 @@ mod tests {
             "!include inc.puml",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10489,6 +10696,7 @@ mod tests {
             "!include a.puml",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap_err();
@@ -10514,6 +10722,7 @@ mod tests {
             "!include ../outside.puml",
             &ParseOptions {
                 include_root: Some(root),
+                ..ParseOptions::default()
             },
         )
         .unwrap_err();
@@ -10539,6 +10748,7 @@ mod tests {
             "!include link_outside.puml",
             &ParseOptions {
                 include_root: Some(root),
+                ..ParseOptions::default()
             },
         )
         .unwrap_err();
@@ -10559,6 +10769,7 @@ mod tests {
             "!include inc.puml!FLOW",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10579,6 +10790,7 @@ mod tests {
             "!include inc.puml!MISSING",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap_err();
@@ -10587,13 +10799,16 @@ mod tests {
     }
 
     #[test]
-    fn include_url_errors() {
+    fn include_url_disabled_errors() {
         let err = parse_with_options(
             "!include https://example.com/a.puml",
-            &ParseOptions::default(),
+            &ParseOptions {
+                allow_url_includes: false,
+                ..ParseOptions::default()
+            },
         )
         .unwrap_err();
-        assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+        assert!(err.message.contains("E_INCLUDE_URL_DISABLED"));
     }
 
     #[test]
@@ -10612,6 +10827,7 @@ mod tests {
             "!import core\n!import nested/extra\n!import core\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10633,6 +10849,7 @@ mod tests {
             "!include <C4/C4_Container>\nContainer(Api, \"API\")\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10659,6 +10876,7 @@ mod tests {
             "!import awslib14/AWSCommon\n!include <awslib14/Compute/EC2>\nEC2(NodeA, \"ingress\")\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10698,6 +10916,7 @@ mod tests {
             "!import azure/AzureCommon\n!include <azure/StorageAccount>\nAzureStorageAccount(AzStore, \"assets\")\n!import gcp/GCPCommon\n!include <gcp/ComputeEngine>\nGCPComputeEngine(GceNode, \"ingress\")\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10719,10 +10938,6 @@ mod tests {
 
         let cases = [
             ("!import\n", "E_IMPORT_PATH_REQUIRED"),
-            (
-                "!import https://example.com/lib.puml\n",
-                "E_IMPORT_URL_UNSUPPORTED",
-            ),
             ("!import /tmp/abs.puml\n", "E_IMPORT_ABSOLUTE_PATH"),
             ("!import bad!TAG\n", "E_IMPORT_INVALID_FORM"),
             ("!import ../outside\n", "E_IMPORT_ESCAPE"),
@@ -10734,6 +10949,7 @@ mod tests {
                 src,
                 &ParseOptions {
                     include_root: Some(dir.path().to_path_buf()),
+                    ..ParseOptions::default()
                 },
             )
             .unwrap_err();
@@ -10746,6 +10962,26 @@ mod tests {
     }
 
     #[test]
+    fn import_url_disabled_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(&stdlib).unwrap();
+        let err = parse_with_options(
+            "!import https://example.com/lib.puml\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+                allow_url_includes: false,
+            },
+        )
+        .unwrap_err();
+        assert!(
+            err.message.contains("E_INCLUDE_URL_DISABLED"),
+            "missing E_INCLUDE_URL_DISABLED: {}",
+            err.message
+        );
+    }
+
+    #[test]
     fn include_once_only_expands_first_occurrence() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("inc.puml"), "A -> B : once\n").unwrap();
@@ -10754,6 +10990,7 @@ mod tests {
             "!include_once inc.puml\n!include_once inc.puml\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10770,6 +11007,7 @@ mod tests {
             "!include_many inc.puml\n!include_many inc.puml\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10787,6 +11025,7 @@ mod tests {
             "!include_once ./inc.puml\n!include_once nested/../inc.puml\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap();
@@ -10803,6 +11042,7 @@ mod tests {
             "!includesub inc.puml\n",
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
             },
         )
         .unwrap_err();
@@ -10811,26 +11051,32 @@ mod tests {
     }
 
     #[test]
-    fn include_many_url_errors() {
+    fn include_many_url_disabled_errors() {
         let err = parse_with_options(
             "!include_many https://example.com/a.puml",
-            &ParseOptions::default(),
+            &ParseOptions {
+                allow_url_includes: false,
+                ..ParseOptions::default()
+            },
         )
         .unwrap_err();
-        assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+        assert!(err.message.contains("E_INCLUDE_URL_DISABLED"));
     }
 
     #[test]
-    fn include_url_directive_errors_deterministically() {
+    fn include_url_directive_disabled_errors_deterministically() {
         let err = parse_with_options(
             "!includeurl https://example.com/a.puml",
-            &ParseOptions::default(),
+            &ParseOptions {
+                allow_url_includes: false,
+                ..ParseOptions::default()
+            },
         )
         .unwrap_err();
-        assert!(err.message.contains("E_INCLUDE_URL_UNSUPPORTED"));
+        assert!(err.message.contains("E_INCLUDE_URL_DISABLED"));
         assert!(err
             .message
-            .contains("!includeurl URL targets are not supported"));
+            .contains("!includeurl URL includes are disabled"));
     }
 
     #[test]
