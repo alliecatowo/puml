@@ -4,6 +4,7 @@ pub mod diagnostic;
 pub mod formatter;
 mod frontend;
 pub mod layout;
+pub mod metadata;
 pub mod model;
 pub mod normalize;
 pub mod parser;
@@ -16,6 +17,7 @@ pub mod theme;
 
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
+pub use metadata::{extract_metadata, DiagramMetadata};
 pub use model::{
     FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
     SequenceDocument, SequencePage, StateDocument, TimelineDocument,
