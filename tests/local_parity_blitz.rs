@@ -327,3 +327,26 @@ kill
     assert!(activity_svg.contains("#ffeeaa"));
     assert!(activity_svg.contains("kill"));
 }
+
+#[test]
+fn core_uml_package_alias_and_skinparam_alias_parity() {
+    let usecase_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/families/valid_usecase_package_aliases.puml"
+    ))
+    .expect("usecase package render should succeed");
+    assert!(usecase_svg.contains("package Checkout Domain"));
+    assert!(usecase_svg.contains("Checkout Domain::Shopper"));
+    assert!(usecase_svg.contains("Place Order"));
+    assert!(usecase_svg.contains("&lt;&lt;extend&gt;&gt;"));
+
+    let component_svg = puml::render_source_to_svg(include_str!(
+        "fixtures/families/valid_component_bracketed_ports.puml"
+    ))
+    .expect("bracketed component declaration render should succeed");
+    assert!(component_svg.contains("Inventory API"));
+    assert!(component_svg.contains("HTTPS"));
+    assert!(component_svg.contains("&lt;&lt;service&gt;&gt;"));
+    assert!(component_svg.contains("&lt;&lt;inbound&gt;&gt;"));
+    assert!(component_svg.contains("#add8e6"));
+    assert!(component_svg.contains("binds"));
+}

@@ -19,8 +19,8 @@ that diagram families are unsupported overall.
 ### Sequence
 
 - `hide unlinked` is accepted as a hint/warning path; behavior is narrower than full PlantUML filtering semantics.
-- Teoz/parallel-message pragmas are accepted as compatibility boundaries, but layout remains the standard deterministic sequence layout rather than PlantUML teoz-specific placement.
-- Some uncommon arrow/style combinations remain narrower than full PlantUML surface.
+- Teoz/parallel-message pragmas and `&` parallel messages are accepted with deterministic same-row placement, but advanced PlantUML teoz collision routing remains narrower.
+- Some uncommon arrow/style combinations remain narrower than full PlantUML surface, though dotted `..>`-style sequence portability forms are accepted.
 
 ### Preprocessor / stdlib
 

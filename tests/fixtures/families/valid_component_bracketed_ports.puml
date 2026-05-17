@@ -1,0 +1,7 @@
+@startuml
+skinparam componentStyle uml2
+skinparam portBackgroundColor lightblue
+component [Inventory API] as inv <<service>>
+port [HTTPS] as https <<inbound>>
+https --> inv : binds
+@enduml

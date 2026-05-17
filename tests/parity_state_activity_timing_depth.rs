@@ -197,3 +197,14 @@ api --> Gateway : exposes
     assert!(svg.contains("API Gateway"));
     assert!(svg.contains("exposes"));
 }
+
+#[test]
+fn activity_beta_loop_branch_labels_render_is_and_not_clauses() {
+    let src = include_str!("fixtures/families/valid_activity_loop_branch_labels.puml");
+    let svg = puml::render_source_to_svg(src).expect("activity loop labels should render");
+
+    assert!(svg.contains("healthy? / yes"));
+    assert!(svg.contains("more work? / yes / no"));
+    assert!(svg.contains("#008080"));
+    assert!(svg.contains("repeat while"));
+}

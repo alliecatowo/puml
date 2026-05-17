@@ -1,0 +1,10 @@
+@startuml
+skinparam usecaseFontColor #333333
+package "Checkout Domain" {
+  actor Shopper
+  usecase "Place Order" as PlaceOrder
+  (Refund Order) as Refund
+  Shopper --> PlaceOrder : starts
+  PlaceOrder ..> Refund : <<extend>>
+}
+@enduml

@@ -20,6 +20,7 @@ use crate::source::Span;
 const MAX_INCLUDE_DEPTH: usize = 32;
 const MAX_PREPROC_WHILE_ITERATIONS: usize = 10_000;
 const MAX_PREPROC_CALL_DEPTH: usize = 32;
+const MAX_PREPROC_MACRO_EXPANSION_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct IncludeTarget {
@@ -105,6 +106,7 @@ enum PreprocessDirective {
         name: String,
         value: String,
         conditional: bool,
+        scope: PreprocVariableScope,
     },
 }
 
@@ -112,6 +114,13 @@ enum PreprocessDirective {
 enum PreprocCallableKind {
     Function,
     Procedure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PreprocVariableScope {
+    Default,
+    Local,
+    Global,
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +155,7 @@ struct PreprocState {
     // `expand_function_invocations` which only borrows `&PreprocState`.
     false_then_true_counts: RefCell<BTreeMap<String, u64>>,
     true_then_false_counts: RefCell<BTreeMap<String, u64>>,
+    global_assigns: RefCell<BTreeSet<String>>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -477,11 +487,13 @@ fn preprocess_text(
                     name,
                     value,
                     conditional,
+                    scope,
                 } => {
                     if active {
                         let trimmed = value.trim_start();
                         let is_json_literal = trimmed.starts_with('{') || trimmed.starts_with('[');
                         if !conditional || !state.vars.contains_key(&name) {
+                            let assigned_name = name.clone();
                             if is_json_literal {
                                 // Preserve JSON literal verbatim (no
                                 // substitution / no trimming inside the
@@ -499,6 +511,9 @@ fn preprocess_text(
                                     .map(|n| n.to_string())
                                     .unwrap_or_else(|| resolved.to_string());
                                 state.vars.insert(name, final_val);
+                            }
+                            if scope == PreprocVariableScope::Global {
+                                state.global_assigns.borrow_mut().insert(assigned_name);
                             }
                         }
                     }
@@ -1286,6 +1301,8 @@ fn parse_preprocess_directive(line: &str) -> Option<PreprocessDirective> {
         "assert" => Some(PreprocessDirective::Assert(arg.to_string())),
         "log" => Some(PreprocessDirective::Log(arg.to_string())),
         "dump_memory" => Some(PreprocessDirective::DumpMemory(arg.to_string())),
+        "local" => parse_scoped_variable_assignment(arg, trimmed, PreprocVariableScope::Local),
+        "global" => parse_scoped_variable_assignment(arg, trimmed, PreprocVariableScope::Global),
         _ if let Some((call_name, call_args)) = parse_named_call(rest) => {
             Some(PreprocessDirective::ProcedureCall {
                 name: call_name,
@@ -2331,11 +2348,38 @@ fn collect_json_path_suffix(chars: &[char], start: usize) -> (String, usize) {
 }
 
 fn substitute_tokens_and_vars(line: &str, state: &PreprocState) -> Result<String, Diagnostic> {
-    let with_tokens = substitute_defines(line, &state.defines, &state.macros)?;
-    Ok(substitute_vars(&with_tokens, &state.vars))
+    let mut current = line.to_string();
+    for _ in 0..MAX_PREPROC_CALL_DEPTH {
+        let next = substitute_defines(&current, &state.defines, &state.macros)?;
+        if next == current {
+            return Ok(substitute_vars(&next, &state.vars));
+        }
+        if next.len() > MAX_PREPROC_MACRO_EXPANSION_BYTES {
+            return Err(Diagnostic::error_code(
+                "E_PREPROC_MACRO_DEPTH",
+                format!(
+                    "preprocessor macro expansion exceeded maximum of {MAX_PREPROC_MACRO_EXPANSION_BYTES} bytes"
+                ),
+            ));
+        }
+        current = next;
+    }
+    Err(Diagnostic::error_code(
+        "E_PREPROC_MACRO_DEPTH",
+        format!("preprocessor macro expansion exceeded maximum of {MAX_PREPROC_CALL_DEPTH}"),
+    ))
 }
 
 fn parse_variable_assignment(name: &str, arg: &str, raw: &str) -> Option<PreprocessDirective> {
+    parse_variable_assignment_with_scope(name, arg, raw, PreprocVariableScope::Default)
+}
+
+fn parse_variable_assignment_with_scope(
+    name: &str,
+    arg: &str,
+    raw: &str,
+    scope: PreprocVariableScope,
+) -> Option<PreprocessDirective> {
     let var = name.strip_prefix('$')?.trim().to_string();
     if var.is_empty() {
         return Some(PreprocessDirective::JsonPreproc(raw.to_string()));
@@ -2345,6 +2389,7 @@ fn parse_variable_assignment(name: &str, arg: &str, raw: &str) -> Option<Preproc
             name: var,
             value: value.trim().to_string(),
             conditional: true,
+            scope,
         });
     }
     if let Some(value) = arg.strip_prefix('=') {
@@ -2352,9 +2397,29 @@ fn parse_variable_assignment(name: &str, arg: &str, raw: &str) -> Option<Preproc
             name: var,
             value: value.trim().to_string(),
             conditional: false,
+            scope,
         });
     }
     Some(PreprocessDirective::JsonPreproc(raw.to_string()))
+}
+
+fn parse_scoped_variable_assignment(
+    arg: &str,
+    raw: &str,
+    scope: PreprocVariableScope,
+) -> Option<PreprocessDirective> {
+    let trimmed = arg.trim_start();
+    if !trimmed.starts_with('$') {
+        return Some(PreprocessDirective::JsonPreproc(raw.to_string()));
+    }
+    let chars = trimmed.chars().collect::<Vec<_>>();
+    let mut end = 1usize;
+    while end < chars.len() && (chars[end].is_ascii_alphanumeric() || chars[end] == '_') {
+        end += 1;
+    }
+    let name = chars[..end].iter().collect::<String>();
+    let rest = chars[end..].iter().collect::<String>();
+    parse_variable_assignment_with_scope(&name, rest.trim_start(), raw, scope)
 }
 
 fn parse_named_call(rest: &str) -> Option<(String, String)> {
@@ -2530,7 +2595,7 @@ fn dispatch_builtin(
     let argc = expanded_args.len();
 
     let result: Option<String> = match name {
-        "strlen" => Some(arg(0).chars().count().to_string()),
+        "strlen" | "length" | "len" => Some(arg(0).chars().count().to_string()),
         "count" => Some(preprocessor_size(&arg(0)).to_string()),
         "size" => Some(preprocessor_size(&arg(0)).to_string()),
         "eval" | "eval_int" => Some(
@@ -2551,7 +2616,9 @@ fn dispatch_builtin(
                 Some(s.split(sep.as_str()).collect::<Vec<&str>>().join(","))
             }
         }
-        "splitstr_regex" => Some(split_preprocessor_regex(&arg(0), &arg(1)).join(",")),
+        "splitstr_regex" | "split_regex" => {
+            Some(split_preprocessor_regex(&arg(0), &arg(1)).join(","))
+        }
         "split" => {
             let s = arg(0);
             let sep = arg(1);
@@ -2570,9 +2637,18 @@ fn dispatch_builtin(
             let list = preprocessor_list_items(&arg(0));
             Some(list.join(&arg(1)))
         }
-        "list" | "array" => Some(preprocessor_list_literal(&expanded_args)),
-        "list_size" | "array_size" | "map_size" => Some(preprocessor_size(&arg(0)).to_string()),
-        "list_is_empty" | "array_is_empty" => Some((preprocessor_size(&arg(0)) == 0).to_string()),
+        "list" | "array" | "newlist" => Some(preprocessor_list_literal(&expanded_args)),
+        "range" => Some(preprocessor_range(
+            &arg(0),
+            &arg(1),
+            expanded_args.get(2).map(String::as_str),
+        )),
+        "list_size" | "array_size" | "map_size" | "dict_size" | "json_size" => {
+            Some(preprocessor_size(&arg(0)).to_string())
+        }
+        "list_is_empty" | "array_is_empty" | "empty" => {
+            Some((preprocessor_size(&arg(0)) == 0).to_string())
+        }
         "list_clear" | "array_clear" => Some("[]".to_string()),
         "is_empty" => {
             Some((arg(0).trim().is_empty() || preprocessor_size(&arg(0)) == 0).to_string())
@@ -2580,7 +2656,11 @@ fn dispatch_builtin(
         "is_number" | "is_int" | "is_integer" => {
             Some(eval_int_expr(arg(0).trim()).is_some().to_string())
         }
-        "list_contains" | "array_contains" | "contains_list" => Some(
+        "list_contains"
+        | "array_contains"
+        | "contains_list"
+        | "list_contains_value"
+        | "array_contains_value" => Some(
             preprocessor_list_items(&arg(0))
                 .contains(&arg(1))
                 .to_string(),
@@ -2648,7 +2728,7 @@ fn dispatch_builtin(
             items.insert(idx, arg(2));
             Some(preprocessor_list_literal(&items))
         }
-        "list_remove" => {
+        "list_remove" | "array_remove" => {
             let key = arg(1);
             let mut items = preprocessor_list_items(&arg(0));
             if let Ok(idx) = key.trim().parse::<usize>() {
@@ -2660,29 +2740,33 @@ fn dispatch_builtin(
             }
             Some(preprocessor_list_literal(&items))
         }
-        "map" | "dict" => Some(preprocessor_map_literal(&expanded_args)),
+        "map" | "dict" | "newmap" => Some(preprocessor_map_literal(&expanded_args)),
         "map_clear" | "dict_clear" => Some("{}".to_string()),
         "map_is_empty" | "dict_is_empty" => Some((preprocessor_size(&arg(0)) == 0).to_string()),
-        "map_merge" | "json_merge" => Some(preprocessor_json_merge(&arg(0), &arg(1))),
-        "map_entries" | "entries" => Some(preprocessor_map_entries(&arg(0))),
-        "map_contains_key" | "contains_key" => {
+        "map_merge" | "dict_merge" | "json_merge" => {
+            Some(preprocessor_json_merge(&arg(0), &arg(1)))
+        }
+        "map_entries" | "dict_entries" | "entries" => Some(preprocessor_map_entries(&arg(0))),
+        "map_contains_key" | "dict_contains_key" | "contains_key" | "map_has_key"
+        | "dict_has_key" | "json_contains_key" | "json_has_key" => {
             Some(json_contains_key(&arg(0), &arg(1)).to_string())
         }
-        "map_contains_value" | "contains_value" => {
+        "map_contains_value" | "dict_contains_value" | "contains_value" | "json_contains_value" => {
             Some(json_contains_value(&arg(0), &arg(1)).to_string())
         }
-        "get" | "map_get" | "json_get" => {
+        "get" | "map_get" | "dict_get" | "json_get" => {
             let fallback = if argc >= 3 { arg(2) } else { String::new() };
             Some(preprocessor_get_opt(&arg(0), &arg(1)).unwrap_or(fallback))
         }
-        "set" | "put" | "json_set" | "map_put" | "map_set" => {
+        "set" | "put" | "json_set" | "map_put" | "map_set" | "dict_put" | "dict_set" => {
             Some(preprocessor_set(&arg(0), &arg(1), &arg(2)))
         }
-        "remove" | "map_remove" | "map_delete" | "json_remove" | "json_delete" => {
-            Some(preprocessor_remove(&arg(0), &arg(1)))
+        "remove" | "map_remove" | "map_delete" | "dict_remove" | "dict_delete" | "json_remove"
+        | "json_delete" => Some(preprocessor_remove(&arg(0), &arg(1))),
+        "keys" | "map_keys" | "dict_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
+        "values" | "map_values" | "dict_values" => {
+            Some(preprocessor_json_values(&arg(0)).join(","))
         }
-        "keys" | "map_keys" => Some(preprocessor_json_keys(&arg(0)).join(",")),
-        "values" | "map_values" => Some(preprocessor_json_values(&arg(0)).join(",")),
         "json_type" | "get_json_type" => Some(preprocessor_json_type(&arg(0))),
         "json_is_valid" | "is_json" => Some(
             serde_json::from_str::<serde_json::Value>(arg(0).trim())
@@ -2772,13 +2856,29 @@ fn dispatch_builtin(
                 .unwrap_or_else(|| "0".to_string()),
         ),
         // Time-/env-sensitive builtins: empty for determinism.
-        "date" | "getenv" => Some(String::new()),
+        "date" | "time" | "now" | "timestamp" | "getenv" | "env" | "getenv_default" => {
+            Some(String::new())
+        }
         // Random-sensitive builtins: fixed deterministic value.
-        "random" | "rand" => Some("0".to_string()),
+        "random" | "rand" | "random_int" | "random_number" => Some("0".to_string()),
+        "uuid" | "random_uuid" => Some("00000000-0000-0000-0000-000000000000".to_string()),
         // Local/remote IO helpers are disabled rather than implicitly reading
         // host state during preprocessing.
-        "load_file" | "load_text" | "load_string" | "load_data" | "load_bytes" | "load_json"
-        | "load_yaml" | "load_csv" | "load_sprite" | "load_sprites" => {
+        "load_file"
+        | "load_text"
+        | "load_string"
+        | "load_data"
+        | "load_bytes"
+        | "load_json"
+        | "load_yaml"
+        | "load_csv"
+        | "load_sprite"
+        | "load_sprites"
+        | "read_file"
+        | "read_text"
+        | "file_exists"
+        | "exists"
+        | "include_file_exists" => {
             return Err(Diagnostic::error_code(
                 "E_PREPROC_UNSAFE_BUILTIN",
                 format!(
@@ -3515,6 +3615,28 @@ fn preprocessor_size(raw: &str) -> usize {
     trimmed.chars().count()
 }
 
+fn preprocessor_range(start: &str, end: &str, step: Option<&str>) -> String {
+    let start = parse_int_lenient(start);
+    let end = parse_int_lenient(end);
+    let mut step = step
+        .map(parse_int_lenient)
+        .unwrap_or_else(|| if start <= end { 1 } else { -1 });
+    if step == 0 {
+        step = if start <= end { 1 } else { -1 };
+    }
+    let mut values = Vec::new();
+    let mut current = start;
+    let mut guard = 0usize;
+    while guard <= MAX_PREPROC_WHILE_ITERATIONS
+        && ((step > 0 && current <= end) || (step < 0 && current >= end))
+    {
+        values.push(current.to_string());
+        current += step;
+        guard += 1;
+    }
+    preprocessor_list_literal(&values)
+}
+
 fn preprocessor_list_literal(items: &[String]) -> String {
     let values = items
         .iter()
@@ -3985,7 +4107,7 @@ fn split_args(raw: &str) -> Result<Vec<String>, Diagnostic> {
         }
         curr.push(ch);
     }
-    if in_quotes || paren_depth != 0 {
+    if in_quotes || paren_depth != 0 || brace_depth != 0 || bracket_depth != 0 {
         return Err(Diagnostic::error_code(
             "E_PREPROC_CALL_SYNTAX",
             "malformed argument list",
@@ -4070,6 +4192,7 @@ fn execute_function_call(
     }
     let bindings = bind_callable_args(callable, args_raw, state, call_depth)?;
     let mut local_state = state.clone();
+    local_state.global_assigns.borrow_mut().clear();
     for (k, v) in &bindings {
         local_state.vars.insert(k.clone(), v.clone());
     }
@@ -4158,7 +4281,17 @@ fn execute_procedure_call(
             depth,
             call_depth + 1,
             out,
-        )
+        )?;
+        let globals = local_state.global_assigns.borrow().clone();
+        for name in globals {
+            if let Some(value) = local_state.vars.get(&name) {
+                state.vars.insert(name.clone(), value.clone());
+            } else {
+                state.vars.remove(&name);
+            }
+            state.global_assigns.borrow_mut().insert(name);
+        }
+        Ok(())
     } else {
         Ok(())
     }
@@ -4361,8 +4494,9 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 && {
                     let end_idx = find_scoping_block_end(&lines, i);
                     end_idx > i
-                        && group_body_contains_class_family(&lines, i, end_idx)
-                        && !group_body_contains_component_family(&lines, i, end_idx)
+                        && (group_body_contains_class_family(&lines, i, end_idx)
+                            || group_body_contains_object_family(&lines, i, end_idx)
+                            || group_body_contains_usecase_family(&lines, i, end_idx))
                 };
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
                 let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
@@ -4441,13 +4575,13 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        if matches!(detected_kind, None | Some(DiagramKind::Class)) {
+        if matches!(
+            detected_kind,
+            None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
+        ) {
             if let Some((kind, end_idx)) = parse_class_scoping_block(&lines, i, line)? {
-                detected_kind = Some(select_diagram_kind(
-                    detected_kind,
-                    DiagramKind::Class,
-                    span,
-                )?);
+                let scoped_family = scoped_family_kind_for_block(&lines, i, end_idx);
+                detected_kind = Some(select_diagram_kind(detected_kind, scoped_family, span)?);
                 let block_span = Span::new(span.start, lines[end_idx].1.end);
                 statements.push(Statement {
                     span: block_span,
@@ -5987,7 +6121,11 @@ fn parse_class_scoping_block(
             )
             .with_span(lines[start].1));
         }
-        if group_body_contains_component_family(lines, start, end_idx) {
+        if group_body_contains_component_family(lines, start, end_idx)
+            && !group_body_contains_class_family(lines, start, end_idx)
+            && !group_body_contains_object_family(lines, start, end_idx)
+            && !group_body_contains_usecase_family(lines, start, end_idx)
+        {
             return Ok(None);
         }
         let content =
@@ -6082,30 +6220,102 @@ fn collect_scoped_class_group_content(
                 continue;
             }
         }
+        if let Some((name, alias, has_block)) = parse_parenthesized_usecase_decl(line) {
+            let has_alias = alias.is_some();
+            let id = alias.unwrap_or_else(|| name.clone());
+            let mut encoded = qualify_scoped_identifier(id, scope);
+            if has_alias {
+                encoded.push('\t');
+                encoded.push_str(&name);
+            }
+            content.members.push(encoded);
+            if has_block {
+                let nested_end = find_family_decl_end(lines, idx);
+                if nested_end > idx {
+                    idx = nested_end + 1;
+                    continue;
+                }
+            }
+            idx += 1;
+            continue;
+        }
+        let declaration_keywords = [
+            "abstract class",
+            "annotation",
+            "interface",
+            "abstract",
+            "enum",
+            "protocol",
+            "struct",
+            "class",
+            "object",
+            "map",
+            "actor",
+            "usecase",
+        ];
+        let mut handled_declaration = false;
+        for keyword in declaration_keywords {
+            if let Some((name, alias, has_block, _stereotypes)) =
+                parse_named_family_decl(line, keyword)
+            {
+                let has_alias = alias.is_some();
+                let id = alias.unwrap_or_else(|| name.clone());
+                let scoped_name = qualify_scoped_identifier(id, scope);
+                let mut encoded = scoped_name.clone();
+                if has_alias {
+                    encoded.push('\t');
+                    encoded.push_str(&name);
+                }
+                let nested_end = if has_block {
+                    let nested_end = find_family_decl_end(lines, idx);
+                    let members_text = parse_family_decl_members(lines, idx, keyword, &scoped_name)
+                        .map(|members| {
+                            members
+                                .into_iter()
+                                .map(|member| member.text)
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    for member in members_text {
+                        encoded.push('\t');
+                        encoded.push_str(&member);
+                    }
+                    nested_end
+                } else {
+                    idx
+                };
+                content.members.push(encoded);
+                idx = if nested_end > idx {
+                    nested_end + 1
+                } else {
+                    idx + 1
+                };
+                handled_declaration = true;
+                break;
+            }
+        }
+        if handled_declaration {
+            continue;
+        }
         for keyword in [
             "abstract class",
             "annotation",
             "interface",
             "abstract",
             "enum",
+            "protocol",
+            "struct",
             "class",
+            "object",
+            "map",
+            "actor",
+            "usecase",
         ] {
-            if let Some((name, _alias, true, _stereotypes)) = parse_named_family_decl(line, keyword)
+            if let Some((name, alias, true, _stereotypes)) = parse_named_family_decl(line, keyword)
             {
-                let scoped_name = if scope.iter().all(|s| s.is_empty()) {
-                    name
-                } else {
-                    format!(
-                        "{}::{}",
-                        scope
-                            .iter()
-                            .filter(|s| !s.is_empty())
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .join("::"),
-                        name
-                    )
-                };
+                let has_alias = alias.is_some();
+                let id = alias.unwrap_or_else(|| name.clone());
+                let scoped_name = qualify_scoped_identifier(id, scope);
                 let nested_end = find_family_decl_end(lines, idx);
                 let members_text = parse_family_decl_members(lines, idx, keyword, &scoped_name)
                     .map(|members| {
@@ -6116,6 +6326,10 @@ fn collect_scoped_class_group_content(
                     })
                     .unwrap_or_default();
                 let mut encoded = scoped_name;
+                if has_alias {
+                    encoded.push('\t');
+                    encoded.push_str(&name);
+                }
                 for member in members_text {
                     encoded.push('\t');
                     encoded.push_str(&member);
@@ -6125,24 +6339,24 @@ fn collect_scoped_class_group_content(
                     idx = nested_end + 1;
                     continue;
                 }
+            } else if let Some((name, alias, false, _stereotypes)) =
+                parse_named_family_decl(line, keyword)
+            {
+                let has_alias = alias.is_some();
+                let id = alias.unwrap_or_else(|| name.clone());
+                let mut encoded = qualify_scoped_identifier(id, scope);
+                if has_alias {
+                    encoded.push('\t');
+                    encoded.push_str(&name);
+                }
+                content.members.push(encoded);
+                idx += 1;
+                continue;
             }
         }
         let name = extract_class_member_name(line);
         if !name.is_empty() {
-            let scoped = if scope.iter().all(|s| s.is_empty()) {
-                name
-            } else {
-                format!(
-                    "{}::{}",
-                    scope
-                        .iter()
-                        .filter(|s| !s.is_empty())
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                    name
-                )
-            };
+            let scoped = qualify_scoped_identifier(name, scope);
             content.members.push(scoped);
         }
         if line.ends_with('{') {
@@ -6229,6 +6443,42 @@ fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_id
     })
 }
 
+fn group_body_contains_object_family(lines: &[(&str, Span)], start: usize, end_idx: usize) -> bool {
+    lines[start + 1..end_idx].iter().any(|(raw, _)| {
+        let line = strip_inline_plantuml_comment(raw).trim();
+        let lower = line.to_ascii_lowercase();
+        lower.starts_with("object ") || lower.starts_with("map ")
+    })
+}
+
+fn group_body_contains_usecase_family(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+) -> bool {
+    lines[start + 1..end_idx].iter().any(|(raw, _)| {
+        let line = strip_inline_plantuml_comment(raw).trim();
+        let lower = line.to_ascii_lowercase();
+        lower.starts_with("usecase ")
+            || lower.starts_with("usecase(")
+            || parse_parenthesized_usecase_decl(line).is_some()
+    })
+}
+
+fn scoped_family_kind_for_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    end_idx: usize,
+) -> DiagramKind {
+    if group_body_contains_object_family(lines, start, end_idx) {
+        DiagramKind::Object
+    } else if group_body_contains_usecase_family(lines, start, end_idx) {
+        DiagramKind::UseCase
+    } else {
+        DiagramKind::Class
+    }
+}
+
 fn parse_component_scoping_block(
     lines: &[(&str, Span)],
     start: usize,
@@ -6288,11 +6538,14 @@ fn parse_component_scoping_block(
         ))
         .with_span(lines[start].1));
     }
-    if matches!(kind, "namespace" | "package")
-        && group_body_contains_class_family(lines, start, end_idx)
-        && !group_body_contains_component_family(lines, start, end_idx)
-    {
-        return Ok(None);
+    if matches!(kind, "namespace" | "package") {
+        let has_component_family = group_body_contains_component_family(lines, start, end_idx);
+        if !has_component_family
+            || group_body_contains_object_family(lines, start, end_idx)
+            || group_body_contains_usecase_family(lines, start, end_idx)
+        {
+            return Ok(None);
+        }
     }
     if kind == "namespace" && !group_body_contains_component_family(lines, start, end_idx) {
         return Ok(None);
@@ -7009,6 +7262,13 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
                 Some(stripped[..end].to_string()),
                 stripped[end + 1..].trim(),
             )
+        } else if rest.starts_with('[') {
+            let stripped = rest.strip_prefix('[')?;
+            let end = stripped.find(']')?;
+            (
+                Some(stripped[..end].trim().to_string()),
+                stripped[end + 1..].trim(),
+            )
         } else {
             (None, rest)
         };
@@ -7016,6 +7276,8 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             (label.as_deref().unwrap_or("").trim(), Some(alias.trim()))
         } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
             (lhs.trim(), Some(rhs.trim()))
+        } else if rest_after_label.is_empty() {
+            (label.as_deref().unwrap_or("").trim(), None)
         } else {
             (rest_after_label, None)
         };
@@ -7268,22 +7530,14 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
     if let Some(rest) = trimmed.strip_prefix("while ") {
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::WhileStart,
-            label: Some(
-                extract_paren_label(rest.trim()).unwrap_or_else(|| rest.trim().to_string()),
-            ),
+            label: Some(parse_activity_condition_with_branches(rest.trim())),
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("repeat while") {
         let r = rest.trim();
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::RepeatWhile,
-            label: extract_paren_label(r).or_else(|| {
-                if r.is_empty() {
-                    None
-                } else {
-                    Some(r.to_string())
-                }
-            }),
+            label: (!r.is_empty()).then(|| parse_activity_condition_with_branches(r)),
         }));
     }
     if trimmed == "end repeat" || trimmed == "endrepeat" {
@@ -7364,6 +7618,40 @@ fn parse_activity_if_label(input: &str) -> String {
     }
     let body = input.trim_end_matches("then").trim();
     extract_paren_label(body).unwrap_or_else(|| body.to_string())
+}
+
+fn parse_activity_condition_with_branches(input: &str) -> String {
+    let trimmed = input.trim();
+    let condition = extract_first_paren_label(trimmed).unwrap_or_else(|| {
+        trimmed
+            .split_once(" is ")
+            .map(|(lhs, _)| lhs.trim())
+            .unwrap_or(trimmed)
+            .trim_end_matches("then")
+            .trim()
+            .to_string()
+    });
+    let mut parts = vec![condition];
+    for marker in [" is ", " then ", " not "] {
+        if let Some((_, tail)) = trimmed.split_once(marker) {
+            if let Some(value) = extract_first_paren_label(tail) {
+                if !value.is_empty() {
+                    parts.push(value);
+                }
+            }
+        }
+    }
+    parts.join(" / ")
+}
+
+fn extract_first_paren_label(input: &str) -> Option<String> {
+    let s = input.trim();
+    let open = s.find('(')?;
+    let close = s[open + 1..].find(')')? + open + 1;
+    if close <= open {
+        return None;
+    }
+    Some(s[open + 1..close].trim().to_string())
 }
 
 fn extract_paren_label(input: &str) -> Option<String> {
@@ -8144,9 +8432,11 @@ fn split_participant_order(input: &str) -> (&str, Option<i32>) {
 }
 
 fn parse_message(line: &str) -> Option<StatementKind> {
+    let (line, parallel) = split_parallel_message_prefix(line);
     let (core, label) = split_message_label(line);
     let (lhs_raw, arrow, rhs_raw) = split_arrow(core)?;
-    let style = parse_arrow_style(arrow);
+    let mut style = parse_arrow_style(arrow);
+    style.parallel = parallel;
     let parsed_arrow = parse_arrow(arrow)?;
     let (from_id_raw, from_modifier) = split_lifecycle_modifier(lhs_raw);
     let (to_id_raw, to_modifier) = split_lifecycle_modifier(rhs_raw);
@@ -8195,8 +8485,22 @@ fn parse_message(line: &str) -> Option<StatementKind> {
     }))
 }
 
+fn split_parallel_message_prefix(line: &str) -> (&str, bool) {
+    let trimmed = line.trim_start();
+    if let Some(rest) = trimmed.strip_prefix('&') {
+        let rest = rest.trim_start();
+        if !rest.is_empty() {
+            return (rest, true);
+        }
+    }
+    (line, false)
+}
+
 fn parse_arrow_style(arrow: &str) -> MessageStyle {
     let mut style = MessageStyle::default();
+    if arrow.contains('.') {
+        style.dotted = true;
+    }
     let mut chars = arrow.chars().peekable();
     while let Some(ch) = chars.next() {
         if ch != '[' {
@@ -8583,6 +8887,9 @@ fn extract_class_member_name(s: &str) -> String {
         "abstract ",
         "enum ",
         "class ",
+        "object ",
+        "map ",
+        "usecase ",
         "component ",
         "portin ",
         "portout ",
@@ -8682,7 +8989,10 @@ fn split_message_label(line: &str) -> (&str, Option<String>) {
 
 fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     fn is_arrow_char(c: char) -> bool {
-        matches!(c, '-' | '<' | '>' | '[' | ']' | 'o' | 'x' | '/' | '\\')
+        matches!(
+            c,
+            '-' | '.' | '<' | '>' | '[' | ']' | 'o' | 'x' | '/' | '\\'
+        )
     }
 
     let mut run_start: Option<usize> = None;
@@ -8707,7 +9017,7 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
                 continue;
             }
             let candidate = &core[start..idx];
-            if !candidate.contains('-') {
+            if !candidate.contains('-') && !candidate.contains('.') {
                 run_start = None;
                 continue;
             }
@@ -8770,7 +9080,7 @@ fn split_arrow(core: &str) -> Option<(&str, &str, &str)> {
     }
     if let Some(start) = run_start {
         let candidate = &core[start..];
-        if !candidate.contains('-') {
+        if !candidate.contains('-') && !candidate.contains('.') {
             return None;
         }
         let lhs = core[..start].trim();
@@ -8812,21 +9122,25 @@ fn parse_arrow(arrow: &str) -> Option<String> {
         squashed.push(ch);
     }
 
-    let canonical = squashed.replace(['/', '\\'], "");
+    let canonical = squashed.replace(['/', '\\'], "").replace('.', "-");
     if canonical.is_empty()
         || !canonical
             .chars()
             .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x'))
         || !squashed
             .chars()
-            .all(|c| matches!(c, '-' | '<' | '>' | 'o' | 'x' | '/' | '\\'))
+            .all(|c| matches!(c, '-' | '.' | '<' | '>' | 'o' | 'x' | '/' | '\\'))
     {
         return None;
     }
     let has_slash_marker = squashed.contains('/') || squashed.contains('\\');
+    let has_dot_marker = squashed.contains('.');
     let expanded_marker = squashed.contains("-/") || squashed.contains("-\\");
 
     if VALID_BASE_ARROWS.contains(&canonical.as_str()) {
+        if has_dot_marker {
+            return Some(canonical);
+        }
         if has_slash_marker && !expanded_marker {
             return Some(canonical);
         }
@@ -8854,6 +9168,9 @@ fn parse_arrow(arrow: &str) -> Option<String> {
         return None;
     }
     if VALID_BASE_ARROWS.contains(&core) && (right_marker_removed || core != canonical) {
+        if has_dot_marker {
+            return Some(canonical);
+        }
         if has_slash_marker && !expanded_marker {
             let mut out = core.to_string();
             if let Some(ch) = with_left_trimmed.chars().last() {
@@ -8871,6 +9188,9 @@ fn parse_arrow(arrow: &str) -> Option<String> {
     if let Some(stripped_core) = core.strip_prefix('-') {
         if VALID_BASE_ARROWS.contains(&stripped_core) && (right_marker_removed || core != canonical)
         {
+            if has_dot_marker {
+                return Some(canonical);
+            }
             if has_slash_marker && !expanded_marker {
                 let mut out = stripped_core.to_string();
                 if let Some(ch) = with_left_trimmed.chars().last() {
@@ -8941,6 +9261,8 @@ fn looks_like_arrow_syntax(line: &str) -> bool {
     }
     line.contains("->")
         || line.contains("-->")
+        || line.contains("..>")
+        || line.contains("<..")
         || line.contains("<-")
         || line.contains("<--")
         || line.contains("<->")

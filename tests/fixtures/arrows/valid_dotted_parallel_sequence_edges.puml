@@ -1,0 +1,10 @@
+@startuml
+!pragma teoz true
+participant A
+participant B
+participant C
+autonumber 1 "P-00"
+A ..> B : dotted compatibility
+& A -[#green,dotted]> C : parallel dotted styled
+B <.. C : dotted response
+@enduml

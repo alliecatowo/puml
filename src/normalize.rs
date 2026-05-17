@@ -1686,6 +1686,8 @@ fn parse_nwdiag_node_entry(entry: &str) -> Option<NwdiagNode> {
     let mut node_address: Option<String> = None;
     let mut label: Option<String> = None;
     let mut color: Option<String> = None;
+    let mut shape: Option<String> = None;
+    let mut style: Option<String> = None;
     if let Some(attrs) = attrs {
         for kv in split_csv_args(attrs) {
             if let Some((k, v)) = kv.split_once('=') {
@@ -1695,6 +1697,8 @@ fn parse_nwdiag_node_entry(entry: &str) -> Option<NwdiagNode> {
                     "address" => node_address = Some(value),
                     "description" | "label" => label = Some(value),
                     "color" => color = Some(value),
+                    "shape" => shape = Some(value),
+                    "style" => style = Some(value),
                     _ => {}
                 }
             }
@@ -1705,6 +1709,8 @@ fn parse_nwdiag_node_entry(entry: &str) -> Option<NwdiagNode> {
         address: node_address,
         label,
         color,
+        shape,
+        style,
     })
 }
 
@@ -4040,6 +4046,7 @@ pub fn normalize_with_options(
                                 dashed: m.style.dashed,
                                 dotted: m.style.dotted,
                                 thickness: m.style.thickness,
+                                parallel: m.style.parallel,
                             },
                             from_virtual,
                             to_virtual,

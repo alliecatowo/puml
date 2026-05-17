@@ -25,6 +25,45 @@ nwdiag {
 }
 
 #[test]
+fn nwdiag_node_shape_and_style_attributes_render() {
+    let src = r##"@startnwdiag
+nwdiag {
+  network edge {
+    color = "#e0f2fe"
+    lb [address = "10.0.0.2", description = "Load Balancer", color = "#ffffff", shape = "roundedbox", style = "dashed"];
+  }
+}
+@endnwdiag
+"##;
+    let svg = puml::render_source_to_svg(src).expect("nwdiag render");
+
+    assert!(svg.contains("Load Balancer [10.0.0.2]"));
+    assert!(svg.contains("data-nwdiag-shape=\"roundedbox\""));
+    assert!(svg.contains("data-nwdiag-style=\"dashed\""));
+    assert!(svg.contains("stroke-dasharray=\"5 3\""));
+}
+
+#[test]
+fn regex_and_ebnf_render_token_style_classes_for_advanced_constructs() {
+    let regex = r#"@startregex
+^(foo|bar)[0-9]{2,4}$
+@endregex
+"#;
+    let regex_svg = puml::render_source_to_svg(regex).expect("regex render");
+    assert!(regex_svg.contains("class=\"regex-token regex-alt\""));
+    assert!(regex_svg.contains("class=\"regex-token regex-repeat\""));
+    assert!(regex_svg.contains("class=\"regex-token regex-anchor\""));
+
+    let ebnf = r#"@startebnf
+expr = term, { ("+" | "-"), term }, [ "end" ];
+@endebnf
+"#;
+    let ebnf_svg = puml::render_source_to_svg(ebnf).expect("ebnf render");
+    assert!(ebnf_svg.contains("class=\"ebnf-token ebnf-repetition\""));
+    assert!(ebnf_svg.contains("class=\"ebnf-token ebnf-optional\""));
+}
+
+#[test]
 fn archimate_junction_direction_and_style_breadth_render() {
     let src = r##"@startarchimate
 Application_Service(service, "Service", "#dbeafe")

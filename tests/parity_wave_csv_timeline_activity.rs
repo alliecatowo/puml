@@ -165,6 +165,24 @@ printscale weekly
 }
 
 #[test]
+fn gantt_closed_weekdays_render_bands_and_task_metadata() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+saturdays are closed
+sundays are closed
+[Build] on {Alice, Bob} requires 2 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("class=\"gantt-closed-weekday\""));
+    assert!(svg.contains("data-gantt-day=\"2026-05-02\""));
+    assert!(svg.contains("class=\"gantt-task\""));
+    assert!(svg.contains("data-gantt-start=\"2026-05-01\""));
+    assert!(svg.contains("data-gantt-duration=\"4\""));
+    assert!(svg.contains("data-gantt-resources=\"Alice, Bob\""));
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01

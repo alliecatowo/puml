@@ -1,6 +1,7 @@
 # PlantUML Core Surface Audit (UML Families + Preprocessor)
 
 Date: 2026-05-15
+Superseded status note: refreshed 2026-05-17 after PR `#232` (`04a0d387703d1cbe9a5bfe24889d72ca904b1781`). This file is retained as a historical feature-surface inventory and official-doc index, not as a current support matrix.
 
 Scope: authoritative feature inventory for PlantUML core UML families plus preprocessing/theme/stdlib surface, mapped against current `puml` runtime behavior.
 
@@ -9,13 +10,12 @@ Legend:
 - `partial`: some behavior exists but does not match PlantUML breadth/semantics
 - `missing`: not implemented in current `puml`
 
-Current `puml` baseline used for parity status:
+Current status source after PR `#232`:
 
-Staleness note, 2026-05-17: this surface inventory is retained as historical planning input and contains older row-level baseline language. Use `docs/audits/plantuml_parity_source_of_truth.md` as the canonical current status, with `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` as aligned exports.
-- Sequence parsing/rendering is implemented.
-- Class/object/usecase families now have bootstrap parser + model + deterministic stub SVG routing.
-- Non-bootstrap families (`component`, `deployment`, `state`, `activity`, `timing`) return deterministic unsupported-family diagnostics with explicit family codes.
-- Preprocessor support currently focuses on `!include` (local path), `!define`, `!undef`, and deterministic include safety checks.
+Staleness note, 2026-05-17: this surface inventory is retained as historical planning input and contains older row-level baseline language, including rows that describe now-implemented families as missing or rejected. Use `docs/audits/plantuml_parity_source_of_truth.md` as the canonical current status, with `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` as aligned exports.
+- Current support spans sequence plus core UML, timing, preprocessor/theme/stdlib, and non-UML family baselines through deterministic parser/model/render paths.
+- PR `#232` further expanded dotted/hash-padded autonumbering, participant ordering/layout safety, component/deployment/state/activity relation and skinparam surfaces, chart axis/legend styling, and preprocessor collection/function breadth.
+- Remaining work should be read from rows marked `partial` in the canonical source-of-truth and CSV exports, not from the historical row text below.
 
 Audit evidence update, 2026-05-16:
 - Core UML broad partials now include class-like declarations (`interface`, `enum`, `annotation`, `protocol`, `struct`, `abstract class`), object `map` declarations, use-case `actor` and parenthesized use-case declarations, component/deployment node primitives, state aliases/stereotypes/history/composite basics, and activity switch/case/split/goto/label/kill/detach parsing through deterministic render paths.
@@ -167,7 +167,7 @@ Audit evidence update, 2026-05-16:
 | Incoming/outgoing endpoints | Short endpoint arrows and endpoint variants | partial | Endpoint forms supported with reduced fidelity semantics. | https://plantuml.com/sequence-diagram |
 | Skinparam for sequence | Sequence skinparam surface | partial | Selected keys implemented; unsupported keys warn deterministically. | https://plantuml.com/sequence-diagram |
 | `!theme` usage in sequence | Theme inclusion in sequence diagrams | partial | Local built-in catalog preset set is applied (`aws-orange`, `blueprint`, `cerulean`, `cerulean-outline`, `crt-amber`, `crt-green`, `cyborg`, `hacker`, `mars`, `materia`, `metal`, `mimeograph`, `minty`, `plain`, `reddress-darkblue`, `sandstone`, `silver`, `sketchy`, `sketchy-outline`, `spacelab`, `superhero`, `united`); unsupported/remote forms reject deterministically. | https://plantuml.com/sequence-diagram |
-| Teoz/parallel-message layout options | Teoz-specific behaviors | missing | `!pragma` lines are ignored; no dedicated teoz semantics. | https://plantuml.com/sequence-diagram |
+| Teoz/parallel-message layout options | Teoz-specific behaviors | partial | `!pragma teoz` is accepted and `&` parallel sequence messages use deterministic same-row placement; full teoz collision routing remains narrower. | https://plantuml.com/sequence-diagram |
 
 ## Preprocessor / Includes / Import / Theme / Stdlib
 

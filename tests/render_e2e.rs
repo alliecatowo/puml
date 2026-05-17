@@ -157,6 +157,35 @@ fn render_sequence_slanted_arrow_heads_are_distinct() {
 }
 
 #[test]
+fn render_sequence_dotted_parallel_edges_share_teoz_row_deterministically() {
+    let src = fixture("arrows/valid_dotted_parallel_sequence_edges.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    assert_eq!(scene.messages.len(), 3);
+    assert_eq!(
+        scene.messages[0].y, scene.messages[1].y,
+        "PlantUML `&` parallel message should share the previous row"
+    );
+    assert!(
+        scene.messages.iter().all(|message| message.style.dotted),
+        "dot-arrow syntax and dotted style should both reach layout"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("P-01 dotted"));
+    assert!(svg.contains("compatibility"));
+    assert!(svg.contains("P-02 parallel"));
+    assert!(svg.contains("dotted styled"));
+    assert!(svg.contains("stroke-dasharray=\"2 4\""));
+    assert_snapshot!(
+        "render_sequence_dotted_parallel_edges_share_teoz_row_deterministically",
+        svg
+    );
+}
+
+#[test]
 fn render_sequence_lifecycle_shortcuts_have_visible_markers() {
     let src = fixture("lifecycle/valid_shortcuts_expansion.puml");
     let svg = puml::render_source_to_svg(&src).expect("lifecycle shortcut render");
