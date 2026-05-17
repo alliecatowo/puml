@@ -1,5 +1,4 @@
 @startebnf
-' EBNF diagrams not yet supported by this parser
 grammar = { rule } ;
 rule = identifier , "=" , expression , ";" ;
 @endebnf

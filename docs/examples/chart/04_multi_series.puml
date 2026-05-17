@@ -1,5 +1,4 @@
 @startchart
-' Multi-series chart (not yet supported)
 bar chart
   "2024" : 100
   "2025" : 140

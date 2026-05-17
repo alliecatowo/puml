@@ -1,5 +1,4 @@
 @startchart
-' Pie chart (not yet supported)
 pie chart
   Frontend : 35
   Backend : 40

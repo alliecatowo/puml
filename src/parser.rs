@@ -7145,6 +7145,26 @@ fn parse_json_projection_block(
 /// Returns `None` if the line does not start with `|`.
 fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let whole_line_widget = lower.starts_with("{*")
+        || lower.starts_with("{/")
+        || lower.starts_with("{s")
+        || lower.starts_with("{t")
+        || lower == "tree"
+        || lower.starts_with("tree ")
+        || lower == "menu"
+        || lower.starts_with("menu ")
+        || lower == "tab"
+        || lower.starts_with("tab ")
+        || lower == "tabs"
+        || lower.starts_with("tabs ")
+        || lower.starts_with("scroll")
+        || lower.contains("scrollbar");
+    if whole_line_widget {
+        return Some(StatementKind::SaltGridRow {
+            cells: vec![SaltCell::Label(trimmed.to_string())],
+        });
+    }
     if !trimmed.contains('|') {
         return None;
     }

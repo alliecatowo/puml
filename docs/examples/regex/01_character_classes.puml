@@ -1,5 +1,4 @@
 @startregex
-' Regex diagrams not yet supported by this parser
 [a-z]
 [A-Z0-9]
 \d+

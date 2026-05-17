@@ -1,5 +1,4 @@
 @startebnf
-' EBNF optional/repetition (not yet supported)
 expression = term { ("+" | "-") term } ;
 term = factor { ("*" | "/") factor } ;
 factor = number | "(" expression ")" ;
