@@ -2,11 +2,12 @@ name: Oracle — Differential Conformance vs Java PlantUML
 
 on:
   pull_request:
-    paths:
-      - "src/parser.rs"
-      - "src/normalize.rs"
-      - "src/render.rs"
-      - "tests/fixtures/**"
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 concurrency:
   group: oracle-${{ github.event.pull_request.number || github.ref }}
@@ -20,11 +21,12 @@ jobs:
   oracle:
     name: differential-svg-oracle
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
       RUST_BACKTRACE: 1
+      # Pinned PlantUML version — bump intentionally, never use "latest".
       PLANTUML_VERSION: "1.2024.7"
       PLANTUML_JAR: plantuml-1.2024.7.jar
 
@@ -32,12 +34,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      # -----------------------------------------------------------------------
+      # JDK 17 (Temurin LTS) — required to run the PlantUML reference JAR.
+      # Not a runtime or build dependency of puml; CI-only for oracle comparison.
+      # -----------------------------------------------------------------------
+      - name: Setup JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      # -----------------------------------------------------------------------
+      # Cache the JAR by pinned version so re-runs skip the download.
+      # -----------------------------------------------------------------------
       - name: Cache PlantUML JAR
         id: cache-jar
         uses: actions/cache@v4
@@ -45,14 +54,16 @@ jobs:
           path: ${{ env.PLANTUML_JAR }}
           key: plantuml-jar-${{ env.PLANTUML_VERSION }}
 
+      # Download from the official GitHub Releases mirror (deterministic URL).
       - name: Download PlantUML JAR
         if: steps.cache-jar.outputs.cache-hit != 'true'
         run: |
           curl -fsSL \
             "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/${PLANTUML_JAR}" \
             -o "${PLANTUML_JAR}"
+          echo "[oracle] Downloaded plantuml-${PLANTUML_VERSION}.jar"
 
-      - name: Verify JAR integrity
+      - name: Verify JAR integrity and version
         run: |
           if [[ ! -f "${PLANTUML_JAR}" ]]; then
             echo "ERROR: JAR not found after download step" >&2
@@ -62,6 +73,9 @@ jobs:
           echo "[oracle] JAR size: ${JAR_SIZE} bytes"
           java -jar "${PLANTUML_JAR}" -version
 
+      # -----------------------------------------------------------------------
+      # Rust toolchain + build
+      # -----------------------------------------------------------------------
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -74,7 +88,16 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
-      - name: Run oracle conformance suite
+      # -----------------------------------------------------------------------
+      # Run the oracle shell conformance suite (fixture-by-fixture SVG diff).
+      # Soft-fail thresholds:
+      #   exit 0 → match% ≥ 80%  (PASS)
+      #   exit 1 → 50% ≤ match% < 80%  (WARN — advisory)
+      #   exit 2 → match% < 50%  (HARD FAIL)
+      # SVG byte-equality is advisory (we use a different layout engine).
+      # Parse-failures on files the JAR accepts (jar-only) are hard-fail triggers.
+      # -----------------------------------------------------------------------
+      - name: Run oracle conformance suite (scripts/oracle.sh)
         id: oracle
         env:
           PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
@@ -87,7 +110,6 @@ jobs:
           echo "exit_code=${ORACLE_EXIT}" >> "${GITHUB_OUTPUT}"
 
           if [[ -f docs/benchmarks/oracle_report.json ]]; then
-            # Extract summary fields for the PR comment
             TOTAL=$(jq  '.summary.total'      docs/benchmarks/oracle_report.json)
             MATCH=$(jq  '.summary.match'      docs/benchmarks/oracle_report.json)
             DRIFT=$(jq  '.summary.drift'      docs/benchmarks/oracle_report.json)
@@ -114,23 +136,45 @@ jobs:
             } >> "${GITHUB_OUTPUT}"
           fi
 
-          # Propagate meaningful exit: 0 or 1 are soft failures (comment-only)
-          # exit 2 (<50% match) is a hard CI failure
+          # exit 2 (<50% match) → hard CI failure; 0 and 1 are soft/advisory.
           if [[ "${ORACLE_EXIT}" -eq 2 ]]; then
             echo "[oracle] HARD FAIL: match% < 50%" >&2
             exit 2
           fi
           exit 0
 
-      - name: Upload oracle report artifact
+      # -----------------------------------------------------------------------
+      # Run the Rust oracle_smoke test suite with the real JAR.
+      # The --ignored flag unlocks oracle_report_schema_is_stable and any other
+      # JAR-gated tests that skip by default when PUML_ORACLE_JAR is unset.
+      # -----------------------------------------------------------------------
+      - name: Run oracle_smoke test suite (cargo test --test oracle_smoke)
+        id: cargo-oracle-smoke
+        env:
+          PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
+        run: |
+          # Run both the always-on sentinel tests AND the JAR-gated ignored tests.
+          cargo test --test oracle_smoke -- --include-ignored 2>&1 | tee /tmp/oracle_smoke_test.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "${GITHUB_OUTPUT}"
+
+      # -----------------------------------------------------------------------
+      # Upload artifacts: oracle_report.json + SVG diffs + test log
+      # -----------------------------------------------------------------------
+      - name: Upload oracle artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: oracle-report-${{ github.run_number }}
-          path: docs/benchmarks/oracle_report.json
           if-no-files-found: warn
           retention-days: 30
+          path: |
+            docs/benchmarks/oracle_report.json
+            /tmp/oracle_smoke_test.log
 
+      # -----------------------------------------------------------------------
+      # Post a Markdown summary comment on the PR.
+      # Only runs when oracle data is present (skipped sentinel has no totals).
+      # -----------------------------------------------------------------------
       - name: Comment on PR with oracle summary
         if: github.event_name == 'pull_request' && steps.oracle.outputs.total != ''
         env:
@@ -140,30 +184,32 @@ jobs:
           MATCH_PCT="${{ steps.oracle.outputs.match_pct }}"
 
           if [[ "${EXIT_CODE}" -eq 0 ]]; then
-            STATUS_ICON="✅"
-            STATUS_TEXT="PASS (≥80% match)"
+            STATUS_ICON="[PASS]"
+            STATUS_TEXT="PASS (>=80% match)"
           elif [[ "${EXIT_CODE}" -eq 1 ]]; then
-            STATUS_ICON="⚠️"
-            STATUS_TEXT="WARN (50–79% match)"
+            STATUS_ICON="[WARN]"
+            STATUS_TEXT="WARN (50-79% match)"
           else
-            STATUS_ICON="❌"
+            STATUS_ICON="[FAIL]"
             STATUS_TEXT="FAIL (<50% match)"
           fi
 
-          BODY="## ${STATUS_ICON} Oracle Conformance Report — ${STATUS_TEXT}
+          BODY="## ${STATUS_ICON} Oracle Conformance Report -- ${STATUS_TEXT}
 
 | Metric | Value |
 |---|---|
-| JAR version | \`${{ steps.oracle.outputs.jar_version }}\` |
+| PlantUML JAR version | \`${{ steps.oracle.outputs.jar_version }}\` |
 | Total fixtures | ${{ steps.oracle.outputs.total }} |
-| Match (≤10% drift) | ${{ steps.oracle.outputs.match }} |
+| Match (<=10% drift on all metrics) | ${{ steps.oracle.outputs.match }} |
 | Drift (>10% on any metric) | ${{ steps.oracle.outputs.drift }} |
 | puml-only (we render; JAR fails) | ${{ steps.oracle.outputs.puml_only }} |
 | jar-only (JAR renders; we fail) | ${{ steps.oracle.outputs.jar_only }} |
 | both-fail | ${{ steps.oracle.outputs.both_fail }} |
 | **Match %** | **${MATCH_PCT}%** |
 
-Full report available in the [oracle-report-${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) artifact.
+Full report: [oracle-report-${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+> SVG layout divergence is advisory (puml uses a different layout engine than PlantUML). Parse failures on files the JAR accepts (jar-only) are hard failures.
 "
           gh pr comment "${{ github.event.pull_request.number }}" \
             --body "${BODY}" \
