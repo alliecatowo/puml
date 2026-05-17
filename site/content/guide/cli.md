@@ -44,6 +44,7 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --compat strict|extended     semantic compatibility policy (default: strict)
 --determinism strict|full    determinism policy (default: strict)
 --include-root DIR           resolve `!include` from this root for stdin
+--no-url-includes            disable URL includes for no-network / untrusted runs
 --duration                   print elapsed wall time to stderr
 --quiet / -q                 suppress non-error stderr
 --verbose / -v               emit per-stage parse/normalize/render timings
@@ -65,6 +66,19 @@ puml --dialect picouml input.pico.puml
 - `auto` and `plantuml` parse PlantUML through the shared pipeline.
 - `mermaid` accepts `sequenceDiagram`, `flowchart`/`graph`, `classDiagram`, `stateDiagram`/`stateDiagram-v2`, and `erDiagram`.
 - `picouml` routes through PicoUML normalization &mdash; `@startpicouml` / `@endpicouml` markers are converted to PlantUML markers before parsing.
+
+## Includes and remote sources
+
+The native CLI enables URL includes by default for PlantUML compatibility:
+`!include https://...`, `!includeurl`, URL `!include_many`, and URL `!import`
+can fetch remote source and cache it locally. Use `--no-url-includes` when
+checking untrusted files or when a no-network run is required; remote targets
+then fail with `E_INCLUDE_URL_DISABLED`.
+
+Embedded surfaces are stricter by design. The LSP does not fetch remote includes
+while publishing diagnostics or previews, and the WASM/browser renderer rejects
+filesystem and URL includes. See the [URL include policy](https://github.com/alliecatowo/puml/blob/main/docs/url-includes.md)
+for the surface-by-surface contract.
 
 ## Output paths
 
