@@ -13,6 +13,32 @@
   <meta property="og:title" content="{% block og_title %}{{ config.title }}{% endblock %}" />
   <meta property="og:description" content="{{ config.description }}" />
   <meta property="og:type" content="website" />
+  {#
+    CodeMirror import map. Each `@codemirror/*` and `@lezer/*` package is
+    pinned to a single esm.sh URL and the `?external=` flag forces transitive
+    deps to be resolved through this map as well — without it, esm.sh bundles
+    its own copy of every transitive package and we end up with multiple
+    `@codemirror/state` module instances, which causes the EditorView ctor to
+    silently fail (Facet identity check). Keep all `@codemirror/*` versions
+    in lockstep; bump the whole set together.
+  #}
+  <script type="importmap">
+  {
+    "imports": {
+      "@codemirror/state": "https://esm.sh/@codemirror/state@6.4.1",
+      "@codemirror/view": "https://esm.sh/@codemirror/view@6.26.3?external=@codemirror/state",
+      "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.6.0?external=@codemirror/state,@codemirror/view",
+      "@codemirror/language": "https://esm.sh/@codemirror/language@6.10.2?external=@codemirror/state,@codemirror/view,@lezer/common,@lezer/highlight,@lezer/lr",
+      "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6.18.0?external=@codemirror/state,@codemirror/view,@codemirror/language,@lezer/common",
+      "@codemirror/lint": "https://esm.sh/@codemirror/lint@6.8.1?external=@codemirror/state,@codemirror/view,@codemirror/language",
+      "@codemirror/search": "https://esm.sh/@codemirror/search@6.5.6?external=@codemirror/state,@codemirror/view,@codemirror/language",
+      "@lezer/common": "https://esm.sh/@lezer/common@1.2.1",
+      "@lezer/highlight": "https://esm.sh/@lezer/highlight@1.2.0?external=@lezer/common",
+      "@lezer/lr": "https://esm.sh/@lezer/lr@1.4.0?external=@lezer/common",
+      "codemirror": "https://esm.sh/codemirror@6.0.1?external=@codemirror/state,@codemirror/view,@codemirror/commands,@codemirror/language,@codemirror/autocomplete,@codemirror/lint,@codemirror/search,@lezer/common,@lezer/highlight,@lezer/lr"
+    }
+  }
+  </script>
   {% block head_extra %}{% endblock %}
 </head>
 <body>

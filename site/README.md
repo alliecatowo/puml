@@ -15,21 +15,26 @@ Static site for [https://alliecatowo.github.io/puml/](https://alliecatowo.github
 curl -fsSL https://github.com/getzola/zola/releases/download/v0.19.2/zola-v0.19.2-x86_64-unknown-linux-gnu.tar.gz \
   | sudo tar -xz -C /usr/local/bin/
 
-# 2. populate site/static/examples and site/content/developer/specs
+# 2. install Rust wasm target + wasm-pack (one time)
+rustup target add wasm32-unknown-unknown
+curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+# 3. populate site/static/examples, mirror specs, and build the WASM renderer
 node ../scripts/build-site.mjs
 node ../scripts/mirror-specs.mjs
+wasm-pack build --release --target web --out-dir ../site/static/wasm ../crates/puml-wasm
 
-# 3. serve locally
+# 4. serve locally
 cd site && zola serve
 
-# 4. or build into site/public
+# 5. or build into site/public
 cd site && zola build
 ```
 
 ## Deploy
 
-CI: `.github/workflows/pages.yml` runs the three steps above on every push to `main` that touches site content, then uploads `site/public` to GitHub Pages.
+CI: `.github/workflows/pages.yml` runs the steps above on every push to `main` that touches site content or the renderer, then uploads `site/public` to GitHub Pages.
 
 ## Editor architecture
 
-`static/js/editor.js` programs against a `RenderEngine` interface. v1 is `ManifestLookupEngine` (matches source hash against the baked corpus). v2 will be a `WasmEngine` that posts messages to a Web Worker loading `puml-wasm`. See [`/developer/wasm-roadmap/`](https://alliecatowo.github.io/puml/developer/wasm-roadmap/).
+`static/js/editor.js` loads CodeMirror through the shared import map declared in `templates/base.html`, wires the `.puml` `StreamLanguage` from `static/js/puml-lang.js`, and renders previews via the WASM bundle at `static/wasm/puml_wasm.js` (built from `crates/puml-wasm/`). See [`/developer/renderer/`](https://alliecatowo.github.io/puml/developer/renderer/) for the renderer bridge.

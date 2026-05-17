@@ -1,18 +1,18 @@
 // Editor page bootstrap.
-// Loads CodeMirror 6 from esm.sh, wires the puml StreamLanguage, and renders
-// previews via a pluggable RenderEngine. v1 = manifest lookup (matches source
-// against the 248 baked examples). v2 (planned) = WASM worker, drop-in
-// replacement behind the same interface.
+// Loads CodeMirror 6 from esm.sh (via the import map declared in base.html so
+// every @codemirror/* package is a single shared module instance), wires the
+// puml StreamLanguage, and renders previews with the WASM renderer built from
+// the puml-wasm crate.
 
-import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
-import { EditorState, Compartment } from 'https://esm.sh/@codemirror/state@6.4.1';
-import { keymap } from 'https://esm.sh/@codemirror/view@6.26.3';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from 'https://esm.sh/@codemirror/commands@6.6.0';
-import { syntaxHighlighting, HighlightStyle } from 'https://esm.sh/@codemirror/language@6.10.2';
-import { tags as t } from 'https://esm.sh/@lezer/highlight@1.2.0';
+import { EditorView, basicSetup } from 'codemirror';
+import { EditorState, Compartment } from '@codemirror/state';
+import { keymap } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
+import { tags as t } from '@lezer/highlight';
 
 import { pumlLanguage } from './puml-lang.js';
-import { loadManifest, normalizeSource, hashSource, siteBaseUrl, assetUrl } from './manifest.js';
+import { loadManifest, siteBaseUrl, assetUrl } from './manifest.js';
 
 const DEFAULT_SOURCE = `@startuml
 title Sign-in handshake
@@ -37,7 +37,7 @@ deactivate Web
 @enduml
 `;
 
-const STORAGE_KEY = 'puml-editor.source.v1';
+const STORAGE_KEY = 'puml-editor.source';
 
 // Map CodeMirror highlight tags (from the StreamLanguage token names) to our
 // custom CSS classes. Each class is defined in sass/style.scss.
@@ -55,74 +55,56 @@ const highlightStyle = HighlightStyle.define([
   { tag: t.variableName, color: 'inherit' },
 ]);
 
-class ManifestLookupEngine {
-  constructor(manifest, base) {
-    this.manifest = manifest;
+// Single shared engine: dynamic-imports the wasm-bindgen JS shim, initializes
+// the .wasm binary, then exposes render(source) used by the editor on each
+// keystroke (debounced) and Cmd/Ctrl+Enter.
+class WasmRenderer {
+  constructor(base) {
     this.base = base;
-    this.byHash = new Map(manifest.examples.map((e) => [e.hash, e]));
+    this.ready = null;
+    this.module = null;
   }
 
-  describe() { return 'Renderer: manifest lookup (v1)'; }
+  describe() { return 'Renderer: in-browser WASM'; }
+
+  async init() {
+    if (this.ready) return this.ready;
+    this.ready = (async () => {
+      const jsUrl = assetUrl(this.base, 'wasm/puml_wasm.js');
+      const wasmUrl = assetUrl(this.base, 'wasm/puml_wasm_bg.wasm');
+      const mod = await import(jsUrl);
+      await mod.default({ module_or_path: wasmUrl });
+      this.module = mod;
+    })();
+    return this.ready;
+  }
 
   async render(source) {
-    const h = await hashSource(source);
-    const hit = this.byHash.get(h);
-    if (!hit) {
+    await this.init();
+    const json = this.module.render_svgs_json(source);
+    let parsed;
+    try {
+      parsed = JSON.parse(json);
+    } catch (e) {
+      return { ok: false, diagnostics: [{ severity: 'error', message: `Renderer returned invalid JSON: ${e.message}` }] };
+    }
+    if (parsed.error) {
       return {
         ok: false,
         diagnostics: [{
-          severity: 'info',
-          message: 'No baked example matches this source. Live in-browser rendering is on the WASM roadmap; for now, try one of the baked examples from the picker on the left or browse the gallery.',
+          severity: parsed.error.severity || 'error',
+          message: parsed.error.message || 'Render failed.',
+          line: parsed.error.line,
+          column: parsed.error.column,
         }],
-        suggestions: this.suggest(source),
       };
     }
-    const svgRes = await fetch(assetUrl(this.base, hit.svgPath));
-    if (!svgRes.ok) {
-      return { ok: false, diagnostics: [{ severity: 'error', message: `Failed to load ${hit.svgPath}: ${svgRes.status}` }] };
+    const pages = Array.isArray(parsed.ok) ? parsed.ok : [];
+    if (!pages.length) {
+      return { ok: false, diagnostics: [{ severity: 'error', message: 'Renderer returned no pages.' }] };
     }
-    return { ok: true, svg: await svgRes.text(), match: hit };
+    return { ok: true, svgs: pages };
   }
-
-  suggest(source) {
-    const sigSource = signature(source);
-    const scored = this.manifest.examples
-      .map((e) => ({ e, score: similarity(sigSource, e) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 4)
-      .map(({ e }) => e);
-    return scored;
-  }
-}
-
-function signature(src) {
-  const lines = src.toLowerCase().split('\n').map((l) => l.trim()).filter(Boolean);
-  return {
-    family: detectFamily(lines),
-    tokens: new Set(lines.flatMap((l) => l.split(/[^a-z0-9_]+/).filter(Boolean))),
-  };
-}
-
-function similarity(sig, ex) {
-  let score = 0;
-  if (ex.family === sig.family) score += 5;
-  const exTokens = new Set((ex.title + ' ' + ex.preview).toLowerCase().split(/\s+/));
-  for (const t of exTokens) if (sig.tokens.has(t)) score += 1;
-  return score;
-}
-
-function detectFamily(lines) {
-  for (const l of lines) {
-    if (l.startsWith('@start')) {
-      const m = l.match(/^@start(\w*)/);
-      if (m && m[1]) return m[1];
-    }
-    if (l.startsWith('sequencediagram')) return 'sequence';
-    if (l.startsWith('classdiagram')) return 'class';
-    if (l.startsWith('statediagram')) return 'state';
-    if (l.startsWith('flowchart') || l.startsWith('graph ')) return 'activity';
-  }
-  return 'sequence';
 }
 
 let view;
@@ -133,41 +115,44 @@ const langCompartment = new Compartment();
 
 async function init() {
   base = siteBaseUrl();
+  engine = new WasmRenderer(base);
+  setStatus('preview', 'Renderer: loading WASM…', 'warn');
+
+  // Load the example picker manifest in parallel with the WASM init.
   try {
     manifest = await loadManifest(base);
   } catch (e) {
-    setStatus('editor', `Failed to load manifest: ${e.message}`, 'bad');
-    return;
+    // Examples are nice-to-have; the renderer doesn't depend on them.
+    setStatus('editor', `Could not load example list: ${e.message}`, 'warn', true);
+    manifest = { examples: [], families: [] };
   }
-  engine = new ManifestLookupEngine(manifest, base);
-  setStatus('preview', engine.describe(), 'ok');
 
-  // Populate example picker.
+  // Populate example picker grouped by family.
   const picker = document.getElementById('example-picker');
-  // Group options by family for usability.
-  const familyMap = new Map();
-  for (const ex of manifest.examples) {
-    if (!familyMap.has(ex.family)) familyMap.set(ex.family, []);
-    familyMap.get(ex.family).push(ex);
-  }
-  for (const [fam, items] of [...familyMap.entries()].sort()) {
-    const og = document.createElement('optgroup');
-    og.label = items[0].familyLabel;
-    for (const it of items) {
-      const opt = document.createElement('option');
-      opt.value = `${it.family}/${it.name}`;
-      opt.textContent = it.title;
-      og.appendChild(opt);
+  if (picker && manifest.examples.length) {
+    const familyMap = new Map();
+    for (const ex of manifest.examples) {
+      if (!familyMap.has(ex.family)) familyMap.set(ex.family, []);
+      familyMap.get(ex.family).push(ex);
     }
-    picker.appendChild(og);
+    for (const [, items] of [...familyMap.entries()].sort()) {
+      const og = document.createElement('optgroup');
+      og.label = items[0].familyLabel;
+      for (const it of items) {
+        const opt = document.createElement('option');
+        opt.value = `${it.family}/${it.name}`;
+        opt.textContent = it.title;
+        og.appendChild(opt);
+      }
+      picker.appendChild(og);
+    }
+    picker.addEventListener('change', async (e) => {
+      const id = e.target.value;
+      if (!id) return;
+      await openExampleById(id);
+      e.target.value = '';
+    });
   }
-
-  picker.addEventListener('change', async (e) => {
-    const id = e.target.value;
-    if (!id) return;
-    await openExampleById(id, { fromPicker: true });
-    e.target.value = '';
-  });
 
   document.getElementById('reset-btn').addEventListener('click', () => {
     setSource(DEFAULT_SOURCE);
@@ -187,7 +172,7 @@ async function init() {
   document.getElementById('render-btn').addEventListener('click', render);
   document.getElementById('download-btn').addEventListener('click', downloadSvg);
 
-  // Build editor.
+  // Build the editor.
   const initial = localStorage.getItem(STORAGE_KEY) || DEFAULT_SOURCE;
   view = new EditorView({
     parent: document.getElementById('editor-host'),
@@ -217,7 +202,15 @@ async function init() {
 
   setStatus('editor', 'Ready. Type, or load an example. Cmd/Ctrl+Enter to render.', 'ok');
 
-  // Open via ?open=family/name.
+  // Warm the renderer in the background while the user reads the page; the
+  // first render will then be near-instant.
+  engine.init().then(() => {
+    setStatus('preview', engine.describe(), 'ok');
+  }).catch((e) => {
+    setStatus('preview', `Renderer failed to initialize: ${e.message}`, 'bad');
+  });
+
+  // Open via ?open=family/name; otherwise render the current source.
   const params = new URLSearchParams(window.location.search);
   const open = params.get('open');
   if (open) {
@@ -239,7 +232,8 @@ function setSource(text) {
   });
 }
 
-async function openExampleById(id, opts = {}) {
+async function openExampleById(id) {
+  if (!manifest || !manifest.examples) return;
   const [family, name] = id.split('/');
   const ex = manifest.examples.find((e) => e.family === family && e.name === name);
   if (!ex) {
@@ -259,26 +253,30 @@ async function openExampleById(id, opts = {}) {
 }
 
 async function render() {
+  if (!view || !engine) return;
   const source = view.state.doc.toString();
   const previewHost = document.getElementById('preview-host');
-  const result = await engine.render(source);
+  let result;
+  try {
+    result = await engine.render(source);
+  } catch (e) {
+    result = { ok: false, diagnostics: [{ severity: 'error', message: e.message || String(e) }] };
+  }
   if (result.ok) {
-    previewHost.innerHTML = result.svg;
-    setStatus('preview', `Rendered ${result.match.familyLabel} / ${result.match.title} (manifest match).`, 'ok');
+    previewHost.innerHTML = result.svgs.join('\n');
+    const pages = result.svgs.length;
+    setStatus('preview', pages > 1
+      ? `Rendered ${pages} pages.`
+      : `Rendered.`, 'ok');
   } else {
-    const sugs = (result.suggestions || []).slice(0, 4);
-    const sugHtml = sugs.length
-      ? `<div style="margin-top:10px; font-size:12px;">
-           <div style="margin-bottom:6px; color:#4a5285;">Closest baked examples:</div>
-           ${sugs.map((s) => `<div><a href="?open=${encodeURIComponent(s.family + '/' + s.name)}">${escapeHtml(s.familyLabel)} / ${escapeHtml(s.title)}</a></div>`).join('')}
-         </div>` : '';
+    const diag = result.diagnostics?.[0];
+    const where = diag?.line ? ` (line ${diag.line}${diag.column ? `, col ${diag.column}` : ''})` : '';
     previewHost.innerHTML = `
       <div class="preview-placeholder">
-        <span class="pill">no live render yet</span>
-        <p>${escapeHtml(result.diagnostics?.[0]?.message ?? 'No render available for this source.')}</p>
-        ${sugHtml}
+        <span class="pill">render error</span>
+        <p>${escapeHtml(diag?.message ?? 'Render failed.')}${escapeHtml(where)}</p>
       </div>`;
-    setStatus('preview', 'Source does not match any baked example yet. Live render coming with WASM.', 'warn');
+    setStatus('preview', `Render error${where}.`, 'bad');
   }
 }
 
@@ -319,4 +317,17 @@ function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-init();
+init().catch((err) => {
+  setStatus('editor', `Editor failed to start: ${err.message || err}`, 'bad');
+  // Also surface in the preview pane so users see something went wrong even
+  // if they don't notice the status bar.
+  const host = document.getElementById('preview-host');
+  if (host) {
+    host.innerHTML = `
+      <div class="preview-placeholder">
+        <span class="pill">startup error</span>
+        <p>${escapeHtml(err.message || String(err))}</p>
+      </div>`;
+  }
+  console.error(err);
+});

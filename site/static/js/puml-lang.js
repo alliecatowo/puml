@@ -3,7 +3,7 @@
 // Token return values use CodeMirror's standard style names so they can be
 // styled via syntaxHighlighting(HighlightStyle) without custom registration.
 
-import { StreamLanguage } from 'https://esm.sh/@codemirror/language@6.10.2';
+import { StreamLanguage } from '@codemirror/language';
 
 const GROUP_KEYWORDS = new Set([
   'alt', 'else', 'end', 'opt', 'loop', 'par', 'and', 'critical', 'option', 'break',
