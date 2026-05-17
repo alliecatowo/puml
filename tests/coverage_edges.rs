@@ -54,11 +54,14 @@ fn parser_preprocessor_variables_and_callable_invocations_expand_deterministical
 }
 
 #[test]
-fn parser_preprocessor_concat_and_procedure_return_fail_with_stable_codes() {
+fn parser_preprocessor_concat_expands_and_procedure_return_fails_with_stable_code() {
     let concat_src =
-        "@startuml\n!function Join($a##$b)\n!return $a\n!endfunction\nA -> B\n@enduml\n";
-    let concat_err = parse(concat_src).expect_err("expected concat unsupported");
-    assert!(concat_err.message.contains("E_PREPROC_CONCAT_UNSUPPORTED"));
+        "@startuml\n!function Join($a##$b)\n!return $a ## $b\n!endfunction\nA -> B: %Join(Al, ice)\n@enduml\n";
+    let concat_doc = parse(concat_src).expect("expected concat expansion");
+    match &concat_doc.statements[0].kind {
+        puml::ast::StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
+        other => panic!("unexpected statement: {other:?}"),
+    }
 
     let proc_return_src =
         "@startuml\n!procedure Bad($x)\n!return $x\n!endprocedure\n!Bad(\"A\")\n@enduml\n";

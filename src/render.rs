@@ -527,7 +527,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
     // Compute width / height of the SVG; account for JSON projection height.
     let proj_extra_height: i32 = document.json_projections.iter().fold(0, |acc, proj| {
-        let kv_count = extract_json_kv_lines(&proj.body).len() as i32;
+        let kv_count = extract_projection_kv_lines(&proj.body, &proj.format).len() as i32;
         acc + 22 + kv_count * 16 + 8 + 12
     });
     let svg_width = margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap;
@@ -749,7 +749,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let proj_padding = 8_i32;
 
         for proj in &document.json_projections {
-            let kv_lines = extract_json_kv_lines(&proj.body);
+            let kv_lines = extract_projection_kv_lines(&proj.body, &proj.format);
             let body_h = (kv_lines.len() as i32) * proj_line_h + proj_padding * 2;
             let proj_h = proj_header_h + body_h;
 
@@ -803,7 +803,85 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     out
 }
 
-/// Extract `key: value` display lines from a JSON body string.
+/// Extract deterministic display lines from a JSON/YAML projection body.
+fn extract_projection_kv_lines(body: &str, format: &str) -> Vec<String> {
+    if format == "json" {
+        if let Some(value) = parse_projection_json_value(body) {
+            let mut lines = Vec::new();
+            flatten_projection_json("", &value, &mut lines);
+            if !lines.is_empty() {
+                return lines;
+            }
+        }
+    }
+    if format == "yaml" {
+        let lines = extract_yaml_kv_lines(body);
+        if !lines.is_empty() {
+            return lines;
+        }
+    }
+    extract_json_kv_lines(body)
+}
+
+fn parse_projection_json_value(body: &str) -> Option<serde_json::Value> {
+    let trimmed = body.trim();
+    serde_json::from_str::<serde_json::Value>(trimmed)
+        .ok()
+        .or_else(|| serde_json::from_str::<serde_json::Value>(&format!("{{{trimmed}}}")).ok())
+}
+
+fn flatten_projection_json(prefix: &str, value: &serde_json::Value, lines: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Object(obj) => {
+            for (key, value) in obj {
+                let next = if prefix.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
+                flatten_projection_json(&next, value, lines);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for (idx, value) in items.iter().enumerate() {
+                flatten_projection_json(&format!("{prefix}[{idx}]"), value, lines);
+            }
+        }
+        serde_json::Value::String(s) => lines.push(format!("{prefix}: {s}")),
+        serde_json::Value::Number(n) => lines.push(format!("{prefix}: {n}")),
+        serde_json::Value::Bool(b) => lines.push(format!("{prefix}: {b}")),
+        serde_json::Value::Null => lines.push(format!("{prefix}: null")),
+    }
+}
+
+fn extract_yaml_kv_lines(body: &str) -> Vec<String> {
+    let mut path: Vec<String> = Vec::new();
+    let mut lines = Vec::new();
+    for raw in body.lines() {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let indent = raw.chars().take_while(|c| *c == ' ').count() / 2;
+        path.truncate(indent);
+        let item = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        let Some((key, value)) = item.split_once(':') else {
+            continue;
+        };
+        let key = key.trim().trim_matches('"').trim_matches('\'').to_string();
+        let value = value.trim().trim_matches('"').trim_matches('\'');
+        if value.is_empty() {
+            path.push(key);
+        } else {
+            let mut full = path.clone();
+            full.push(key);
+            lines.push(format!("{}: {}", full.join("."), value));
+        }
+    }
+    lines
+}
+
+/// Extract `key: value` display lines from a JSON-ish body string.
 /// Strips outer braces/brackets, parses simple string-keyed properties.
 fn extract_json_kv_lines(body: &str) -> Vec<String> {
     let mut lines = Vec::new();

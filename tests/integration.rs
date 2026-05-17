@@ -834,7 +834,6 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_builtin_in_log.puml",
         "errors/invalid_preproc_dynamic_invoke.puml",
         "errors/invalid_preproc_json_assignment.puml",
-        "errors/invalid_preproc_concat_unsupported.puml",
         "errors/invalid_preproc_function_missing_arg.puml",
         "errors/invalid_preproc_procedure_return.puml",
         "errors/invalid_import_empty_path.puml",
@@ -2647,10 +2646,6 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
         (
             "errors/invalid_preproc_json_assignment.puml",
             "E_PREPROC_JSON_UNSUPPORTED",
-        ),
-        (
-            "errors/invalid_preproc_concat_unsupported.puml",
-            "E_PREPROC_CONCAT_UNSUPPORTED",
         ),
         (
             "errors/invalid_preproc_function_missing_arg.puml",
@@ -5747,6 +5742,14 @@ fn json_projection_inline_parse_roundtrip() {
     let svg = render_source_to_svg(src).expect("inline json projection should render");
     assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
     assert!(svg.contains("key"), "SVG must contain key 'key'");
+}
+
+#[test]
+fn json_projection_flattens_nested_values() {
+    let src = "@startuml\njson $cfg { \"user\": { \"name\": \"Ada\" }, \"roles\": [\"admin\"] }\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("nested json projection should render");
+    assert!(svg.contains("user.name"), "SVG must contain nested object key");
+    assert!(svg.contains("roles[0]"), "SVG must contain array index key");
 }
 
 #[test]
