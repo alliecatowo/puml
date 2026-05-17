@@ -1,0 +1,39 @@
+# lefthook.yml — local git hook configuration for puml
+# https://github.com/evilmartians/lefthook
+#
+# Install once with: ./scripts/install-hooks.sh
+# Uninstall with:   ./scripts/install-hooks.sh --uninstall
+#
+# CI remains the source of truth — these hooks are developer convenience
+# guards to catch fmt/clippy issues before a push reaches CI.
+
+# Skip hooks during rebase and merge commits
+skip_output:
+  - meta
+
+pre-commit:
+  skip:
+    - rebase
+    - merge
+  commands:
+    fmt:
+      name: cargo fmt --check
+      run: cargo fmt --check
+      fail_text: |
+        rustfmt found formatting issues. Run `cargo fmt` and re-stage your changes.
+
+pre-push:
+  skip:
+    - rebase
+    - merge
+  commands:
+    clippy:
+      name: cargo clippy
+      run: cargo clippy --all-targets -- -D warnings
+      fail_text: |
+        clippy found warnings. Fix them before pushing (warnings are errors in CI).
+    test-lib:
+      name: cargo test --lib
+      run: cargo test --lib --quiet
+      fail_text: |
+        Library unit tests failed. Fix the failures before pushing.
