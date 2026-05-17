@@ -8,6 +8,7 @@ Canonical status artifact for machine/human parity review.
 - This markdown table is the canonical parity source of truth.
 - Status vocabulary is strict: `implemented`, `partial`, `missing`.
 - `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` are secondary aligned exports for tooling compatibility.
+- `docs/audits/post_blitz_gap_table.md` is the post-blitz planning companion for remaining partial rows, exact evidence, GitHub project status, and next implementation slices.
 - Be conservative: do not mark as `implemented` where evidence only shows baseline or partial depth.
 - Project board checks are advisory for review flow only; do not close issues from this artifact unless `origin/main` already contains the implementation commits.
 
@@ -48,7 +49,7 @@ Canonical status artifact for machine/human parity review.
 | mindmap+wbs | core | Family parsing and baseline rendering | implemented | `tests/fixtures/non_sequence/invalid_mindmap_diagram.puml`, `tests/fixtures/non_sequence/invalid_wbs_diagram.puml` | https://plantuml.com/mindmap-diagram |
 | mindmap+wbs | advanced | Orientation/styling parity depth | partial | `docs/examples/mindmap/01_basic.svg`, `docs/examples/wbs/01_basic.svg` | https://plantuml.com/wbs-diagram |
 | salt | core | Salt parser + baseline widget render | implemented | `tests/fixtures/families/valid_salt_bootstrap.puml` | https://plantuml.com/salt |
-| salt | advanced | Full Salt widget/style breadth | partial | `tests/fixtures/families/valid_salt_login_form.puml` | https://plantuml.com/salt |
+| salt | advanced | Full Salt widget/style breadth | partial | `tests/fixtures/families/valid_salt_login_form.puml`, `tests/integration.rs` | https://plantuml.com/salt |
 | nwdiag | core | Network grammar + baseline render | implemented | `tests/fixtures/non_sequence/valid_nwdiag.puml` | https://plantuml.com/nwdiag |
 | nwdiag | advanced | Full network topology semantics | partial | `docs/examples/nwdiag/01_single_net.svg` | https://plantuml.com/nwdiag |
 | json | core | @startjson standalone family | implemented | `tests/fixtures/non_sequence/valid_json.puml` | https://plantuml.com/json |
@@ -59,11 +60,11 @@ Canonical status artifact for machine/human parity review.
 | regex | core | @startregex baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_regex.puml` | https://plantuml.com/regex |
 | regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg`, `tests/integration.rs` | https://plantuml.com/regex |
 | ebnf | core | @startebnf baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_ebnf.puml` | https://plantuml.com/ebnf |
-| ebnf | advanced | Full railroad style breadth | partial | `docs/examples/ebnf/01_simple_grammar.svg` | https://plantuml.com/ebnf |
+| ebnf | advanced | Full railroad style breadth | partial | `docs/examples/ebnf/01_simple_grammar.svg`, `tests/integration.rs` | https://plantuml.com/ebnf |
 | math | core+advanced | @startmath/@startlatex baseline plus LaTeX-ish fractions, roots, paired scripts, accents, fences, matrix environments, Greek/operators/symbols, text constructs, and big-operator layout | implemented | `tests/fixtures/non_sequence/valid_math.puml`, `tests/fixtures/families/valid_math_complex.puml`, `tests/integration.rs` | https://plantuml.com/ascii-math |
 | ditaa | core+advanced | @startditaa baseline plus options, color hints, advanced box kinds, junction connectors, diagonal connectors, and arrowheads | implemented | `tests/fixtures/non_sequence/valid_ditaa.puml`, `tests/fixtures/families/valid_ditaa_complex.puml`, `tests/integration.rs` | https://plantuml.com/ditaa |
 | chart | core | @startchart baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_chart_bar.puml`, `tests/fixtures/non_sequence/valid_chart_pie.puml` | https://plantuml.com/chart-diagram |
-| chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg` | https://plantuml.com/chart-diagram |
+| chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg`, `tests/integration.rs` | https://plantuml.com/chart-diagram |
 
 ## Board / Issue Consistency Checks
 
