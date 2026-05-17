@@ -127,6 +127,20 @@ Project starts 2026-05-01
 }
 
 #[test]
+fn gantt_project_end_extends_axis_and_renders_boundary() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+Project ends 2026-05-20
+[Build] starts 2026-05-02 and requires 2 days
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("class=\"gantt-project-end\""));
+    assert!(svg.contains("Project ends 2026-05-20"));
+    assert!(svg.contains("2026-05-20"));
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01
@@ -140,6 +154,22 @@ Beta happens on 2026-08-01
     let g = svg.find("GA").expect("ga");
     assert!(d < b && b < g, "events should be sorted by date");
     assert!(svg.contains("stroke=\"#cbd5e1\""));
+}
+
+#[test]
+fn wbs_orientation_directives_affect_svg_layout_metadata() {
+    let src = r#"@startwbs
+left to right direction
+* Launch
+** Plan
+*** Milestones
+** Build
+@endwbs
+"#;
+    let svg = puml::render_source_to_svg(src).expect("wbs render");
+    assert!(svg.contains("data-wbs-orientation=\"LeftToRight\""));
+    assert!(svg.contains(">Launch<"));
+    assert!(svg.contains(">Milestones<"));
 }
 
 #[test]

@@ -6338,6 +6338,38 @@ fn salt_advanced_widgets_render_tree_menu_tab_scroll_and_table() {
 }
 
 #[test]
+fn salt_style_directives_and_header_cells_affect_widget_svg() {
+    let src = "@startsalt\n\
+skinparam saltBackgroundColor #f8fafc\n\
+skinparam saltPanelColor #ffffff\n\
+skinparam saltBorderColor #0f172a\n\
+skinparam saltFontColor #111827\n\
+skinparam saltHeaderColor #dbeafe\n\
+skinparam saltButtonBackgroundColor #bfdbfe\n\
+skinparam saltInputBackgroundColor #eff6ff\n\
+{\n\
+|= Field | = Value |\n\
+| Name | \"Ada\" |\n\
+| Action | [Save] |\n\
+{* File | Edit}\n\
+{S horizontal 50%}\n\
+}\n\
+@endsalt\n";
+    let svg = render_source_to_svg(src).expect("styled salt should render");
+    assert!(svg.contains("data-salt-style=\"canvas\""));
+    assert!(svg.contains("fill=\"#f8fafc\""));
+    assert!(svg.contains("stroke=\"#0f172a\""));
+    assert!(svg.contains("data-salt-widget=\"header\""));
+    assert!(svg.contains("fill=\"#dbeafe\""));
+    assert!(svg.contains("fill=\"#bfdbfe\""));
+    assert!(svg.contains("fill=\"#eff6ff\""));
+    assert!(svg.contains("data-salt-widget=\"menu\""));
+    assert!(svg.contains("data-salt-widget=\"scrollbar\""));
+    assert!(svg.contains("Field"));
+    assert!(svg.contains("Save"));
+}
+
+#[test]
 fn archimate_stdlib_element_and_relation_macros_render() {
     let src = "@startarchimate\n\
 Business_Actor(customer, \"Customer\")\n\

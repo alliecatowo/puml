@@ -589,6 +589,7 @@ pub struct FamilyRelation {
     pub to: String,
     pub arrow: String,
     pub label: Option<String>,
+    pub stereotype: Option<String>,
     pub left_cardinality: Option<String>,
     pub right_cardinality: Option<String>,
     pub left_role: Option<String>,

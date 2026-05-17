@@ -19,7 +19,7 @@ Canonical status artifact for machine/human parity review.
 | Family | Slice | Feature | Status | Evidence | PlantUML Reference |
 |---|---|---|---|---|---|
 | sequence | core | Basic messages and participants | implemented | `tests/fixtures/basic/hello.puml` | https://plantuml.com/sequence-diagram |
-| sequence | advanced | Arrow/style breadth and teoz semantics | partial | `tests/fixtures/arrows/valid_expanded_forms.puml` | https://plantuml.com/sequence-diagram |
+| sequence | advanced | Arrow/style breadth, participant placement, and teoz semantics | partial | `tests/fixtures/arrows/valid_expanded_forms.puml`, `tests/render_e2e.rs::render_sequence_participant_order_controls_lifeline_placement` | https://plantuml.com/sequence-diagram |
 | class | core | Core declarations and relations | implemented | `tests/fixtures/families/valid_class_with_relations.puml` | https://plantuml.com/class-diagram |
 | class | advanced | Full class styling/edge semantics | partial | `tests/fixtures/families/valid_class_visibility.puml`, `tests/fixtures/styling/valid_skinparam_class.puml`, `tests/integration.rs::family_notes_render_for_core_uml_families` | https://plantuml.com/class-diagram |
 | object | core | Object declarations/relations | implemented | `tests/fixtures/families/valid_object_bootstrap.puml` | https://plantuml.com/object-diagram |
@@ -51,7 +51,7 @@ Canonical status artifact for machine/human parity review.
 | mindmap+wbs | core | Family parsing and baseline rendering | implemented | `tests/fixtures/non_sequence/invalid_mindmap_diagram.puml`, `tests/fixtures/non_sequence/invalid_wbs_diagram.puml` | https://plantuml.com/mindmap-diagram |
 | mindmap+wbs | advanced | Orientation/styling parity depth | partial | `docs/examples/mindmap/01_basic.svg`, `docs/examples/wbs/01_basic.svg` | https://plantuml.com/wbs-diagram |
 | salt | core | Salt parser + baseline widget render | implemented | `tests/fixtures/families/valid_salt_bootstrap.puml` | https://plantuml.com/salt |
-| salt | advanced | Full Salt widget/style breadth | partial | `tests/fixtures/families/valid_salt_login_form.puml`, `tests/integration.rs`; supports label/input/button/combo/checkbox/radio rows, prefix-label rows, separators, and tree/menu/tab/scroll/table widgets, but advanced styling remains partial | https://plantuml.com/salt |
+| salt | advanced | Full Salt widget/style breadth | partial | `tests/fixtures/families/valid_salt_login_form.puml`, `tests/integration.rs`; supports label/input/button/combo/checkbox/radio rows, prefix-label rows, separators, tree/menu/tab/scroll/table widgets, header cells, and deterministic Salt color/font style directives, but advanced styling remains partial | https://plantuml.com/salt |
 | nwdiag | core | Network grammar + baseline render | implemented | `tests/fixtures/non_sequence/valid_nwdiag.puml` | https://plantuml.com/nwdiag |
 | nwdiag | advanced | Full network topology semantics | partial | `docs/examples/nwdiag/01_single_net.svg` | https://plantuml.com/nwdiag |
 | json | core | @startjson standalone family | implemented | `tests/fixtures/non_sequence/valid_json.puml` | https://plantuml.com/json |

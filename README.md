@@ -315,7 +315,7 @@ python3 ./scripts/differential_oracle_smoke.py --quick --strict --output docs/be
 | Area | Status | Notes |
 |---|---|---|
 | `@startuml` / `@enduml` blocks | Supported | Also accepts plain single-diagram text input. |
-| Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`. |
+| Participants + aliases | Supported | `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`; PlantUML `order` placement hints such as `participant First order 10`. |
 | Messages + arrows | Supported | `->`, `-->`, `->>`, `-->>`, `<-`, `<--`, `->x`, `-\`, `-\\`, `-/`, `-//`, `->o`, `<->`, `<-->`, bracketed PlantUML arrow color/style decorations such as `-[#red,dashed]>` (normalized to the portable arrow core), and synchronous/async forms. |
 | Virtual endpoints | Supported | `[`, `]` incoming/outgoing messages; `[*]`, found/lost directionality semantics. |
 | Notes | Supported | `note left/right/over`, `hnote`, `rnote`, across/alignment behavior; multi-line `note ... end note`; `note over A, B`. |

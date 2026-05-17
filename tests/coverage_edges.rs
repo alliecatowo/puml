@@ -536,6 +536,7 @@ fn normalize_family_accepts_metadata_and_preprocessor_directives_in_stub_slice()
                     to: "U".to_string(),
                     arrow: "-->".to_string(),
                     label: Some("owns".to_string()),
+                    stereotype: None,
                     left_cardinality: None,
                     right_cardinality: None,
                     left_role: None,
@@ -593,6 +594,7 @@ fn normalize_family_rejects_sequence_only_events_in_bootstrap_slice() {
                 name: "User".to_string(),
                 alias: None,
                 display: None,
+                order: None,
             }),
         }],
     };

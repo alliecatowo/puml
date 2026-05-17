@@ -143,6 +143,45 @@ fn render_sequence_lifecycle_shortcuts_have_visible_markers() {
 }
 
 #[test]
+fn render_sequence_participant_order_controls_lifeline_placement() {
+    let src = "@startuml\nparticipant Last order 30\nparticipant Middle order 20\nparticipant First order 10\nFirst -> Last : ordered\n@enduml\n";
+    let doc = puml::parse(src).expect("parse");
+    let model = puml::normalize(doc).expect("normalize");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    let ids = scene
+        .participants
+        .iter()
+        .map(|p| p.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["First", "Middle", "Last"]);
+
+    let first_x = scene
+        .participants
+        .iter()
+        .find(|p| p.id == "First")
+        .expect("First participant")
+        .x;
+    let last_x = scene
+        .participants
+        .iter()
+        .find(|p| p.id == "Last")
+        .expect("Last participant")
+        .x;
+    assert!(
+        first_x < last_x,
+        "participant order should affect x placement"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("ordered"));
+    assert_snapshot!(
+        "render_sequence_participant_order_controls_lifeline_placement",
+        svg
+    );
+}
+
+#[test]
 fn render_sequence_explicit_lifecycle_has_activation_and_destroy_marker() {
     let src = fixture("lifecycle/valid_create_activate_destroy.puml");
     let svg = puml::render_source_to_svg(&src).expect("explicit lifecycle render");
