@@ -2,7 +2,11 @@ use clap::{ArgAction, Parser, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Parser)]
-#[command(name = "puml", version, about = "PicoUML polymorphic sequence CLI")]
+#[command(
+    name = "puml",
+    version,
+    about = "Rust-native PlantUML-compatible diagram renderer"
+)]
 pub struct Cli {
     /// Print puml-lsp capability manifest and exit.
     #[arg(long, action = ArgAction::SetTrue)]

@@ -5,8 +5,10 @@ Last updated: 2026-05-17 (America/Los_Angeles)
 
 This matrix tracks deterministic parser/frontend conformance for block boundaries,
 directive handling edges, comments/quoted-text behavior, and multi-block extraction.
-It is scoped to exercised frontend behaviors only. It does not assert full
-PlantUML 1:1 parity; use
+It is scoped to exercised frontend behaviors only. `puml` is the Rust renderer
+binary/engine, PlantUML is the compatibility target, PicoUML is the project-owned
+frontend surface, and Mermaid is an adapter frontend for selected families. This
+matrix does not assert full PlantUML 1:1 parity; use
 [`docs/audits/plantuml_parity_source_of_truth.md`](audits/plantuml_parity_source_of_truth.md)
 as the canonical current implemented/partial/missing status. Rows here are
 runtime contract checks for selected frontend behavior, not a broader language
