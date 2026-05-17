@@ -4431,6 +4431,48 @@ fn preprocessor_builtin_chain_composes_substr_upper_intval_dec2hex() {
 }
 
 #[test]
+fn preprocessor_dynamic_call_user_func_invokes_function_expression() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_dynamic_call_user_func.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(label, "hi Bob");
+}
+
+#[test]
+fn preprocessor_color_math_builtins_expand_deterministically() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_builtin_color_math.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let label = json["statements"][0]["kind"]["Message"]["label"]
+        .as_str()
+        .unwrap();
+    assert_eq!(label, "7 true #ffffff #7f7f7f #000000");
+}
+
+#[test]
 fn preprocessor_include_directives_are_deterministic_for_same_input() {
     // Deterministic-bytes contract for the new include surface: rendering
     // the same source twice yields identical AST bytes.
@@ -5650,6 +5692,14 @@ fn json_projection_inline_parse_roundtrip() {
     let svg = render_source_to_svg(src).expect("inline json projection should render");
     assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
     assert!(svg.contains("key"), "SVG must contain key 'key'");
+}
+
+#[test]
+fn yaml_projection_render_contains_alias_and_keys() {
+    let src = fs::read_to_string(fixture("families/valid_yaml_projection.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("yaml projection should render");
+    assert!(svg.contains("$cfg"), "SVG must contain alias '$cfg'");
+    assert!(svg.contains("name"), "SVG must contain YAML key 'name'");
 }
 
 #[test]

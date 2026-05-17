@@ -1,0 +1,7 @@
+@startuml
+yaml $cfg {
+  name: Alice
+  role: admin
+  active: true
+}
+@enduml

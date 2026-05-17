@@ -1500,6 +1500,12 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
+        StatementKind::JsonProjection { alias, body } => json!({
+            "JsonProjection": {"alias": alias, "body": body}
+        }),
+        StatementKind::YamlProjection { alias, body } => json!({
+            "YamlProjection": {"alias": alias, "body": body}
+        }),
         other => json!({"Other": format!("{other:?}")}),
     }
 }

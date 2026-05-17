@@ -2255,9 +2255,9 @@ fn dispatch_builtin(
                     ),
                 ));
             }
-            let tail = expanded_args[1..]
-                .iter()
-                .map(|v| format!("\"{}\"", v.replace('"', "\\\"")))
+            let tail = split_args(args_raw)?
+                .into_iter()
+                .skip(1)
                 .collect::<Vec<_>>()
                 .join(", ");
             Some(execute_function_call(
@@ -2267,6 +2267,15 @@ fn dispatch_builtin(
                 call_depth + 1,
             )?)
         }
+        "abs" => Some(parse_int_lenient(&arg(0)).abs().to_string()),
+        "is_dark" => Some(is_dark_color(&arg(0)).to_string()),
+        "reverse_color" => Some(
+            parse_hex_rgb(&arg(0))
+                .map(|(r, g, b)| format!("#{:02x}{:02x}{:02x}", 255 - r, 255 - g, 255 - b))
+                .unwrap_or_default(),
+        ),
+        "lighten" => Some(adjust_color(&arg(0), parse_int_lenient(&arg(1)), true)),
+        "darken" => Some(adjust_color(&arg(0), parse_int_lenient(&arg(1)), false)),
         _ => None,
     };
     Ok(result)
@@ -2304,6 +2313,53 @@ fn parse_int_lenient(s: &str) -> i64 {
         return 0;
     }
     t[..end].parse::<i64>().unwrap_or(0)
+}
+
+fn parse_hex_rgb(raw: &str) -> Option<(u8, u8, u8)> {
+    let mut s = raw.trim();
+    if let Some(rest) = s.strip_prefix('#') {
+        s = rest;
+    }
+    if s.len() == 3 {
+        let mut expanded = String::with_capacity(6);
+        for ch in s.chars() {
+            expanded.push(ch);
+            expanded.push(ch);
+        }
+        return parse_hex_rgb(&expanded);
+    }
+    if s.len() != 6 || !s.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+    Some((r, g, b))
+}
+
+fn is_dark_color(raw: &str) -> bool {
+    let Some((r, g, b)) = parse_hex_rgb(raw) else {
+        return false;
+    };
+    let luminance = (u32::from(r) * 299 + u32::from(g) * 587 + u32::from(b) * 114) / 1000;
+    luminance < 128
+}
+
+fn adjust_color(raw: &str, pct: i64, lighten: bool) -> String {
+    let Some((r, g, b)) = parse_hex_rgb(raw) else {
+        return String::new();
+    };
+    let pct = pct.clamp(0, 100) as i32;
+    let adjust = |v: u8| -> u8 {
+        let v = i32::from(v);
+        let next = if lighten {
+            v + ((255 - v) * pct / 100)
+        } else {
+            v - (v * pct / 100)
+        };
+        next.clamp(0, 255) as u8
+    };
+    format!("#{:02x}{:02x}{:02x}", adjust(r), adjust(g), adjust(b))
 }
 
 /// PlantUML-ish truthiness for `%boolval`/`%not`.
@@ -3266,7 +3322,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        // Inline JSON projection: `json $alias {` ... `}`
+        // Inline JSON/YAML projection: `json $alias {` / `yaml $alias {` ... `}`
         // Valid inside @startuml/@enduml blocks for object-diagram-like use.
         // Marks the document as Class family (rendered via render_class_svg).
         if let Some((kind, end_idx)) = parse_json_projection_block(&lines, i, line)? {
@@ -5833,20 +5889,24 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
     )
 }
 
-/// Parse an inline `json $alias { ... }` block.
-/// Returns `(StatementKind::JsonProjection, closing_line_idx)` if found, else `None`.
-/// Errors if `json <id> {` is found but no matching closing `}` appears.
+/// Parse an inline `json $alias { ... }` or `yaml $alias { ... }` block.
+/// Returns the projection statement and closing line index if found, else `None`.
+/// Errors if a projection block is found but no matching closing `}` appears.
 fn parse_json_projection_block(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
-    // Match: `json` <whitespace> <identifier starting with optional $> `{`
+    // Match: `json|yaml` <whitespace> <identifier starting with optional $> `{`
     let lower = line.to_ascii_lowercase();
-    if !lower.starts_with("json ") {
+    let (keyword, is_yaml) = if lower.starts_with("json ") {
+        ("json", false)
+    } else if lower.starts_with("yaml ") {
+        ("yaml", true)
+    } else {
         return Ok(None);
-    }
-    let rest = line["json ".len()..].trim();
+    };
+    let rest = line[keyword.len() + 1..].trim();
     if rest.is_empty() {
         return Ok(None);
     }
@@ -5895,7 +5955,12 @@ fn parse_json_projection_block(
                 depth -= 1;
                 if depth == 0 {
                     let body = inline_after_brace[..j].trim().to_string();
-                    return Ok(Some((StatementKind::JsonProjection { alias, body }, start)));
+                    let kind = if is_yaml {
+                        StatementKind::YamlProjection { alias, body }
+                    } else {
+                        StatementKind::JsonProjection { alias, body }
+                    };
+                    return Ok(Some((kind, start)));
                 }
             }
             j += 1;
@@ -5931,7 +5996,12 @@ fn parse_json_projection_block(
                 body_lines.push(last_body);
             }
             let body = body_lines.join("\n");
-            return Ok(Some((StatementKind::JsonProjection { alias, body }, i)));
+            let kind = if is_yaml {
+                StatementKind::YamlProjection { alias, body }
+            } else {
+                StatementKind::JsonProjection { alias, body }
+            };
+            return Ok(Some((kind, i)));
         }
         body_lines.push(trimmed);
         i += 1;
@@ -5939,8 +6009,7 @@ fn parse_json_projection_block(
 
     // No closing brace found.
     Err(Diagnostic::error(format!(
-        "[E_JSON_PROJECTION_UNCLOSED] `json {}` block has no matching closing `}}`",
-        alias
+        "[E_PROJECTION_UNCLOSED] `{keyword} {alias}` block has no matching closing `}}`"
     ))
     .with_span(lines[start].1))
 }
