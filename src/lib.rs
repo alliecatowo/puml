@@ -5,6 +5,7 @@ pub mod layout;
 pub mod model;
 pub mod normalize;
 pub mod parser;
+mod preproc;
 pub mod render;
 pub mod scene;
 pub mod source;
