@@ -16,6 +16,7 @@ const GALLERY_FENCE_LANGS: &[&str] = &[
     "uml-sequence",
     "mermaid",
 ];
+const DOC_SOURCE_EXTS: &[&str] = &["puml", "plantuml", "picouml"];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct DocExampleKey {
@@ -53,6 +54,40 @@ fn parse_expected_gallery_entries() -> Vec<DocExampleKey> {
     let md_files = markdown_files_under(&root);
     let mut expected = Vec::new();
 
+    let mut stack = vec![root.clone()];
+    while let Some(dir) = stack.pop() {
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+                    continue;
+                };
+                if !DOC_SOURCE_EXTS.contains(&ext) {
+                    continue;
+                }
+                let artifact = path.with_extension("svg");
+                expected.push(DocExampleKey {
+                    source_markdown: "".to_string(),
+                    source_kind: "source_file".to_string(),
+                    source_ref: path
+                        .strip_prefix(env!("CARGO_MANIFEST_DIR"))
+                        .expect("repo-relative source path")
+                        .to_string_lossy()
+                        .to_string(),
+                    artifact_svg: artifact
+                        .strip_prefix(env!("CARGO_MANIFEST_DIR"))
+                        .expect("repo-relative artifact path")
+                        .to_string_lossy()
+                        .to_string(),
+                });
+            }
+        }
+    }
+
     for md_path in md_files {
         let raw = fs::read_to_string(&md_path).expect("docs/examples markdown should be readable");
         let rel_md = md_path
@@ -60,43 +95,6 @@ fn parse_expected_gallery_entries() -> Vec<DocExampleKey> {
             .expect("repo-relative markdown path")
             .to_string_lossy()
             .to_string();
-
-        let mut cursor = 0usize;
-        while let Some(open_idx) = raw[cursor..].find("](") {
-            let start = cursor + open_idx + 2;
-            let Some(close_rel) = raw[start..].find(')') else {
-                break;
-            };
-            let end = start + close_rel;
-            let trimmed = &raw[start..end];
-            cursor = end + 1;
-            if !trimmed.ends_with(".puml") {
-                continue;
-            }
-            let puml_path = md_path
-                .parent()
-                .expect("markdown parent")
-                .join(trimmed)
-                .canonicalize()
-                .expect("linked .puml path should exist");
-            let artifact = puml_path.with_extension("svg");
-            let source_ref = puml_path
-                .strip_prefix(env!("CARGO_MANIFEST_DIR"))
-                .expect("repo-relative .puml path")
-                .to_string_lossy()
-                .to_string();
-            let artifact_svg = artifact
-                .strip_prefix(env!("CARGO_MANIFEST_DIR"))
-                .expect("repo-relative artifact path")
-                .to_string_lossy()
-                .to_string();
-            expected.push(DocExampleKey {
-                source_markdown: rel_md.clone(),
-                source_kind: "linked_file".to_string(),
-                source_ref,
-                artifact_svg,
-            });
-        }
 
         let mut snippet_index = 0usize;
         for line in raw.lines() {
@@ -209,6 +207,11 @@ fn parity_harness_report_schema_is_stable() {
         Some(0),
         "doc example SVG artifacts should match current renderer output"
     );
+    assert_eq!(
+        json["doc_examples"]["summary"]["excluded"].as_u64(),
+        Some(4),
+        "intentionally excluded docs examples should be explicit and rare"
+    );
 
     let expected = parse_expected_gallery_entries();
     let mut discovered = json["doc_examples"]["entries"]
@@ -236,7 +239,26 @@ fn parity_harness_report_schema_is_stable() {
 
     assert_eq!(
         discovered, expected,
-        "parity harness doc gallery discovery should stay in lock-step with docs/examples markdown links and supported fenced snippets"
+        "parity harness doc gallery discovery should stay in lock-step with all docs/examples source files and supported fenced snippets"
+    );
+
+    let entries = json["doc_examples"]["entries"]
+        .as_array()
+        .expect("doc_examples.entries should be an array");
+    let excluded = entries
+        .iter()
+        .find(|entry| {
+            entry["source_ref"].as_str()
+                == Some("docs/examples/nonuml_parity_gantt_chart_topology.puml")
+        })
+        .expect("mixed-family topology source should be reported");
+    assert_eq!(excluded["status"].as_str(), Some("excluded"));
+    assert!(
+        excluded["exclusion_reason"]
+            .as_str()
+            .map(|reason| reason.contains("mixed-family"))
+            .unwrap_or(false),
+        "excluded docs example should carry a concrete reason"
     );
 }
 
