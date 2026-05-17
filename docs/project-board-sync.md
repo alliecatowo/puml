@@ -41,6 +41,12 @@ Checked on 2026-05-17 with `gh api graphql` and `gh project item-list`:
 ## Usage
 
 ```bash
+# Report board/PR hygiene without mutating Project #3
+./scripts/project-board-hygiene.py
+
+# Return non-zero when stale board items or PR body issues are found
+./scripts/project-board-hygiene.py --fail-on-findings
+
 # Preview what would change (no mutations)
 ./scripts/project-board-sync.sh --dry-run
 
@@ -60,6 +66,52 @@ Checked on 2026-05-17 with `gh api graphql` and `gh project item-list`:
 |---|---|---|
 | `GITHUB_OWNER` | `@me` | GitHub login or org owning the project |
 | `PUML_PROJECT_TITLE` | `PUML` | Project board title to match |
+
+## Hygiene Report
+
+`scripts/project-board-hygiene.py` is the lightweight read-only sweep for issue
+and PR board hygiene. It reports:
+
+- closed issues and merged PRs on Project #3 whose `Status` is not `Done`
+- open issues and open PRs whose Project #3 `Status` is blank
+- open PRs whose body contains neither `Closes #...` nor the explicit phrase
+  `Does not close an issue`
+
+The default command is report-only:
+
+```bash
+./scripts/project-board-hygiene.py
+```
+
+Useful variants:
+
+```bash
+# Machine-readable output for CI or local scripting
+./scripts/project-board-hygiene.py --json
+
+# Gate on findings without editing the board
+./scripts/project-board-hygiene.py --fail-on-findings
+
+# Preview setting stale closed/merged items to Done
+./scripts/project-board-hygiene.py --apply-done
+
+# Actually edit stale closed/merged items to Done
+./scripts/project-board-hygiene.py --apply-done --no-dry-run
+```
+
+`--apply-done` only updates stale closed issue / merged PR items. It does not
+guess statuses for blank active items, and it does not edit PR descriptions.
+Mutation remains dry-run by default. To apply changes, authenticate `gh` with a
+token that can read repository issues/PRs and write the user-owned Projects v2
+board. In practice for this repo that means `repo` plus `project` on a classic
+PAT, or equivalent fine-grained access where GitHub supports Project v2 writes.
+
+The script defaults to `alliecatowo/puml` and Project `alliecatowo/3`. Override
+with `--repo`, `--project-owner`, or `--project-number` when testing elsewhere.
+Because `gh project item-list` does not consistently include linked issue/PR
+state, the script enriches non-Done items with `gh issue view` / `gh pr view`.
+Use `--skip-state-enrichment` only for fixture/debug runs where state is already
+present in the input JSON.
 
 ## What It Does
 
@@ -143,3 +195,5 @@ settings; in that case use `PUML_PROJECT_TOKEN`.
 - GitHub's current Actions guidance says repository `GITHUB_TOKEN` is scoped to
   the repository and cannot access Projects; user projects should use a personal
   access token saved as a secret.
+- The hygiene report can be slower than `gh project item-list` alone because it
+  enriches non-Done items with linked issue/PR state before classifying them.
