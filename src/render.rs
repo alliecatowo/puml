@@ -5255,15 +5255,18 @@ fn render_chart_line(
     top: i32,
     right: i32,
     bottom: i32,
+    style: &crate::theme::ChartStyle,
 ) {
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{b}\" x2=\"{r}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        style.axis_color,
         l = left,
         r = right,
         b = bottom
     ));
     out.push_str(&format!(
-        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+        "<line x1=\"{l}\" y1=\"{t}\" x2=\"{l}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        style.axis_color,
         l = left,
         t = top,
         b = bottom
@@ -5288,27 +5291,37 @@ fn render_chart_line(
         }
         points.push_str(&format!("{px},{py}"));
         out.push_str(&format!(
-            "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"#1d4ed8\"/>"
+            "<circle cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+            style.line_color
         ));
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            style.font_color,
             escape_text(&point.label),
             tx = px,
             ty = bottom + 16
         ));
     }
     out.push_str(&format!(
-        "<polyline points=\"{}\" fill=\"none\" stroke=\"#1d4ed8\" stroke-width=\"1.5\"/>",
-        points
+        "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        points, style.line_color
     ));
 }
 
-fn render_chart_pie(out: &mut String, data: &[crate::model::ChartPoint], cx: i32, cy: i32) {
+fn render_chart_pie(
+    out: &mut String,
+    data: &[crate::model::ChartPoint],
+    cx: i32,
+    cy: i32,
+    style: &crate::theme::ChartStyle,
+) {
     let radius = 120_i32;
     let total: f64 = data.iter().map(|p| p.value.max(0.0)).sum();
     if total <= 0.0 {
         out.push_str(&format!(
-            "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\" fill=\"#e2e8f0\" stroke=\"#0f172a\" stroke-width=\"1\"/>",
+            "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            style.grid_color,
+            style.pie_border_color,
             cx = cx,
             cy = cy,
             r = radius
@@ -5331,9 +5344,14 @@ fn render_chart_pie(out: &mut String, data: &[crate::model::ChartPoint], cx: i32
         } else {
             0
         };
-        let color = CHART_PALETTE[idx % CHART_PALETTE.len()];
+        let color = if idx == 0 {
+            style.series_color.as_str()
+        } else {
+            CHART_PALETTE[idx % CHART_PALETTE.len()]
+        };
         out.push_str(&format!(
-            "<path d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{color}\" stroke=\"#0f172a\" stroke-width=\"0.5\"/>",
+            "<path d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            style.pie_border_color,
             cx = cx,
             cy = cy,
             r = radius,
@@ -5348,7 +5366,8 @@ fn render_chart_pie(out: &mut String, data: &[crate::model::ChartPoint], cx: i32
         let lx = cx as f64 + ((radius as f64) * 0.6) * mid.cos();
         let ly = cy as f64 + ((radius as f64) * 0.6) * mid.sin();
         out.push_str(&format!(
-            "<text x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#fff\">{}</text>",
+            "<text x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            style.font_color,
             escape_text(&point.label),
             lx = lx,
             ly = ly

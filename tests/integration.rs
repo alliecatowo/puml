@@ -6032,3 +6032,94 @@ fn skinparam_activity_colors_appear_in_svg() {
         "ActivityArrowColor #7e22ce should appear in SVG"
     );
 }
+
+#[test]
+fn family_theme_applies_to_class_state_component_activity_timing_and_chart() {
+    let cases = [
+        (
+            "@startuml\n!theme vibrant\nclass Demo\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\n[*] --> Ready\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\ncomponent API\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\nstart\n:Ship it;\nstop\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startuml\n!theme vibrant\nclock clk\n@0\nclk is high\n@enduml\n",
+            ["#ede9fe", "#7c3aed"],
+        ),
+        (
+            "@startchart\n!theme vibrant\nbar\n\"A\" 1\n@endchart\n",
+            ["#7c3aed", "#6d28d9"],
+        ),
+    ];
+
+    for (src, expected) in cases {
+        let svg = render_source_to_svg(src).expect("themed family should render");
+        for color in expected {
+            assert!(
+                svg.contains(color),
+                "expected themed color {color} in SVG: {svg}"
+            );
+        }
+    }
+}
+
+#[test]
+fn timing_skinparam_colors_are_accepted_and_rendered() {
+    let src = "@startuml\nskinparam TimingBackgroundColor #101820\nskinparam TimingAxisColor #f2aa4c\nskinparam TimingGridColor #5f6f89\nskinparam TimingSignalBackgroundColor #dbeafe\nskinparam TimingSignalBorderColor #1d4ed8\nskinparam TimingArrowColor #dc2626\nskinparam TimingFontColor #f8fafc\nclock clk\n@0\nclk is high\n@enduml\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(src).expect("timing skinparam svg should render");
+    for color in [
+        "#101820", "#f2aa4c", "#5f6f89", "#dbeafe", "#1d4ed8", "#dc2626", "#f8fafc",
+    ] {
+        assert!(svg.contains(color), "expected timing color {color}");
+    }
+}
+
+#[test]
+fn chart_skinparam_colors_are_accepted_and_rendered() {
+    let src = "@startchart\nskinparam ChartBackgroundColor #fff7ed\nskinparam ChartAxisColor #9a3412\nskinparam ChartGridColor #fed7aa\nskinparam ChartSeriesColor #0f766e\nskinparam ChartBarColor #ea580c\nskinparam ChartLineColor #0369a1\nskinparam ChartPieBorderColor #431407\nskinparam ChartFontColor #7c2d12\nbar\n\"A\" 4\n\"B\" 9\n@endchart\n";
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(src).expect("chart skinparam svg should render");
+    for color in ["#fff7ed", "#9a3412", "#ea580c", "#7c2d12"] {
+        assert!(svg.contains(color), "expected chart color {color}");
+    }
+
+    let line_svg = render_source_to_svg(
+        "@startchart\nskinparam ChartLineColor #0369a1\nline\n\"A\" 1\n\"B\" 2\n@endchart\n",
+    )
+    .expect("chart line skinparam svg should render");
+    assert!(line_svg.contains("#0369a1"));
+
+    let pie_svg = render_source_to_svg(
+        "@startchart\nskinparam ChartSeriesColor #0f766e\nskinparam ChartPieBorderColor #431407\npie\n\"A\" 1\n\"B\" 2\n@endchart\n",
+    )
+    .expect("chart pie skinparam svg should render");
+    assert!(pie_svg.contains("#0f766e"));
+    assert!(pie_svg.contains("#431407"));
+}
