@@ -713,6 +713,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/valid_arrow_variant_tokenization.puml",
         "arrows/valid_rare_arrow_styles.puml",
         "arrows/valid_dotted_parallel_sequence_edges.puml",
+        "arrows/valid_teoz_overlapping_routes.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",

@@ -242,6 +242,7 @@ pub fn render_svg(scene: &Scene) -> String {
             .map(f32::from)
             .unwrap_or(1.5)
             .clamp(1.0, 8.0);
+        let line_y = m.route_y;
         if m.x1 == m.x2 {
             let loop_w = 46;
             let loop_h = 26;
@@ -250,17 +251,17 @@ pub fn render_svg(scene: &Scene) -> String {
             out.push_str(&format!(
                 "<path d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
                 m.x1,
-                m.y,
+                line_y,
                 x2,
-                m.y,
+                line_y,
                 x2,
-                m.y + loop_h,
+                line_y + loop_h,
                 m.x1,
-                m.y + loop_h,
+                line_y + loop_h,
                 x2,
-                m.y + loop_h * 2,
+                line_y + loop_h * 2,
                 m.x1,
-                m.y + loop_h * 2,
+                line_y + loop_h * 2,
                 stroke_color,
                 stroke_width,
                 stroke_dash,
@@ -269,16 +270,16 @@ pub fn render_svg(scene: &Scene) -> String {
         } else {
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
-                m.x1, m.y, m.x2, m.y, stroke_color, stroke_width, stroke_dash, hidden
+                m.x1, line_y, m.x2, line_y, stroke_color, stroke_width, stroke_dash, hidden
             ));
         }
         render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, stroke_width, hidden);
 
         if let Some(virtual_ep) = m.from_virtual {
-            render_virtual_endpoint_marker(&mut out, m.x1, m.y, virtual_ep.kind);
+            render_virtual_endpoint_marker(&mut out, m.x1, line_y, virtual_ep.kind);
         }
         if let Some(virtual_ep) = m.to_virtual {
-            render_virtual_endpoint_marker(&mut out, m.x2, m.y, virtual_ep.kind);
+            render_virtual_endpoint_marker(&mut out, m.x2, line_y, virtual_ep.kind);
         }
 
         if !m.label_lines.is_empty() {
@@ -293,9 +294,9 @@ pub fn render_svg(scene: &Scene) -> String {
                 0
             };
             let start_y = if m.style.parallel || below {
-                m.y + 16 + lane_offset
+                line_y + 16 + lane_offset
             } else {
-                m.y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
+                line_y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
             };
             for (idx, line) in m.label_lines.iter().enumerate() {
                 out.push_str(&creole_text(
@@ -309,9 +310,9 @@ pub fn render_svg(scene: &Scene) -> String {
         } else if let Some(label) = &m.label {
             let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
             let ty = if scene.style.response_message_below_arrow && m.arrow.starts_with('<') {
-                m.y + 16
+                line_y + 16
             } else {
-                m.y - 8
+                line_y - 8
             };
             out.push_str(&creole_text(
                 tx,
@@ -515,7 +516,7 @@ fn render_sequence_arrow_heads(
         render_arrow_head(
             out,
             ArrowHeadRender {
-                point: (m.x1, m.y),
+                point: (m.x1, m.route_y),
                 from_to_x: (m.x2, m.x1),
                 open: open_head,
                 slant: left_slant,
@@ -529,7 +530,7 @@ fn render_sequence_arrow_heads(
         render_arrow_head(
             out,
             ArrowHeadRender {
-                point: (m.x2, m.y),
+                point: (m.x2, m.route_y),
                 from_to_x: (m.x1, m.x2),
                 open: open_head,
                 slant: right_slant,
@@ -540,10 +541,26 @@ fn render_sequence_arrow_heads(
         );
     }
     if let Some(marker) = left_marker {
-        render_arrow_endpoint_marker(out, m.x1, m.y, marker, stroke_color, stroke_width, hidden);
+        render_arrow_endpoint_marker(
+            out,
+            m.x1,
+            m.route_y,
+            marker,
+            stroke_color,
+            stroke_width,
+            hidden,
+        );
     }
     if let Some(marker) = right_marker {
-        render_arrow_endpoint_marker(out, m.x2, m.y, marker, stroke_color, stroke_width, hidden);
+        render_arrow_endpoint_marker(
+            out,
+            m.x2,
+            m.route_y,
+            marker,
+            stroke_color,
+            stroke_width,
+            hidden,
+        );
     }
 }
 

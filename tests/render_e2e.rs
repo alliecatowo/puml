@@ -205,6 +205,46 @@ fn render_sequence_dotted_parallel_edges_share_teoz_row_deterministically() {
 }
 
 #[test]
+fn render_sequence_teoz_overlapping_parallel_routes_get_distinct_lanes() {
+    let src = fixture("arrows/valid_teoz_overlapping_routes.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    assert!(doc.teoz);
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    assert_eq!(scene.messages.len(), 5);
+    let shared_row_y = scene.messages[0].y;
+    assert!(
+        scene.messages[..4]
+            .iter()
+            .all(|message| message.y == shared_row_y),
+        "Teoz `&` messages stay attached to the initiating row"
+    );
+    let route_lanes = scene.messages[..4]
+        .iter()
+        .map(|message| message.route_y)
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        route_lanes.len(),
+        4,
+        "overlapping Teoz messages should not collapse onto one rendered route"
+    );
+    assert!(
+        scene.messages[4].y > *route_lanes.iter().max().unwrap(),
+        "the following row should clear the routed parallel lanes"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("duplicate route"));
+    assert!(svg.contains("self audit"));
+    assert!(svg.contains("route labels stay readable"));
+    assert_snapshot!(
+        "render_sequence_teoz_overlapping_parallel_routes_get_distinct_lanes",
+        svg
+    );
+}
+
+#[test]
 fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
     let src = fixture("e2e/sequence_parity_vertical_slice.puml");
     let ast = puml::parse(&src).expect("parse");

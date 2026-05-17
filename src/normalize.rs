@@ -4459,6 +4459,7 @@ fn page_from(
     SequencePage {
         participants: document.participants.clone(),
         events: events.to_vec(),
+        teoz: document.teoz,
         title,
         header: document.header.clone(),
         footer: document.footer.clone(),
@@ -4482,6 +4483,19 @@ fn cleaned_title(value: &Option<String>) -> Option<String> {
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .map(ToOwned::to_owned)
+}
+
+fn parse_teoz_pragma(lower: &str) -> Option<bool> {
+    let mut parts = lower.split_whitespace();
+    if parts.next()? != "teoz" {
+        return None;
+    }
+    match parts.next() {
+        None => Some(true),
+        Some("true" | "on" | "yes") => Some(true),
+        Some("false" | "off" | "no") => Some(false),
+        Some(_) => Some(true),
+    }
 }
 
 pub fn normalize_with_options(
@@ -4509,6 +4523,7 @@ pub fn normalize_with_options(
     let mut legend_halign = LegendHAlign::default();
     let mut legend_valign = LegendVAlign::default();
     let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut teoz = false;
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
     let mut group_stack: Vec<GroupFrame> = Vec::new();
@@ -4850,7 +4865,7 @@ pub fn normalize_with_options(
                 let trimmed = value.trim();
                 let lower = trimmed.to_ascii_lowercase();
                 if lower.starts_with("teoz ") || lower == "teoz" {
-                    // Accept teoz pragma as a deterministic no-op compatibility hint.
+                    teoz = parse_teoz_pragma(&lower).unwrap_or(true);
                 } else if lower == "sequencemessagespan true"
                     || lower == "sequence message span true"
                 {
@@ -5202,6 +5217,7 @@ pub fn normalize_with_options(
     Ok(SequenceDocument {
         participants,
         events,
+        teoz,
         title,
         header,
         footer,

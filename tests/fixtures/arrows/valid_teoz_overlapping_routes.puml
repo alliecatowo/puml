@@ -1,0 +1,19 @@
+@startuml
+!pragma teoz true
+participant Client
+participant Worker
+participant Store
+
+activate Worker
+Client -> Worker : schedule
+& Client -> Worker : duplicate route
+& Worker -> Worker : self audit
+& Worker -> Store : persist
+
+note over Client, Store : route labels stay readable
+
+group completion
+Worker --> Client : done
+end
+deactivate Worker
+@enduml

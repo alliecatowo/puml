@@ -685,6 +685,7 @@ fn normalize_emits_deterministic_pragma_warnings() {
     let teoz_doc = parse(teoz_src).expect("parse should succeed");
     let teoz_model = normalize::normalize(teoz_doc).expect("normalize should succeed");
     assert_eq!(teoz_model.warnings.len(), 0);
+    assert!(teoz_model.teoz);
 
     let generic_src = "@startuml\n!pragma foo bar\nA -> B: hi\n@enduml\n";
     let generic_doc = parse(generic_src).expect("parse should succeed");
