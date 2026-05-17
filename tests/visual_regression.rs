@@ -356,16 +356,87 @@ struct Failure {
     reasons: Vec<String>,
 }
 
-const FOCUSED_TEXT_SWEEP_FIXTURES: &[&str] = &[
-    "docs/examples/sequence/01_basic.puml",
-    "docs/examples/class/01_basic.puml",
-    "docs/examples/class/02_inheritance.puml",
-    "docs/examples/activity/01_simple_flow.puml",
-    "docs/examples/state/01_basic.puml",
-    "docs/examples/sdl/02_with_transitions.puml",
+struct FocusedTextFixture {
+    path: &'static str,
+    required_text: &'static [&'static str],
+}
+
+const NO_FOCUSED_TEXT_REQUIREMENTS: &[&str] = &[];
+
+const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
+    FocusedTextFixture {
+        path: "docs/examples/sequence/01_basic.puml",
+        required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
+    },
+    FocusedTextFixture {
+        path: "docs/examples/sequence/05_alt_opt_loop.puml",
+        required_text: &[
+            "alt credentials valid",
+            "invalid",
+            "opt remember me",
+            "loop 3 times",
+            "authenticate",
+            "token",
+            "401 Unauthorized",
+            "store session",
+            "heartbeat",
+            "pong",
+        ],
+    },
+    FocusedTextFixture {
+        path: "docs/examples/class/01_basic.puml",
+        required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
+    },
+    FocusedTextFixture {
+        path: "docs/examples/class/02_inheritance.puml",
+        required_text: &[
+            "Vehicle",
+            "Car",
+            "Truck",
+            "+make: String",
+            "+model: String",
+            "+start()",
+            "+doors: Int",
+            "+drive()",
+            "+payload: Float",
+            "+haul()",
+        ],
+    },
+    FocusedTextFixture {
+        path: "docs/examples/activity/01_simple_flow.puml",
+        required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
+    },
+    FocusedTextFixture {
+        path: "docs/examples/activity/02_if_then_else.puml",
+        required_text: &[
+            "If-Then-Else Decision",
+            "Receive Request",
+            "authenticated? / yes",
+            "(else) no",
+            "Process",
+            "Return 200",
+            "Return 401",
+            "(endif)",
+        ],
+    },
+    FocusedTextFixture {
+        path: "docs/examples/state/01_basic.puml",
+        required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
+    },
+    FocusedTextFixture {
+        path: "docs/examples/sdl/02_with_transitions.puml",
+        required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
+    },
 ];
 
 fn check_fixture(fixture: &Fixture) -> Option<Failure> {
+    check_fixture_with_required_text(fixture, NO_FOCUSED_TEXT_REQUIREMENTS)
+}
+
+fn check_fixture_with_required_text(
+    fixture: &Fixture,
+    focused_required_text: &[&str],
+) -> Option<Failure> {
     let root = workspace_root();
     let path = root.join(&fixture.path);
     if !path.exists() {
@@ -417,6 +488,14 @@ fn check_fixture(fixture: &Fixture) -> Option<Failure> {
         if !joined.contains(expected) {
             reasons.push(format!(
                 "expected text {:?} not found in any <text> element",
+                expected
+            ));
+        }
+    }
+    for expected in focused_required_text {
+        if !joined.contains(expected) {
+            reasons.push(format!(
+                "focused sweep expected text {:?} not found in any <text> element",
                 expected
             ));
         }
@@ -504,17 +583,47 @@ fn manifest_requires_semantic_text_expectations_or_explicit_exception() {
 #[test]
 fn visual_regression_focused_text_presence_sweep() {
     let manifest = load_manifest();
-    let fixtures = manifest
-        .fixtures
-        .iter()
-        .filter(|fixture| FOCUSED_TEXT_SWEEP_FIXTURES.contains(&fixture.path.as_str()))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        fixtures.len(),
-        FOCUSED_TEXT_SWEEP_FIXTURES.len(),
-        "focused visual text sweep fixture list must match manifest entries"
-    );
-    run_text_sweep(fixtures, FOCUSED_TEXT_SWEEP_FIXTURES.len());
+    let mut failures: Vec<Failure> = Vec::new();
+
+    for focused_fixture in FOCUSED_TEXT_SWEEP_FIXTURES {
+        let fixture = manifest
+            .fixtures
+            .iter()
+            .find(|fixture| fixture.path == focused_fixture.path)
+            .unwrap_or_else(|| {
+                panic!(
+                    "focused visual text sweep fixture {} must exist in manifest",
+                    focused_fixture.path
+                )
+            });
+        if let Some(failure) =
+            check_fixture_with_required_text(fixture, focused_fixture.required_text)
+        {
+            failures.push(failure);
+        }
+    }
+
+    if !failures.is_empty() {
+        let total = FOCUSED_TEXT_SWEEP_FIXTURES.len();
+        let mut report = String::new();
+        report.push_str(&format!(
+            "\nFocused visual regression: {}/{} fixtures failed\n",
+            failures.len(),
+            total
+        ));
+        for f in &failures {
+            report.push_str(&format!("\n  FIXTURE: {}\n", f.fixture));
+            for r in &f.reasons {
+                report.push_str(&format!("    - {}\n", r));
+            }
+        }
+        report.push_str(
+            "\nRendered SVGs are written to target/visual-diff/<family>/<fixture>.svg\n\
+             for inspection. See tests/visual_regression/README.md for how to add\n\
+             or update fixtures.\n",
+        );
+        panic!("{report}");
+    }
 }
 
 #[test]
