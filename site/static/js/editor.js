@@ -13,6 +13,7 @@ import { tags as t } from '@lezer/highlight';
 
 import { pumlLanguage } from './puml-lang.js';
 import { loadManifest, siteBaseUrl, assetUrl } from './manifest.js';
+import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 
 const DEFAULT_SOURCE = `@startuml
 title Sign-in handshake
@@ -54,58 +55,6 @@ const highlightStyle = HighlightStyle.define([
   { tag: t.bracket,      class: 'tok-bracket' },
   { tag: t.variableName, color: 'inherit' },
 ]);
-
-// Single shared engine: dynamic-imports the wasm-bindgen JS shim, initializes
-// the .wasm binary, then exposes render(source) used by the editor on each
-// keystroke (debounced) and Cmd/Ctrl+Enter.
-class WasmRenderer {
-  constructor(base) {
-    this.base = base;
-    this.ready = null;
-    this.module = null;
-  }
-
-  describe() { return 'Renderer: in-browser WASM'; }
-
-  async init() {
-    if (this.ready) return this.ready;
-    this.ready = (async () => {
-      const jsUrl = assetUrl(this.base, 'wasm/puml_wasm.js');
-      const wasmUrl = assetUrl(this.base, 'wasm/puml_wasm_bg.wasm');
-      const mod = await import(jsUrl);
-      await mod.default({ module_or_path: wasmUrl });
-      this.module = mod;
-    })();
-    return this.ready;
-  }
-
-  async render(source) {
-    await this.init();
-    const json = this.module.render_svgs_json(source);
-    let parsed;
-    try {
-      parsed = JSON.parse(json);
-    } catch (e) {
-      return { ok: false, diagnostics: [{ severity: 'error', message: `Renderer returned invalid JSON: ${e.message}` }] };
-    }
-    if (parsed.error) {
-      return {
-        ok: false,
-        diagnostics: [{
-          severity: parsed.error.severity || 'error',
-          message: parsed.error.message || 'Render failed.',
-          line: parsed.error.line,
-          column: parsed.error.column,
-        }],
-      };
-    }
-    const pages = Array.isArray(parsed.ok) ? parsed.ok : [];
-    if (!pages.length) {
-      return { ok: false, diagnostics: [{ severity: 'error', message: 'Renderer returned no pages.' }] };
-    }
-    return { ok: true, svgs: pages };
-  }
-}
 
 let view;
 let engine;
@@ -270,13 +219,12 @@ async function render() {
       : `Rendered.`, 'ok');
   } else {
     const diag = result.diagnostics?.[0];
-    const where = diag?.line ? ` (line ${diag.line}${diag.column ? `, col ${diag.column}` : ''})` : '';
     previewHost.innerHTML = `
       <div class="preview-placeholder">
         <span class="pill">render error</span>
-        <p>${escapeHtml(diag?.message ?? 'Render failed.')}${escapeHtml(where)}</p>
+        <p>${escapeHtml(diagnosticLabel(diag))}</p>
       </div>`;
-    setStatus('preview', `Render error${where}.`, 'bad');
+    setStatus('preview', diag?.line ? `Render error at line ${diag.line}.` : 'Render error.', 'bad');
   }
 }
 

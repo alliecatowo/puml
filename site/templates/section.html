@@ -47,3 +47,7 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+  <script type="module" src="{{ get_url(path='js/inline-fence-preview.js', trailing_slash=false) }}"></script>
+{% endblock %}
