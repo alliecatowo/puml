@@ -1850,9 +1850,9 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
 /// Nodes in the FamilyDocument whose `name` starts with `"SALT_ROW\x1f"` are
 /// decoded back into cell lists and drawn as a proper wireframe table.
 pub fn render_salt_svg(document: &FamilyDocument) -> String {
-    const CELL_H: i32 = 28;
+    const CELL_H: i32 = 20;
     const CELL_PAD_X: i32 = 10;
-    const MARGIN: i32 = 24;
+    const MARGIN: i32 = 6;
     const MIN_CELL_W: i32 = 80;
 
     // Parse rows from the encoded node names.
@@ -1875,12 +1875,15 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
 
     // Compute number of columns from the max row width.
     let col_count = rows.iter().map(|r| r.len()).max().unwrap_or(1);
+    let table_like = rows.iter().flatten().any(SaltCellRender::is_table_like);
 
     // First pass: compute per-column minimum widths based on text content.
     let mut col_widths: Vec<i32> = vec![MIN_CELL_W; col_count];
     for row in &rows {
         for (col_idx, cell) in row.iter().enumerate() {
-            let text_w = estimate_text_width(cell.text()) + CELL_PAD_X * 2 + 20;
+            let text_w = cell
+                .intrinsic_width()
+                .max(estimate_text_width(cell.text()) + CELL_PAD_X);
             if text_w > col_widths[col_idx] {
                 col_widths[col_idx] = text_w;
             }
@@ -1904,16 +1907,17 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         total_w, svg_h, style.canvas_fill
     ));
 
-    // Outer border
-    out.push_str(&format!(
-        "<rect data-salt-style=\"panel\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-        MARGIN,
-        MARGIN + title_h,
-        total_w - MARGIN * 2,
-        total_h - MARGIN * 2,
-        style.panel_fill,
-        style.border_color
-    ));
+    if table_like {
+        out.push_str(&format!(
+            "<rect data-salt-style=\"panel\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            MARGIN,
+            MARGIN + title_h,
+            total_w - MARGIN * 2,
+            total_h - MARGIN * 2,
+            style.panel_fill,
+            style.border_color
+        ));
+    }
 
     if let Some(title) = &document.title {
         out.push_str(&format!(
@@ -1949,7 +1953,7 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         }
 
         // Row separator line (skip the last row)
-        if row_idx + 1 < rows.len() {
+        if table_like && row_idx + 1 < rows.len() {
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                 MARGIN,
@@ -1962,7 +1966,7 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     }
 
     // Column separator lines
-    {
+    if table_like {
         let mut col_x = MARGIN;
         for (col_idx, w) in col_widths.iter().enumerate() {
             col_x += w;
@@ -2029,7 +2033,7 @@ struct SaltRenderStyle {
 impl Default for SaltRenderStyle {
     fn default() -> Self {
         Self {
-            canvas_fill: "#f5f5f5".to_string(),
+            canvas_fill: "white".to_string(),
             panel_fill: "white".to_string(),
             header_fill: "#e2e8f0".to_string(),
             input_fill: "white".to_string(),
@@ -2271,6 +2275,38 @@ impl SaltCellRender {
             Self::TabBar { tabs, .. } => tabs.first().map(String::as_str).unwrap_or("tab"),
             Self::ScrollBar { .. } => "scrollbar",
         }
+    }
+
+    fn intrinsic_width(&self) -> i32 {
+        match self {
+            Self::Input(text) => estimate_text_width(text) + 29,
+            Self::Button(text) => (estimate_text_width(text) + 16).max(36),
+            Self::Combo(text) => estimate_text_width(text) + 23,
+            Self::CheckboxChecked(text) | Self::CheckboxUnchecked(text) => {
+                20 + estimate_text_width(text)
+            }
+            Self::RadioOn(text) | Self::RadioOff(text) => 20 + estimate_text_width(text),
+            Self::MenuBar(items) => items
+                .iter()
+                .map(|item| estimate_text_width(item) + 24)
+                .sum(),
+            Self::TabBar { tabs, .. } => tabs.iter().map(|tab| estimate_text_width(tab) + 24).sum(),
+            Self::ScrollBar { vertical, .. } => {
+                if *vertical {
+                    24
+                } else {
+                    80
+                }
+            }
+            Self::SpriteRef(_) => 48,
+            Self::TableEmpty => 24,
+            Self::TableSpan => 42,
+            _ => estimate_text_width(self.text()) + 20,
+        }
+    }
+
+    fn is_table_like(&self) -> bool {
+        matches!(self, Self::Header(_) | Self::TableEmpty | Self::TableSpan)
     }
 }
 
@@ -2585,6 +2621,18 @@ fn estimate_text_width(text: &str) -> i32 {
     (text.chars().count() as i32) * 7
 }
 
+fn salt_input_width(text: &str) -> i32 {
+    estimate_text_width(text) + 29
+}
+
+fn salt_button_width(text: &str) -> i32 {
+    (estimate_text_width(text) + 16).max(36)
+}
+
+fn salt_combo_width(text: &str) -> i32 {
+    estimate_text_width(text) + 23
+}
+
 fn salt_text(out: &mut String, x: i32, y: i32, attrs: &str, text: &str, color: &str) {
     let icon_names = extract_salt_icon_names(text);
     let mut extra_attrs = attrs.to_string();
@@ -2745,43 +2793,59 @@ fn render_salt_cell_svg(
             ));
         }
         SaltCellRender::Input(placeholder) => {
-            // Bordered rectangle with gray placeholder text
+            let control_w = salt_input_width(placeholder).min(w - pad * 2).max(24);
+            let line_y = y + h - 4;
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
-                x + pad,
-                y + 4,
-                w - pad * 2,
-                h - 8,
-                style.input_fill,
-                style.border_color
+                "<g data-salt-widget=\"input\" fill=\"{}\">",
+                style.input_fill
             ));
             salt_text(
                 out,
-                x + pad + 4,
+                x + pad,
                 text_y,
                 &format!(
-                    "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                    "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
                     style.font_family, style.input_text_color
                 ),
                 placeholder,
                 &style.input_text_color,
             );
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/></g>",
+                x + pad - 2,
+                line_y,
+                x + pad + control_w,
+                line_y,
+                style.border_color,
+                x + pad - 2,
+                line_y - 3,
+                x + pad - 2,
+                line_y,
+                style.border_color,
+                x + pad + control_w,
+                line_y - 3,
+                x + pad + control_w,
+                line_y,
+                style.border_color
+            ));
         }
         SaltCellRender::Button(label) => {
-            // Rounded rectangle with bold text
+            let button_w = salt_button_width(label).min(w - pad * 2).max(24);
+            let button_h = 20;
+            let button_y = y + ((h - button_h) / 2).max(0);
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"4\" ry=\"4\"/>",
+                "<rect data-salt-widget=\"button\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2.5\" rx=\"5\" ry=\"5\"/>",
                 x + pad,
-                y + 4,
-                w - pad * 2,
-                h - 8,
+                button_y,
+                button_w,
+                button_h,
                 style.button_fill,
                 style.border_color
             ));
             salt_text(
                 out,
-                x + w / 2,
-                text_y,
+                x + pad + button_w / 2,
+                button_y + 15,
                 &format!(
                     "text-anchor=\"middle\" font-family=\"{}\" font-size=\"12\" font-weight=\"bold\" fill=\"{}\"",
                     style.font_family, style.button_text_color
@@ -2791,62 +2855,74 @@ fn render_salt_cell_svg(
             );
         }
         SaltCellRender::Combo(label) => {
-            // Rectangle with down-arrow indicator
+            let combo_w = salt_combo_width(label).min(w - pad * 2).max(28);
+            let combo_h = 19;
+            let combo_y = y + ((h - combo_h) / 2).max(0);
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"2\" ry=\"2\"/>",
+                "<rect data-salt-widget=\"combo\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
                 x + pad,
-                y + 4,
-                w - pad * 2,
-                h - 8,
+                combo_y,
+                combo_w,
+                combo_h,
                 style.input_fill,
                 style.border_color
             ));
             salt_text(
                 out,
-                x + pad + 4,
-                text_y,
+                x + pad + 2,
+                combo_y + 14,
                 &format!(
-                    "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                    "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
                     style.font_family, style.input_text_color
                 ),
                 label,
                 &style.input_text_color,
             );
-            // Down arrow triangle
-            let ax = x + w - pad - 10;
-            let ay = y + h / 2;
+            let divider_x = x + pad + combo_w - 11;
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-                ax,
-                ay - 3,
-                ax + 8,
-                ay - 3,
-                ax + 4,
-                ay + 3,
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                divider_x,
+                combo_y,
+                divider_x,
+                combo_y + combo_h,
+                style.border_color
+            ));
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                divider_x + 3,
+                combo_y + 6,
+                divider_x + 9,
+                combo_y + 6,
+                divider_x + 6,
+                combo_y + combo_h - 5,
+                style.border_color,
                 style.border_color
             ));
         }
         SaltCellRender::CheckboxChecked(label) => {
             let bx = x + pad;
-            let by = y + h / 2 - 6;
-            // Box
+            let by = y + h / 2 - 5;
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<rect data-salt-widget=\"checkbox\" x=\"{}\" y=\"{}\" width=\"10\" height=\"10\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 bx, by, style.checkbox_fill, style.border_color
             ));
-            // Checkmark (×)
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                bx + 2, by + 2, bx + 10, by + 10, style.text_color
-            ));
-            out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                bx + 10, by + 2, bx + 2, by + 10, style.text_color
+                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                bx + 1,
+                by + 4,
+                bx + 4,
+                by + 7,
+                bx + 11,
+                by - 2,
+                bx + 4,
+                by + 5,
+                style.text_color,
+                style.text_color
             ));
             if !label.is_empty() {
                 salt_text(
                     out,
-                    bx + 16,
+                    bx + 18,
                     text_y,
                     &format!(
                         "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
@@ -2859,15 +2935,15 @@ fn render_salt_cell_svg(
         }
         SaltCellRender::CheckboxUnchecked(label) => {
             let bx = x + pad;
-            let by = y + h / 2 - 6;
+            let by = y + h / 2 - 5;
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<rect data-salt-widget=\"checkbox\" x=\"{}\" y=\"{}\" width=\"10\" height=\"10\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 bx, by, style.checkbox_fill, style.border_color
             ));
             if !label.is_empty() {
                 salt_text(
                     out,
-                    bx + 16,
+                    bx + 18,
                     text_y,
                     &format!(
                         "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
@@ -2879,15 +2955,14 @@ fn render_salt_cell_svg(
             }
         }
         SaltCellRender::RadioOn(label) => {
-            let cx = x + pad + 6;
+            let cx = x + pad + 5;
             let cy = y + h / 2;
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<circle data-salt-widget=\"radio\" cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 cx, cy, style.radio_fill, style.border_color
             ));
-            // Filled dot
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\"/>",
+                "<circle cx=\"{}\" cy=\"{}\" r=\"2\" fill=\"{}\"/>",
                 cx, cy, style.text_color
             ));
             if !label.is_empty() {
@@ -2905,10 +2980,10 @@ fn render_salt_cell_svg(
             }
         }
         SaltCellRender::RadioOff(label) => {
-            let cx = x + pad + 6;
+            let cx = x + pad + 5;
             let cy = y + h / 2;
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<circle data-salt-widget=\"radio\" cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 cx, cy, style.radio_fill, style.border_color
             ));
             if !label.is_empty() {

@@ -6478,6 +6478,33 @@ fn salt_wireframe_grid_renders_button_and_input() {
 }
 
 #[test]
+fn salt_basic_widgets_use_intrinsic_plantuml_like_geometry() {
+    let svg = render_source_to_svg(include_str!(
+        "fixtures/families/valid_salt_widget_fidelity.puml"
+    ))
+    .expect("salt fidelity fixture should render");
+
+    assert!(svg.contains("width=\"257\" height=\"172\""));
+    assert!(svg.contains("data-salt-style=\"canvas\""));
+    assert!(
+        !svg.contains("data-salt-style=\"panel\""),
+        "plain Salt forms should not get a table panel"
+    );
+    assert!(
+        !svg.contains("stroke=\"#ccc\""),
+        "plain Salt forms should not get generic table grid lines"
+    );
+    assert!(svg.contains("data-salt-widget=\"input\""));
+    assert!(svg.contains("<line x1=\"109\" y1=\"22\" x2=\"243\" y2=\"22\""));
+    assert!(svg.contains("data-salt-widget=\"button\""));
+    assert!(svg.contains("stroke-width=\"2.5\" rx=\"5\" ry=\"5\""));
+    assert!(svg.contains("data-salt-widget=\"combo\""));
+    assert!(svg.contains("data-salt-widget=\"checkbox\""));
+    assert!(svg.contains("<polygon points=\"15,75 18,78 25,69 18,76\""));
+    assert!(svg.contains("data-salt-widget=\"radio\""));
+}
+
+#[test]
 fn chart_area_and_scatter_render_paths_are_supported() {
     let area = "@startchart area\ntitle Area\nA: 4\nB: 7\nC: 3\n@endchart\n";
     let area_svg = render_source_to_svg(area).expect("area chart should render");
