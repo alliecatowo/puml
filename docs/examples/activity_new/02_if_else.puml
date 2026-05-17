@@ -1,5 +1,5 @@
 @startuml
-' New-style activity if/else (not yet supported)
+' New-style activity if/else.
 start
 if (condition?) then (yes)
   :action A;
