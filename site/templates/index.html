@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <div class="container inner">
+    <div class="hero-copy">
+      <h1>UML that <span class="grad">compiles</span>.</h1>
+      <p class="lede">
+        <strong>puml</strong> is a fast, deterministic diagram engine written in Rust.
+        It speaks PicoUML, PlantUML, and Mermaid through one shared pipeline and emits
+        byte-stable SVG &mdash; no Java, no Graphviz, no surprises.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="{{ get_url(path='/editor/', trailing_slash=true) }}">Open the editor &rarr;</a>
+        <a class="btn" href="{{ get_url(path='/gallery/', trailing_slash=true) }}">Browse the gallery</a>
+        <a class="btn btn-ghost" href="{{ get_url(path='/guide/getting-started/', trailing_slash=true) }}">Read the guide</a>
+      </div>
+
+      <div class="stats" data-stats-target>
+        <div class="stat"><div class="v" data-stat="examples">&middot;</div><div class="k">Rendered examples</div></div>
+        <div class="stat"><div class="v" data-stat="families">&middot;</div><div class="k">Diagram families</div></div>
+        <div class="stat"><div class="v">3</div><div class="k">Frontend dialects</div></div>
+        <div class="stat"><div class="v">SVG</div><div class="k">Canonical output</div></div>
+      </div>
+    </div>
+
+    <div class="hero-preview" aria-hidden="true">
+      <header>
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="mono">sequence/01_basic.puml</span>
+      </header>
+      <div class="split">
+<pre><code class="language-puml">@startuml
+Alice -> Bob: Hello
+Bob --> Alice: Hi there
+@enduml</code></pre>
+        <div class="render" data-hero-render>loading&hellip;</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2>Why puml?</h2>
+    <p class="sub">A compiler-grade diagram tool. Source-of-truth `.puml`, deterministic SVG, multi-language frontend, batteries included.</p>
+    <div class="feature-grid">
+      <div class="feature">
+        <div class="icon">&#9889;</div>
+        <h3>Deterministic SVG</h3>
+        <p>Byte-stable output across runs and platforms. The same `.puml` always produces the same SVG &mdash; perfect for snapshot tests and version control.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">&#9881;</div>
+        <h3>One engine, three dialects</h3>
+        <p>PicoUML, PlantUML, and Mermaid frontends share one Rust parser, normalizer, layout, and renderer.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">&#9745;</div>
+        <h3>Docs-as-tests</h3>
+        <p>Every example in this gallery is also a fixture in the test suite. The corpus grows automatically with the engine.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">&#9881;</div>
+        <h3>Scriptable CLI</h3>
+        <p>Stream stdin, dump AST/model/scene as JSON, lint markdown, batch-render &mdash; first-class CI primitives.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">&#9881;</div>
+        <h3>Compiler diagnostics</h3>
+        <p>Line/column spans, caret snippets, stable error codes, JSON diagnostics. Real validation, not "looks fine".</p>
+      </div>
+      <div class="feature">
+        <div class="icon">&#9881;</div>
+        <h3>No JVM, no Graphviz</h3>
+        <p>A single static Rust binary. Runs on CI in milliseconds. The editor on this site runs entirely in your browser.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2>Frontend dialects</h2>
+    <p class="sub">All three frontends route into the shared semantic model and the same deterministic render path.</p>
+    <div class="matrix">
+      <div class="lang">
+        <h3>PicoUML <span class="tag good">First-class</span></h3>
+        <p>The canonical language surface. Block markers <code>@startpicouml</code> / <code>@endpicouml</code> are normalized to PlantUML internally.</p>
+      </div>
+      <div class="lang">
+        <h3>PlantUML <span class="tag">Compat target</span></h3>
+        <p>Full 1:1 parity is the roadmap goal. Many core families are implemented; advanced rows are tracked as <em>partial</em> in the parity audit.</p>
+      </div>
+      <div class="lang">
+        <h3>Mermaid <span class="tag warn">Selected families</span></h3>
+        <p>First-class for <code>sequenceDiagram</code>, <code>flowchart</code>, <code>classDiagram</code>, <code>stateDiagram</code>, and <code>erDiagram</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2>Featured diagrams</h2>
+    <p class="sub">A sampler from the live gallery. <a href="{{ get_url(path='/gallery/', trailing_slash=true) }}">See all examples &rarr;</a></p>
+    <div class="gallery-grid" data-featured-gallery>
+      <div class="empty">Loading featured diagrams&hellip;</div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2>Get started</h2>
+    <p class="sub">Three flavors. Pick yours.</p>
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>In the browser</h3>
+        <p>Open the <a href="{{ get_url(path='/editor/', trailing_slash=true) }}">studio editor</a> and start typing. Code highlighting, the full example corpus, and instant preview &mdash; no install needed.</p>
+      </div>
+      <div class="feature">
+        <h3>On the CLI</h3>
+        <pre><code class="language-bash">cargo install --git {{ config.extra.github_repo }}
+puml my-diagram.puml</code></pre>
+      </div>
+      <div class="feature">
+        <h3>In your editor</h3>
+        <p>The VS Code extension lives under <code>extensions/vscode/</code>. The LSP server ships as the <code>puml-lsp</code> binary.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ get_url(path='js/home.js', trailing_slash=false) }}"></script>
+{% endblock %}

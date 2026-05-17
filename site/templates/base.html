@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="{{ config.default_language }}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}{{ config.title }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ config.description }}{% endblock %}" />
+  <link rel="icon" type="image/svg+xml" href="{{ get_url(path='img/favicon.svg', trailing_slash=false) }}" />
+  <meta name="site-base" content="{{ get_url(path='/', trailing_slash=true) }}" />
+  <link rel="stylesheet" href="{{ get_url(path='style.css', trailing_slash=false) }}" />
+  <link rel="stylesheet" href="{{ get_url(path='syntax-dark.css', trailing_slash=false) }}" media="(prefers-color-scheme: dark)" />
+  <link rel="stylesheet" href="{{ get_url(path='syntax-light.css', trailing_slash=false) }}" media="(prefers-color-scheme: light)" />
+  <meta property="og:title" content="{% block og_title %}{{ config.title }}{% endblock %}" />
+  <meta property="og:description" content="{{ config.description }}" />
+  <meta property="og:type" content="website" />
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  {% include "partials/nav.html" %}
+
+  {% block content %}{% endblock %}
+
+  {% include "partials/footer.html" %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

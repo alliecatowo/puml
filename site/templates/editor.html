@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Editor &middot; {{ config.title }}{% endblock %}
+{% block description %}Write and preview puml diagrams in your browser.{% endblock %}
+
+{% block content %}
+<section class="section" style="border-top: none; padding-top: 28px; padding-bottom: 20px;">
+  <div class="container">
+    <h2 style="font-size:32px; margin-top:0;">Studio editor</h2>
+    <p class="sub">
+      Write <code>.puml</code> source on the left, see the rendered SVG on the right.
+      Syntax highlighting is local; preview uses the baked example corpus today, with a live in-browser WASM render landing next &mdash; see the
+      <a href="{{ get_url(path='/developer/wasm-roadmap/', trailing_slash=true) }}">WASM roadmap</a>.
+    </p>
+
+    <div class="editor-shell">
+      <section class="pane">
+        <header>
+          <span>source.puml</span>
+          <span class="spacer"></span>
+          <select id="example-picker" title="Load a baked example">
+            <option value="">Load example&hellip;</option>
+          </select>
+          <button id="reset-btn" title="Reset to the default example">Reset</button>
+          <button id="copy-btn" title="Copy the source to clipboard">Copy</button>
+        </header>
+        <div class="editor-host" id="editor-host"></div>
+        <div class="status-bar" id="editor-status">
+          <span class="dot-status"></span>
+          <span id="editor-status-text">Initializing editor&hellip;</span>
+        </div>
+      </section>
+
+      <section class="pane">
+        <header>
+          <span>preview.svg</span>
+          <span class="spacer"></span>
+          <button id="render-btn" title="Render the source on the right">Render &#9655;</button>
+          <button id="download-btn" title="Download the current SVG">Download SVG</button>
+        </header>
+        <div class="preview-host" id="preview-host">
+          <div class="preview-placeholder">
+            <span class="pill">getting ready</span>
+            <p>Loading the renderer&hellip;</p>
+          </div>
+        </div>
+        <div class="status-bar" id="preview-status">
+          <span class="dot-status"></span>
+          <span id="preview-status-text">Renderer: manifest lookup (v1)</span>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ get_url(path='js/editor.js', trailing_slash=false) }}"></script>
+{% endblock %}

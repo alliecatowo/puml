@@ -1,0 +1,39 @@
+{# current_path is set by the including template (page.html / section.html). #}
+{% set cp = current_path | default(value="") %}
+
+<h4>User guide</h4>
+<ul>
+  <li><a href="{{ get_url(path='/guide/', trailing_slash=true) }}"{% if cp == "/guide/_index.md" %} class="active"{% endif %}>Overview</a></li>
+  <li><a href="{{ get_url(path='/guide/getting-started/', trailing_slash=true) }}"{% if cp == "/guide/getting-started.md" %} class="active"{% endif %}>Getting started</a></li>
+  <li><a href="{{ get_url(path='/guide/cli/', trailing_slash=true) }}"{% if cp == "/guide/cli.md" %} class="active"{% endif %}>CLI reference</a></li>
+  <li><a href="{{ get_url(path='/guide/syntax/', trailing_slash=true) }}"{% if cp == "/guide/syntax.md" %} class="active"{% endif %}>Syntax primer</a></li>
+  <li><a href="{{ get_url(path='/guide/sequence/', trailing_slash=true) }}"{% if cp == "/guide/sequence.md" %} class="active"{% endif %}>Sequence diagrams</a></li>
+  <li><a href="{{ get_url(path='/guide/class/', trailing_slash=true) }}"{% if cp == "/guide/class.md" %} class="active"{% endif %}>Class diagrams</a></li>
+  <li><a href="{{ get_url(path='/guide/activity/', trailing_slash=true) }}"{% if cp == "/guide/activity.md" %} class="active"{% endif %}>Activity diagrams</a></li>
+  <li><a href="{{ get_url(path='/guide/state/', trailing_slash=true) }}"{% if cp == "/guide/state.md" %} class="active"{% endif %}>State diagrams</a></li>
+  <li><a href="{{ get_url(path='/guide/families/', trailing_slash=true) }}"{% if cp == "/guide/families.md" %} class="active"{% endif %}>All diagram families</a></li>
+  <li><a href="{{ get_url(path='/guide/themes/', trailing_slash=true) }}"{% if cp == "/guide/themes.md" %} class="active"{% endif %}>Themes and styling</a></li>
+  <li><a href="{{ get_url(path='/guide/markdown-fences/', trailing_slash=true) }}"{% if cp == "/guide/markdown-fences.md" %} class="active"{% endif %}>Markdown fences</a></li>
+</ul>
+
+<h4>Developer</h4>
+<ul>
+  <li><a href="{{ get_url(path='/developer/', trailing_slash=true) }}"{% if cp == "/developer/_index.md" %} class="active"{% endif %}>Overview</a></li>
+  <li><a href="{{ get_url(path='/developer/architecture/', trailing_slash=true) }}"{% if cp == "/developer/architecture.md" %} class="active"{% endif %}>Architecture</a></li>
+  <li><a href="{{ get_url(path='/developer/pipeline/', trailing_slash=true) }}"{% if cp == "/developer/pipeline.md" %} class="active"{% endif %}>Compile pipeline</a></li>
+  <li><a href="{{ get_url(path='/developer/wasm-roadmap/', trailing_slash=true) }}"{% if cp == "/developer/wasm-roadmap.md" %} class="active"{% endif %}>WASM roadmap</a></li>
+  <li><a href="{{ get_url(path='/developer/contributing/', trailing_slash=true) }}"{% if cp == "/developer/contributing.md" %} class="active"{% endif %}>Contributing</a></li>
+</ul>
+
+<h4>Reference specs</h4>
+<ul>
+  <li><a href="{{ get_url(path='/developer/specs/', trailing_slash=true) }}"{% if cp == "/developer/specs/_index.md" %} class="active"{% endif %}>Index</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/picouml-language/', trailing_slash=true) }}"{% if cp == "/developer/specs/picouml-language.md" %} class="active"{% endif %}>PicoUML language</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/diagram-families-architecture/', trailing_slash=true) }}"{% if cp == "/developer/specs/diagram-families-architecture.md" %} class="active"{% endif %}>Family architecture</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/studio-spa/', trailing_slash=true) }}"{% if cp == "/developer/specs/studio-spa.md" %} class="active"{% endif %}>Studio SPA</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/syntax-highlighting/', trailing_slash=true) }}"{% if cp == "/developer/specs/syntax-highlighting.md" %} class="active"{% endif %}>Syntax highlighting</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/lsp/', trailing_slash=true) }}"{% if cp == "/developer/specs/lsp.md" %} class="active"{% endif %}>LSP</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/vscode-extension/', trailing_slash=true) }}"{% if cp == "/developer/specs/vscode-extension.md" %} class="active"{% endif %}>VS Code extension</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/markdown-fence-renderer/', trailing_slash=true) }}"{% if cp == "/developer/specs/markdown-fence-renderer.md" %} class="active"{% endif %}>Markdown fence renderer</a></li>
+  <li><a href="{{ get_url(path='/developer/specs/agent-plugin-mcp/', trailing_slash=true) }}"{% if cp == "/developer/specs/agent-plugin-mcp.md" %} class="active"{% endif %}>Agent / MCP</a></li>
+</ul>

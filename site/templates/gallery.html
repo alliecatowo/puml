@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Gallery &middot; {{ config.title }}{% endblock %}
+{% block description %}Browse every diagram in the puml docs corpus.{% endblock %}
+
+{% block content %}
+<section class="section" style="border-top: none;">
+  <div class="container">
+    <h2 style="font-size:36px; margin-top:0;">Gallery</h2>
+    <p class="sub">Every example in this gallery is rendered by <code>puml</code> from the <code>docs/examples/</code> corpus and committed to the repo. New examples appear here automatically on the next deploy.</p>
+
+    <div class="gallery-toolbar">
+      <input id="gallery-search" type="search" placeholder="Search by name, family, or snippet (e.g. 'sequence loop')" autocomplete="off" />
+    </div>
+
+    <div class="chips" id="gallery-chips"></div>
+    <div style="margin: 12px 0 18px; color: var(--text-mute); font-size: 13px;" id="gallery-count">&nbsp;</div>
+
+    <div class="gallery-grid" id="gallery-grid"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ get_url(path='js/gallery.js', trailing_slash=false) }}"></script>
+{% endblock %}
