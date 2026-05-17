@@ -894,6 +894,7 @@ fn check_mode_fails_for_additional_invalid_fixtures() {
         "errors/invalid_preproc_expr_missing.puml",
         "errors/invalid_preproc_unexpected_endfunction.puml",
         "errors/invalid_preproc_while_iteration_limit.puml",
+        "errors/invalid_pragma_missing_body.puml",
         "errors/invalid_preproc_assert_missing_expr.puml",
         "errors/invalid_preproc_builtin_in_assert.puml",
         "errors/invalid_preproc_builtin_in_log.puml",
