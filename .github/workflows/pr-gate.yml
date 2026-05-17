@@ -44,6 +44,7 @@ jobs:
 
           run_full_gate=false
           docs_examples_changed=false
+          run_site_smoke=false
 
           while IFS= read -r file; do
             [[ -n "${file}" ]] || continue
@@ -52,8 +53,14 @@ jobs:
               docs/examples/*)
                 run_full_gate=true
                 docs_examples_changed=true
+                run_site_smoke=true
+                ;;
+              site/*|site/**|scripts/build-site.mjs|scripts/site-smoke.sh|crates/puml-wasm/*|crates/puml-wasm/**)
+                run_full_gate=true
+                run_site_smoke=true
                 ;;
               docs/*|README.md|CONTRIBUTING.md|LICENSE|*.md)
+                run_site_smoke=true
                 ;;
               *)
                 run_full_gate=true
@@ -63,22 +70,26 @@ jobs:
 
           if [[ ! -s "${CHANGED_FILES}" ]]; then
             run_full_gate=true
+            run_site_smoke=true
           fi
 
           {
             echo "run_full_gate=${run_full_gate}"
             echo "docs_examples_changed=${docs_examples_changed}"
+            echo "run_site_smoke=${run_site_smoke}"
           } >> "${GITHUB_OUTPUT}"
 
           echo "Changed files:"
           sed 's/^/  - /' "${CHANGED_FILES}"
           echo "run_full_gate=${run_full_gate}"
           echo "docs_examples_changed=${docs_examples_changed}"
+          echo "run_site_smoke=${run_site_smoke}"
 
       - name: Fast path for docs-only changes
         if: steps.changes.outputs.run_full_gate != 'true'
         run: |
           echo "Docs-only change set detected outside docs/examples; skipping Rust, coverage, wasm, visual, and docs-example drift gates."
+          echo "Site graph-toggle smoke will still run when documentation/site files can affect rendered docs."
 
       - name: Setup Rust toolchain
         if: steps.changes.outputs.run_full_gate == 'true'
@@ -86,6 +97,12 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Set up Node
+        if: steps.changes.outputs.run_site_smoke == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Cache Rust build artifacts
         if: steps.changes.outputs.run_full_gate == 'true'
@@ -97,6 +114,18 @@ jobs:
       - name: Install cargo-llvm-cov
         if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo install cargo-llvm-cov --locked
+
+      - name: Install Zola
+        if: steps.changes.outputs.run_site_smoke == 'true'
+        run: |
+          set -euo pipefail
+          ZOLA_VERSION=0.19.2
+          mkdir -p "${RUNNER_TEMP}/zola"
+          curl -fsSL -o /tmp/zola.tar.gz \
+            "https://github.com/getzola/zola/releases/download/v${ZOLA_VERSION}/zola-v${ZOLA_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf /tmp/zola.tar.gz -C "${RUNNER_TEMP}/zola"
+          echo "${RUNNER_TEMP}/zola" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/zola/zola" --version
 
       - name: fmt gate
         if: steps.changes.outputs.run_full_gate == 'true'
@@ -114,6 +143,10 @@ jobs:
         if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
+      - name: visual smoke fixture matrix
+        if: steps.changes.outputs.run_full_gate == 'true'
+        run: cargo test --test visual_regression visual_smoke_representative_docs_examples_matrix
+
       - name: coverage gate
         if: steps.changes.outputs.run_full_gate == 'true'
         run: cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|render)/.*\.rs'
@@ -121,6 +154,22 @@ jobs:
       - name: docs examples drift gate
         if: steps.changes.outputs.run_full_gate == 'true'
         run: python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
+
+      - name: site graph toggle smoke
+        if: steps.changes.outputs.run_site_smoke == 'true'
+        run: ./scripts/site-smoke.sh
+
+      - name: Upload visual/site smoke artifacts
+        if: always() && (steps.changes.outputs.run_full_gate == 'true' || steps.changes.outputs.run_site_smoke == 'true')
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-visual-site-smoke-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            target/visual-diff
+            target/site-smoke
+            site/public
 
       - name: Upload benchmark artifacts
         if: always() && steps.changes.outputs.run_full_gate == 'true'

@@ -86,6 +86,24 @@ fn render_svg(fixture_path: &Path) -> Result<String, String> {
     Ok(svg)
 }
 
+fn svg_shape_failures(svg: &str) -> Vec<String> {
+    let mut reasons = Vec::new();
+    let trimmed = svg.trim();
+    if trimmed.is_empty() {
+        reasons.push("rendered SVG is empty".to_string());
+    }
+    if !trimmed.contains("<svg") {
+        reasons.push("rendered output does not contain an <svg> root".to_string());
+    }
+    if !trimmed.contains("</svg>") {
+        reasons.push("rendered SVG is missing its closing </svg> tag".to_string());
+    }
+    if !trimmed.contains("viewBox=\"") {
+        reasons.push("rendered SVG is missing a viewBox".to_string());
+    }
+    reasons
+}
+
 // ---------------------------------------------------------------------------
 // PNG rasterisation (resvg + tiny-skia, same chain as the CLI uses)
 // ---------------------------------------------------------------------------
@@ -429,6 +447,21 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
     },
 ];
 
+const FAST_VISUAL_SMOKE_FIXTURES: &[&str] = &[
+    "docs/examples/sequence/01_basic.puml",
+    "docs/examples/sequence/05_alt_opt_loop.puml",
+    "docs/examples/class/02_inheritance.puml",
+    "docs/examples/activity/02_if_then_else.puml",
+    "docs/examples/state/01_basic.puml",
+    "docs/examples/component/01_basic.puml",
+    "docs/examples/deployment/01_nodes.puml",
+    "docs/examples/gantt/01_basic.puml",
+    "docs/examples/mindmap/01_basic.puml",
+    "docs/examples/wbs/01_basic.puml",
+    "docs/examples/c4/01_context.puml",
+    "docs/examples/chart/01_bar.puml",
+];
+
 fn check_fixture(fixture: &Fixture) -> Option<Failure> {
     check_fixture_with_required_text(fixture, NO_FOCUSED_TEXT_REQUIREMENTS)
 }
@@ -465,7 +498,7 @@ fn check_fixture_with_required_text(
     }
     let _ = fs::write(&artifact_path, &svg);
 
-    let mut reasons = Vec::new();
+    let mut reasons = svg_shape_failures(&svg);
     let texts = extract_text_contents(&svg);
 
     // Check 1: no empty <text> elements (the missing-label bug class).
@@ -624,6 +657,23 @@ fn visual_regression_focused_text_presence_sweep() {
         );
         panic!("{report}");
     }
+}
+
+#[test]
+fn visual_smoke_representative_docs_examples_matrix() {
+    let manifest = load_manifest();
+    let mut fixtures = Vec::new();
+
+    for path in FAST_VISUAL_SMOKE_FIXTURES {
+        let fixture = manifest
+            .fixtures
+            .iter()
+            .find(|fixture| fixture.path == *path)
+            .unwrap_or_else(|| panic!("fast visual smoke fixture {path} must exist in manifest"));
+        fixtures.push(fixture);
+    }
+
+    run_text_sweep(fixtures, FAST_VISUAL_SMOKE_FIXTURES.len());
 }
 
 #[test]
