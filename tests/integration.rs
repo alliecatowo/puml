@@ -678,6 +678,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "arrows/valid_arrow_portability_expanded.puml",
         "arrows/valid_arrow_slash_portability.puml",
         "arrows/valid_arrow_variant_tokenization.puml",
+        "arrows/valid_rare_arrow_styles.puml",
         "notes/valid_note_over.puml",
         "groups/valid_alt_end.puml",
         "groups/valid_loop_end.puml",
@@ -1013,6 +1014,24 @@ fn malformed_arrow_variant_reports_deterministic_diagnostic() {
                 .and(predicate::str::contains("A -/--> B: malformed\n^^^^^^^^^^"))
                 .and(predicate::str::contains("E_ARROW_INVALID")),
         );
+}
+
+#[test]
+fn bracketed_sequence_arrow_style_metadata_is_preserved() {
+    let src = std::fs::read_to_string(fixture("arrows/valid_rare_arrow_styles.puml")).unwrap();
+    let doc = puml::parse(&src).expect("parse should succeed");
+    let messages = doc
+        .statements
+        .iter()
+        .filter_map(|stmt| match &stmt.kind {
+            puml::ast::StatementKind::Message(m) => Some(m),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(messages[0].style.thickness, Some(3));
+    assert!(messages[1].style.dotted);
+    assert_eq!(messages[2].style.thickness, Some(5));
 }
 
 #[test]

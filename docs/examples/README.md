@@ -2,7 +2,8 @@
 
 This directory is the canonical docs-as-tests corpus consumed by `scripts/parity_harness.py`.
 The corpus is executable documentation and parity evidence, but it is not proof
-of full PlantUML 1:1 parity. The canonical current status is
+of full PlantUML 1:1 parity and is not the source of truth for support status.
+The canonical current status is
 [`docs/audits/plantuml_parity_source_of_truth.md`](../audits/plantuml_parity_source_of_truth.md),
 where support is tracked conservatively as `implemented`, `partial`, or `missing`.
 
@@ -31,4 +32,5 @@ where support is tracked conservatively as `implemented`, `partial`, or `missing
 
 - This corpus is intentionally larger than minimal fixtures; it is used as executable documentation evidence.
 - Examples are coverage seeds for implemented behavior, not exhaustive proof of PlantUML compatibility.
+- If an example and the audit table appear to disagree, treat the audit table as authoritative and update the stale artifact or wording.
 - When behavior changes, update the corresponding `.svg` artifacts in the same change.

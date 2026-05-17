@@ -110,6 +110,20 @@ fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
 }
 
 #[test]
+fn render_sequence_rare_arrow_styles_and_note_positions() {
+    let src = fixture("arrows/valid_rare_arrow_styles.puml");
+    let svg = puml::render_source_to_svg(&src).expect("rare arrow styles render");
+
+    assert!(svg.contains("stroke-width=\"3\""));
+    assert!(svg.contains("stroke-width=\"5\""));
+    assert!(svg.contains("stroke-dasharray=\"2 4\""));
+    assert!(svg.contains("<polyline points=\""));
+    assert!(svg.contains("top note"));
+    assert!(svg.contains("bottom note"));
+    assert_snapshot!("render_sequence_rare_arrow_styles_and_note_positions", svg);
+}
+
+#[test]
 fn render_svg_contains_expected_structure() {
     let src = fixture("e2e/deterministic_sequence.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");

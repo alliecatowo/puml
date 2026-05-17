@@ -12,12 +12,18 @@ Fast, deterministic diagram rendering to SVG/PNG with a polymorphic multi-langua
 
 ## PlantUML parity roadmap
 
-`puml` is pursuing full 1:1 parity with PlantUML as a roadmap goal, with staged family-lane implementation to preserve deterministic parser/normalizer/layout/render contracts. Current support is not yet full PlantUML parity: the canonical current status is tracked in [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md), where many advanced rows are intentionally marked `partial`.
+`puml` is pursuing full 1:1 parity with PlantUML as an aggressive roadmap goal, with staged family-lane implementation to preserve deterministic parser/normalizer/layout/render contracts. Current support is not full PlantUML parity. The canonical current status is tracked in [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md), where support is classified conservatively as `implemented`, `partial`, or `missing`.
 
 Language and compatibility statement:
 - PicoUML is the first-class canonical language surface for this engine.
 - PlantUML is a first-class compatibility target across implemented and planned diagram families; full 1:1 parity remains the roadmap ambition, not the current claim.
 - Mermaid is first-class for `sequenceDiagram`, `flowchart`/`graph`, `classDiagram`, `stateDiagram`/`stateDiagram-v2`, and `erDiagram` families, with deterministic diagnostics for unsupported constructs.
+
+Source-of-truth hierarchy:
+- Current support status: [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md)
+- Machine-readable exports: [`docs/audits/parity_gap_core.csv`](docs/audits/parity_gap_core.csv) and [`docs/audits/parity_gap_nonuml.csv`](docs/audits/parity_gap_nonuml.csv)
+- Remaining high-impact planning slices: [`docs/audits/post_blitz_gap_table.md`](docs/audits/post_blitz_gap_table.md)
+- Examples and oracle reports are evidence inputs, not independent parity claims.
 
 ## Install And Dev
 
@@ -139,7 +145,7 @@ $ cargo run -- --check hello.puml
 
 Canonical examples live in [`docs/examples/README.md`](docs/examples/README.md), with committed source/output pairs.
 Supported primitive catalog page: [`docs/examples/supported_primitives.md`](docs/examples/supported_primitives.md).
-These examples are coverage seeds and executable documentation artifacts, not proof of full PlantUML 1:1 parity. Use [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md) for current implemented/partial/missing status.
+These examples are coverage seeds and executable documentation artifacts, not proof of full PlantUML 1:1 parity and not a replacement for the source-of-truth audit table. Use [`docs/audits/plantuml_parity_source_of_truth.md`](docs/audits/plantuml_parity_source_of_truth.md) for current implemented/partial/missing status.
 Current docs corpus footprint: `docs/examples/` contains `254` `.puml` sources and `258` `.svg` artifacts.
 
 Re-generate all committed examples:

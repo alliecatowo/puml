@@ -207,13 +207,19 @@ pub fn render_svg(scene: &Scene) -> String {
         } else {
             ""
         };
+        let stroke_width = m
+            .style
+            .thickness
+            .map(f32::from)
+            .unwrap_or(1.5)
+            .clamp(1.0, 8.0);
         if m.x1 == m.x2 {
             let loop_w = 46;
             let loop_h = 26;
             let dir = if m.arrow.starts_with('<') { -1 } else { 1 };
             let x2 = m.x1 + dir * loop_w;
             out.push_str(&format!(
-                "<path d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
+                "<path d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
                 m.x1,
                 m.y,
                 x2,
@@ -227,16 +233,17 @@ pub fn render_svg(scene: &Scene) -> String {
                 m.x1,
                 m.y + loop_h * 2,
                 stroke_color,
+                stroke_width,
                 stroke_dash,
                 hidden
             ));
         } else {
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}{}/>",
-                m.x1, m.y, m.x2, m.y, stroke_color, stroke_dash, hidden
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
+                m.x1, m.y, m.x2, m.y, stroke_color, stroke_width, stroke_dash, hidden
             ));
         }
-        render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, hidden);
+        render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, stroke_width, hidden);
 
         if let Some(virtual_ep) = m.from_virtual {
             render_virtual_endpoint_marker(&mut out, m.x1, m.y, virtual_ep.kind);
@@ -377,8 +384,15 @@ fn render_sequence_arrow_heads(
     m: &crate::scene::MessageLine,
     stroke_color: &str,
     fill_color: &str,
+    stroke_width: f32,
     hidden: &str,
 ) {
+    let head_stroke_width = m
+        .style
+        .thickness
+        .map(f32::from)
+        .unwrap_or(1.0)
+        .clamp(1.0, 8.0);
     let arrow = m.arrow.replace(['/', '\\'], "");
     let left_marker = arrow.chars().next().filter(|c| matches!(c, 'o' | 'x'));
     let right_marker = arrow.chars().last().filter(|c| matches!(c, 'o' | 'x'));
@@ -393,6 +407,7 @@ fn render_sequence_arrow_heads(
             (m.x2, m.x1),
             open_head,
             (stroke_color, fill_color),
+            head_stroke_width,
             hidden,
         );
     }
@@ -403,14 +418,15 @@ fn render_sequence_arrow_heads(
             (m.x1, m.x2),
             open_head,
             (stroke_color, fill_color),
+            head_stroke_width,
             hidden,
         );
     }
     if let Some(marker) = left_marker {
-        render_arrow_endpoint_marker(out, m.x1, m.y, marker, stroke_color, hidden);
+        render_arrow_endpoint_marker(out, m.x1, m.y, marker, stroke_color, stroke_width, hidden);
     }
     if let Some(marker) = right_marker {
-        render_arrow_endpoint_marker(out, m.x2, m.y, marker, stroke_color, hidden);
+        render_arrow_endpoint_marker(out, m.x2, m.y, marker, stroke_color, stroke_width, hidden);
     }
 }
 
@@ -420,6 +436,7 @@ fn render_arrow_head(
     from_to_x: (i32, i32),
     open: bool,
     colors: (&str, &str),
+    stroke_width: f32,
     hidden: &str,
 ) {
     let (x, y) = point;
@@ -429,7 +446,7 @@ fn render_arrow_head(
     let back = x - (dir * 8);
     if open {
         out.push_str(&format!(
-            "<polyline points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
+            "<polyline points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
             back,
             y - 5,
             x,
@@ -437,11 +454,12 @@ fn render_arrow_head(
             back,
             y + 5,
             stroke_color,
+            stroke_width,
             hidden
         ));
     } else {
         out.push_str(&format!(
-            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"{}/>",
+            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
             x,
             y,
             back,
@@ -450,6 +468,7 @@ fn render_arrow_head(
             y + 5,
             fill_color,
             stroke_color,
+            stroke_width,
             hidden
         ));
     }
@@ -461,16 +480,18 @@ fn render_arrow_endpoint_marker(
     y: i32,
     marker: char,
     stroke_color: &str,
+    stroke_width: f32,
     hidden: &str,
 ) {
     match marker {
         'o' => out.push_str(&format!(
-            "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\"{}/>",
-            x, y, stroke_color, hidden
+            "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"white\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+            x, y, stroke_color, stroke_width, hidden
         )),
         'x' => out.push_str(&format!(
-            "<g stroke=\"{}\" stroke-width=\"1.5\"{}><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
+            "<g stroke=\"{}\" stroke-width=\"{}\"{}><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
             stroke_color,
+            stroke_width,
             hidden,
             x - 4,
             y - 4,
@@ -4329,7 +4350,11 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 } else if step_kind.contains("EndIf") {
                     "(endif)".to_string()
                 } else if step_kind.contains("EndWhile") {
-                    "(endwhile)".to_string()
+                    if label.is_empty() {
+                        "(endwhile)".to_string()
+                    } else {
+                        format!("({label})")
+                    }
                 } else if step_kind.contains("RepeatStart") {
                     "(repeat)".to_string()
                 } else {
@@ -5902,7 +5927,7 @@ fn render_chart_bars(
     if series.is_empty() || categories.is_empty() {
         return;
     }
-    let (_, max_value) = chart_value_range(document, series);
+    let (min_value, max_value) = chart_value_range(document, series);
     let count = categories.len() as i32;
     let avail = (plot.right - plot.left).max(20);
     let band = (avail / count).max(10);
@@ -5914,10 +5939,10 @@ fn render_chart_bars(
     let bar_w = ((band - 8) / group_count).max(4);
     for (cat_idx, category) in categories.iter().enumerate() {
         let band_x = plot.left + (cat_idx as i32) * band;
-        let mut stack_top = plot.bottom;
+        let mut stack_pos = 0.0_f64;
+        let mut stack_neg = 0.0_f64;
         for (series_idx, item) in series.iter().enumerate() {
-            let value = item.values.get(cat_idx).copied().unwrap_or(0.0).max(0.0);
-            let bh = ((value / max_value) * ((plot.bottom - plot.top) as f64)) as i32;
+            let value = item.values.get(cat_idx).copied().unwrap_or(0.0);
             let bx = band_x
                 + 4
                 + if document.stacked {
@@ -5925,12 +5950,23 @@ fn render_chart_bars(
                 } else {
                     (series_idx as i32) * bar_w
                 };
-            let by = if document.stacked {
-                stack_top - bh
+            let (from, to) = if document.stacked {
+                if value >= 0.0 {
+                    let from = stack_pos;
+                    stack_pos += value;
+                    (from, stack_pos)
+                } else {
+                    let from = stack_neg;
+                    stack_neg += value;
+                    (from, stack_neg)
+                }
             } else {
-                plot.bottom - bh
+                (0.0, value)
             };
-            stack_top = by;
+            let y1 = chart_y_for_value(from, min_value, max_value, plot);
+            let y2 = chart_y_for_value(to, min_value, max_value, plot);
+            let by = y1.min(y2);
+            let bh = (y1 - y2).abs().max(1);
             let color = chart_series_color(item, series_idx, style.bar_color.as_str());
             out.push_str(&format!(
                 "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
@@ -5945,7 +5981,7 @@ fn render_chart_bars(
                 "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
                 format_chart_value(value),
                 tx = bx + bar_w / 2,
-                ty = by - 4
+                ty = if value >= 0.0 { by - 4 } else { by + bh + 12 }
             ));
         }
         out.push_str(&format!(
@@ -5970,17 +6006,16 @@ fn render_chart_line(
     if series.is_empty() || categories.is_empty() {
         return;
     }
-    let (_, max_value) = chart_value_range(document, series);
+    let (min_value, max_value) = chart_value_range(document, series);
     let count = categories.len() as i32;
     let step = ((plot.right - plot.left) as f64) / ((count.max(2) - 1) as f64).max(1.0);
     for (series_idx, item) in series.iter().enumerate() {
         let color = chart_series_color(item, series_idx, style.line_color.as_str());
         let mut points = String::new();
         for (idx, category) in categories.iter().enumerate() {
-            let value = item.values.get(idx).copied().unwrap_or(0.0).max(0.0);
+            let value = item.values.get(idx).copied().unwrap_or(0.0);
             let px = plot.left + ((idx as f64) * step) as i32;
-            let ph = ((value / max_value) * ((plot.bottom - plot.top) as f64)) as i32;
-            let py = plot.bottom - ph;
+            let py = chart_y_for_value(value, min_value, max_value, plot);
             if !points.is_empty() {
                 points.push(' ');
             }
@@ -6019,7 +6054,7 @@ fn render_chart_horizontal_bars(
     if series.is_empty() || categories.is_empty() {
         return;
     }
-    let (_, max_value) = chart_value_range(document, series);
+    let (min_value, max_value) = chart_value_range(document, series);
     let count = categories.len() as i32;
     let avail = (plot.bottom - plot.top).max(20);
     let band = (avail / count).max(10);
@@ -6031,15 +6066,27 @@ fn render_chart_horizontal_bars(
     let bar_h = ((band - 8) / group_count).max(4);
     for (cat_idx, category) in categories.iter().enumerate() {
         let band_y = plot.top + (cat_idx as i32) * band;
-        let mut stack_left = plot.left;
+        let mut stack_pos = 0.0_f64;
+        let mut stack_neg = 0.0_f64;
         for (series_idx, item) in series.iter().enumerate() {
-            let value = item.values.get(cat_idx).copied().unwrap_or(0.0).max(0.0);
-            let bw = ((value / max_value) * ((plot.right - plot.left) as f64)) as i32;
-            let bx = if document.stacked {
-                stack_left
+            let value = item.values.get(cat_idx).copied().unwrap_or(0.0);
+            let (from, to) = if document.stacked {
+                if value >= 0.0 {
+                    let from = stack_pos;
+                    stack_pos += value;
+                    (from, stack_pos)
+                } else {
+                    let from = stack_neg;
+                    stack_neg += value;
+                    (from, stack_neg)
+                }
             } else {
-                plot.left
+                (0.0, value)
             };
+            let x1 = chart_x_for_value(from, min_value, max_value, plot);
+            let x2 = chart_x_for_value(to, min_value, max_value, plot);
+            let bx = x1.min(x2);
+            let bw = (x1 - x2).abs().max(1);
             let by = band_y
                 + 4
                 + if document.stacked {
@@ -6047,7 +6094,6 @@ fn render_chart_horizontal_bars(
                 } else {
                     (series_idx as i32) * bar_h
                 };
-            stack_left += bw;
             let color = chart_series_color(item, series_idx, style.bar_color.as_str());
             out.push_str(&format!(
                 "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
@@ -6159,12 +6205,42 @@ fn render_chart_axes(
     ));
     for tick in 0..=4 {
         let y = plot.bottom - ((plot.bottom - plot.top) * tick / 4);
+        let (min_value, max_value) = chart_value_range(document, &effective_chart_series(document));
+        let value = min_value + ((max_value - min_value) * (tick as f64) / 4.0);
         out.push_str(&format!(
             "<line x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
             escape_text(&style.grid_color),
             l = plot.left,
             r = plot.right
         ));
+        out.push_str(&format!(
+            "<text x=\"{x}\" y=\"{ty}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            escape_text(&style.font_color),
+            format_chart_value(value),
+            x = plot.left - 8,
+            ty = y + 4
+        ));
+    }
+    let series = effective_chart_series(document);
+    let (min_value, max_value) = chart_value_range(document, &series);
+    if min_value <= 0.0 && max_value >= 0.0 {
+        if document.horizontal {
+            let x = chart_x_for_value(0.0, min_value, max_value, plot);
+            out.push_str(&format!(
+                "<line class=\"chart-zero-axis\" x1=\"{x}\" y1=\"{t}\" x2=\"{x}\" y2=\"{b}\" stroke=\"{}\" stroke-width=\"1.25\"/>",
+                escape_text(&style.axis_color),
+                t = plot.top,
+                b = plot.bottom
+            ));
+        } else {
+            let y = chart_y_for_value(0.0, min_value, max_value, plot);
+            out.push_str(&format!(
+                "<line class=\"chart-zero-axis\" x1=\"{l}\" y1=\"{y}\" x2=\"{r}\" y2=\"{y}\" stroke=\"{}\" stroke-width=\"1.25\"/>",
+                escape_text(&style.axis_color),
+                l = plot.left,
+                r = plot.right
+            ));
+        }
     }
     if let Some(axis) = &document.h_axis {
         if let Some(label) = &axis.label {
@@ -6279,26 +6355,57 @@ fn effective_chart_categories(
 fn chart_value_range(document: &ChartDocument, series: &[crate::model::ChartSeries]) -> (f64, f64) {
     let axis_min = document.v_axis.as_ref().and_then(|axis| axis.min);
     let axis_max = document.v_axis.as_ref().and_then(|axis| axis.max);
-    let computed_max = if document.stacked {
+    let (computed_min, computed_max) = if document.stacked {
         let categories = series.iter().map(|s| s.values.len()).max().unwrap_or(0);
-        (0..categories)
-            .map(|idx| {
-                series
-                    .iter()
-                    .map(|s| s.values.get(idx).copied().unwrap_or(0.0).max(0.0))
-                    .sum::<f64>()
-            })
-            .fold(0.0_f64, f64::max)
+        let mut min_value = 0.0_f64;
+        let mut max_value = 0.0_f64;
+        for idx in 0..categories {
+            let mut positive = 0.0_f64;
+            let mut negative = 0.0_f64;
+            for value in series
+                .iter()
+                .map(|s| s.values.get(idx).copied().unwrap_or(0.0))
+            {
+                if value >= 0.0 {
+                    positive += value;
+                } else {
+                    negative += value;
+                }
+            }
+            min_value = min_value.min(negative);
+            max_value = max_value.max(positive);
+        }
+        (min_value, max_value)
     } else {
-        series
+        let mut values = series
             .iter()
             .flat_map(|s| s.values.iter().copied())
-            .map(|v| v.max(0.0))
-            .fold(0.0_f64, f64::max)
+            .peekable();
+        if values.peek().is_none() {
+            (0.0, 1.0)
+        } else {
+            values.fold((0.0_f64, 0.0_f64), |(min_value, max_value), value| {
+                (min_value.min(value), max_value.max(value))
+            })
+        }
     };
-    let min = axis_min.unwrap_or(0.0);
-    let max = axis_max.unwrap_or(computed_max.max(1.0)).max(min + 1.0);
+    let min = axis_min.unwrap_or(computed_min.min(0.0));
+    let max = axis_max
+        .unwrap_or(computed_max.max(0.0).max(1.0))
+        .max(min + 1.0);
     (min, max)
+}
+
+fn chart_y_for_value(value: f64, min_value: f64, max_value: f64, plot: ChartPlotArea) -> i32 {
+    let value = value.clamp(min_value, max_value);
+    let ratio = (value - min_value) / (max_value - min_value);
+    plot.bottom - (ratio * ((plot.bottom - plot.top) as f64)) as i32
+}
+
+fn chart_x_for_value(value: f64, min_value: f64, max_value: f64, plot: ChartPlotArea) -> i32 {
+    let value = value.clamp(min_value, max_value);
+    let ratio = (value - min_value) / (max_value - min_value);
+    plot.left + (ratio * ((plot.right - plot.left) as f64)) as i32
 }
 
 fn chart_series_color(

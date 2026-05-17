@@ -1,9 +1,10 @@
 # Supported Sequence Primitives
 
-This page is a docs-as-tests index for supported sequence primitives.
+This page is a docs-as-tests index for currently exercised sequence primitives.
 Each example links source and rendered SVG artifacts committed in-repo.
 These examples are coverage seeds for the currently exercised sequence subset,
-not an exhaustive claim of full PlantUML sequence parity. See
+not an exhaustive claim of full PlantUML sequence parity and not the canonical
+support matrix. See
 [`docs/audits/plantuml_parity_source_of_truth.md`](../audits/plantuml_parity_source_of_truth.md)
 for canonical implemented/partial/missing status.
 

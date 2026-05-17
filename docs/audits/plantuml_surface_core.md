@@ -186,15 +186,15 @@ Audit evidence update, 2026-05-16:
 | URL include | `!include` URL targets and `!includeurl` style use | missing | URL include is explicitly rejected. | https://plantuml.com/preprocessing |
 | Include multiplicity controls | `!include_many`, `!include_once` | missing | Not implemented. | https://plantuml.com/preprocessing |
 | Subpart include commands | `!startsub` / `!endsub` / `!includesub` | partial | Tagged extraction via `file!TAG` exists; full command surface absent. | https://plantuml.com/preprocessing |
-| Builtin `%` functions | Builtin preprocessor function surface | missing | Function family not implemented. | https://plantuml.com/preprocessing |
-| `!log` | Preprocessor logging | missing | Not implemented. | https://plantuml.com/preprocessing |
+| Builtin `%` functions | Builtin preprocessor function surface | partial | Deterministic string/numeric/bool/path/JSON/color helper subset is implemented; broader PlantUML builtin surface remains partial. | https://plantuml.com/preprocessing |
+| `!log` | Preprocessor logging | partial | Deterministic preprocessing support exists for exercised logging paths; full PlantUML logging behavior remains partial. | https://plantuml.com/preprocessing |
 | `!dump_memory` | Memory dump directive | missing | Not implemented. | https://plantuml.com/preprocessing |
-| `!assert` | Assertion directive | missing | Not implemented. | https://plantuml.com/preprocessing |
+| `!assert` | Assertion directive | partial | Deterministic assertion support exists for exercised paths; full PlantUML assertion expression breadth remains partial. | https://plantuml.com/preprocessing |
 | `!import` library building | Import/build custom library | partial | Relative stdlib module import is supported with deterministic root confinement; broader library-build surface remains out of scope. | https://plantuml.com/preprocessing |
 | Search path behavior | Preprocessor search path semantics | partial | `include_root` exists but broader search-path surface is absent. | https://plantuml.com/preprocessing |
 | Argument concatenation `##` | Macro argument concatenation | partial | Explicit deterministic rejection implemented (`E_PREPROC_CONCAT_UNSUPPORTED`) in callable signatures/call args. | https://plantuml.com/preprocessing |
-| Dynamic invocation | `%invoke_procedure`, `%call_user_func` | missing | Not implemented. | https://plantuml.com/preprocessing |
-| JSON preprocessing | JSON variable/object preprocessing surface | missing | Not implemented. | https://plantuml.com/preprocessing-json |
+| Dynamic invocation | `%invoke_procedure`, `%call_user_func` | partial | Line-level dynamic procedure dispatch and expression-level dynamic function dispatch are implemented for a constrained deterministic subset. | https://plantuml.com/preprocessing |
+| JSON preprocessing | JSON variable/object preprocessing surface | partial | Deterministic JSON helper and data-surface evidence exists, but full PlantUML JSON preprocessing remains partial. | https://plantuml.com/preprocessing-json |
 | `!theme` include | Theme include command | partial | Deterministic local-catalog semantics implemented for sequence (`plain`, `spacelab`); remote/source forms are rejected. | https://plantuml.com/preprocessing |
 | Theme catalog usage | Built-in theme listing/local/internet themes | partial | Local built-in deterministic preset catalog supported; broader catalog/listing/fetch remains unimplemented. | https://plantuml.com/theme |
 | Stdlib catalog usage | Standard library include/catalog (`awslib`, `C4`, etc.) | partial | Bundled deterministic catalog stubs resolve via `!include <...>`/`!import` for C4/AWS14/Azure/GCP/Office/Material/tupadr3; icon visuals are labeled stubs. | https://plantuml.com/stdlib |
