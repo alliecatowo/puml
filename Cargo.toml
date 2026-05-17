@@ -37,6 +37,13 @@ insta = { version = "1.43", features = ["json"] }
 predicates = "3"
 tempfile = "3"
 httpmock = "0.7"
+# PNG baseline diffing for visual_regression tests.  These are the same
+# versions already locked as optional `cli`-feature dependencies, so no
+# new crates are fetched — we just make them available to the test harness
+# without requiring the `cli` feature flag at build time.
+resvg = "0.45"
+tiny-skia = "0.11"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [[bin]]
 name = "puml"
