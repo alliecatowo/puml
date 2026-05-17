@@ -1,0 +1,39 @@
+title: "[Parity] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when a PlantUML compatibility gap needs clarification before it becomes a scoped issue.
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal PlantUML input
+      description: Paste the smallest `.puml` example that shows the behavior.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected PlantUML behavior
+      description: Describe or link to PlantUML output, docs, screenshots, or examples.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Current `puml` behavior
+      description: Describe the output, error, or missing feature you see.
+    validations:
+      required: false
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Rough priority
+      options:
+        - Unsure
+        - Blocks a common workflow
+        - Useful compatibility improvement
+        - Edge case or research note
+    validations:
+      required: true
