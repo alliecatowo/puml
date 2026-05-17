@@ -27,12 +27,16 @@ glob = { version = "0.3", optional = true }
 resvg = { version = "0.45", optional = true }
 tiny-skia = { version = "0.11", optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+ureq = { version = "2", default-features = false, features = ["tls"] }
+sha2 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 assert_cmd = "2"
 insta = { version = "1.43", features = ["json"] }
 predicates = "3"
 tempfile = "3"
+httpmock = "0.7"
 
 [[bin]]
 name = "puml"

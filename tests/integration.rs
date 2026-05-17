@@ -2388,16 +2388,17 @@ fn include_id_missing_tag_reports_deterministic_error() {
 }
 
 #[test]
-fn include_url_is_rejected_with_deterministic_error() {
+fn include_url_is_rejected_with_deterministic_error_when_flag_set() {
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--check", &fixture("errors/invalid_include_url.puml")])
+        .args([
+            "--check",
+            "--no-url-includes",
+            &fixture("errors/invalid_include_url.puml"),
+        ])
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("E_INCLUDE_URL_UNSUPPORTED"))
-        .stderr(predicate::str::contains(
-            "!include URL targets are not supported",
-        ));
+        .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 }
 
 #[test]
@@ -2417,8 +2418,8 @@ fn includesub_without_tag_is_rejected_with_deterministic_error() {
 }
 
 #[test]
-fn include_variants_url_policy_is_rejected_deterministically() {
-    for (case, directive) in [
+fn include_variants_url_policy_is_rejected_deterministically_when_flag_set() {
+    for (case, _directive) in [
         ("errors/invalid_include_url.puml", "!include"),
         ("errors/invalid_include_once_url.puml", "!include_once"),
         ("errors/invalid_include_many_url.puml", "!include_many"),
@@ -2427,13 +2428,10 @@ fn include_variants_url_policy_is_rejected_deterministically() {
     ] {
         Command::cargo_bin("puml")
             .expect("binary")
-            .args(["--check", &fixture(case)])
+            .args(["--check", "--no-url-includes", &fixture(case)])
             .assert()
             .code(1)
-            .stderr(predicate::str::contains("E_INCLUDE_URL_UNSUPPORTED"))
-            .stderr(predicate::str::contains(format!(
-                "{directive} URL targets are not supported"
-            )));
+            .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
     }
 }
 
@@ -2728,7 +2726,9 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
             "errors/invalid_import_empty_path.puml",
             "E_IMPORT_PATH_REQUIRED",
         ),
-        ("errors/invalid_import_url.puml", "E_IMPORT_URL_UNSUPPORTED"),
+        // Note: URL imports are now attempted; see import_url_disabled_produces_deterministic_error
+        // for the --no-url-includes path. We skip invalid_import_url.puml here to avoid
+        // real network calls in the test suite.
         (
             "errors/invalid_import_absolute_path.puml",
             "E_IMPORT_ABSOLUTE_PATH",
@@ -2752,6 +2752,20 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
             .code(1)
             .stderr(predicate::str::contains(code));
     }
+}
+
+#[test]
+fn import_url_disabled_produces_deterministic_error() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            "--no-url-includes",
+            &fixture("errors/invalid_import_url.puml"),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 }
 
 #[test]
@@ -4842,13 +4856,14 @@ fn preprocessor_include_directives_are_deterministic_for_same_input() {
 }
 
 #[test]
-fn preprocessor_includeurl_directive_rejects_with_deterministic_code() {
+fn preprocessor_includeurl_directive_rejects_with_deterministic_code_when_flag_set() {
     Command::cargo_bin("puml")
         .expect("binary")
+        .args(["--no-url-includes"])
         .write_stdin("@startuml\n!includeurl https://example.com/lib.puml\n@enduml\n")
         .assert()
         .code(1)
-        .stderr(predicate::str::contains("E_INCLUDE_URL_UNSUPPORTED"));
+        .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 }
 
 #[test]

@@ -249,6 +249,7 @@ fn mermaid_pipeline_supports_short_arrows_and_rejects_empty_declaration() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
 
     let supported = "sequenceDiagram\nAlice->Bob: hello\nAlice-->Bob: world\n";
@@ -273,6 +274,7 @@ class A hot
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
     let parsed = parse_with_pipeline_options(mermaid, &options)
         .expect("mermaid flowchart style/class syntax should adapt");
@@ -291,6 +293,7 @@ note A,B : shared context
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
     parse_with_pipeline_options(picouml, &pico_options)
         .expect("picouml multi-target shorthand note should adapt");
@@ -303,6 +306,7 @@ fn mermaid_pipeline_supports_cross_and_open_sequence_arrows() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
 
     let src = "sequenceDiagram\nAlice-xBob: lost\nBob--xAlice: dotted lost\nAlice-)Bob: async open\nBob--)Alice: dotted async open\n";
@@ -328,6 +332,7 @@ fn picouml_pipeline_supports_reverse_custom_arrows() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
 
     let src = "@startpicouml\nAlice <= Bob : reply\nBob <~ Carol : signal\n@endpicouml\n";
@@ -406,6 +411,7 @@ fn picouml_pipeline_selection_routes_deterministically_in_library_api() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
     parse_with_pipeline_options("@startpicouml\nA -> B\n@endpicouml\n", &options)
         .expect("picouml should route via shared model parser");
@@ -418,6 +424,7 @@ fn picouml_pipeline_rejects_mixed_marker_forms_deterministically() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
     let err = parse_with_pipeline_options("@startpicouml\nA -> B\n@enduml\n", &options)
         .expect_err("mixed picouml/uml markers should be rejected");
@@ -441,6 +448,7 @@ fn mermaid_pipeline_supports_notes_lifecycle_and_inline_comments() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
     let src =
         "sequenceDiagram\nA->>B: hi %% comment\nactivate B\nNote over A,B: synced\nautonumber\n";
@@ -454,6 +462,7 @@ fn mermaid_pipeline_accepts_supported_block_constructs() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
     let src = "sequenceDiagram\nloop retry\nA->>B: hi\nend\n";
     let doc = parse_with_pipeline_options(src, &options)
@@ -471,6 +480,7 @@ fn mermaid_pipeline_supports_note_sides_and_destroy_lifecycle() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
     let src = "sequenceDiagram\nNote left of A: left\ndestroy A\nNote right of A: right\n";
     parse_with_pipeline_options(src, &options)
@@ -484,6 +494,7 @@ fn mermaid_pipeline_accepts_create_and_link_constructs() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
 
     let create = "sequenceDiagram\ncreate A\n";
@@ -506,6 +517,7 @@ fn mermaid_pipeline_reports_empty_and_generic_construct_errors() {
         compat: CompatMode::Strict,
         determinism: DeterminismMode::Strict,
         include_root: None,
+        ..ParsePipelineOptions::default()
     };
 
     let empty_err = parse_with_pipeline_options("%% comment only\n", &options).unwrap_err();

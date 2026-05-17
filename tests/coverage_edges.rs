@@ -84,6 +84,7 @@ fn parser_reports_include_cycle_chain() {
     let src = fs::read_to_string(fixture("include/error_include_cycle_self.puml")).unwrap();
     let options = ParseOptions {
         include_root: Some(std::path::PathBuf::from(fixture("include"))),
+        ..ParseOptions::default()
     };
     let err = parse_with_options(&src, &options).expect_err("expected include cycle");
     assert!(err.message.contains("include cycle detected"));
@@ -100,6 +101,7 @@ fn parser_blocks_include_parent_escape() {
     let src = "@startuml\n!include ../outside.puml\n@enduml\n";
     let options = ParseOptions {
         include_root: Some(root),
+        ..ParseOptions::default()
     };
     let err = parse_with_options(src, &options).expect_err("expected include escape");
     assert!(err.message.contains("E_INCLUDE_ESCAPE"));
@@ -120,6 +122,7 @@ fn parser_blocks_symlink_include_escape() {
     let src = "@startuml\n!include linked.puml\n@enduml\n";
     let options = ParseOptions {
         include_root: Some(root),
+        ..ParseOptions::default()
     };
     let err = parse_with_options(src, &options).expect_err("expected symlink include escape");
     assert!(err.message.contains("E_INCLUDE_ESCAPE"));
