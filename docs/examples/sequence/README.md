@@ -56,3 +56,14 @@ deactivate API
 ```
 
 ![Lifecycle Autonumber](../lifecycle_autonumber.svg)
+
+## Sequence Parity Slice
+
+The renderer now covers this deterministic PlantUML-compatible vertical slice:
+uncommon slanted/open/lost-found sequence arrows, Creole inline styling in
+message/note/ref text, quoted rich autonumber formats such as
+`autonumber 7 2 "<b>REQ-000</b>"`, multi-target `note over A, C` placement that
+spans the participant range, and teoz-style parallel labels that reserve stable
+space before the next message row.
+
+Fixture: `tests/fixtures/e2e/sequence_parity_vertical_slice.puml`.

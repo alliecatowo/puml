@@ -401,6 +401,7 @@ pub struct TimelineDocument {
     pub chronology_events: Vec<TimelineChronologyEvent>,
     pub closed_weekdays: Vec<String>,
     pub closed_ranges: Vec<TimelineClosedRange>,
+    pub open_ranges: Vec<TimelineOpenRange>,
     pub scale: Option<String>,
     pub project_start: Option<String>,
     pub project_start_day: Option<u32>,
@@ -416,14 +417,20 @@ pub struct TimelineDocument {
 pub struct TimelineTask {
     pub name: String,
     pub start_day: u32,
+    pub workload_days: u32,
     pub duration_days: u32,
     pub resources: Vec<String>,
+    pub resource_allocations: Vec<TimelineResourceAllocation>,
+    pub baseline_start_day: Option<u32>,
+    pub baseline_duration_days: Option<u32>,
+    pub is_critical: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct TimelineMilestone {
     pub name: String,
     pub happens_on: Option<String>,
+    pub is_critical: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +446,20 @@ pub struct TimelineClosedRange {
     pub end_date: String,
     pub start_day: u32,
     pub end_day: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineOpenRange {
+    pub start_date: String,
+    pub end_date: String,
+    pub start_day: u32,
+    pub end_day: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineResourceAllocation {
+    pub name: String,
+    pub load_percent: Option<u32>,
 }
 
 #[derive(Debug, Clone)]

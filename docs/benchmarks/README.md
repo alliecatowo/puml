@@ -20,8 +20,11 @@
 # corpus parity baseline report (oracle placeholders kept intentionally)
 python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
 
-# differential oracle smoke report (PlantUML runtime required)
-python3 scripts/differential_oracle_smoke.py --quick --strict --output docs/benchmarks/oracle_smoke_latest.json
+# deterministic Java-free differential oracle metadata report
+python3 scripts/differential_oracle_smoke.py --dry-run --quiet --output docs/benchmarks/oracle_smoke_latest.json
+
+# optional live differential oracle evidence when PlantUML is installed
+python3 scripts/differential_oracle_smoke.py --quick --strict --quiet --output docs/benchmarks/oracle_smoke_latest.json
 ```
 
 ## Artifacts
@@ -69,5 +72,6 @@ If no matching mode baseline exists, regression checks are skipped and absolute/
 ## Differential Oracle Smoke
 
 - CI workflow: `.github/workflows/differential-oracle-smoke.yml`
-- Gate mode: deterministic smoke checks only (small fixed corpus, token-presence checks, viewBox checks, structured JSON report).
-- Runtime requirements: `plantuml`, `java` (headless), and `graphviz`.
+- Default artifact mode: `--dry-run` metadata, fixed fixture corpus, expected drift categories, ranked top drift areas, no renderer execution.
+- Optional live mode: small fixed corpus, token-presence checks, viewBox checks, structured JSON report.
+- Runtime requirements: none for `--dry-run`; optional live mode requires `plantuml`, `java` (headless), and any PlantUML-side dependencies such as `graphviz`.

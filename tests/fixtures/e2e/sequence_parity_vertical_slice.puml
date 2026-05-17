@@ -1,0 +1,19 @@
+@startuml
+!pragma teoz true
+participant A
+participant B
+participant C
+
+autonumber 7 2 "REQ-000"
+A -[#336699]/->> B: **boot** <color:#008800>green</color>
+& B -[#aa5500,dotted]\->> C: //parallel styled//
+& C x-[#cc0000,thickness=4]->o A: [[https://example.com link]]
+
+note over A, C: span **multi** target
+ref over A, C: <b>rich ref</b>
+rich_ref_body_line
+end ref
+
+autonumber stop
+B --> A: final
+@enduml

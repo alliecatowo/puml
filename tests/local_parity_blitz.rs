@@ -350,3 +350,71 @@ fn core_uml_package_alias_and_skinparam_alias_parity() {
     assert!(component_svg.contains("#add8e6"));
     assert!(component_svg.contains("binds"));
 }
+
+#[test]
+fn core_uml_inline_fill_styles_render_for_class_component_and_deployment_nodes() {
+    let class_svg = puml::render_source_to_svg(
+        r##"@startuml
+class Account #palegreen
+class Ledger #ffeeaa
+Account --> Ledger : records
+@enduml
+"##,
+    )
+    .expect("class inline style render should succeed");
+    assert!(class_svg.contains("#98fb98"));
+    assert!(class_svg.contains("#ffeeaa"));
+    assert!(class_svg.contains("records"));
+
+    let object_svg = puml::render_source_to_svg(
+        r##"@startuml
+object "Order Snapshot" as snap #ffeeaa
+object Archive #palegreen
+snap --> Archive : stores
+@enduml
+"##,
+    )
+    .expect("object inline style render should succeed");
+    assert!(object_svg.contains("#ffeeaa"));
+    assert!(object_svg.contains("#98fb98"));
+
+    let usecase_svg = puml::render_source_to_svg(
+        r##"@startuml
+actor Customer
+usecase (Checkout) as UC #lightblue
+Customer ..> UC : uses
+@enduml
+"##,
+    )
+    .expect("usecase inline style render should succeed");
+    assert!(usecase_svg.contains("#add8e6"));
+    assert!(usecase_svg.contains("uses"));
+
+    let component_svg = puml::render_source_to_svg(
+        r##"@startuml
+component API #aliceblue
+interface Orders #palegreen
+port HTTP #ffeeaa
+API --> Orders : exposes
+HTTP --> API : binds
+@enduml
+"##,
+    )
+    .expect("component inline style render should succeed");
+    assert!(component_svg.contains("#f0f8ff"));
+    assert!(component_svg.contains("#98fb98"));
+    assert!(component_svg.contains("#ffeeaa"));
+
+    let deployment_svg = puml::render_source_to_svg(
+        r##"@startuml
+node Cluster #aliceblue
+package Edge #ffeeaa
+database Orders #palegreen
+Cluster --> Orders : hosts
+@enduml
+"##,
+    )
+    .expect("deployment inline style render should succeed");
+    assert!(deployment_svg.contains("#ffeeaa"));
+    assert!(deployment_svg.contains("hosts"));
+}

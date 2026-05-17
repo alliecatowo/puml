@@ -16,7 +16,7 @@ fn gantt_places_milestone_using_constraint_day_or_task_reference() {
     assert!(svg.contains("Kickoff"));
     assert!(svg.contains("Release"));
     assert!(svg.contains("marker-end=\"url(#gantt-arrow)\""));
-    assert!(svg.contains("<polygon points=\""));
+    assert!(svg.contains("class=\"gantt-milestone"));
 }
 
 #[test]
@@ -183,6 +183,57 @@ sundays are closed
 }
 
 #[test]
+fn gantt_reopened_calendar_resource_load_baseline_and_critical_metadata_render() {
+    let src = r#"@startgantt
+Project starts 2026-05-01
+printscale weekly
+saturdays are closed
+sundays are closed
+2026-05-02 is open
+[Design] on {Alice:50%} requires 2 days
+[Build] on {Bob:75%, Cara} requires 3 days
+[Build] requires [Design]
+[Design] baseline starts 2026-05-01 and lasts 2 days
+[Build] is critical
+[Release] happens on [Build]'s start
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("class=\"gantt-open-range\""));
+    assert!(svg.contains("Calendar: closed Saturday, Sunday; open 2026-05-02"));
+    assert!(svg.contains("data-gantt-workload=\"2\""));
+    assert!(svg.contains("data-gantt-load=\"Alice:50%\""));
+    assert!(svg.contains("class=\"gantt-baseline\""));
+    assert!(svg.contains("gantt-critical"));
+    assert!(svg.contains("class=\"gantt-scale-tick\""));
+    assert!(svg.contains(">Wk 2026-05-01<"));
+    assert!(svg.contains("data-gantt-from=\"Design\" data-gantt-to=\"Build\""));
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    let design = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Design")
+        .expect("design task");
+    let build = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Build")
+        .expect("build task");
+    assert_eq!(model.open_ranges.len(), 1);
+    assert_eq!(design.workload_days, 2);
+    assert_eq!(design.duration_days, 5);
+    assert_eq!(design.resource_allocations[0].name, "Alice");
+    assert_eq!(design.resource_allocations[0].load_percent, Some(50));
+    assert_eq!(build.start_day, design.start_day + design.duration_days);
+    assert!(build.is_critical);
+    assert!(design.baseline_start_day.is_some());
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01
@@ -209,7 +260,7 @@ left to right direction
 @endwbs
 "#;
     let svg = puml::render_source_to_svg(src).expect("wbs render");
-    assert!(svg.contains("data-wbs-orientation=\"LeftToRight\""));
+    assert!(svg.contains("data-wbs-orientation=\"left-to-right\""));
     assert!(svg.contains(">Launch<"));
     assert!(svg.contains(">Milestones<"));
 }
@@ -245,7 +296,7 @@ right to left direction
 @endwbs
 "##;
     let wbs_svg = puml::render_source_to_svg(wbs).expect("wbs render");
-    assert!(wbs_svg.contains("data-wbs-orientation=\"RightToLeft\""));
+    assert!(wbs_svg.contains("data-wbs-orientation=\"right-to-left\""));
     assert!(wbs_svg.contains("fill=\"#dbeafe\""));
     assert!(wbs_svg.contains("fill=\"pink\""));
     assert!(wbs_svg.contains("fill=\"#c7f9cc\""));

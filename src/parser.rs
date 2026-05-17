@@ -5181,11 +5181,17 @@ fn parse_family_declaration(
         ("abstract", Some("<<abstract>>")),
         ("class", None),
     ] {
-        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
-        else {
+        let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
-        let members = if has_block {
+        let FamilyDeclParts {
+            name,
+            alias,
+            has_block,
+            stereotypes,
+            fill_color,
+        } = decl;
+        let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
             if let Some(marker) = marker {
                 members.insert(
@@ -5209,6 +5215,7 @@ fn parse_family_declaration(
         } else {
             declaration_marker_members(marker, stereotypes)
         };
+        append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::ClassDecl(ClassDecl {
                 name,
@@ -5224,11 +5231,17 @@ fn parse_family_declaration(
     }
 
     for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
-        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
-        else {
+        let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
-        let members = if has_block {
+        let FamilyDeclParts {
+            name,
+            alias,
+            has_block,
+            stereotypes,
+            fill_color,
+        } = decl;
+        let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
             if let Some(marker) = marker {
                 members.insert(
@@ -5252,6 +5265,7 @@ fn parse_family_declaration(
         } else {
             declaration_marker_members(marker, stereotypes)
         };
+        append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::ObjectDecl(ObjectDecl {
                 name,
@@ -5266,12 +5280,21 @@ fn parse_family_declaration(
         )));
     }
 
-    if let Some((name, alias, has_block)) = parse_parenthesized_usecase_decl(line) {
+    if let Some(decl) = parse_parenthesized_usecase_decl(line) {
+        let FamilyDeclParts {
+            name,
+            alias,
+            has_block,
+            fill_color,
+            ..
+        } = decl;
+        let mut members = Vec::new();
+        append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
                 name,
                 alias,
-                members: Vec::new(),
+                members,
             }),
             if has_block {
                 find_family_decl_end(lines, start)
@@ -5282,11 +5305,17 @@ fn parse_family_declaration(
     }
 
     for (keyword, marker) in [("actor", Some("<<actor>>")), ("usecase", None)] {
-        let Some((name, alias, has_block, stereotypes)) = parse_named_family_decl(line, keyword)
-        else {
+        let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
-        let members = if has_block {
+        let FamilyDeclParts {
+            name,
+            alias,
+            has_block,
+            stereotypes,
+            fill_color,
+        } = decl;
+        let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
             if let Some(marker) = marker {
                 members.insert(
@@ -5310,6 +5339,7 @@ fn parse_family_declaration(
         } else {
             declaration_marker_members(marker, stereotypes)
         };
+        append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
                 name,
@@ -5346,10 +5376,16 @@ fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start:
     })
 }
 
-fn parse_named_family_decl(
-    line: &str,
-    keyword: &str,
-) -> Option<(String, Option<String>, bool, Vec<String>)> {
+#[derive(Debug, Clone)]
+struct FamilyDeclParts {
+    name: String,
+    alias: Option<String>,
+    has_block: bool,
+    stereotypes: Vec<String>,
+    fill_color: Option<String>,
+}
+
+fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
     if !line.starts_with(keyword) {
         return None;
     }
@@ -5372,6 +5408,8 @@ fn parse_named_family_decl(
     } else {
         rest
     };
+    let (trimmed, fill_color) = split_declaration_inline_fill(trimmed);
+    let trimmed = trimmed.trim();
 
     let (name_raw, alias_raw) = if let Some((lhs, rhs)) = trimmed.split_once(" as ") {
         (lhs.trim(), Some(rhs.trim()))
@@ -5385,7 +5423,72 @@ fn parse_named_family_decl(
         return None;
     }
     let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
-    Some((name, alias, has_block, stereotypes))
+    Some(FamilyDeclParts {
+        name,
+        alias,
+        has_block,
+        stereotypes,
+        fill_color,
+    })
+}
+
+fn append_inline_fill_member(members: &mut Vec<ClassMember>, fill_color: Option<String>) {
+    if let Some(color) = fill_color {
+        members.push(ClassMember {
+            text: format!("\x1fstyle:fill:{color}"),
+            modifier: None,
+        });
+    }
+}
+
+fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
+    let trimmed = input.trim();
+    let mut in_quote = false;
+    let mut last_hash: Option<usize> = None;
+    for (idx, ch) in trimmed.char_indices() {
+        if ch == '"' {
+            in_quote = !in_quote;
+            continue;
+        }
+        if !in_quote && ch == '#' {
+            last_hash = Some(idx);
+        }
+    }
+    let Some(hash_idx) = last_hash else {
+        return (trimmed.to_string(), None);
+    };
+    if hash_idx > 0
+        && !trimmed[..hash_idx]
+            .chars()
+            .last()
+            .is_some_and(char::is_whitespace)
+    {
+        return (trimmed.to_string(), None);
+    }
+    let after = &trimmed[hash_idx..];
+    let token_len = after
+        .char_indices()
+        .take_while(|(_, ch)| ch.is_ascii_alphanumeric() || matches!(ch, '#' | '_' | '-' | ':'))
+        .map(|(idx, ch)| idx + ch.len_utf8())
+        .last()
+        .unwrap_or(0);
+    if token_len == 0 {
+        return (trimmed.to_string(), None);
+    }
+    let token = &after[..token_len];
+    let Some(color) = parse_relation_color_token(token) else {
+        return (trimmed.to_string(), None);
+    };
+    let before = trimmed[..hash_idx].trim_end();
+    let suffix = after[token_len..].trim_start();
+    let mut cleaned = before.to_string();
+    if !suffix.is_empty() {
+        if !cleaned.is_empty() {
+            cleaned.push(' ');
+        }
+        cleaned.push_str(suffix);
+    }
+    (cleaned, Some(color))
 }
 
 fn declaration_marker_members(marker: Option<&str>, stereotypes: Vec<String>) -> Vec<ClassMember> {
@@ -5422,7 +5525,7 @@ fn strip_declaration_stereotypes(input: &str) -> (String, Vec<String>) {
     (remaining.trim().to_string(), stereotypes)
 }
 
-fn parse_parenthesized_usecase_decl(line: &str) -> Option<(String, Option<String>, bool)> {
+fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     let trimmed = line.trim();
     let trimmed = trimmed.strip_prefix("usecase ").unwrap_or(trimmed).trim();
     if !trimmed.starts_with('(') {
@@ -5440,12 +5543,20 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<(String, Option<String
     } else {
         rest
     };
+    let (rest, fill_color) = split_declaration_inline_fill(rest);
+    let rest = rest.trim();
     let alias = rest
         .strip_prefix("as ")
         .map(str::trim)
         .map(clean_ident)
         .filter(|v| !v.is_empty());
-    Some((clean_ident(name_raw), alias, has_block))
+    Some(FamilyDeclParts {
+        name: clean_ident(name_raw),
+        alias,
+        has_block,
+        stereotypes: Vec::new(),
+        fill_color,
+    })
 }
 
 fn parse_family_decl_members(
@@ -6220,13 +6331,24 @@ fn collect_scoped_class_group_content(
                 continue;
             }
         }
-        if let Some((name, alias, has_block)) = parse_parenthesized_usecase_decl(line) {
+        if let Some(decl) = parse_parenthesized_usecase_decl(line) {
+            let FamilyDeclParts {
+                name,
+                alias,
+                has_block,
+                fill_color,
+                ..
+            } = decl;
             let has_alias = alias.is_some();
             let id = alias.unwrap_or_else(|| name.clone());
             let mut encoded = qualify_scoped_identifier(id, scope);
             if has_alias {
                 encoded.push('\t');
                 encoded.push_str(&name);
+            }
+            if let Some(fill_color) = fill_color {
+                encoded.push('\t');
+                encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
             }
             content.members.push(encoded);
             if has_block {
@@ -6255,9 +6377,14 @@ fn collect_scoped_class_group_content(
         ];
         let mut handled_declaration = false;
         for keyword in declaration_keywords {
-            if let Some((name, alias, has_block, _stereotypes)) =
-                parse_named_family_decl(line, keyword)
-            {
+            if let Some(decl) = parse_named_family_decl(line, keyword) {
+                let FamilyDeclParts {
+                    name,
+                    alias,
+                    has_block,
+                    fill_color,
+                    ..
+                } = decl;
                 let has_alias = alias.is_some();
                 let id = alias.unwrap_or_else(|| name.clone());
                 let scoped_name = qualify_scoped_identifier(id, scope);
@@ -6265,6 +6392,10 @@ fn collect_scoped_class_group_content(
                 if has_alias {
                     encoded.push('\t');
                     encoded.push_str(&name);
+                }
+                if let Some(fill_color) = fill_color {
+                    encoded.push('\t');
+                    encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
                 }
                 let nested_end = if has_block {
                     let nested_end = find_family_decl_end(lines, idx);
@@ -6311,8 +6442,14 @@ fn collect_scoped_class_group_content(
             "actor",
             "usecase",
         ] {
-            if let Some((name, alias, true, _stereotypes)) = parse_named_family_decl(line, keyword)
+            if let Some(decl) = parse_named_family_decl(line, keyword).filter(|decl| decl.has_block)
             {
+                let FamilyDeclParts {
+                    name,
+                    alias,
+                    fill_color,
+                    ..
+                } = decl;
                 let has_alias = alias.is_some();
                 let id = alias.unwrap_or_else(|| name.clone());
                 let scoped_name = qualify_scoped_identifier(id, scope);
@@ -6330,6 +6467,10 @@ fn collect_scoped_class_group_content(
                     encoded.push('\t');
                     encoded.push_str(&name);
                 }
+                if let Some(fill_color) = fill_color {
+                    encoded.push('\t');
+                    encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
+                }
                 for member in members_text {
                     encoded.push('\t');
                     encoded.push_str(&member);
@@ -6339,15 +6480,25 @@ fn collect_scoped_class_group_content(
                     idx = nested_end + 1;
                     continue;
                 }
-            } else if let Some((name, alias, false, _stereotypes)) =
-                parse_named_family_decl(line, keyword)
+            } else if let Some(decl) =
+                parse_named_family_decl(line, keyword).filter(|decl| !decl.has_block)
             {
+                let FamilyDeclParts {
+                    name,
+                    alias,
+                    fill_color,
+                    ..
+                } = decl;
                 let has_alias = alias.is_some();
                 let id = alias.unwrap_or_else(|| name.clone());
                 let mut encoded = qualify_scoped_identifier(id, scope);
                 if has_alias {
                     encoded.push('\t');
                     encoded.push_str(&name);
+                }
+                if let Some(fill_color) = fill_color {
+                    encoded.push('\t');
+                    encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
                 }
                 content.members.push(encoded);
                 idx += 1;
@@ -6635,6 +6786,12 @@ fn collect_scoped_component_group_content(
             ..
         }) = parse_component_decl(line)
         {
+            let fill_color = members.iter().find_map(|member| {
+                member
+                    .text
+                    .strip_prefix("\x1fstyle:fill:")
+                    .map(str::to_string)
+            });
             let local_id = alias.clone().unwrap_or_else(|| name.clone());
             let scoped_id = qualify_scoped_identifier(local_id, scope);
             let display = label
@@ -6649,6 +6806,10 @@ fn collect_scoped_component_group_content(
             }
             encoded.push('\t');
             encoded.push_str(component_decl_kind_name(kind));
+            if let Some(fill_color) = fill_color {
+                encoded.push('\t');
+                encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
+            }
             content.members.push(encoded);
         } else {
             let name = extract_component_group_member_name(line);
@@ -6886,8 +7047,17 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             end_date,
         });
     }
+    if let Some((start_date, end_date)) = parse_gantt_open_date_range(trimmed) {
+        return Some(StatementKind::GanttCalendarOpenDateRange {
+            start_date,
+            end_date,
+        });
+    }
     if let Some(day) = parse_gantt_closed_weekday(trimmed) {
         return Some(StatementKind::GanttCalendarClosed { day });
+    }
+    if let Some(day) = parse_gantt_open_weekday(trimmed) {
+        return Some(StatementKind::GanttCalendarOpen { day });
     }
     let (subject, rest) = parse_bracket_subject(trimmed)?;
     if rest.is_empty() {
@@ -6967,6 +7137,36 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
         });
     }
     let lower = rest.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "is critical" | "critical" | "is on critical path" | "is on the critical path"
+    ) {
+        return Some(StatementKind::GanttConstraint {
+            subject,
+            kind: "critical".to_string(),
+            target: "true".to_string(),
+        });
+    }
+    if let Some(target) = lower
+        .strip_prefix("baseline ")
+        .and_then(|_| rest.get("baseline ".len()..))
+        .or_else(|| {
+            lower
+                .strip_prefix("has baseline ")
+                .and_then(|_| rest.get("has baseline ".len()..))
+        })
+        .or_else(|| {
+            lower
+                .strip_prefix("planned ")
+                .and_then(|_| rest.get("planned ".len()..))
+        })
+    {
+        return Some(StatementKind::GanttConstraint {
+            subject,
+            kind: "baseline".to_string(),
+            target: target.trim().to_string(),
+        });
+    }
     if lower.starts_with("happens") {
         return Some(StatementKind::GanttMilestoneDecl {
             name: subject,
@@ -6992,6 +7192,16 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
 }
 
 fn parse_gantt_closed_weekday(line: &str) -> Option<String> {
+    parse_gantt_weekday_status(line, "closed")
+}
+
+fn parse_gantt_open_weekday(line: &str) -> Option<String> {
+    parse_gantt_weekday_status(line, "open")
+        .or_else(|| parse_gantt_weekday_status(line, "opened"))
+        .or_else(|| parse_gantt_weekday_status(line, "reopened"))
+}
+
+fn parse_gantt_weekday_status(line: &str, status: &str) -> Option<String> {
     let lower = line.trim().to_ascii_lowercase();
     let day = [
         "monday",
@@ -7004,23 +7214,38 @@ fn parse_gantt_closed_weekday(line: &str) -> Option<String> {
     ]
     .into_iter()
     .find(|day| {
-        lower == format!("{day} is closed")
-            || lower == format!("{day} are closed")
-            || lower == format!("{day}s are closed")
+        lower == format!("{day} is {status}")
+            || lower == format!("{day} are {status}")
+            || lower == format!("{day}s are {status}")
     })?;
     Some(day.to_string())
 }
 
 fn parse_gantt_closed_date_range(line: &str) -> Option<(String, String)> {
+    parse_gantt_date_range_status(line, &[" is closed", " are closed"])
+}
+
+fn parse_gantt_open_date_range(line: &str) -> Option<(String, String)> {
+    parse_gantt_date_range_status(
+        line,
+        &[
+            " is open",
+            " are open",
+            " is opened",
+            " are opened",
+            " is reopened",
+            " are reopened",
+        ],
+    )
+}
+
+fn parse_gantt_date_range_status(line: &str, suffixes: &[&str]) -> Option<(String, String)> {
     let trimmed = line.trim();
     let lower = trimmed.to_ascii_lowercase();
-    let suffix_len = if lower.ends_with(" is closed") {
-        " is closed".len()
-    } else if lower.ends_with(" are closed") {
-        " are closed".len()
-    } else {
-        return None;
-    };
+    let suffix_len = suffixes
+        .iter()
+        .find(|suffix| lower.ends_with(**suffix))
+        .map(|suffix| suffix.len())?;
     let range = trimmed[..trimmed.len().saturating_sub(suffix_len)].trim();
     let lower_range = lower[..lower.len().saturating_sub(suffix_len)].trim();
     let sep = " to ";
@@ -7253,6 +7478,8 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             }
         }
         let rest = rest_raw.trim_end_matches('{').trim();
+        let (rest, fill_color) = split_declaration_inline_fill(rest);
+        let rest = rest.trim();
         let (rest_without_stereotypes, stereotypes) = strip_declaration_stereotypes(rest);
         let rest = rest_without_stereotypes.trim();
         let (label, rest_after_label) = if rest.starts_with('"') {
@@ -7286,12 +7513,14 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             return None;
         }
         let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
+        let mut members = declaration_marker_members(None, stereotypes);
+        append_inline_fill_member(&mut members, fill_color);
         return Some(StatementKind::ComponentDecl {
             kind,
             name,
             alias,
             label,
-            members: declaration_marker_members(None, stereotypes),
+            members,
         });
     }
     // Anonymous shorthand: `[Name]` declares a component, `() Name` declares an interface.

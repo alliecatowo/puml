@@ -272,7 +272,9 @@ fn differential_oracle_smoke_report_schema_is_stable_in_dry_mode() {
 
     let raw = fs::read_to_string(&path).expect("report should be written");
     let json: Value = serde_json::from_str(&raw).expect("report must be valid JSON");
-    assert_eq!(json["schema_version"], "1.1.0");
+    assert_eq!(json["schema_version"], "1.2.0");
+    assert_eq!(json["generated_at_utc"], "1970-01-01T00:00:00Z");
+    assert_eq!(json["tool"]["cwd"], "repo-root");
     assert_eq!(json["oracle"]["mode"], "metadata-dry-run");
     assert_eq!(json["tool"]["dry_run"], true);
     assert_eq!(json["tool"]["quick_mode"], true);
@@ -283,5 +285,12 @@ fn differential_oracle_smoke_report_schema_is_stable_in_dry_mode() {
     assert_eq!(
         json["summary"]["total"].as_u64(),
         Some(fixtures.len() as u64)
+    );
+    assert!(
+        json["summary"]["top_expected_drift_categories"]
+            .as_array()
+            .map(|rows| rows.iter().all(|row| row["fixture_count"].is_u64()))
+            .unwrap_or(false),
+        "expected deterministic top drift category rows"
     );
 }

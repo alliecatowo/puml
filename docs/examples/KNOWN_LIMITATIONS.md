@@ -31,5 +31,5 @@ that diagram families are unsupported overall.
 ### Family depth (not family availability)
 
 - Families are implemented end-to-end, but feature depth still varies by family.
-- Core UML broad partials include class-like declarations, object maps, use-case actors, component/deployment primitives, state pseudostate basics, and activity branch/split/control tokens, but advanced semantic layout and styling remain partial relative to PlantUML breadth.
+- Core UML broad partials include class-like declarations, inline node fills, object maps, use-case actors, component/deployment primitives, styled/decorated relations, state pseudostate basics, and activity branch/split/control tokens, but advanced semantic layout and styling remain partial relative to PlantUML breadth.
 - Non-UML families (gantt/chronology/salt/mindmap/wbs/json/yaml/nwdiag/archimate/regex/ebnf/chart/math/sdl/ditaa) are implemented with deterministic render paths, but advanced semantics are still being expanded.

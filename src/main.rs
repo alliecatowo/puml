@@ -1473,11 +1473,23 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::GanttCalendarClosed { day } => {
             json!({"GanttCalendarClosed": {"day": day}})
         }
+        StatementKind::GanttCalendarOpen { day } => {
+            json!({"GanttCalendarOpen": {"day": day}})
+        }
         StatementKind::GanttCalendarClosedDateRange {
             start_date,
             end_date,
         } => json!({
             "GanttCalendarClosedDateRange": {
+                "start_date": start_date,
+                "end_date": end_date
+            }
+        }),
+        StatementKind::GanttCalendarOpenDateRange {
+            start_date,
+            end_date,
+        } => json!({
+            "GanttCalendarOpenDateRange": {
                 "start_date": start_date,
                 "end_date": end_date
             }
