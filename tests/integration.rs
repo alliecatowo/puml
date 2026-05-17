@@ -584,6 +584,22 @@ fn activity_family_now_passes_validation() {
 }
 
 #[test]
+fn old_style_activity_renders_flow_nodes_instead_of_raw_source() {
+    let svg = render_source_to_svg(include_str!(
+        "fixtures/families/valid_activity_old_style.puml"
+    ))
+    .expect("old-style activity should render");
+
+    assert!(svg.contains("data-activity-kind=\"Start\""));
+    assert!(svg.contains("data-activity-kind=\"Action\""));
+    assert!(svg.contains("data-activity-kind=\"Stop\""));
+    assert!(svg.contains(">Step1<"));
+    assert!(svg.contains(">Step2<"));
+    assert!(svg.contains("<line "));
+    assert!(!svg.contains("(*) --&gt;"));
+}
+
+#[test]
 fn timing_family_now_passes_validation() {
     Command::cargo_bin("puml")
         .expect("binary")

@@ -4896,6 +4896,10 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
+        if detected_kind.is_none() && looks_like_old_activity_flow(line) {
+            detected_kind = Some(DiagramKind::Activity);
+        }
+
         if matches!(
             detected_kind,
             None | Some(DiagramKind::Component | DiagramKind::Deployment)
@@ -5102,6 +5106,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         }
 
         if matches!(detected_kind, Some(DiagramKind::Activity)) {
+            if let Some(kinds) = parse_activity_old_style_flow(line) {
+                statements.extend(kinds.into_iter().map(|kind| Statement { span, kind }));
+                i += 1;
+                continue;
+            }
             if let Some(kind) = parse_activity_step(line) {
                 statements.push(Statement { span, kind });
                 i += 1;
@@ -8182,6 +8191,18 @@ fn looks_like_family_relation_tail(rest: &str) -> bool {
 
 fn parse_activity_step(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
+    if let Some(label) = parse_activity_swimlane(trimmed) {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::PartitionStart,
+            label: Some(label),
+        }));
+    }
+    if let Some(label) = parse_activity_colored_action(trimmed) {
+        return Some(StatementKind::ActivityStep(ActivityStep {
+            kind: ActivityStepKind::Action,
+            label: Some(label),
+        }));
+    }
     // `:action;` or `:action` form
     if let Some(rest) = trimmed.strip_prefix(':') {
         let body = rest.trim_end_matches(';').trim();
@@ -8389,6 +8410,97 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         }));
     }
     None
+}
+
+fn looks_like_old_activity_flow(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with("(*)")
+        || trimmed.starts_with("-->")
+        || (trimmed.contains("-->") && trimmed.contains("(*)"))
+}
+
+fn parse_activity_old_style_flow(line: &str) -> Option<Vec<StatementKind>> {
+    let trimmed = line.trim();
+    let arrow_idx = trimmed.find("-->")?;
+    let lhs = trimmed[..arrow_idx].trim();
+    let rhs = trimmed[arrow_idx + 3..].trim();
+    let mut steps = Vec::new();
+
+    if lhs == "(*)" {
+        steps.push(activity_step_statement(ActivityStepKind::Start, None));
+    }
+
+    if let Some(target) = parse_old_activity_arrow_target(rhs) {
+        if target == "(*)" {
+            steps.push(activity_step_statement(ActivityStepKind::Stop, None));
+        } else {
+            steps.push(activity_step_statement(
+                ActivityStepKind::Action,
+                Some(target),
+            ));
+        }
+    }
+
+    (!steps.is_empty()).then_some(steps)
+}
+
+fn parse_old_activity_arrow_target(rhs: &str) -> Option<String> {
+    let mut rest = rhs.trim();
+    if let Some(after_label) = rest.strip_prefix('[') {
+        let close = after_label.find(']')?;
+        rest = after_label[close + 1..].trim();
+    }
+    if let Some(after_dir) = rest.strip_prefix("right of ") {
+        rest = after_dir.trim();
+    } else if let Some(after_dir) = rest.strip_prefix("left of ") {
+        rest = after_dir.trim();
+    } else if let Some(after_dir) = rest.strip_prefix("up of ") {
+        rest = after_dir.trim();
+    } else if let Some(after_dir) = rest.strip_prefix("down of ") {
+        rest = after_dir.trim();
+    }
+
+    if rest == "(*)" {
+        return Some(rest.to_string());
+    }
+
+    if let Some(label) = parse_quoted_activity_label(rest) {
+        return Some(label);
+    }
+
+    let label = rest.trim_end_matches(';').trim();
+    (!label.is_empty()).then(|| label.to_string())
+}
+
+fn parse_quoted_activity_label(input: &str) -> Option<String> {
+    let input = input.trim();
+    let rest = input.strip_prefix('"')?;
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
+fn parse_activity_swimlane(line: &str) -> Option<String> {
+    if !line.starts_with('|') || !line.ends_with('|') {
+        return None;
+    }
+    let parts: Vec<&str> = line
+        .trim_matches('|')
+        .split('|')
+        .map(str::trim)
+        .filter(|part| !part.is_empty() && !part.starts_with('#'))
+        .collect();
+    parts.last().map(|part| (*part).to_string())
+}
+
+fn parse_activity_colored_action(line: &str) -> Option<String> {
+    let rest = line.strip_prefix('#')?;
+    let (_color, body) = rest.split_once(':')?;
+    let label = body.trim().trim_end_matches(';').trim();
+    (!label.is_empty()).then(|| label.to_string())
+}
+
+fn activity_step_statement(kind: ActivityStepKind, label: Option<String>) -> StatementKind {
+    StatementKind::ActivityStep(ActivityStep { kind, label })
 }
 
 fn parse_activity_note_step(line: &str) -> Option<String> {
@@ -12082,6 +12194,33 @@ mod tests {
         .unwrap();
         assert_eq!(doc.kind, DiagramKind::Activity);
         assert!(!doc.statements.is_empty());
+    }
+
+    #[test]
+    fn parses_old_activity_edges_as_canonical_steps() {
+        let doc = parse_with_options(
+            "@startuml\n(*) --> \"Step1\"\n\"Step1\" -->[ok] \"Step2\"\n\"Step2\" --> (*)\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Activity);
+        let steps: Vec<_> = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::ActivityStep(step) => Some((step.kind.clone(), step.label.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            steps,
+            vec![
+                (ActivityStepKind::Start, None),
+                (ActivityStepKind::Action, Some("Step1".to_string())),
+                (ActivityStepKind::Action, Some("Step2".to_string())),
+                (ActivityStepKind::Stop, None),
+            ]
+        );
     }
 
     #[test]
