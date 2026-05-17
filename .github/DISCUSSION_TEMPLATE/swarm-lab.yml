@@ -1,4 +1,5 @@
 title: "[Swarm lab] "
+labels: ["discussion: development notes", "codex"]
 body:
   - type: markdown
     attributes:
