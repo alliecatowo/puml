@@ -1,6 +1,5 @@
 ---
 source: tests/integration.rs
-assertion_line: 649
 expression: json
 ---
 {
@@ -49,14 +48,6 @@ expression: json
       "resource_allocations": [],
       "resources": [],
       "start_day": 20576,
-      "workload_days": 1
-    },
-    {
-      "duration_days": 1,
-      "name": "Build",
-      "resource_allocations": [],
-      "resources": [],
-      "start_day": 20575,
       "workload_days": 1
     }
   ],
