@@ -26,25 +26,87 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Classify changed files
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANGED_FILES="${RUNNER_TEMP}/changed-files.txt"
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+            git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "${CHANGED_FILES}"
+          else
+            git ls-files > "${CHANGED_FILES}"
+          fi
+
+          run_oracle_smoke=false
+          full_oracle_covers=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            run_oracle_smoke=true
+          fi
+
+          while IFS= read -r file; do
+            [[ -n "${file}" ]] || continue
+
+            case "${file}" in
+              Cargo.toml|Cargo.lock|src/*|crates/*|tests/fixtures/*|docs/examples/*|stdlib/*|scripts/oracle.sh|.github/workflows/oracle.yml)
+                full_oracle_covers=true
+                ;;
+              scripts/differential_oracle_smoke.py|.github/workflows/differential-oracle-smoke.yml)
+                run_oracle_smoke=true
+                ;;
+            esac
+          done < "${CHANGED_FILES}"
+
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" && "${full_oracle_covers}" == "true" && "${run_oracle_smoke}" != "true" ]]; then
+            run_oracle_smoke=false
+          fi
+
+          {
+            echo "run_oracle_smoke=${run_oracle_smoke}"
+            echo "full_oracle_covers=${full_oracle_covers}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Changed files:"
+          sed 's/^/  - /' "${CHANGED_FILES}"
+          echo "run_oracle_smoke=${run_oracle_smoke}"
+          echo "full_oracle_covers=${full_oracle_covers}"
+
+      - name: Skip duplicate oracle smoke
+        if: steps.changes.outputs.run_oracle_smoke != 'true'
+        run: |
+          if [[ "${{ steps.changes.outputs.full_oracle_covers }}" == "true" ]]; then
+            echo "Skipping distro PlantUML smoke; differential-svg-oracle runs the pinned PlantUML JAR for this change set."
+          else
+            echo "No oracle-smoke-relevant changes detected; keeping oracle-smoke-deterministic green without installing Java/PlantUML."
+          fi
+
       - name: Setup Rust toolchain
+        if: steps.changes.outputs.run_oracle_smoke == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust build artifacts
+        if: steps.changes.outputs.run_oracle_smoke == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: oracle-smoke-ubuntu-stable
           cache-on-failure: true
 
       - name: Install PlantUML oracle runtime
+        if: steps.changes.outputs.run_oracle_smoke == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y default-jre-headless graphviz plantuml
 
       - name: Differential oracle smoke gate
+        if: steps.changes.outputs.run_oracle_smoke == 'true'
         run: python3 ./scripts/differential_oracle_smoke.py --quick --strict --quiet
 
       - name: Upload oracle smoke artifact
-        if: always()
+        if: always() && steps.changes.outputs.run_oracle_smoke == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: oracle-smoke-${{ github.run_number }}
