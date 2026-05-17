@@ -156,7 +156,10 @@ fn check_fixture(fixture: &Fixture) -> Option<Failure> {
     };
 
     // Persist the SVG to target/visual-diff/<family>/<basename>.svg for inspection.
-    let diff_dir = root.join("target").join("visual-diff").join(&fixture.family);
+    let diff_dir = root
+        .join("target")
+        .join("visual-diff")
+        .join(&fixture.family);
     let _ = fs::create_dir_all(&diff_dir);
     if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
         let _ = fs::write(diff_dir.join(format!("{stem}.svg")), &svg);
