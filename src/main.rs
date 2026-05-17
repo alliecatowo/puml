@@ -20,8 +20,9 @@ use puml::model::{
 use puml::scene::LayoutOptions;
 use puml::source::Span;
 use puml::{
-    extract_markdown_diagrams, normalize_family, render, CompatMode, DeterminismMode, Diagnostic,
-    DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument, ParsePipelineOptions,
+    extract_markdown_diagrams, normalize_family, render, specialized, CompatMode, DeterminismMode,
+    Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument,
+    ParsePipelineOptions,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -358,6 +359,17 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     }
 
     let outputs = diagrams.iter().try_fold(Vec::new(), |mut all, source| {
+        // Short-circuit for specialized families (math, ditaa, etc.)
+        if let Some(result) = specialized::try_render_specialized(&source.source) {
+            let svg = result
+                .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
+            let name_hint = source
+                .output_name_hint
+                .as_ref()
+                .map(|base| format!("{base}.svg"));
+            all.push(RenderedOutput { name_hint, svg });
+            return Ok(all);
+        }
         let doc = parse_for_cli(
             &source.source,
             include_root.clone(),
