@@ -247,21 +247,13 @@ for F in "${PUML_FILES[@]}"; do
   # ---- Our SVG via the release binary ----
   OUR_SVG="${TMPDIR_WORK}/ours/${SLUG}.svg"
   OUR_OK=true
-  if ! "${BINARY}" "${F}" --overwrite 2>/dev/null; then
-    OUR_OK=false
-  fi
-  # Try reading from the output file our binary would have written
-  # The binary writes to <file>.svg by default with --overwrite
-  CANDIDATE_SVG="${F%.puml}.svg"
-  if [[ "${OUR_OK}" == "true" ]] && [[ -s "${CANDIDATE_SVG}" ]]; then
-    cp "${CANDIDATE_SVG}" "${OUR_SVG}"
+  if "${BINARY}" "${F}" --output "${OUR_SVG}" 2>/dev/null && [[ -s "${OUR_SVG}" ]]; then
+    OUR_OK=true
+  # Fallback: try stdin → stdout mode.
+  elif "${BINARY}" - < "${F}" > "${OUR_SVG}" 2>/dev/null && [[ -s "${OUR_SVG}" ]]; then
+    OUR_OK=true
   else
-    # Fallback: try stdin → stdout mode
-    if "${BINARY}" - < "${F}" > "${OUR_SVG}" 2>/dev/null && [[ -s "${OUR_SVG}" ]]; then
-      OUR_OK=true
-    else
-      OUR_OK=false
-    fi
+    OUR_OK=false
   fi
   [[ -s "${OUR_SVG}" ]] || OUR_OK=false
 
