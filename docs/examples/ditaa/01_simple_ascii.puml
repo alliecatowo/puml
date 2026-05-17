@@ -1,5 +1,4 @@
 @startditaa
-' Ditaa (ASCII art to diagram) not yet supported by this parser
 +-------+   +--------+
 | Client|-->| Server |
 +-------+   +--------+

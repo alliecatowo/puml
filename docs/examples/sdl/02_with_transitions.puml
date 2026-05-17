@@ -1,11 +1,11 @@
 @startsdl
-' SDL with transitions (not yet supported)
-process Handler
-  state Idle
-    receive Request
-    nextstate Processing
-  state Processing
-    task "process"
-    send Response
-    nextstate Idle
+title SDL With Transitions
+start Idle
+state Processing
+state Waiting
+stop Done
+Idle -> Processing : request
+Processing -> Waiting : response
+Waiting -> Idle : retry
+Waiting -> Done : complete
 @endsdl

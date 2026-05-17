@@ -1,8 +1,8 @@
 @startsdl
-' SDL (Specification and Description Language) diagrams not yet supported
-process Main
-  start
-  receive signal
-  send response
-  stop
+title Basic SDL Process
+start Idle
+state Processing
+stop Done
+Idle -> Processing : signal
+Processing -> Done : response
 @endsdl
