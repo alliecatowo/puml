@@ -182,6 +182,7 @@ Source: [`docs/examples/json/03_nested.puml`](docs/examples/json/03_nested.puml)
 | [Known limitations](docs/examples/KNOWN_LIMITATIONS.md) | Rough edges and feature-depth limits. |
 | [Benchmarks](docs/benchmarks/README.md) | Performance gates and trend artifacts. |
 | [Troubleshooting](docs/troubleshooting.md) | Diagnostics and common failure modes. |
+| [Discussions setup](docs/discussions.md) | How to choose between issues and discussions. |
 
 ## Development
 
@@ -232,7 +233,7 @@ The repo has also been developed with heavy AI-agent assistance and swarm-style 
 
 ## Contributing
 
-Forks, PRs, issues, and discussions are welcome. Good contributions include:
+Forks, PRs, issues, and [discussions](https://github.com/alliecatowo/puml/discussions) are welcome. Good contributions include:
 
 | Contribution | Examples |
 |---|---|
@@ -241,7 +242,7 @@ Forks, PRs, issues, and discussions are welcome. Good contributions include:
 | Docs | Clearer examples, migration notes, troubleshooting, or gallery coverage. |
 | Tooling | CLI ergonomics, LSP behavior, editor integration, WASM/site work, or benchmark improvements. |
 
-Open an issue before large compatibility pushes so the work can be sliced cleanly. Small docs and fixture PRs are very welcome without ceremony.
+Open an issue before large compatibility pushes so the work can be sliced cleanly. Start a discussion for questions, early ideas, showcases, parity reports that still need shaping, or AI-swarm workflow notes. Small docs and fixture PRs are very welcome without ceremony.
 
 ## License
 
