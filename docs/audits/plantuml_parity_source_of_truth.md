@@ -19,13 +19,13 @@ Canonical status artifact for machine/human parity review.
 | sequence | core | Basic messages and participants | implemented | `tests/fixtures/basic/hello.puml` | https://plantuml.com/sequence-diagram |
 | sequence | advanced | Arrow/style breadth and teoz semantics | partial | `tests/fixtures/arrows/valid_expanded_forms.puml` | https://plantuml.com/sequence-diagram |
 | class | core | Core declarations and relations | implemented | `tests/fixtures/families/valid_class_with_relations.puml` | https://plantuml.com/class-diagram |
-| class | advanced | Full class styling/edge semantics | partial | `tests/fixtures/families/valid_class_visibility.puml`, `tests/fixtures/styling/valid_skinparam_class.puml` | https://plantuml.com/class-diagram |
+| class | advanced | Full class styling/edge semantics | partial | `tests/fixtures/families/valid_class_visibility.puml`, `tests/fixtures/styling/valid_skinparam_class.puml`, `tests/integration.rs` | https://plantuml.com/class-diagram |
 | object | core | Object declarations/relations | implemented | `tests/fixtures/families/valid_object_bootstrap.puml` | https://plantuml.com/object-diagram |
-| object | advanced | Full object semantics breadth | partial | `tests/fixtures/families/valid_object_bootstrap.puml` | https://plantuml.com/object-diagram |
+| object | advanced | Full object semantics breadth | partial | `tests/fixtures/families/valid_object_bootstrap.puml`, `tests/integration.rs` | https://plantuml.com/object-diagram |
 | usecase | core | Actor/usecase declarations and relations | implemented | `tests/fixtures/families/valid_usecase_with_relations.puml` | https://plantuml.com/use-case-diagram |
-| usecase | advanced | Include/extend/style depth | partial | `tests/fixtures/families/valid_usecase_with_relations.puml` | https://plantuml.com/use-case-diagram |
+| usecase | advanced | Include/extend/style depth | partial | `tests/fixtures/families/valid_usecase_with_relations.puml`, `tests/integration.rs` | https://plantuml.com/use-case-diagram |
 | component | core | Component declarations/dependencies/packages | implemented | `tests/fixtures/families/valid_component.puml` | https://plantuml.com/component-diagram |
-| component | advanced | Interface/port/style breadth | partial | `tests/fixtures/families/valid_component.puml`, `tests/fixtures/styling/valid_skinparam_component.puml` | https://plantuml.com/component-diagram |
+| component | advanced | Interface/port/style breadth | partial | `tests/fixtures/families/valid_component.puml`, `tests/fixtures/styling/valid_skinparam_component.puml`, `tests/integration.rs` | https://plantuml.com/component-diagram |
 | deployment | core | Node/artifact topology | implemented | `tests/fixtures/families/valid_deployment.puml` | https://plantuml.com/deployment-diagram |
 | deployment | advanced | Advanced deployment styling/controls | partial | `tests/fixtures/families/valid_deployment.puml` | https://plantuml.com/deployment-diagram |
 | state | core | State/transitions/history/concurrency | implemented | `tests/fixtures/families/valid_state.puml` | https://plantuml.com/state-diagram |
@@ -49,7 +49,7 @@ Canonical status artifact for machine/human parity review.
 | mindmap+wbs | core | Family parsing and baseline rendering | implemented | `tests/fixtures/non_sequence/invalid_mindmap_diagram.puml`, `tests/fixtures/non_sequence/invalid_wbs_diagram.puml` | https://plantuml.com/mindmap-diagram |
 | mindmap+wbs | advanced | Orientation/styling parity depth | partial | `docs/examples/mindmap/01_basic.svg`, `docs/examples/wbs/01_basic.svg` | https://plantuml.com/wbs-diagram |
 | salt | core | Salt parser + baseline widget render | implemented | `tests/fixtures/families/valid_salt_bootstrap.puml` | https://plantuml.com/salt |
-| salt | advanced | Full Salt widget/style breadth | partial | `tests/fixtures/families/valid_salt_login_form.puml`, `tests/integration.rs` | https://plantuml.com/salt |
+| salt | advanced | Full Salt widget/style breadth | partial | `tests/fixtures/families/valid_salt_login_form.puml`, `tests/integration.rs`; supports label/input/button/combo/checkbox/radio rows, prefix-label rows, separators, and tree/menu/tab/scroll/table widgets, but advanced styling remains partial | https://plantuml.com/salt |
 | nwdiag | core | Network grammar + baseline render | implemented | `tests/fixtures/non_sequence/valid_nwdiag.puml` | https://plantuml.com/nwdiag |
 | nwdiag | advanced | Full network topology semantics | partial | `docs/examples/nwdiag/01_single_net.svg` | https://plantuml.com/nwdiag |
 | json | core | @startjson standalone family | implemented | `tests/fixtures/non_sequence/valid_json.puml` | https://plantuml.com/json |
@@ -58,16 +58,19 @@ Canonical status artifact for machine/human parity review.
 | archimate | core | Archimate parser + baseline render | implemented | `tests/fixtures/non_sequence/valid_archimate.puml` | https://plantuml.com/archimate-diagram |
 | archimate | advanced | Full relation/style breadth | partial | `docs/examples/archimate/01_layered.svg`, `tests/integration.rs` | https://plantuml.com/archimate-diagram |
 | regex | core | @startregex baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_regex.puml` | https://plantuml.com/regex |
-| regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg`, `tests/integration.rs` | https://plantuml.com/regex |
+| regex | advanced | Full descriptive/localized regex semantics | partial | `docs/examples/regex/01_character_classes.svg`, `tests/integration.rs`; includes localized labels and exact/ranged counted quantifier evidence, but broader Unicode/category semantics remain partial | https://plantuml.com/regex |
 | ebnf | core | @startebnf baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_ebnf.puml` | https://plantuml.com/ebnf |
-| ebnf | advanced | Full railroad style breadth | partial | `docs/examples/ebnf/01_simple_grammar.svg`, `tests/integration.rs` | https://plantuml.com/ebnf |
+| ebnf | advanced | Full railroad style breadth | partial | `docs/examples/ebnf/01_simple_grammar.svg`, `tests/integration.rs`; includes styled rule notes and exact/ranged counted repeat evidence, but broader railroad styling remains partial | https://plantuml.com/ebnf |
 | math | core+advanced | @startmath/@startlatex baseline plus LaTeX-ish fractions, roots, paired scripts, accents, fences, matrix environments, Greek/operators/symbols, text constructs, and big-operator layout | implemented | `tests/fixtures/non_sequence/valid_math.puml`, `tests/fixtures/families/valid_math_complex.puml`, `tests/integration.rs` | https://plantuml.com/ascii-math |
+| sdl | core+advanced | @startsdl parser/model/render with stereotype-driven start/end/input/output/decision shapes; deeper activity-beta semantics remain tracked under activity advanced | implemented | `tests/fixtures/non_sequence/valid_sdl.puml`, `tests/integration.rs` | https://plantuml.com/activity-diagram-beta#SDL-Specification-and-Description-Language-with-SDL-sterotype |
 | ditaa | core+advanced | @startditaa baseline plus options, color hints, advanced box kinds, junction connectors, diagonal connectors, and arrowheads | implemented | `tests/fixtures/non_sequence/valid_ditaa.puml`, `tests/fixtures/families/valid_ditaa_complex.puml`, `tests/integration.rs` | https://plantuml.com/ditaa |
 | chart | core | @startchart baseline parser/render | implemented | `tests/fixtures/non_sequence/valid_chart_bar.puml`, `tests/fixtures/non_sequence/valid_chart_pie.puml` | https://plantuml.com/chart-diagram |
-| chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg`, `tests/integration.rs` | https://plantuml.com/chart-diagram |
+| chart | advanced | Full axis/legend/style integration | partial | `docs/examples/chart/01_bar.svg`, `tests/integration.rs`; accepts PlantUML-style chart labels, colon-delimited points, annotations, palette, and selected skinparams, but full axis/legend semantics remain partial | https://plantuml.com/chart-diagram |
 
 ## Board / Issue Consistency Checks
 
 - 2026-05-17: `gh issue view 103 --json number,title,state,projectItems,url` verified tracking issue `#103` is on the `PUML` project with status `Human Review`.
 - 2026-05-17: `#197`, `#202`, `#205`, `#206`, and `#208` were closed as completed from branch evidence and moved to `Done` on the `PUML` project.
 - 2026-05-17: Branch-local evidence now covers `#207` deterministic LaTeX-ish math rendering with matrices/environments, Greek/operators/symbols, text constructs, and big-operator layout on `origin/codex/local-parity-blitz-20260516`; `#207` was closed as completed and moved to `Done`.
+- 2026-05-17: Branch-local evidence plus `gh issue view 105` confirms SDL is implemented as a special-adapter baseline under closed/Done issue `#105`; deeper activity-beta parity remains represented by the existing `activity,advanced` partial row.
+- 2026-05-17: Latest pushed commit `13f92c0` strengthens partial evidence for Salt, regex, EBNF, and chart advanced rows; those rows remain `partial` because the official PlantUML surface is still wider than the current deterministic subset.
