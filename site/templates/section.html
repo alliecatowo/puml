@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section.title }} &middot; {{ config.title }}{% endblock %}
+{% block description %}{{ section.description | default(value=config.description) }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="docs">
+    <aside class="sidebar">
+      {% set current_path = section.path %}
+      {% include "partials/sidebar.html" %}
+    </aside>
+
+    <main class="prose">
+      <h1>{{ section.title }}</h1>
+      {{ section.content | safe }}
+
+      {% if section.pages and section.pages | length > 0 %}
+        <h2>In this section</h2>
+        <ul>
+          {% for p in section.pages %}
+            <li><a href="{{ p.permalink }}">{{ p.title }}</a>{% if p.description %} &mdash; <span style="color:var(--text-mute)">{{ p.description }}</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if section.subsections and section.subsections | length > 0 %}
+        <h2>Subsections</h2>
+        <ul>
+          {% for sub_path in section.subsections %}
+            {% set sub = get_section(path=sub_path) %}
+            <li><a href="{{ sub.permalink }}">{{ sub.title }}</a></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </main>
+
+    <aside class="toc">
+      {% if section.toc and section.toc | length > 0 %}
+        <h4>On this page</h4>
+        <ul>
+        {% for h in section.toc %}
+          <li><a href="#{{ h.id }}">{{ h.title }}</a></li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

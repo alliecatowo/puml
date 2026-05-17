@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} &middot; {{ config.title }}{% endblock %}
+{% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
+{% block og_title %}{{ page.title }} &middot; {{ config.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="docs">
+    <aside class="sidebar">
+      {% set current_path = page.path %}
+      {% include "partials/sidebar.html" %}
+    </aside>
+
+    <main class="prose">
+      <h1>{{ page.title }}</h1>
+      {{ page.content | safe }}
+    </main>
+
+    <aside class="toc">
+      {% if page.toc and page.toc | length > 0 %}
+        <h4>On this page</h4>
+        <ul>
+        {% for h in page.toc %}
+          <li><a href="#{{ h.id }}">{{ h.title }}</a></li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

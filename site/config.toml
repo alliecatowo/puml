@@ -1,0 +1,39 @@
+# Zola configuration for the puml documentation + studio site.
+# Deployed to GitHub Pages under the project subpath /puml/.
+
+base_url = "https://alliecatowo.github.io/puml"
+title = "puml"
+description = "Fast, deterministic UML/diagram rendering. PicoUML, PlantUML, and Mermaid frontends compiled in Rust."
+default_language = "en"
+compile_sass = true
+build_search_index = true
+generate_feeds = false
+minify_html = false
+hard_link_static = false
+
+taxonomies = []
+
+[markdown]
+highlight_code = true
+highlight_theme = "css"
+highlight_themes_css = [
+  { theme = "ayu-dark", filename = "syntax-dark.css" },
+  { theme = "ayu-light", filename = "syntax-light.css" },
+]
+external_links_target_blank = true
+external_links_no_referrer = true
+smart_punctuation = true
+render_emoji = false
+
+[search]
+include_title = true
+include_description = true
+include_path = true
+include_content = true
+index_format = "elasticlunr_json"
+
+[extra]
+github_repo = "https://github.com/alliecatowo/puml"
+edit_repo_base = "https://github.com/alliecatowo/puml/edit/main/site/content"
+year = 2026
+project_tagline = "A compiler-grade UML renderer that thinks in SVG."
