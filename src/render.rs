@@ -1255,6 +1255,16 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     // Draw rows and cells.
     for (row_idx, cells) in rows.iter().enumerate() {
         let row_y = MARGIN + title_h + (row_idx as i32) * CELL_H;
+        if is_salt_separator_row(cells) {
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#777\" stroke-width=\"1.5\"/>",
+                MARGIN + 4,
+                row_y + CELL_H / 2,
+                total_w - MARGIN - 4,
+                row_y + CELL_H / 2
+            ));
+            continue;
+        }
         let mut col_x = MARGIN;
 
         for (col_idx, cell) in cells.iter().enumerate() {
@@ -1294,6 +1304,27 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn is_salt_separator_row(cells: &[SaltCellRender]) -> bool {
+    let mut saw_dash = false;
+    for cell in cells {
+        match cell {
+            SaltCellRender::Label(text) => {
+                let t = text.trim();
+                if t.is_empty() {
+                    continue;
+                }
+                if t.chars().all(|c| c == '-') {
+                    saw_dash = true;
+                    continue;
+                }
+                return false;
+            }
+            _ => return false,
+        }
+    }
+    saw_dash
 }
 
 /// A decoded salt cell ready for rendering.
