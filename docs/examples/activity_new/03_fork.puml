@@ -1,5 +1,5 @@
 @startuml
-' New-style activity fork (not yet supported)
+' New-style activity fork.
 start
 fork
   :branch A;
