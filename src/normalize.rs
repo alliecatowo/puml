@@ -1319,9 +1319,7 @@ fn archimate_layer_from_macro(name: &str) -> Option<&'static str> {
         Some("business")
     } else if lower.starts_with("application_") {
         Some("application")
-    } else if lower.starts_with("technology_") {
-        Some("technology")
-    } else if lower.starts_with("physical_") {
+    } else if lower.starts_with("technology_") || lower.starts_with("physical_") {
         Some("technology")
     } else if lower.starts_with("motivation_") {
         Some("motivation")
@@ -1824,7 +1822,7 @@ fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
             }
             StatementKind::Theme(value) => {
                 state_style = state_style_from_sequence_theme(
-                    &resolve_sequence_theme_preset(&value)
+                    &resolve_sequence_theme_preset(value)
                         .map_err(|msg| Diagnostic::error(msg).with_span(stmt.span))?
                         .style,
                 );

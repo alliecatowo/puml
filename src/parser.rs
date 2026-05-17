@@ -2832,7 +2832,7 @@ fn preprocessor_map_literal(args: &[String]) -> String {
 
 fn preprocessor_get(container: &str, key: &str) -> String {
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(container.trim()) {
-        if let Some(idx) = key.trim().parse::<usize>().ok() {
+        if let Ok(idx) = key.trim().parse::<usize>() {
             return value
                 .as_array()
                 .and_then(|items| items.get(idx))

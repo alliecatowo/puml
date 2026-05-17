@@ -3952,14 +3952,12 @@ fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
             };
             let has_head_end = match ch {
                 '/' => {
-                    (c + 1 < grid_cols && row_idx > 0 && get(row_idx - 1, c + 1) == '>')
-                        || (c + 1 < grid_cols && row_idx > 0 && get(row_idx - 1, c + 1) == '^')
+                    c + 1 < grid_cols && row_idx > 0 && matches!(get(row_idx - 1, c + 1), '>' | '^')
                 }
                 '\\' => {
-                    (c + 1 < grid_cols && row_idx + 1 < grid_rows && get(row_idx + 1, c + 1) == '>')
-                        || (c + 1 < grid_cols
-                            && row_idx + 1 < grid_rows
-                            && get(row_idx + 1, c + 1) == 'v')
+                    c + 1 < grid_cols
+                        && row_idx + 1 < grid_rows
+                        && matches!(get(row_idx + 1, c + 1), '>' | 'v')
                 }
                 _ => false,
             };
