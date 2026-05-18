@@ -6322,6 +6322,27 @@ fn state_svg_attr_i32(node: roxmltree::Node<'_, '_>, attr: &str) -> i32 {
         .unwrap_or_else(|_| panic!("invalid integer attribute {attr}"))
 }
 
+fn state_svg_center_x(node: roxmltree::Node<'_, '_>) -> i32 {
+    match node.tag_name().name() {
+        "rect" => state_svg_attr_i32(node, "x") + state_svg_attr_i32(node, "width") / 2,
+        "circle" => state_svg_attr_i32(node, "cx"),
+        "polygon" => {
+            let points = node
+                .attribute("points")
+                .unwrap_or_else(|| panic!("missing polygon points"));
+            let xs = points
+                .split_whitespace()
+                .filter_map(|pair| pair.split_once(','))
+                .map(|(x, _)| x.parse::<i32>().expect("polygon x should be an integer"))
+                .collect::<Vec<_>>();
+            let min_x = xs.iter().min().copied().expect("polygon should have x points");
+            let max_x = xs.iter().max().copied().expect("polygon should have x points");
+            (min_x + max_x) / 2
+        }
+        other => panic!("unsupported state SVG node for center extraction: {other}"),
+    }
+}
+
 #[test]
 fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_flow() {
     let src = fs::read_to_string("docs/examples/state/08_full_machine.puml").unwrap();
@@ -6374,6 +6395,102 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
     assert!(
         final_state_center_y > delivered_bottom,
         "final state should render below Delivered so the terminal arrow stays in canvas"
+    );
+}
+
+#[test]
+fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
+    let src = fs::read_to_string("docs/examples/state/05_fork_join_choice.puml").unwrap();
+    let svg = render_source_to_svg(&src).expect("fork/join/choice example should render");
+    let doc = roxmltree::Document::parse(&svg).expect("state SVG should parse");
+
+    let fork = state_svg_element_after_metadata(&doc, "fork1");
+    let join = state_svg_element_after_metadata(&doc, "join1");
+    let choice = state_svg_element_after_metadata(&doc, "choice1");
+    let task_a = state_svg_element_after_metadata(&doc, "TaskA");
+    let task_b = state_svg_element_after_metadata(&doc, "TaskB");
+
+    let task_a_center = state_svg_center_x(task_a);
+    let task_b_center = state_svg_center_x(task_b);
+    let fork_left = state_svg_attr_i32(fork, "x");
+    let fork_right = fork_left + state_svg_attr_i32(fork, "width");
+    let join_left = state_svg_attr_i32(join, "x");
+    let join_right = join_left + state_svg_attr_i32(join, "width");
+
+    assert!(
+        fork_left <= task_a_center && fork_right >= task_b_center,
+        "fork bar should span both task columns"
+    );
+    assert!(
+        join_left <= task_a_center && join_right >= task_b_center,
+        "join bar should span both task columns"
+    );
+
+    let fork_to_a = doc
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("line")
+                && node.attribute("data-state-from") == Some("fork1")
+                && node.attribute("data-state-to") == Some("TaskA")
+        })
+        .expect("fork1 -> TaskA edge should render");
+    let fork_to_b = doc
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("line")
+                && node.attribute("data-state-from") == Some("fork1")
+                && node.attribute("data-state-to") == Some("TaskB")
+        })
+        .expect("fork1 -> TaskB edge should render");
+    let task_a_to_join = doc
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("line")
+                && node.attribute("data-state-from") == Some("TaskA")
+                && node.attribute("data-state-to") == Some("join1")
+        })
+        .expect("TaskA -> join1 edge should render");
+    let task_b_to_join = doc
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("line")
+                && node.attribute("data-state-from") == Some("TaskB")
+                && node.attribute("data-state-to") == Some("join1")
+        })
+        .expect("TaskB -> join1 edge should render");
+
+    for (edge, expected_center, label) in [
+        (fork_to_a, task_a_center, "fork1 -> TaskA"),
+        (fork_to_b, task_b_center, "fork1 -> TaskB"),
+        (task_a_to_join, task_a_center, "TaskA -> join1"),
+        (task_b_to_join, task_b_center, "TaskB -> join1"),
+    ] {
+        assert_eq!(
+            state_svg_attr_i32(edge, "x1"),
+            state_svg_attr_i32(edge, "x2"),
+            "{label} should stay vertical"
+        );
+        assert_eq!(
+            state_svg_attr_i32(edge, "x1"),
+            expected_center,
+            "{label} should align to its task column center"
+        );
+    }
+
+    let choice_center = state_svg_center_x(choice);
+    let join_center = state_svg_center_x(join);
+    assert!(
+        (choice_center - join_center).abs() <= 2,
+        "choice diamond should stay aligned with the main flow"
+    );
+
+    let error_label = doc
+        .descendants()
+        .find(|node| node.has_tag_name("text") && node.text() == Some("error"))
+        .expect("error label should render");
+    assert!(
+        state_svg_attr_i32(error_label, "x") > choice_center,
+        "error label should stay attached to the rightward failure branch"
     );
 }
 

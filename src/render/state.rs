@@ -1,4 +1,5 @@
 use super::*;
+use crate::model::StateTransition;
 
 // Layout constants
 const STATE_NODE_W: i32 = 140;
@@ -70,10 +71,11 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     //   placement of [*] and a single composite state, fix #555).
     // - Otherwise use a 2-column grid for denser layouts.
     // In all cases, sort nodes by BFS depth from initial states.
-    let top_level_count = nodes
+    let top_level_nodes: Vec<&StateNode> = nodes
         .iter()
         .filter(|n| !child_node_names.contains(n.name.as_str()))
-        .count();
+        .collect();
+    let top_level_count = top_level_nodes.len();
     let has_fork_join_choice = nodes.iter().any(|n| {
         !child_node_names.contains(n.name.as_str())
             && matches!(
@@ -93,116 +95,55 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // Longest-path reachability sort of top-level nodes from initial states.
     // Using the maximum depth instead of the minimum keeps sinks/final states below
     // all of their incoming branches, which avoids clipped/crossing terminal arrows.
-    let layout_order: Vec<&StateNode> = {
-        let mut depth_map: std::collections::BTreeMap<&str, usize> =
-            std::collections::BTreeMap::new();
-        let top_level_names: std::collections::BTreeSet<&str> = nodes
-            .iter()
-            .filter(|n| !child_node_names.contains(n.name.as_str()))
-            .map(|n| n.name.as_str())
-            .collect();
-        let transition_targets: std::collections::BTreeSet<&str> =
-            transitions
-                .iter()
-                .filter(|t| top_level_names.contains(t.to.as_str()))
-                .map(|t| t.to.as_str())
-                .collect();
-        let all_node_names: Vec<&str> = nodes
-            .iter()
-            .filter(|n| !child_node_names.contains(n.name.as_str()))
-            .map(|n| n.name.as_str())
-            .collect();
-        let mut adjacency: std::collections::BTreeMap<&str, Vec<&str>> =
-            std::collections::BTreeMap::new();
-        for t in transitions {
-            if top_level_names.contains(t.from.as_str()) && top_level_names.contains(t.to.as_str()) {
-                adjacency.entry(t.from.as_str()).or_default().push(t.to.as_str());
-            }
-        }
-
-        fn walk_longest_depth<'a>(
-            name: &'a str,
-            depth: usize,
-            adjacency: &std::collections::BTreeMap<&'a str, Vec<&'a str>>,
-            depth_map: &mut std::collections::BTreeMap<&'a str, usize>,
-            path: &mut std::collections::BTreeSet<&'a str>,
-        ) {
-            if depth_map.get(name).copied().unwrap_or(0) >= depth {
-                return;
-            }
-            depth_map.insert(name, depth);
-            if !path.insert(name) {
-                return;
-            }
-            if let Some(targets) = adjacency.get(name) {
-                for &target in targets {
-                    if !path.contains(target) {
-                        walk_longest_depth(target, depth + 1, adjacency, depth_map, path);
-                    }
-                }
-            }
-            path.remove(name);
-        }
-
-        let mut seeds: Vec<&str> = all_node_names
-            .iter()
-            .copied()
-            .filter(|name| *name == "[*]" || !transition_targets.contains(name))
-            .collect();
-        if seeds.is_empty() {
-            seeds = all_node_names.clone();
-        }
-        for seed in seeds {
-            let mut path = std::collections::BTreeSet::new();
-            walk_longest_depth(seed, 1, &adjacency, &mut depth_map, &mut path);
-        }
-        // Unreachable nodes get MAX depth (appear at bottom)
-        for &name in &all_node_names {
-            depth_map.entry(name).or_insert(usize::MAX);
-        }
-        // Sort by (reachability depth, original doc order) so layout matches diagram flow
-        let name_to_orig: std::collections::BTreeMap<&str, usize> = nodes
-            .iter()
-            .enumerate()
-            .map(|(i, n)| (n.name.as_str(), i))
-            .collect();
-        let mut ordered: Vec<&StateNode> = nodes
-            .iter()
-            .filter(|n| !child_node_names.contains(n.name.as_str()))
-            .collect();
-        ordered.sort_by_key(|n| {
-            (
-                depth_map
-                    .get(n.name.as_str())
-                    .copied()
-                    .unwrap_or(usize::MAX),
-                name_to_orig
-                    .get(n.name.as_str())
-                    .copied()
-                    .unwrap_or(usize::MAX),
-            )
-        });
-        ordered
-    };
+    let name_to_orig: std::collections::BTreeMap<&str, usize> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.name.as_str(), i))
+        .collect();
+    let depth_map = compute_top_level_depths(&top_level_nodes, transitions, &name_to_orig);
+    let mut layout_order = top_level_nodes.clone();
+    layout_order.sort_by_key(|n| {
+        (
+            depth_map
+                .get(n.name.as_str())
+                .copied()
+                .unwrap_or(usize::MAX),
+            name_to_orig
+                .get(n.name.as_str())
+                .copied()
+                .unwrap_or(usize::MAX),
+        )
+    });
 
     let mut placed: std::collections::BTreeMap<String, PlacedNode> =
         std::collections::BTreeMap::new();
 
-    // Place top-level nodes in column order, using the BFS-sorted layout_order.
-    let mut col_y = [STATE_MARGIN + 50, STATE_MARGIN + 50];
-    #[allow(clippy::explicit_counter_loop)]
-    {
-        let mut col_idx = 0usize;
-        for node in &layout_order {
-            let col = (col_idx as i32) % cols;
-            col_idx += 1;
-            let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
-            let y = col_y[col as usize];
-            let (w, h) = *node_sizes
-                .get(&node.name)
-                .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
-            place_node(node, x, y, w, h, &node_sizes, &mut placed);
-            col_y[col as usize] = y + h + STATE_NODE_GAP_Y;
+    if has_fork_join_choice {
+        place_top_level_layered(
+            &layout_order,
+            &depth_map,
+            &name_to_orig,
+            transitions,
+            &node_sizes,
+            &mut placed,
+        );
+    } else {
+        // Place top-level nodes in column order, using the BFS-sorted layout_order.
+        let mut col_y = [STATE_MARGIN + 50, STATE_MARGIN + 50];
+        #[allow(clippy::explicit_counter_loop)]
+        {
+            let mut col_idx = 0usize;
+            for node in &layout_order {
+                let col = (col_idx as i32) % cols;
+                col_idx += 1;
+                let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
+                let y = col_y[col as usize];
+                let (w, h) = *node_sizes
+                    .get(&node.name)
+                    .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
+                place_node(node, x, y, w, h, &node_sizes, &mut placed);
+                col_y[col as usize] = y + h + STATE_NODE_GAP_Y;
+            }
         }
     }
 
@@ -251,6 +192,10 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         .iter()
         .map(|t| (t.from.as_str(), t.to.as_str()))
         .collect();
+    let node_kinds: std::collections::BTreeMap<&str, &StateNodeKind> = nodes
+        .iter()
+        .map(|node| (node.name.as_str(), &node.kind))
+        .collect();
     let mut edge_labels: Vec<(i32, i32, String)> = Vec::new();
 
     // Draw transitions first (arrows behind nodes)
@@ -261,7 +206,12 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             // Check if the reverse edge also exists (bidirectional pair)
             let has_reverse =
                 t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
-            let (x1, y1, x2, y2) = edge_anchors(fp, tp);
+            let (x1, y1, x2, y2) = edge_anchors_for_kinds(
+                node_kinds.get(t.from.as_str()).copied(),
+                fp,
+                node_kinds.get(t.to.as_str()).copied(),
+                tp,
+            );
             let stroke = escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color));
             let sw = t.thickness.unwrap_or(2).clamp(1, 8);
             let dash = state_dash_attr(t.dashed);
@@ -462,6 +412,241 @@ fn place_node(
     }
 }
 
+fn compute_top_level_depths<'a>(
+    top_level_nodes: &[&'a StateNode],
+    transitions: &'a [StateTransition],
+    name_to_orig: &std::collections::BTreeMap<&'a str, usize>,
+) -> std::collections::BTreeMap<&'a str, usize> {
+    let mut depth_map: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    let top_level_names: std::collections::BTreeSet<&str> =
+        top_level_nodes.iter().map(|n| n.name.as_str()).collect();
+    let transition_targets: std::collections::BTreeSet<&str> = transitions
+        .iter()
+        .filter(|t| top_level_names.contains(t.to.as_str()))
+        .map(|t| t.to.as_str())
+        .collect();
+    let all_node_names: Vec<&str> = top_level_nodes.iter().map(|n| n.name.as_str()).collect();
+    let mut adjacency: std::collections::BTreeMap<&str, Vec<&str>> =
+        std::collections::BTreeMap::new();
+    for t in transitions {
+        if top_level_names.contains(t.from.as_str()) && top_level_names.contains(t.to.as_str()) {
+            adjacency.entry(t.from.as_str()).or_default().push(t.to.as_str());
+        }
+    }
+
+    fn walk_longest_depth<'a>(
+        name: &'a str,
+        depth: usize,
+        adjacency: &std::collections::BTreeMap<&'a str, Vec<&'a str>>,
+        depth_map: &mut std::collections::BTreeMap<&'a str, usize>,
+        path: &mut std::collections::BTreeSet<&'a str>,
+    ) {
+        if depth_map.get(name).copied().unwrap_or(0) >= depth {
+            return;
+        }
+        depth_map.insert(name, depth);
+        if !path.insert(name) {
+            return;
+        }
+        if let Some(targets) = adjacency.get(name) {
+            for &target in targets {
+                if !path.contains(target) {
+                    walk_longest_depth(target, depth + 1, adjacency, depth_map, path);
+                }
+            }
+        }
+        path.remove(name);
+    }
+
+    let mut seeds: Vec<&str> = all_node_names
+        .iter()
+        .copied()
+        .filter(|name| *name == "[*]" || !transition_targets.contains(name))
+        .collect();
+    if seeds.is_empty() {
+        seeds = all_node_names.clone();
+    }
+    seeds.sort_by_key(|name| name_to_orig.get(name).copied().unwrap_or(usize::MAX));
+    for seed in seeds {
+        let mut path = std::collections::BTreeSet::new();
+        walk_longest_depth(seed, 1, &adjacency, &mut depth_map, &mut path);
+    }
+    for &name in &all_node_names {
+        depth_map.entry(name).or_insert(usize::MAX);
+    }
+    depth_map
+}
+
+fn place_top_level_layered<'a>(
+    layout_order: &[&'a StateNode],
+    depth_map: &std::collections::BTreeMap<&'a str, usize>,
+    name_to_orig: &std::collections::BTreeMap<&'a str, usize>,
+    transitions: &'a [StateTransition],
+    node_sizes: &std::collections::BTreeMap<String, (i32, i32)>,
+    placed: &mut std::collections::BTreeMap<String, PlacedNode>,
+) {
+    let top_level_names: std::collections::BTreeSet<&str> =
+        layout_order.iter().map(|node| node.name.as_str()).collect();
+    let mut predecessors: std::collections::BTreeMap<&str, Vec<&str>> =
+        std::collections::BTreeMap::new();
+    for t in transitions {
+        if top_level_names.contains(t.from.as_str()) && top_level_names.contains(t.to.as_str()) {
+            predecessors
+                .entry(t.to.as_str())
+                .or_default()
+                .push(t.from.as_str());
+        }
+    }
+
+    let mut rows: std::collections::BTreeMap<usize, Vec<&StateNode>> =
+        std::collections::BTreeMap::new();
+    for node in layout_order {
+        rows.entry(*depth_map.get(node.name.as_str()).unwrap_or(&usize::MAX))
+            .or_default()
+            .push(*node);
+    }
+
+    let default_center = STATE_MARGIN + STATE_NODE_W + STATE_NODE_GAP_X;
+    let mut row_y = STATE_MARGIN + 50;
+
+    for row_nodes in rows.values_mut() {
+        row_nodes.sort_by_key(|node| {
+            let desired = desired_state_center(
+                node.name.as_str(),
+                &predecessors,
+                placed,
+                default_center,
+            );
+            (
+                desired,
+                name_to_orig
+                    .get(node.name.as_str())
+                    .copied()
+                    .unwrap_or(usize::MAX),
+            )
+        });
+
+        let row_h = row_nodes
+            .iter()
+            .map(|node| {
+                node_sizes
+                    .get(&node.name)
+                    .copied()
+                    .unwrap_or((STATE_NODE_W, STATE_NODE_H))
+                    .1
+            })
+            .max()
+            .unwrap_or(STATE_NODE_H);
+
+        let mut placements: Vec<(&StateNode, i32, i32, i32)> = Vec::new();
+        let mut right_edge: Option<i32> = None;
+        let mut desired_centers = Vec::new();
+
+        for node in row_nodes.iter().copied() {
+            let (w, h) = node_sizes
+                .get(&node.name)
+                .copied()
+                .unwrap_or((STATE_NODE_W, STATE_NODE_H));
+            let desired_center = desired_state_center(
+                node.name.as_str(),
+                &predecessors,
+                placed,
+                default_center,
+            );
+            desired_centers.push(desired_center);
+            let min_x = right_edge.map(|edge| edge + STATE_NODE_GAP_X).unwrap_or(i32::MIN / 4);
+            let x = (desired_center - w / 2).max(min_x);
+            right_edge = Some(x + w);
+            placements.push((node, x, w, h));
+        }
+
+        if placements.len() > 1 {
+            let desired_cluster_center =
+                desired_centers.iter().sum::<i32>() / desired_centers.len() as i32;
+            let actual_left = placements.first().map(|(_, x, _, _)| *x).unwrap_or(0);
+            let actual_right = placements
+                .last()
+                .map(|(_, x, w, _)| *x + *w)
+                .unwrap_or(actual_left);
+            let shift = desired_cluster_center - ((actual_left + actual_right) / 2);
+            if shift != 0 {
+                for (_, x, _, _) in &mut placements {
+                    *x += shift;
+                }
+            }
+        }
+
+        for (node, x, w, h) in placements {
+            let y = row_y + (row_h - h) / 2;
+            place_node(node, x, y, w, h, node_sizes, placed);
+        }
+        row_y += row_h + STATE_NODE_GAP_Y;
+    }
+
+    adjust_fork_join_bar_widths(layout_order, transitions, placed);
+}
+
+fn desired_state_center(
+    node_name: &str,
+    predecessors: &std::collections::BTreeMap<&str, Vec<&str>>,
+    placed: &std::collections::BTreeMap<String, PlacedNode>,
+    default_center: i32,
+) -> i32 {
+    let Some(preds) = predecessors.get(node_name) else {
+        return default_center;
+    };
+    let mut sum = 0i32;
+    let mut count = 0i32;
+    for pred in preds {
+        if let Some(node) = placed.get(*pred) {
+            sum += node.x + node.w / 2;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        default_center
+    } else {
+        sum / count
+    }
+}
+
+fn adjust_fork_join_bar_widths<'a>(
+    nodes: &[&'a StateNode],
+    transitions: &'a [StateTransition],
+    placed: &mut std::collections::BTreeMap<String, PlacedNode>,
+) {
+    for node in nodes {
+        let branch_centers: Vec<i32> = match node.kind {
+            StateNodeKind::Fork => transitions
+                .iter()
+                .filter(|t| t.from == node.name)
+                .filter_map(|t| placed.get(&t.to))
+                .map(|p| p.x + p.w / 2)
+                .collect(),
+            StateNodeKind::Join => transitions
+                .iter()
+                .filter(|t| t.to == node.name)
+                .filter_map(|t| placed.get(&t.from))
+                .map(|p| p.x + p.w / 2)
+                .collect(),
+            _ => continue,
+        };
+
+        if branch_centers.len() < 2 {
+            continue;
+        }
+
+        let left = branch_centers.iter().min().copied().unwrap_or(0);
+        let right = branch_centers.iter().max().copied().unwrap_or(left);
+        if let Some(bar) = placed.get_mut(&node.name) {
+            let width = (right - left).max(48);
+            let center = (left + right) / 2;
+            bar.w = width;
+            bar.x = center - width / 2;
+        }
+    }
+}
+
 /// Offset a line segment by `d` pixels perpendicular to its direction (to the right).
 /// Used to separate bidirectional parallel edges so both arrows are visible.
 fn offset_parallel_edge(x1: i32, y1: i32, x2: i32, y2: i32, d: i32) -> (i32, i32, i32, i32) {
@@ -510,6 +695,74 @@ fn edge_anchors(from: &PlacedNode, to: &PlacedNode) -> (i32, i32, i32, i32) {
     } else {
         (fcx, fcy - fhh, tcx, tcy + thh)
     }
+}
+
+fn edge_anchors_for_kinds(
+    from_kind: Option<&StateNodeKind>,
+    from: &PlacedNode,
+    to_kind: Option<&StateNodeKind>,
+    to: &PlacedNode,
+) -> (i32, i32, i32, i32) {
+    let mut anchors = edge_anchors(from, to);
+    let from_center_x = from.x + from.w / 2;
+    let from_center_y = from.y + from.h / 2;
+    let to_center_x = to.x + to.w / 2;
+    let to_center_y = to.y + to.h / 2;
+
+    if matches!(
+        from_kind,
+        Some(&StateNodeKind::Fork) | Some(&StateNodeKind::Join)
+    ) {
+        let target_below = to_center_y >= from_center_y;
+        anchors.0 = to_center_x.clamp(from.x, from.x + from.w);
+        anchors.1 = if target_below { from.y + from.h } else { from.y };
+        anchors.2 = to_center_x;
+        anchors.3 = if target_below { to.y } else { to.y + to.h };
+    }
+
+    if matches!(
+        to_kind,
+        Some(&StateNodeKind::Fork) | Some(&StateNodeKind::Join)
+    ) {
+        let source_above = from_center_y <= to_center_y;
+        anchors.0 = from_center_x;
+        anchors.1 = if source_above {
+            from.y + from.h
+        } else {
+            from.y
+        };
+        anchors.2 = from_center_x.clamp(to.x, to.x + to.w);
+        anchors.3 = if source_above { to.y } else { to.y + to.h };
+    }
+
+    if matches!(from_kind, Some(&StateNodeKind::Choice)) {
+        (anchors.0, anchors.1) = diamond_anchor(from, to_center_x, to_center_y);
+    }
+
+    if matches!(to_kind, Some(&StateNodeKind::Choice)) {
+        (anchors.2, anchors.3) = diamond_anchor(to, from_center_x, from_center_y);
+    }
+
+    anchors
+}
+
+fn diamond_anchor(node: &PlacedNode, toward_x: i32, toward_y: i32) -> (i32, i32) {
+    let cx = node.x + node.w / 2;
+    let cy = node.y + node.h / 2;
+    let dx = toward_x - cx;
+    let dy = toward_y - cy;
+    if dx == 0 && dy == 0 {
+        return (cx, cy);
+    }
+
+    let half_w = (node.w / 2).max(1) as f64;
+    let half_h = (node.h / 2).max(1) as f64;
+    let scale =
+        1.0 / (((dx.abs() as f64) / half_w) + ((dy.abs() as f64) / half_h)).max(f64::EPSILON);
+    (
+        cx + ((dx as f64) * scale).round() as i32,
+        cy + ((dy as f64) * scale).round() as i32,
+    )
 }
 
 fn state_node_kind_name(kind: &StateNodeKind) -> &'static str {
