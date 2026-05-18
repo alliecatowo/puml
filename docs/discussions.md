@@ -11,6 +11,11 @@ Also rechecked with REST on 2026-05-17:
 - `GET /repos/alliecatowo/puml` reports `has_discussions: true`.
 - `GET /repos/alliecatowo/puml/discussions/301` returns the welcome
   discussion in `Announcements`.
+- GitHub's current discussion docs describe category management and pinning as
+  web UI actions, while discussion posts/comments are available through the
+  GraphQL API.
+- GitHub's current discussion category form docs require files in
+  `.github/DISCUSSION_TEMPLATE/` whose filenames match category slugs.
 
 Live state on 2026-05-17:
 
@@ -18,8 +23,8 @@ Live state on 2026-05-17:
 - Existing category slugs are `announcements`, `general`, `ideas`, `polls`,
   `q-a`, and `show-and-tell`.
 - `Parity reports` and `Swarm lab` still need to be created in the UI.
-- Fallback labels created through `gh label create`: `discussion: parity
-  report` and `discussion: development notes`.
+- Fallback labels exist for the templates: `discussion: parity report` and
+  `discussion: development notes`.
 
 Available through GitHub GraphQL:
 
@@ -57,12 +62,17 @@ Configure these categories in
 | Ideas | Open-ended discussion | Feature proposals, PicoUML language ideas, renderer ergonomics, and early design sketches. |
 | Show and tell | Open-ended discussion | Diagrams, integrations, benchmarks, demos, and writeups from users or contributors. |
 | Parity reports | Open-ended discussion | PlantUML compatibility gaps that need clarification before they become scoped issues. |
-| Swarm lab / Development notes | Open-ended discussion | Notes and questions about the AI-assisted development process, agent workflows, development process, and coordination experiments. |
+| Swarm lab | Open-ended discussion | Notes and questions about the AI-assisted development process, agent workflows, and coordination experiments. |
 | General | Open-ended discussion | Anything relevant to `puml` that does not fit another category. |
 
 The default Polls category is optional. Delete it if the goal is to keep the
 sidebar limited to the categories above; keep it only if maintainers expect to
 run explicit community polls.
+
+This category set follows GitHub's open-source discussion guidance: keep
+questions, ideas, showcases, and broad feedback out of implementation issues
+until the work is scoped; ask for specific examples; summarize long threads;
+and open an issue only when the discussion produces concrete work.
 
 ## Exact UI steps
 
@@ -84,6 +94,29 @@ run explicit community polls.
 10. If it is not pinned globally, use the right sidebar action "Pin discussion",
    choose a simple style, and confirm. GitHub allows up to four globally pinned
    discussions.
+
+## Maintainer audit commands
+
+```bash
+gh repo view alliecatowo/puml \
+  --json hasDiscussionsEnabled,hasIssuesEnabled,hasProjectsEnabled
+
+gh api graphql -f query='
+query($owner:String!, $name:String!) {
+  repository(owner:$owner, name:$name) {
+    discussionCategories(first:30) {
+      nodes { name slug isAnswerable description }
+    }
+    pinnedDiscussions(first:10) {
+      nodes { discussion { number title url category { name } } }
+    }
+  }
+}' -f owner=alliecatowo -f name=puml
+
+gh label list --limit 300 \
+  --search 'discussion:' \
+  --json name,description,color
+```
 
 ## Issue vs discussion routing
 
