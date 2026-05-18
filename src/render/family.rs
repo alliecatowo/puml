@@ -713,6 +713,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     ((x1 + x2) / 2, (y1 + y2) / 2 - 14)
                 }
             };
+            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
+            let lx = lx.clamp(
+                margin_x + 8 + label_half_w,
+                svg_width - margin_x - 8 - label_half_w,
+            );
+            let ly = ly.max(margin_top + 10);
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
@@ -744,6 +750,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     }
                 }
             };
+            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
+            let lx = lx.clamp(
+                margin_x + 8 + label_half_w,
+                svg_width - margin_x - 8 - label_half_w,
+            );
+            let ly = ly.max(margin_top + 10);
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
@@ -1866,7 +1878,7 @@ fn render_class_node(
     let header_text = display_name.clone();
     // Underline for objects (PlantUML convention — fix #486)
     let text_decoration = if matches!(node.kind, FamilyNodeKind::Object) {
-        " text-decoration=\"underline\""
+        " text-decoration=\"underline\" text-decoration-thickness=\"1\""
     } else {
         ""
     };
