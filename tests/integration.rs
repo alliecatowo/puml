@@ -7190,6 +7190,20 @@ fn non_uml_advanced_math_matrix_symbols_and_text_constructs_render() {
 }
 
 #[test]
+fn non_uml_math_svg_quotes_multi_word_font_family_fallbacks() {
+    let src = "@startmath\n\\alpha + \\int_{0}^{\\infty} x\n@endmath\n";
+    let svg = render_source_to_svg(src).expect("math SVG should render");
+    assert!(
+        svg.contains("font-family=\"'Noto Sans Math','STIX Two Math','Cambria Math','Latin Modern Math','DejaVu Serif','Times New Roman',serif\""),
+        "math SVG should quote multi-word font family fallbacks for external rasterizers"
+    );
+    assert!(
+        !svg.contains("font-family=\"Noto Sans Math,STIX Two Math,serif\""),
+        "legacy unquoted multi-word font stack should not be emitted"
+    );
+}
+
+#[test]
 fn non_uml_advanced_ditaa_junctions_and_diagonal_arrowheads_render() {
     let src = "@startditaa\n\
 +---+   +---+\n\
