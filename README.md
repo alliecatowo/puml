@@ -175,12 +175,29 @@ Useful local loops:
 ```bash
 ./scripts/dev.sh
 ./scripts/check-all.sh --quick
+./scripts/bench.sh --check-artifacts
+./scripts/bench.sh --update-baseline
+./scripts/branch-protection.sh verify
 cargo run -- --help
 cargo run -- --check docs/examples/basic_hello.puml
 cargo run -- docs/examples/basic_hello.puml
 ```
 
 The static docs site lives in [site/](site/README.md). It mirrors `docs/examples/` into the gallery and mirrors `docs/specs/` into the developer reference pages.
+
+## Autonomy Harness
+
+Use these loops when validating autonomous-agent or docs-harness work:
+
+```bash
+./scripts/harness-check.sh --quick
+./scripts/harness-check.sh
+./scripts/autonomy-check.sh --quick
+./scripts/autonomy-check.sh
+python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
+```
+
+Runbooks live in [docs/codex-workflow.md](docs/codex-workflow.md) and [docs/autonomous-workflow-cookbook.md](docs/autonomous-workflow-cookbook.md).
 
 <details>
 <summary>Agent and swarm development context</summary>
