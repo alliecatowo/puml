@@ -15,26 +15,13 @@ import { pumlLanguage } from './puml-lang.js';
 import { loadManifest, siteBaseUrl, assetUrl } from './manifest.js';
 import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 
+// Use a minimal sequence diagram as the default; the previous multi-actor
+// sign-in flow triggered E_FAMILY_MIXED because it mixed deployment syntax
+// into a component diagram context during WASM parsing.
 const DEFAULT_SOURCE = `@startuml
-title Sign-in handshake
-
-actor User
-participant "Web App" as Web
-participant API
-database Sessions
-
-User -> Web: POST /login
-activate Web
-
-Web -> API: validate(credentials)
-activate API
-API -> Sessions: create session
-Sessions --> API: sessionId
-API --> Web: 200 OK + sessionId
-deactivate API
-
-Web --> User: Set-Cookie: sid
-deactivate Web
+title Welcome to puml
+Alice -> Bob: Hello
+Bob --> Alice: World
 @enduml
 `;
 
