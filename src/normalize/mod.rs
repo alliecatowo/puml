@@ -24,14 +24,14 @@ use crate::model::{
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
+    ActivityStyle, ChartStyle, ClassStyle, ComponentStyle, SequenceSkinParamSupport,
+    SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle, TimingStyle,
     activity_style_from_sequence_theme, chart_style_from_sequence_theme,
     class_style_from_sequence_theme, classify_activity_skinparam, classify_chart_skinparam,
     classify_class_skinparam, classify_component_skinparam, classify_sequence_skinparam,
     classify_state_skinparam, classify_timing_skinparam, component_style_from_sequence_theme,
     resolve_sequence_theme_preset, state_style_from_sequence_theme,
-    timing_style_from_sequence_theme, ActivityStyle, ChartStyle, ClassStyle, ComponentStyle,
-    SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle,
-    TimingStyle,
+    timing_style_from_sequence_theme,
 };
 
 mod archimate;
@@ -78,8 +78,12 @@ pub fn normalize_family_with_options(
         DiagramKind::MindMap | DiagramKind::Wbs => {
             family::normalize_family_tree(document).map(NormalizedDocument::Family)
         }
-        DiagramKind::Json => structured::normalize_json_document(document).map(NormalizedDocument::Json),
-        DiagramKind::Yaml => structured::normalize_yaml_document(document).map(NormalizedDocument::Yaml),
+        DiagramKind::Json => {
+            structured::normalize_json_document(document).map(NormalizedDocument::Json)
+        }
+        DiagramKind::Yaml => {
+            structured::normalize_yaml_document(document).map(NormalizedDocument::Yaml)
+        }
         DiagramKind::Nwdiag => {
             nwdiag::normalize_nwdiag_document(document).map(NormalizedDocument::Nwdiag)
         }
@@ -95,7 +99,9 @@ pub fn normalize_family_with_options(
         DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::Activity
-        | DiagramKind::Timing => family::normalize_extended_family(document).map(NormalizedDocument::Family),
+        | DiagramKind::Timing => {
+            family::normalize_extended_family(document).map(NormalizedDocument::Family)
+        }
         DiagramKind::Unknown => Err(Diagnostic::error(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
         )),

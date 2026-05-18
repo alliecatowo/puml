@@ -348,8 +348,7 @@ mod tests {
     #[test]
     fn formatter_preserves_multiline_note_body_indentation_and_arrows() {
         let input = "@startuml\nnote right\n  A → B stays prose  \nend note\nAlice → Bob: message\n@enduml\n";
-        let expected =
-            "@startuml\nnote right\n  A → B stays prose\nend note\nAlice -> Bob: message\n@enduml\n";
+        let expected = "@startuml\nnote right\n  A → B stays prose\nend note\nAlice -> Bob: message\n@enduml\n";
 
         assert_eq!(format_source(input).formatted, expected);
     }

@@ -2,7 +2,7 @@ use super::svg::{creole_text, escape_text};
 use crate::ast::NoteKind;
 use crate::model::{LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, VirtualEndpointKind};
 use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
-use crate::theme::{css3_color_to_hex, MessageAlign};
+use crate::theme::{MessageAlign, css3_color_to_hex};
 use std::collections::BTreeMap;
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
@@ -790,11 +790,7 @@ fn sequence_arrow_head_slant(raw_arrow: &str, left: bool) -> Option<char> {
             return Some(ch);
         }
     }
-    if left {
-        None
-    } else {
-        marker
-    }
+    if left { None } else { marker }
 }
 
 fn render_arrow_endpoint_marker(

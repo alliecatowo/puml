@@ -1,6 +1,6 @@
 // ─── Family 1: @startregex ────────────────────────────────────────────────────
 
-use super::railroad::{render_railroad, RailNode};
+use super::railroad::{RailNode, render_railroad};
 use super::shared::strip_block;
 use crate::diagnostic::Diagnostic;
 

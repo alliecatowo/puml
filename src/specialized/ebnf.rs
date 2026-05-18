@@ -1,6 +1,6 @@
 // ─── Family 2: @startebnf ─────────────────────────────────────────────────────
 
-use super::railroad::{layout_rail_with_style, RailLayout, RailNode, RailStyle};
+use super::railroad::{RailLayout, RailNode, RailStyle, layout_rail_with_style};
 use super::shared::{escape_xml, strip_block, svg_header, svg_white_bg};
 use crate::diagnostic::Diagnostic;
 use std::collections::BTreeMap;

@@ -1,6 +1,6 @@
 mod svg_test_helpers;
 
-use svg_test_helpers::{attr, bounds, f64_attr, SvgDoc};
+use svg_test_helpers::{SvgDoc, attr, bounds, f64_attr};
 
 #[test]
 fn activity_swimlane_and_fork_depth_renders_lane_boxes_and_branch_markers() {

@@ -80,7 +80,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     SkinParamSupport::UnsupportedKey => {
                         // Class diagrams accept generic sequence keys silently
                         // (PlantUML applies them across all families).
-                        use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport};
+                        use crate::theme::{SequenceSkinParamSupport, classify_sequence_skinparam};
                         if !matches!(
                             classify_sequence_skinparam(&key, &value),
                             SequenceSkinParamSupport::UnsupportedKey

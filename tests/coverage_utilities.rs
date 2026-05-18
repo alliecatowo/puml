@@ -1,11 +1,11 @@
-use puml::diagnostic::{render_caret_line, Diagnostic, Severity};
+use puml::diagnostic::{Diagnostic, Severity, render_caret_line};
 use puml::scene::TextOverflowPolicy;
 use puml::source::{Source, Span};
 use puml::theme::Theme;
 use puml::{
+    CompatMode, DeterminismMode, DiagramFamily, FrontendSelection, ParsePipelineOptions,
     detect_diagram_family, extract_markdown_diagrams, parse_with_pipeline_options,
-    render_source_to_svg, render_source_to_svg_for_family, CompatMode, DeterminismMode,
-    DiagramFamily, FrontendSelection, ParsePipelineOptions,
+    render_source_to_svg, render_source_to_svg_for_family,
 };
 
 #[test]
@@ -401,9 +401,10 @@ fn library_detect_diagram_family_and_single_svg_contracts_are_deterministic() {
 
     let multipage = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";
     let err = render_source_to_svg(multipage).expect_err("single-page API should reject multipage");
-    assert!(err
-        .message
-        .contains("multiple pages detected; use render_source_to_svgs or --multi"));
+    assert!(
+        err.message
+            .contains("multiple pages detected; use render_source_to_svgs or --multi")
+    );
 }
 
 #[test]
@@ -438,9 +439,10 @@ fn render_source_to_svg_for_family_rejects_multipage_sequence_input() {
     let src = "@startuml\nA -> B: one\nnewpage\nB -> A: two\n@enduml\n";
     let err = render_source_to_svg_for_family(src, DiagramFamily::Sequence)
         .expect_err("single-page family API should reject multipage sequence");
-    assert!(err
-        .message
-        .contains("multiple pages detected; use render_source_to_svgs or --multi"));
+    assert!(
+        err.message
+            .contains("multiple pages detected; use render_source_to_svgs or --multi")
+    );
 }
 
 #[test]
@@ -527,7 +529,9 @@ fn mermaid_pipeline_reports_empty_and_generic_construct_errors() {
 
     let unsupported_generic = "sequenceDiagram\ntitle   \n";
     let generic_err = parse_with_pipeline_options(unsupported_generic, &options).unwrap_err();
-    assert!(generic_err
-        .message
-        .contains("E_MERMAID_CONSTRUCT_UNSUPPORTED"));
+    assert!(
+        generic_err
+            .message
+            .contains("E_MERMAID_CONSTRUCT_UNSUPPORTED")
+    );
 }

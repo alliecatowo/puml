@@ -3,7 +3,7 @@ use crate::diagnostic::{Diagnostic, Severity};
 use crate::formatter;
 use crate::source::Span;
 use crate::{
-    normalize_family, parse_with_pipeline_options, NormalizedDocument, ParsePipelineOptions,
+    NormalizedDocument, ParsePipelineOptions, normalize_family, parse_with_pipeline_options,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

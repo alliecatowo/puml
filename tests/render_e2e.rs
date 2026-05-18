@@ -4,8 +4,8 @@ use puml::model::{
 };
 use puml::scene::LayoutOptions;
 use puml::{
-    extract_markdown_diagrams, layout, parse_with_pipeline_options, render, FrontendSelection,
-    ParsePipelineOptions,
+    FrontendSelection, ParsePipelineOptions, extract_markdown_diagrams, layout,
+    parse_with_pipeline_options, render,
 };
 use std::collections::HashSet;
 
@@ -71,12 +71,7 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
             "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ngoto retry\nbackward: retry path;\nkill\n@enduml\n",
             // Wave 3-D (#533) suppresses "(else) A" and "branch 2" canvas literals;
             // verify the content and control-flow nodes that are still rendered
-            vec![
-                "switch kind?",
-                "Do A",
-                "goto retry",
-                "backward retry path",
-            ],
+            vec!["switch kind?", "Do A", "goto retry", "backward retry path"],
         ),
         (
             "state",
@@ -270,7 +265,9 @@ fn render_sequence_decorated_arrows_and_teoz_boundary_stay_deterministic() {
     assert!(svg.contains("stroke=\"#ff0000\""));
     assert!(svg.contains("stroke=\"#0000ff\""));
     assert!(svg.contains("stroke-dasharray=\"6 4\""));
-    assert!(svg.contains("class=\"sequence-message-line sequence-message-line-colored sequence-message-line-dashed\""));
+    assert!(svg.contains(
+        "class=\"sequence-message-line sequence-message-line-colored sequence-message-line-dashed\""
+    ));
     assert!(svg.contains("data-sequence-message-style=\"color dashed\""));
     assert!(svg.contains("visibility=\"hidden\""));
 }

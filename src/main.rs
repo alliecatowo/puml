@@ -19,13 +19,13 @@ use puml::model::{
 };
 use puml::source::Span;
 use puml::{
-    extract_markdown_diagrams, extract_metadata, normalize_family,
-    preprocess_with_pipeline_options, render, render_svg_pages_from_model, specialized, CompatMode,
-    DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
-    NormalizedDocument, ParsePipelineOptions, TextOutputMode,
+    CompatMode, DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
+    NormalizedDocument, ParsePipelineOptions, TextOutputMode, extract_markdown_diagrams,
+    extract_metadata, normalize_family, preprocess_with_pipeline_options, render,
+    render_svg_pages_from_model, specialized,
 };
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs;

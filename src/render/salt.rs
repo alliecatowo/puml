@@ -769,11 +769,7 @@ fn parse_salt_items(line: &str, prefixes: &[&str]) -> Option<Vec<String>> {
         .map(|item| item.trim().trim_matches('"').to_string())
         .filter(|item| !item.is_empty())
         .collect();
-    if items.is_empty() {
-        None
-    } else {
-        Some(items)
-    }
+    if items.is_empty() { None } else { Some(items) }
 }
 
 fn parse_salt_scrollbar(line: &str) -> Option<(bool, u8)> {

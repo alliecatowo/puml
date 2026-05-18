@@ -1,5 +1,5 @@
 use assert_cmd::cargo::cargo_bin;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
@@ -176,7 +176,9 @@ fn activity_completion_and_hover_cover_current_static_keyword_surface() {
     let labels = completion_labels(request_result(&messages, 2));
     assert!(labels.contains(&"start"));
     assert!(labels.contains(&"endif"));
-    assert!(hover_markdown(request_result(&messages, 3)).contains("Start an activity diagram flow"));
+    assert!(
+        hover_markdown(request_result(&messages, 3)).contains("Start an activity diagram flow")
+    );
 }
 
 #[test]

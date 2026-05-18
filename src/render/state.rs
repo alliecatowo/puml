@@ -500,11 +500,7 @@ fn state_dash_attr(dashed: bool) -> &'static str {
 }
 
 fn state_hidden_attr(hidden: bool) -> &'static str {
-    if hidden {
-        " visibility=\"hidden\""
-    } else {
-        ""
-    }
+    if hidden { " visibility=\"hidden\"" } else { "" }
 }
 
 fn state_direction_attr(direction: Option<&str>) -> String {

@@ -842,10 +842,13 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             let total_w = base_l.width + sup_l.width;
             let total_h = (base_l.height + dy).max(sup_l.height + dy);
             let ascent = base_l.ascent + dy;
-            let svg =
-                format!(
+            let svg = format!(
                 "<g transform=\"translate(0,{})\">{}<g transform=\"translate({},{})\">{}</g></g>",
-                dy, base_l.svg, sup_x, sup_y + dy, sup_l.svg
+                dy,
+                base_l.svg,
+                sup_x,
+                sup_y + dy,
+                sup_l.svg
             );
             Layout {
                 svg,
@@ -971,11 +974,16 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             let svg = format!(
                 "<path d=\"M {},{} L {},{} L {},{} L {},{}\" fill=\"none\" stroke=\"#333\" stroke-width=\"1.5\"/>\
                  <g transform=\"translate({},{})\">{}</g>",
-                foot_x, foot_y,
-                corner_x, corner_y,
-                top_left_x, top_left_y,
-                overline_end_x, top_left_y,
-                inner_x, inner_y,
+                foot_x,
+                foot_y,
+                corner_x,
+                corner_y,
+                top_left_x,
+                top_left_y,
+                overline_end_x,
+                top_left_y,
+                inner_x,
+                inner_y,
                 inner_l.svg
             );
             Layout {
@@ -1084,9 +1092,16 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 "<g transform=\"translate({},{})\">{}</g>\
                  <text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">{}</text>\
                  <g transform=\"translate({},{})\">{}</g>",
-                sup_x, sup_y, sup_l.svg,
-                op_x + op_char_w / 2.0, op_y + op_ascent, op_font, escape_xml(&op_char),
-                sub_x, sub_y, sub_l.svg
+                sup_x,
+                sup_y,
+                sup_l.svg,
+                op_x + op_char_w / 2.0,
+                op_y + op_ascent,
+                op_font,
+                escape_xml(&op_char),
+                sub_x,
+                sub_y,
+                sub_l.svg
             );
             Layout {
                 svg,

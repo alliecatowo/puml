@@ -1,8 +1,8 @@
 mod svg_test_helpers;
 
-use puml::parser::{parse_with_options, ParseOptions};
-use puml::{render_source_to_svg_for_family, DiagramFamily, NormalizedDocument};
-use svg_test_helpers::{attr, bounds, SvgDoc};
+use puml::parser::{ParseOptions, parse_with_options};
+use puml::{DiagramFamily, NormalizedDocument, render_source_to_svg_for_family};
+use svg_test_helpers::{SvgDoc, attr, bounds};
 
 #[test]
 fn chart_axes_named_series_arrays_and_legend_render() {
@@ -41,10 +41,11 @@ legend right
     );
 
     let legend = doc.first_with_attr("g", "data-chart-legend", "right");
-    assert!(doc
-        .elements_with_class("rect", "chart-legend-swatch")
-        .iter()
-        .any(|node| attr(*node, "fill") == "#3498db"));
+    assert!(
+        doc.elements_with_class("rect", "chart-legend-swatch")
+            .iter()
+            .any(|node| attr(*node, "fill") == "#3498db")
+    );
     assert!(
         bounds(
             legend
@@ -273,9 +274,10 @@ legend at top center background #f8fafc border #0f172a text #111827
     let doc = SvgDoc::parse(&svg);
     let tick = doc.first_with_attr("text", "data-chart-axis-tick", "5");
     assert_eq!(attr(tick, "class"), "chart-axis-tick chart-axis-tick-v");
-    assert!(!doc
-        .elements_with_class("line", "chart-axis-grid-h")
-        .is_empty());
+    assert!(
+        !doc.elements_with_class("line", "chart-axis-grid-h")
+            .is_empty()
+    );
     assert_eq!(
         attr(
             doc.first_with_attr("g", "data-chart-legend", "top"),

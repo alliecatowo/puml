@@ -11,7 +11,7 @@ lto = false
 [package]
 name = "puml"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 rust-version = "1.88"
 description = "Fast, no-Java PlantUML-compatible diagram rendering as a Rust CLI and library."
 license = "MIT"
@@ -82,3 +82,6 @@ required-features = ["cli"]
 [[bin]]
 name = "puml-lsp"
 path = "src/bin/puml-lsp.rs"
+
+[lints.clippy]
+collapsible_if = "allow"

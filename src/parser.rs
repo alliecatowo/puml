@@ -6,8 +6,8 @@ use crate::ast::{
     VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
-use crate::preproc::preprocess;
 pub use crate::preproc::ParseOptions;
+use crate::preproc::preprocess;
 use crate::source::Span;
 
 pub fn parse(source: &str) -> Result<Document, Diagnostic> {

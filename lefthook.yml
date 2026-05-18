@@ -16,7 +16,11 @@ pre-commit:
     - rebase
     - merge
   commands:
-    fmt:
+    fmt-fix:
+      name: cargo fmt (auto-fix)
+      run: cargo fmt
+      stage_fixed: true
+    fmt-verify:
       name: cargo fmt --check
       run: cargo fmt --check
       fail_text: |
@@ -26,14 +30,8 @@ pre-push:
   skip:
     - rebase
     - merge
-  commands:
-    clippy:
-      name: cargo clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
-      fail_text: |
-        clippy found warnings. Fix them before pushing (warnings are errors in CI).
-    test-lib:
-      name: cargo test --lib
-      run: cargo test --lib --quiet
-      fail_text: |
-        Library unit tests failed. Fix the failures before pushing.
+  scripts:
+    local-gates:
+      runner: bash
+      use_stdin: true
+      script: scripts/lefthook-pre-push.sh

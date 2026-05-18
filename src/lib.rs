@@ -20,7 +20,7 @@ pub mod theme;
 
 pub use ast::Document;
 pub use diagnostic::{Diagnostic, DiagnosticJson};
-pub use metadata::{extract_metadata, DiagramMetadata};
+pub use metadata::{DiagramMetadata, extract_metadata};
 pub use model::{
     FamilyDocument, FamilyGroup, LegendHAlign, LegendVAlign, NormalizedDocument, ScaleSpec,
     SequenceDocument, SequencePage, StateDocument, TimelineDocument,
@@ -308,21 +308,21 @@ fn render_document_for_family(
             let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
             Ok(scenes.iter().map(render::render_svg).collect())
         }
-        DiagramFamily::Class
-        | DiagramFamily::Object
-        | DiagramFamily::UseCase => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Family(family_doc) => {
-                Ok(vec![render::render_class_svg(&family_doc)])
+        DiagramFamily::Class | DiagramFamily::Object | DiagramFamily::UseCase => {
+            match normalize::normalize_family(document)? {
+                model::NormalizedDocument::Family(family_doc) => {
+                    Ok(vec![render::render_class_svg(&family_doc)])
+                }
+                model::NormalizedDocument::Sequence(_)
+                | model::NormalizedDocument::Timeline(_)
+                | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
+                )),
+                _ => Err(Diagnostic::error(
+                    "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
+                )),
             }
-            model::NormalizedDocument::Sequence(_)
-            | model::NormalizedDocument::Timeline(_)
-            | model::NormalizedDocument::State(_) => Err(Diagnostic::error(
-                "[E_FAMILY_STUB_INTERNAL] unexpected model during family stub render",
-            )),
-            _ => Err(Diagnostic::error(
-                "[E_FAMILY_STUB_INTERNAL] unexpected non-family model during family stub render",
-            )),
-        },
+        }
         DiagramFamily::Salt => match normalize::normalize_family(document)? {
             model::NormalizedDocument::Family(family_doc) => {
                 Ok(vec![render::render_salt_svg(&family_doc)])
@@ -655,7 +655,7 @@ fn is_plantuml_family_fence_lang(lang: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_with_pipeline_options, CompatMode, FrontendSelection, ParsePipelineOptions};
+    use super::{CompatMode, FrontendSelection, ParsePipelineOptions, parse_with_pipeline_options};
 
     #[test]
     fn extended_mode_without_include_root_does_not_fallback_to_cwd_in_library_api() {

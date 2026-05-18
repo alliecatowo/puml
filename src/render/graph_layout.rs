@@ -284,7 +284,7 @@ fn topo_sort(nodes: &[NodeSize], dag_fwd: &BTreeMap<&str, BTreeSet<&str>>) -> Ve
     // Use sorted queue for determinism
     let mut queue: Vec<&str> = in_degree
         .iter()
-        .filter(|(_, &d)| d == 0)
+        .filter(|&(_, &d)| d == 0)
         .map(|(&n, _)| n)
         .collect();
     queue.sort_unstable();

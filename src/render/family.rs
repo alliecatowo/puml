@@ -1998,7 +1998,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let pkg_tab = 28i32; // height of the package label tab at top
     let canvas_margin = 40i32;
     let pkg_gap = 32i32; // gap between packages on the canvas
-                         // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
+    // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
     let _outer_cols = 2i32;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2027,8 +2027,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // that the rendering code below expects.
     // ─────────────────────────────────────────────────────────────────────────
     use crate::render::graph_layout::{
-        layout_hierarchical, EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions,
-        NodeSize as GlNodeSize,
+        EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions, NodeSize as GlNodeSize,
+        layout_hierarchical,
     };
 
     let title_lines = doc
@@ -2783,7 +2783,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                         waypoint_candidates.push((bx + bw / 2, by + bh + gap)); // below
                         waypoint_candidates.push((bx - gap, by + bh / 2)); // left
                         waypoint_candidates.push((bx + bw + gap, by + bh / 2)); // right
-                                                                                // Also try corners (useful for routing around package frames)
+                        // Also try corners (useful for routing around package frames)
                         waypoint_candidates.push((bx - gap, by - gap));
                         waypoint_candidates.push((bx + bw + gap, by - gap));
                         waypoint_candidates.push((bx - gap, by + bh + gap));
@@ -3705,7 +3705,7 @@ fn render_family_node_shape_styled(
                 // 3D cube for deployment nodes (fix #495)
                 FamilyNodeKind::Node | FamilyNodeKind::Frame => {
                     let depth = 10i32; // 3D offset
-                                       // Back face (top-right shadow)
+                    // Back face (top-right shadow)
                     out.push_str(&format!(
                         "<polygon class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
                          points=\"{},{} {},{} {},{} {},{}\" \

@@ -65,8 +65,9 @@ fi
 lefthook install
 echo ""
 echo "lefthook hooks installed."
-echo "  pre-commit : cargo fmt --check"
-echo "  pre-push   : cargo clippy --all-targets -- -D warnings"
-echo "  pre-push   : cargo test --lib --quiet"
+echo "  pre-commit : cargo fmt (auto-fix + stage) + cargo fmt --check"
+echo "  pre-push   : quick local gate (fmt/clippy/lib tests)"
+echo "  pre-push   : strict gate when pushing refs/heads/main"
+echo "               (full tests + changed-file coverage + parity quick)"
 echo ""
 echo "To uninstall: ./scripts/install-hooks.sh --uninstall"

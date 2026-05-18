@@ -3,9 +3,8 @@
 
 use puml::ast::DiagramKind;
 use puml::{
-    normalize_family, parse_with_pipeline_options, render_family_document_svg,
-    render_svg_pages_from_model, Diagnostic, FrontendSelection, NormalizedDocument,
-    ParsePipelineOptions,
+    Diagnostic, FrontendSelection, ParsePipelineOptions, normalize_family,
+    parse_with_pipeline_options, render_svg_pages_from_model,
 };
 use wasm_bindgen::prelude::*;
 

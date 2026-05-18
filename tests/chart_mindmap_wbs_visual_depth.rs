@@ -1,4 +1,4 @@
-use puml::{render_source_to_svg, render_source_to_svg_for_family, DiagramFamily};
+use puml::{DiagramFamily, render_source_to_svg, render_source_to_svg_for_family};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

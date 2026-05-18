@@ -5,7 +5,7 @@ use predicates::prelude::*;
 use puml::model::SequenceEventKind;
 use puml::normalize;
 use puml::parser::parse;
-use puml::{render_source_to_svg, render_source_to_text, TextOutputMode};
+use puml::{TextOutputMode, render_source_to_svg, render_source_to_text};
 use serde_json::Value;
 use std::fs;
 use tempfile::tempdir;
@@ -1720,7 +1720,7 @@ fn theme_sketchy_produces_hand_drawn_style_colors_in_model_dump() {
 
 #[test]
 fn theme_catalog_covers_all_22_presets() {
-    use puml::theme::{resolve_sequence_theme_preset, LOCAL_SEQUENCE_THEME_CATALOG};
+    use puml::theme::{LOCAL_SEQUENCE_THEME_CATALOG, resolve_sequence_theme_preset};
     assert_eq!(LOCAL_SEQUENCE_THEME_CATALOG.len(), 41);
     for name in LOCAL_SEQUENCE_THEME_CATALOG {
         let result = resolve_sequence_theme_preset(name);
@@ -2569,10 +2569,12 @@ fn from_markdown_diagnostics_json_maps_to_markdown_line_column() {
     assert_eq!(first["line"], 4);
     assert_eq!(first["column"], 1);
     assert_eq!(first["snippet"], "A -x B: bad");
-    assert!(first["message"]
-        .as_str()
-        .unwrap()
-        .contains("E_ARROW_INVALID"));
+    assert!(
+        first["message"]
+            .as_str()
+            .unwrap()
+            .contains("E_ARROW_INVALID")
+    );
 }
 
 #[test]
@@ -4491,18 +4493,24 @@ fn dump_capabilities_outputs_manifest_shape() {
     // Output is now the real LSP protocol-level capabilities object (same as
     // what the server returns in its initialize response).
     let json: Value = serde_json::from_slice(&out).unwrap();
-    assert!(json["completionProvider"]["resolveProvider"]
-        .as_bool()
-        .unwrap_or(false));
+    assert!(
+        json["completionProvider"]["resolveProvider"]
+            .as_bool()
+            .unwrap_or(false)
+    );
     assert!(json["hoverProvider"].as_bool().unwrap_or(false));
     assert!(json["definitionProvider"].as_bool().unwrap_or(false));
     assert!(json["referencesProvider"].as_bool().unwrap_or(false));
-    assert!(json["documentFormattingProvider"]
-        .as_bool()
-        .unwrap_or(false));
-    assert!(json["documentRangeFormattingProvider"]
-        .as_bool()
-        .unwrap_or(false));
+    assert!(
+        json["documentFormattingProvider"]
+            .as_bool()
+            .unwrap_or(false)
+    );
+    assert!(
+        json["documentRangeFormattingProvider"]
+            .as_bool()
+            .unwrap_or(false)
+    );
     assert!(json["codeActionProvider"].as_bool().unwrap_or(false));
     assert!(json["colorProvider"].as_bool().unwrap_or(false));
     assert!(json["foldingRangeProvider"].as_bool().unwrap_or(false));
@@ -4518,12 +4526,16 @@ fn dump_capabilities_outputs_manifest_shape() {
         .as_array()
         .expect("semanticTokensProvider.legend.tokenTypes must be an array");
     assert!(token_types.iter().any(|t| t == "keyword"));
-    assert!(json["semanticTokensProvider"]["full"]
-        .as_bool()
-        .unwrap_or(false));
-    assert!(json["workspace"]["workspaceFolders"]["supported"]
-        .as_bool()
-        .unwrap_or(false));
+    assert!(
+        json["semanticTokensProvider"]["full"]
+            .as_bool()
+            .unwrap_or(false)
+    );
+    assert!(
+        json["workspace"]["workspaceFolders"]["supported"]
+            .as_bool()
+            .unwrap_or(false)
+    );
 }
 
 #[test]
@@ -4578,10 +4590,12 @@ fn check_fixture_with_json_diagnostics_emits_warning_payload() {
     assert_eq!(first["line"], 2);
     assert_eq!(first["column"], 1);
     assert_eq!(first["snippet"], "skinparam TotallyUnknownColor red");
-    assert!(first["message"]
-        .as_str()
-        .unwrap()
-        .contains("W_SKINPARAM_UNSUPPORTED"));
+    assert!(
+        first["message"]
+            .as_str()
+            .unwrap()
+            .contains("W_SKINPARAM_UNSUPPORTED")
+    );
 }
 
 #[test]
@@ -5260,8 +5274,7 @@ fn uml_declaration_stereotypes_and_component_shorthand_aliases_render() {
         object_svg.contains("\u{ab}singleton\u{bb}"),
         "object stereotype should render as guillemet in header (fix #551)"
     );
-    let usecase_src =
-        "@startuml\nactor Shopper <<primary>> as S\nusecase Checkout <<critical>> as UC\nS --> UC : starts\n@enduml\n";
+    let usecase_src = "@startuml\nactor Shopper <<primary>> as S\nusecase Checkout <<critical>> as UC\nS --> UC : starts\n@enduml\n";
     let usecase_svg =
         render_source_to_svg(usecase_src).expect("usecase stereotype svg should render");
     assert!(
@@ -5273,8 +5286,7 @@ fn uml_declaration_stereotypes_and_component_shorthand_aliases_render() {
         "usecase stereotype should render"
     );
 
-    let component_src =
-        "@startuml\n[Public API] as API\n() \"Gateway Port\" as Gateway\nAPI --> Gateway : exposes\n@enduml\n";
+    let component_src = "@startuml\n[Public API] as API\n() \"Gateway Port\" as Gateway\nAPI --> Gateway : exposes\n@enduml\n";
     let component_svg =
         render_source_to_svg(component_src).expect("component shorthand svg should render");
     assert!(
@@ -5616,9 +5628,9 @@ fn class_hide_empty_members_collapses_empty_compartment() {
 
 #[test]
 fn class_set_namespace_separator_is_recorded_in_model() {
+    use puml::NormalizedDocument;
     use puml::normalize_family;
     use puml::parser::parse;
-    use puml::NormalizedDocument;
 
     let src = "@startuml\nset namespaceSeparator ::\nclass Foo\n@enduml\n";
     let doc = parse(src).expect("parse ok");
@@ -6032,9 +6044,9 @@ fn state_entry_exit_renders_italic_action_text() {
 
 #[test]
 fn class_together_group_member_ids_are_recorded_in_model() {
+    use puml::NormalizedDocument;
     use puml::normalize_family;
     use puml::parser::parse;
-    use puml::NormalizedDocument;
 
     let src = "@startuml\nclass A\nclass B\ntogether {\n  A\n  B\n}\n@enduml\n";
     let doc = parse(src).expect("parse ok");
@@ -6051,9 +6063,9 @@ fn class_together_group_member_ids_are_recorded_in_model() {
 
 #[test]
 fn class_hide_options_are_recorded_in_model() {
+    use puml::NormalizedDocument;
     use puml::normalize_family;
     use puml::parser::parse;
-    use puml::NormalizedDocument;
 
     let src = "@startuml\nhide circle\nhide stereotype\nhide empty members\nclass Foo\n@enduml\n";
     let doc = parse(src).expect("parse ok");
@@ -6469,7 +6481,7 @@ fn mindmap_orientation_directive_check_passes() {
 #[test]
 fn picouml_full_constructs_renders_nonempty_svg() {
     let src = fs::read_to_string(fixture("picouml/valid_full_constructs.puml")).unwrap();
-    use puml::{parse_with_pipeline_options, FrontendSelection, ParsePipelineOptions};
+    use puml::{FrontendSelection, ParsePipelineOptions, parse_with_pipeline_options};
     let options = ParsePipelineOptions {
         frontend: FrontendSelection::Picouml,
         ..ParsePipelineOptions::default()
@@ -6561,8 +6573,7 @@ fn yaml_projection_render_contains_alias_and_keys() {
 
 #[test]
 fn mindmap_caption_and_legend_render_in_svg() {
-    let src =
-        "@startmindmap\ntitle My Map\ncaption A test diagram\nlegend\nsome legend\nend legend\n* Root\n** Child\n@endmindmap\n";
+    let src = "@startmindmap\ntitle My Map\ncaption A test diagram\nlegend\nsome legend\nend legend\n* Root\n** Child\n@endmindmap\n";
     let svg = render_source_to_svg(src).expect("mindmap with caption/legend should render");
     assert!(svg.contains("A test diagram"), "expected caption text");
 }
@@ -7314,9 +7325,11 @@ fn salt_layout_depth_fixture_has_widget_dom_and_span_geometry() {
 
     let textareas = svg_elements_with_attr(&svg, "data-salt-widget", "textarea");
     assert_eq!(textareas.len(), 2);
-    assert!(textareas
-        .iter()
-        .any(|el| el.contains("data-salt-scroll-vertical=\"true\"")));
+    assert!(
+        textareas
+            .iter()
+            .any(|el| el.contains("data-salt-scroll-vertical=\"true\""))
+    );
 }
 
 #[test]

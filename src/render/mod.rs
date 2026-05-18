@@ -7,7 +7,7 @@ pub(crate) use crate::model::{
     StateNodeKind, TimelineChronologyEvent, TimelineDocument, TimelineMilestone, TimelineTask,
     WbsCheckbox, YamlDocument,
 };
-pub(crate) use crate::theme::{css3_color_to_hex, ActivityStyle};
+pub(crate) use crate::theme::{ActivityStyle, css3_color_to_hex};
 pub(crate) use std::collections::BTreeMap;
 
 mod activity;
@@ -40,7 +40,7 @@ pub use specialized::{
     render_nwdiag_svg, render_regex_svg, render_sdl_svg,
 };
 pub use state::render_state_svg;
-pub use text::{render_text_pages, TextOutputMode};
+pub use text::{TextOutputMode, render_text_pages};
 pub use timeline::{render_timeline_stub_svg, render_timeline_svg};
 pub use timing::render_timing_svg;
 

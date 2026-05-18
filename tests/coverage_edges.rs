@@ -7,11 +7,11 @@ use puml::model::{
     VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide,
 };
 use puml::normalize;
-use puml::parser::{parse_with_options, ParseOptions};
+use puml::parser::{ParseOptions, parse_with_options};
 use puml::scene::{LayoutOptions, TextOverflowPolicy};
 use puml::source::Span;
-use puml::theme::{classify_sequence_skinparam, SequenceSkinParamSupport, SequenceSkinParamValue};
-use puml::{normalize_family, parse, render, NormalizedDocument};
+use puml::theme::{SequenceSkinParamSupport, SequenceSkinParamValue, classify_sequence_skinparam};
+use puml::{NormalizedDocument, normalize_family, parse, render};
 use std::fs;
 use tempfile::tempdir;
 
@@ -55,8 +55,7 @@ fn parser_preprocessor_variables_and_callable_invocations_expand_deterministical
 
 #[test]
 fn parser_preprocessor_concat_expands_and_procedure_return_fails_with_stable_code() {
-    let concat_src =
-        "@startuml\n!function Join($a##$b)\n!return $a ## $b\n!endfunction\nA -> B: %Join(Al, ice)\n@enduml\n";
+    let concat_src = "@startuml\n!function Join($a##$b)\n!return $a ## $b\n!endfunction\nA -> B: %Join(Al, ice)\n@enduml\n";
     let concat_doc = parse(concat_src).expect("expected concat expansion");
     match &concat_doc.statements[0].kind {
         puml::ast::StatementKind::Message(m) => assert_eq!(m.label.as_deref(), Some("Alice")),
@@ -66,9 +65,11 @@ fn parser_preprocessor_concat_expands_and_procedure_return_fails_with_stable_cod
     let proc_return_src =
         "@startuml\n!procedure Bad($x)\n!return $x\n!endprocedure\n!Bad(\"A\")\n@enduml\n";
     let proc_return_err = parse(proc_return_src).expect_err("expected procedure return failure");
-    assert!(proc_return_err
-        .message
-        .contains("E_PREPROC_RETURN_UNEXPECTED"));
+    assert!(
+        proc_return_err
+            .message
+            .contains("E_PREPROC_RETURN_UNEXPECTED")
+    );
 }
 
 #[test]
@@ -631,9 +632,11 @@ fn normalize_skinparam_unsupported_key_and_value_are_deterministic() {
     let unsupported_key_model =
         normalize::normalize(unsupported_key_doc).expect("normalize should succeed");
     assert_eq!(unsupported_key_model.warnings.len(), 1);
-    assert!(unsupported_key_model.warnings[0]
-        .message
-        .contains("W_SKINPARAM_UNSUPPORTED"));
+    assert!(
+        unsupported_key_model.warnings[0]
+            .message
+            .contains("W_SKINPARAM_UNSUPPORTED")
+    );
 
     let unsupported_value_src =
         fs::read_to_string(fixture("styling/valid_skinparam_unsupported_value.puml"))
@@ -642,9 +645,11 @@ fn normalize_skinparam_unsupported_key_and_value_are_deterministic() {
     let unsupported_value_model =
         normalize::normalize(unsupported_value_doc).expect("normalize should succeed");
     assert_eq!(unsupported_value_model.warnings.len(), 1);
-    assert!(unsupported_value_model.warnings[0]
-        .message
-        .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
+    assert!(
+        unsupported_value_model.warnings[0]
+            .message
+            .contains("W_SKINPARAM_UNSUPPORTED_VALUE")
+    );
 }
 
 #[test]
@@ -694,9 +699,11 @@ fn normalize_emits_deterministic_pragma_warnings() {
     let generic_doc = parse(generic_src).expect("parse should succeed");
     let generic_model = normalize::normalize(generic_doc).expect("normalize should succeed");
     assert_eq!(generic_model.warnings.len(), 1);
-    assert!(generic_model.warnings[0]
-        .message
-        .contains("W_PRAGMA_UNSUPPORTED"));
+    assert!(
+        generic_model.warnings[0]
+            .message
+            .contains("W_PRAGMA_UNSUPPORTED")
+    );
 }
 
 #[test]
@@ -1320,10 +1327,12 @@ fn check_fixture_supports_json_diagnostics_for_warnings() {
         json["diagnostics"][0]["snippet"],
         "skinparam sequenceFootbox maybe"
     );
-    assert!(json["diagnostics"][0]["message"]
-        .as_str()
-        .unwrap()
-        .contains("W_SKINPARAM_UNSUPPORTED_VALUE"));
+    assert!(
+        json["diagnostics"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("W_SKINPARAM_UNSUPPORTED_VALUE")
+    );
 }
 
 #[test]
@@ -1710,7 +1719,7 @@ fn css3_color_to_hex_covers_full_set() {
 
 #[test]
 fn theme_classifies_gantt_skinparam() {
-    use puml::theme::{classify_gantt_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_gantt_skinparam};
     assert_eq!(
         classify_gantt_skinparam("BackgroundColor", "red"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
@@ -1739,7 +1748,7 @@ fn theme_classifies_gantt_skinparam() {
 
 #[test]
 fn theme_classifies_mindmap_skinparam() {
-    use puml::theme::{classify_mindmap_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_mindmap_skinparam};
     assert_eq!(
         classify_mindmap_skinparam("BackgroundColor", "#123456"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
@@ -1764,7 +1773,7 @@ fn theme_classifies_mindmap_skinparam() {
 
 #[test]
 fn theme_classifies_wbs_skinparam() {
-    use puml::theme::{classify_wbs_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_wbs_skinparam};
     assert_eq!(
         classify_wbs_skinparam("BorderColor", "navy"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BorderColor(
@@ -1787,7 +1796,7 @@ fn theme_classifies_wbs_skinparam() {
 
 #[test]
 fn theme_classifies_timeline_skinparam() {
-    use puml::theme::{classify_timeline_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_timeline_skinparam};
     assert_eq!(
         classify_timeline_skinparam("BackgroundColor", "white"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
@@ -1812,7 +1821,7 @@ fn theme_classifies_timeline_skinparam() {
 
 #[test]
 fn theme_classifies_nwdiag_skinparam() {
-    use puml::theme::{classify_nwdiag_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_nwdiag_skinparam};
     assert_eq!(
         classify_nwdiag_skinparam("FontColor", "red"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontColor(
@@ -1835,7 +1844,7 @@ fn theme_classifies_nwdiag_skinparam() {
 
 #[test]
 fn theme_classifies_archimate_skinparam() {
-    use puml::theme::{classify_archimate_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_archimate_skinparam};
     assert_eq!(
         classify_archimate_skinparam("BackgroundColor", "#aabbcc"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
@@ -1860,7 +1869,7 @@ fn theme_classifies_archimate_skinparam() {
 
 #[test]
 fn theme_classifies_sdl_skinparam() {
-    use puml::theme::{classify_sdl_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_sdl_skinparam};
     assert_eq!(
         classify_sdl_skinparam("BackgroundColor", "#112233"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
@@ -1883,7 +1892,7 @@ fn theme_classifies_sdl_skinparam() {
 
 #[test]
 fn theme_classifies_ditaa_skinparam() {
-    use puml::theme::{classify_ditaa_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_ditaa_skinparam};
     assert_eq!(
         classify_ditaa_skinparam("BackgroundColor", "silver"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
@@ -1908,7 +1917,7 @@ fn theme_classifies_ditaa_skinparam() {
 
 #[test]
 fn theme_classifies_salt_skinparam() {
-    use puml::theme::{classify_salt_skinparam, GenericSkinParamValue, SkinParamSupport};
+    use puml::theme::{GenericSkinParamValue, SkinParamSupport, classify_salt_skinparam};
     assert_eq!(
         classify_salt_skinparam("BackgroundColor", "ivory"),
         SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(

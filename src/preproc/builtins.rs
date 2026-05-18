@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use crate::diagnostic::Diagnostic;
 
 use super::{
-    ParseOptions, PreprocCallable, PreprocCallableKind, PreprocParam, PreprocState,
-    MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
+    MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_WHILE_ITERATIONS, ParseOptions, PreprocCallable,
+    PreprocCallableKind, PreprocParam, PreprocState,
 };
 
 // Forward-declare functions that live in sibling modules but are called from here.

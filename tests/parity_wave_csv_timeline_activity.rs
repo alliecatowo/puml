@@ -1,4 +1,4 @@
-use puml::parser::{parse_with_options, ParseOptions};
+use puml::parser::{ParseOptions, parse_with_options};
 use puml::{DiagramFamily, NormalizedDocument};
 use std::fs;
 

@@ -1,4 +1,4 @@
-use puml::{render_source_to_svg, render_source_to_text, TextOutputMode};
+use puml::{TextOutputMode, render_source_to_svg, render_source_to_text};
 
 #[test]
 fn standalone_yaml_uses_parser_backed_sequence_projection() {

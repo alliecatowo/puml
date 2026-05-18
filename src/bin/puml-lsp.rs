@@ -1,15 +1,15 @@
 use puml::ast::StatementKind;
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, diagnostics_with_options, document_symbols, format_document,
-    hover as language_hover, resolve_completion_item, semantic_tokens as shared_semantic_tokens,
-    CompletionItemKind, DocumentSymbolKind, SemanticTokenKind,
+    CompletionItemKind, DocumentSymbolKind, SemanticTokenKind, completion_items,
+    diagnostics_with_options, document_symbols, format_document, hover as language_hover,
+    resolve_completion_item, semantic_tokens as shared_semantic_tokens,
 };
 use puml::{
-    normalize_family, parse_with_pipeline_options, render_svg_pages_from_model, Document,
-    FrontendSelection, ParsePipelineOptions,
+    Document, FrontendSelection, ParsePipelineOptions, normalize_family,
+    parse_with_pipeline_options, render_svg_pages_from_model,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 
@@ -1113,10 +1113,12 @@ mod tests {
             resolved["documentation"]["kind"],
             Value::String("markdown".to_string())
         );
-        assert!(resolved["documentation"]["value"]
-            .as_str()
-            .expect("markdown value")
-            .contains("Declare a participant"));
+        assert!(
+            resolved["documentation"]["value"]
+                .as_str()
+                .expect("markdown value")
+                .contains("Declare a participant")
+        );
     }
 
     #[test]
@@ -1128,10 +1130,12 @@ mod tests {
             parsed: lsp_parse(src).ok(),
         };
         let out = hover(&doc, (1, 3)).expect("hover");
-        assert!(out["contents"]["value"]
-            .as_str()
-            .expect("hover markdown")
-            .contains("Dashed message arrow"));
+        assert!(
+            out["contents"]["value"]
+                .as_str()
+                .expect("hover markdown")
+                .contains("Dashed message arrow")
+        );
     }
 
     #[test]
@@ -1170,10 +1174,12 @@ mod tests {
                 .len(),
             0
         );
-        assert!(mermaid["svg"]
-            .as_str()
-            .expect("mermaid svg")
-            .contains("User"));
+        assert!(
+            mermaid["svg"]
+                .as_str()
+                .expect("mermaid svg")
+                .contains("User")
+        );
 
         let picouml = render_result(
             "@startpicouml\nAlice => Bob : request\n@endpicouml\n",
@@ -1186,10 +1192,12 @@ mod tests {
                 .len(),
             0
         );
-        assert!(picouml["svg"]
-            .as_str()
-            .expect("picouml svg")
-            .contains("request"));
+        assert!(
+            picouml["svg"]
+                .as_str()
+                .expect("picouml svg")
+                .contains("request")
+        );
     }
 
     #[test]

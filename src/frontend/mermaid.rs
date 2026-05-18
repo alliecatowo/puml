@@ -1,4 +1,4 @@
-use crate::{source::Span, Diagnostic};
+use crate::{Diagnostic, source::Span};
 
 /// Top-level Mermaid → PlantUML adapter.  Inspects the leading directive and
 /// routes to the appropriate family-specific sub-adapter.

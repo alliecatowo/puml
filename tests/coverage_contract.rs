@@ -1,8 +1,8 @@
 mod svg_test_helpers;
 
 use assert_cmd::Command;
-use puml::{render_source_to_svgs_for_family, DiagramFamily};
-use svg_test_helpers::{bounds, f64_attr, SvgDoc};
+use puml::{DiagramFamily, render_source_to_svgs_for_family};
+use svg_test_helpers::{SvgDoc, bounds, f64_attr};
 
 #[test]
 fn exit_code_contract() {

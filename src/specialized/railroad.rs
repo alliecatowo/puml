@@ -278,7 +278,7 @@ pub(super) fn layout_rail_with_style(node: &RailNode, style: &RailStyle) -> Rail
                 .sum::<i32>()
                 - RAIL_ALT_GAP;
             let mid_y = RAIL_BOX_H / 2; // first branch is the nominal track
-                                        // Width includes entry/exit lines
+            // Width includes entry/exit lines
             let inner_w = max_w + 40;
             let total_w = inner_w;
             let mut out = String::from(

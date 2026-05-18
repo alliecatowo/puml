@@ -69,11 +69,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             if parse_timing_range_note(&txt).is_some() {
                 return None;
             }
-            if txt.is_empty() {
-                None
-            } else {
-                Some((t, txt))
-            }
+            if txt.is_empty() { None } else { Some((t, txt)) }
         })
         .collect();
     let timing_ranges: Vec<(i64, i64, String)> = events
