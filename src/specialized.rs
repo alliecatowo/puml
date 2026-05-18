@@ -1,9 +1,11 @@
-/// Specialized diagram renderers for @startregex, @startebnf, @startchart,
+/// Specialized diagram renderers for @startregex, @startebnf,
 /// @startmath/@startlatex, and @startditaa diagram families.
 ///
 /// These bypass the main AST parser pipeline and implement their own
 /// mini-parsers and SVG renderers.
-mod chart;
+///
+/// Note: @startchart is NOT handled here. It goes through the normal
+/// AST parse → normalize → render_chart_svg pipeline.
 mod ditaa;
 mod ebnf;
 mod math;
@@ -13,7 +15,6 @@ mod shared;
 
 use crate::diagnostic::Diagnostic;
 
-use chart::render_chart;
 use ditaa::render_ditaa;
 use ebnf::render_ebnf;
 use math::{render_latex, render_math};
@@ -30,7 +31,6 @@ pub fn try_render_specialized(source: &str) -> Option<Result<String, Diagnostic>
     Some(match family {
         SpecializedFamily::Regex => render_regex(source.trim()),
         SpecializedFamily::Ebnf => render_ebnf(source.trim()),
-        SpecializedFamily::Chart => render_chart(source.trim()),
         SpecializedFamily::Math => render_math(source.trim()),
         SpecializedFamily::Latex => render_latex(source.trim()),
         SpecializedFamily::Ditaa => render_ditaa(source.trim()),
@@ -45,7 +45,6 @@ pub fn is_specialized_source(source: &str) -> bool {
 enum SpecializedFamily {
     Regex,
     Ebnf,
-    Chart,
     Math,
     Latex,
     Ditaa,
@@ -58,8 +57,6 @@ fn detect_specialized_family(source: &str) -> Option<SpecializedFamily> {
         Some(SpecializedFamily::Regex)
     } else if lower.starts_with("@startebnf") {
         Some(SpecializedFamily::Ebnf)
-    } else if lower.starts_with("@startchart") {
-        Some(SpecializedFamily::Chart)
     } else if lower.starts_with("@startmath") {
         Some(SpecializedFamily::Math)
     } else if lower.starts_with("@startlatex") {
