@@ -152,11 +152,11 @@ fn svg_to_rgba(svg: &str) -> Result<(u32, u32, Vec<u8>), String> {
     let width = (size.width() * scale).round().max(1.0) as u32;
     let height = (size.height() * scale).round().max(1.0) as u32;
 
-    let mut pixmap = tiny_skia::Pixmap::new(width, height)
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)
         .ok_or_else(|| format!("failed to allocate pixmap {width}x{height}"))?;
     resvg::render(
         &tree,
-        tiny_skia::Transform::from_scale(scale, scale),
+        resvg::tiny_skia::Transform::from_scale(scale, scale),
         &mut pixmap.as_mut(),
     );
     Ok((width, height, pixmap.data().to_vec()))

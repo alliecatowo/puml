@@ -1801,13 +1801,13 @@ fn rasterize_svg(svg: &str, dpi: f32) -> Result<RasterizedSvg, (u8, String)> {
         ));
     }
 
-    let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or_else(|| {
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).ok_or_else(|| {
         (
             EXIT_INTERNAL,
             format!("failed to allocate PNG surface {width}x{height}"),
         )
     })?;
-    let transform = tiny_skia::Transform::from_scale(scale, scale);
+    let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
     resvg::render(&tree, transform, &mut pixmap.as_mut());
 
     Ok(RasterizedSvg {
