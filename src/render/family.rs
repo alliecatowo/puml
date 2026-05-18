@@ -3422,16 +3422,27 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
             ));
         }
         FamilyNodeKind::Node | FamilyNodeKind::Frame => {
-            // 3D-ish prism: outer rect with offset shadow
+            // 3D cube: top face (parallelogram) + right face + front face (fix #571)
+            let offset = 12i32;
+            // Top face
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#eef2ff\" stroke=\"#3730a3\" stroke-width=\"1\"/>",
-                x + 6,
-                y + 6,
-                w,
-                h
+                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#d4dff7\" stroke=\"#3730a3\" stroke-width=\"1\"/>",
+                x, y,
+                x + offset, y - offset,
+                x + w + offset, y - offset,
+                x + w, y
             ));
+            // Right face
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#ffffff\" stroke=\"#3730a3\" stroke-width=\"1.5\"/>",
+                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#b8c8ef\" stroke=\"#3730a3\" stroke-width=\"1\"/>",
+                x + w, y,
+                x + w + offset, y - offset,
+                x + w + offset, y + h - offset,
+                x + w, y + h
+            ));
+            // Front face
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#eef2ff\" stroke=\"#3730a3\" stroke-width=\"1.5\"/>",
                 x, y, w, h
             ));
         }
@@ -3836,57 +3847,32 @@ fn render_family_node_shape_styled(
                 .as_deref()
                 .unwrap_or(&comp_style.background_color);
             match node.kind {
-                // 3D cube for deployment nodes (fix #495)
+                // 3D cube for deployment nodes (fix #571)
                 FamilyNodeKind::Node | FamilyNodeKind::Frame => {
-                    let depth = 10i32; // 3D offset
-                                       // Back face (top-right shadow)
-                    out.push_str(&format!(
-                        "<polygon class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
-                         points=\"{},{} {},{} {},{} {},{}\" \
-                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        kind_label,
-                        x + depth,
-                        y, // top-left of back face
-                        x + w + depth,
-                        y, // top-right of back face
-                        x + w + depth,
-                        y + h, // bottom-right of back face
-                        x + depth,
-                        y + h, // bottom-left of back face (= right edge of front)
-                        escape_text(fill),
-                        comp_style.border_color
-                    ));
-                    // Top face (parallelogram)
+                    let offset = 12i32; // 3D depth offset (right and up)
+                    // Top face: parallelogram from front-top edge to back-top edge (shifted right+up).
+                    // Points: front-top-left → back-top-left → back-top-right → front-top-right
                     out.push_str(&format!(
                         "<polygon points=\"{},{} {},{} {},{} {},{}\" \
-                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x,
-                        y, // front-top-left
-                        x + depth,
-                        y - depth + depth, // back-top-left (same y for simplicity, offset right)
-                        x + w + depth,
-                        y, // back-top-right
-                        x + w,
-                        y, // front-top-right
-                        escape_text(fill),
+                         fill=\"#d4dff7\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y,                           // front-top-left
+                        x + offset, y - offset,         // back-top-left (up + right)
+                        x + w + offset, y - offset,     // back-top-right
+                        x + w, y,                       // front-top-right
                         comp_style.border_color
                     ));
-                    // Right face (parallelogram)
+                    // Right face: parallelogram from front-right edge to back-right edge.
+                    // Points: front-top-right → back-top-right → back-bottom-right → front-bottom-right
                     out.push_str(&format!(
                         "<polygon points=\"{},{} {},{} {},{} {},{}\" \
-                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x + w,
-                        y, // front-top-right
-                        x + w + depth,
-                        y, // back-top-right
-                        x + w + depth,
-                        y + h, // back-bottom-right
-                        x + w,
-                        y + h, // front-bottom-right
-                        escape_text(fill),
+                         fill=\"#b8c8ef\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x + w, y,                           // front-top-right
+                        x + w + offset, y - offset,         // back-top-right
+                        x + w + offset, y + h - offset,     // back-bottom-right
+                        x + w, y + h,                       // front-bottom-right
                         comp_style.border_color
                     ));
-                    // Front face (main visible face)
+                    // Front face (main visible face, drawn last so it sits on top)
                     out.push_str(&format!(
                         "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
                          x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
