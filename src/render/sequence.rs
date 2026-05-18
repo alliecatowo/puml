@@ -306,9 +306,10 @@ pub fn render_svg(scene: &Scene) -> String {
         if is_self_loop {
             // Use m.x2 as the right extent set by the layout.
             let loop_x2 = m.x2;
-            // Keep the loop height small enough to stay within the allocated
-            // message row (the layout gives this row ~24 px of vertical space).
-            let loop_h = 20;
+            // Use a tall-enough loop height so the shape is clearly a self-loop
+            // and not a squished rectangle.  32 px gives ample visual depth
+            // while still fitting inside the allocated message row.
+            let loop_h = 32;
             // Three-segment UML self-call: right → down → back-left to lifeline.
             out.push_str(&format!(
                 "<path{} d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
