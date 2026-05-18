@@ -742,6 +742,55 @@ blockquote {
 .status-bar.warn .dot-status { background: var(--warn); }
 .status-bar.bad .dot-status { background: var(--bad); }
 
+// ---------- Include-resolved pill (preview status bar) ----------
+.include-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--mono);
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  white-space: nowrap;
+  position: relative;
+}
+.include-pill-ok {
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 35%, transparent);
+}
+.include-pill-warn {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+}
+.include-pill:hover,
+.include-pill:focus-visible {
+  outline: none;
+  filter: brightness(1.15);
+}
+.include-pill-detail {
+  display: block;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  max-width: 420px;
+  word-break: break-all;
+  z-index: 50;
+  box-shadow: var(--shadow);
+}
+
 // CodeMirror tokens
 .cm-editor.cm-focused {
   // Replace outline: none with a visible accent ring so keyboard focus is

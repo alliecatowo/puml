@@ -15,6 +15,96 @@ import { pumlLanguage } from './puml-lang.js';
 import { loadManifest, siteBaseUrl, assetUrl } from './manifest.js';
 import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 
+// ---------------------------------------------------------------------------
+// !include pre-processor
+// ---------------------------------------------------------------------------
+// Base URL for resolving relative include paths (e.g. `!include path/to/file.puml`).
+// Falls back to the site's own examples directory which hosts a bundled stdlib.
+const INCLUDE_BASE_URL = (() => {
+  try {
+    // Prefer an explicit override stored by the page (not currently set, but
+    // allows future configuration without changing this module).
+    return window.__PUML_INCLUDE_BASE__ ||
+      new URL('examples/', window.location.origin + (window.__PUML_BASE__ || '/')).toString();
+  } catch {
+    return 'https://alliecatowo.github.io/puml/examples/';
+  }
+})();
+
+// Matches !include / !includeurl / !includesub / !include_many lines.
+// Group 1: directive keyword (include, includeurl, includesub, include_many)
+// Group 2: the path/url token
+const INCLUDE_LINE_RE = /^(\s*)!(include(?:url|sub|_many)?)\s+([^\s!][^\s]*)(\s*)$/i;
+
+/**
+ * Recursively resolve !include / !includeurl directives by fetching the
+ * referenced content and inlining it.  Returns the expanded source string.
+ *
+ * @param {string} source  PlantUML source that may contain !include lines.
+ * @param {number} maxDepth  Maximum recursion depth (default 8).
+ * @returns {Promise<{text: string, count: number, errors: string[]}>}
+ */
+async function resolveIncludes(source, maxDepth = 8) {
+  let count = 0;
+  const errors = [];
+
+  async function expand(src, depth) {
+    if (depth <= 0) return src;
+    const lines = src.split('\n');
+    const out = [];
+    for (const line of lines) {
+      const m = line.match(INCLUDE_LINE_RE);
+      if (!m) { out.push(line); continue; }
+      // m[2] = directive, m[3] = target path/url
+      let target = m[3];
+      // Strip angle-bracket or double-quote stdlib notation: <C4.puml> or "C4.puml"
+      target = target.replace(/^[<"](.+)[>"]$/, '$1');
+
+      let url = target;
+      if (!/^https?:\/\//i.test(url) && !url.startsWith('data:')) {
+        try {
+          url = new URL(target, INCLUDE_BASE_URL).toString();
+        } catch {
+          url = INCLUDE_BASE_URL + target;
+        }
+      }
+
+      try {
+        const resp = await fetch(url, { mode: 'cors' });
+        if (!resp.ok) {
+          const msg = `include failed: ${url} (HTTP ${resp.status})`;
+          errors.push(msg);
+          out.push(`' ${msg}`);
+          continue;
+        }
+        const text = await resp.text();
+        // Strip @startuml / @enduml wrappers so the content merges cleanly.
+        const stripped = text
+          .replace(/^\s*@start\w+[^\n]*\n?/im, '')
+          .replace(/\n?\s*@end\w+\s*$/im, '');
+        count++;
+        const inner = await expand(stripped, depth - 1);
+        out.push(`' --- begin include ${target} ---`);
+        out.push(inner);
+        out.push(`' --- end include ${target} ---`);
+      } catch (e) {
+        let msg = `include failed: ${url} (${e.message})`;
+        // Provide a friendlier hint for CORS failures (TypeError with no message
+        // or "Failed to fetch" are both typical for CORS-blocked requests).
+        if (!e.message || /failed to fetch|networkerror|cors/i.test(e.message)) {
+          msg = `include failed: CORS blocked — ${url} — try a proxy or paste content inline`;
+        }
+        errors.push(msg);
+        out.push(`' ${msg}`);
+      }
+    }
+    return out.join('\n');
+  }
+
+  const text = await expand(source, maxDepth);
+  return { text, count, errors };
+}
+
 // Use a minimal sequence diagram as the default; the previous multi-actor
 // sign-in flow triggered E_FAMILY_MIXED because it mixed deployment syntax
 // into a component diagram context during WASM parsing.
@@ -233,8 +323,29 @@ async function openExampleById(id) {
 
 async function render() {
   if (!view || !engine) return;
-  const source = view.state.doc.toString();
+  const rawSource = view.state.doc.toString();
   const previewHost = document.getElementById('preview-host');
+
+  // --- JS-side !include pre-processor ---
+  // Detect whether there are any include directives before paying the async cost.
+  const hasIncludes = /^!include/im.test(rawSource);
+  let source = rawSource;
+  let includeCount = 0;
+  let includeErrors = [];
+  if (hasIncludes) {
+    const includeCount_ = (rawSource.match(/^!include/gim) || []).length;
+    setStatus('preview', `Resolving ${includeCount_} include(s)…`, 'warn');
+    try {
+      const resolved = await resolveIncludes(rawSource);
+      source = resolved.text;
+      includeCount = resolved.count;
+      includeErrors = resolved.errors;
+    } catch (e) {
+      // Should not normally throw, but guard defensively.
+      includeErrors.push(`resolveIncludes error: ${e.message}`);
+    }
+  }
+
   let result;
   try {
     const frontend = document.getElementById('frontend-picker')?.value || 'auto';
@@ -242,29 +353,41 @@ async function render() {
   } catch (e) {
     result = { ok: false, diagnostics: [{ severity: 'error', message: e.message || String(e) }] };
   }
+
+  // Build diagnostics for any include resolution errors (shown alongside WASM diags).
+  const includeDiags = includeErrors.map((msg) => ({ severity: 'warn', message: msg }));
+
   if (result.ok) {
     previewHost.innerHTML = result.svgs.join('\n');
     const pages = result.svgs.length;
-    setStatus('preview', pages > 1
-      ? `Rendered ${pages} pages.`
-      : `Rendered.`, 'ok');
-    showDiagnosticsPanel([]);
+    let statusMsg = pages > 1 ? `Rendered ${pages} pages.` : 'Rendered.';
+    if (includeCount > 0) {
+      statusMsg += ` ${includeCount} include(s) resolved.`;
+    }
+    setStatus('preview', statusMsg, 'ok');
+    showDiagnosticsPanel(includeDiags);
+    // Show the include-count pill when at least one include resolved.
+    showIncludePill(includeCount, includeErrors);
   } else {
     const diag = result.diagnostics?.[0];
-    // Graceful degradation for !include: the WASM build cannot fetch external
-    // files and returns E_INCLUDE_NOT_SUPPORTED_WASM. Show a friendly info
-    // banner and render any partial SVG the WASM still produced instead of
-    // showing a hard red error overlay (bug 4).
+    // If the WASM still sees an E_INCLUDE_NOT_SUPPORTED_WASM it means the JS
+    // pre-processor couldn't resolve the include (e.g. non-URL relative path
+    // with no matching base).  Show a clear, actionable message instead of the
+    // old "paste inline" banner — the user now knows fetch is happening.
     if (diag?.message?.includes('E_INCLUDE_NOT_SUPPORTED_WASM')) {
+      const allDiags = [
+        ...includeDiags,
+        { severity: 'warn', message: 'Some !include paths could not be resolved by the browser pre-processor. Try an absolute URL (https://…) or paste the content inline.' },
+      ];
       const partialSvgs = result.svgs?.length ? result.svgs : [];
-      const warnBanner = `
-        <div class="preview-include-warn" role="note" aria-label="include not supported in browser">
-          <span class="pill pill-info">ℹ info</span>
-          <p><code>!include</code> requires the CLI build &mdash; this in-browser preview can&rsquo;t fetch external files.
-          Try the CLI or paste the included content inline.</p>
+      previewHost.innerHTML = partialSvgs.length ? partialSvgs.join('\n') : `
+        <div class="preview-placeholder">
+          <span class="pill">partial render</span>
+          <p>Some includes could not be fetched. See the diagnostics panel for details.</p>
         </div>`;
-      previewHost.innerHTML = warnBanner + (partialSvgs.length ? partialSvgs.join('\n') : '');
-      setStatus('preview', '!include not supported in WASM — showing partial diagram.', 'warn');
+      setStatus('preview', 'Some includes unresolved — see diagnostics.', 'warn');
+      showDiagnosticsPanel(allDiags);
+      showIncludePill(includeCount, includeErrors);
     } else {
       previewHost.innerHTML = `
         <div class="preview-placeholder">
@@ -272,8 +395,9 @@ async function render() {
           <p>${escapeHtml(diagnosticLabel(diag))}</p>
         </div>`;
       setStatus('preview', diag?.line ? `Render error at line ${diag.line}.` : 'Render error.', 'bad');
+      showDiagnosticsPanel([...includeDiags, ...(result.diagnostics || [])]);
+      showIncludePill(includeCount, includeErrors);
     }
-    showDiagnosticsPanel(result.diagnostics || []);
   }
 }
 
@@ -367,6 +491,56 @@ function setStatus(which, message, kind = 'ok', revertAfter = false) {
       if (which === 'editor') txt.textContent = 'Ready. Type, or load an example. Cmd/Ctrl+Enter to render.';
     }, 2500);
   }
+}
+
+/**
+ * Update (or hide) the include-resolved pill in the preview status bar.
+ * @param {number} count  Number of includes successfully fetched.
+ * @param {string[]} errors  List of error messages from failed includes.
+ */
+function showIncludePill(count, errors) {
+  const bar = document.getElementById('preview-status');
+  if (!bar) return;
+  // Remove any existing pill first.
+  bar.querySelector('.include-pill')?.remove();
+  if (count === 0 && errors.length === 0) return;
+
+  const pill = document.createElement('span');
+  pill.className = 'include-pill';
+  const hasErrors = errors.length > 0;
+  if (count > 0 && !hasErrors) {
+    pill.textContent = `🔗 ${count} include(s) resolved`;
+    pill.title = `${count} !include directive(s) were fetched and inlined by the browser pre-processor.`;
+    pill.classList.add('include-pill-ok');
+  } else if (count > 0 && hasErrors) {
+    pill.textContent = `🔗 ${count} ok / ${errors.length} failed`;
+    pill.title = errors.join('\n');
+    pill.classList.add('include-pill-warn');
+  } else {
+    pill.textContent = `⚠️ ${errors.length} include(s) failed`;
+    pill.title = errors.join('\n');
+    pill.classList.add('include-pill-warn');
+  }
+  // Make the pill expandable: clicking shows a tooltip-style popover with URLs.
+  pill.setAttribute('role', 'button');
+  pill.setAttribute('tabindex', '0');
+  pill.addEventListener('click', () => toggleIncludeDetail(pill, count, errors));
+  pill.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleIncludeDetail(pill, count, errors); }
+  });
+  bar.appendChild(pill);
+}
+
+function toggleIncludeDetail(pill, count, errors) {
+  const existing = pill.querySelector('.include-pill-detail');
+  if (existing) { existing.remove(); return; }
+  const detail = document.createElement('span');
+  detail.className = 'include-pill-detail';
+  const lines = [];
+  if (count > 0) lines.push(`${count} resolved`);
+  errors.forEach((e) => lines.push(`✗ ${e}`));
+  detail.textContent = lines.join(' | ');
+  pill.appendChild(detail);
 }
 
 function escapeHtml(s) {
