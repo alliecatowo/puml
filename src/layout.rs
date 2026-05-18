@@ -340,8 +340,22 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 let y = events_top + (event_rows * options.message_row_height);
                 if kind.eq_ignore_ascii_case("else") {
                     if let Some(ix) = open_groups.last().copied() {
+                        let separator_follows_self_loop = messages.last().is_some_and(|message| {
+                            message.from_id == message.to_id
+                                && message.from_virtual.is_none()
+                                && message.to_virtual.is_none()
+                        });
+                        let separator_y = if separator_follows_self_loop {
+                            // Self-call rows already consume most of the available
+                            // vertical lane, so reserve extra clearance for the
+                            // `else` divider label before the next branch begins.
+                            event_rows += 1;
+                            y + (options.message_row_height / 2)
+                        } else {
+                            y
+                        };
                         groups[ix].separators.push(GroupSeparator {
-                            y,
+                            y: separator_y,
                             label: Some(else_separator_label(label.as_deref())),
                         });
                     }

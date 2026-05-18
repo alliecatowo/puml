@@ -472,6 +472,64 @@ fn render_sequence_self_call_keeps_visible_arrowhead_after_groups_and_dividers()
 }
 
 #[test]
+fn render_sequence_theme_sunlust_else_separator_clears_self_loop_and_keeps_arrowheads() {
+    let src = std::fs::read_to_string(format!(
+        "{}/docs/examples/themes/theme_sunlust.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("fixture");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let success = scene
+        .messages
+        .iter()
+        .find(|message| message.label.as_deref() == Some("log success"))
+        .expect("success self-call");
+    let error = scene
+        .messages
+        .iter()
+        .find(|message| message.label.as_deref() == Some("log error"))
+        .expect("error self-call");
+    let alt = scene
+        .groups
+        .iter()
+        .find(|group| group.kind.eq_ignore_ascii_case("alt"))
+        .expect("alt group");
+    let separator = alt
+        .separators
+        .iter()
+        .find(|separator| separator.label.as_deref() == Some("else error"))
+        .expect("else separator");
+
+    assert!(
+        separator.y >= success.route_y + 32 + 14,
+        "else separator should reserve enough clearance above the divider label after a self-loop"
+    );
+
+    let svg = render::render_svg(&scene);
+    for message in [success, error] {
+        let tip_y = message.route_y + 32;
+        let head = format!(
+            "<polygon points=\"{},{} {},{} {},{}\"",
+            message.x1,
+            tip_y,
+            message.x1 + 8,
+            tip_y - 5,
+            message.x1 + 8,
+            tip_y + 5
+        );
+        assert!(
+            svg.contains(&head),
+            "self-call arrowhead should remain visible for {}",
+            message.label.as_deref().unwrap_or("self-call")
+        );
+    }
+    assert!(svg.contains(">else error</text>"));
+}
+
+#[test]
 fn render_sequence_ref_over_keeps_followup_response_label_below_box() {
     let src = std::fs::read_to_string(fixture("docs/examples/sequence/22_ref_over.puml"))
         .expect("fixture");
