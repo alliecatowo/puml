@@ -8,6 +8,7 @@ use crate::scene::{
     LifecycleMarkerKind, Lifeline, MessageLine, NoteBox, ParticipantBox, Scene, StructureKind,
     StructureLine, TextOverflowPolicy,
 };
+use crate::theme::MessageAlign;
 
 const TEXT_LINE_HEIGHT: i32 = 16;
 const GROUP_TEXT_INSET_X: i32 = 8;
@@ -522,16 +523,21 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         width = width.max(s.x2 + options.margin);
     }
     for m in &messages {
+        let message_left = m.x1.min(m.x2) - 8;
+        let message_right = m.x1.max(m.x2) + 8;
+        width = width.max((message_right + options.margin).max(message_left + options.margin));
         if m.label_lines.is_empty() {
             continue;
         }
-        let tx = ((m.x1 + m.x2) / 2) + 2;
         for line in &m.label_lines {
             let text_width = estimate_text_px_width(line);
-            let right = tx + (text_width / 2);
+            let (_, right) =
+                message_label_bounds(m.x1, m.x2, text_width, document.style.message_align);
             width = width.max(right + options.margin);
         }
     }
+    width = width.max(metadata_block_right_edge(&header, options.margin));
+    width = width.max(metadata_block_right_edge(&title, options.margin));
 
     let lower_metadata_max_chars = title_max_chars;
     let caption_lines = document.caption.as_ref().map(|text| {
@@ -542,6 +548,12 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     });
     let lower_metadata_height = metadata_lines_block_height(caption_lines.as_ref())
         + metadata_lines_block_height(footer_lines.as_ref());
+    width = width.max(metadata_lines_right_edge(caption_lines.as_ref(), options.margin));
+    width = width.max(metadata_lines_right_edge(footer_lines.as_ref(), options.margin));
+    if let Some(legend_text) = document.legend.as_deref() {
+        let (legend_width, _) = legend_box_size(legend_text);
+        width = width.max(legend_width + (options.margin * 2));
+    }
 
     let min_bottom = if footboxes.is_empty() {
         lifeline_end + options.footer_height
@@ -594,6 +606,32 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
 fn metadata_label_block_height(label: Option<&Label>) -> i32 {
     label
         .map(|label| metadata_lines_block_height(Some(&label.lines)))
+        .unwrap_or(0)
+}
+
+fn metadata_block_right_edge(label: &Option<Label>, margin: i32) -> i32 {
+    label
+        .as_ref()
+        .map(|label| {
+            label
+                .lines
+                .iter()
+                .map(|line| label.x + estimate_text_px_width(line) + margin)
+                .max()
+                .unwrap_or(0)
+        })
+        .unwrap_or(0)
+}
+
+fn metadata_lines_right_edge(lines: Option<&Vec<String>>, margin: i32) -> i32 {
+    lines
+        .map(|lines| {
+            lines
+                .iter()
+                .map(|line| margin + estimate_text_px_width(line) + margin)
+                .max()
+                .unwrap_or(0)
+        })
         .unwrap_or(0)
 }
 
@@ -952,6 +990,38 @@ fn else_separator_label(label: Option<&str>) -> String {
 
 fn estimate_text_px_width(line: &str) -> i32 {
     (line.chars().count() as i32) * 7
+}
+
+fn message_label_bounds(x1: i32, x2: i32, text_width: i32, align: MessageAlign) -> (i32, i32) {
+    let left = x1.min(x2);
+    let right = x1.max(x2);
+    match align {
+        MessageAlign::Left => {
+            let anchor = left + 8;
+            (anchor, anchor + text_width)
+        }
+        MessageAlign::Center => {
+            let anchor = ((x1 + x2) / 2) + 2;
+            (anchor - (text_width / 2), anchor + ((text_width + 1) / 2))
+        }
+        MessageAlign::Right => {
+            let anchor = right - 8;
+            (anchor - text_width, anchor)
+        }
+    }
+}
+
+fn legend_box_size(text: &str) -> (i32, i32) {
+    let lines = text.lines().collect::<Vec<_>>();
+    let line_count = lines.len().max(1) as i32;
+    let max_line_width = lines
+        .iter()
+        .map(|line| estimate_text_px_width(line))
+        .max()
+        .unwrap_or(0);
+    let width = (max_line_width + 16).max(200);
+    let height = 24 + (line_count * 16);
+    (width, height)
 }
 
 fn message_x_bounds(
