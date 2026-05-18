@@ -1,8 +1,9 @@
 use puml::ast::{DiagramKind, StatementKind};
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, diagnostics_with_options, document_symbols, hover as language_hover,
-    resolve_completion_item, CompletionItemKind, DocumentSymbolKind,
+    completion_items, diagnostics_with_options, document_symbols, format_document,
+    hover as language_hover, resolve_completion_item, semantic_tokens as shared_semantic_tokens,
+    CompletionItemKind, DocumentSymbolKind, SemanticTokenKind,
 };
 use puml::scene::LayoutOptions;
 use puml::{
@@ -24,13 +25,6 @@ struct Doc {
 struct RefHit {
     start: usize,
     end: usize,
-}
-
-#[derive(Clone, Debug)]
-struct TokenHit {
-    start: usize,
-    len: usize,
-    token_type: u32,
 }
 
 fn main() {
@@ -526,14 +520,18 @@ fn lsp_symbol_kind(kind: DocumentSymbolKind) -> i32 {
 }
 
 fn formatting_edits(text: &str) -> Value {
-    let mut out = String::new();
-    for l in text.lines() {
-        out.push_str(l.trim_end());
-        out.push('\n');
-    }
-    Value::Array(vec![
-        json!({"range":{"start":{"line":0,"character":0},"end":pos(text,text.len())},"newText":out}),
-    ])
+    Value::Array(
+        format_document(text)
+            .edits
+            .into_iter()
+            .map(|edit| {
+                json!({
+                    "range": range(text, edit.span.start, edit.span.end),
+                    "newText": edit.new_text
+                })
+            })
+            .collect(),
+    )
 }
 fn folding_ranges(d: &Doc) -> Value {
     let mut out = Vec::new();
@@ -591,59 +589,35 @@ fn document_links(d: &Doc) -> Value {
     Value::Array(out)
 }
 fn semantic_tokens(d: &Doc) -> Value {
-    let mut hits = Vec::<TokenHit>::new();
-    for (kw, token_type) in [
-        ("participant", 0u32),
-        ("actor", 0),
-        ("note", 0),
-        ("alt", 0),
-        ("else", 0),
-        ("end", 0),
-        ("activate", 0),
-        ("deactivate", 0),
-        ("create", 0),
-        ("destroy", 0),
-        ("return", 0),
-        ("autonumber", 0),
-        ("-->", 1),
-        ("<--", 1),
-        ("->", 1),
-    ] {
-        for hit in find_word_refs(&d.text, kw) {
-            hits.push(TokenHit {
-                start: hit.start,
-                len: hit.end - hit.start,
-                token_type,
-            });
-        }
-    }
-    hits.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| (b.len).cmp(&a.len)));
-
-    let mut filtered = Vec::<TokenHit>::new();
-    let mut last_end = 0usize;
-    for hit in hits {
-        if filtered.is_empty() || hit.start >= last_end {
-            last_end = hit.start + hit.len;
-            filtered.push(hit);
-        }
-    }
-
     let mut data = Vec::<u32>::new();
     let mut prev_line = 0u32;
     let mut prev_char = 0u32;
-    for hit in filtered {
-        let (l, c) = offset_to_lc(&d.text, hit.start);
+    for token in shared_semantic_tokens(&d.text) {
+        let (l, c) = offset_to_lc(&d.text, token.span.start);
         let dl = l as u32 - prev_line;
         let dc = if dl == 0 {
             c as u32 - prev_char
         } else {
             c as u32
         };
-        data.extend([dl, dc, hit.len as u32, hit.token_type, 0]);
+        data.extend([
+            dl,
+            dc,
+            (token.span.end - token.span.start) as u32,
+            lsp_semantic_token_type(token.kind),
+            0,
+        ]);
         prev_line = l as u32;
         prev_char = c as u32;
     }
     json!({"data":data})
+}
+
+fn lsp_semantic_token_type(kind: SemanticTokenKind) -> u32 {
+    match kind {
+        SemanticTokenKind::Keyword => 0,
+        SemanticTokenKind::Operator => 1,
+    }
 }
 
 fn document_colors(d: &Doc) -> Value {
