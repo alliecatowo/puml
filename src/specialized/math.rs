@@ -1138,8 +1138,14 @@ fn layout_group(exprs: &[Expr], font_size: f64) -> Layout {
     }
 }
 
-pub(super) fn render_math(source: &str) -> Result<String, Diagnostic> {
-    let (body, title) = strip_block(source, "@startmath", "@endmath");
+/// Render a math diagram directly from its body and optional title, without
+/// reconstructing the `@startmath...@endmath` wrapper. Called from the model
+/// render path (`render::specialized::math`) so the LSP and CLI share the same
+/// rendering logic without the two-hop reconstruct round-trip.
+pub(crate) fn render_math_from_parts(
+    body: &str,
+    title: Option<&str>,
+) -> Result<String, Diagnostic> {
     let expr_text = body.trim();
     if expr_text.is_empty() {
         return Err(Diagnostic::error("[E_MATH_EMPTY] @startmath body is empty"));
@@ -1161,7 +1167,7 @@ pub(super) fn render_math(source: &str) -> Result<String, Diagnostic> {
         "<defs><marker id=\"math-arrow\" markerWidth=\"7\" markerHeight=\"5\" refX=\"6\" refY=\"2.5\" orient=\"auto\"><path d=\"M0,0 L0,5 L7,2.5 z\" fill=\"#333\"/></marker></defs>",
     );
 
-    if let Some(t) = &title {
+    if let Some(t) = title {
         out.push_str(&format!(
             "<text x=\"{}\" y=\"22\" font-family=\"serif\" font-size=\"14\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#333\">{}</text>",
             w / 2,
@@ -1184,6 +1190,11 @@ pub(super) fn render_math(source: &str) -> Result<String, Diagnostic> {
 
     out.push_str("</svg>");
     Ok(out)
+}
+
+pub(super) fn render_math(source: &str) -> Result<String, Diagnostic> {
+    let (body, title) = strip_block(source, "@startmath", "@endmath");
+    render_math_from_parts(body, title.as_deref())
 }
 
 pub(super) fn render_latex(source: &str) -> Result<String, Diagnostic> {

@@ -1,16 +1,13 @@
 use super::*;
 
 pub fn render_math_svg(document: &MathDocument) -> String {
-    let start = document
-        .title
-        .as_ref()
-        .map(|title| format!("@startmath \"{}\"", title.replace('"', "\\\"")))
-        .unwrap_or_else(|| "@startmath".to_string());
-    let source = format!("{start}\n{}\n@endmath", document.body);
-    if let Some(Ok(svg)) = crate::specialized::try_render_specialized(&source) {
-        return svg;
+    match crate::specialized::render_math_from_parts(&document.body, document.title.as_deref()) {
+        Ok(svg) => svg,
+        Err(_) => render_math_fallback(document),
     }
+}
 
+fn render_math_fallback(document: &MathDocument) -> String {
     let width = 760;
     let lines: Vec<&str> = document.body.lines().collect();
     let line_count = lines.len().max(1) as i32;
