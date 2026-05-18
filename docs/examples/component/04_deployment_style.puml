@@ -2,8 +2,8 @@
 component "Load Balancer" as LB
 component "App Server 1" as App1
 component "App Server 2" as App2
-database "Primary DB" as PDB
-database "Replica DB" as RDB
+component "Primary DB" as PDB <<database>>
+component "Replica DB" as RDB <<database>>
 LB --> App1 : routes
 LB --> App2 : routes
 App1 --> PDB : writes
