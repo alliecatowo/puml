@@ -509,6 +509,59 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         }
     }
 
+    let is_layout_only_control = |idx: usize| {
+        let step_kind = metas[idx].step_kind.as_str();
+        (matches!(doc.nodes[idx].kind, FamilyNodeKind::ActivityPartition)
+            && (step_kind == "PartitionStart"
+                || step_kind == "PartitionEnd"
+                || step_kind == "OldStyle"))
+            || step_kind == "Else"
+            || step_kind == "EndIf"
+            || step_kind == "EndWhile"
+            || step_kind == "RepeatStart"
+    };
+    let mut hidden_nodes: std::collections::HashSet<usize> = Default::default();
+    for i in 0..doc.nodes.len() {
+        if hidden_nodes.contains(&i) || !matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityAction)
+        {
+            continue;
+        }
+        let label = doc.nodes[i].label.as_deref().map(str::trim).unwrap_or("");
+        if label.is_empty() {
+            continue;
+        }
+        let mut j = i + 1;
+        let mut saw_control_gap = false;
+        let mut nested_merge_idx = None;
+        while j < doc.nodes.len() && is_layout_only_control(j) {
+            saw_control_gap = true;
+            if nested_merge_idx.is_none() && metas[j].step_kind == "EndIf" {
+                nested_merge_idx = Some(j);
+            }
+            j += 1;
+        }
+        if !saw_control_gap || j >= doc.nodes.len() {
+            continue;
+        }
+        if !matches!(doc.nodes[j].kind, FamilyNodeKind::ActivityAction) {
+            continue;
+        }
+        let next_label = doc.nodes[j].label.as_deref().map(str::trim).unwrap_or("");
+        if next_label != label || metas[j].lane_name != metas[i].lane_name {
+            continue;
+        }
+        node_layouts[j] = NodeLayout {
+            cx: node_layouts[i].cx,
+            slot_y: node_layouts[i].slot_y,
+            arrow_out_y: node_layouts[i].arrow_out_y,
+            next_slot_y: node_layouts[i].next_slot_y,
+        };
+        hidden_nodes.insert(j);
+        if let Some(merge_idx) = nested_merge_idx {
+            suppress_prev_arrow.insert(merge_idx);
+        }
+    }
+
     // Total height needed
     let height = node_layouts
         .iter()
@@ -606,167 +659,152 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             escape_text(&meta.lane_name),
             fork_branch
         ));
-        match node.kind {
-            FamilyNodeKind::ActivityStart => {
-                out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\"/>",
-                    cx,
-                    y + 20,
-                    act_style.fork_color
-                ));
-            }
-            FamilyNodeKind::ActivityStop => {
-                out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                    cx,
-                    y + 20,
-                    act_style.fork_color
-                ));
-                out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"7\" fill=\"{}\"/>",
-                    cx,
-                    y + 20,
-                    act_style.fork_color
-                ));
-                if !label.is_empty() {
+        if !hidden_nodes.contains(&i) {
+            match node.kind {
+                FamilyNodeKind::ActivityStart => {
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+                        "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\"/>",
                         cx,
-                        y + 44,
+                        y + 20,
+                        act_style.fork_color
+                    ));
+                }
+                FamilyNodeKind::ActivityStop => {
+                    out.push_str(&format!(
+                        "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"white\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        cx,
+                        y + 20,
+                        act_style.fork_color
+                    ));
+                    out.push_str(&format!(
+                        "<circle cx=\"{}\" cy=\"{}\" r=\"7\" fill=\"{}\"/>",
+                        cx,
+                        y + 20,
+                        act_style.fork_color
+                    ));
+                    if !label.is_empty() {
+                        out.push_str(&format!(
+                            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+                            cx,
+                            y + 44,
+                            escape_text(&act_style.font_color),
+                            escape_text(&label)
+                        ));
+                    }
+                }
+                FamilyNodeKind::ActivityAction => {
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"18\" ry=\"18\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        cx - box_w / 2,
+                        y + 4,
+                        box_w,
+                        act_style.background_color,
+                        act_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
+                        cx,
+                        y + 27,
                         escape_text(&act_style.font_color),
                         escape_text(&label)
                     ));
                 }
-            }
-            FamilyNodeKind::ActivityAction => {
-                out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"18\" ry=\"18\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                    cx - box_w / 2,
-                    y + 4,
-                    box_w,
-                    act_style.background_color,
-                    act_style.border_color
-                ));
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
-                    cx,
-                    y + 27,
-                    escape_text(&act_style.font_color),
-                    escape_text(&label)
-                ));
-            }
-            FamilyNodeKind::Note => {
-                render_note_card(&mut out, cx - box_w / 2, y + 2, box_w, 44, &label);
-            }
-            FamilyNodeKind::ActivityDecision => {
-                // diamond
-                // Split "condition / guard" — condition inside diamond, guard floats
-                // on the outgoing "then" arrow (right side of diamond).
-                let (condition_text, then_guard) = if let Some(idx) = label.find(" / ") {
-                    (&label[..idx], Some(&label[idx + 3..]))
-                } else {
-                    (label.as_str(), None)
-                };
-                let dx = 100;
-                let dy = 22;
-                out.push_str(&format!(
-                    "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                    cx,
-                    y + 2,
-                    cx + dx,
-                    y + 2 + dy,
-                    cx,
-                    y + 2 + (dy * 2),
-                    cx - dx,
-                    y + 2 + dy,
-                    act_style.diamond_color,
-                    act_style.border_color
-                ));
-                // Condition text inside the diamond
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-                    cx,
-                    y + 2 + dy + 4,
-                    escape_text(&act_style.font_color),
-                    escape_text(condition_text)
-                ));
-                // Guard label floats at the right tip of the diamond (then-branch side)
-                if let Some(guard) = then_guard {
+                FamilyNodeKind::Note => {
+                    render_note_card(&mut out, cx - box_w / 2, y + 2, box_w, 44, &label);
+                }
+                FamilyNodeKind::ActivityDecision => {
+                    let (condition_text, then_guard) = if let Some(idx) = label.find(" / ") {
+                        (&label[..idx], Some(&label[idx + 3..]))
+                    } else {
+                        (label.as_str(), None)
+                    };
+                    let dx = 100;
+                    let dy = 22;
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-                        cx + dx + 4,
+                        "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        cx,
+                        y + 2,
+                        cx + dx,
+                        y + 2 + dy,
+                        cx,
+                        y + 2 + (dy * 2),
+                        cx - dx,
+                        y + 2 + dy,
+                        act_style.diamond_color,
+                        act_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                        cx,
                         y + 2 + dy + 4,
                         escape_text(&act_style.font_color),
-                        escape_text(guard)
+                        escape_text(condition_text)
                     ));
-                }
-                if step_kind.contains("WhileStart") {
-                    out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">while</text>",
-                        cx,
-                        y + 54,
-                        escape_text(&act_style.font_color)
-                    ));
-                }
-            }
-            FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
-                if step_kind.contains("ForkAgain") {
-                    // ForkAgain is a separator — draw a small tick at branch column position.
-                    out.push_str(&format!(
-                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"3 2\"/>",
-                        cx - 16, y + 28, cx + 16, y + 28,
-                        escape_text(&act_style.fork_color)
-                    ));
-                } else {
-                    // Fork or EndFork bar: use precomputed span
-                    let bar_half = fork_bar_half_widths.get(&i).copied().unwrap_or(box_w / 2);
-                    let bar_w = (bar_half * 2).max(box_w);
-                    out.push_str(&format!(
-                        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
-                        cx - bar_w / 2,
-                        y + 24,
-                        bar_w,
-                        act_style.fork_color
-                    ));
-                }
-            }
-            FamilyNodeKind::ActivityMerge => {
-                // Else, EndIf, EndWhile, and RepeatStart are invisible
-                // control-flow markers — they drive arrow routing but must
-                // never appear as visible text nodes (#584, #585).
-                if step_kind.contains("Else")
-                    || step_kind.contains("EndIf")
-                    || step_kind.contains("EndWhile")
-                    || step_kind.contains("RepeatStart")
-                {
-                    // no visual output — layout only
-                } else {
-                    let merge_label = format!("(merge) {}", label);
-                    if !merge_label.is_empty() {
+                    if let Some(guard) = then_guard {
                         out.push_str(&format!(
-                            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-                            cx,
-                            y + 28,
+                            "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+                            cx + dx + 4,
+                            y + 2 + dy + 4,
                             escape_text(&act_style.font_color),
-                            escape_text(&merge_label)
+                            escape_text(guard)
+                        ));
+                    }
+                    if step_kind.contains("WhileStart") {
+                        out.push_str(&format!(
+                            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">while</text>",
+                            cx,
+                            y + 54,
+                            escape_text(&act_style.font_color)
                         ));
                     }
                 }
-            }
-            FamilyNodeKind::ActivityPartition => {
-                // Old-style |Lane| markers and PartitionEnd are invisible —
-                // the lane column background already shows the boundary.
-                // PartitionStart, PartitionEnd, and old-style lane switches are
-                // layout-only markers; the swimlane header already names the lane.
-            }
-            _ => {
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
-                    cx,
-                    y + 28,
-                    escape_text(&act_style.font_color),
-                    escape_text(&label)
-                ));
+                FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
+                    if step_kind.contains("ForkAgain") {
+                        out.push_str(&format!(
+                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"3 2\"/>",
+                            cx - 16, y + 28, cx + 16, y + 28,
+                            escape_text(&act_style.fork_color)
+                        ));
+                    } else {
+                        let bar_half = fork_bar_half_widths.get(&i).copied().unwrap_or(box_w / 2);
+                        let bar_w = (bar_half * 2).max(box_w);
+                        out.push_str(&format!(
+                            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
+                            cx - bar_w / 2,
+                            y + 24,
+                            bar_w,
+                            act_style.fork_color
+                        ));
+                    }
+                }
+                FamilyNodeKind::ActivityMerge => {
+                    if !(step_kind.contains("Else")
+                        || step_kind.contains("EndIf")
+                        || step_kind.contains("EndWhile")
+                        || step_kind.contains("RepeatStart"))
+                    {
+                        let merge_label = format!("(merge) {}", label);
+                        if !merge_label.is_empty() {
+                            out.push_str(&format!(
+                                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                                cx,
+                                y + 28,
+                                escape_text(&act_style.font_color),
+                                escape_text(&merge_label)
+                            ));
+                        }
+                    }
+                }
+                FamilyNodeKind::ActivityPartition => {}
+                _ => {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
+                        cx,
+                        y + 28,
+                        escape_text(&act_style.font_color),
+                        escape_text(&label)
+                    ));
+                }
             }
         }
 
