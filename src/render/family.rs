@@ -153,15 +153,45 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         })
         .collect();
 
+    // Build a resolver from unscoped/alias names to the full node ID used in
+    // gl_nodes. Relations reference nodes by their short name (e.g. "Browse") or
+    // alias (e.g. "MP"), but gl_nodes use the scoped key (e.g.
+    // "Online Store::Browse"). Without this, edges never match node IDs and
+    // every node ends up at rank 0 — producing a flat horizontal strip.
+    let mut gl_name_to_id: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for n in &gl_nodes {
+        // Full scoped id always resolves to itself.
+        gl_name_to_id.entry(n.id.clone()).or_insert_with(|| n.id.clone());
+        // Unscoped tail (last "::" component) resolves to the full scoped id.
+        if let Some(tail) = n.id.rsplit("::").next() {
+            gl_name_to_id.entry(tail.to_string()).or_insert_with(|| n.id.clone());
+        }
+    }
+    // Also map alias → scoped id and node.name → scoped id.
+    for node in &document.nodes {
+        if let Some(alias) = &node.alias {
+            let scoped = node.alias.clone().unwrap_or_else(|| node.name.clone());
+            gl_name_to_id.entry(alias.clone()).or_insert_with(|| scoped.clone());
+            gl_name_to_id.entry(node.name.clone()).or_insert_with(|| scoped);
+        }
+    }
+
+    let resolve_gl = |name: &str| -> String {
+        gl_name_to_id.get(name).cloned().unwrap_or_else(|| name.to_string())
+    };
+
     // Build EdgeSpec list — IDs must be "r{i}" to match the lookup key below.
+    // Resolve from/to through the name map so scoped node IDs are used and
+    // the rank assignment correctly differentiates nodes within each package.
     let gl_edges_class: Vec<GlEdgeSpec> = document
         .relations
         .iter()
         .enumerate()
         .map(|(i, rel)| GlEdgeSpec {
             id: format!("r{i}"),
-            from: rel.from.clone(),
-            to: rel.to.clone(),
+            from: resolve_gl(&rel.from),
+            to: resolve_gl(&rel.to),
         })
         .collect();
 
