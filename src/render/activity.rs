@@ -66,7 +66,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         lanes.push("default".to_string());
     }
 
-    // Compute the base width from the number of lanes; we may widen for if/else.
+    // Compute the base width from the number of lanes; we may widen for if/else
+    // and for fork parallel columns.
     // Count max nesting depth of if/else to estimate extra width needed.
     let mut max_if_depth: i32 = 0;
     {
@@ -80,14 +81,31 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
         }
     }
+    // Count max fork branch count to size canvas for parallel columns.
+    let mut max_fork_branches: i32 = 0;
+    {
+        let mut count: i32 = 0;
+        for meta in &metas {
+            if meta.step_kind == "Fork" {
+                count = 1;
+            } else if meta.step_kind == "ForkAgain" {
+                count += 1;
+                max_fork_branches = max_fork_branches.max(count);
+            } else if meta.step_kind == "EndFork" {
+                count = 0;
+            }
+        }
+    }
     // Branch horizontal offset: each nesting level adds 160px to either side
     let branch_x_offset = 160i32;
     // Total extra width: 2 * branch_x_offset * max_if_depth (left + right of center)
     let extra_branch_width = 2 * branch_x_offset * max_if_depth;
+    // Extra width for fork parallel columns (each additional branch beyond 1 adds 160px)
+    let extra_fork_width = (max_fork_branches * 160i32).max(0);
 
     let lane_area_x = 32i32;
     let base_lane_area_w = 416i32; // 480 - 64
-    let lane_area_w = base_lane_area_w + extra_branch_width;
+    let lane_area_w = base_lane_area_w + extra_branch_width + extra_fork_width;
     let width = lane_area_w + 64;
     let lane_w = (lane_area_w / (lanes.len() as i32)).max(120);
     let lane_index = |name: &str| -> i32 {
@@ -102,33 +120,50 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         lane_area_x + idx * lane_w + lane_w / 2
     };
 
+    // Width reserved for each fork branch column
+    let fork_col_w = (lane_w / 2).max(160i32);
+
     // ---------------------------------------------------------------------------
     // Pass 1: compute layout positions for every node using a branch-aware
     // algorithm.
     //
     // For each node:
-    //   slot_y      — top of the slot (y passed to shape renderers)
-    //   arrow_out_y — where the outgoing arrow starts (slot_y + ARROW_OUT)
-    //   next_slot_y — where the next node's slot begins (slot_y + step_h)
+    //   slot_y      - top of the slot (y passed to shape renderers)
+    //   arrow_out_y - where the outgoing arrow starts (slot_y + ARROW_OUT)
+    //   next_slot_y - where the next node's slot begins (slot_y + step_h)
     //
     // current_slot_y tracks where the next node goes.
     // if_stack handles nested if/else.
+    // fork_stack handles parallel fork/join branches.
     // ---------------------------------------------------------------------------
 
     const ARROW_OUT: i32 = 42; // visual bottom of a node within its slot
 
     struct IfFrame {
         diamond_cx: i32,
-        diamond_arrow_out: i32, // arrow exit y of diamond
-        diamond_next_slot: i32, // first slot_y inside the branches
-        // then-branch: accumulated while in_else==false
+        diamond_arrow_out: i32,
+        diamond_next_slot: i32,
         then_cx: i32,
         then_rightmost_cx: i32,
-        then_end_next_slot: i32, // current_slot_y saved at "Else" time
-        // else-branch: accumulated while in_else==true
+        then_end_next_slot: i32,
         in_else: bool,
         else_cx: i32,
-        else_start_slot: i32, // slot_y of the Else marker (= diamond_next_slot)
+        else_start_slot: i32,
+    }
+
+    // Fork frame: tracks parallel branches in a fork/join block.
+    struct ForkFrame {
+        fork_node_idx: usize,
+        fork_cx: i32,
+        fork_slot_y: i32,
+        branch_start_y: i32,
+        branches: Vec<ForkBranch>,
+        current_branch: usize,
+        fork_again_indices: Vec<usize>,
+    }
+    struct ForkBranch {
+        start_node_idx: usize,
+        end_next_slot: i32,
     }
 
     // Per-node layout
@@ -140,13 +175,16 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     }
 
     let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
-    // Extra arrows: (x1,y1, x2,y2) drawn in addition to prev→cur arrows
+    // Fork bar half-widths: maps node index to half-width of the fork/join bar
+    let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
+    // Extra arrows: (x1,y1, x2,y2) drawn in addition to prev->cur arrows
     let mut extra_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
-    // Indices of nodes for which we suppress the standard prev→cur arrow
+    // Indices of nodes for which we suppress the standard prev->cur arrow
     let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
 
     let mut current_slot_y = header_h;
     let mut if_stack: Vec<IfFrame> = Vec::new();
+    let mut fork_stack: Vec<ForkFrame> = Vec::new();
 
     for (i, meta) in metas.iter().enumerate() {
         let base_cx = lane_center_x(&meta.lane_name);
@@ -154,6 +192,15 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             .last()
             .map(|f| if f.in_else { f.else_cx } else { f.then_cx })
             .unwrap_or(base_cx);
+
+        // Inside a fork: use branch column cx. Will be fixed up retroactively in EndFork.
+        let cx = if let Some(frame) = fork_stack.last() {
+            let n_branches = frame.branches.len();
+            let branch_idx = frame.current_branch;
+            fork_branch_cx(frame.fork_cx, branch_idx, n_branches, fork_col_w)
+        } else {
+            cx
+        };
 
         match meta.step_kind.as_str() {
             "IfStart" => {
@@ -173,10 +220,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     diamond_next_slot: next_slot_y,
                     then_cx: cx,
                     then_rightmost_cx: cx,
-                    then_end_next_slot: next_slot_y, // updated at "Else"
+                    then_end_next_slot: next_slot_y,
                     in_else: false,
                     else_cx,
-                    else_start_slot: next_slot_y, // updated at "Else"
+                    else_start_slot: next_slot_y,
                 });
                 for frame in &mut if_stack {
                     if !frame.in_else {
@@ -186,13 +233,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 current_slot_y = next_slot_y;
             }
             "Else" => {
-                // Save then-branch endpoint
                 let then_end_next_slot = current_slot_y;
                 let frame = if_stack.last_mut().expect("else without if");
-                frame.then_cx = cx; // cx at end of then-branch (same lane)
+                frame.then_cx = cx;
                 frame.then_end_next_slot = then_end_next_slot;
-                // Else marker is placed beside all columns already used by
-                // the then-branch, so nested branches do not collide with it.
                 let else_cx = (frame.diamond_cx + branch_x_offset)
                     .max(frame.then_rightmost_cx + branch_x_offset);
                 frame.else_cx = else_cx;
@@ -208,7 +252,6 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                         frame.then_rightmost_cx = frame.then_rightmost_cx.max(else_cx);
                     }
                 }
-                // Suppress standard prev→cur; add diamond→Else arrow
                 suppress_prev_arrow.insert(i);
                 extra_arrows.push((diamond_cx, diamond_arrow_out, else_cx, slot_y));
                 node_layouts.push(NodeLayout {
@@ -221,18 +264,14 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
             "EndIf" => {
                 let frame = if_stack.pop().expect("endif without if");
-                // then-branch end: (then_cx, arrow_out at end of then)
                 let then_arrow_out_y = frame.then_end_next_slot - step_h + ARROW_OUT;
                 let then_cx = frame.then_cx;
-                // else-branch end: current_slot_y is past the last else node
                 let else_arrow_out_y = current_slot_y - step_h + ARROW_OUT;
                 let else_cx = frame.else_cx;
-                // EndIf goes below the deeper branch
                 let slot_y = frame.then_end_next_slot.max(current_slot_y);
                 let arrow_out_y = slot_y + ARROW_OUT;
                 let next_slot_y = slot_y + step_h;
                 suppress_prev_arrow.insert(i);
-                // Both branches converge on the EndIf node (at diamond_cx x)
                 extra_arrows.push((then_cx, then_arrow_out_y, frame.diamond_cx, slot_y));
                 extra_arrows.push((else_cx, else_arrow_out_y, frame.diamond_cx, slot_y));
                 node_layouts.push(NodeLayout {
@@ -249,6 +288,135 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
                 current_slot_y = next_slot_y;
             }
+            "Fork" => {
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                fork_stack.push(ForkFrame {
+                    fork_node_idx: i,
+                    fork_cx: cx,
+                    fork_slot_y: slot_y,
+                    branch_start_y: next_slot_y,
+                    branches: vec![ForkBranch {
+                        start_node_idx: i + 1,
+                        end_next_slot: next_slot_y,
+                    }],
+                    current_branch: 0,
+                    fork_again_indices: Vec::new(),
+                });
+                current_slot_y = next_slot_y;
+            }
+            "ForkAgain" => {
+                let frame = fork_stack.last_mut().expect("fork again without fork");
+                let branch_idx = frame.current_branch;
+                frame.branches[branch_idx].end_next_slot = current_slot_y;
+                frame.fork_again_indices.push(i);
+                frame.branches.push(ForkBranch {
+                    start_node_idx: i + 1,
+                    end_next_slot: frame.branch_start_y,
+                });
+                frame.current_branch += 1;
+                let n_branches = frame.branches.len();
+                let new_branch_idx = frame.current_branch;
+                let fork_cx = frame.fork_cx;
+                suppress_prev_arrow.insert(i);
+                let slot_y = frame.fork_slot_y;
+                let branch_col_cx =
+                    fork_branch_cx(fork_cx, new_branch_idx, n_branches, fork_col_w);
+                node_layouts.push(NodeLayout {
+                    cx: branch_col_cx,
+                    slot_y,
+                    arrow_out_y: slot_y + ARROW_OUT,
+                    next_slot_y: slot_y + step_h,
+                });
+                current_slot_y = frame.branch_start_y;
+            }
+            "EndFork" => {
+                let mut frame = fork_stack.pop().expect("endfork without fork");
+                let last_branch = frame.current_branch;
+                frame.branches[last_branch].end_next_slot = current_slot_y;
+
+                let n_branches = frame.branches.len();
+                let fork_cx = frame.fork_cx;
+                let branch_start_y = frame.branch_start_y;
+
+                let max_end = frame
+                    .branches
+                    .iter()
+                    .map(|b| b.end_next_slot)
+                    .max()
+                    .unwrap_or(current_slot_y);
+                let slot_y = max_end;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+
+                suppress_prev_arrow.insert(i);
+                node_layouts.push(NodeLayout {
+                    cx: fork_cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+
+                // Fix up cx positions for all nodes inside branches
+                for (branch_idx, branch) in frame.branches.iter().enumerate() {
+                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, fork_col_w);
+                    let branch_end_idx = if branch_idx + 1 < n_branches {
+                        frame.fork_again_indices[branch_idx]
+                    } else {
+                        i
+                    };
+                    for node_idx in branch.start_node_idx..branch_end_idx {
+                        if let Some(layout) = node_layouts.get_mut(node_idx) {
+                            layout.cx = col_cx;
+                        }
+                    }
+                    if branch_idx + 1 < n_branches {
+                        let fa_idx = frame.fork_again_indices[branch_idx];
+                        if let Some(layout) = node_layouts.get_mut(fa_idx) {
+                            let next_col_cx = fork_branch_cx(
+                                fork_cx,
+                                branch_idx + 1,
+                                n_branches,
+                                fork_col_w,
+                            );
+                            layout.cx = next_col_cx;
+                        }
+                    }
+                    // Arrow from branch end to join bar
+                    let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
+                    extra_arrows.push((col_cx, branch_arrow_out_y, fork_cx, slot_y));
+                }
+
+                // Arrows from fork bar down into each branch column
+                let fork_bar_arrow_out_y = frame.fork_slot_y + ARROW_OUT;
+                for branch_idx in 0..n_branches {
+                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, fork_col_w);
+                    extra_arrows.push((fork_cx, fork_bar_arrow_out_y, col_cx, branch_start_y));
+                }
+
+                // Compute bar half-width spanning all branch columns
+                let bar_span_half = if n_branches > 1 {
+                    let leftmost =
+                        fork_branch_cx(fork_cx, 0, n_branches, fork_col_w) - fork_col_w / 2;
+                    let rightmost =
+                        fork_branch_cx(fork_cx, n_branches - 1, n_branches, fork_col_w)
+                            + fork_col_w / 2;
+                    (rightmost - leftmost) / 2
+                } else {
+                    (lane_w - 24).clamp(60, 110)
+                };
+                fork_bar_half_widths.insert(frame.fork_node_idx, bar_span_half);
+                fork_bar_half_widths.insert(i, bar_span_half);
+
+                current_slot_y = next_slot_y;
+            }
             _ => {
                 let slot_y = current_slot_y;
                 let arrow_out_y = slot_y + ARROW_OUT;
@@ -263,6 +431,11 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     if !frame.in_else {
                         frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
                     }
+                }
+                // Inside a fork branch, update branch end_next_slot
+                if let Some(fork_frame) = fork_stack.last_mut() {
+                    let bi = fork_frame.current_branch;
+                    fork_frame.branches[bi].end_next_slot = next_slot_y;
                 }
                 current_slot_y = next_slot_y;
             }
@@ -337,7 +510,6 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     }
 
     let box_w = (lane_w - 24).clamp(120, 220);
-    let mut fork_anchor: Option<(i32, i32)> = None;
 
     // ---------------------------------------------------------------------------
     // Pass 2: render nodes and arrows using pre-computed positions
@@ -468,63 +640,52 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
             }
             FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
-                let bar_w = box_w;
-                out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
-                    cx - bar_w / 2,
-                    y + 24,
-                    bar_w,
-                    act_style.fork_color
-                ));
                 if step_kind.contains("ForkAgain") {
-                    let branch_label = if label.is_empty() {
-                        format!("branch {}", fork_branch + 1)
-                    } else {
-                        format!("branch {} / {}", fork_branch + 1, label)
-                    };
+                    // ForkAgain is a separator — draw a small tick at branch column position.
                     out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-                        cx,
-                        y + 20,
-                        escape_text(&act_style.font_color),
-                        escape_text(&branch_label)
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"3 2\"/>",
+                        cx - 16, y + 28, cx + 16, y + 28,
+                        escape_text(&act_style.fork_color)
                     ));
-                }
-                if step_kind.contains("Fork") && !step_kind.contains("ForkAgain") {
-                    fork_anchor = Some((cx, y + 28));
-                }
-                if step_kind.contains("EndFork") {
-                    fork_anchor = None;
+                } else {
+                    // Fork or EndFork bar: use precomputed span
+                    let bar_half = fork_bar_half_widths.get(&i).copied().unwrap_or(box_w / 2);
+                    let bar_w = (bar_half * 2).max(box_w);
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
+                        cx - bar_w / 2,
+                        y + 24,
+                        bar_w,
+                        act_style.fork_color
+                    ));
                 }
             }
             FamilyNodeKind::ActivityMerge => {
-                let merge_label = if step_kind.contains("Else") {
-                    if label.is_empty() {
-                        "(else)".to_string()
-                    } else {
-                        format!("(else) {}", label)
-                    }
-                } else if step_kind.contains("EndIf") {
-                    "(endif)".to_string()
-                } else if step_kind.contains("EndWhile") {
-                    if label.is_empty() {
-                        "(endwhile)".to_string()
-                    } else {
-                        format!("({label})")
-                    }
-                } else if step_kind.contains("RepeatStart") {
-                    "(repeat)".to_string()
+                // Else and EndIf are invisible control-flow markers — they
+                // drive arrow routing but must never appear as visible text.
+                if step_kind.contains("Else") || step_kind.contains("EndIf") {
+                    // no visual output — layout only
                 } else {
-                    format!("(merge) {}", label)
-                };
-                if !merge_label.is_empty() {
-                    out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-                        cx,
-                        y + 28,
-                        escape_text(&act_style.font_color),
-                        escape_text(&merge_label)
-                    ));
+                    let merge_label = if step_kind.contains("EndWhile") {
+                        if label.is_empty() {
+                            "(endwhile)".to_string()
+                        } else {
+                            format!("({label})")
+                        }
+                    } else if step_kind.contains("RepeatStart") {
+                        "(repeat)".to_string()
+                    } else {
+                        format!("(merge) {}", label)
+                    };
+                    if !merge_label.is_empty() {
+                        out.push_str(&format!(
+                            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                            cx,
+                            y + 28,
+                            escape_text(&act_style.font_color),
+                            escape_text(&merge_label)
+                        ));
+                    }
                 }
             }
             FamilyNodeKind::ActivityPartition => {
@@ -561,28 +722,30 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             emit_activity_arrow(&mut out, px, py, cx, y, &act_style.arrow_color);
         }
 
-        // Extra arrows for if-branching (diamond→else, branch-end→endif)
+        // Extra arrows for if-branching and fork connections
         for (x1, y1, x2, y2) in extra_arrows.iter().filter(|a| a.2 == cx && a.3 == y) {
             emit_activity_arrow(&mut out, *x1, *y1, *x2, *y2, &act_style.arrow_color);
-        }
-
-        // Fork branch arrows
-        if let Some((fx, fy)) = fork_anchor {
-            if step_kind.contains("ForkAgain") || fork_branch > 0 {
-                out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.25\" stroke-dasharray=\"4 2\"/>",
-                    fx,
-                    fy,
-                    cx,
-                    y,
-                    act_style.arrow_color
-                ));
-            }
         }
     }
 
     out.push_str("</svg>");
     out
+}
+
+/// Compute the center X for a fork branch column.
+///
+/// Branches are laid out symmetrically around `fork_cx`.
+/// With N branches and column width `col_w`:
+///   total span = (N-1) * col_w
+///   leftmost branch center = fork_cx - (N-1)*col_w/2
+///   branch k center = leftmost + k * col_w
+fn fork_branch_cx(fork_cx: i32, branch_idx: usize, n_branches: usize, col_w: i32) -> i32 {
+    if n_branches <= 1 {
+        return fork_cx;
+    }
+    let total_span = (n_branches as i32 - 1) * col_w;
+    let leftmost = fork_cx - total_span / 2;
+    leftmost + branch_idx as i32 * col_w
 }
 
 /// Emit a straight arrow from (x1,y1) to (x2,y2) with an arrowhead at (x2,y2).

@@ -50,7 +50,9 @@ pub(super) fn normalize_timeline_baseline(
                         existing.resources = resources;
                     }
                 } else {
-                    let workload_days = duration_days.unwrap_or(1).max(1);
+                    // Default to 14 working days when no explicit duration is given, so task
+                // bars are visually readable on a date-axis gantt (#481).
+                let workload_days = duration_days.unwrap_or(14).max(1);
                     let resource_allocations = parse_timeline_resource_allocations(&resources);
                     let duration_days =
                         resource_adjusted_work_days(workload_days, &resource_allocations);

@@ -435,11 +435,11 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
             // Condition is inside the diamond; guard label floats on the arrow.
             "authenticated?",
             "yes",
-            "(else) no",
+            // "(else) no" and "(endif)" are control-flow markers (#533 fix) —
+            // they drive arrow routing but are never rendered as visible text.
             "Process",
             "Return 200",
             "Return 401",
-            "(endif)",
         ],
     },
     FocusedTextFixture {
