@@ -298,7 +298,10 @@ mod tests {
             Command::Format(args) => {
                 assert!(args.check);
                 assert!(args.diff);
-                assert_eq!(args.files, vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]);
+                assert_eq!(
+                    args.files,
+                    vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
+                );
             }
         }
     }

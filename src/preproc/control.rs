@@ -15,9 +15,8 @@ use super::includes::{
 };
 use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
 use super::{
-    ConditionalFrame, MAX_INCLUDE_DEPTH, MAX_PREPROC_WHILE_ITERATIONS, ParseOptions,
-    PreprocCallableKind, PreprocLoopSignal, PreprocState, PreprocVariableScope,
-    PreprocessDirective,
+    ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
+    PreprocVariableScope, PreprocessDirective, MAX_INCLUDE_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
 };
 
 pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
