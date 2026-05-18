@@ -181,10 +181,30 @@ async function init() {
   }
 }
 
+// Debounced auto-render: wait 400 ms after the last keystroke before
+// calling render().  If a render is already in flight (renderInFlight is
+// true) we don't cancel the timer — we just let the in-flight render
+// finish, and the timer queued here will fire afterwards.
 let renderTimer = null;
+let renderInFlight = false;
+
 function scheduleAutoRender() {
   if (renderTimer) clearTimeout(renderTimer);
-  renderTimer = setTimeout(render, 400);
+  renderTimer = setTimeout(async () => {
+    renderTimer = null;
+    // If another render is already in progress, re-queue and let it finish
+    // first so we always render the latest source without cancelling work.
+    if (renderInFlight) {
+      scheduleAutoRender();
+      return;
+    }
+    renderInFlight = true;
+    try {
+      await render();
+    } finally {
+      renderInFlight = false;
+    }
+  }, 400);
 }
 
 function setSource(text) {
@@ -230,6 +250,7 @@ async function render() {
     setStatus('preview', pages > 1
       ? `Rendered ${pages} pages.`
       : `Rendered.`, 'ok');
+    showDiagnosticsPanel([]);
   } else {
     const diag = result.diagnostics?.[0];
     previewHost.innerHTML = `
@@ -238,6 +259,7 @@ async function render() {
         <p>${escapeHtml(diagnosticLabel(diag))}</p>
       </div>`;
     setStatus('preview', diag?.line ? `Render error at line ${diag.line}.` : 'Render error.', 'bad');
+    showDiagnosticsPanel(result.diagnostics || []);
   }
 }
 
@@ -257,6 +279,65 @@ function downloadSvg() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ---------- Diagnostics sidebar panel ----------
+
+/**
+ * Populate (or clear) the diagnostics panel that sits between the editor and
+ * the status bar.  Each diagnostic gets a clickable "line N, col M" link that
+ * moves the CodeMirror cursor to the reported position.
+ *
+ * @param {Array<{severity?: string, message?: string, line?: number, column?: number}>} diags
+ */
+function showDiagnosticsPanel(diags) {
+  const panel = document.getElementById('diagnostics-panel');
+  if (!panel) return;
+  if (!diags || diags.length === 0) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    return;
+  }
+  panel.hidden = false;
+  panel.innerHTML = diags.map((d) => {
+    const sev = d.severity || 'error';
+    const msg = escapeHtml(d.message || 'Render failed.');
+    let locHtml = '';
+    if (d.line) {
+      const col = d.column || 1;
+      // The link text and aria-label describe the position; clicking it jumps
+      // the CM6 cursor to that line/col without scrolling the page.
+      locHtml = `<button class="diag-loc" data-line="${d.line}" data-col="${col}" title="Jump to line ${d.line}, col ${col}" aria-label="Jump to line ${d.line}, col ${col}">line ${d.line}${d.column ? `, col ${col}` : ''}</button>`;
+    }
+    return `<div class="diag-row diag-${sev}">${locHtml}<span class="diag-msg">${msg}</span></div>`;
+  }).join('');
+
+  // Wire up jump-to-line buttons.
+  panel.querySelectorAll('.diag-loc').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!view) return;
+      const line = parseInt(btn.dataset.line, 10);
+      const col = parseInt(btn.dataset.col, 10) || 1;
+      jumpToPosition(line, col);
+    });
+  });
+}
+
+/**
+ * Move the CodeMirror 6 cursor to the given 1-based line and column, and
+ * scroll the line into view.
+ */
+function jumpToPosition(line, col) {
+  if (!view) return;
+  const doc = view.state.doc;
+  // Clamp to document bounds.
+  const lineObj = doc.line(Math.min(line, doc.lines));
+  const pos = Math.min(lineObj.from + (col - 1), lineObj.to);
+  view.dispatch({
+    selection: { anchor: pos },
+    scrollIntoView: true,
+  });
+  view.focus();
 }
 
 function setStatus(which, message, kind = 'ok', revertAfter = false) {
