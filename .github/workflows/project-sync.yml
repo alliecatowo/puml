@@ -67,7 +67,7 @@ jobs:
     steps:
       - name: Checkout
         if: env.HAS_PROJECT_TOKEN == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Skip when project token is unavailable
         if: env.HAS_PROJECT_TOKEN != 'true'
