@@ -10,6 +10,7 @@ const COMPOSITE_PAD_X: i32 = 16;
 const COMPOSITE_PAD_Y: i32 = 36; // extra space for composite header label
 const COMPOSITE_PAD_BOT: i32 = 12;
 const REGION_DIVIDER_GAP: i32 = 10; // gap between concurrent regions (horizontal divider)
+const STATE_LABEL_CLEARANCE: i32 = 18;
 
 /// A placed node entry in the flat coord map.
 /// Stores the node's top-left (x, y) and its full rendered size (w, h).
@@ -80,57 +81,86 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 StateNodeKind::Fork | StateNodeKind::Join | StateNodeKind::Choice
             )
     });
-    let cols: i32 = if has_fork_join_choice || top_level_count <= 3 {
+    let has_top_level_composite = nodes.iter().any(|n| {
+        !child_node_names.contains(n.name.as_str()) && n.regions.iter().any(|region| !region.is_empty())
+    });
+    let cols: i32 = if has_fork_join_choice || has_top_level_composite || top_level_count <= 3 {
         1
     } else {
         2
     };
 
-    // BFS topological sort of top-level nodes by reachability depth from initial states.
-    // This puts [*] and early states before composites/late states in the layout order,
-    // preventing visual inversions (e.g. join above the tasks it joins).
+    // Longest-path reachability sort of top-level nodes from initial states.
+    // Using the maximum depth instead of the minimum keeps sinks/final states below
+    // all of their incoming branches, which avoids clipped/crossing terminal arrows.
     let layout_order: Vec<&StateNode> = {
         let mut depth_map: std::collections::BTreeMap<&str, usize> =
             std::collections::BTreeMap::new();
+        let top_level_names: std::collections::BTreeSet<&str> = nodes
+            .iter()
+            .filter(|n| !child_node_names.contains(n.name.as_str()))
+            .map(|n| n.name.as_str())
+            .collect();
         let transition_targets: std::collections::BTreeSet<&str> =
-            transitions.iter().map(|t| t.to.as_str()).collect();
+            transitions
+                .iter()
+                .filter(|t| top_level_names.contains(t.to.as_str()))
+                .map(|t| t.to.as_str())
+                .collect();
         let all_node_names: Vec<&str> = nodes
             .iter()
             .filter(|n| !child_node_names.contains(n.name.as_str()))
             .map(|n| n.name.as_str())
             .collect();
-        // Seed: nodes with no incoming transitions (true start nodes) or named "[*]"
-        let mut queue: std::collections::VecDeque<(&str, usize)> =
-            std::collections::VecDeque::new();
-        for &name in &all_node_names {
-            if name == "[*]" || !transition_targets.contains(name) {
-                depth_map.insert(name, 0);
-                queue.push_back((name, 0));
+        let mut adjacency: std::collections::BTreeMap<&str, Vec<&str>> =
+            std::collections::BTreeMap::new();
+        for t in transitions {
+            if top_level_names.contains(t.from.as_str()) && top_level_names.contains(t.to.as_str()) {
+                adjacency.entry(t.from.as_str()).or_default().push(t.to.as_str());
             }
         }
-        // BFS: for each reachable top-level target, record minimum depth
-        let mut visited: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-        while let Some((name, depth)) = queue.pop_front() {
-            if !visited.insert(name) {
-                continue;
+
+        fn walk_longest_depth<'a>(
+            name: &'a str,
+            depth: usize,
+            adjacency: &std::collections::BTreeMap<&'a str, Vec<&'a str>>,
+            depth_map: &mut std::collections::BTreeMap<&'a str, usize>,
+            path: &mut std::collections::BTreeSet<&'a str>,
+        ) {
+            if depth_map.get(name).copied().unwrap_or(0) >= depth {
+                return;
             }
-            for t in transitions {
-                if t.from == name && !child_node_names.contains(t.to.as_str()) {
-                    let target = t.to.as_str();
-                    let new_depth = depth + 1;
-                    let entry = depth_map.entry(target).or_insert(usize::MAX);
-                    if new_depth < *entry {
-                        *entry = new_depth;
+            depth_map.insert(name, depth);
+            if !path.insert(name) {
+                return;
+            }
+            if let Some(targets) = adjacency.get(name) {
+                for &target in targets {
+                    if !path.contains(target) {
+                        walk_longest_depth(target, depth + 1, adjacency, depth_map, path);
                     }
-                    queue.push_back((target, new_depth));
                 }
             }
+            path.remove(name);
+        }
+
+        let mut seeds: Vec<&str> = all_node_names
+            .iter()
+            .copied()
+            .filter(|name| *name == "[*]" || !transition_targets.contains(name))
+            .collect();
+        if seeds.is_empty() {
+            seeds = all_node_names.clone();
+        }
+        for seed in seeds {
+            let mut path = std::collections::BTreeSet::new();
+            walk_longest_depth(seed, 1, &adjacency, &mut depth_map, &mut path);
         }
         // Unreachable nodes get MAX depth (appear at bottom)
         for &name in &all_node_names {
             depth_map.entry(name).or_insert(usize::MAX);
         }
-        // Sort by (BFS depth, original doc order) so layout matches diagram flow
+        // Sort by (reachability depth, original doc order) so layout matches diagram flow
         let name_to_orig: std::collections::BTreeMap<&str, usize> = nodes
             .iter()
             .enumerate()
@@ -180,7 +210,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     let max_x = placed.values().map(|p| p.x + p.w).max().unwrap_or(300);
     let max_y = placed.values().map(|p| p.y + p.h).max().unwrap_or(200);
     let width = max_x + STATE_MARGIN;
-    let height = max_y + STATE_MARGIN;
+    let height = max_y + STATE_MARGIN + 12;
 
     // ── Phase 2: emit SVG ────────────────────────────────────────────────────
     let mut out = String::new();
@@ -221,6 +251,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         .iter()
         .map(|t| (t.from.as_str(), t.to.as_str()))
         .collect();
+    let mut edge_labels: Vec<(i32, i32, String)> = Vec::new();
 
     // Draw transitions first (arrows behind nodes)
     for t in transitions {
@@ -247,6 +278,11 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
                     escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                 ));
+                let (label_x, label_y) = edge_label_position(x1, y1, x2, y2);
+                let label_y = label_y.min(cpy - 6);
+                if let Some(label) = &t.label {
+                    edge_labels.push((label_x, label_y, label.clone()));
+                }
             } else if has_reverse {
                 // Bidirectional pair: use a curved path offset to the right of the line
                 // so both arrows are visible without overlapping.
@@ -260,10 +296,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     stroke, sw, dash, hidden, dir
                 ));
                 if let Some(label) = &t.label {
-                    out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
-                        cpx, cpy - 6, escape_text(&state_style.font_color), escape_text(label)
-                    ));
+                    let (label_x, label_y) = edge_label_position(ox1, oy1, ox2, oy2);
+                    edge_labels.push((label_x, label_y, label.clone()));
                 }
                 continue;
             } else {
@@ -276,12 +310,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             }
 
             if let Some(label) = &t.label {
-                let mx = (x1 + x2) / 2;
-                let my = (y1 + y2) / 2 - 12;
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
-                    mx, my, escape_text(&state_style.font_color), escape_text(label)
-                ));
+                let (label_x, label_y) = edge_label_position(x1, y1, x2, y2);
+                edge_labels.push((label_x, label_y, label.clone()));
             }
         }
     }
@@ -311,6 +341,10 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 &outgoing,
             );
         }
+    }
+
+    for (x, y, label) in edge_labels {
+        render_state_label(&mut out, &label, x, y, &state_style.font_color);
     }
 
     out.push_str("</svg>");
@@ -511,6 +545,52 @@ fn state_direction_attr(direction: Option<&str>) -> String {
     direction
         .map(|d| format!(" data-state-direction=\"{}\"", escape_text(d)))
         .unwrap_or_default()
+}
+
+fn edge_label_position(x1: i32, y1: i32, x2: i32, y2: i32) -> (i32, i32) {
+    let mx = (x1 + x2) / 2;
+    let my = (y1 + y2) / 2;
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+
+    if dx == 0 && dy == 0 {
+        return (mx, my - STATE_LABEL_CLEARANCE);
+    }
+    if dx.abs() < dy.abs() {
+        return (mx + STATE_LABEL_CLEARANCE, my);
+    }
+
+    let len = ((dx * dx + dy * dy) as f64).sqrt();
+    if len == 0.0 {
+        return (mx, my - STATE_LABEL_CLEARANCE);
+    }
+    let offset_x = ((-(dy as f64) / len) * STATE_LABEL_CLEARANCE as f64).round() as i32;
+    let offset_y = (((dx as f64) / len) * STATE_LABEL_CLEARANCE as f64).round() as i32;
+    (mx + offset_x, my + offset_y)
+}
+
+fn render_state_label(out: &mut String, label: &str, x: i32, y: i32, color: &str) {
+    let lines: Vec<&str> = label.lines().collect();
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">",
+        x,
+        y,
+        escape_text(color)
+    ));
+    if lines.len() <= 1 {
+        out.push_str(&escape_text(label));
+    } else {
+        for (idx, line) in lines.iter().enumerate() {
+            let dy = if idx == 0 { 0 } else { 12 };
+            out.push_str(&format!(
+                "<tspan x=\"{}\" dy=\"{}\">{}</tspan>",
+                x,
+                dy,
+                escape_text(line)
+            ));
+        }
+    }
+    out.push_str("</text>");
 }
 
 /// Render a single state node (and its children recursively).
