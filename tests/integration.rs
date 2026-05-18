@@ -6912,7 +6912,7 @@ fn svg_elements_with_attr<'a>(svg: &'a str, attr: &str, value: &str) -> Vec<&'a 
         .collect()
 }
 
-fn svg_attr_i32(element: &str, attr: &str) -> i32 {
+fn svg_attr_i32_required(element: &str, attr: &str) -> i32 {
     let key = format!("{attr}=\"");
     let start = element.find(&key).expect("attribute start") + key.len();
     let rest = &element[start..];
@@ -7129,9 +7129,9 @@ fn salt_layout_depth_fixture_has_widget_dom_and_span_geometry() {
 
     let headers = svg_elements_with_attr(&svg, "data-salt-widget", "header");
     assert_eq!(headers.len(), 3);
-    let field_header_x = svg_attr_i32(headers[0], "x");
-    let value_header_x = svg_attr_i32(headers[1], "x");
-    let notes_header_x = svg_attr_i32(headers[2], "x");
+    let field_header_x = svg_attr_i32_required(headers[0], "x");
+    let value_header_x = svg_attr_i32_required(headers[1], "x");
+    let notes_header_x = svg_attr_i32_required(headers[2], "x");
     assert!(
         field_header_x < value_header_x && value_header_x < notes_header_x,
         "table header x positions should increase left-to-right"
@@ -7141,8 +7141,8 @@ fn salt_layout_depth_fixture_has_widget_dom_and_span_geometry() {
     assert_eq!(tree_nodes.len(), 2);
     let root_tree = svg_group_with_attr(&svg, "data-salt-tree-depth", "0");
     let nested_tree = svg_group_with_attr(&svg, "data-salt-tree-depth", "1");
-    let root_branch_x = svg_attr_i32(root_tree, "x1");
-    let nested_branch_x = svg_attr_i32(nested_tree, "x1");
+    let root_branch_x = svg_attr_i32_required(root_tree, "x1");
+    let nested_branch_x = svg_attr_i32_required(nested_tree, "x1");
     assert!(
         nested_branch_x > root_branch_x,
         "nested tree item should be indented in geometry"

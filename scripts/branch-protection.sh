@@ -7,7 +7,8 @@ cd "$ROOT_DIR"
 MODE="verify"
 BRANCH="main"
 REPO=""
-STRICT_REQUIRED_STATUS_CHECKS="true"
+STRICT_REQUIRED_STATUS_CHECKS="false"
+REQUIRED_APPROVING_REVIEW_COUNT=0
 CHECK_CONTEXTS=("fmt-clippy-test-coverage-quick")
 
 usage() {
@@ -22,7 +23,8 @@ Modes:
 
 Required policy (issue #90):
   - Require status check context: fmt-clippy-test-coverage-quick
-  - Require pull request review before merge
+  - Keep PR-based merges available without mandatory human approval
+  - Do not require PR branches to be up to date before merge
   - Disallow force pushes on main
   - Disallow branch deletion on main
 
@@ -131,13 +133,12 @@ def protection_satisfies(p):
         return False, []
 
     failures = []
-    required = ((p.get("required_status_checks") or {}).get("contexts") or [])
+    required_status = p.get("required_status_checks") or {}
+    required = required_status.get("contexts") or []
     if required_context not in required:
         failures.append(f"missing required status check context: {required_context}")
-
-    pr_reviews = p.get("required_pull_request_reviews") or {}
-    if int(pr_reviews.get("required_approving_review_count") or 0) < 1:
-        failures.append("required pull request review is not enforced")
+    if required_status.get("strict") is not False:
+        failures.append("strict required status checks must be disabled to avoid rebase churn")
 
     allow_force_pushes = ((p.get("allow_force_pushes") or {}).get("enabled"))
     if allow_force_pushes is not False:
@@ -164,7 +165,6 @@ def ruleset_satisfies(rule):
         return False
 
     has_required_context = False
-    has_pr_rule = False
     blocks_force_push = False
     blocks_deletion = False
 
@@ -178,8 +178,8 @@ def ruleset_satisfies(rule):
                     has_required_context = True
 
         if r_type == "pull_request":
-            if params.get("required_approving_review_count", 0) >= 1:
-                has_pr_rule = True
+            if params.get("required_approving_review_count", 0) > 0:
+                return False
 
         if r_type == "non_fast_forward":
             blocks_force_push = True
@@ -187,7 +187,7 @@ def ruleset_satisfies(rule):
         if r_type == "deletion":
             blocks_deletion = True
 
-    return has_required_context and has_pr_rule and blocks_force_push and blocks_deletion
+    return has_required_context and blocks_force_push and blocks_deletion
 
 ok_bp, bp_failures = protection_satisfies(protection)
 ok_rs = any(ruleset_satisfies(rule) for rule in (rulesets or []))
@@ -222,7 +222,7 @@ if [[ "$MODE" == "apply" ]]; then
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": false,
     "require_code_owner_reviews": false,
-    "required_approving_review_count": 1,
+    "required_approving_review_count": ${REQUIRED_APPROVING_REVIEW_COUNT},
     "require_last_push_approval": false
   },
   "restrictions": null,

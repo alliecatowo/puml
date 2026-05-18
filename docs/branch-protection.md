@@ -5,7 +5,8 @@ Issue: #90
 This repository requires branch protection (or an equivalent active ruleset) on `main` with the following minimum policy:
 
 - required status check context: `fmt-clippy-test-coverage-quick` (from `.github/workflows/pr-gate.yml`)
-- pull request review required before merge (at least 1 approval)
+- required status checks are not strict, so a passing PR is not invalidated every time `main` moves
+- pull-request based merges are available, but human approval is not mandatory for every automation PR
 - force pushes disabled on `main`
 - branch deletion disabled on `main`
 

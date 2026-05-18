@@ -103,10 +103,12 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
             render_salt_cell_svg(
                 &mut out,
                 cell.cell,
-                col_x,
-                row_y,
-                cell.width,
-                CELL_H,
+                SaltCellBox {
+                    x: col_x,
+                    y: row_y,
+                    w: cell.width,
+                    h: CELL_H,
+                },
                 cell.colspan,
                 &style,
             );
@@ -893,17 +895,23 @@ fn extract_salt_icon_names(text: &str) -> Vec<String> {
     names
 }
 
-/// Render a single salt cell into SVG, appending to `out`.
-fn render_salt_cell_svg(
-    out: &mut String,
-    cell: &SaltCellRender,
+#[derive(Debug, Clone, Copy)]
+struct SaltCellBox {
     x: i32,
     y: i32,
     w: i32,
     h: i32,
+}
+
+/// Render a single salt cell into SVG, appending to `out`.
+fn render_salt_cell_svg(
+    out: &mut String,
+    cell: &SaltCellRender,
+    cell_box: SaltCellBox,
     colspan: usize,
     style: &SaltRenderStyle,
 ) {
+    let SaltCellBox { x, y, w, h } = cell_box;
     if colspan > 1 {
         out.push_str(&format!(
             "<g data-salt-widget=\"table-span\" data-salt-colspan=\"{}\" data-salt-span-width=\"{}\">",
