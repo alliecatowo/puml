@@ -2595,16 +2595,15 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
         // Try the orthogonal path from graph_layout first.
         // Edge IDs are "r{rel_idx}" matching the gl_edges construction above.
-        let ortho_path_f64: Option<Vec<(i32, i32)>> =
-            if rel.direction.is_none() && !rel.hidden {
-                gl_result
-                    .edge_paths
-                    .get(&format!("r{rel_idx}"))
-                    .filter(|p| p.len() >= 2)
-                    .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
-            } else {
-                None
-            };
+        let ortho_path_f64: Option<Vec<(i32, i32)>> = if rel.direction.is_none() && !rel.hidden {
+            gl_result
+                .edge_paths
+                .get(&format!("r{rel_idx}"))
+                .filter(|p| p.len() >= 2)
+                .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+        } else {
+            None
+        };
 
         if let Some(orth_pts) = ortho_path_f64 {
             // ── Orthogonal polyline from layout engine ────────────────────────
@@ -2626,7 +2625,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
             // Label at midpoint of the longest horizontal segment; fall back to
             // the overall polyline midpoint when no horizontal segment exists.
-            let longest_horiz = orth_pts.windows(2).filter(|seg| seg[0].1 == seg[1].1).max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
+            let longest_horiz = orth_pts
+                .windows(2)
+                .filter(|seg| seg[0].1 == seg[1].1)
+                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
             let (lmx, lmy) = match longest_horiz {
                 Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
                 None => {
@@ -2672,7 +2674,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 // component box. Package frames are NOT used for the straight-line trigger
                 // (they're only used to improve L/Z route quality when routing is needed).
                 all_boxes.iter().any(|&(bx, by, bw, bh)| {
-                    if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th) {
+                    if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th)
+                    {
                         return false;
                     }
                     segment_intersects_rect(x1, y1, x2, y2, (bx, by, bw, bh))
