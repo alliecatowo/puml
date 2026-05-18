@@ -9,14 +9,15 @@ use super::builtins::{
 };
 use super::includes::{
     consume_preprocessor_block, eval_simple_arithmetic, evaluate_assert_expression,
-    evaluate_preprocess_expr, extract_url, fetch_url_include, find_matching_endfor,
-    find_matching_endwhile, parse_preprocess_directive, process_import_directive,
-    process_include_directive, process_include_many_directive,
+    evaluate_preprocess_expr, find_matching_endfor, find_matching_endwhile,
+    parse_preprocess_directive, process_import_directive, process_include_directive,
+    process_include_many_directive,
 };
 use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
 use super::{
-    ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
-    PreprocVariableScope, PreprocessDirective, MAX_INCLUDE_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
+    ConditionalFrame, MAX_INCLUDE_DEPTH, MAX_PREPROC_WHILE_ITERATIONS, ParseOptions,
+    PreprocCallableKind, PreprocLoopSignal, PreprocState, PreprocVariableScope,
+    PreprocessDirective,
 };
 
 pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
@@ -531,7 +532,9 @@ pub(super) fn preprocess_text(
                         {
                             return Err(Diagnostic::error_code(
                                 "E_INCLUDE_URL_UNSUPPORTED",
-                                format!("!includeurl URL targets are not supported in WASM: {raw_target}"),
+                                format!(
+                                    "!includeurl URL targets are not supported in WASM: {raw_target}"
+                                ),
                             ));
                         }
                     }

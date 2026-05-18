@@ -423,3 +423,68 @@ fn preprocessor_includeurl_directive_rejects_with_deterministic_code_when_flag_s
         .code(1)
         .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 }
+
+#[test]
+fn preprocessor_dynamic_call_error_paths_report_stable_codes() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\nA -> B : %call_user_func()\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_DYNAMIC_UNSUPPORTED"));
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\nA -> B : %call_user_func(\"\")\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_DYNAMIC_UNSUPPORTED"));
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin("@startuml\nA -> B : %call_user_func(\"MissingFn\")\n@enduml\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_CALL_UNKNOWN"));
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .write_stdin(
+            "@startuml\n!procedure Emit($from,$to)\n$from -> $to : from-proc\n!endprocedure\nA -> B : %call_user_func(\"Emit\", A, B)\n@enduml\n",
+        )
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E_PREPROC_DYNAMIC_UNSUPPORTED"));
+}
+
+#[test]
+fn preprocessor_builtin_edge_paths_and_foreach_pair_bindings_expand_deterministically() {
+    let src = "@startuml\n!$k = \"k\"\n!$pairs = %list(\"left,right\", \"up,down\")\n!foreach $idx,$val in %list(\"red\", \"blue\")\nAlice -> Bob : idx-$idx-$val\n!endfor\n!foreach $a,$b in $pairs\nAlice -> Bob : pair-$a-$b\n!endfor\nAlice -> Bob : %false_then_true($k)-%false_then_true($k)-%true_then_false($k)-%true_then_false($k)\nAlice -> Bob : [%chr(-1)]/%hex2dec(\"zz\")/%ord(\"\")/%dirpath(\"/tmp/demo/file.txt\")/%filename(\"/tmp/demo/file.txt\")/%filenameroot(\"/tmp/demo/file.txt\")\n@enduml\n";
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--dump", "ast", "--", "-"])
+        .write_stdin(src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        vec![
+            "idx-0-red",
+            "idx-1-blue",
+            "pair-0-left,right",
+            "pair-1-up,down",
+            "false-true-true-false",
+            "[]/0/0//tmp/demo/file.txt/file",
+        ]
+    );
+}
