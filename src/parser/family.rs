@@ -572,6 +572,16 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     }
     let (rhs, trailing_stereotype) = split_relation_trailing_stereotype(rhs);
     let (label, label_stereotype) = split_relation_label_stereotype(raw_label);
+    // Strip surrounding double-quotes from labels produced by preprocessor macro
+    // expansion (e.g. C4 Rel() emits `from --> to : "Label"` with quotes intact).
+    let label = label.map(|l| {
+        let t = l.trim().to_string();
+        if t.starts_with('"') && t.ends_with('"') && t.len() >= 2 {
+            t[1..t.len() - 1].to_string()
+        } else {
+            t
+        }
+    });
     let (lhs_core, left_cardinality, left_role) = parse_relation_side_annotations(lhs, true);
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
     let (lhs_core, left_lollipop) = strip_lollipop_endpoint(&lhs_core);

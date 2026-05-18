@@ -5057,14 +5057,14 @@ fn class_inheritance_example_renders_fixture_text_and_relations() {
     let svg = render_source_to_svg(&src).expect("class inheritance svg should render");
 
     for expected in [
-        "class Vehicle",
+        "Vehicle",
         "+make: String",
         "+model: String",
         "+start()",
-        "class Car",
+        "Car",
         "+doors: Int",
         "+drive()",
-        "class Truck",
+        "Truck",
         "+payload: Float",
         "+haul()",
     ] {
@@ -5462,8 +5462,9 @@ fn state_transitions_accept_short_and_directional_arrows() {
 fn activity_if_then_branch_label_is_preserved() {
     let src = "@startuml\nstart\nif (in stock?) then (yes)\n:Ship;\nelse (no)\n:Notify;\nendif\nstop\n@enduml\n";
     let svg = render_source_to_svg(src).expect("activity svg should render");
-    assert!(svg.contains("in stock? / yes"));
-    assert!(svg.contains("no"));
+    assert!(svg.contains("in stock?"), "condition text should appear in diamond");
+    assert!(svg.contains("yes"), "then-guard should appear on outgoing arrow");
+    assert!(svg.contains("no"), "else-guard should appear on outgoing arrow");
 }
 
 #[test]

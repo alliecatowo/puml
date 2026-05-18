@@ -131,7 +131,9 @@ fn render_for_salt_family_returns_stub_svg() {
 fn class_family_scope_and_hide_controls_affect_stub_output() {
     let src = "@startuml\nhide stereotype\nhide circle\nhide empty members\npackage Domain {\nnamespace Core {\nclass User {\n  <<Entity>>\n  ()\n  --\n  +id: UUID\n}\n}\n}\n@enduml\n";
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Class).unwrap();
-    assert!(svg.contains("class Domain::Core::User"));
+    // The `class` keyword is not part of the display label — only the identifier appears.
+    assert!(svg.contains("Domain::Core::User"));
+    assert!(!svg.contains("class Domain::Core::User"));
     assert!(svg.contains("+id: UUID"));
     assert!(!svg.contains("&lt;&lt;Entity&gt;&gt;"));
     assert!(!svg.contains("()"));

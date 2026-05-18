@@ -1236,6 +1236,68 @@ fn render_class_node(
         _ => "#f1f5f9",
     };
 
+    if matches!(node.kind, FamilyNodeKind::Actor) {
+        // Stick-figure rendering for actors in usecase diagrams.
+        let cx = x + w / 2;
+        let fig_top = y + 2;
+        // Head
+        out.push_str(&format!(
+            "<circle cx=\"{cx}\" cy=\"{head_cy}\" r=\"9\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            head_cy = fig_top + 9
+        ));
+        // Body
+        out.push_str(&format!(
+            "<line x1=\"{cx}\" y1=\"{by}\" x2=\"{cx}\" y2=\"{ey}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            by = fig_top + 18,
+            ey = fig_top + 32
+        ));
+        // Arms
+        out.push_str(&format!(
+            "<line x1=\"{ax1}\" y1=\"{ay}\" x2=\"{ax2}\" y2=\"{ay}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ax1 = cx - 12,
+            ay = fig_top + 24,
+            ax2 = cx + 12
+        ));
+        // Left leg
+        out.push_str(&format!(
+            "<line x1=\"{cx}\" y1=\"{ly}\" x2=\"{lx2}\" y2=\"{ley}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ly = fig_top + 32,
+            lx2 = cx - 10,
+            ley = fig_top + 44
+        ));
+        // Right leg
+        out.push_str(&format!(
+            "<line x1=\"{cx}\" y1=\"{ly}\" x2=\"{lx2}\" y2=\"{ley}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ly = fig_top + 32,
+            lx2 = cx + 10,
+            ley = fig_top + 44
+        ));
+        // Name below the figure
+        out.push_str(&format!(
+            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            escape_text(font_family),
+            title_font_size,
+            escape_text(&class_style.font_color),
+            ty = fig_top + 58,
+            name = escape_text(&node.name)
+        ));
+        // Stereotype / extra members below name
+        let mut member_y = fig_top + 72;
+        for member in &node.members {
+            let text = member.text.trim();
+            if text.is_empty() {
+                continue;
+            }
+            out.push_str(&format!(
+                "<text x=\"{cx}\" y=\"{member_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                escape_text(font_family),
+                escape_text(text)
+            ));
+            member_y += 14;
+        }
+        return;
+    }
+
     if matches!(node.kind, FamilyNodeKind::UseCase) {
         // Ellipse rendering for use cases
         let cx = x + w / 2;
@@ -1293,9 +1355,10 @@ fn render_class_node(
         x2 = x + w
     ));
 
-    // Header text: for Object render "name : Class" style if present; for now just name
+    // Header text: just the class name — the `class` keyword is NOT part of the
+    // display label (PlantUML shows only the identifier, never the keyword).
     let kind_prefix = match node.kind {
-        FamilyNodeKind::Class => "class ",
+        FamilyNodeKind::Class => "",
         FamilyNodeKind::Object => "",
         FamilyNodeKind::UseCase => "",
         _ => "",
@@ -1377,13 +1440,15 @@ fn render_class_node(
     }
 }
 
-/// Ensure C4 nodes have enough minimum height to render their visual elements.
+/// Ensure C4 and Actor nodes have enough minimum height to render their visual elements.
 fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
     match kind {
         // Person nodes need space for stick figure (44px) + body rect (≥50px)
         FamilyNodeKind::C4Person | FamilyNodeKind::C4PersonExt => computed.max(94),
         // All other C4 nodes need at least 60px for the label + type label
         k if is_c4_kind(k) => computed.max(60),
+        // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
+        FamilyNodeKind::Actor => computed.max(64),
         _ => computed,
     }
 }

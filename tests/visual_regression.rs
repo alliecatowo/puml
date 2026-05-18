@@ -432,7 +432,9 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
         required_text: &[
             "If-Then-Else Decision",
             "Receive Request",
-            "authenticated? / yes",
+            // Condition is inside the diamond; guard label floats on the arrow.
+            "authenticated?",
+            "yes",
             "(else) no",
             "Process",
             "Return 200",
