@@ -4488,7 +4488,36 @@ fn dump_capabilities_outputs_manifest_shape() {
     let json: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(json["server"], "puml-lsp");
     assert_eq!(json["protocol"], "3.17");
-    assert!(json["languageFeatures"].is_array());
+    assert!(json.get("languageFeatures").is_none());
+    assert_eq!(
+        json["current"]["diagnostics"]["status"],
+        Value::String("shipped".to_string())
+    );
+    let requests = json["current"]["requests"]
+        .as_array()
+        .expect("current request capabilities");
+    assert!(requests.iter().any(|request| {
+        request["method"] == "textDocument/completion"
+            && request["status"] == "shipped-limited"
+            && request["scope"]
+                .as_str()
+                .expect("completion scope")
+                .contains("not yet context-aware")
+    }));
+    assert!(requests.iter().any(|request| {
+        request["method"] == "textDocument/rename"
+            && request["scope"]
+                .as_str()
+                .expect("rename scope")
+                .contains("no semantic alias/display-name safety yet")
+    }));
+    assert_eq!(json["roadmap"]["trackingIssue"], "#190");
+    let roadmap = json["roadmap"]["features"]
+        .as_array()
+        .expect("roadmap features");
+    assert!(roadmap
+        .iter()
+        .any(|feature| feature["area"] == "semanticTokens"));
     assert!(json["customRequests"].is_array());
 }
 

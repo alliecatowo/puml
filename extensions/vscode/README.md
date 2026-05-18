@@ -27,6 +27,7 @@ From repository root:
 
 This verifies:
 - CLI capability manifest still advertises `puml.applyFormat` and `puml.renderSvg`.
+- CLI capability manifest marks completion, hover, references, rename, semantic tokens, formatting, and code actions with current limited scopes instead of full target parity.
 - Extension TypeScript build succeeds.
 - Preview implementation remains LSP-backed and does not reintroduce private parsing.
 

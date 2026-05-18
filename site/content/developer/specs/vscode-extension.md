@@ -6,7 +6,7 @@ weight = 60
 
 > Mirror of [`docs/specs/puml_vscode_extension_spec(1).md`](https://github.com/alliecatowo/puml/blob/main/docs/specs/puml_vscode_extension_spec(1).md) &mdash; the in-repo file is the source of truth.
 
-A first-class VS Code extension for native `puml` sequence diagrams: syntax highlighting, LSP autocomplete, diagnostics, hover, rename, live preview, Markdown preview rendering, exports, and visual editing hooks.
+A first-class VS Code extension for native `puml` sequence diagrams: syntax highlighting, diagnostics, a limited current LSP language-service surface, live preview, Markdown preview rendering, exports, and visual editing hooks. Family-aware autocomplete, hover, rename, semantic tokens, formatting, references, and code actions remain target-state unless called out in the current runtime snapshot.
 
 This is not a thin grammar extension. This is the desktop surface for the whole product.
 
@@ -34,7 +34,7 @@ Current baseline guardrails:
 
 - `./scripts/vscode-smoke.sh` checks `--dump-capabilities` includes `puml.applyFormat` and `puml.renderSvg`.
 - extension smoke script verifies preview stays LSP-backed, build artifact exists, and LSP startup fallback logic remains in place.
-- advanced VS Code features listed later in this spec stay target-state until landed in source + tests.
+- completion, hover, references, rename, semantic tokens, formatting, and code actions are only shipped to the limited scope described by `--dump-capabilities`; advanced VS Code features listed later in this spec stay target-state until landed in source + tests.
 
 ## Name
 
@@ -84,10 +84,10 @@ uml-sequence
 VS Code is where a large share of diagram authoring happens. `puml-vscode` makes sequence diagrams feel like code:
 
 - instant syntax highlighting
-- semantic highlighting from the real language server
+- semantic highlighting from the real language server once the semantic-token surface is promoted beyond the current limited tokenizer stream
 - diagnostics while typing
-- autocomplete for every primitive
-- hover docs for directives and arrows
+- family-aware autocomplete for every primitive
+- hover docs for directives, arrows, and family-specific constructs
 - go-to-definition and rename for participants and aliases
 - live SVG preview
 - Markdown preview rendering for `puml` fences
@@ -311,7 +311,7 @@ Rules:
 
 Desktop mode launches `puml-lsp` over stdio.
 
-Required capabilities:
+Target capabilities. Current shipped scope is the runtime snapshot above and the limited scopes emitted by `--dump-capabilities`:
 
 ```text
 textDocument/didOpen
@@ -842,11 +842,11 @@ Required sections:
 
 - Extension activates for `.puml`, `.plantuml`, and `.iuml`.
 - TextMate syntax highlighting works immediately.
-- Semantic highlighting works through LSP.
+- Semantic highlighting works through LSP after the semantic-token surface is promoted beyond the current limited tokenizer stream.
 - Native LSP starts on desktop.
 - WASM fallback works in VS Code Web.
 - Diagnostics report line/column and update while typing.
-- Completion, hover, definition, references, rename, code actions, folding, symbols, and semantic tokens work.
+- Completion, hover, definition, references, rename, code actions, folding, symbols, and semantic tokens work at the target depth defined in the LSP spec and #190.
 - Live preview renders SVG and updates on edit.
 - Markdown preview renders `puml` and `plantuml` fences inline.
 - Export commands work for SVG, PNG, PDF, source, and JSON model where supported.

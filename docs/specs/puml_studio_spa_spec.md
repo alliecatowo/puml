@@ -9,7 +9,7 @@ The site is the public proof that `puml` is not just a CLI. It should make the s
 `puml-studio` is the browser face of the product:
 
 - paste PlantUML-compatible sequence syntax
-- write with syntax highlighting, diagnostics, completions, and hover
+- write with syntax highlighting and diagnostics; completions and hover stay target-state until dedicated Studio/WASM exports land
 - build diagrams visually with WYSIWYG controls
 - render instantly through the same Rust engine as the CLI
 - apply polished style presets
@@ -292,6 +292,7 @@ family support table.
 - `--dump-capabilities` exposes the LSP capability manifest, including custom requests:
   - `puml.applyFormat`
   - `puml.renderSvg`
+- The same manifest marks completion, hover, references, rename, semantic tokens, formatting, and code actions as shipped-limited where handlers exist but family-aware/shared behavior is not complete.
 
 ### Studio binding guidance for current runtime
 
