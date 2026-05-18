@@ -869,8 +869,13 @@ fn compute_svg_dimensions(scene: &Scene) -> (String, String, String) {
 
 fn render_legend(out: &mut String, text: &str, scene: &Scene) {
     let lines: Vec<&str> = text.lines().collect();
-    let line_count = lines.len() as i32;
-    let box_width = 200_i32;
+    let line_count = lines.len().max(1) as i32;
+    let max_line_width = lines
+        .iter()
+        .map(|line| (line.chars().count() as i32) * 7)
+        .max()
+        .unwrap_or(0);
+    let box_width = (max_line_width + 16).max(200);
     let box_height = 24 + line_count * 16;
     let margin = 10_i32;
 

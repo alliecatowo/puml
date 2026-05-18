@@ -1444,6 +1444,52 @@ fn layout_overflow_bounds_keep_multi_target_note_and_over_group_in_view() {
 }
 
 #[test]
+fn layout_expands_width_for_long_header_and_footer_metadata() {
+    let src = "@startuml\nheader HEADER_WITH_A_VERY_LONG_METADATA_LINE_FOR_LAYOUT_GUARDRAIL_ABCDEFGHIJKLMNOPQRSTUVWXYZ\nfooter FOOTER_WITH_A_VERY_LONG_METADATA_LINE_FOR_LAYOUT_GUARDRAIL_ABCDEFGHIJKLMNOPQRSTUVWXYZ\nA -> B : ping\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    let margin = LayoutOptions::default().margin;
+    let max_metadata_right = scene
+        .header
+        .iter()
+        .chain(scene.footer.iter())
+        .flat_map(|label| {
+            label
+                .lines
+                .iter()
+                .map(|line| label.x + (line.chars().count() as i32 * 7) + margin)
+        })
+        .max()
+        .expect("expected metadata lines");
+    assert!(
+        scene.width >= max_metadata_right,
+        "scene width should include full header/footer metadata width"
+    );
+}
+
+#[test]
+fn layout_expands_width_for_long_legend_lines() {
+    let src = "@startuml\nlegend right\nLEGEND_WITH_A_VERY_LONG_LINE_THAT_MUST_BE_VISIBLE_WITHOUT_CANVAS_CLIPPING_ABCDEFGHIJKLMNOPQRSTUVWXYZ\nendlegend\nA -> B : ping\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    let margin = LayoutOptions::default().margin;
+    let legend_line = scene
+        .legend_text
+        .as_deref()
+        .and_then(|text| text.lines().next())
+        .expect("expected legend line");
+    let max_right = (legend_line.chars().count() as i32 * 7) + 16 + (margin * 2);
+    assert!(
+        scene.width >= max_right,
+        "scene width should include long legend text extent"
+    );
+}
+
+#[test]
 fn normalize_reports_group_unclosed_error() {
     let src = "@startuml\npar lane\nA -> B\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
