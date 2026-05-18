@@ -661,10 +661,25 @@ blockquote {
 .status-bar.bad .dot-status { background: var(--bad); }
 
 // CodeMirror tokens
-.cm-editor.cm-focused { outline: none; }
+.cm-editor.cm-focused {
+  // Replace outline: none with a visible accent ring so keyboard focus is
+  // always indicated (accessibility) while matching the site's design.
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .cm-editor {
   background: var(--code-bg);
   color: var(--text);
+}
+// Make the text cursor (caret) visible in all themes.  CodeMirror renders
+// its own caret element (.cm-cursor); the browser's native caret-color
+// applies to that element.  currentColor inherits the editor text colour,
+// which gives high contrast on both the dark and light themes.
+.cm-cursor, .cm-cursor-primary {
+  border-left-color: var(--accent) !important;
+}
+.cm-content {
+  caret-color: var(--accent);
 }
 .cm-gutters {
   background: var(--code-bg);
