@@ -355,15 +355,15 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let rendered_label = usecase_dependency.or(relation.label.as_deref());
         if let Some(label) = rendered_label {
             // For mostly-horizontal lines, place the label above the midpoint.
-            // For mostly-vertical lines, offset right to avoid overlapping the shaft.
-            // Clearance increased to 16px to reduce overlap with box headers (fix #469).
+            // For mostly-vertical lines, offset right and up to clear the arrowhead.
+            // Clearance: -12px above midpoint for both orientations (fix #462, #469).
             let dx_abs = (x2 - x1).abs();
             let dy_abs = (y2 - y1).abs();
             let (lx, ly) = if dy_abs > dx_abs {
-                // Mostly vertical: shift label right of midpoint
-                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 8)
+                // Mostly vertical: shift label right of midpoint with -12 clearance
+                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 12)
             } else {
-                // Mostly horizontal: place label above midpoint
+                // Mostly horizontal: place label above midpoint with -16 clearance
                 ((x1 + x2) / 2, (y1 + y2) / 2 - 16)
             };
             out.push_str(&format!(
@@ -2139,12 +2139,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         if let Some(label) = &rel.label {
             let label = usecase_dependency_label(Some(label)).unwrap_or(label);
             // For mostly-horizontal lines, place the label above the midpoint.
-            // For mostly-vertical lines, offset right to avoid overlapping the shaft.
-            // Clearance increased to 16px to reduce overlap with box headers (fix #469).
+            // For mostly-vertical lines, offset right and up to clear the arrowhead.
+            // Clearance: -12px above midpoint for both orientations (fix #462, #477).
             let dx_abs = (x2 - x1).abs();
             let dy_abs = (y2 - y1).abs();
             let (mx, my) = if dy_abs > dx_abs {
-                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 8)
+                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 12)
             } else {
                 ((x1 + x2) / 2, (y1 + y2) / 2 - 16)
             };
@@ -2573,12 +2573,20 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
         | FamilyNodeKind::StateHistory => label_y + 14,
         _ => y + 14,
     };
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
-        cx,
-        kind_tag_y,
-        kind_label
-    ));
+    // Suppress the kind-tag for package/rectangle/folder container nodes — they already
+    // show their label in a visual header/tab (fix #549).
+    let is_package_container = matches!(
+        node.kind,
+        FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
+    );
+    if !is_package_container {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">{}</text>",
+            cx,
+            kind_tag_y,
+            kind_label
+        ));
+    }
     render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
 }
 
@@ -2948,15 +2956,23 @@ fn render_family_node_shape_styled(
         FamilyNodeKind::Interface | FamilyNodeKind::Port => label_y + 14,
         _ => y + 14,
     };
-    // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525)
-    let kind_tag_text: std::borrow::Cow<str> = match node.kind {
-        FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
-        FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),
-        _ => std::borrow::Cow::Borrowed(kind_label),
-    };
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-        cx, kind_tag_y, escape_text(&comp_style.font_color), escape_text(&kind_tag_text)
-    ));
+    // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525).
+    // For Package and Rectangle container nodes, suppress the kind-tag entirely — these
+    // shapes display their label in a tab/header already (fix #549).
+    let is_package_container = matches!(
+        node.kind,
+        FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
+    );
+    if !is_package_container {
+        let kind_tag_text: std::borrow::Cow<str> = match node.kind {
+            FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
+            FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),
+            _ => std::borrow::Cow::Borrowed(kind_label),
+        };
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            cx, kind_tag_y, escape_text(&comp_style.font_color), escape_text(&kind_tag_text)
+        ));
+    }
     render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
 }
