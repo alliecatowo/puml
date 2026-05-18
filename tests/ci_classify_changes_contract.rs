@@ -53,6 +53,8 @@ fn site_content_changes_skip_full_rust_gate() {
         &[
             "run_full_gate=false",
             "docs_examples_changed=false",
+            "run_docs_examples_drift=false",
+            "run_wasm_check=false",
             "run_site_smoke=true",
             "run_wasm_site_smoke=false",
         ],
@@ -68,6 +70,8 @@ fn wasm_crate_changes_run_full_and_wasm_site_smoke() {
         &[
             "run_full_gate=true",
             "docs_examples_changed=false",
+            "run_docs_examples_drift=false",
+            "run_wasm_check=true",
             "run_site_smoke=true",
             "run_wasm_site_smoke=true",
         ],
@@ -83,7 +87,43 @@ fn docs_examples_changes_keep_drift_and_site_coverage() {
         &[
             "run_full_gate=true",
             "docs_examples_changed=true",
+            "run_docs_examples_drift=true",
+            "run_wasm_check=false",
             "run_site_smoke=true",
+            "run_wasm_site_smoke=false",
+        ],
+    );
+}
+
+#[test]
+fn rust_test_only_changes_skip_unrelated_expensive_shards() {
+    let output = classify(&["tests/integration.rs"]);
+
+    assert_output_contains(
+        &output,
+        &[
+            "run_full_gate=true",
+            "docs_examples_changed=false",
+            "run_docs_examples_drift=false",
+            "run_wasm_check=false",
+            "run_site_smoke=false",
+            "run_wasm_site_smoke=false",
+        ],
+    );
+}
+
+#[test]
+fn renderer_changes_keep_wasm_and_docs_example_drift_coverage() {
+    let output = classify(&["src/render/mod.rs"]);
+
+    assert_output_contains(
+        &output,
+        &[
+            "run_full_gate=true",
+            "docs_examples_changed=false",
+            "run_docs_examples_drift=true",
+            "run_wasm_check=true",
+            "run_site_smoke=false",
             "run_wasm_site_smoke=false",
         ],
     );
@@ -98,6 +138,8 @@ fn empty_change_sets_take_the_conservative_path() {
         &[
             "run_full_gate=true",
             "docs_examples_changed=false",
+            "run_docs_examples_drift=true",
+            "run_wasm_check=true",
             "run_site_smoke=true",
             "run_wasm_site_smoke=false",
         ],
