@@ -30,21 +30,35 @@ A few quick things to keep in mind:
 Closes #
 Refs #
 
-## Visual evidence (required for rendering changes)
+## Visual evidence
 
 <!--
-If this PR touches anything under src/render/, src/normalize/, src/parser/, src/layout/, src/theme/,
-or any *.puml fixture, embed a before/after PNG below. The reviewer needs to SEE the difference.
+For renderer / layout / theme / fixture changes, help the reviewer SEE the change.
 
-Render with:
-  ./target/release/puml --format png path/to/fixture.puml -o /tmp/after.png
+Easiest (humans dragging-and-dropping a PNG): paste an image directly into the table
+below — GitHub turns it into an attached upload.
 
-For multi-fixture changes, attach a small gallery.
+If you're an agent or working from CLI without browser access, prefer one of:
+  (a) commit the regenerated docs/diagrams/<name>.png alongside the SVG and link it here
+      as `![after](../docs/diagrams/<name>.png)`
+  (b) list the affected fixture paths and the render command — the reviewer can re-run
+
+Skip this section for pure-refactor / docs / CI PRs.
 -->
 
 | Before | After |
 |--------|-------|
-| (n/a)  | (n/a) |
+|        |       |
+
+**Affected fixtures / diagrams:**
+
+<!-- e.g. `docs/diagrams/architecture-overview.puml`, `docs/examples/class/12_all_relations.puml` -->
+
+**Render command:**
+
+```sh
+./target/release/puml --format png <fixture>.puml -o /tmp/after.png
+```
 
 ## Test plan
 
