@@ -73,5 +73,10 @@
 ## Publish Readiness
 
 - [ ] Changelog/release notes prepared.
+- [ ] Confirm crates.io metadata in `Cargo.toml` is current: description, MIT license, repository/homepage/docs links, keywords/categories, README, and `rust-version`.
+- [ ] Confirm the package allowlist still includes runtime assets required by the CLI/lib, especially `stdlib/**` for angle-bracket stdlib includes and `docs/examples/**` used by README imagery; files not listed in `package.include` are excluded from crates.io.
+- [ ] Preview the package contents before publishing: `cargo package --list`.
+- [ ] Verify install flow from the local package: `cargo install --path . --bin puml`.
+- [ ] Run crates.io publish validation without uploading: `cargo publish --dry-run`.
 - [ ] Tag/versioning workflow confirmed.
 - [ ] Final PR merged with green gate (PR gate + main gate).
