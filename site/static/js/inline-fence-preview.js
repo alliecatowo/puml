@@ -47,6 +47,7 @@ function hydrateFence(pre) {
   button.className = 'puml-fence-toggle puml-fence-bubble';
   button.setAttribute('aria-controls', panelId);
   button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-label', `Show rendered ${lang} graph`);
   button.setAttribute('aria-pressed', 'false');
   button.dataset.renderState = 'idle';
   button.title = `Show rendered ${lang} graph`;
@@ -78,6 +79,7 @@ function hydrateFence(pre) {
       wrapper.classList.remove('is-open');
       panel.hidden = true;
       button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-label', `Show rendered ${lang} graph`);
       button.setAttribute('aria-pressed', 'false');
       button.title = `Show rendered ${lang} graph`;
       setButtonLabel(button, 'Graph');
@@ -87,6 +89,7 @@ function hydrateFence(pre) {
     wrapper.classList.add('is-open');
     panel.hidden = false;
     button.setAttribute('aria-expanded', 'true');
+    button.setAttribute('aria-label', `Hide rendered ${lang} graph`);
     button.setAttribute('aria-pressed', 'true');
     button.title = `Hide rendered ${lang} graph`;
     setButtonLabel(button, 'Hide');
@@ -94,6 +97,7 @@ function hydrateFence(pre) {
     if (!hasRendered && !isRendering) {
       isRendering = true;
       button.dataset.renderState = 'loading';
+      setButtonLabel(button, 'Loading');
       renderLoading(panel);
       try {
         const result = await getEngine().render(source, { frontend: lang });
@@ -101,6 +105,7 @@ function hydrateFence(pre) {
           renderSvgs(panel, result.svgs);
           hasRendered = true;
           button.dataset.renderState = 'ready';
+          wrapper.dataset.rendered = 'true';
         } else {
           renderDiagnostic(panel, result.diagnostics?.[0]);
           button.dataset.renderState = 'error';
@@ -110,6 +115,9 @@ function hydrateFence(pre) {
         button.dataset.renderState = 'error';
       } finally {
         isRendering = false;
+        if (button.getAttribute('aria-expanded') === 'true') {
+          setButtonLabel(button, button.dataset.renderState === 'loading' ? 'Graph' : 'Hide');
+        }
       }
     }
   });
