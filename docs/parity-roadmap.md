@@ -6,7 +6,7 @@ Date: 2026-05-17
 
 This file records the parity mission, historical closure notes, and future
 execution slices. It is not the measured parity scoreboard. Current support
-status lives in `docs/audits/plantuml_parity_source_of_truth.md`, and measured
+status lives in `docs/internal/parity/plantuml_parity_source_of_truth.md`, and measured
 oracle evidence comes from JAR-backed `oracle-report-<run>` CI artifacts or a
 fresh local `PUML_ORACLE_JAR` run.
 
@@ -28,10 +28,10 @@ Product language policy baseline:
 
 ## Source Inputs
 
-- Current parity research: `docs/parity-research-chunk-g-sequence.md`
-- Frontend conformance contract matrix: `docs/plantuml_frontend_conformance_matrix.md`
-- Contract decisions: `docs/decision-log.md`
-- Coverage and test signals: `docs/coverage-status.md`, `tests/**`
+- Current parity research: `docs/internal/research/parity-research-chunk-g-sequence.md`
+- Frontend conformance contract matrix: `docs/internal/parity/plantuml_frontend_conformance_matrix.md`
+- Contract decisions: `docs/internal/architecture-decisions.md`
+- Coverage and test signals: `docs/internal/coverage-status.md`, `tests/**`
 - Existing fixture constraints for this track: `tests/fixtures/errors/` and `tests/fixtures/basic/` (only when needed)
 
 ## Delivery Principles
@@ -46,7 +46,7 @@ Product language policy baseline:
 ### Stage 0: Baseline and Harness Lock (Gate Before Feature Work)
 
 Items:
-1. Freeze parity target list from `docs/parity-research-chunk-g-sequence.md` into issue/checklist form.
+1. Freeze parity target list from `docs/internal/research/parity-research-chunk-g-sequence.md` into issue/checklist form.
 2. Confirm benchmark harness captures parser/render/check paths for current baseline binary.
 3. Document fixture naming rules for this track (`invalid_*` for error fixtures; `valid_*` for positive basic fixtures).
 4. Lock docs-example parity contract (`docs/examples/*.md` -> `.puml`/snippet -> `.svg` artifacts).

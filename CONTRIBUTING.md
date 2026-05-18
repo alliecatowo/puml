@@ -83,8 +83,7 @@ compatibility gap, failing test, docs task, CLI/site/LSP/WASM task, or
 release-blocking defect. When a discussion produces concrete follow-up work,
 open an issue and link back to the discussion.
 
-The full routing guide and maintainer setup notes live in
-[docs/discussions.md](docs/discussions.md).
+See [GitHub Discussions](https://github.com/alliecatowo/puml/discussions) for community routing.
 
 ---
 

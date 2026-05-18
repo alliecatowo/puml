@@ -33,7 +33,7 @@
 - [ ] `./scripts/autonomy-check.sh` passes.
 - [ ] `agent-pack` manifest/runtime contracts stay in sync (`validate_agent_pack.py`).
 - [ ] Docs updated for command or contract changes.
-- [ ] Any intentional contract deviation logged in `docs/decision-log.md`.
+- [ ] Any intentional contract deviation logged in `docs/internal/architecture-decisions.md`.
 
 ## Issues and discussions
 
@@ -45,8 +45,7 @@ Open an issue when there is a concrete bug, compatibility gap, docs task,
 tooling task, or regression that someone can act on. Link back to the
 discussion when a thread turns into follow-up work.
 
-See [docs/discussions.md](discussions.md) for the full routing guide and
-maintainer setup notes.
+See [GitHub Discussions](https://github.com/alliecatowo/puml/discussions) for community conversation.
 
 ## Safety Constraints
 

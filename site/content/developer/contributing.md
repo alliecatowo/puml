@@ -56,7 +56,7 @@ When you commit a new `.puml`, commit the matching `.svg` artifact alongside it.
 
 ## Branch protection
 
-The branch-protection contract is documented in [`docs/branch-protection.md`](https://github.com/alliecatowo/puml/blob/main/docs/branch-protection.md) and validated by:
+The branch-protection contract is documented in [`docs/internal/branch-protection.md`](https://github.com/alliecatowo/puml/blob/main/docs/internal/branch-protection.md) and validated by:
 
 ```bash
 ./scripts/branch-protection.sh verify

@@ -4,7 +4,7 @@ This directory is the canonical docs-as-tests corpus consumed by `scripts/parity
 The corpus is executable documentation and parity evidence, but it is not proof
 of full PlantUML 1:1 parity and is not the source of truth for support status.
 The canonical current status is
-[`docs/audits/plantuml_parity_source_of_truth.md`](../audits/plantuml_parity_source_of_truth.md),
+[`docs/internal/parity/plantuml_parity_source_of_truth.md`](../internal/parity/plantuml_parity_source_of_truth.md),
 where support is tracked conservatively as `implemented`, `partial`, or `missing`.
 
 ## Corpus location and size
