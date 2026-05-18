@@ -1,0 +1,69 @@
+name: Install wasm-pack
+description: >
+  Download a pinned version of wasm-pack from GitHub Releases, SHA-256-verify
+  it, extract the binary, and add it to PATH. Avoids the unversioned
+  curl|sh installer (issue #453).
+
+inputs:
+  version:
+    description: wasm-pack version to install (without leading "v")
+    required: false
+    default: "0.15.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Install wasm-pack (pinned, verified)
+      shell: bash
+      env:
+        WASM_PACK_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        # Resolve architecture to the correct release tarball name.
+        ARCH="$(uname -m)"
+        case "${ARCH}" in
+          x86_64)
+            TRIPLE="x86_64-unknown-linux-musl"
+            # SHA-256 of wasm-pack-v0.15.0-x86_64-unknown-linux-musl.tar.gz
+            # Computed: curl -fsSL <url> | sha256sum
+            EXPECTED_SHA256="c09f971ecaed9a2efc80fdcea7a00ef6b53c7fadc8c57d1f61b53a6aa66b668a"
+            ;;
+          aarch64)
+            TRIPLE="aarch64-unknown-linux-musl"
+            # SHA-256 of wasm-pack-v0.15.0-aarch64-unknown-linux-musl.tar.gz
+            # Computed: curl -fsSL <url> | sha256sum
+            EXPECTED_SHA256="e17ef0806381c3a0acb9c9ddad643a49facaa5a2ecf657a421d4d8f3357a24b7"
+            ;;
+          *)
+            echo "[install-wasm-pack] Unsupported architecture: ${ARCH}" >&2
+            exit 1
+            ;;
+        esac
+
+        TARBALL="wasm-pack-v${WASM_PACK_VERSION}-${TRIPLE}.tar.gz"
+        DOWNLOAD_URL="https://github.com/wasm-bindgen/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${TARBALL}"
+        INSTALL_DIR="${RUNNER_TEMP}/wasm-pack-${WASM_PACK_VERSION}"
+        mkdir -p "${INSTALL_DIR}"
+        TARBALL_PATH="${INSTALL_DIR}/${TARBALL}"
+
+        echo "[install-wasm-pack] Downloading wasm-pack v${WASM_PACK_VERSION} (${TRIPLE})..."
+        curl -fsSL "${DOWNLOAD_URL}" -o "${TARBALL_PATH}"
+
+        # SHA-256 verification — hard fail on mismatch.
+        echo "${EXPECTED_SHA256}  ${TARBALL_PATH}" | sha256sum --check --strict
+        echo "[install-wasm-pack] SHA-256 verified."
+
+        tar -xzf "${TARBALL_PATH}" -C "${INSTALL_DIR}"
+
+        # The tarball extracts to a directory named after the triple; find the binary.
+        BINARY_PATH="$(find "${INSTALL_DIR}" -name "wasm-pack" -type f | head -n1)"
+        if [[ -z "${BINARY_PATH}" ]]; then
+          echo "[install-wasm-pack] ERROR: wasm-pack binary not found after extraction." >&2
+          exit 1
+        fi
+        chmod +x "${BINARY_PATH}"
+        BIN_DIR="$(dirname "${BINARY_PATH}")"
+        echo "${BIN_DIR}" >> "${GITHUB_PATH}"
+
+        echo "[install-wasm-pack] Installed: $(${BINARY_PATH} --version)"
