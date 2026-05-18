@@ -260,7 +260,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .unwrap_or(min_day.saturating_add(1));
     let total_days = max_day_exclusive.saturating_sub(min_day).max(1);
     let date_axis = document.project_start_day.is_some() || min_day > 366;
-    let tick_offsets = gantt_tick_offsets(total_days, document.scale.as_deref());
+    let tick_offsets = gantt_tick_offsets_for_width(total_days, document.scale.as_deref(), chart_w);
 
     // Axis header bar
     out.push_str(&format!(
@@ -729,23 +729,37 @@ fn timeline_entity_x(
     fallback
 }
 
-fn gantt_tick_offsets(total_days: u32, scale: Option<&str>) -> Vec<u32> {
+/// Compute tick offsets for the gantt date-header axis.
+///
+/// `chart_w` is the pixel width of the chart area. Each date label needs
+/// roughly 72 px (10 chars × ~7 px each, plus a few px gap). We pick the
+/// smallest stride from `[1, 2, 3, 7, 14, 30, 90, 180, 365]` that keeps
+/// the number of ticks ≤ `chart_w / label_px`, then fall back to the
+/// explicit `scale` override.
+fn gantt_tick_offsets_for_width(total_days: u32, scale: Option<&str>, chart_w: i32) -> Vec<u32> {
+    // Approximate pixel width of a single date label (YYYY-MM-DD + small gap)
+    const LABEL_PX: i32 = 72;
+
     let step = match scale {
         Some("weekly") => 7,
         Some("monthly") => 30,
         Some("quarterly") => 90,
         Some("yearly") => 365,
-        _ => 1,
+        // No explicit scale: auto-select the smallest stride that avoids overlap
+        _ => {
+            let max_ticks = (chart_w / LABEL_PX).max(2) as u32;
+            let candidates = [1u32, 2, 3, 7, 14, 30, 90, 180, 365];
+            candidates
+                .into_iter()
+                .find(|&s| total_days.div_ceil(s) <= max_ticks)
+                .unwrap_or(365)
+        }
     };
     let mut offsets = Vec::new();
     let mut offset = 0u32;
     while offset < total_days {
         offsets.push(offset);
         offset = offset.saturating_add(step);
-        if offsets.len() >= 8 && offset < total_days {
-            let remaining = total_days.saturating_sub(offset).max(1);
-            offset = offset.saturating_add(remaining.div_ceil(8));
-        }
     }
     if offsets.last().copied() != Some(total_days) {
         offsets.push(total_days);
