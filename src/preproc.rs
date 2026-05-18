@@ -2,9 +2,13 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
+use std::io::Read;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 use std::path::PathBuf;
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
+use std::time::Duration;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use sha2::{Digest, Sha256};
@@ -15,6 +19,10 @@ const MAX_INCLUDE_DEPTH: usize = 32;
 const MAX_PREPROC_WHILE_ITERATIONS: usize = 10_000;
 const MAX_PREPROC_CALL_DEPTH: usize = 32;
 const MAX_PREPROC_MACRO_EXPANSION_BYTES: usize = 64 * 1024;
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
+const URL_INCLUDE_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
+const URL_INCLUDE_MAX_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct IncludeTarget {
@@ -2214,31 +2222,7 @@ fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
         }
 
         // Fetch via HTTP(S).
-        let response = ureq::get(url).call().map_err(|e| {
-            Diagnostic::error_code(
-                "E_INCLUDE_URL_FETCH",
-                format!("failed to fetch '{}': {e}", url),
-            )
-        })?;
-
-        if response.status() < 200 || response.status() >= 300 {
-            return Err(Diagnostic::error_code(
-                "E_INCLUDE_URL_FETCH",
-                format!(
-                    "HTTP {} fetching '{}': {}",
-                    response.status(),
-                    url,
-                    response.status_text()
-                ),
-            ));
-        }
-
-        let content = response.into_string().map_err(|e| {
-            Diagnostic::error_code(
-                "E_INCLUDE_URL_FETCH",
-                format!("failed to read response body from '{}': {e}", url),
-            )
-        })?;
+        let content = fetch_http_url_include(url)?;
 
         // Write to cache (best-effort; failures are non-fatal).
         if let Some(parent) = cache_path.parent() {
@@ -2249,32 +2233,100 @@ fn fetch_url_include(url: &str) -> Result<String, Diagnostic> {
         Ok(content)
     } else {
         // No cache path available; fetch directly without caching.
-        let response = ureq::get(url).call().map_err(|e| {
+        fetch_http_url_include(url)
+    }
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
+fn fetch_http_url_include(url: &str) -> Result<String, Diagnostic> {
+    let response = ureq::builder()
+        .redirects(0)
+        .timeout_connect(URL_INCLUDE_TIMEOUT)
+        .timeout_read(URL_INCLUDE_TIMEOUT)
+        .timeout_write(URL_INCLUDE_TIMEOUT)
+        .build()
+        .get(url)
+        .call()
+        .map_err(|e| {
             Diagnostic::error_code(
                 "E_INCLUDE_URL_FETCH",
                 format!("failed to fetch '{}': {e}", url),
             )
         })?;
 
-        if response.status() < 200 || response.status() >= 300 {
-            return Err(Diagnostic::error_code(
-                "E_INCLUDE_URL_FETCH",
-                format!(
-                    "HTTP {} fetching '{}': {}",
-                    response.status(),
-                    url,
-                    response.status_text()
-                ),
-            ));
-        }
-
-        response.into_string().map_err(|e| {
-            Diagnostic::error_code(
-                "E_INCLUDE_URL_FETCH",
-                format!("failed to read response body from '{}': {e}", url),
-            )
-        })
+    if (300..400).contains(&response.status()) {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_URL_REDIRECT",
+            format!(
+                "redirects are not followed for URL include '{}': HTTP {} {}",
+                url,
+                response.status(),
+                response.status_text()
+            ),
+        ));
     }
+
+    if response.status() < 200 || response.status() >= 300 {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_URL_FETCH",
+            format!(
+                "HTTP {} fetching '{}': {}",
+                response.status(),
+                url,
+                response.status_text()
+            ),
+        ));
+    }
+
+    read_limited_url_include_body(url, response)
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
+fn read_limited_url_include_body(
+    url: &str,
+    response: ureq::Response,
+) -> Result<String, Diagnostic> {
+    if let Some(length) = response
+        .header("content-length")
+        .and_then(|value| value.parse::<usize>().ok())
+    {
+        if length > URL_INCLUDE_MAX_BYTES {
+            return Err(url_include_too_large(url, length));
+        }
+    }
+
+    let mut bytes = Vec::new();
+    let mut reader = response
+        .into_reader()
+        .take((URL_INCLUDE_MAX_BYTES + 1) as u64);
+    reader.read_to_end(&mut bytes).map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_URL_FETCH",
+            format!("failed to read response body from '{}': {e}", url),
+        )
+    })?;
+
+    if bytes.len() > URL_INCLUDE_MAX_BYTES {
+        return Err(url_include_too_large(url, bytes.len()));
+    }
+
+    String::from_utf8(bytes).map_err(|e| {
+        Diagnostic::error_code(
+            "E_INCLUDE_URL_FETCH",
+            format!("failed to decode response body from '{}': {e}", url),
+        )
+    })
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
+fn url_include_too_large(url: &str, bytes: usize) -> Diagnostic {
+    Diagnostic::error_code(
+        "E_INCLUDE_URL_TOO_LARGE",
+        format!(
+            "URL include '{}' is too large: {bytes} bytes exceeds the {URL_INCLUDE_MAX_BYTES} byte limit",
+            url
+        ),
+    )
 }
 
 #[cfg(not(all(not(target_arch = "wasm32"), feature = "url-includes")))]

@@ -4,6 +4,8 @@
 /// - `file://` URL shortcut resolution (no real network needed)
 /// - HTTP fetch via a local httpmock server (no real network needed)
 /// - Cache hit on second render produces byte-identical SVG with no second network call
+/// - Redirects and oversized HTTP responses are rejected before caching
+/// - `--no-url-includes` CLI flag produces E_INCLUDE_URL_DISABLED diagnostic
 /// - URL includes are denied by default and allowed only with `--allow-url-includes`
 use assert_cmd::Command;
 use httpmock::prelude::*;
@@ -173,6 +175,79 @@ fn include_http_404_produces_clear_diagnostic() {
                     .or(predicate::str::contains("HTTP")),
             ),
         );
+}
+
+#[test]
+fn include_http_redirect_is_rejected_without_following_location() {
+    let server = MockServer::start();
+
+    let redirect_mock = server.mock(|when, then| {
+        when.method(GET).path("/redirect.puml");
+        then.status(302)
+            .header("location", "/target.puml")
+            .body("redirecting");
+    });
+
+    let target_mock = server.mock(|when, then| {
+        when.method(GET).path("/target.puml");
+        then.status(200).body("A -> B : should_not_fetch\n");
+    });
+
+    let url = server.url("/redirect.puml");
+    let dir = tempdir().unwrap();
+
+    let cache_path = url_cache_path_for(&url);
+    if let Some(ref p) = cache_path {
+        let _ = fs::remove_file(p);
+    }
+
+    let fixture = write_include_fixture(dir.path(), &url);
+
+    Command::cargo_bin("puml")
+        .unwrap()
+        .arg("--check")
+        .arg("--allow-url-includes")
+        .arg(&fixture)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("E_INCLUDE_URL_REDIRECT"));
+
+    redirect_mock.assert_hits(1);
+    target_mock.assert_hits(0);
+}
+
+#[test]
+fn include_http_response_larger_than_cap_is_rejected() {
+    let server = MockServer::start();
+    let body = "A".repeat(1024 * 1024 + 1);
+
+    let _mock = server.mock(|when, then| {
+        when.method(GET).path("/large.puml");
+        then.status(200)
+            .header("content-type", "text/plain")
+            .body(body);
+    });
+
+    let url = server.url("/large.puml");
+    let dir = tempdir().unwrap();
+
+    let cache_path = url_cache_path_for(&url);
+    if let Some(ref p) = cache_path {
+        let _ = fs::remove_file(p);
+    }
+
+    let fixture = write_include_fixture(dir.path(), &url);
+
+    Command::cargo_bin("puml")
+        .unwrap()
+        .arg("--check")
+        .arg("--allow-url-includes")
+        .arg(&fixture)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("E_INCLUDE_URL_TOO_LARGE"));
+
+    _mock.assert_hits(1);
 }
 
 // ---------------------------------------------------------------------------
