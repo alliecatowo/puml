@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Classify changed files for CI gate routing."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+
+DOCS_SITE_FILES = {
+    "README.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+}
+
+SITE_SMOKE_FILES = {
+    "scripts/build-site.mjs",
+    "scripts/mirror-specs.mjs",
+    "scripts/site-smoke.sh",
+    "site/scripts/smoke-inline-fence-preview.mjs",
+}
+
+WASM_SITE_FILES = {
+    "scripts/wasm-smoke.mjs",
+    "site/static/js/inline-fence-preview.js",
+    "site/static/js/wasm-renderer.js",
+}
+
+FULL_GATE_EXACT = {
+    "Cargo.toml",
+    "Cargo.lock",
+    "scripts/check-all.sh",
+    "scripts/bench.sh",
+    "scripts/bench_gate.py",
+    "scripts/ci-classify-changes.py",
+    ".github/workflows/pr-gate.yml",
+}
+
+FULL_GATE_PREFIXES = (
+    "src/",
+    "tests/",
+    "stdlib/",
+)
+
+
+def is_markdown(path: str) -> bool:
+    return path.endswith(".md")
+
+
+def is_site_path(path: str) -> bool:
+    return path == "site" or path.startswith("site/")
+
+
+def classify(paths: list[str]) -> dict[str, bool]:
+    run_full_gate = False
+    docs_examples_changed = False
+    run_site_smoke = False
+    run_wasm_site_smoke = False
+
+    for path in paths:
+        if not path:
+            continue
+
+        if path.startswith("docs/examples/"):
+            run_full_gate = True
+            docs_examples_changed = True
+            run_site_smoke = True
+            continue
+
+        if path.startswith("crates/puml-wasm/"):
+            run_full_gate = True
+            run_site_smoke = True
+            run_wasm_site_smoke = True
+            continue
+
+        if path in WASM_SITE_FILES:
+            run_site_smoke = True
+            run_wasm_site_smoke = True
+            continue
+
+        if is_site_path(path) or path in SITE_SMOKE_FILES or path.startswith("docs/specs/"):
+            run_site_smoke = True
+            continue
+
+        if path in DOCS_SITE_FILES or path.startswith("docs/") or is_markdown(path):
+            run_site_smoke = True
+            continue
+
+        if path in FULL_GATE_EXACT or path.startswith(FULL_GATE_PREFIXES):
+            run_full_gate = True
+            continue
+
+        run_full_gate = True
+
+    if not paths:
+        run_full_gate = True
+        run_site_smoke = True
+
+    return {
+        "run_full_gate": run_full_gate,
+        "docs_examples_changed": docs_examples_changed,
+        "run_site_smoke": run_site_smoke,
+        "run_wasm_site_smoke": run_wasm_site_smoke,
+    }
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--changed-files",
+        type=Path,
+        help="newline-delimited changed file list; stdin is used when omitted",
+    )
+    parser.add_argument(
+        "--github-output",
+        type=Path,
+        help="append key=value outputs for GitHub Actions",
+    )
+    return parser.parse_args()
+
+
+def read_paths(path: Path | None) -> list[str]:
+    text = path.read_text(encoding="utf-8") if path else input_stream()
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def input_stream() -> str:
+    import sys
+
+    return sys.stdin.read()
+
+
+def bool_text(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def main() -> int:
+    args = parse_args()
+    outputs = classify(read_paths(args.changed_files))
+    lines = [f"{key}={bool_text(value)}" for key, value in outputs.items()]
+
+    for line in lines:
+        print(line)
+
+    if args.github_output:
+        with args.github_output.open("a", encoding="utf-8") as handle:
+            for line in lines:
+                handle.write(f"{line}\n")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
