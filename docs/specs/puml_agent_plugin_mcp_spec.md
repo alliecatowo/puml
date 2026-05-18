@@ -17,6 +17,8 @@ The sections below specify the target package. The current shipped runtime surfa
 - MCP contract + runtime bridge:
   - `agent-pack/.mcp.json`
   - `agent-pack/bin/puml-mcp`
+- LSP contract:
+  - `agent-pack/.lsp.json`
 - shared skills:
   - `skills/puml-sequence-author`
   - `skills/puml-sequence-reviewer`
@@ -26,7 +28,8 @@ The sections below specify the target package. The current shipped runtime surfa
 
 Current baseline constraints:
 
-- v0.0.1 does not yet ship packaged `.lsp.json`/bundled LSP host wiring in `agent-pack`.
+- v0.0.1 ships `.lsp.json` host wiring metadata for `bin/puml-lsp`; release archives
+  may still depend on the host to provide or map the actual binary.
 - `scripts/validate_agent_pack.py` validates manifest keys, marketplace metadata, and MCP runtime/spec contract parity.
 - `agent-pack/tests/mcp_smoke.sh` and `scripts/harness-check.sh` exercise MCP baseline behavior and parity harness integration.
 
