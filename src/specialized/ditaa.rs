@@ -748,18 +748,21 @@ fn render_ditaa_inner(
     }
 
     // ── Pass 4: render unclaimed text ─────────────────────────────────────────
+    // Collect consecutive printable characters into runs so they render as a
+    // single <text> element instead of one per glyph (fixes #523 "A u t h" spacing).
 
     for (row_idx, row) in lines.iter().enumerate() {
+        let ty = margin + title_h + row_idx as i32 * cell_h + cell_h - 3;
+        let mut run_start_col: Option<usize> = None;
+        let mut run_text = String::new();
+
         for (c, &ch) in row.iter().enumerate() {
             // Skip if inside a shape region
             let in_shape = shapes
                 .iter()
                 .any(|s| row_idx >= s.r1 && row_idx <= s.r2 && c >= s.c1 && c <= s.c2);
-            if in_shape {
-                continue;
-            }
-            // Skip structural chars and arrows
-            if matches!(
+            // Structural chars break a run
+            let is_structural = in_shape || matches!(
                 ch,
                 '+' | '-'
                     | '|'
@@ -769,21 +772,51 @@ fn render_ditaa_inner(
                     | '<'
                     | 'v'
                     | '^'
-                    | ' '
                     | '~'
                     | '('
                     | ')'
                     | '/'
                     | '\\'
-            ) {
+            );
+            if is_structural {
+                // Flush current run
+                if let Some(sc) = run_start_col.take() {
+                    let run_trimmed = run_text.trim_end().to_string();
+                    if !run_trimmed.is_empty() {
+                        let tx = margin + sc as i32 * cell_w;
+                        out.push_str(&format!(
+                            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#222\" xml:space=\"preserve\">{}</text>",
+                            tx, ty, escape_xml(&run_trimmed)
+                        ));
+                    }
+                    run_text.clear();
+                }
                 continue;
             }
-            let tx = margin + c as i32 * cell_w;
-            let ty = margin + title_h + row_idx as i32 * cell_h + cell_h - 3;
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#222\">{}</text>",
-                tx, ty, escape_xml(&ch.to_string())
-            ));
+            // Space: include in an ongoing run to preserve intra-word spacing,
+            // but don't start a new run with a leading space.
+            if ch == ' ' {
+                if run_start_col.is_some() {
+                    run_text.push(' ');
+                }
+                continue;
+            }
+            if run_start_col.is_none() {
+                run_start_col = Some(c);
+            }
+            run_text.push(ch);
+        }
+        // Flush trailing run
+        if let Some(sc) = run_start_col.take() {
+            let run_trimmed = run_text.trim_end().to_string();
+            if !run_trimmed.is_empty() {
+                let tx = margin + sc as i32 * cell_w;
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#222\" xml:space=\"preserve\">{}</text>",
+                    tx, ty, escape_xml(&run_trimmed)
+                ));
+            }
+            run_text.clear();
         }
     }
 
