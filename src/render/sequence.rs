@@ -309,14 +309,17 @@ pub fn render_svg(scene: &Scene) -> String {
             // and not a squished rectangle.  32 px gives ample visual depth
             // while still fitting inside the allocated message row.
             let loop_h = 32;
+            let head_base_x = m.x1 + 8;
             // Three-segment UML self-call: right → down → back-left to lifeline.
+            // Stop the bottom segment at the arrowhead base so the head remains
+            // visually distinct instead of collapsing into an open rectangle.
             out.push_str(&format!(
                 "<path{} d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
                 style_attrs,
                 m.x1, line_y,
                 loop_x2, line_y,
                 loop_x2, line_y + loop_h,
-                m.x1, line_y + loop_h,
+                head_base_x, line_y + loop_h,
                 stroke_color,
                 stroke_width,
                 stroke_dash,
@@ -332,17 +335,16 @@ pub fn render_svg(scene: &Scene) -> String {
             let open_head = m.arrow.contains(">>") || m.arrow.contains("<<");
             let tip_x = m.x1;
             let tip_y = line_y + loop_h;
-            let back_x = tip_x + 8; // back is to the right
             if open_head {
                 out.push_str(&format!(
                     "<polyline points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
-                    back_x, tip_y - 5, tip_x, tip_y, back_x, tip_y + 5,
+                    head_base_x, tip_y - 5, tip_x, tip_y, head_base_x, tip_y + 5,
                     stroke_color, head_stroke_width, hidden
                 ));
             } else {
                 out.push_str(&format!(
                     "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
-                    tip_x, tip_y, back_x, tip_y - 5, back_x, tip_y + 5,
+                    tip_x, tip_y, head_base_x, tip_y - 5, head_base_x, tip_y + 5,
                     arrow_fill, stroke_color, head_stroke_width, hidden
                 ));
             }
