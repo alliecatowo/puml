@@ -1682,6 +1682,47 @@ fn overflow_svg_text_positions_stay_within_associated_rects() {
 }
 
 #[test]
+fn class_stereotype_edge_labels_clear_adjacent_class_boxes() {
+    let src = r#"@startuml
+class UserController <<controller>>
+class UserService <<service>>
+class UserRepository <<repository>>
+class User <<entity>>
+UserController --> UserService : delegates
+UserService --> UserRepository : persists
+UserRepository --> User : maps
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("render should succeed");
+    let mut outer_rects = parse_svg_rects(&svg)
+        .into_iter()
+        .filter(|rect| rect.fill == "#ffffff" && rect.width == 160 && rect.height == 52)
+        .collect::<Vec<_>>();
+    outer_rects.sort_by_key(|rect| rect.y);
+    assert!(
+        outer_rects.len() >= 3,
+        "expected at least three class outer rects, got {}",
+        outer_rects.len()
+    );
+
+    let texts = parse_svg_texts(&svg);
+    for (label, upper_idx, lower_idx) in [("delegates", 0usize, 1usize), ("persists", 1, 2)] {
+        let text = texts
+            .iter()
+            .find(|text| text.text == label)
+            .unwrap_or_else(|| panic!("missing relation label {label}"));
+        let clearance_left = text.x - ((label.chars().count() as i32) * 3).max(18);
+        let blocked_right_edge = (outer_rects[upper_idx].x + outer_rects[upper_idx].width)
+            .max(outer_rects[lower_idx].x + outer_rects[lower_idx].width);
+        assert!(
+            clearance_left >= blocked_right_edge + 8,
+            "label {label} should clear adjacent class boxes by 8px: left edge {clearance_left}, blocked edge {}",
+            blocked_right_edge
+        );
+    }
+}
+
+#[test]
 fn render_svg_wraps_long_message_labels_without_viewbox_clipping() {
     let src = fixture("overflow/overflow_message_labels.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");

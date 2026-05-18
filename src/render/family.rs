@@ -780,6 +780,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             label_mx = (x1 + x2) / 2;
             label_my = (y1 + y2) / 2 - 12;
         }
+        let edge_dx = x2 - x1;
+        let edge_dy = y2 - y1;
 
         // Anchor points for cardinality / role labels (always from port anchors).
         if relation.left_lollipop {
@@ -868,6 +870,21 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 }
             };
             let label_half_w = ((label.chars().count() as i32) * 3).max(18);
+            let corridor_left = from.x.max(to.x);
+            let corridor_right = (from.x + from.w).min(to.x + to.w);
+            let lx = if edge_dy.abs() > edge_dx.abs()
+                && corridor_left < corridor_right
+                && lx > corridor_left - 8 - label_half_w
+                && lx < corridor_right + 8 + label_half_w
+            {
+                if x2 >= x1 {
+                    corridor_right + 8 + label_half_w
+                } else {
+                    corridor_left - 8 - label_half_w
+                }
+            } else {
+                lx
+            };
             let lx = lx.clamp(
                 margin_x + 8 + label_half_w,
                 svg_width - margin_x - 8 - label_half_w,
@@ -906,6 +923,21 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 }
             };
             let label_half_w = ((label.chars().count() as i32) * 3).max(18);
+            let corridor_left = from.x.max(to.x);
+            let corridor_right = (from.x + from.w).min(to.x + to.w);
+            let lx = if edge_dy.abs() > edge_dx.abs()
+                && corridor_left < corridor_right
+                && lx > corridor_left - 8 - label_half_w
+                && lx < corridor_right + 8 + label_half_w
+            {
+                if x2 >= x1 {
+                    corridor_right + 8 + label_half_w
+                } else {
+                    corridor_left - 8 - label_half_w
+                }
+            } else {
+                lx
+            };
             let lx = lx.clamp(
                 margin_x + 8 + label_half_w,
                 svg_width - margin_x - 8 - label_half_w,
