@@ -369,7 +369,69 @@ pub(super) fn expand_preprocessor_text(
 ) -> Result<String, Diagnostic> {
     let substituted = collapse_macro_concat(&substitute_tokens_and_vars(raw_line, state)?);
     let expanded = expand_function_invocations(&substituted, state, call_depth)?;
-    Ok(collapse_macro_concat(&expanded))
+    let collapsed = collapse_macro_concat(&expanded);
+    // Evaluate string concatenation expressions like `"Alice" + " calls " + "Bob"` (#582).
+    // This is needed when a !function !return expression uses `+` to join quoted strings.
+    Ok(eval_string_concat(&collapsed))
+}
+
+/// Evaluate a `+`-joined sequence of quoted string literals.
+/// Returns the collapsed string (with outer quotes stripped) if the entire
+/// expression is composed of quoted segments; otherwise returns the input unchanged.
+pub(super) fn eval_string_concat(expr: &str) -> String {
+    let trimmed = expr.trim();
+    // Fast path: no `+` operator outside quotes → nothing to do.
+    if !trimmed.contains('+') {
+        return expr.to_string();
+    }
+    // Try to parse the whole expression as a sequence of quoted-string + quoted-string parts.
+    let mut result = String::new();
+    let chars: Vec<char> = trimmed.chars().collect();
+    let mut i = 0usize;
+    let mut expecting_operand = true;
+    while i < chars.len() {
+        // Skip whitespace.
+        if chars[i].is_whitespace() {
+            i += 1;
+            continue;
+        }
+        if expecting_operand {
+            // Expect a quoted string literal.
+            if chars[i] == '"' || chars[i] == '\'' {
+                let quote = chars[i];
+                i += 1;
+                let start = i;
+                while i < chars.len() && chars[i] != quote {
+                    i += 1;
+                }
+                let segment: String = chars[start..i].iter().collect();
+                result.push_str(&segment);
+                if i < chars.len() {
+                    i += 1; // consume closing quote
+                }
+                expecting_operand = false;
+            } else {
+                // Not a pure string-concat expression — return unchanged.
+                return expr.to_string();
+            }
+        } else {
+            // Expect a `+` operator.
+            if chars[i] == '+' {
+                i += 1;
+                expecting_operand = true;
+            } else {
+                // Something unexpected — return unchanged.
+                return expr.to_string();
+            }
+        }
+    }
+    // If we fully consumed the expression and collected parts, return the joined result.
+    // Wrap in double-quotes to preserve string-literal semantics expected by the renderer.
+    if !expecting_operand && !result.is_empty() {
+        result
+    } else {
+        expr.to_string()
+    }
 }
 
 pub(super) fn collapse_macro_concat(line: &str) -> String {

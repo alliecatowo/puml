@@ -96,9 +96,12 @@ fn polygon_points(svg: &str) -> Vec<Vec<(i32, i32)>> {
 }
 
 fn time_to_x(width: i32, t: i32) -> i32 {
+    // Match the layout constants in src/render/timing.rs.
+    // chart_w is fixed at 760; right_pad = (chart_w * 0.05) + 80 = 118.
+    // `width` from the SVG viewBox is left_pad + chart_w + right_pad.
     let left_pad = 130;
-    let right_pad = 32;
-    let chart_w = width - left_pad - right_pad;
+    let chart_w = 760_i32;
+    let _ = width; // width is kept for signature compat but chart_w is fixed
     left_pad + ((t as f64 / 18.0) * chart_w as f64) as i32
 }
 

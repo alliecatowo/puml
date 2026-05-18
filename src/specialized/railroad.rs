@@ -578,7 +578,14 @@ pub(super) fn render_railroad(title: &str, root: &RailNode) -> String {
     let inner = layout_rail(root);
     let margin = 20;
     let title_h = if title.is_empty() { 0 } else { 28 };
-    let width = inner.width + margin * 2 + 40; // +40 for entry/exit track lines
+    // Canvas width must accommodate the title text (approx 9px per char) as well as the
+    // railroad diagram, so long source-pattern titles are never clipped (#514).
+    let title_w = if title.is_empty() {
+        0
+    } else {
+        (title.len() as i32) * 9 + margin * 2
+    };
+    let width = (inner.width + margin * 2 + 40).max(title_w); // +40 for entry/exit track lines
     let height = inner.height + margin * 2 + title_h + 20;
 
     let mut out = String::new();

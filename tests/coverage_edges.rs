@@ -50,7 +50,9 @@ fn parser_preprocessor_variables_and_callable_invocations_expand_deterministical
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(labels, vec!["via-proc", "\"A\" + \"B\""]);
+    // `+` is the string concatenation operator in PlantUML preprocessor (#582).
+    // `!return $x + $y` with $x="A" and $y="B" (default) should produce "AB".
+    assert_eq!(labels, vec!["via-proc", "AB"]);
 }
 
 #[test]

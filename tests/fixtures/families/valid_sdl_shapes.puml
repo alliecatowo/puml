@@ -1,6 +1,7 @@
 @startsdl
 title SDL Shapes
-start Idle
+start
+state Idle
 input Request
 state Processing
 decision Valid?
