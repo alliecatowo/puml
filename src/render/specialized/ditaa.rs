@@ -1,16 +1,13 @@
 use super::*;
 
 pub fn render_ditaa_svg(document: &DitaaDocument) -> String {
-    let start = document
-        .title
-        .as_ref()
-        .map(|title| format!("@startditaa \"{}\"", title.replace('"', "\\\"")))
-        .unwrap_or_else(|| "@startditaa".to_string());
-    let source = format!("{start}\n{}\n@endditaa", document.body);
-    if let Some(Ok(svg)) = crate::specialized::try_render_specialized(&source) {
-        return svg;
+    match crate::specialized::render_ditaa_from_parts(&document.body, document.title.as_deref()) {
+        Ok(svg) => svg,
+        Err(_) => render_ditaa_fallback(document),
     }
+}
 
+fn render_ditaa_fallback(document: &DitaaDocument) -> String {
     let width = 820;
     let lines: Vec<&str> = document.body.lines().collect();
     let line_count = lines.len().max(1) as i32;

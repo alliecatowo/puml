@@ -109,9 +109,37 @@ struct Connector {
     dashed: bool,
 }
 
+/// Render a ditaa diagram directly from its body and optional title, without
+/// reconstructing the `@startditaa...@endditaa` wrapper. Called from the model
+/// render path (`render::specialized::ditaa`) so the LSP and CLI share the same
+/// rendering logic without the two-hop reconstruct round-trip.
+/// Ditaa options (scale, transparent, shadow, background) are not preserved in
+/// the normalized model, so default options are used — matching the behavior of
+/// the previous reconstruct shim which also lost those options.
+pub(crate) fn render_ditaa_from_parts(
+    body: &str,
+    title: Option<&str>,
+) -> Result<String, Diagnostic> {
+    let options = DitaaOptions {
+        scale: 1,
+        transparent: false,
+        shadow: false,
+        background: None,
+    };
+    render_ditaa_inner(body, title, &options)
+}
+
 pub(super) fn render_ditaa(source: &str) -> Result<String, Diagnostic> {
     let (body, title) = strip_block(source, "@startditaa", "@endditaa");
     let options = parse_ditaa_options(source.lines().next().unwrap_or(""));
+    render_ditaa_inner(body, title.as_deref(), &options)
+}
+
+fn render_ditaa_inner(
+    body: &str,
+    title: Option<&str>,
+    options: &DitaaOptions,
+) -> Result<String, Diagnostic> {
 
     if body.trim().is_empty() {
         return Err(Diagnostic::error(
