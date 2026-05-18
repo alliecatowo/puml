@@ -1,0 +1,113 @@
+' Language Service Layers: class/package diagram showing how the shared
+' language_service module is consumed by LSP, WASM, CLI, and VS Code.
+' Shows core types (CompletionItem, CompletionList, Hover, DocumentSymbol,
+' SemanticTokens, FormatResult, Diagnostic, Severity) and transport
+' adapter wrappers (LspAdapter, WasmAdapter, CliAdapter, VsCodeExtension).
+'
+' Simplification note: package names avoid "::" (double-colon) because
+' the class-diagram parser splits quoted names containing "::" into nested
+' packages, causing the second package block to be misparsed as a class.
+' Bug filed: see architecture report.
+'
+' Self-hosting stress test: 12 classes, enum, 3 packages, multiple arrow types.
+
+@startuml
+
+skinparam classAttributeIconSize 0
+
+package "language service" {
+  class CompletionItem {
+    +label: String
+    +kind: CompletionItemKind
+    +detail: String
+    +documentation: String
+  }
+
+  class CompletionList {
+    +is_incomplete: bool
+    +items: Vec<CompletionItem>
+  }
+
+  class Hover {
+    +markdown: String
+  }
+
+  class DocumentSymbol {
+    +name: String
+    +kind: DocumentSymbolKind
+    +span: Span
+  }
+
+  class SemanticTokens {
+    +data: Vec<SemanticToken>
+  }
+
+  class FormatResult {
+    +text: String
+    +changed: bool
+  }
+
+  CompletionList *-- CompletionItem
+}
+
+package "diagnostics" {
+  class Diagnostic {
+    +message: String
+    +span: Option<Span>
+    +severity: Severity
+  }
+
+  class Severity {
+    <<enum>>
+    Error
+    Warning
+  }
+
+  Diagnostic --> Severity
+}
+
+package "transports" {
+  class LspAdapter {
+    +initialize()
+    +hover(pos): Hover
+    +completion(pos): CompletionList
+    +semantic_tokens(): SemanticTokens
+    +format(): FormatResult
+    +diagnostics(): Vec<Diagnostic>
+  }
+
+  class WasmAdapter {
+    +render(src): String
+    +hover(pos): Hover
+    +completion(pos): CompletionList
+    +diagnostics(): Vec<Diagnostic>
+  }
+
+  class CliAdapter {
+    +render(path, fmt): Vec<u8>
+    +check(path): Vec<Diagnostic>
+    +format(path): FormatResult
+  }
+
+  class VsCodeExtension {
+    +activate()
+    +deactivate()
+  }
+}
+
+LspAdapter --> CompletionList : returns
+LspAdapter --> Hover : returns
+LspAdapter --> SemanticTokens : returns
+LspAdapter --> FormatResult : returns
+LspAdapter --> Diagnostic : emits
+
+WasmAdapter --> CompletionList : returns
+WasmAdapter --> Hover : returns
+WasmAdapter --> Diagnostic : emits
+
+CliAdapter --> FormatResult : returns
+CliAdapter --> Diagnostic : emits
+
+VsCodeExtension --> LspAdapter : delegates to
+
+@enduml

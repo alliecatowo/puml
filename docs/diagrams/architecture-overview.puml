@@ -1,0 +1,70 @@
+' Architecture Overview: PUML high-level component diagram
+' Shows frontends (PlantUML, PicoUML, Mermaid), the pipeline core
+' (Parser -> AST -> Normalize -> Render), transports (CLI, LSP, WASM),
+' and shared services (language_service, diagnostic, theme, preprocessor).
+' Self-hosting stress test: 18 components, multiple packages, labelled arrows.
+
+@startuml
+
+skinparam componentStyle rectangle
+skinparam packageStyle frame
+
+package "Frontends" {
+  component [PlantUML Frontend] as PlantumlFE
+  component [PicoUML Frontend] as PicoumlFE
+  component [Mermaid Adapter] as MermaidFE
+}
+
+package "Pipeline Core" {
+  component [Parser] as Parser
+  component [AST] as AST
+  component [Normalizer] as Normalizer
+  component [Renderer] as Renderer
+}
+
+package "Shared Services" {
+  component [Preprocessor] as Preproc
+  component [Language Service] as LangSvc
+  component [Diagnostics] as Diag
+  component [Theme Engine] as Theme
+}
+
+package "Transports" {
+  component [CLI Binary] as CLI
+  component [LSP Server] as LSP
+  component [WASM Crate] as WASM
+}
+
+package "Output Formats" {
+  component [SVG] as SVG
+  component [PNG / JPEG] as Raster
+  component [Text (utxt/atxt)] as Text
+}
+
+PlantumlFE --> Parser : source text
+PicoumlFE --> Parser : source text
+MermaidFE --> Parser : source text
+
+Preproc --> Parser : expanded source
+Parser --> AST : token tree
+AST --> Normalizer : raw nodes
+Normalizer --> Renderer : NormalizedDocument
+Theme --> Renderer : style tokens
+Diag --> Renderer : annotations
+
+Renderer --> SVG : vector output
+Renderer --> Raster : rasterized
+Renderer --> Text : ascii art
+
+CLI --> PlantumlFE : file input
+CLI --> PicoumlFE : file input
+CLI --> MermaidFE : file input
+CLI --> Preproc : !include / macros
+
+LSP --> LangSvc : hover / completion
+LangSvc --> Parser : parse_with_options
+LangSvc --> Diag : emit
+
+WASM --> LangSvc : browser call
+
+@enduml

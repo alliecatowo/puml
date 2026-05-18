@@ -1,0 +1,75 @@
+' Pipeline Sequence: Request flow for `puml render hello.puml`
+' Traces source text from User through CLI, preprocessor (include
+' resolution + macro expansion), parser, normalizer, renderer, and
+' final SVG output.  Diagnostic emission is shown as an opt fragment.
+' Self-hosting stress test: 7 participants, alt/opt/loop blocks, notes.
+
+@startuml
+
+participant User
+participant CLI
+participant Preprocessor
+participant Parser
+participant Normalizer
+participant Renderer
+participant Output
+
+User -> CLI : puml hello.puml
+
+note over CLI : resolve --format, --dialect flags
+
+CLI -> Preprocessor : raw source text
+
+Preprocessor -> Preprocessor : scan for !include / !define
+Preprocessor -> Preprocessor : resolve file includes
+Preprocessor -> Preprocessor : expand macros
+
+alt preprocessor error
+  Preprocessor --> CLI : Diagnostic(Error)
+  CLI --> User : stderr + exit 1
+end
+
+Preprocessor --> CLI : expanded source
+
+CLI -> Parser : expanded source + ParsePipelineOptions
+
+Parser -> Parser : tokenise
+Parser -> Parser : build AST nodes
+
+opt parse warnings present
+  Parser --> CLI : Diagnostic(Warning)
+end
+
+alt parse error
+  Parser --> CLI : Diagnostic(Error)
+  CLI --> User : stderr + exit 1
+end
+
+Parser --> CLI : Document (AST)
+
+CLI -> Normalizer : Document + family hint
+
+Normalizer -> Normalizer : detect diagram family
+Normalizer -> Normalizer : resolve participants / lifelines
+Normalizer -> Normalizer : apply layout constraints
+
+alt normalizer error
+  Normalizer --> CLI : Diagnostic(Error)
+  CLI --> User : stderr + exit 1
+end
+
+Normalizer --> CLI : NormalizedDocument
+
+CLI -> Renderer : NormalizedDocument + theme + format
+
+Renderer -> Renderer : compute geometry
+Renderer -> Renderer : apply skin params
+Renderer -> Renderer : emit SVG nodes
+
+Renderer --> CLI : rendered bytes
+
+CLI -> Output : write hello.svg
+
+Output --> User : hello.svg (exit 0)
+
+@enduml

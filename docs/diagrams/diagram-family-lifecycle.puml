@@ -1,0 +1,60 @@
+' Diagram Family Lifecycle: state machine a single diagram goes through
+' from raw source text to final output.  Includes error transitions to
+' Diagnostics, theme application as a sub-state inside Styled, and the
+' full happy-path from Source through Tokenized, Parsed, Normalized,
+' Styled, Rendered, to Output.
+' Self-hosting stress test: 12 states, two composite states, error branches.
+'
+' Simplification notes:
+'   - Inline \n line breaks in transition labels cause the state parser to
+'     trigger [E_STATE_MIXED]; labels use spaces instead.
+'   - "note right of <state>" is not yet supported in state diagrams
+'     (E_STATE_MIXED / E_STATE_UNSUPPORTED_SYNTAX); notes omitted.
+'   Both issues are documented as render bugs in the architecture report.
+
+@startuml
+
+[*] --> Source : file or stdin input
+
+Source --> Tokenized : Preprocessor expands includes and macros
+Source --> Diagnostics : preprocessor error
+
+Tokenized --> Parsed : Parser builds AST
+Tokenized --> Diagnostics : lex or parse error
+
+Parsed --> Normalized : Normalizer resolves family and layout
+Parsed --> Diagnostics : semantic error
+
+state Styled {
+  state "Apply Skin Params" as SkinParams
+  state "Resolve Theme Tokens" as ThemeTokens
+  state "Compute Palette" as Palette
+
+  [*] --> SkinParams
+  SkinParams --> ThemeTokens
+  ThemeTokens --> Palette
+  Palette --> [*]
+}
+
+Normalized --> Styled : Theme Engine applies styles
+
+state Rendered {
+  state "SVG" as SVGOut
+  state "Raster PNG/JPEG" as Raster
+  state "Text utxt/atxt" as TxtOut
+
+  [*] --> SVGOut
+  SVGOut --> Raster : resvg rasterize
+  SVGOut --> TxtOut : ascii conversion
+}
+
+Styled --> Rendered : Renderer computes geometry and emits nodes
+Styled --> Diagnostics : render error
+
+Rendered --> Output : write file or stdout
+
+Output --> [*] : exit 0
+
+Diagnostics --> [*] : emit to stderr exit 1
+
+@enduml
