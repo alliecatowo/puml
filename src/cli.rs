@@ -305,4 +305,36 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn lint_flags_parse_when_check_mode_enabled() {
+        let cli = Cli::try_parse_from([
+            "puml",
+            "--check",
+            "--lint-input",
+            "a.puml",
+            "--lint-input",
+            "b.puml",
+            "--lint-glob",
+            "tests/**/*.puml",
+            "--lint-report",
+            "json",
+        ])
+        .expect("lint flags should parse in check mode");
+
+        assert!(cli.check);
+        assert_eq!(
+            cli.lint_input,
+            vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
+        );
+        assert_eq!(cli.lint_glob, vec!["tests/**/*.puml".to_string()]);
+        assert_eq!(cli.lint_report, LintReportFormat::Json);
+    }
+
+    #[test]
+    fn check_fixture_conflicts_with_positional_input() {
+        let err = Cli::try_parse_from(["puml", "--check-fixture", "fixture.puml", "stdin.puml"])
+            .expect_err("check fixture should conflict with positional input");
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
 }
