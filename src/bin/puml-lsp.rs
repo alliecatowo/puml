@@ -1,8 +1,8 @@
 use puml::ast::{DiagramKind, StatementKind};
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, diagnostics_with_options, document_symbols, hover as language_hover, resolve_completion_item,
-    CompletionItemKind, DocumentSymbolKind,
+    completion_items, diagnostics_with_options, document_symbols, hover as language_hover,
+    resolve_completion_item, CompletionItemKind, DocumentSymbolKind,
 };
 use puml::scene::LayoutOptions;
 use puml::{

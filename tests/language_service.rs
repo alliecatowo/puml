@@ -1,7 +1,7 @@
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, diagnostics, document_symbols, hover, resolve_completion_item, CompletionItemKind,
-    DocumentSymbolKind,
+    completion_items, diagnostics, document_symbols, hover, resolve_completion_item,
+    CompletionItemKind, DocumentSymbolKind,
 };
 use puml::source::Span;
 

@@ -74,7 +74,7 @@ pub fn hover(source: &str, position: (u64, u64)) -> Option<Hover> {
         markdown: format!("`{word}`"),
     })
 }
- 
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiagnosticsReport {
     pub diagnostics: Vec<LanguageDiagnostic>,
@@ -101,7 +101,6 @@ pub struct SourcePosition {
     pub line: usize,
     /// One-based Unicode scalar column in the source line.
     pub column: usize,
- 
 }
 
 pub fn document_symbols(document: &Document) -> Vec<DocumentSymbol> {
@@ -827,5 +826,4 @@ fn source_position(source: &str, offset: usize) -> SourcePosition {
         line,
         column: source[line_start..off].chars().count() + 1,
     }
- 
 }
