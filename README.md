@@ -192,6 +192,7 @@ Useful harnesses:
 ```bash
 ./scripts/harness-check.sh --quick
 ./scripts/autonomy-check.sh --quick
+./scripts/branch-protection.sh verify
 python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
 ```
 
