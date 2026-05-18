@@ -1006,6 +1006,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "preprocessor/valid_variable_exists.puml",
         "preprocessor/valid_json_dot_bracket_access.puml",
         "preprocessor/valid_splitstr_regex.puml",
+        "preprocessor/valid_dynamic_invoke_procedure.puml",
         "preprocessor/valid_macro_concat_body.puml",
         "preprocessor/valid_macro_expr_collection_depth.puml",
         "preprocessor/valid_unsafe_builtin_policy.puml",
@@ -4856,6 +4857,30 @@ fn preprocessor_dynamic_call_user_func_invokes_function_expression() {
         .as_str()
         .unwrap();
     assert_eq!(label, "hi Bob");
+}
+
+#[test]
+fn preprocessor_dynamic_invoke_procedure_dispatches_variable_and_alias_forms() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_dynamic_invoke_procedure.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["via-var", "alias"]);
 }
 
 #[test]

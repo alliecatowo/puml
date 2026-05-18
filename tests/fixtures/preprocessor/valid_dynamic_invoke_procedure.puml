@@ -1,0 +1,8 @@
+@startuml
+!procedure Emit($from=Alice, $to=Bob, $label=hi)
+$from -> $to : $label
+!endprocedure
+!$proc = "Emit"
+%invoke_procedure($proc, label=via-var, to=Carol)
+%call_user_func("Emit", Dave, Erin, alias)
+@enduml

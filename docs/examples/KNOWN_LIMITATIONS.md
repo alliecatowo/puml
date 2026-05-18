@@ -24,7 +24,7 @@ that diagram families are unsupported overall.
 
 ### Preprocessor / stdlib
 
-- Dynamic invocation families (`%invoke_procedure`, `%call_user_func`) are still narrower than PlantUML.
+- Dynamic invocation families (`%invoke_procedure`, `%call_user_func`) support deterministic callable dispatch, but edge cases remain narrower than PlantUML.
 - Theme/source fetching from remote locations follows the URL include policy and remains narrower than PlantUML's full resolver surface.
 - Stdlib macro compatibility is broad but not complete visual parity for every icon/macro variant.
 

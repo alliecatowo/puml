@@ -91,10 +91,10 @@
           "errors/invalid_preproc_dynamic_invoke.puml"
         ],
         "drift_reasons": [
-          "dynamic invocation remains outside the deterministic preprocessor subset"
+          "empty dynamic invocation remains rejected by the deterministic preprocessor subset"
         ],
         "next_tickets": [
-          "Add a deterministic dynamic invocation subset for %invoke_procedure/%call_user_func or keep rejecting with a narrower fixture expectation."
+          "Broaden dynamic invocation edge-case compatibility or keep rejecting unsupported callable names with a narrower fixture expectation."
         ],
         "plantuml_references": [
           "https://plantuml.com/preprocessing"
@@ -181,10 +181,10 @@
           "errors/invalid_preproc_dynamic_invoke.puml"
         ],
         "drift_reasons": [
-          "dynamic invocation remains outside the deterministic preprocessor subset"
+          "empty dynamic invocation remains rejected by the deterministic preprocessor subset"
         ],
         "next_tickets": [
-          "Add a deterministic dynamic invocation subset for %invoke_procedure/%call_user_func or keep rejecting with a narrower fixture expectation."
+          "Broaden dynamic invocation edge-case compatibility or keep rejecting unsupported callable names with a narrower fixture expectation."
         ],
         "plantuml_references": [
           "https://plantuml.com/preprocessing"
@@ -429,8 +429,8 @@
         "support_status": "partial",
         "expected_oracle_category": "jar-only",
         "drift_area": "dynamic preprocessor invocation",
-        "drift_reason": "dynamic invocation remains outside the deterministic preprocessor subset",
-        "next_ticket": "Add a deterministic dynamic invocation subset for %invoke_procedure/%call_user_func or keep rejecting with a narrower fixture expectation.",
+        "drift_reason": "empty dynamic invocation remains rejected by the deterministic preprocessor subset",
+        "next_ticket": "Broaden dynamic invocation edge-case compatibility or keep rejecting unsupported callable names with a narrower fixture expectation.",
         "plantuml_reference": "https://plantuml.com/preprocessing"
       },
       "local": {
