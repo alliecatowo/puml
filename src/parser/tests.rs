@@ -1415,6 +1415,29 @@ mod tests {
     }
 
     #[test]
+    fn parses_sequence_participants_in_theme_fixture_context() {
+        let fixture = fs::read_to_string(format!(
+            "{}/docs/examples/themes/07_no_theme_default.puml",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .expect("theme fixture");
+
+        let doc = parse_with_options(&fixture, &ParseOptions::default()).unwrap();
+
+        assert_eq!(doc.kind, DiagramKind::Sequence);
+        assert!(matches!(
+            doc.statements[1].kind,
+            StatementKind::Participant(_)
+        ));
+        assert!(matches!(
+            doc.statements[2].kind,
+            StatementKind::Participant(_)
+        ));
+        assert!(matches!(doc.statements[3].kind, StatementKind::Message(_)));
+        assert!(matches!(doc.statements[4].kind, StatementKind::Message(_)));
+    }
+
+    #[test]
     fn parses_activity_switch_split_goto_and_terminal_controls() {
         let doc = parse_with_options(
             "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\ncase (B)\ngoto retry\nendswitch\nif (ready?) then (yes)\nelseif (warm?) then (maybe)\nendif\nrepeat\ncontinue\nbreak\nrepeat while (again?)\nend repeat\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\nbackward: retry path;\ndetach\n@enduml\n",
