@@ -4,7 +4,7 @@
 /// - `file://` URL shortcut resolution (no real network needed)
 /// - HTTP fetch via a local httpmock server (no real network needed)
 /// - Cache hit on second render produces byte-identical SVG with no second network call
-/// - `--no-url-includes` CLI flag produces E_INCLUDE_URL_DISABLED diagnostic
+/// - URL includes are denied by default and allowed only with `--allow-url-includes`
 use assert_cmd::Command;
 use httpmock::prelude::*;
 use predicates::prelude::*;
@@ -30,6 +30,7 @@ fn include_file_url_resolves_from_local_filesystem() {
     Command::cargo_bin("puml")
         .unwrap()
         .arg("--check")
+        .arg("--allow-url-includes")
         .arg(&main)
         .assert()
         .success();
@@ -71,6 +72,7 @@ fn include_http_url_fetches_content_and_renders() {
     Command::cargo_bin("puml")
         .unwrap()
         .arg("--check")
+        .arg("--allow-url-includes")
         .arg(&fixture)
         .assert()
         .success();
@@ -106,6 +108,7 @@ fn include_http_url_cache_hit_no_second_network_call() {
     // First render — should fetch from network
     Command::cargo_bin("puml")
         .unwrap()
+        .arg("--allow-url-includes")
         .args(["-o", output1.to_str().unwrap()])
         .arg(&fixture)
         .assert()
@@ -119,6 +122,7 @@ fn include_http_url_cache_hit_no_second_network_call() {
     // Second render — should serve from cache, not from network
     Command::cargo_bin("puml")
         .unwrap()
+        .arg("--allow-url-includes")
         .args(["-o", output2.to_str().unwrap()])
         .arg(&fixture)
         .assert()
@@ -157,6 +161,7 @@ fn include_http_404_produces_clear_diagnostic() {
     Command::cargo_bin("puml")
         .unwrap()
         .arg("--check")
+        .arg("--allow-url-includes")
         .arg(&fixture)
         .assert()
         .failure()
@@ -171,11 +176,36 @@ fn include_http_404_produces_clear_diagnostic() {
 }
 
 // ---------------------------------------------------------------------------
-// --no-url-includes flag
+// URL include policy gate
 // ---------------------------------------------------------------------------
 
 #[test]
-fn no_url_includes_flag_produces_disabled_diagnostic() {
+fn url_includes_disabled_by_default_produces_disabled_diagnostic() {
+    let server = MockServer::start();
+
+    let _mock = server.mock(|when, then| {
+        when.method(GET).path("/lib.puml");
+        then.status(200).body("A -> B : lib\n");
+    });
+
+    let url = server.url("/lib.puml");
+    let dir = tempdir().unwrap();
+    let fixture = write_include_fixture(dir.path(), &url);
+
+    Command::cargo_bin("puml")
+        .unwrap()
+        .arg("--check")
+        .arg(&fixture)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
+
+    // Network should NOT have been called
+    _mock.assert_hits(0);
+}
+
+#[test]
+fn no_url_includes_flag_remains_a_disabled_diagnostic_alias() {
     let server = MockServer::start();
 
     let _mock = server.mock(|when, then| {
@@ -196,7 +226,6 @@ fn no_url_includes_flag_produces_disabled_diagnostic() {
         .failure()
         .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 
-    // Network should NOT have been called
     _mock.assert_hits(0);
 }
 

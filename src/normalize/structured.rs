@@ -86,6 +86,87 @@ fn flatten_json_value(
 
 pub(super) fn normalize_yaml_document(document: Document) -> Result<YamlDocument, Diagnostic> {
     let (raw, title) = collect_raw_block(&document);
+    let nodes = match yaml_rust2::YamlLoader::load_from_str(raw.trim()) {
+        Ok(docs) => {
+            let mut out = Vec::new();
+            for doc in docs
+                .iter()
+                .filter(|doc| !matches!(doc, yaml_rust2::Yaml::BadValue))
+            {
+                flatten_yaml_value(doc, None, 0, &mut out);
+            }
+            out
+        }
+        Err(_) => flatten_yaml_by_indent(&raw),
+    };
+    Ok(YamlDocument {
+        raw,
+        nodes,
+        title,
+        warnings: Vec::new(),
+    })
+}
+
+fn flatten_yaml_value(
+    value: &yaml_rust2::Yaml,
+    label: Option<String>,
+    depth: usize,
+    out: &mut Vec<YamlTreeNode>,
+) {
+    match value {
+        yaml_rust2::Yaml::Hash(map) => {
+            out.push(YamlTreeNode {
+                depth,
+                label: label
+                    .map(|l| format!("{l}: {{...}}"))
+                    .unwrap_or_else(|| "{...}".to_string()),
+            });
+            for (key, value) in map {
+                flatten_yaml_value(value, Some(yaml_key_label(key)), depth + 1, out);
+            }
+        }
+        yaml_rust2::Yaml::Array(items) => {
+            out.push(YamlTreeNode {
+                depth,
+                label: label
+                    .map(|l| format!("{l}: [...]"))
+                    .unwrap_or_else(|| "[...]".to_string()),
+            });
+            for (idx, value) in items.iter().enumerate() {
+                flatten_yaml_value(value, Some(format!("[{idx}]")), depth + 1, out);
+            }
+        }
+        scalar => out.push(YamlTreeNode {
+            depth,
+            label: match label {
+                Some(label) => format!("{label}: {}", yaml_scalar_label(scalar)),
+                None => yaml_scalar_label(scalar),
+            },
+        }),
+    }
+}
+
+fn yaml_key_label(value: &yaml_rust2::Yaml) -> String {
+    match value {
+        yaml_rust2::Yaml::String(s) => s.clone(),
+        scalar => yaml_scalar_label(scalar),
+    }
+}
+
+fn yaml_scalar_label(value: &yaml_rust2::Yaml) -> String {
+    match value {
+        yaml_rust2::Yaml::Real(s) | yaml_rust2::Yaml::String(s) => s.clone(),
+        yaml_rust2::Yaml::Integer(n) => n.to_string(),
+        yaml_rust2::Yaml::Boolean(b) => b.to_string(),
+        yaml_rust2::Yaml::Alias(id) => format!("*{id}"),
+        yaml_rust2::Yaml::Null => "null".to_string(),
+        yaml_rust2::Yaml::BadValue => "(invalid)".to_string(),
+        yaml_rust2::Yaml::Array(_) => "[...]".to_string(),
+        yaml_rust2::Yaml::Hash(_) => "{...}".to_string(),
+    }
+}
+
+fn flatten_yaml_by_indent(raw: &str) -> Vec<YamlTreeNode> {
     let mut nodes = Vec::new();
     for line in raw.lines() {
         // Strip trailing whitespace; skip fully blank lines and comment-only lines.
@@ -104,10 +185,5 @@ pub(super) fn normalize_yaml_document(document: Document) -> Result<YamlDocument
             label: content.to_string(),
         });
     }
-    Ok(YamlDocument {
-        raw,
-        nodes,
-        title,
-        warnings: Vec::new(),
-    })
+    nodes
 }

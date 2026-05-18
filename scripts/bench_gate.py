@@ -11,6 +11,46 @@ import json
 import pathlib
 import sys
 
+POLICY_VERSION = "bench-gate-v2-2026-05-17"
+
+
+def policy_metadata(
+    *,
+    mode: str,
+    abs_limit: float,
+    regression_limit_pct: float,
+    regression_min_delta_ms: float,
+    binary_limit_bytes: int,
+) -> dict:
+    return {
+        "version": POLICY_VERSION,
+        "mode": mode,
+        "absolute_mean_ms_limit": abs_limit,
+        "regression_pct_limit": regression_limit_pct,
+        "regression_min_delta_ms": regression_min_delta_ms,
+        "binary_limit_bytes": binary_limit_bytes,
+    }
+
+
+def expected_policy_for_mode(mode: str) -> dict:
+    if mode == "full":
+        return policy_metadata(
+            mode="full",
+            abs_limit=250.0,
+            regression_limit_pct=10.0,
+            regression_min_delta_ms=40.0,
+            binary_limit_bytes=12_000_000,
+        )
+    if mode == "quick":
+        return policy_metadata(
+            mode="quick",
+            abs_limit=350.0,
+            regression_limit_pct=20.0,
+            regression_min_delta_ms=50.0,
+            binary_limit_bytes=12_000_000,
+        )
+    raise ValueError(f"unknown benchmark policy mode: {mode}")
+
 
 def load_json(path: pathlib.Path) -> dict:
     return json.loads(path.read_text())
@@ -54,6 +94,13 @@ def build_rows(current: dict, previous: dict | None) -> list[dict]:
 def command_trend(args: argparse.Namespace) -> int:
     current = load_json(args.current)
     previous = maybe_load_json(args.previous)
+    policy = policy_metadata(
+        mode=args.mode,
+        abs_limit=args.abs_limit,
+        regression_limit_pct=args.regression_limit_pct,
+        regression_min_delta_ms=args.regression_min_delta_ms,
+        binary_limit_bytes=args.binary_limit_bytes,
+    )
 
     baseline_mode_match = previous is not None and previous.get("mode") == args.mode
     if previous and not baseline_mode_match:
@@ -77,6 +124,7 @@ def command_trend(args: argparse.Namespace) -> int:
             "regression_pct_limit": args.regression_limit_pct,
             "regression_min_delta_ms": args.regression_min_delta_ms,
         },
+        "benchmark_policy": policy,
         "scenarios": rows,
         "baseline": {
             "timestamp_utc": None if previous is None else previous.get("timestamp_utc"),
@@ -185,6 +233,59 @@ def eval_failures(
     return failures
 
 
+def compare_policy(path: pathlib.Path, artifact: dict) -> list[str]:
+    mode = artifact.get("mode")
+    if mode not in ("full", "quick"):
+        return [f"{path}: missing or unsupported mode for benchmark policy validation"]
+
+    expected = expected_policy_for_mode(mode)
+    actual = artifact.get("benchmark_policy")
+    failures: list[str] = []
+    if not isinstance(actual, dict):
+        return [f"{path}: missing benchmark_policy metadata"]
+
+    for key, expected_value in expected.items():
+        actual_value = actual.get(key)
+        if actual_value != expected_value:
+            failures.append(
+                f"{path}: benchmark_policy.{key} is {actual_value!r}, expected {expected_value!r}"
+            )
+
+    gates = artifact.get("gates")
+    if isinstance(gates, dict):
+        gate_checks = {
+            "absolute_mean_ms_limit": expected["absolute_mean_ms_limit"],
+            "regression_pct_limit": expected["regression_pct_limit"],
+            "regression_min_delta_ms": expected["regression_min_delta_ms"],
+        }
+        for key, expected_value in gate_checks.items():
+            actual_value = gates.get(key)
+            if actual_value != expected_value:
+                failures.append(f"{path}: gates.{key} is {actual_value!r}, expected {expected_value!r}")
+
+    binary = artifact.get("binary")
+    if isinstance(binary, dict):
+        actual_limit = binary.get("limit_bytes")
+        expected_limit = expected["binary_limit_bytes"]
+        if actual_limit != expected_limit:
+            failures.append(
+                f"{path}: binary.limit_bytes is {actual_limit!r}, expected {expected_limit!r}"
+            )
+
+    return failures
+
+
+def command_validate_artifacts(args: argparse.Namespace) -> int:
+    failures: list[str] = []
+    for path in args.artifact:
+        artifact = load_json(path)
+        failures.extend(compare_policy(path, artifact))
+
+    for failure in failures:
+        print(failure)
+    return 1 if failures else 0
+
+
 def command_failures(args: argparse.Namespace) -> int:
     current = load_json(args.current)
     previous = maybe_load_json(args.previous)
@@ -239,6 +340,13 @@ def build_parser() -> argparse.ArgumentParser:
     failures.add_argument("--binary-bytes", type=int, required=True)
     failures.add_argument("--binary-limit-bytes", type=int, required=True)
     failures.set_defaults(func=command_failures)
+
+    validate = sub.add_parser(
+        "validate-artifacts",
+        help="fail if committed benchmark JSON artifacts do not match current gate policy",
+    )
+    validate.add_argument("artifact", nargs="+", type=pathlib.Path)
+    validate.set_defaults(func=command_validate_artifacts)
 
     return parser
 

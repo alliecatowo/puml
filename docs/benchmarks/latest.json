@@ -1,54 +1,70 @@
 {
-  "timestamp_utc": "2026-05-15T20:17:06Z",
-  "binary": "/home/Allie/develop/puml/target/release/puml",
+  "timestamp_utc": "2026-05-18T00:17:52Z",
+  "binary": "/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/target/release/puml",
   "mode": "full",
+  "environment": {
+    "host": "pink-allie-cat",
+    "os": "Linux",
+    "kernel": "6.18.10-200.fc43.x86_64",
+    "arch": "x86_64",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "timing_tool": "python-perf-counter"
+  },
+  "benchmark_policy": {
+    "version": "bench-gate-v2-2026-05-17",
+    "mode": "full",
+    "absolute_mean_ms_limit": 250,
+    "regression_pct_limit": 10,
+    "regression_min_delta_ms": 40,
+    "binary_limit_bytes": 12000000
+  },
   "scenarios": [
     {
       "name": "cold_start_help",
-      "tool": "time",
-      "mean_ms": 140.000,
-      "stddev_ms": 6.325,
-      "runs": 5
+      "tool": "python-perf-counter",
+      "mean_ms": 99.737,
+      "stddev_ms": 2.606,
+      "runs": 12
     }
     ,
     {
       "name": "parser_check",
-      "tool": "time",
-      "mean_ms": 136.000,
-      "stddev_ms": 4.899,
-      "runs": 5
+      "tool": "python-perf-counter",
+      "mean_ms": 96.765,
+      "stddev_ms": 2.345,
+      "runs": 12
     }
     ,
     {
       "name": "parser_dump_scene",
-      "tool": "time",
-      "mean_ms": 134.000,
-      "stddev_ms": 4.899,
-      "runs": 5
+      "tool": "python-perf-counter",
+      "mean_ms": 94.806,
+      "stddev_ms": 2.608,
+      "runs": 12
     }
     ,
     {
       "name": "render_file",
-      "tool": "time",
-      "mean_ms": 112.000,
-      "stddev_ms": 16.000,
-      "runs": 5
+      "tool": "python-perf-counter",
+      "mean_ms": 97.095,
+      "stddev_ms": 2.385,
+      "runs": 12
     }
     ,
     {
       "name": "render_stdin",
-      "tool": "time",
-      "mean_ms": 88.000,
-      "stddev_ms": 4.000,
-      "runs": 5
+      "tool": "python-perf-counter",
+      "mean_ms": 94.295,
+      "stddev_ms": 1.978,
+      "runs": 12
     }
     ,
     {
       "name": "render_stdin_multi",
-      "tool": "time",
-      "mean_ms": 90.000,
-      "stddev_ms": 0.000,
-      "runs": 5
+      "tool": "python-perf-counter",
+      "mean_ms": 94.455,
+      "stddev_ms": 2.455,
+      "runs": 12
     }
   ]
 }

@@ -1,0 +1,5 @@
+!startsub CORE
+Alice -> Bob : from tagged stdlib include
+!endsub
+
+Charlie -> Dana : outside tag

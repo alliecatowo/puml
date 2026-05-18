@@ -5,7 +5,13 @@ fn strip_inline_plantuml_comment(line: &str) -> &str {
             in_quotes = !in_quotes;
             continue;
         }
-        if ch == '\'' && !in_quotes {
+        if ch == '\''
+            && !in_quotes
+            && !line[idx + ch.len_utf8()..]
+                .chars()
+                .next()
+                .is_some_and(|next| next.is_ascii_alphabetic())
+        {
             return &line[..idx];
         }
     }

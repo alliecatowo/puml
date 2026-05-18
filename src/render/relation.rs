@@ -126,27 +126,35 @@ pub(super) fn usecase_dependency_label(label: Option<&str>) -> Option<&'static s
 }
 
 pub(crate) fn render_relation_marker_defs(out: &mut String, arrow_stroke: &str) {
+    render_relation_marker_defs_with_prefix(out, arrow_stroke, "");
+}
+
+pub(crate) fn render_relation_marker_defs_with_prefix(
+    out: &mut String,
+    arrow_stroke: &str,
+    prefix: &str,
+) {
     out.push_str("<defs>");
     out.push_str(&format!(
-        "<marker id=\"arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
+        "<marker id=\"{prefix}arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
          markerWidth=\"10\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
          <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
          </marker>",
     ));
     out.push_str(&format!(
-        "<marker id=\"arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
+        "<marker id=\"{prefix}arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
          markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
          <path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
          </marker>",
     ));
     out.push_str(&format!(
-        "<marker id=\"arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
+        "<marker id=\"{prefix}arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
          markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
     out.push_str(&format!(
-        "<marker id=\"arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
+        "<marker id=\"{prefix}arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
          markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",

@@ -1,3 +1,7 @@
+mod svg_test_helpers;
+
+use svg_test_helpers::{attr, bounds, f64_attr, SvgDoc};
+
 #[test]
 fn activity_swimlane_and_fork_depth_renders_lane_boxes_and_branch_markers() {
     let src = r#"@startuml
@@ -52,13 +56,34 @@ JoinNode --> [H]
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("state render should succeed");
+    let doc = SvgDoc::parse(&svg);
 
-    assert!(svg.contains("state diagram"));
-    assert!(svg.contains("entry / setup"));
-    assert!(svg.contains("exit / cleanup"));
-    assert!(svg.contains("<polygon points=\""));
-    assert!(svg.contains(">H<"));
-    assert!(svg.contains(">H*<"));
+    assert!(!doc.texts_containing("state diagram").is_empty());
+    let ready = doc.first_with_attr("metadata", "data-state-node", "Ready");
+    assert_eq!(attr(ready, "data-state-kind"), "normal");
+    assert!(!doc.texts_containing("entry / setup").is_empty());
+    assert!(!doc.texts_containing("exit / cleanup").is_empty());
+
+    let choice = doc.first_with_attr("metadata", "data-state-node", "ChoiceNode");
+    assert_eq!(attr(choice, "data-state-kind"), "choice");
+    let choice_marker = doc.elements("polygon").into_iter().next().unwrap();
+    let choice_bounds = bounds(choice_marker);
+    assert!(choice_bounds.width > 0.0 && choice_bounds.height > 0.0);
+
+    let shallow_history = doc.first_with_attr("metadata", "data-state-node", "[H]");
+    let deep_history = doc.first_with_attr("metadata", "data-state-node", "[H*]");
+    assert_eq!(attr(shallow_history, "data-state-kind"), "history-shallow");
+    assert_eq!(attr(deep_history, "data-state-kind"), "history-deep");
+    assert!(!doc.texts_containing("H").is_empty());
+    assert!(!doc.texts_containing("H*").is_empty());
+    let history_circles = doc.elements("circle");
+    assert_eq!(history_circles.len(), 2);
+    assert!(f64_attr(history_circles[1], "cx") > f64_attr(history_circles[0], "cx"));
+
+    let ready_to_choice = doc.first_with_attr("line", "data-state-from", "Ready");
+    assert_eq!(attr(ready_to_choice, "data-state-to"), "ChoiceNode");
+    let transition_bounds = bounds(ready_to_choice);
+    assert!(transition_bounds.width > 0.0 && transition_bounds.height > 0.0);
 }
 
 #[test]
@@ -144,13 +169,35 @@ highlight 12 to 18 : cooldown
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("timing render should succeed");
+    let doc = SvgDoc::parse(&svg);
 
-    assert!(svg.contains("Queued"));
-    assert!(svg.contains("Running"));
-    assert!(svg.contains("@5"));
-    assert!(svg.contains("class=\"timing-range\""));
-    assert!(svg.contains("active window"));
-    assert!(svg.contains("cooldown"));
+    assert!(!doc.texts_containing("Queued").is_empty());
+    assert!(!doc.texts_containing("Running").is_empty());
+    assert!(!doc.texts_containing("@5").is_empty());
+    let active_label = doc
+        .texts_containing("active window")
+        .into_iter()
+        .next()
+        .expect("range label should be visible");
+    let cooldown_label = doc
+        .texts_containing("cooldown")
+        .into_iter()
+        .next()
+        .expect("highlight label should be visible");
+    assert!(f64_attr(active_label, "x") < f64_attr(cooldown_label, "x"));
+
+    let ranges = doc.elements_with_class("rect", "timing-range");
+    assert_eq!(
+        ranges.len(),
+        2,
+        "range and highlight should render as visible bands"
+    );
+    let active = bounds(ranges[0]);
+    let cooldown = bounds(ranges[1]);
+    assert!(active.width > 0.0 && active.height > 0.0);
+    assert!(cooldown.width > 0.0 && cooldown.height > 0.0);
+    assert!(active.x < cooldown.x);
+    assert!(active.right() <= cooldown.right());
 }
 
 #[test]

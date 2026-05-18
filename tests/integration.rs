@@ -10,13 +10,16 @@ use serde_json::Value;
 use std::fs;
 use tempfile::tempdir;
 
-fn fixture(name: &str) -> String {
+pub(crate) fn fixture(name: &str) -> String {
     format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
 fn example(name: &str) -> String {
     format!("{}/docs/examples/{name}", env!("CARGO_MANIFEST_DIR"))
 }
+
+#[path = "integration/preprocessor.rs"]
+mod preprocessor;
 
 #[test]
 fn single_file_defaults_to_svg_file_output() {
@@ -469,6 +472,25 @@ fn picouml_extension_routes_canonical_surface_in_auto_dialect() {
     Command::cargo_bin("puml")
         .expect("binary")
         .args(["--check", &fixture("picouml/valid_canonical.picouml")])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn picouml_extension_routes_shorthand_surface_in_auto_dialect() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("shorthand.picouml");
+    fs::write(
+        &input,
+        "@startpicouml\nAlice => Bob : sync call\nBob <~ Carol : async reply\n@endpicouml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", input.to_str().unwrap()])
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
@@ -992,6 +1014,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "include/valid_includesub.puml",
         "include/valid_c4_context.puml",
         "include/valid_awslib_ec2.puml",
+        "stdlib_include_tag/valid_stdlib_tagged_angle_include.puml",
         // preprocessor advanced directives
         "preprocessor/valid_while_variable_loop.puml",
         "preprocessor/valid_undef.puml",
@@ -3002,9 +3025,8 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
             "errors/invalid_import_empty_path.puml",
             "E_IMPORT_PATH_REQUIRED",
         ),
-        // Note: URL imports are now attempted; see import_url_disabled_produces_deterministic_error
-        // for the --no-url-includes path. We skip invalid_import_url.puml here to avoid
-        // real network calls in the test suite.
+        // URL imports are covered separately by import_url_disabled_produces_deterministic_error.
+        // Keep this list focused on local include/import path-shape diagnostics.
         (
             "errors/invalid_import_absolute_path.puml",
             "E_IMPORT_ABSOLUTE_PATH",
@@ -4640,6 +4662,106 @@ fn nwdiag_family_renders_deterministic_svg_with_networks() {
 }
 
 #[test]
+fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
+    let src = fs::read_to_string(fixture(
+        "non_sequence/valid_nwdiag_multi_network_addresses.puml",
+    ))
+    .unwrap();
+    let svg = render_source_to_svg(&src).expect("render nwdiag topology depth fixture");
+
+    assert!(
+        svg.contains("data-nwdiag-addresses=\"10.0.0.10, fd00:10::10\""),
+        "public lb should preserve every bracketed address: {svg}"
+    );
+    assert!(
+        svg.contains("edge lb [10.0.0.10, fd00:10::10]"),
+        "multi-address label should render both values: {svg}"
+    );
+    assert!(
+        svg.contains("stroke-dasharray=\"5 3\""),
+        "dashed node style should reach SVG geometry"
+    );
+    assert!(
+        svg.contains("width=\"240\""),
+        "node width attribute should affect SVG geometry"
+    );
+
+    let public_y = svg_rect_y(
+        &svg,
+        "class=\"nwdiag-network\"",
+        "network public (10.0.0.x/24)",
+    )
+    .expect("public network y");
+    let private_y = svg_rect_y(
+        &svg,
+        "class=\"nwdiag-network\"",
+        "network private (192.168.1.x/24)",
+    )
+    .expect("private network y");
+    assert!(
+        private_y > public_y,
+        "private network should be laid out below public network"
+    );
+
+    let public_lb = svg_node_rect(&svg, "lb", "10.0.0.10, fd00:10::10").expect("public lb rect");
+    let private_lb =
+        svg_node_rect(&svg, "lb", "192.168.1.10, fd00:192::10").expect("private lb rect");
+    assert_eq!(
+        public_lb.x, private_lb.x,
+        "shared node column should be stable"
+    );
+    assert!(
+        private_lb.y > public_lb.y,
+        "shared node should appear in each network row"
+    );
+
+    let group_y = svg_rect_y(&svg, "class=\"nwdiag-group\"", "group edge").expect("group y");
+    assert!(
+        group_y > private_y,
+        "global group membership section should remain below network topology"
+    );
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct SvgRectGeom {
+    x: i32,
+    y: i32,
+}
+
+fn svg_rect_y(svg: &str, rect_needle: &str, following_text: &str) -> Option<i32> {
+    let text_ix = svg.find(following_text)?;
+    let before_text = &svg[..text_ix];
+    let rect_ix = before_text.rfind(rect_needle)?;
+    let tag = before_text[rect_ix..].split_once('>')?.0;
+    svg_attr_i32(tag, "y")
+}
+
+fn svg_node_rect(svg: &str, name: &str, addresses: &str) -> Option<SvgRectGeom> {
+    let mut rest = svg;
+    let name_attr = format!("data-nwdiag-name=\"{name}\"");
+    let addresses_attr = format!("data-nwdiag-addresses=\"{addresses}\"");
+    while let Some(ix) = rest.find("<rect class=\"nwdiag-node\"") {
+        rest = &rest[ix..];
+        let tag = rest.split_once('>')?.0;
+        if tag.contains(&name_attr) && tag.contains(&addresses_attr) {
+            return Some(SvgRectGeom {
+                x: svg_attr_i32(tag, "x")?,
+                y: svg_attr_i32(tag, "y")?,
+            });
+        }
+        rest = &rest["<rect".len()..];
+    }
+    None
+}
+
+fn svg_attr_i32(tag: &str, attr: &str) -> Option<i32> {
+    let needle = format!("{attr}=\"");
+    let rest = tag.split_once(&needle)?.1;
+    let value = rest.split_once('"')?.0;
+    value.parse().ok()
+}
+
+#[test]
 fn archimate_family_check_mode_passes_for_valid_input() {
     Command::cargo_bin("puml")
         .expect("binary")
@@ -4745,403 +4867,6 @@ fn fail_on_warn_flag_exits_one_when_warnings_emitted() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("E_WARNINGS_PRESENT"));
-}
-
-#[test]
-fn preprocessor_builtin_strlen_expands_to_character_count() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_builtin_strlen.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(label, "len=8");
-}
-
-#[test]
-fn preprocessor_builtin_boolval_expands_truthiness_and_not_inverts() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_builtin_boolval.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let labels: Vec<&str> = json["statements"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|s| s["kind"]["Message"]["label"].as_str())
-        .collect();
-    assert_eq!(labels, vec!["true", "false", "false"]);
-}
-
-#[test]
-fn preprocessor_builtin_chain_composes_substr_upper_intval_dec2hex() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_builtin_chain.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(label, "PLANT-12-ff");
-}
-
-#[test]
-fn preprocessor_builtin_list_map_stringification_assert_and_log_surface_passes() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_builtin_list_map_stringification_assert_log.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(
-        label,
-        "beta|alpha+beta+gamma|Ada|2|\"name\",\"role\"|Ada,admin|\"admin\""
-    );
-}
-
-#[test]
-fn preprocessor_dynamic_call_user_func_invokes_function_expression() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_dynamic_call_user_func.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(label, "hi Bob");
-}
-
-#[test]
-fn preprocessor_color_math_builtins_expand_deterministically() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_builtin_color_math.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(label, "7 true #ffffff #7f7f7f #000000");
-}
-
-#[test]
-fn preprocessor_json_dot_and_bracket_access_expands_native_variable_paths() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_json_dot_bracket_access.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(label, "Ada|uml|1");
-}
-
-#[test]
-fn preprocessor_splitstr_regex_splits_on_lightweight_delimiter_patterns() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_splitstr_regex.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(label, "alpha|beta|gamma");
-}
-
-#[test]
-fn preprocessor_macro_concat_expands_inside_safe_procedure_body_lines() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_macro_concat_body.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let msg = &json["statements"][0]["kind"]["Message"];
-    assert_eq!(msg["from"].as_str().unwrap(), "Alice");
-    assert_eq!(msg["label"].as_str().unwrap(), "Alice");
-}
-
-#[test]
-fn preprocessor_macro_expression_and_collection_depth_expand() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_macro_expr_collection_depth.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let labels = json["statements"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|stmt| {
-            stmt["kind"]["Message"]["label"]
-                .as_str()
-                .unwrap()
-                .to_string()
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(labels, vec!["OK", "14 / blue / green"]);
-}
-
-#[test]
-fn preprocessor_unsafe_time_env_random_helpers_follow_deterministic_policy() {
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args([
-            "--dump",
-            "ast",
-            &fixture("preprocessor/valid_unsafe_builtin_policy.puml"),
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let label = json["statements"][0]["kind"]["Message"]["label"]
-        .as_str()
-        .unwrap();
-    assert_eq!(label, "date=[] env=[] rand=[0]");
-}
-
-#[test]
-fn preprocessor_unsafe_io_helpers_reject_with_stable_policy_code() {
-    Command::cargo_bin("puml")
-        .expect("binary")
-        .write_stdin("@startuml\nA -> B : %load_json(\"/tmp/state.json\")\n@enduml\n")
-        .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_PREPROC_UNSAFE_BUILTIN"));
-}
-
-#[test]
-fn preprocessor_next_wave_expression_callable_scope_and_helper_aliases_expand() {
-    let src = "@startuml\n!procedure $Emit($from, $to)\n!$label = %map_get(%map(\"name\", \"Ada\"), \"missing\", \"fallback\")\n$from -> $to : $label/%procedure_exists(\"$Emit\")/%is_empty(%list_clear(%list(\"x\")))\n!endprocedure\n!function Pick($base)\n!$items = %list_push(%list($base), \"beta\")\n!return %list_get($items, 1, \"missing\")\n!endfunction\n!$cfg = {\"empty\":\"\",\"none\":null}\n!if %json_key_exists($cfg, \"empty\") and %json_key_exists($cfg, \"none\") and 1 <> 2\n!$Emit(Alice, Bob)\nAlice -> Bob : %Pick(\"alpha\")/%list_get(%list(\"x\"), 9, \"fallback\")/%is_number(%eval_int(\"2 + 3\"))\n!endif\n@enduml\n";
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args(["--dump", "ast", "--", "-"])
-        .write_stdin(src)
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let labels = json["statements"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
-        .collect::<Vec<_>>();
-    assert_eq!(labels, vec!["fallback/true/true", "beta/fallback/true"]);
-}
-
-#[test]
-fn preprocessor_loop_controls_and_foreach_object_key_iteration_expand() {
-    let src = "@startuml\n!$cfg = {\"alpha\":1,\"beta\":2,\"stop\":3}\n!foreach $key in $cfg\n!if $key == \"beta\"\n!continue\n!endif\n!if $key == \"stop\"\n!break\n!endif\nAlice -> Bob : $key\n!endfor\n!$i = 0\n!while $i < 5\n!$i = %eval_int($i + 1)\n!if $i == 2\n!continue\n!endif\n!if $i == 4\n!break\n!endif\nAlice -> Bob : loop-$i\n!endwhile\n@enduml\n";
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args(["--dump", "ast", "--", "-"])
-        .write_stdin(src)
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let labels = json["statements"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
-        .collect::<Vec<_>>();
-    assert_eq!(labels, vec!["alpha", "loop-1", "loop-3"]);
-}
-
-#[test]
-fn preprocessor_loop_controls_outside_loop_report_stable_codes() {
-    Command::cargo_bin("puml")
-        .expect("binary")
-        .write_stdin("@startuml\n!break\nAlice -> Bob : unreachable\n@enduml\n")
-        .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_PREPROC_BREAK_OUTSIDE_LOOP"));
-
-    Command::cargo_bin("puml")
-        .expect("binary")
-        .write_stdin("@startuml\n!continue\nAlice -> Bob : unreachable\n@enduml\n")
-        .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_PREPROC_CONTINUE_OUTSIDE_LOOP"));
-}
-
-#[test]
-fn preprocessor_deep_parity_macro_defaults_dynamic_and_collection_helpers_expand() {
-    let src = "@startuml\n!define EMIT(from=Alice,to=Bob,label=hi) from -> to : label\n!function Choice($name=\"Ada\", $suffix=\"!\")\n!return $name ## $suffix\n!endfunction\n!$fn = \"Choice\"\n!$items = %list(\"zero\", \"one\", \"two\", \"three\")\nEMIT(label=kw, to=Carol)\n!foreach $outer in %list(\"A\", \"B\")\n!foreach $inner in %list(\"1\", \"skip\", \"2\")\n!if $inner == \"skip\"\n!continue\n!endif\nAlice -> Bob : $outer$inner\n!if $outer == \"B\" and $inner == \"1\"\n!break\n!endif\n!endfor\n!endfor\nAlice -> Bob : %if(%equals_ignore_case(\"Ada\", \"ada\"), %call_user_func($fn, Ada, ?), \"no\")/%join(%list_slice($items, 1, 2), \"|\")/%min(9, 3, 5)/%max(9, 3, 5)/%abs(-7)/%join(%list_pop($items), \"|\")/%join(%list_shift($items), \"|\")/%contains_ignore_case(\"PlantUML\", \"uml\")\n!if true xor false\nAlice -> Bob : xor-ok\n!endif\n@enduml\n";
-    let out = Command::cargo_bin("puml")
-        .expect("binary")
-        .args(["--dump", "ast", "--", "-"])
-        .write_stdin(src)
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let json: Value = serde_json::from_slice(&out).unwrap();
-    let labels = json["statements"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        labels,
-        vec![
-            "kw",
-            "A1",
-            "A2",
-            "B1",
-            "Ada?/one|two/3/9/7/zero|one|two/one|two|three/true",
-            "xor-ok",
-        ]
-    );
-}
-
-#[test]
-fn preprocessor_malformed_builtin_call_reports_syntax_code() {
-    Command::cargo_bin("puml")
-        .expect("binary")
-        .write_stdin("@startuml\nA -> B : %strlen(\"unterminated)\n@enduml\n")
-        .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_PREPROC_CALL_SYNTAX"));
-}
-
-#[test]
-fn preprocessor_include_directives_are_deterministic_for_same_input() {
-    // Deterministic-bytes contract for the new include surface: rendering
-    // the same source twice yields identical AST bytes.
-    for case in [
-        "include/valid_include_once.puml",
-        "include/valid_include_many.puml",
-        "include/valid_includesub.puml",
-    ] {
-        let first = Command::cargo_bin("puml")
-            .expect("binary")
-            .args(["--dump", "ast", &fixture(case)])
-            .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
-        let second = Command::cargo_bin("puml")
-            .expect("binary")
-            .args(["--dump", "ast", &fixture(case)])
-            .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
-        assert_eq!(first, second, "non-deterministic output for {case}");
-    }
-}
-
-#[test]
-fn preprocessor_includeurl_directive_rejects_with_deterministic_code_when_flag_set() {
-    Command::cargo_bin("puml")
-        .expect("binary")
-        .args(["--no-url-includes"])
-        .write_stdin("@startuml\n!includeurl https://example.com/lib.puml\n@enduml\n")
-        .assert()
-        .code(1)
-        .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 }
 
 #[test]
@@ -5928,6 +5653,37 @@ fn stdlib_angle_bracket_include_is_idempotent_when_included_twice() {
         .success()
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_angle_bracket_include_supports_tagged_fixture() {
+    let stdout = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("stdlib_include_tag/valid_stdlib_tagged_angle_include.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let ast: Value = serde_json::from_slice(&stdout).expect("valid JSON AST");
+    let stmts = ast["statements"].as_array().expect("statements array");
+    assert_eq!(
+        stmts.len(),
+        1,
+        "tagged stdlib include must omit untagged body lines"
+    );
+    assert_eq!(stmts[0]["kind"]["Message"]["from"], "Alice");
+    assert_eq!(stmts[0]["kind"]["Message"]["to"], "Bob");
+    assert_eq!(
+        stmts[0]["kind"]["Message"]["label"],
+        "from tagged stdlib include"
+    );
 }
 
 #[test]

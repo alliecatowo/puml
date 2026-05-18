@@ -1530,7 +1530,6 @@ fn lsp_parse_with_frontend(
         src,
         &ParsePipelineOptions {
             frontend: frontend.unwrap_or(FrontendSelection::Auto),
-            no_url_includes: true,
             ..ParsePipelineOptions::default()
         },
     )

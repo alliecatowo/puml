@@ -244,7 +244,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.compat,
             cli.determinism,
             frontend_hint_for_path(Some(path.as_path())),
-            cli.no_url_includes,
+            cli.allow_url_includes,
         )
         .map_err(|d| diag_err_with_source(&src, d, cli.diagnostics))?;
         let model =
@@ -306,7 +306,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     cli.compat,
                     cli.determinism,
                     source.frontend_hint,
-                    cli.no_url_includes,
+                    cli.allow_url_includes,
                 )
                 .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                 let ast = doc.clone();
@@ -349,7 +349,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.compat,
                 cli.determinism,
                 source.frontend_hint,
-                cli.no_url_includes,
+                cli.allow_url_includes,
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
             let model = normalize_family(doc)
@@ -384,7 +384,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.compat,
                         cli.determinism,
                         source.frontend_hint,
-                        cli.no_url_includes,
+                        cli.allow_url_includes,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     Ok(ast_to_json(&doc))
@@ -397,7 +397,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.compat,
                         cli.determinism,
                         source.frontend_hint,
-                        cli.no_url_includes,
+                        cli.allow_url_includes,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize_family(doc).map_err(|d| {
@@ -414,7 +414,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.compat,
                         cli.determinism,
                         source.frontend_hint,
-                        cli.no_url_includes,
+                        cli.allow_url_includes,
                     )
                     .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
                     let model = normalize_family(doc).map_err(|d| {
@@ -458,7 +458,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.compat,
                 cli.determinism,
                 source.frontend_hint,
-                cli.no_url_includes,
+                cli.allow_url_includes,
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
             let result = specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
@@ -487,7 +487,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.compat,
             cli.determinism,
             source.frontend_hint,
-            cli.no_url_includes,
+            cli.allow_url_includes,
         )
         .map_err(|d| diag_err_mapped(&raw, source.source_span, d, cli.diagnostics))?;
         let model = normalize_family(doc)
@@ -787,7 +787,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 cli.compat,
                 cli.determinism,
                 source.frontend_hint,
-                cli.no_url_includes,
+                cli.allow_url_includes,
             ) {
                 Ok(doc) => doc,
                 Err(d) => {
@@ -1129,7 +1129,7 @@ fn parse_for_cli(
     cli_compat: CliCompatMode,
     cli_determinism: CliDeterminismMode,
     frontend_hint: Option<FrontendSelection>,
-    no_url_includes: bool,
+    allow_url_includes: bool,
 ) -> Result<Document, Diagnostic> {
     let include_root = include_root.or_else(|| match cli_compat {
         CliCompatMode::Strict => None,
@@ -1140,7 +1140,7 @@ fn parse_for_cli(
         compat: map_compat(cli_compat),
         determinism: map_determinism(cli_determinism),
         include_root,
-        no_url_includes,
+        allow_url_includes,
     };
     puml::parse_with_pipeline_options(source, &options)
 }
@@ -1152,7 +1152,7 @@ fn preprocess_for_cli(
     cli_compat: CliCompatMode,
     cli_determinism: CliDeterminismMode,
     frontend_hint: Option<FrontendSelection>,
-    no_url_includes: bool,
+    allow_url_includes: bool,
 ) -> Result<String, Diagnostic> {
     let include_root = include_root.or_else(|| match cli_compat {
         CliCompatMode::Strict => None,
@@ -1163,7 +1163,7 @@ fn preprocess_for_cli(
         compat: map_compat(cli_compat),
         determinism: map_determinism(cli_determinism),
         include_root,
-        no_url_includes,
+        allow_url_includes,
     };
     preprocess_with_pipeline_options(source, &options)
 }
@@ -1172,6 +1172,9 @@ fn map_frontend(
     dialect: CliDialect,
     frontend_hint: Option<FrontendSelection>,
 ) -> FrontendSelection {
+    // Auto mode is the only mode that accepts routing hints from file
+    // extensions (`.picouml`) or markdown fence tags (`picouml`, `mermaid`).
+    // Explicit `--dialect` keeps user intent ahead of extension names.
     if matches!(dialect, CliDialect::Auto) {
         if let Some(hint) = frontend_hint {
             return hint;

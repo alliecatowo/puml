@@ -25,9 +25,8 @@ struct IncludeTarget {
 #[derive(Debug, Clone)]
 pub struct ParseOptions {
     pub include_root: Option<PathBuf>,
-    /// When true (the default), `!include https://...` fetches the URL and
-    /// inlines its content. Set to false via `--no-url-includes` to reject
-    /// all URL include targets with a clear diagnostic.
+    /// When true, `!include https://...`, `!includeurl`, and `file://` URL
+    /// targets fetch or read content. Defaults to false to avoid surprise IO.
     pub allow_url_includes: bool,
 }
 
@@ -35,7 +34,7 @@ impl Default for ParseOptions {
     fn default() -> Self {
         Self {
             include_root: None,
-            allow_url_includes: true,
+            allow_url_includes: false,
         }
     }
 }
@@ -640,7 +639,9 @@ fn preprocess_text(
                         if !options.allow_url_includes {
                             return Err(Diagnostic::error_code(
                                 "E_INCLUDE_URL_DISABLED",
-                                format!("!includeurl URL includes are disabled: {raw_target}"),
+                                format!(
+                                    "!includeurl URL includes are disabled (pass --allow-url-includes to enable): {raw_target}"
+                                ),
                             ));
                         }
                         #[cfg(not(target_arch = "wasm32"))]
@@ -881,7 +882,7 @@ fn process_include_directive(
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
                 format!(
-                    "{directive_name} URL includes are disabled (pass --no-url-includes to see this error or remove the flag to enable): {}",
+                    "{directive_name} URL includes are disabled (pass --allow-url-includes to enable): {}",
                     raw_target
                 ),
             ));
@@ -1026,7 +1027,10 @@ fn process_include_many_directive(
         if !options.allow_url_includes {
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
-                format!("!include_many URL includes are disabled: {}", raw_target),
+                format!(
+                    "!include_many URL includes are disabled (pass --allow-url-includes to enable): {}",
+                    raw_target
+                ),
             ));
         }
         let url = extract_url(raw_target);
@@ -1243,22 +1247,9 @@ fn process_stdlib_angle_include(
     call_depth: usize,
     out: &mut String,
 ) -> Result<(), Diagnostic> {
-    let inner = raw_target
-        .trim()
-        .trim_start_matches('<')
-        .trim_end_matches('>')
-        .trim();
-    if inner.is_empty() {
-        return Err(Diagnostic::error_code(
-            "E_INCLUDE_PATH_REQUIRED",
-            format!("{directive_name} angle-bracket stdlib target cannot be empty"),
-        ));
-    }
-
-    let mut path = PathBuf::from(inner);
-    if path.extension().is_none() {
-        path.set_extension("puml");
-    }
+    let target = parse_stdlib_angle_include_target(raw_target, directive_name)?;
+    let inner = target.display_name.as_str();
+    let path = target.path;
 
     if path.is_absolute() {
         return Err(Diagnostic::error_code(
@@ -1300,7 +1291,7 @@ fn process_stdlib_angle_include(
         ));
     }
 
-    let content = fs::read_to_string(&resolved).map_err(|e| {
+    let mut content = fs::read_to_string(&resolved).map_err(|e| {
         Diagnostic::error_code(
             "E_INCLUDE_READ",
             format!(
@@ -1309,6 +1300,18 @@ fn process_stdlib_angle_include(
             ),
         )
     })?;
+    if let Some(tag) = target.tag.as_deref() {
+        content = extract_include_tag(&content, tag).ok_or_else(|| {
+            Diagnostic::error_code(
+                "E_INCLUDE_TAG_NOT_FOUND",
+                format!(
+                    "include tag '{}' was not found in stdlib include '{}'",
+                    tag,
+                    resolved.display()
+                ),
+            )
+        })?;
+    }
 
     include_stack.push(resolved);
     preprocess_text(
@@ -1323,6 +1326,73 @@ fn process_stdlib_angle_include(
     )?;
     include_stack.pop();
     Ok(())
+}
+
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+struct StdlibAngleIncludeTarget {
+    path: PathBuf,
+    display_name: String,
+    tag: Option<String>,
+}
+
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+fn parse_stdlib_angle_include_target(
+    raw_target: &str,
+    directive_name: &str,
+) -> Result<StdlibAngleIncludeTarget, Diagnostic> {
+    let trimmed = raw_target.trim();
+    let Some(after_open) = trimmed.strip_prefix('<') else {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_INVALID_FORM",
+            format!("{directive_name} stdlib target must start with `<`: {raw_target}"),
+        ));
+    };
+    let Some(close_index) = after_open.find('>') else {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_INVALID_FORM",
+            format!("{directive_name} stdlib target is missing closing `>`: {raw_target}"),
+        ));
+    };
+
+    let inner = after_open[..close_index].trim();
+    if inner.is_empty() {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_PATH_REQUIRED",
+            format!("{directive_name} angle-bracket stdlib target cannot be empty"),
+        ));
+    }
+
+    let suffix = after_open[close_index + 1..].trim();
+    let tag = if suffix.is_empty() {
+        None
+    } else if let Some(tag) = suffix.strip_prefix('!') {
+        let tag = tag.trim();
+        if tag.is_empty() || tag.contains(char::is_whitespace) {
+            return Err(Diagnostic::error_code(
+                "E_INCLUDE_INVALID_FORM",
+                format!("{directive_name} has an invalid stdlib include tag: {raw_target}"),
+            ));
+        }
+        Some(tag.to_string())
+    } else {
+        return Err(Diagnostic::error_code(
+            "E_INCLUDE_INVALID_FORM",
+            format!(
+                "{directive_name} stdlib target only supports optional `!TAG` after `>`: {raw_target}"
+            ),
+        ));
+    };
+
+    let mut path = PathBuf::from(inner);
+    if path.extension().is_none() {
+        path.set_extension("puml");
+    }
+
+    Ok(StdlibAngleIncludeTarget {
+        path,
+        display_name: inner.to_string(),
+        tag,
+    })
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1347,7 +1417,10 @@ fn process_import_directive(
         if !options.allow_url_includes {
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
-                format!("!import URL includes are disabled: {}", raw_target),
+                format!(
+                    "!import URL includes are disabled (pass --allow-url-includes to enable): {}",
+                    raw_target
+                ),
             ));
         }
         let url = extract_url(raw_target);
@@ -2313,7 +2386,7 @@ fn resolve_stdlib_root_for_angle_include(
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn is_angle_bracket_include(raw_target: &str) -> bool {
     let trimmed = raw_target.trim();
-    trimmed.starts_with('<') && trimmed.ends_with('>')
+    trimmed.starts_with('<')
 }
 
 #[cfg(not(target_arch = "wasm32"))]

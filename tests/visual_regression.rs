@@ -5,9 +5,9 @@
 //! `expected_text` substrings appear, (3) at least `min_text_elements`
 //! non-empty `<text>` elements are emitted.
 //!
-//! Also provides a PNG baseline-diff sweep (`png_regression_all_fixtures`)
-//! and a bless mechanism (`bless_baselines`) for promoting renders to
-//! baselines after intentional changes.
+//! Also provides PNG baseline-diff sweeps and a bless mechanism
+//! (`bless_baselines`) for promoting renders to baselines after intentional
+//! changes.
 //!
 //! Catches the family of bugs where the renderer drops text labels.
 //! See `tests/visual_regression/README.md`.
@@ -828,18 +828,16 @@ fn run_png_sweep<'a>(label: &str, fixtures: impl IntoIterator<Item = &'a Fixture
             "\nTo bless changed renders as new baselines (after verifying the\n\
              changes are intentional):\n\n  \
              cargo test --test visual_regression bless_baselines -- --ignored\n\n\
-             Diff artefacts are written to target/visual-diff/. \
-             See tests/visual_regression/README.md for full workflow.\n",
+             Diff artefacts are written to target/visual-diff/. On PR Gate, \
+             download the pr-visual-smoke-<run_number> artifact from the \
+             visual smoke fixture matrix job. See \
+             tests/visual_regression/README.md for full workflow.\n",
         );
         panic!("{report}");
     }
 }
 
 /// Compare every reviewed PNG baseline currently committed to git.
-///
-/// This is intentionally narrower than `png_regression_all_fixtures`: the
-/// full sweep stays ignored while baseline coverage is expanded fixture by
-/// fixture, but each committed PNG is enforced by the default test suite.
 #[test]
 fn png_regression_committed_baselines() {
     let manifest = load_manifest();
@@ -872,17 +870,11 @@ fn png_regression_committed_baselines() {
 ///      (current render) and `<fixture>.diff.png` (diff overlay, changed
 ///      pixels in red).
 ///
-/// The test is `#[ignore]` while reviewed baseline coverage is still being
-/// expanded. The default `png_regression_committed_baselines` test gates every
-/// baseline that has already been committed, and this full sweep becomes useful
-/// once all manifest fixtures have reviewed PNG baselines.
-///
-/// Once all manifest fixtures are blessed, remove the `#[ignore]` to gate this
-/// in CI.
-///
-/// # TODO: add png_regression_all_fixtures to PR Gate after full baseline coverage.
+/// This runs by default because every current manifest fixture has a reviewed
+/// PNG baseline. Keep it unignored when adding new manifest fixtures: either
+/// commit the matching reviewed baseline in the same change, or split the new
+/// fixture into a text-only manifest change once it has a documented reason.
 #[test]
-#[ignore]
 fn png_regression_all_fixtures() {
     let manifest = load_manifest();
     run_png_sweep(
