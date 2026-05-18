@@ -19,7 +19,6 @@ Example:
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
