@@ -11,6 +11,8 @@ WARMUP=2
 FALLBACK_RUNS=12
 ENFORCE_GATES=0
 UPDATE_BASELINE=0
+CHECK_ARTIFACTS=0
+POLICY_VERSION="bench-gate-v2-2026-05-17"
 
 # URL includes pull in TLS/HTTP dependencies; keep the size gate above the
 # current ~10 MB release binary while still catching accidental large growth.
@@ -25,13 +27,14 @@ REGRESSION_MIN_DELTA_MS_QUICK=50
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/bench.sh [--quick] [--dry] [--enforce-gates] [--update-baseline]
+Usage: ./scripts/bench.sh [--quick] [--dry] [--enforce-gates] [--update-baseline] [--check-artifacts]
 
 Options:
   --quick            fewer runs for fast local validation
   --dry              print resolved scenarios and exit without executing
   --enforce-gates    fail when binary/perf thresholds are exceeded
   --update-baseline  replace mode baseline after successful run
+  --check-artifacts  validate committed benchmark JSON policy metadata and exit
 USAGE
 }
 
@@ -54,6 +57,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --update-baseline)
       UPDATE_BASELINE=1
+      shift
+      ;;
+    --check-artifacts)
+      CHECK_ARTIFACTS=1
       shift
       ;;
     -h|--help)
@@ -84,6 +91,15 @@ else
   BASELINE_JSON="$OUT_DIR/baseline_full.json"
 fi
 
+if [[ "$CHECK_ARTIFACTS" -eq 1 ]]; then
+  python3 "$ROOT_DIR/scripts/bench_gate.py" validate-artifacts \
+    "$OUT_DIR/latest.json" \
+    "$OUT_DIR/latest_trend.json" \
+    "$OUT_DIR/baseline_full.json" \
+    "$OUT_DIR/baseline_quick.json"
+  exit $?
+fi
+
 SCENARIOS=(
   "cold_start_help::$BIN --help >/dev/null"
   "parser_check::$BIN --check $ROOT_DIR/tests/fixtures/basic/hello.puml >/dev/null"
@@ -100,6 +116,7 @@ if [[ "$MODE" == "dry" ]]; then
   echo "[bench] baseline: $BASELINE_JSON"
   echo "[bench] enforce_gates: $ENFORCE_GATES"
   echo "[bench] update_baseline: $UPDATE_BASELINE"
+  echo "[bench] policy_version: $POLICY_VERSION"
   echo "[bench] scenarios:"
   for entry in "${SCENARIOS[@]}"; do
     echo "  - ${entry%%::*}: ${entry#*::}"
@@ -150,6 +167,14 @@ echo "    \"arch\": \"$ARCH\"," >> "$JSON"
 echo "    \"rustc\": \"$RUSTC_VERSION\"," >> "$JSON"
 echo "    \"timing_tool\": \"$TIMING_TOOL\"" >> "$JSON"
 echo "  }," >> "$JSON"
+echo "  \"benchmark_policy\": {" >> "$JSON"
+echo "    \"version\": \"$POLICY_VERSION\"," >> "$JSON"
+echo "    \"mode\": \"$MODE\"," >> "$JSON"
+echo "    \"absolute_mean_ms_limit\": $ABS_MEAN_LIMIT_MS," >> "$JSON"
+echo "    \"regression_pct_limit\": $REGRESSION_LIMIT_PCT," >> "$JSON"
+echo "    \"regression_min_delta_ms\": $REGRESSION_MIN_DELTA_MS," >> "$JSON"
+echo "    \"binary_limit_bytes\": $BINARY_LIMIT_BYTES" >> "$JSON"
+echo "  }," >> "$JSON"
 echo "  \"scenarios\": [" >> "$JSON"
 
 printf '%s\n\n' '# Benchmark Results' > "$MD"
@@ -159,6 +184,7 @@ printf '%s\n' "- Mode: \`$MODE\`" >> "$MD"
 printf '%s\n' "- Baseline: \`$BASELINE_JSON\`" >> "$MD"
 printf '%s\n' "- Timing tool: \`$TIMING_TOOL\`" >> "$MD"
 printf '%s\n' "- Environment: \`$HOST_NAME\` / \`$OS_NAME\` \`$KERNEL\` / \`$ARCH\` / \`$RUSTC_VERSION\`" >> "$MD"
+printf '%s\n' "- Benchmark policy: \`$POLICY_VERSION\`" >> "$MD"
 printf '%s\n' "- Gate profile: abs mean <= \`${ABS_MEAN_LIMIT_MS}ms\`, regression <= \`${REGRESSION_LIMIT_PCT}%%\`, binary <= \`${BINARY_LIMIT_BYTES}\` bytes" >> "$MD"
 printf '%s\n\n' '- PlantUML comparison: TODO (no-Java environment baseline run)' >> "$MD"
 printf '%s\n' '| Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |' >> "$MD"

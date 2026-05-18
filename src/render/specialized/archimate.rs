@@ -91,7 +91,8 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         let Some(&to) = element_bounds.get(&rel.to) else {
             continue;
         };
-        let (x1, y1, x2, y2) = compute_edge_anchors_tuple(from, to);
+        let (x1, y1, x2, y2) =
+            compute_edge_anchors_for_direction(from, to, rel.direction.as_deref());
         let relation_style = archimate_relation_style(rel.kind.as_str(), rel.style.as_deref());
         out.push_str(&format!(
             "<line class=\"archimate-relation-edge\" data-archimate-kind=\"{}\" data-archimate-direction=\"{}\" data-archimate-style=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} />",

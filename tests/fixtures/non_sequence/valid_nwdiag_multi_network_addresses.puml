@@ -1,0 +1,18 @@
+@startnwdiag
+nwdiag {
+  group edge {
+    lb;
+    web01;
+  }
+  network public {
+    address = "10.0.0.x/24"
+    lb [address = ["10.0.0.10", "fd00:10::10"], description = "edge lb", color = "#eef2ff", style = dashed, width = 240];
+    web01 [address = "10.0.0.21"];
+  }
+  network private {
+    address = "192.168.1.x/24"
+    lb [address = ["192.168.1.10", "fd00:192::10"], description = "internal lb"];
+    app01 [address = "192.168.1.21"];
+  }
+}
+@endnwdiag

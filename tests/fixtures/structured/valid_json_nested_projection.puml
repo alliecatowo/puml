@@ -1,0 +1,12 @@
+@startjson
+{
+  "service": {
+    "name": "api",
+    "regions": [
+      {"id": "us", "replicas": 3},
+      {"id": "eu", "replicas": 2}
+    ]
+  },
+  "enabled": true
+}
+@endjson

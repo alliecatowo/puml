@@ -352,7 +352,7 @@ Historical blitz summary:
 | `!import` / stdlib resolution | Supported | #116 |
 | `!theme` local catalog | Supported | #117 |
 | JSON variable assignment | Supported | #135 |
-| URL include policy | Native CLI enabled by default with `--no-url-includes`; LSP/WASM no-surprise surfaces disable or reject remote fetches | #255 / #288 |
+| URL include policy | Native CLI supports URL includes behind `--allow-url-includes`; default CLI/LSP/WASM no-surprise surfaces disable or reject remote fetches | #255 / #288 |
 
 #### Sequence Parity — Done (2026-05-15)
 

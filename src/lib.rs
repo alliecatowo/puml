@@ -2,6 +2,8 @@ pub mod ast;
 pub mod creole;
 pub mod diagnostic;
 pub mod formatter;
+// Frontend adapters translate non-default input surfaces into PlantUML-shaped
+// source before the shared parser, normalizer, layout, and renderer run.
 mod frontend;
 pub mod layout;
 pub mod metadata;
@@ -122,9 +124,10 @@ pub struct ParsePipelineOptions {
     pub compat: CompatMode,
     pub determinism: DeterminismMode,
     pub include_root: Option<PathBuf>,
-    /// When true, reject all `!include https://...` targets with a clear diagnostic.
-    /// Default: false (URL includes are enabled, matching PlantUML behaviour).
-    pub no_url_includes: bool,
+    /// When true, permit `!include https://...`, `!includeurl`, and `file://` URL targets.
+    /// Default: false, so parsing never performs network IO or URL-addressed
+    /// local file reads unless the caller opts in.
+    pub allow_url_includes: bool,
 }
 
 impl Default for ParsePipelineOptions {
@@ -134,7 +137,7 @@ impl Default for ParsePipelineOptions {
             compat: CompatMode::Strict,
             determinism: DeterminismMode::Strict,
             include_root: None,
-            no_url_includes: false,
+            allow_url_includes: false,
         }
     }
 }
@@ -196,7 +199,7 @@ fn interpret_parser_contract(
     };
     Ok(parser::ParseOptions {
         include_root,
-        allow_url_includes: !options.no_url_includes,
+        allow_url_includes: options.allow_url_includes,
     })
 }
 

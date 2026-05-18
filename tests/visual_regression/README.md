@@ -23,13 +23,11 @@ fixture to SVG via the `puml` binary using stdin/stdout, so tracked
 
 ### PNG baseline-diff sweeps
 
-The default `png_regression_committed_baselines` test compares only reviewed
-PNG baselines that are already committed under `tests/visual_baselines/`.
-This lets baseline coverage grow fixture by fixture while keeping PR-gate cost
-small.
-
-The ignored `png_regression_all_fixtures` sweep covers every fixture in
-`manifest.json` and is the eventual full baseline gate.
+The default `png_regression_all_fixtures` test compares every fixture in
+`manifest.json` against a reviewed PNG baseline committed under
+`tests/visual_baselines/`. `png_regression_committed_baselines` remains as a
+focused guard for the set of PNGs currently present on disk, but every current
+manifest fixture is expected to have a reviewed PNG.
 
 For every fixture in `manifest.json`:
 
@@ -61,16 +59,17 @@ cargo test --test visual_regression visual_regression_all_fixtures
 # Run the committed-baselines PNG sweep used by the default test suite.
 cargo test --test visual_regression png_regression_committed_baselines
 
-# Run the full PNG baseline sweep (currently #[ignore] until every manifest
-# fixture has a reviewed baseline).
-cargo test --test visual_regression -- --ignored png_regression_all_fixtures
+# Run the full PNG baseline sweep directly.
+cargo test --test visual_regression png_regression_all_fixtures
 
 # Generate or refresh baselines after reviewing current output.
 cargo test --test visual_regression bless_baselines -- --ignored
 ```
 
 Debug artefacts (SVG and PNG renders) are written to `target/visual-diff/`
-and are `.gitignore`'d — they are for local inspection only.
+and are `.gitignore`'d. On PR Gate failures, the `visual smoke fixture matrix`
+job uploads that directory as the `pr-visual-smoke-<run_number>` artifact with
+14-day retention.
 
 ## Adding a fixture with a baseline
 
@@ -85,8 +84,8 @@ and are `.gitignore`'d — they are for local inspection only.
    }
    ```
 
-   `expected_text` can be empty (`[]`) if the only goal is the
-   non-empty-`<text>` check.
+   `expected_text` should contain semantic labels reviewers care about. Use a
+   non-empty `structural_only_reason` only for true structural-only fixtures.
 
 2. **Generate the baseline PNG** once the renderer output has been reviewed:
 
@@ -132,7 +131,9 @@ cargo test --test visual_regression bless_baselines -- --ignored
 
 This re-renders every fixture and overwrites
 `tests/visual_baselines/<family>/<fixture>.png` with the current output.
-The test always prints a report of what was created/updated.
+The test always prints a report of what was created or updated. If only one
+family intentionally changed, review the corresponding subdirectory and make
+sure unrelated PNGs were not rewritten unexpectedly.
 
 ### 3. Commit the new baselines
 
@@ -143,6 +144,17 @@ git commit -m "test: bless PNG baselines after <describe the render change>"
 
 The committed PNGs appear in the PR diff so reviewers can inspect the
 visual change directly in the GitHub UI.
+
+### CI diff artifacts
+
+When PR Gate fails in the visual smoke job:
+
+1. Open the `visual smoke fixture matrix` job.
+2. Download `pr-visual-smoke-<run_number>` from the job artifacts.
+3. Inspect `target/visual-diff/<family>/<fixture>.diff.png` and
+   `<fixture>.png.new`.
+4. Bless only when the visual change is intentional and the new render has
+   been reviewed.
 
 ## Regenerate vs. investigate
 
@@ -170,10 +182,11 @@ cargo test
 cargo test --test visual_regression visual_regression_all_fixtures
 ```
 
-The default test suite also enforces every committed reviewed PNG baseline via
-`png_regression_committed_baselines`. Once all manifest fixtures have real PNG
-baselines committed, add the full PNG sweep to the PR Gate as:
+The default Rust test suite now includes both PNG sweeps:
+`png_regression_committed_baselines` and `png_regression_all_fixtures`. The
+named full text sweep remains in PR Gate so text-specific failures produce
+`target/visual-diff/*.svg` artifacts even when the broader test suite is
+filtered or retried.
 
-```sh
-cargo test --test visual_regression -- --ignored png_regression_all_fixtures
-```
+The visual smoke job uploads `target/visual-diff` as
+`pr-visual-smoke-<run_number>` on success or failure.

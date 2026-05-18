@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "name": "promoted oracle parity fixtures",
+  "promoted_fixtures": [
+    {
+      "path": "tests/fixtures/basic/hello.puml",
+      "allowed_categories": ["match"],
+      "reason": "baseline sequence parity smoke fixture"
+    },
+    {
+      "path": "docs/examples/sequence/01_basic.puml",
+      "allowed_categories": ["match"],
+      "reason": "public sequence example promoted as oracle parity evidence"
+    }
+  ]
+}

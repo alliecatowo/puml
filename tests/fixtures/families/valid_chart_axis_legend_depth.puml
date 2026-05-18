@@ -1,0 +1,10 @@
+@startchart
+bar chart
+labels value
+skinparam chartBackgroundColor #fff7ed
+h-axis "Quarter" [Q1,Q2,Q3] color #0f766e grid #ccfbf1 text #134e4a
+v-axis "Net" -10 --> 20 step 10 color #7c2d12 grid #fed7aa text #9a3412
+bar "Actual" [-6,4,18] #dc2626
+bar "Plan" [-2,8,12] #2563eb
+legend at top center background #f8fafc border #0f172a text #111827
+@endchart

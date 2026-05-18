@@ -48,57 +48,13 @@ jobs:
             git ls-files > "${CHANGED_FILES}"
           fi
 
-          run_full_gate=false
-          docs_examples_changed=false
-          run_site_smoke=false
-          run_wasm_site_smoke=false
-
-          while IFS= read -r file; do
-            [[ -n "${file}" ]] || continue
-
-            case "${file}" in
-              docs/examples/*)
-                run_full_gate=true
-                docs_examples_changed=true
-                run_site_smoke=true
-                ;;
-              site/*|site/**|scripts/build-site.mjs|scripts/site-smoke.sh|crates/puml-wasm/*|crates/puml-wasm/**)
-                run_full_gate=true
-                run_site_smoke=true
-                run_wasm_site_smoke=true
-                ;;
-              scripts/wasm-smoke.mjs|site/scripts/smoke-inline-fence-preview.mjs|site/static/js/inline-fence-preview.js|site/static/js/wasm-renderer.js)
-                run_full_gate=true
-                run_site_smoke=true
-                run_wasm_site_smoke=true
-                ;;
-              docs/*|README.md|CONTRIBUTING.md|LICENSE|*.md)
-                run_site_smoke=true
-                ;;
-              *)
-                run_full_gate=true
-                ;;
-            esac
-          done < "${CHANGED_FILES}"
-
-          if [[ ! -s "${CHANGED_FILES}" ]]; then
-            run_full_gate=true
-            run_site_smoke=true
-          fi
-
-          {
-            echo "run_full_gate=${run_full_gate}"
-            echo "docs_examples_changed=${docs_examples_changed}"
-            echo "run_site_smoke=${run_site_smoke}"
-            echo "run_wasm_site_smoke=${run_wasm_site_smoke}"
-          } >> "${GITHUB_OUTPUT}"
+          python3 scripts/ci-classify-changes.py \
+            --changed-files "${CHANGED_FILES}" \
+            --github-output "${GITHUB_OUTPUT}" | tee "${RUNNER_TEMP}/ci-classification.txt"
 
           echo "Changed files:"
           sed 's/^/  - /' "${CHANGED_FILES}"
-          echo "run_full_gate=${run_full_gate}"
-          echo "docs_examples_changed=${docs_examples_changed}"
-          echo "run_site_smoke=${run_site_smoke}"
-          echo "run_wasm_site_smoke=${run_wasm_site_smoke}"
+          cat "${RUNNER_TEMP}/ci-classification.txt"
 
       - name: Fast path for docs-only changes
         if: steps.changes.outputs.run_full_gate != 'true'
@@ -217,38 +173,6 @@ jobs:
 
       - name: wasm check
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
-
-  visual_smoke:
-    name: visual smoke fixture matrix
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: pr-gate-ubuntu-stable
-          cache-on-failure: true
-
-      - name: visual full text fixture matrix
-        run: cargo test --test visual_regression visual_regression_all_fixtures
-
-      - name: Upload visual smoke artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr-visual-smoke-${{ github.run_number }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: target/visual-diff
 
   coverage:
     name: coverage
@@ -377,7 +301,6 @@ jobs:
       - clippy
       - test
       - wasm
-      - visual_smoke
       - coverage
       - docs_examples_drift
       - site_smoke
@@ -392,7 +315,6 @@ jobs:
       CLIPPY_RESULT: ${{ needs.clippy.result }}
       TEST_RESULT: ${{ needs.test.result }}
       WASM_RESULT: ${{ needs.wasm.result }}
-      VISUAL_RESULT: ${{ needs.visual_smoke.result }}
       COVERAGE_RESULT: ${{ needs.coverage.result }}
       DOCS_EXAMPLES_RESULT: ${{ needs.docs_examples_drift.result }}
       SITE_SMOKE_RESULT: ${{ needs.site_smoke.result }}
@@ -410,7 +332,6 @@ jobs:
           echo "clippy=${CLIPPY_RESULT}"
           echo "test=${TEST_RESULT}"
           echo "wasm=${WASM_RESULT}"
-          echo "visual=${VISUAL_RESULT}"
           echo "coverage=${COVERAGE_RESULT}"
           echo "docs_examples=${DOCS_EXAMPLES_RESULT}"
           echo "site_smoke=${SITE_SMOKE_RESULT}"
@@ -432,7 +353,6 @@ jobs:
             require_success "clippy" "${CLIPPY_RESULT}"
             require_success "test" "${TEST_RESULT}"
             require_success "wasm" "${WASM_RESULT}"
-            require_success "visual" "${VISUAL_RESULT}"
             require_success "coverage" "${COVERAGE_RESULT}"
             require_success "docs examples" "${DOCS_EXAMPLES_RESULT}"
           fi

@@ -84,9 +84,13 @@ def summarize(report: Dict[str, Any]) -> Dict[str, Any]:
     jar_only = int(summary.get("jar_only", 0) or 0)
     both_fail = int(summary.get("both_fail", 0) or 0)
     match_pct = int((match * 100) / total) if total else 0
+    promoted_gate = report.get("promoted_gate") or {}
+    promoted_failed = promoted_gate.get("status") == "fail"
 
     if report.get("skipped"):
         gate_status = "skipped"
+    elif promoted_failed:
+        gate_status = "fail"
     elif match_pct >= 80:
         gate_status = "pass"
     elif match_pct >= 50:
@@ -117,6 +121,7 @@ def summarize(report: Dict[str, Any]) -> Dict[str, Any]:
             "jar_only": jar_only,
             "both_fail": both_fail,
         },
+        "promoted_gate": promoted_gate,
         "top_drift_families": top_drift_families(fixtures),
     }
 
@@ -139,6 +144,7 @@ def markdown_for(summary: Dict[str, Any]) -> str:
 
     counts = summary["category_counts"]
     outcomes = summary["outcome_counts"]
+    promoted_gate = summary.get("promoted_gate") or {}
     lines = [
         "# Oracle Conformance Report",
         "",
@@ -156,6 +162,7 @@ def markdown_for(summary: Dict[str, Any]) -> str:
         f"- Pass fixtures: {outcomes['pass']}",
         f"- Advisory drift fixtures: {outcomes['advisory']}",
         f"- Render-failure attention fixtures: {outcomes['fail']}",
+        f"- Promoted fixture gate: {promoted_gate.get('status', 'not-run')}",
         "",
         "| Category | Count |",
         "|---|---:|",
@@ -168,6 +175,22 @@ def markdown_for(summary: Dict[str, Any]) -> str:
         "## Top Drift Families",
         "",
     ]
+
+    if promoted_gate.get("violations"):
+        lines.extend(
+            [
+                "## Promoted Fixture Violations",
+                "",
+                "| Fixture | Actual category | Allowed categories |",
+                "|---|---|---|",
+            ]
+        )
+        for violation in promoted_gate["violations"]:
+            allowed = ", ".join(violation.get("allowed_categories", []))
+            lines.append(
+                f"| {violation.get('path', '')} | {violation.get('actual_category', '')} | {allowed} |"
+            )
+        lines.append("")
 
     if summary["top_drift_families"]:
         lines.extend(["| Family | Count | Categories | Representative fixtures |", "|---|---:|---|---|"])

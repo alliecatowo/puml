@@ -285,7 +285,8 @@ pub fn render_svg(scene: &Scene) -> String {
 
         if !m.label_lines.is_empty() {
             let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
-            let below = scene.style.response_message_below_arrow && m.arrow.starts_with('<');
+            let below =
+                scene.style.response_message_below_arrow && is_response_message_arrow(&m.arrow);
             let lane_offset = if m.style.parallel || below {
                 let lane = parallel_label_lanes.entry(m.y).or_insert(0);
                 let offset = *lane * MESSAGE_LABEL_LINE_GAP;
@@ -310,7 +311,9 @@ pub fn render_svg(scene: &Scene) -> String {
             }
         } else if let Some(label) = &m.label {
             let (tx, anchor) = sequence_message_label_anchor(m.x1, m.x2, scene.style.message_align);
-            let ty = if scene.style.response_message_below_arrow && m.arrow.starts_with('<') {
+            let ty = if scene.style.response_message_below_arrow
+                && is_response_message_arrow(&m.arrow)
+            {
                 line_y + 16
             } else {
                 line_y - 8
@@ -529,6 +532,10 @@ fn sequence_message_label_anchor(x1: i32, x2: i32, align: MessageAlign) -> (i32,
         MessageAlign::Center => (((x1 + x2) / 2) + 2, "middle"),
         MessageAlign::Right => (right - 8, "end"),
     }
+}
+
+fn is_response_message_arrow(arrow: &str) -> bool {
+    arrow.contains("--")
 }
 
 fn render_sequence_arrow_heads(
