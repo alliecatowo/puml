@@ -3024,9 +3024,8 @@ fn preprocessor_expression_validation_errors_are_deterministic() {
             "errors/invalid_import_empty_path.puml",
             "E_IMPORT_PATH_REQUIRED",
         ),
-        // Note: URL imports are now attempted; see import_url_disabled_produces_deterministic_error
-        // for the --no-url-includes path. We skip invalid_import_url.puml here to avoid
-        // real network calls in the test suite.
+        // URL imports are covered separately by import_url_disabled_produces_deterministic_error.
+        // Keep this list focused on local include/import path-shape diagnostics.
         (
             "errors/invalid_import_absolute_path.puml",
             "E_IMPORT_ABSOLUTE_PATH",

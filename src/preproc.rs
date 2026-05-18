@@ -25,9 +25,8 @@ struct IncludeTarget {
 #[derive(Debug, Clone)]
 pub struct ParseOptions {
     pub include_root: Option<PathBuf>,
-    /// When true (the default), `!include https://...` fetches the URL and
-    /// inlines its content. Set to false via `--no-url-includes` to reject
-    /// all URL include targets with a clear diagnostic.
+    /// When true, `!include https://...`, `!includeurl`, and `file://` URL
+    /// targets fetch or read content. Defaults to false to avoid surprise IO.
     pub allow_url_includes: bool,
 }
 
@@ -35,7 +34,7 @@ impl Default for ParseOptions {
     fn default() -> Self {
         Self {
             include_root: None,
-            allow_url_includes: true,
+            allow_url_includes: false,
         }
     }
 }
@@ -640,7 +639,9 @@ fn preprocess_text(
                         if !options.allow_url_includes {
                             return Err(Diagnostic::error_code(
                                 "E_INCLUDE_URL_DISABLED",
-                                format!("!includeurl URL includes are disabled: {raw_target}"),
+                                format!(
+                                    "!includeurl URL includes are disabled (pass --allow-url-includes to enable): {raw_target}"
+                                ),
                             ));
                         }
                         #[cfg(not(target_arch = "wasm32"))]
@@ -881,7 +882,7 @@ fn process_include_directive(
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
                 format!(
-                    "{directive_name} URL includes are disabled (pass --no-url-includes to see this error or remove the flag to enable): {}",
+                    "{directive_name} URL includes are disabled (pass --allow-url-includes to enable): {}",
                     raw_target
                 ),
             ));
@@ -1026,7 +1027,10 @@ fn process_include_many_directive(
         if !options.allow_url_includes {
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
-                format!("!include_many URL includes are disabled: {}", raw_target),
+                format!(
+                    "!include_many URL includes are disabled (pass --allow-url-includes to enable): {}",
+                    raw_target
+                ),
             ));
         }
         let url = extract_url(raw_target);
@@ -1347,7 +1351,10 @@ fn process_import_directive(
         if !options.allow_url_includes {
             return Err(Diagnostic::error_code(
                 "E_INCLUDE_URL_DISABLED",
-                format!("!import URL includes are disabled: {}", raw_target),
+                format!(
+                    "!import URL includes are disabled (pass --allow-url-includes to enable): {}",
+                    raw_target
+                ),
             ));
         }
         let url = extract_url(raw_target);

@@ -44,7 +44,8 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --compat strict|extended     semantic compatibility policy (default: strict)
 --determinism strict|full    determinism policy (default: strict)
 --include-root DIR           resolve `!include` from this root for stdin
---no-url-includes            disable URL includes for no-network / untrusted runs
+--allow-url-includes         allow URL includes for trusted compatibility runs
+--no-url-includes            compatibility no-op; URL includes are disabled by default
 --duration                   print elapsed wall time to stderr
 --quiet / -q                 suppress non-error stderr
 --verbose / -v               emit per-stage parse/normalize/render timings
@@ -70,16 +71,16 @@ puml --dialect picouml input.picouml
 
 ## Includes and remote sources
 
-The native CLI enables URL includes by default for PlantUML compatibility:
-`!include https://...`, `!includeurl`, URL `!include_many`, and URL `!import`
-can fetch remote source and cache it locally. Use `--no-url-includes` when
-checking untrusted files or when a no-network run is required; remote targets
-then fail with `E_INCLUDE_URL_DISABLED`.
+The native CLI supports URL includes for PlantUML compatibility when explicitly
+enabled: `!include https://...`, `!includeurl`, URL `!include_many`, URL
+`!import`, and `file://` targets can fetch or read source and cache HTTP(S)
+responses locally. Pass `--allow-url-includes` only for trusted inputs; without
+it, URL targets fail with `E_INCLUDE_URL_DISABLED`.
 
 Embedded surfaces are stricter by design. The LSP does not fetch remote includes
 while publishing diagnostics or previews, the WASM/browser renderer rejects
-filesystem and URL includes, and bundled MCP/agent tools pass `--no-url-includes`
-unless a tool call explicitly sets `allow_url_includes: true`. See the
+filesystem and URL includes, and bundled MCP/agent tools keep URL includes
+disabled unless a tool call explicitly sets `allow_url_includes: true`. See the
 [URL include policy](https://github.com/alliecatowo/puml/blob/main/docs/url-includes.md)
 for the surface-by-surface contract.
 
