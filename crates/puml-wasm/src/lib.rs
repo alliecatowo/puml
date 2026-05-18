@@ -148,7 +148,6 @@ fn detect_family_for_frontend(
 fn wasm_parse_options(frontend: FrontendSelection) -> ParsePipelineOptions {
     ParsePipelineOptions {
         frontend,
-        no_url_includes: true,
         ..ParsePipelineOptions::default()
     }
 }

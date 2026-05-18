@@ -15,6 +15,10 @@ fn oracle_report_summary_script() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/oracle_report_summary.py")
 }
 
+fn oracle_promoted_gate_script() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/oracle_promoted_gate.py")
+}
+
 fn repo_path(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
@@ -202,10 +206,94 @@ fn oracle_report_schema_is_stable() {
 
     // Soft-assert: exit code must be 0, 1, or 2
     assert!(
-        matches!(code, 0..=2),
-        "oracle.sh must exit 0, 1, or 2 (got {code}); stderr: {}",
+        matches!(code, 0..=3),
+        "oracle.sh must exit 0, 1, 2, or 3 (got {code}); stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn oracle_promoted_fixture_gate_blocks_unexpected_regressions() {
+    let report_file = repo_path("target/oracle_promoted_gate_report.json");
+    let manifest_file = repo_path("target/oracle_promoted_gate_manifest.json");
+
+    let report = serde_json::json!({
+        "schema_version": "1.0",
+        "timestamp": "2026-05-17T23:45:00Z",
+        "jar_version": "PlantUML version 1.2024.7",
+        "summary": {
+            "total": 4,
+            "match": 1,
+            "drift": 1,
+            "puml_only": 1,
+            "jar_only": 1,
+            "both_fail": 0
+        },
+        "fixtures": [
+            {"path": "tests/fixtures/basic/hello.puml", "category": "match", "metrics": {}},
+            {"path": "tests/fixtures/basic/regressed-drift.puml", "category": "drift", "metrics": {}},
+            {"path": "tests/fixtures/basic/expected-drift.puml", "category": "drift", "metrics": {}},
+            {"path": "tests/fixtures/basic/regressed-jar-only.puml", "category": "jar-only", "metrics": {}}
+        ]
+    });
+    let manifest = serde_json::json!({
+        "schema_version": "1.0",
+        "name": "test promoted fixtures",
+        "promoted_fixtures": [
+            {"path": "tests/fixtures/basic/hello.puml"},
+            {"path": "tests/fixtures/basic/regressed-drift.puml"},
+            {"path": "tests/fixtures/basic/expected-drift.puml", "allowed_categories": ["match", "drift"]},
+            {"path": "tests/fixtures/basic/regressed-jar-only.puml"}
+        ]
+    });
+    std::fs::write(
+        &report_file,
+        serde_json::to_string_pretty(&report).expect("sample report should serialize"),
+    )
+    .expect("sample report should be writable");
+    std::fs::write(
+        &manifest_file,
+        serde_json::to_string_pretty(&manifest).expect("sample manifest should serialize"),
+    )
+    .expect("sample manifest should be writable");
+
+    let output = Command::new("python3")
+        .arg(oracle_promoted_gate_script())
+        .arg("--report")
+        .arg(&report_file)
+        .arg("--manifest")
+        .arg(&manifest_file)
+        .arg("--write")
+        .output()
+        .expect("failed to invoke oracle_promoted_gate.py");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "promoted gate should fail on unexpected drift and jar-only regressions"
+    );
+
+    let written = std::fs::read_to_string(&report_file)
+        .expect("annotated promoted gate report should be readable");
+    let annotated: serde_json::Value =
+        serde_json::from_str(&written).expect("annotated promoted gate report should parse");
+    let gate = &annotated["promoted_gate"];
+    assert_eq!(gate["status"].as_str(), Some("fail"));
+    assert_eq!(gate["total"].as_u64(), Some(4));
+    assert_eq!(gate["passed"].as_u64(), Some(2));
+
+    let violations = gate["violations"]
+        .as_array()
+        .expect("promoted gate should report violation rows");
+    assert_eq!(violations.len(), 2);
+    assert!(violations.iter().any(|violation| {
+        violation["path"].as_str() == Some("tests/fixtures/basic/regressed-drift.puml")
+            && violation["regression_kind"].as_str() == Some("drift")
+    }));
+    assert!(violations.iter().any(|violation| {
+        violation["path"].as_str() == Some("tests/fixtures/basic/regressed-jar-only.puml")
+            && violation["regression_kind"].as_str() == Some("jar-only")
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -289,6 +377,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         .expect("dry-run report should rank expected drift areas");
     for expected_area in [
         "Salt widget breadth",
+        "Gantt calendar and resource layout",
         "chart axis legend style",
         "dynamic preprocessor invocation",
         "mindmap orientation layout",
@@ -305,8 +394,10 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
     let fixtures = v["fixtures"]
         .as_array()
         .expect("dry-run report should contain fixture array");
+    let mut saw_gantt = false;
     let mut saw_salt = false;
     let mut saw_preproc = false;
+    let mut saw_component_style = false;
     for fixture in fixtures {
         assert_eq!(fixture["local"]["attempted"].as_bool(), Some(false));
         assert_eq!(fixture["oracle"]["attempted"].as_bool(), Some(false));
@@ -331,6 +422,17 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
                 Some("drift")
             );
         }
+        if rel == "families/valid_gantt_calendar_resource_scale.puml" {
+            saw_gantt = true;
+            assert_eq!(
+                fixture["classification"]["drift_area"].as_str(),
+                Some("Gantt calendar and resource layout")
+            );
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("drift")
+            );
+        }
         if rel == "errors/invalid_preproc_dynamic_invoke.puml" {
             saw_preproc = true;
             assert_eq!(
@@ -338,12 +440,31 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
                 Some("jar-only")
             );
         }
+        if rel == "families/valid_component_style_oracle_slice.puml" {
+            saw_component_style = true;
+            assert_eq!(
+                fixture["classification"]["support_status"].as_str(),
+                Some("implemented")
+            );
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("match")
+            );
+        }
     }
 
+    assert!(
+        saw_gantt,
+        "Gantt calendar/resource fixture should be in dry-run corpus"
+    );
     assert!(saw_salt, "Salt partial fixture should be in dry-run corpus");
     assert!(
         saw_preproc,
         "advanced preprocessor partial fixture should be in dry-run corpus"
+    );
+    assert!(
+        saw_component_style,
+        "component style oracle slice should be in dry-run corpus"
     );
 }
 
@@ -380,7 +501,22 @@ fn oracle_report_summary_publishes_top_drift_families() {
             {"path": "tests/fixtures/families/valid_salt_login_form.puml", "category": "drift", "metrics": {}},
             {"path": "tests/fixtures/families/valid_chart_bar_quarterly.puml", "category": "drift", "metrics": {}},
             {"path": "tests/fixtures/errors/invalid_preproc_dynamic_invoke.puml", "category": "jar-only", "metrics": {}}
-        ]
+        ],
+        "promoted_gate": {
+            "schema_version": "1.0",
+            "status": "fail",
+            "total": 2,
+            "passed": 1,
+            "violations": [
+                {
+                    "path": "tests/fixtures/families/valid_salt_login_form.puml",
+                    "actual_category": "drift",
+                    "allowed_categories": ["match"],
+                    "passed": false,
+                    "regression_kind": "drift"
+                }
+            ]
+        }
     });
     std::fs::write(
         &input,
@@ -421,6 +557,7 @@ fn oracle_report_summary_publishes_top_drift_families() {
     assert_eq!(summary["fixture_count"].as_u64(), Some(5));
     assert_eq!(summary["match_pct"].as_u64(), Some(40));
     assert_eq!(summary["gate_status"].as_str(), Some("fail"));
+    assert_eq!(summary["promoted_gate"]["status"].as_str(), Some("fail"));
     assert_eq!(summary["outcome_counts"]["pass"].as_u64(), Some(2));
     assert_eq!(summary["outcome_counts"]["advisory"].as_u64(), Some(2));
     assert_eq!(summary["outcome_counts"]["fail"].as_u64(), Some(1));
@@ -436,6 +573,8 @@ fn oracle_report_summary_publishes_top_drift_families() {
     let markdown_raw = std::fs::read_to_string(&markdown).expect("markdown should be readable");
     assert!(markdown_raw.contains("PlantUML JAR: PlantUML version 1.2024.7"));
     assert!(markdown_raw.contains("It is conformance evidence, not a pixel-perfect parity claim."));
+    assert!(markdown_raw.contains("- Promoted fixture gate: fail"));
+    assert!(markdown_raw.contains("## Promoted Fixture Violations"));
     assert!(markdown_raw.contains("| families | 2 | drift: 2 |"));
 
     assert!(

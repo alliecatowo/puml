@@ -1,0 +1,17 @@
+@startuml
+!pragma teoz true
+skinparam SequenceMessageAlign center
+skinparam ResponseMessageBelowArrow true
+
+participant Client
+participant Worker
+participant Store
+
+Client -> Worker : schedule work
+& Client -[#red,dashed]> Store : styled crossing
+& Worker -> Store : reserve slot
+
+note across : shared routing context
+
+Store --> Client : crossing result
+@enduml

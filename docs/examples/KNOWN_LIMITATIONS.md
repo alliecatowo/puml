@@ -13,7 +13,7 @@ that diagram families are unsupported overall.
 ### Cross-cutting
 
 - PNG output is implemented via deterministic SVG rasterization; advanced PlantUML raster flags beyond DPI remain out of scope.
-- URL-based include/import sources are enabled by default in the native CLI for PlantUML compatibility. Use `--no-url-includes` for untrusted or no-network runs. LSP and WASM surfaces do not fetch remote includes as side effects; see [`docs/url-includes.md`](../url-includes.md).
+- URL-based include/import sources are available in the native CLI for PlantUML compatibility, but disabled by default. Use `--allow-url-includes` only for trusted inputs. LSP and WASM surfaces do not fetch remote includes as side effects; see [`docs/url-includes.md`](../url-includes.md).
 - Differential oracle is smoke-level in CI (not a full semantic pixel-parity oracle yet).
 
 ### Sequence

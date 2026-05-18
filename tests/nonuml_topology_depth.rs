@@ -146,6 +146,30 @@ Rel_Triggering_Right(service, j1, "branches", "dashed")
 }
 
 #[test]
+fn archimate_directional_relation_macros_drive_edge_geometry() {
+    let src = r##"@startarchimate
+Application_Service(source, "Source")
+Application_Service(target, "Target")
+Junction_And(j1, "AND")
+Rel_Triggering_Left(source, target, "left route", "bold")
+Rel_Flow_Right(source, target, "right route", "#2563eb")
+Rel_Serving_Down(source, j1, "down route")
+@endarchimate
+"##;
+    let svg = puml::render_source_to_svg(src).expect("archimate render");
+
+    assert!(svg.contains("data-archimate-direction=\"left\""));
+    assert!(svg.contains("data-archimate-direction=\"right\""));
+    assert!(svg.contains("data-archimate-direction=\"down\""));
+    assert!(svg.contains("stroke-width=\"2.5\""));
+    assert!(svg.contains("stroke=\"#2563eb\""));
+    assert!(svg.contains("class=\"archimate-junction\""));
+    assert!(svg.contains("data-archimate-kind=\"triggering\" data-archimate-direction=\"left\" data-archimate-style=\"bold\" x1=\"100\" y1=\"246\" x2=\"390\" y2=\"246\""));
+    assert!(svg.contains("data-archimate-kind=\"flow\" data-archimate-direction=\"right\" data-archimate-style=\"#2563eb\" x1=\"240\" y1=\"246\" x2=\"250\" y2=\"246\""));
+    assert!(svg.contains("data-archimate-kind=\"serving\" data-archimate-direction=\"down\" data-archimate-style=\"\" x1=\"170\" y1=\"266\" x2=\"170\" y2=\"466\""));
+}
+
+#[test]
 fn mindmap_left_right_side_and_color_metadata_render() {
     let src = r##"@startmindmap
 *[#fef3c7] Platform

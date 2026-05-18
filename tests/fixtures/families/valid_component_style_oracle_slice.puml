@@ -1,0 +1,12 @@
+@startuml
+skinparam componentArrowColor #334155
+skinparam interfaceColor #dbeafe
+package "Edge" {
+  component "Gateway" as api <<service>>
+  portin "HTTPS" as https <<inbound>>
+  interface "Orders API" as orders <<REST>>
+  api -[#dc2626;line.dashed;line.thickness=4]right-> orders <<provides>> : publishes
+  https -[#0f766e;line.thick]down-() api : mounted
+  orders -[line.hidden]-> https : layout only
+}
+@enduml

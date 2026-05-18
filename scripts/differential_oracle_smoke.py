@@ -66,6 +66,22 @@ FIXTURES: List[Dict[str, Any]] = [
         "expect_tokens": ["note"],
     },
     {
+        "fixture": "arrows/valid_teoz_response_below_arrow.puml",
+        "category": "sequence-advanced",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "sequence teoz response labels",
+        "drift_reason": "teoz parallel arrows, styled crossing arrows, note across, and response labels below dashed arrows should stay close to the PlantUML reference",
+        "next_ticket": "Keep as the issue #350 advanced sequence sentinel; expand only with focused oracle evidence.",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram",
+        "expect_tokens": [
+            "schedule work",
+            "styled crossing",
+            "shared routing context",
+            "crossing result",
+        ],
+    },
+    {
         "fixture": "styling/valid_skinparam_unsupported.puml",
         "category": "styling-partial",
         "support_status": "partial",
@@ -110,6 +126,17 @@ FIXTURES: List[Dict[str, Any]] = [
         "expect_tokens": [],
     },
     {
+        "fixture": "families/valid_gantt_calendar_resource_scale.puml",
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "Gantt calendar and resource layout",
+        "drift_reason": "Gantt calendar exclusions, reopened dates, resource loads, dependencies, and milestone positioning are active but still narrower than full PlantUML layout semantics",
+        "next_ticket": "Continue issue #352 by comparing Gantt task/milestone geometry against Java PlantUML oracle output.",
+        "plantuml_reference": "https://plantuml.com/gantt-diagram",
+        "expect_tokens": ["Design", "Build", "Release"],
+    },
+    {
         "fixture": "families/valid_mindmap_orientation.puml",
         "category": "family-partial",
         "support_status": "partial",
@@ -119,6 +146,17 @@ FIXTURES: List[Dict[str, Any]] = [
         "next_ticket": "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement.",
         "plantuml_reference": "https://plantuml.com/mindmap-diagram",
         "expect_tokens": [],
+    },
+    {
+        "fixture": "families/valid_component_style_oracle_slice.puml",
+        "category": "component-style-core",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "component relation style semantics",
+        "drift_reason": "component package, port, interface, relation color, dash, hidden, lollipop, and stereotype metadata are covered by the implemented slice",
+        "next_ticket": "Expand remaining component/deployment styling breadth after this oracle-backed vertical slice.",
+        "plantuml_reference": "https://plantuml.com/component-diagram",
+        "expect_tokens": ["Gateway", "HTTPS", "Orders API", "publishes", "mounted"],
     },
 ]
 

@@ -6,6 +6,9 @@
 # full benchmark artifact refresh (records trend, does not fail on gates)
 ./scripts/bench.sh
 
+# validate checked-in benchmark artifacts against the current gate policy
+./scripts/bench.sh --check-artifacts
+
 # quick local benchmark
 ./scripts/bench.sh --quick
 
@@ -50,8 +53,11 @@ python3 scripts/oracle_report_summary.py \
 - `docs/benchmarks/oracle_smoke_latest.json`
 
 All benchmark artifacts are deterministic in structure and key ordering. Value fields like timestamps, host metadata, and measured timings are expected to change run-to-run.
+Gate-bearing JSON artifacts (`latest.json`, `latest_trend.json`, `baseline_full.json`, and `baseline_quick.json`) include `benchmark_policy.version` metadata. Run `./scripts/bench.sh --check-artifacts` before release review or after changing gate limits so stale committed evidence cannot silently drift from the active policy.
 
 ## Gate Profiles
+
+Current policy version: `bench-gate-v2-2026-05-17`.
 
 - `full` (default):
 - absolute per-scenario mean limit: `250ms`
@@ -77,6 +83,7 @@ or optimization plan instead of blocking all main merges on the pre-URL-include 
 - `./scripts/check-all.sh` always runs benchmark gates in enforce mode.
 - On failure, inspect `docs/benchmarks/latest_trend.{md,json}` to identify the exact regressing scenario and delta.
 - Baselines are not auto-updated. Use `--update-baseline` only after reviewing variance and approving movement.
+- If benchmark gate limits or policy metadata change, refresh committed artifacts with `./scripts/bench.sh --quick --update-baseline` and `./scripts/bench.sh --update-baseline`, then confirm `./scripts/bench.sh --check-artifacts` passes.
 
 ## No-Java Baseline
 

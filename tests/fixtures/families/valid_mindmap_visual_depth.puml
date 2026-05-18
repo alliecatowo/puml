@@ -1,0 +1,12 @@
+@startmindmap
+*[#fef3c7] Platform
+left side
+**[#fecaca] Risk
+***[#fee2e2] Security
+right side
+**[#bbf7d0] Delivery
+***[#dcfce7] Build
+***[#dbeafe] Release
+**[#bfdbfe] Operations
+***[#e0f2fe] Observe
+@endmindmap

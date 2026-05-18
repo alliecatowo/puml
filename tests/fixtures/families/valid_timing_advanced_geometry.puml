@@ -1,0 +1,22 @@
+@startuml
+title Timing advanced geometry oracle
+concise "Request phase" as PHASE
+robust BUS
+binary "Enable" as EN
+clock "Clock" as CLK with period 6 pulse 2 offset 0
+@0
+PHASE is {Queued}
+BUS is {Idle}
+EN is off
+@+5
+PHASE is {Running}
+BUS is {Run}
+EN is on
+@+3 EN is off
+@5 <-> @12 : active window
+highlight 12 to 18 : cooldown
+@18
+PHASE is {Done}
+BUS is {Wait}
+EN is low
+@enduml

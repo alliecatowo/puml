@@ -181,7 +181,7 @@ fn parse_nwdiag_node_entry(entry: &str) -> Option<NwdiagNode> {
     let mut style: Option<String> = None;
     let mut width: Option<u32> = None;
     if let Some(attrs) = attrs {
-        for kv in archimate::split_csv_args(attrs) {
+        for kv in split_nwdiag_attr_args(attrs) {
             if let Some((k, v)) = kv.split_once('=') {
                 let key = k.trim().to_ascii_lowercase();
                 let value = clean_nwdiag_attr_value(v);
@@ -224,4 +224,40 @@ fn parse_nwdiag_addresses(address: Option<&str>) -> Vec<String> {
         .map(|item| clean_nwdiag_attr_value(&item))
         .filter(|item| !item.is_empty())
         .collect()
+}
+
+fn split_nwdiag_attr_args(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut in_quotes = false;
+    let mut bracket_depth = 0usize;
+    for ch in s.chars() {
+        match ch {
+            '"' => {
+                in_quotes = !in_quotes;
+                cur.push(ch);
+            }
+            '[' if !in_quotes => {
+                bracket_depth += 1;
+                cur.push(ch);
+            }
+            ']' if !in_quotes => {
+                bracket_depth = bracket_depth.saturating_sub(1);
+                cur.push(ch);
+            }
+            ',' if !in_quotes && bracket_depth == 0 => {
+                let item = cur.trim();
+                if !item.is_empty() {
+                    out.push(item.to_string());
+                }
+                cur.clear();
+            }
+            _ => cur.push(ch),
+        }
+    }
+    let item = cur.trim();
+    if !item.is_empty() {
+        out.push(item.to_string());
+    }
+    out
 }

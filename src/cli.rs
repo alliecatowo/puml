@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "puml",
     version,
-    about = "Rust-native PlantUML-compatible diagram renderer"
+    about = "Rust-native PlantUML-compatible diagram renderer with PicoUML and Mermaid adapter frontends"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -75,7 +75,7 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t = DiagnosticsFormat::Human)]
     pub diagnostics: DiagnosticsFormat,
 
-    /// Input dialect frontend.
+    /// Input frontend dialect (`auto` uses file extensions and markdown fence tags).
     #[arg(long, value_enum, default_value_t = Dialect::Auto)]
     pub dialect: Dialect,
 
@@ -121,16 +121,20 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub stdrpt: bool,
 
-    /// Disable URL includes (`!include https://...`). Any URL include target will
-    /// produce a clear diagnostic instead of fetching. By default URL includes
-    /// are enabled (matching PlantUML behaviour).
+    /// Allow URL includes (`!include https://...`, `!includeurl`, and `file://`).
+    /// URL includes are disabled by default to avoid surprise network or local file reads.
+    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "no_url_includes")]
+    pub allow_url_includes: bool,
+
+    /// Disable URL includes (`!include https://...`). Kept as a compatibility
+    /// flag; URL includes are already disabled unless `--allow-url-includes` is passed.
     #[arg(long, action = ArgAction::SetTrue)]
     pub no_url_includes: bool,
 }
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
-    /// Format PlantUML source files in place, or verify/print formatting changes.
+    /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
 }
 
@@ -144,7 +148,7 @@ pub struct FormatArgs {
     #[arg(long, action = ArgAction::SetTrue)]
     pub diff: bool,
 
-    /// PlantUML source files to format.
+    /// PlantUML-compatible source files to format.
     #[arg(value_name = "FILE", required = true)]
     pub files: Vec<PathBuf>,
 }

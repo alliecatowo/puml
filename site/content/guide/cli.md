@@ -40,11 +40,12 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --diagnostics human|json     diagnostics output format (default: human)
 --stdrpt                     one-line diagnostics: severity\tcode\tfile:line:col\tmessage
 --dialect auto|plantuml|mermaid|picouml
-                             select frontend input dialect (default: auto)
+                             select frontend input dialect; auto uses file extensions and fences
 --compat strict|extended     semantic compatibility policy (default: strict)
 --determinism strict|full    determinism policy (default: strict)
 --include-root DIR           resolve `!include` from this root for stdin
---no-url-includes            disable URL includes for no-network / untrusted runs
+--allow-url-includes         allow URL includes for trusted compatibility runs
+--no-url-includes            compatibility no-op; URL includes are disabled by default
 --duration                   print elapsed wall time to stderr
 --quiet / -q                 suppress non-error stderr
 --verbose / -v               emit per-stage parse/normalize/render timings
@@ -60,25 +61,26 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 # explicit dialect (default is auto)
 puml --dialect plantuml input.puml
 puml --dialect mermaid input.mmd
-puml --dialect picouml input.pico.puml
+puml --dialect picouml input.picouml
 ```
 
-- `auto` and `plantuml` parse PlantUML through the shared pipeline.
+- `auto` uses input hints first: `.picouml` files and `picouml` markdown fences route through the PicoUML adapter, while `mermaid` fences route through the Mermaid adapter.
+- `plantuml` parses PlantUML-compatible source through the shared pipeline.
 - `mermaid` accepts `sequenceDiagram`, `flowchart`/`graph`, `classDiagram`, `stateDiagram`/`stateDiagram-v2`, and `erDiagram`.
-- `picouml` routes through PicoUML normalization &mdash; `@startpicouml` / `@endpicouml` markers are converted to PlantUML markers before parsing.
+- `picouml` routes through PicoUML adapter rewrites first, then the same parser, model, layout, and renderer as PlantUML-compatible inputs.
 
 ## Includes and remote sources
 
-The native CLI enables URL includes by default for PlantUML compatibility:
-`!include https://...`, `!includeurl`, URL `!include_many`, and URL `!import`
-can fetch remote source and cache it locally. Use `--no-url-includes` when
-checking untrusted files or when a no-network run is required; remote targets
-then fail with `E_INCLUDE_URL_DISABLED`.
+The native CLI supports URL includes for PlantUML compatibility when explicitly
+enabled: `!include https://...`, `!includeurl`, URL `!include_many`, URL
+`!import`, and `file://` targets can fetch or read source and cache HTTP(S)
+responses locally. Pass `--allow-url-includes` only for trusted inputs; without
+it, URL targets fail with `E_INCLUDE_URL_DISABLED`.
 
 Embedded surfaces are stricter by design. The LSP does not fetch remote includes
 while publishing diagnostics or previews, the WASM/browser renderer rejects
-filesystem and URL includes, and bundled MCP/agent tools pass `--no-url-includes`
-unless a tool call explicitly sets `allow_url_includes: true`. See the
+filesystem and URL includes, and bundled MCP/agent tools keep URL includes
+disabled unless a tool call explicitly sets `allow_url_includes: true`. See the
 [URL include policy](https://github.com/alliecatowo/puml/blob/main/docs/url-includes.md)
 for the surface-by-surface contract.
 

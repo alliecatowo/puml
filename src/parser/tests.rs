@@ -235,6 +235,62 @@ mod tests {
     }
 
     #[test]
+    fn include_angle_bracket_targets_support_startsub_tags() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(stdlib.join("C4")).unwrap();
+        fs::write(
+            stdlib.join("C4").join("C4_Context.puml"),
+            "!startsub CORE\nAlice -> Bob : tagged\n!endsub\nCharlie -> Dana : untagged\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!include <C4/C4_Context>!CORE\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 1);
+        match &doc.statements[0].kind {
+            StatementKind::Message(message) => {
+                assert_eq!(message.from, "Alice");
+                assert_eq!(message.to, "Bob");
+                assert_eq!(message.label.as_deref(), Some("tagged"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn include_angle_bracket_missing_tag_errors_with_stdlib_context() {
+        let dir = tempdir().unwrap();
+        let stdlib = dir.path().join("stdlib");
+        fs::create_dir_all(stdlib.join("C4")).unwrap();
+        fs::write(
+            stdlib.join("C4").join("C4_Context.puml"),
+            "!startsub CORE\nAlice -> Bob : tagged\n!endsub\n",
+        )
+        .unwrap();
+
+        let err = parse_with_options(
+            "!include <C4/C4_Context>!MISSING\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("E_INCLUDE_TAG_NOT_FOUND"));
+        assert!(err.message.contains("stdlib include"));
+        assert!(err.message.contains("MISSING"));
+    }
+
+    #[test]
     fn import_and_include_catalog_support_aws_shape_stub_surface() {
         let dir = tempdir().unwrap();
         let stdlib = dir.path().join("stdlib");

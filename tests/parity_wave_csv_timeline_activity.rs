@@ -35,6 +35,26 @@ fn gantt_task_widths(svg: &str) -> Vec<i32> {
         .collect()
 }
 
+fn svg_chunks_by_prefix<'a>(svg: &'a str, prefix: &str) -> Vec<&'a str> {
+    svg.split(prefix).skip(1).collect()
+}
+
+fn svg_first_number_attr(tag: &str, key: &str) -> i32 {
+    svg_attr(tag, key)
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or_else(|| panic!("expected numeric SVG attribute {key} in {tag}"))
+}
+
+fn milestone_center_x(tag: &str) -> i32 {
+    let points = svg_attr(tag, "points").expect("milestone polygon should have points");
+    points
+        .split_whitespace()
+        .next()
+        .and_then(|pair| pair.split_once(','))
+        .and_then(|(x, _)| x.parse::<i32>().ok())
+        .expect("milestone first point should expose center x")
+}
+
 #[test]
 fn gantt_places_milestone_using_constraint_day_or_task_reference() {
     let src = r#"@startgantt
@@ -253,10 +273,11 @@ sundays are closed
 fn gantt_reopened_calendar_resource_load_baseline_and_critical_metadata_render() {
     let src = r#"@startgantt
 Project starts 2026-05-01
-printscale weekly
+printscale daily
 saturdays are closed
 sundays are closed
-2026-05-02 is open
+2026-05-04 to 2026-05-05 are closed
+2026-05-02 is reopened
 [Design] on {Alice:50%} requires 2 days
 [Build] on {Bob:75%, Cara} requires 3 days
 [Build] requires [Design]
@@ -267,14 +288,47 @@ sundays are closed
 "#;
     let svg = puml::render_source_to_svg(src).expect("gantt render");
     assert!(svg.contains("class=\"gantt-open-range\""));
-    assert!(svg.contains("Calendar: closed Saturday, Sunday; open 2026-05-02"));
+    assert!(svg.contains("Calendar: closed Saturday, Sunday"));
+    assert!(svg.contains("open 2026-05-02"));
+    assert!(svg.contains("2026-05-04 to 2026-05-05"));
     assert!(svg.contains("data-gantt-workload=\"2\""));
     assert!(svg.contains("data-gantt-load=\"Alice:50%\""));
     assert!(svg.contains("class=\"gantt-baseline\""));
     assert!(svg.contains("gantt-critical"));
     assert!(svg.contains("class=\"gantt-scale-tick\""));
-    assert!(svg.contains(">Wk 2026-05-01<"));
+    assert!(svg.contains(">2026-05-01<"));
     assert!(svg.contains("data-gantt-from=\"Design\" data-gantt-to=\"Build\""));
+
+    let closed_days: Vec<String> =
+        svg_chunks_by_prefix(&svg, "<rect class=\"gantt-closed-weekday\"")
+            .into_iter()
+            .filter_map(|chunk| svg_attr(chunk, "data-gantt-day"))
+            .collect();
+    assert!(
+        !closed_days.iter().any(|day| day == "2026-05-02"),
+        "explicitly reopened Saturday should not render as a closed weekday band: {closed_days:?}"
+    );
+    assert!(
+        closed_days.iter().any(|day| day == "2026-05-03"),
+        "unreopened Sunday should still render as a closed weekday band: {closed_days:?}"
+    );
+
+    let task_rects = svg_chunks_by_prefix(&svg, "<rect class=\"gantt-task");
+    let build_rect = task_rects
+        .iter()
+        .find(|chunk| svg_attr(chunk, "data-gantt-load").as_deref() == Some("Bob:75%, Cara"))
+        .expect("build task rect should include resource-load metadata");
+    let build_x = svg_first_number_attr(build_rect, "x");
+    let milestone = svg_chunks_by_prefix(&svg, "<polygon class=\"gantt-milestone")
+        .into_iter()
+        .next()
+        .expect("release milestone should render as a polygon");
+    assert_eq!(
+        milestone_center_x(milestone),
+        build_x,
+        "milestone on [Build]'s start should share the build bar start x"
+    );
+
     let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
     let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
     else {
@@ -291,11 +345,13 @@ sundays are closed
         .find(|task| task.name == "Build")
         .expect("build task");
     assert_eq!(model.open_ranges.len(), 1);
+    assert_eq!(model.closed_ranges.len(), 1);
     assert_eq!(design.workload_days, 2);
-    assert_eq!(design.duration_days, 5);
+    assert_eq!(design.duration_days, 7);
     assert_eq!(design.resource_allocations[0].name, "Alice");
     assert_eq!(design.resource_allocations[0].load_percent, Some(50));
     assert_eq!(build.start_day, design.start_day + design.duration_days);
+    assert_eq!(build.duration_days, 5);
     assert!(build.is_critical);
     assert!(design.baseline_start_day.is_some());
 }
