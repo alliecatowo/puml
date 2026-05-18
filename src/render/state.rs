@@ -160,17 +160,20 @@ pub fn render_state_svg(document: &StateDocument) -> String {
 
     // Place top-level nodes in column order, using the BFS-sorted layout_order.
     let mut col_y = [STATE_MARGIN + 50, STATE_MARGIN + 50];
-    let mut col_idx = 0usize;
-    for node in &layout_order {
-        let col = (col_idx as i32) % cols;
-        col_idx += 1;
-        let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
-        let y = col_y[col as usize];
-        let (w, h) = *node_sizes
-            .get(&node.name)
-            .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
-        place_node(node, x, y, w, h, &node_sizes, &mut placed);
-        col_y[col as usize] = y + h + STATE_NODE_GAP_Y;
+    #[allow(clippy::explicit_counter_loop)]
+    {
+        let mut col_idx = 0usize;
+        for node in &layout_order {
+            let col = (col_idx as i32) % cols;
+            col_idx += 1;
+            let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
+            let y = col_y[col as usize];
+            let (w, h) = *node_sizes
+                .get(&node.name)
+                .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
+            place_node(node, x, y, w, h, &node_sizes, &mut placed);
+            col_y[col as usize] = y + h + STATE_NODE_GAP_Y;
+        }
     }
 
     // Compute total canvas size from placed nodes
