@@ -1,0 +1,8 @@
+@startchart
+pie chart
+labels outside
+"Frontend" : 35 #0ea5e9
+"Backend" : 40 #f97316
+"Ops" : 25 #22c55e
+legend at bottom right background #f8fafc border #334155 text #111827
+@endchart
