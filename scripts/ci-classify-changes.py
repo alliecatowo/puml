@@ -42,6 +42,32 @@ FULL_GATE_PREFIXES = (
     "stdlib/",
 )
 
+WASM_CHECK_EXACT = {
+    "Cargo.toml",
+    "Cargo.lock",
+    "scripts/ci-classify-changes.py",
+    ".github/workflows/pr-gate.yml",
+}
+
+WASM_CHECK_PREFIXES = (
+    "src/",
+    "crates/puml-wasm/",
+)
+
+DOCS_EXAMPLES_DRIFT_EXACT = {
+    "Cargo.toml",
+    "Cargo.lock",
+    "scripts/ci-classify-changes.py",
+    "scripts/parity_harness.py",
+    ".github/workflows/pr-gate.yml",
+}
+
+DOCS_EXAMPLES_DRIFT_PREFIXES = (
+    "docs/examples/",
+    "src/",
+    "stdlib/",
+)
+
 
 def is_markdown(path: str) -> bool:
     return path.endswith(".md")
@@ -54,12 +80,20 @@ def is_site_path(path: str) -> bool:
 def classify(paths: list[str]) -> dict[str, bool]:
     run_full_gate = False
     docs_examples_changed = False
+    run_docs_examples_drift = False
+    run_wasm_check = False
     run_site_smoke = False
     run_wasm_site_smoke = False
 
     for path in paths:
         if not path:
             continue
+
+        if path in WASM_CHECK_EXACT or path.startswith(WASM_CHECK_PREFIXES):
+            run_wasm_check = True
+
+        if path in DOCS_EXAMPLES_DRIFT_EXACT or path.startswith(DOCS_EXAMPLES_DRIFT_PREFIXES):
+            run_docs_examples_drift = True
 
         if path.startswith("docs/examples/"):
             run_full_gate = True
@@ -94,11 +128,15 @@ def classify(paths: list[str]) -> dict[str, bool]:
 
     if not paths:
         run_full_gate = True
+        run_docs_examples_drift = True
+        run_wasm_check = True
         run_site_smoke = True
 
     return {
         "run_full_gate": run_full_gate,
         "docs_examples_changed": docs_examples_changed,
+        "run_docs_examples_drift": run_docs_examples_drift,
+        "run_wasm_check": run_wasm_check,
         "run_site_smoke": run_site_smoke,
         "run_wasm_site_smoke": run_wasm_site_smoke,
     }

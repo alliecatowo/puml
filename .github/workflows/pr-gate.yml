@@ -26,6 +26,8 @@ jobs:
     outputs:
       run_full_gate: ${{ steps.changes.outputs.run_full_gate }}
       docs_examples_changed: ${{ steps.changes.outputs.docs_examples_changed }}
+      run_docs_examples_drift: ${{ steps.changes.outputs.run_docs_examples_drift }}
+      run_wasm_check: ${{ steps.changes.outputs.run_wasm_check }}
       run_site_smoke: ${{ steps.changes.outputs.run_site_smoke }}
       run_wasm_site_smoke: ${{ steps.changes.outputs.run_wasm_site_smoke }}
 
@@ -152,7 +154,7 @@ jobs:
   wasm:
     name: wasm
     needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    if: needs.changes.outputs.run_wasm_check == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -205,7 +207,7 @@ jobs:
   docs_examples_drift:
     name: docs examples drift
     needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    if: needs.changes.outputs.run_docs_examples_drift == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -309,6 +311,8 @@ jobs:
     timeout-minutes: 5
     env:
       RUN_FULL_GATE: ${{ needs.changes.outputs.run_full_gate }}
+      RUN_DOCS_EXAMPLES_DRIFT: ${{ needs.changes.outputs.run_docs_examples_drift }}
+      RUN_WASM_CHECK: ${{ needs.changes.outputs.run_wasm_check }}
       RUN_SITE_SMOKE: ${{ needs.changes.outputs.run_site_smoke }}
       CHANGES_RESULT: ${{ needs.changes.result }}
       FMT_RESULT: ${{ needs.fmt.result }}
@@ -327,6 +331,8 @@ jobs:
 
           echo "changes=${CHANGES_RESULT}"
           echo "run_full_gate=${RUN_FULL_GATE}"
+          echo "run_docs_examples_drift=${RUN_DOCS_EXAMPLES_DRIFT}"
+          echo "run_wasm_check=${RUN_WASM_CHECK}"
           echo "run_site_smoke=${RUN_SITE_SMOKE}"
           echo "fmt=${FMT_RESULT}"
           echo "clippy=${CLIPPY_RESULT}"
@@ -352,8 +358,14 @@ jobs:
             require_success "fmt" "${FMT_RESULT}"
             require_success "clippy" "${CLIPPY_RESULT}"
             require_success "test" "${TEST_RESULT}"
-            require_success "wasm" "${WASM_RESULT}"
             require_success "coverage" "${COVERAGE_RESULT}"
+          fi
+
+          if [[ "${RUN_WASM_CHECK}" == "true" ]]; then
+            require_success "wasm" "${WASM_RESULT}"
+          fi
+
+          if [[ "${RUN_DOCS_EXAMPLES_DRIFT}" == "true" ]]; then
             require_success "docs examples" "${DOCS_EXAMPLES_RESULT}"
           fi
 
