@@ -68,6 +68,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     };
 
     // Compute heights per node
+    #[derive(Clone, Copy)]
     struct NodeBox {
         x: i32,
         y: i32,
@@ -77,8 +78,6 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     }
     let mut node_boxes: std::collections::BTreeMap<String, NodeBox> =
         std::collections::BTreeMap::new();
-    // Stable iteration: keep declaration order
-    let mut ordered_keys: Vec<String> = Vec::new();
 
     let title_block_height = document
         .title
@@ -86,6 +85,101 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .map(|t| 12 + (t.lines().count() as i32) * 22)
         .unwrap_or(0);
 
+    // Compute per-node heights (used both for layout and for node rendering).
+    // Store as Vec<(key, h)> in declaration order.
+    let node_heights: Vec<(String, i32)> = document
+        .nodes
+        .iter()
+        .map(|node| {
+            let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+            let header_stereotype_count = count_header_stereotype_members(&node.members);
+            let display_member_count = node.members.len().saturating_sub(header_stereotype_count);
+            let stereotype_extra_h = (header_stereotype_count as i32) * 14;
+            let body_h = if node.kind == FamilyNodeKind::Note {
+                let lines = node
+                    .label
+                    .as_deref()
+                    .unwrap_or(&node.name)
+                    .lines()
+                    .count()
+                    .max(1) as i32;
+                lines * 16 + 20
+            } else if display_member_count == 0 {
+                empty_member_pad
+            } else {
+                (display_member_count as i32) * member_line_height + 2 * member_padding
+            };
+            let h = c4_node_height(node.kind, header_height + stereotype_extra_h + body_h);
+            (key, h)
+        })
+        .collect();
+
+    // ── Hierarchical graph layout (mirrors Wave 12 / render_box_grid_svg) ────────
+    // Run layout_hierarchical so we can consume edge_paths for orthogonal routing.
+    // The resulting node positions replace the old grid layout.
+    use crate::render::graph_layout::{
+        layout_hierarchical, EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions,
+        NodeSize as GlNodeSize,
+    };
+
+    // Build group membership lookup for parent assignment.
+    let group_frames_for_gl = collect_render_group_frames(&document.groups);
+    let mut node_to_gl_group: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for frame in &group_frames_for_gl {
+        for mid in &frame.member_ids {
+            node_to_gl_group
+                .entry(mid.clone())
+                .or_insert_with(|| frame.scope.clone());
+        }
+    }
+
+    let gl_nodes: Vec<GlNodeSize> = document
+        .nodes
+        .iter()
+        .zip(node_heights.iter())
+        .map(|(node, (_key, h))| {
+            let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+            let parent = node_to_gl_group
+                .get(&key)
+                .or_else(|| node_to_gl_group.get(&node.name))
+                .cloned();
+            GlNodeSize {
+                id: key,
+                width: node_width as f64,
+                height: *h as f64,
+                parent,
+            }
+        })
+        .collect();
+
+    // Build EdgeSpec list — IDs must be "r{i}" to match the lookup key below.
+    let gl_edges_class: Vec<GlEdgeSpec> = document
+        .relations
+        .iter()
+        .enumerate()
+        .map(|(i, rel)| GlEdgeSpec {
+            id: format!("r{i}"),
+            from: rel.from.clone(),
+            to: rel.to.clone(),
+        })
+        .collect();
+
+    let gl_options_class = GlOptions {
+        rank_separation: (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60))
+            as f64,
+        node_separation: col_gap as f64,
+        group_padding: 16.0,
+        direction: crate::render::graph_layout::Direction::TopDown,
+        canvas_margin: (margin_top + title_block_height + group_top_reserve) as f64,
+    };
+
+    let gl_result_class = layout_hierarchical(&gl_nodes, &gl_edges_class, &gl_options_class);
+
+    // ── Populate node_boxes from layout result ────────────────────────────────
+    // Use the hierarchical positions when available; fall back to grid for any
+    // node the layout engine did not place (e.g. disconnected singletons in an
+    // otherwise empty document).
     let total_nodes = document.nodes.len() as i32;
     let row_count = if total_nodes == 0 {
         0
@@ -93,102 +187,60 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         (total_nodes + col_count - 1) / col_count
     };
 
-    // First pass: compute heights
-    let mut row_heights: Vec<i32> = vec![0; row_count.max(0) as usize];
-    for (idx, node) in document.nodes.iter().enumerate() {
-        let col = (idx as i32) % col_count;
-        let row = (idx as i32) / col_count;
-        // Count header stereotype members (built-in type marker + user-defined <<…>> markers).
-        // These are rendered in the header, not as member rows (fix #470, #551).
-        let header_stereotype_count = count_header_stereotype_members(&node.members);
-        let display_member_count = node.members.len().saturating_sub(header_stereotype_count);
-        // Extra header height: 14px per stereotype label shown above the class name.
-        let stereotype_extra_h = (header_stereotype_count as i32) * 14;
-        let body_h = if node.kind == FamilyNodeKind::Note {
-            let lines = node
-                .label
-                .as_deref()
-                .unwrap_or(&node.name)
-                .lines()
-                .count()
-                .max(1) as i32;
-            lines * 16 + 20
-        } else if display_member_count == 0 {
-            empty_member_pad
-        } else {
-            (display_member_count as i32) * member_line_height + 2 * member_padding
-        };
-        let h = c4_node_height(node.kind, header_height + stereotype_extra_h + body_h);
-        let _ = col;
-        if (row as usize) < row_heights.len() && h > row_heights[row as usize] {
-            row_heights[row as usize] = h;
-        }
-    }
-
-    // Second pass: assign coordinates
-    let mut row_y_offsets: Vec<i32> = vec![0; row_heights.len()];
+    // Build grid y-offsets as fallback for nodes missing from layout result.
+    let max_row_height = node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60);
+    let mut fallback_row_y_offsets: Vec<i32> = Vec::new();
     {
         let mut y = margin_top + title_block_height + group_top_reserve;
-        for (i, h) in row_heights.iter().enumerate() {
-            row_y_offsets[i] = y;
-            y += h + row_gap;
+        for _ in 0..row_count {
+            fallback_row_y_offsets.push(y);
+            y += max_row_height + row_gap;
         }
     }
 
-    for (idx, node) in document.nodes.iter().enumerate() {
-        let col = (idx as i32) % col_count;
-        let row = (idx as i32) / col_count;
-        let header_stereotype_count2 = count_header_stereotype_members(&node.members);
-        let display_member_count2 = node.members.len().saturating_sub(header_stereotype_count2);
-        let stereotype_extra_h2 = (header_stereotype_count2 as i32) * 14;
-        let body_h = if node.kind == FamilyNodeKind::Note {
-            let lines = node
-                .label
-                .as_deref()
-                .unwrap_or(&node.name)
-                .lines()
-                .count()
-                .max(1) as i32;
-            lines * 16 + 20
-        } else if display_member_count2 == 0 {
-            empty_member_pad
-        } else {
-            (display_member_count2 as i32) * member_line_height + 2 * member_padding
-        };
-        let h = c4_node_height(node.kind, header_height + stereotype_extra_h2 + body_h);
-        let x = margin_x + col * (node_width + col_gap);
-        let y = row_y_offsets[row as usize];
+    for (idx, (node, (_key, h))) in document.nodes.iter().zip(node_heights.iter()).enumerate() {
         let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-        ordered_keys.push(key.clone());
-        node_boxes.insert(
-            key,
-            NodeBox {
-                x,
-                y,
-                w: node_width,
-                h,
-                header_h: header_height,
-            },
-        );
-        // Also accept name as a key if alias was used (for relations referring by name)
-        if let Some(_alias) = &node.alias {
-            node_boxes.insert(
-                node.name.clone(),
-                NodeBox {
-                    x,
-                    y,
-                    w: node_width,
-                    h,
-                    header_h: header_height,
-                },
-            );
+
+        let (nx, ny) = if let Some(&(lx, ly)) = gl_result_class.node_positions.get(&key) {
+            (lx as i32, ly as i32)
+        } else {
+            // Grid fallback
+            let col = (idx as i32) % col_count;
+            let row = (idx as i32) / col_count;
+            let fx = margin_x + col * (node_width + col_gap);
+            let fy = fallback_row_y_offsets
+                .get(row as usize)
+                .copied()
+                .unwrap_or(margin_top + title_block_height);
+            (fx, fy)
+        };
+
+        let nb = NodeBox {
+            x: nx,
+            y: ny,
+            w: node_width,
+            h: *h,
+            header_h: header_height,
+        };
+        node_boxes.insert(key.clone(), nb);
+        // Also register by the alias name when set.
+        if node.alias.is_some() {
+            node_boxes.entry(node.name.clone()).or_insert(nb);
+        }
+        // Register by the unscoped (last "::" component) name so relations that
+        // reference "Browse" can find "Online Store::Browse" (fix for rectangle
+        // group scoping in usecase diagrams).
+        if key.contains("::") {
+            if let Some(unscoped) = key.rsplit("::").next() {
+                node_boxes.entry(unscoped.to_string()).or_insert(nb);
+            }
         }
     }
 
-    let nodes_bottom = row_y_offsets
-        .iter()
-        .zip(row_heights.iter())
-        .map(|(y, h)| y + h)
+    // ── Canvas dimensions from layout result ──────────────────────────────────
+    let nodes_bottom = node_boxes
+        .values()
+        .map(|b| b.y + b.h)
         .max()
         .unwrap_or(margin_top + title_block_height);
 
@@ -197,8 +249,14 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let kv_count = extract_projection_kv_lines(&proj.body, &proj.format).len() as i32;
         acc + 22 + kv_count * 16 + 8 + 12
     });
-    let svg_width = margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap;
-    let svg_height = nodes_bottom + 40 + proj_extra_height;
+    // Use the layout engine's canvas size as a floor for both dimensions.
+    let gl_canvas_right = gl_result_class.canvas_width as i32;
+    let gl_canvas_bottom = gl_result_class.canvas_height as i32;
+    let svg_width = (margin_x * 2
+        + col_count * node_width
+        + (col_count - 1) * col_gap)
+        .max(gl_canvas_right + margin_x);
+    let svg_height = (nodes_bottom + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -262,7 +320,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     }
 
     // Render relations first so node rectangles cover endpoints
-    for relation in &document.relations {
+    for (rel_idx, relation) in document.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
             normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
         let from = node_boxes.get(&from_name);
@@ -318,12 +376,78 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             .as_deref()
             .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
             .unwrap_or_default();
-        out.push_str(&format!(
+
+        // ── Edge routing: prefer orthogonal polyline from graph_layout ────────
+        // Edge IDs are "r{rel_idx}" matching gl_edges_class construction above.
+        // Fall back to a straight <line> when no pre-computed path is available
+        // (explicit direction override, hidden, or layout produced no path).
+        let ortho_pts: Option<Vec<(i32, i32)>> =
+            if relation.direction.is_none() && !relation.hidden {
+                gl_result_class
+                    .edge_paths
+                    .get(&format!("r{rel_idx}"))
+                    .filter(|p| p.len() >= 2)
+                    .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+            } else {
+                None
+            };
+
+        // Label midpoint — computed in each branch below.
+        let (label_mx, label_my);
+
+        if let Some(ref pts) = ortho_pts {
+            // Orthogonal polyline from the layout engine.
+            let pts_str: String = pts
+                .iter()
+                .map(|(px, py)| format!("{px},{py}"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            out.push_str(&format!(
+                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                escape_text(&from_name),
+                escape_text(&to_name),
+                escape_text(&normalized_arrow),
+                pts_str,
+                relation_color, stroke_width,
+                stroke_dash, visibility, direction_attr, markers
+            ));
+            // Label at midpoint of longest horizontal segment; fall back to
+            // overall polyline midpoint when no horizontal segment exists.
+            let longest_horiz = pts
+                .windows(2)
+                .filter(|seg| seg[0].1 == seg[1].1)
+                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
+            let (lmx, lmy) = match longest_horiz {
+                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                None => {
+                    let longest_seg = pts.windows(2).max_by_key(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2)
+                    });
+                    match longest_seg {
+                        Some(seg) => {
+                            ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
+                        }
+                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                    }
+                }
+            };
+            label_mx = lmx;
+            label_my = lmy;
+        } else {
+            // Straight line fallback.
+            out.push_str(&format!(
                 "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
                 escape_text(&relation.from),
                 escape_text(&relation.to),
                 dash = stroke_dash
             ));
+            label_mx = (x1 + x2) / 2;
+            label_my = (y1 + y2) / 2 - 12;
+        }
+
+        // Anchor points for cardinality / role labels (always from port anchors).
         if relation.left_lollipop {
             render_lollipop_endpoint(&mut out, x1, y1, relation_color);
         }
@@ -368,8 +492,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
         if let Some(stereotype) = &relation.stereotype {
             if usecase_dependency.is_none() {
-                let sx = (x1 + x2) / 2;
-                let sy = (y1 + y2) / 2 - if relation.label.is_some() { 20 } else { 6 };
+                let sx = label_mx;
+                let sy = label_my - if relation.label.is_some() { 8 } else { 6 };
                 out.push_str(&format!(
                     "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
                     member_color = class_style.member_color,
@@ -378,14 +502,18 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             }
         }
         // UseCase dependency labels (<<extend>>, <<include>>) at midpoint above edge (fix #575).
-        // Regular relation labels at 40% from source, clamped 30px from endpoints (fix #564).
+        // Regular relation labels placed at label_mx/label_my (orthogonal-aware).
         if let Some(label) = usecase_dependency {
-            let dx_abs = (x2 - x1).abs();
-            let dy_abs = (y2 - y1).abs();
-            let (lx, ly) = if dy_abs > dx_abs {
-                ((x1 + x2) / 2 + 14, (y1 + y2) / 2 - 6)
+            let (lx, ly) = if ortho_pts.is_some() {
+                (label_mx, label_my)
             } else {
-                ((x1 + x2) / 2, (y1 + y2) / 2 - 14)
+                let dx_abs = (x2 - x1).abs();
+                let dy_abs = (y2 - y1).abs();
+                if dy_abs > dx_abs {
+                    ((x1 + x2) / 2 + 14, (y1 + y2) / 2 - 6)
+                } else {
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 14)
+                }
             };
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
@@ -393,22 +521,26 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 txt = escape_text(label)
             ));
         } else if let Some(label) = relation.label.as_deref() {
-            let dx = x2 - x1;
-            let dy = y2 - y1;
-            let dx_abs = dx.abs();
-            let dy_abs = dy.abs();
-            let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
-            let (lx, ly) = if edge_len <= 2 {
-                ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+            let (lx, ly) = if ortho_pts.is_some() {
+                (label_mx, label_my)
             } else {
-                let clearance = 30i32;
-                let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
-                let raw_x = x1 + dx * t_num / edge_len;
-                let raw_y = y1 + dy * t_num / edge_len;
-                if dy_abs > dx_abs {
-                    (raw_x + 14, raw_y - 6)
+                let dx = x2 - x1;
+                let dy = y2 - y1;
+                let dx_abs = dx.abs();
+                let dy_abs = dy.abs();
+                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
+                if edge_len <= 2 {
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
                 } else {
-                    (raw_x, raw_y - 14)
+                    let clearance = 30i32;
+                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
+                    let raw_x = x1 + dx * t_num / edge_len;
+                    let raw_y = y1 + dy * t_num / edge_len;
+                    if dy_abs > dx_abs {
+                        (raw_x + 14, raw_y - 6)
+                    } else {
+                        (raw_x, raw_y - 14)
+                    }
                 }
             };
             out.push_str(&format!(
