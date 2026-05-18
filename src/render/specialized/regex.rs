@@ -1,7 +1,25 @@
 use super::*;
 
 pub fn render_regex_svg(document: &RegexDocument) -> String {
-    let width = 760;
+    // Auto-expand canvas width to prevent title / token row truncation (#514).
+    let min_width = 760_i32;
+    let max_row_px: i32 = document
+        .patterns
+        .iter()
+        .map(|pat| {
+            // Title row: source regex string width
+            let source_px = (pat.source.len() as i32) * 7 + 64;
+            // Token row: sum of token label widths
+            let tokens_px: i32 = regex_tokens_to_labels(&pat.tokens)
+                .iter()
+                .map(|l| (l.len().max(1) as i32) * 8 + 18 + 8)
+                .sum::<i32>()
+                + 80;
+            source_px.max(tokens_px)
+        })
+        .max()
+        .unwrap_or(0);
+    let width = min_width.max(max_row_px);
     let row_height = 80;
     let height = 80 + (document.patterns.len().max(1) as i32) * row_height;
     let mut out = String::new();
@@ -29,7 +47,7 @@ pub fn render_regex_svg(document: &RegexDocument) -> String {
         ));
     } else {
         for pat in &document.patterns {
-            render_regex_row(&mut out, &pat.source, &pat.tokens, y, width);
+            render_regex_row(&mut out, &pat.source, &pat.tokens, y, width, min_width);
             y += row_height;
         }
     }
@@ -37,7 +55,7 @@ pub fn render_regex_svg(document: &RegexDocument) -> String {
     out
 }
 
-fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i32, width: i32) {
+fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i32, width: i32, _min_width: i32) {
     out.push_str(&format!(
         "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">/{}/</text>",
         y - 4,
@@ -47,7 +65,7 @@ fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i3
     out.push_str(&format!(
         "<line x1=\"24\" y1=\"{by}\" x2=\"{x2}\" y2=\"{by}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
         by = baseline,
-        x2 = width - 24
+        x2 = width - 48
     ));
     let mut x = 40;
     out.push_str(&format!(
@@ -74,7 +92,8 @@ fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i3
             ty = baseline + 4
         ));
         x += box_w + 8;
-        if x > width - 80 {
+        // With auto-expanded canvas, only break at absolute canvas boundary.
+        if x > width - 48 {
             break;
         }
     }
