@@ -54,7 +54,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         name_px.max(member_px).clamp(160, 320)
     };
     // col_gap wide enough for edge labels between adjacent nodes (fix #564, #575)
-    let col_gap: i32 = 96;
+    let col_gap: i32 = 80;
     let row_gap: i32 = 64;
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
@@ -377,7 +377,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 ));
             }
         }
-        // UseCase dependency labels (<<extend>>, <<include>>) at midpoint above the edge (fix #575).
+        // UseCase dependency labels (<<extend>>, <<include>>) at midpoint above edge (fix #575).
         // Regular relation labels at 40% from source, clamped 30px from endpoints (fix #564).
         if let Some(label) = usecase_dependency {
             let dx_abs = (x2 - x1).abs();
