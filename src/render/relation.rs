@@ -144,7 +144,7 @@ pub(crate) fn render_relation_marker_defs_with_prefix(
     out.push_str(&format!(
         "<marker id=\"{prefix}arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
          markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         <polygon points=\"0,0 12,6 0,12\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" fill-rule=\"nonzero\"/>\
          </marker>",
     ));
     out.push_str(&format!(

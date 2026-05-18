@@ -80,6 +80,27 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     for (idx, node) in document.nodes.iter().enumerate() {
         let col = (idx as i32) % col_count;
         let row = (idx as i32) / col_count;
+        // Detect if the first member is a type-stereotype marker (consumed by the header rendering).
+        // Such members are NOT displayed as ordinary member lines (fix height computation for #470).
+        let has_type_stereotype = node.members.first().is_some_and(|m| {
+            matches!(
+                m.text.as_str(),
+                "<<enum>>"
+                    | "<<interface>>"
+                    | "<<abstract>>"
+                    | "<<abstract class>>"
+                    | "<<annotation>>"
+                    | "<<protocol>>"
+                    | "<<struct>>"
+            )
+        });
+        let display_member_count = if has_type_stereotype {
+            node.members.len().saturating_sub(1)
+        } else {
+            node.members.len()
+        };
+        // Extra header height when we show a stereotype label (14px for the label line)
+        let stereotype_extra_h = if has_type_stereotype { 14 } else { 0 };
         let body_h = if node.kind == FamilyNodeKind::Note {
             let lines = node
                 .label
@@ -89,12 +110,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 .count()
                 .max(1) as i32;
             lines * 16 + 20
-        } else if node.members.is_empty() {
+        } else if display_member_count == 0 {
             empty_member_pad
         } else {
-            (node.members.len() as i32) * member_line_height + 2 * member_padding
+            (display_member_count as i32) * member_line_height + 2 * member_padding
         };
-        let h = c4_node_height(node.kind, header_height + body_h);
+        let h = c4_node_height(node.kind, header_height + stereotype_extra_h + body_h);
         let _ = col;
         if (row as usize) < row_heights.len() && h > row_heights[row as usize] {
             row_heights[row as usize] = h;
@@ -114,6 +135,24 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     for (idx, node) in document.nodes.iter().enumerate() {
         let col = (idx as i32) % col_count;
         let row = (idx as i32) / col_count;
+        let has_type_stereotype2 = node.members.first().is_some_and(|m| {
+            matches!(
+                m.text.as_str(),
+                "<<enum>>"
+                    | "<<interface>>"
+                    | "<<abstract>>"
+                    | "<<abstract class>>"
+                    | "<<annotation>>"
+                    | "<<protocol>>"
+                    | "<<struct>>"
+            )
+        });
+        let display_member_count2 = if has_type_stereotype2 {
+            node.members.len().saturating_sub(1)
+        } else {
+            node.members.len()
+        };
+        let stereotype_extra_h2 = if has_type_stereotype2 { 14 } else { 0 };
         let body_h = if node.kind == FamilyNodeKind::Note {
             let lines = node
                 .label
@@ -123,12 +162,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 .count()
                 .max(1) as i32;
             lines * 16 + 20
-        } else if node.members.is_empty() {
+        } else if display_member_count2 == 0 {
             empty_member_pad
         } else {
-            (node.members.len() as i32) * member_line_height + 2 * member_padding
+            (display_member_count2 as i32) * member_line_height + 2 * member_padding
         };
-        let h = c4_node_height(node.kind, header_height + body_h);
+        let h = c4_node_height(node.kind, header_height + stereotype_extra_h2 + body_h);
         let x = margin_x + col * (node_width + col_gap);
         let y = row_y_offsets[row as usize];
         let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
@@ -196,7 +235,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     out.push_str(&format!(
         "<marker id=\"arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
          markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,0 L12,6 L0,12 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         <polygon points=\"0,0 12,6 0,12\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" fill-rule=\"nonzero\"/>\
          </marker>",
     ));
     out.push_str(&format!(
@@ -339,7 +378,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let rendered_label = usecase_dependency.or(relation.label.as_deref());
         if let Some(label) = rendered_label {
             let lx = (x1 + x2) / 2;
-            let ly = (y1 + y2) / 2 - 4;
+            // Keep at least 12px clearance from the arrow shaft (fix #462)
+            let ly = (y1 + y2) / 2 - 12;
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
@@ -1307,7 +1347,7 @@ fn render_class_node(
         out.push_str(&format!(
             "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
         ));
-        // Name centered
+        // Name centered — the alias is the internal id only; do NOT display it (fix #478)
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
@@ -1316,13 +1356,6 @@ fn render_class_node(
             ty = cy + 4,
             name = escape_text(&node.name)
         ));
-        if let Some(alias) = &node.alias {
-            out.push_str(&format!(
-                "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">as {alias}</text>",
-                ty = cy + 20,
-                alias = escape_text(alias)
-            ));
-        }
         // Members rendered below the ellipse (rare for usecases)
         let mut my = y + h + 14;
         for member in &node.members {
@@ -1339,60 +1372,109 @@ fn render_class_node(
         return;
     }
 
+    // Determine the kind-stereotype label from the first member marker (fix #470).
+    // Markers like `<<enum>>`, `<<interface>>`, `<<abstract>>`, `<<abstract class>>`
+    // are injected by the parser and should be displayed as guillemet labels, NOT
+    // as ordinary members.
+    let type_stereotype_label: Option<&'static str> = node.members.first().and_then(|m| {
+        match m.text.as_str() {
+            "<<enum>>" => Some("\u{ab}enumeration\u{bb}"),
+            "<<interface>>" => Some("\u{ab}interface\u{bb}"),
+            "<<abstract>>" | "<<abstract class>>" => Some("\u{ab}abstract\u{bb}"),
+            "<<annotation>>" => Some("\u{ab}annotation\u{bb}"),
+            "<<protocol>>" => Some("\u{ab}protocol\u{bb}"),
+            "<<struct>>" => Some("\u{ab}struct\u{bb}"),
+            _ => None,
+        }
+    });
+    // Members to display: skip the type-stereotype marker (first member) if it was consumed above
+    let display_members = if type_stereotype_label.is_some() {
+        &node.members[1..]
+    } else {
+        &node.members[..]
+    };
+
     // Outer rect
     out.push_str(&format!(
         "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
     ));
-    // Header band
+    // Header band — taller when we display a stereotype label (fix #470)
+    let stereotype_extra = if type_stereotype_label.is_some() { 14 } else { 0 };
+    let effective_header_h = header_h + stereotype_extra;
     out.push_str(&format!(
         "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-        hh = header_h
+        hh = effective_header_h
     ));
     // Header separator line
     out.push_str(&format!(
         "<line x1=\"{x}\" y1=\"{ly}\" x2=\"{x2}\" y2=\"{ly}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-        ly = y + header_h,
+        ly = y + effective_header_h,
         x2 = x + w
     ));
 
-    // Header text: just the class name — the `class` keyword is NOT part of the
-    // display label (PlantUML shows only the identifier, never the keyword).
-    let kind_prefix = match node.kind {
-        FamilyNodeKind::Class => "",
-        FamilyNodeKind::Object => "",
-        FamilyNodeKind::UseCase => "",
-        _ => "",
-    };
+    // Stereotype label above the class name (fix #470)
+    if let Some(label) = type_stereotype_label {
+        out.push_str(&format!(
+            "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"10\" fill=\"{fc}\">{lbl}</text>",
+            tx = x + w / 2,
+            ty = y + 13,
+            ff = escape_text(font_family),
+            fc = escape_text(&class_style.font_color),
+            lbl = escape_text(label)
+        ));
+    }
+
+    // Header text: class name (fix #486 — Object shows `Name : Type` underlined)
     let display_name = namespace_separator
         .filter(|sep| !sep.is_empty())
         .map(|sep| node.name.replace("::", sep))
         .unwrap_or_else(|| node.name.clone());
-    let header_text = if let Some(alias) = &node.alias {
-        format!("{kind_prefix}{} (as {})", display_name, alias)
-    } else {
-        format!("{kind_prefix}{}", display_name)
-    };
-    // Underline for objects (PlantUML convention)
+    // For objects: if the name contains " : " it's already in `name : Type` form;
+    // otherwise we show just the name.  Either way we underline per UML.
+    let header_text = display_name.clone();
+    // Underline for objects (PlantUML convention — fix #486)
     let text_decoration = if matches!(node.kind, FamilyNodeKind::Object) {
         " text-decoration=\"underline\""
     } else {
         ""
     };
+    let name_ty = y + effective_header_h - 9;
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\"{td}>{txt}</text>",
-        escape_text(font_family),
-        title_font_size,
-        escape_text(&class_style.font_color),
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}>{txt}</text>",
+        ff = escape_text(font_family),
+        fs = title_font_size,
+        fc = escape_text(&class_style.font_color),
         tx = x + w / 2,
-        ty = y + header_h - 9,
+        ty = name_ty,
         td = text_decoration,
         txt = escape_text(&header_text)
     ));
 
-    // Members
-    let mut my = y + header_h + 16;
-    for member in &node.members {
-        let (vis_sym, vis_color, rest_after_vis) = parse_visibility_member(&member.text);
+    // Members — split by `--` / `..` divider tokens to draw compartment lines (fix #468).
+    // We detect whether a member is a divider and emit a horizontal rule instead.
+    let mut my = y + effective_header_h + 16;
+    let mut section_started = false; // tracks if we've seen at least one non-divider member
+    for member in display_members {
+        let raw_text = member.text.trim();
+        // Detect divider tokens (explicit `--` or `..` compartment separator)
+        if raw_text == "--" || raw_text == ".." {
+            // Draw a horizontal divider line (fix #468)
+            let div_y = my - 8;
+            out.push_str(&format!(
+                "<line x1=\"{x}\" y1=\"{div_y}\" x2=\"{x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+                x2 = x + w
+            ));
+            section_started = false;
+            continue;
+        }
+        // Skip blank display lines
+        if raw_text.is_empty() {
+            my += 16;
+            continue;
+        }
+        let _ = section_started;
+        section_started = true;
+        let (vis_sym, vis_color, rest_after_vis) = parse_visibility_member(raw_text);
         let (base_style, text_after_mod) = parse_member_modifiers(rest_after_vis);
         let mut style_attrs = String::from(base_style);
         match &member.modifier {
@@ -1428,9 +1510,9 @@ fn render_class_node(
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();
         out.push_str(&format!(
-            "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{}\" font-size=\"{}\" fill=\"{vc}\"{sa}>{m}</text>",
-            escape_text(font_family),
-            member_font_size,
+            "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
+            ff = escape_text(font_family),
+            fs = member_font_size,
             tx = x + 10,
             vc = effective_color,
             sa = style_attrs,
@@ -1819,12 +1901,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             y_cursor += 22;
         }
     }
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">{} diagram</text>",
-        margin_x,
-        y_cursor + 2,
-        family
-    ));
+    // Do NOT emit a visible "component/deployment diagram" label — it was leaking
+    // as unwanted canvas text (fix #490, #494). Emit as hidden metadata only.
+    let _ = family; // family used for SVG data attribute below
 
     for (idx, node) in doc.nodes.iter().enumerate() {
         let col = (idx as i32) % cols;
@@ -1994,7 +2073,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         if let Some(label) = &rel.label {
             let label = usecase_dependency_label(Some(label)).unwrap_or(label);
             let mx = (x1 + x2) / 2;
-            let my = (y1 + y2) / 2 - 6;
+            // Keep at least 12px clearance from the arrow shaft (fix #462)
+            let my = (y1 + y2) / 2 - 12;
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">{}</text>",
                 mx,
@@ -2643,9 +2723,9 @@ fn render_family_node_shape_styled(
             ));
         }
         FamilyNodeKind::Node
+        | FamilyNodeKind::Frame
         | FamilyNodeKind::Artifact
         | FamilyNodeKind::Cloud
-        | FamilyNodeKind::Frame
         | FamilyNodeKind::Storage
         | FamilyNodeKind::Database
         | FamilyNodeKind::Package
@@ -2659,6 +2739,54 @@ fn render_family_node_shape_styled(
                 .as_deref()
                 .unwrap_or(&comp_style.background_color);
             match node.kind {
+                // 3D cube for deployment nodes (fix #495)
+                FamilyNodeKind::Node | FamilyNodeKind::Frame => {
+                    let depth = 10i32; // 3D offset
+                    // Back face (top-right shadow)
+                    out.push_str(&format!(
+                        "<polygon class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
+                         points=\"{},{} {},{} {},{} {},{}\" \
+                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        kind_label,
+                        x + depth, y,          // top-left of back face
+                        x + w + depth, y,      // top-right of back face
+                        x + w + depth, y + h,  // bottom-right of back face
+                        x + depth, y + h,      // bottom-left of back face (= right edge of front)
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                    // Top face (parallelogram)
+                    out.push_str(&format!(
+                        "<polygon points=\"{},{} {},{} {},{} {},{}\" \
+                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y,                  // front-top-left
+                        x + depth, y - depth + depth, // back-top-left (same y for simplicity, offset right)
+                        x + w + depth, y,      // back-top-right
+                        x + w, y,              // front-top-right
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                    // Right face (parallelogram)
+                    out.push_str(&format!(
+                        "<polygon points=\"{},{} {},{} {},{} {},{}\" \
+                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x + w, y,              // front-top-right
+                        x + w + depth, y,      // back-top-right
+                        x + w + depth, y + h,  // back-bottom-right
+                        x + w, y + h,          // front-bottom-right
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                    // Front face (main visible face)
+                    out.push_str(&format!(
+                        "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
+                         x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
+                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        kind_label, x, y, w, h,
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                }
                 FamilyNodeKind::Database | FamilyNodeKind::Storage => {
                     out.push_str(&format!(
                         "<path class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" d=\"M{x},{top} C{x},{top_minus} {right},{top_minus} {right},{top} L{right},{bottom} C{right},{bottom_plus} {x},{bottom_plus} {x},{bottom} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
@@ -2747,9 +2875,15 @@ fn render_family_node_shape_styled(
         FamilyNodeKind::Interface | FamilyNodeKind::Port => label_y + 14,
         _ => y + 14,
     };
+    // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525)
+    let kind_tag_text: std::borrow::Cow<str> = match node.kind {
+        FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
+        FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),
+        _ => std::borrow::Cow::Borrowed(kind_label),
+    };
     out.push_str(&format!(
         "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-        cx, kind_tag_y, escape_text(&comp_style.font_color), kind_label
+        cx, kind_tag_y, escape_text(&comp_style.font_color), escape_text(&kind_tag_text)
     ));
     render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
 }
