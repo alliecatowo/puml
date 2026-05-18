@@ -226,3 +226,83 @@ fn parse_dpi(raw: &str) -> Result<f32, String> {
         Err("dpi must be in range [1, 1200]".to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_parse_as_expected() {
+        let cli = Cli::try_parse_from(["puml"]).expect("default CLI parse should succeed");
+        assert!(cli.command.is_none());
+        assert_eq!(cli.format, OutputFormat::Svg);
+        assert_eq!(cli.dpi, 96.0);
+        assert_eq!(cli.diagnostics, DiagnosticsFormat::Human);
+        assert_eq!(cli.color, ColorChoice::Auto);
+        assert_eq!(cli.dialect, Dialect::Auto);
+        assert_eq!(cli.compat, CompatMode::Strict);
+        assert_eq!(cli.determinism, DeterminismMode::Strict);
+        assert_eq!(cli.lint_report, LintReportFormat::Human);
+        assert_eq!(cli.charset, "UTF-8");
+    }
+
+    #[test]
+    fn dpi_parser_accepts_boundaries_and_rejects_invalid_values() {
+        assert_eq!(parse_dpi("1").expect("lower-bound DPI should parse"), 1.0);
+        assert_eq!(
+            parse_dpi("1200").expect("upper-bound DPI should parse"),
+            1200.0
+        );
+        assert!(parse_dpi("0.999").is_err());
+        assert!(parse_dpi("1200.1").is_err());
+        assert!(parse_dpi("not-a-number").is_err());
+    }
+
+    #[test]
+    fn check_conflicts_with_dump() {
+        let err = Cli::try_parse_from(["puml", "--check", "--dump", "ast"])
+            .expect_err("check + dump should conflict");
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn metadata_conflicts_with_check_and_dump() {
+        let check_err = Cli::try_parse_from(["puml", "--metadata", "--check"])
+            .expect_err("metadata + check should conflict");
+        assert_eq!(check_err.kind(), clap::error::ErrorKind::ArgumentConflict);
+
+        let dump_err = Cli::try_parse_from(["puml", "--metadata", "--dump", "scene"])
+            .expect_err("metadata + dump should conflict");
+        assert_eq!(dump_err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn lint_inputs_require_check_mode() {
+        let err = Cli::try_parse_from(["puml", "--lint-input", "x.puml"])
+            .expect_err("lint input without check should fail");
+        assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    }
+
+    #[test]
+    fn url_include_flags_conflict() {
+        let err = Cli::try_parse_from(["puml", "--allow-url-includes", "--no-url-includes"])
+            .expect_err("allow/no-url-includes should conflict");
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn format_subcommand_parses_flags_and_files() {
+        let cli = Cli::try_parse_from(["puml", "format", "--check", "--diff", "a.puml", "b.puml"])
+            .expect("format subcommand should parse");
+        match cli.command.expect("format command should be present") {
+            Command::Format(args) => {
+                assert!(args.check);
+                assert!(args.diff);
+                assert_eq!(
+                    args.files,
+                    vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
+                );
+            }
+        }
+    }
+}

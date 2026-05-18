@@ -531,7 +531,9 @@ pub(super) fn preprocess_text(
                         {
                             return Err(Diagnostic::error_code(
                                 "E_INCLUDE_URL_UNSUPPORTED",
-                                format!("!includeurl URL targets are not supported in WASM: {raw_target}"),
+                                format!(
+                                    "!includeurl URL targets are not supported in WASM: {raw_target}"
+                                ),
                             ));
                         }
                     }

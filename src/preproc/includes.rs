@@ -16,11 +16,12 @@ use super::{IncludeTarget, ParseOptions, PreprocState, PreprocVariableScope, Pre
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use super::{URL_INCLUDE_MAX_BYTES, URL_INCLUDE_TIMEOUT};
 
-use super::control::preprocess_text;
 use super::macros::{
     expand_preprocessor_text, parse_named_call, parse_scoped_variable_assignment,
     parse_variable_assignment,
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::preproc::control::preprocess_text;
 
 /// On `wasm32` there is no filesystem available, so the entire `!include` /
 /// `!includesub` / `!include_many` / `!import` family returns a friendly error
