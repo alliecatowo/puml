@@ -156,8 +156,10 @@ fn parity_source_of_truth_markdown_statuses_are_machine_readable() {
 
 #[test]
 fn parity_source_of_truth_contains_required_official_reference_pages() {
-    let raw = fs::read_to_string(repo_path("docs/internal/parity/plantuml_parity_source_of_truth.md"))
-        .expect("source-of-truth markdown");
+    let raw = fs::read_to_string(repo_path(
+        "docs/internal/parity/plantuml_parity_source_of_truth.md",
+    ))
+    .expect("source-of-truth markdown");
     let required = [
         "https://plantuml.com/sequence-diagram",
         "https://plantuml.com/skinparam",

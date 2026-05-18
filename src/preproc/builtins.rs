@@ -4,14 +4,14 @@ use std::path::PathBuf;
 use crate::diagnostic::Diagnostic;
 
 use super::{
-    MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_WHILE_ITERATIONS, ParseOptions, PreprocCallable,
-    PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,
+    ParseOptions, PreprocCallable, PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,
+    MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
 };
 
 // Forward-declare functions that live in sibling modules but are called from here.
 // We go through super:: to avoid import cycles.
-use super::macros::expand_preprocessor_text;
 use super::control::preprocess_text;
+use super::macros::expand_preprocessor_text;
 
 /// Dispatch a known preprocessor builtin. Returns `Ok(Some(result))` if the
 /// name maps to a builtin, `Ok(None)` if the name is not recognised so the
@@ -113,9 +113,11 @@ pub(super) fn dispatch_builtin(
         "is_empty" => {
             Some((arg(0).trim().is_empty() || preprocessor_size(&arg(0)) == 0).to_string())
         }
-        "is_number" | "is_int" | "is_integer" => {
-            Some(super::includes::eval_int_expr(arg(0).trim()).is_some().to_string())
-        }
+        "is_number" | "is_int" | "is_integer" => Some(
+            super::includes::eval_int_expr(arg(0).trim())
+                .is_some()
+                .to_string(),
+        ),
         "list_contains"
         | "array_contains"
         | "contains_list"

@@ -130,8 +130,8 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     // distribute them evenly left/right for a balanced mindmap (#430/#532).
     // We assign the first half to Left (alternating from the last node upward so
     // the first child stays on the right per convention).
-    let has_explicit_left = (0..n)
-        .any(|i| nodes[i].depth == 1 && nodes[i].mindmap_side == MindMapSide::Left);
+    let has_explicit_left =
+        (0..n).any(|i| nodes[i].depth == 1 && nodes[i].mindmap_side == MindMapSide::Left);
     if !has_explicit_left {
         let depth1_indices: Vec<usize> = (0..n).filter(|&i| nodes[i].depth == 1).collect();
         let total = depth1_indices.len();
@@ -279,8 +279,8 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     };
     // Apply extra left padding by shifting root_cx right if needed.
     let extra_left = needed_left_pad;
-    let canvas_w = (left_w + root_w + right_w + 2 * MARGIN + extra_left)
-        .max(needed_right + extra_left);
+    let canvas_w =
+        (left_w + root_w + right_w + 2 * MARGIN + extra_left).max(needed_right + extra_left);
     let mindmap_leaves = (0..n)
         .filter(|&idx| family_tree_child_indices(nodes, idx).is_empty())
         .count();

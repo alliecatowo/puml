@@ -91,7 +91,10 @@ JoinNode --> [H]
     // regardless of whether single- or two-column layout is used.
     let cx_diff = (f64_attr(history_circles[1], "cx") - f64_attr(history_circles[0], "cx")).abs();
     let cy_diff = (f64_attr(history_circles[1], "cy") - f64_attr(history_circles[0], "cy")).abs();
-    assert!(cx_diff > 0.0 || cy_diff > 0.0, "history circles must be at distinct positions");
+    assert!(
+        cx_diff > 0.0 || cy_diff > 0.0,
+        "history circles must be at distinct positions"
+    );
 
     let ready_to_choice = doc.first_with_attr("line", "data-state-from", "Ready");
     assert_eq!(attr(ready_to_choice, "data-state-to"), "ChoiceNode");
@@ -263,10 +266,22 @@ fn activity_beta_loop_branch_labels_render_is_and_not_clauses() {
     let src = include_str!("fixtures/families/valid_activity_loop_branch_labels.puml");
     let svg = puml::render_source_to_svg(src).expect("activity loop labels should render");
 
-    assert!(svg.contains("healthy?"), "while condition should appear in diamond");
-    assert!(svg.contains("yes"), "while guard should float on loop arrow");
-    assert!(svg.contains("more work?"), "repeat condition should appear in diamond");
-    assert!(svg.contains("yes / no"), "repeat while guards should float on arrow");
+    assert!(
+        svg.contains("healthy?"),
+        "while condition should appear in diamond"
+    );
+    assert!(
+        svg.contains("yes"),
+        "while guard should float on loop arrow"
+    );
+    assert!(
+        svg.contains("more work?"),
+        "repeat condition should appear in diamond"
+    );
+    assert!(
+        svg.contains("yes / no"),
+        "repeat while guards should float on arrow"
+    );
     assert!(svg.contains("#008080"));
     assert!(svg.contains("repeat while"));
 }

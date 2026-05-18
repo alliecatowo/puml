@@ -140,7 +140,6 @@ fn render_ditaa_inner(
     title: Option<&str>,
     options: &DitaaOptions,
 ) -> Result<String, Diagnostic> {
-
     if body.trim().is_empty() {
         return Err(Diagnostic::error(
             "[E_DITAA_EMPTY] @startditaa body is empty",
@@ -762,22 +761,23 @@ fn render_ditaa_inner(
                 .iter()
                 .any(|s| row_idx >= s.r1 && row_idx <= s.r2 && c >= s.c1 && c <= s.c2);
             // Structural chars break a run
-            let is_structural = in_shape || matches!(
-                ch,
-                '+' | '-'
-                    | '|'
-                    | '='
-                    | ':'
-                    | '>'
-                    | '<'
-                    | 'v'
-                    | '^'
-                    | '~'
-                    | '('
-                    | ')'
-                    | '/'
-                    | '\\'
-            );
+            let is_structural = in_shape
+                || matches!(
+                    ch,
+                    '+' | '-'
+                        | '|'
+                        | '='
+                        | ':'
+                        | '>'
+                        | '<'
+                        | 'v'
+                        | '^'
+                        | '~'
+                        | '('
+                        | ')'
+                        | '/'
+                        | '\\'
+                );
             if is_structural {
                 // Flush current run
                 if let Some(sc) = run_start_col.take() {

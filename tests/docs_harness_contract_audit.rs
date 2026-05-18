@@ -46,8 +46,10 @@ fn codex_workflow_doc_has_codex_claude_runbook_and_gallery_refresh_commands() {
 
 #[test]
 fn autonomous_cookbook_documents_dedicated_worktree_issue_flow() {
-    let doc = fs::read_to_string(repo_path("docs/internal/agents/autonomous-workflow-cookbook.md"))
-        .expect("read docs/internal/agents/autonomous-workflow-cookbook.md");
+    let doc = fs::read_to_string(repo_path(
+        "docs/internal/agents/autonomous-workflow-cookbook.md",
+    ))
+    .expect("read docs/internal/agents/autonomous-workflow-cookbook.md");
     for needle in [
         "git worktree add ../puml-issue-131 -b feat/issue-131-docs-harness origin/main",
         "./scripts/harness-check.sh --quick",

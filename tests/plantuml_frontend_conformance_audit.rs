@@ -7,8 +7,10 @@ fn repo_path(rel: &str) -> PathBuf {
 
 #[test]
 fn conformance_matrix_has_required_sections_and_scenarios() {
-    let doc = fs::read_to_string(repo_path("docs/internal/parity/plantuml_frontend_conformance_matrix.md"))
-        .expect("failed to read conformance matrix doc");
+    let doc = fs::read_to_string(repo_path(
+        "docs/internal/parity/plantuml_frontend_conformance_matrix.md",
+    ))
+    .expect("failed to read conformance matrix doc");
     for needle in [
         "# PlantUML Frontend Conformance Matrix",
         "## Matrix",
@@ -28,8 +30,10 @@ fn conformance_matrix_has_required_sections_and_scenarios() {
 
 #[test]
 fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
-    let doc = fs::read_to_string(repo_path("docs/internal/parity/plantuml_frontend_conformance_matrix.md"))
-        .expect("failed to read conformance matrix doc");
+    let doc = fs::read_to_string(repo_path(
+        "docs/internal/parity/plantuml_frontend_conformance_matrix.md",
+    ))
+    .expect("failed to read conformance matrix doc");
 
     let mut fixtures = Vec::new();
     let mut anchors = Vec::new();

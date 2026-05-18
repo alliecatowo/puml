@@ -281,9 +281,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         // Detect actor marker embedded by the parser for `actor`
                         // declarations inside usecase scoping blocks (e.g.
                         // `rectangle "System" { actor User }`).
-                        let has_actor_marker = encoded_members
-                            .iter()
-                            .any(|m| m.text.trim() == "<<actor>>");
+                        let has_actor_marker =
+                            encoded_members.iter().any(|m| m.text.trim() == "<<actor>>");
                         let nk = if has_actor_marker {
                             FamilyNodeKind::Actor
                         } else {

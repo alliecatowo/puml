@@ -191,8 +191,8 @@ pub fn render_svg(scene: &Scene) -> String {
                 let header_text = format!("{} {}", g.kind, first_line).trim().to_string();
                 // Estimate the notch width from the text content.
                 let char_w = 7_i32;
-                let notch_w = (header_text.chars().count() as i32 * char_w + 16)
-                    .clamp(40, g.width - 4);
+                let notch_w =
+                    (header_text.chars().count() as i32 * char_w + 16).clamp(40, g.width - 4);
                 let notch_h = 20_i32;
                 let cut = 6_i32;
                 out.push_str(&format!(
@@ -300,9 +300,8 @@ pub fn render_svg(scene: &Scene) -> String {
         let line_y = m.route_y;
         // A self-loop is detected by from_id == to_id (x1 != x2 because the
         // layout gives the loop a non-zero width).
-        let is_self_loop = m.from_id == m.to_id
-            && m.from_virtual.is_none()
-            && m.to_virtual.is_none();
+        let is_self_loop =
+            m.from_id == m.to_id && m.from_virtual.is_none() && m.to_virtual.is_none();
         if is_self_loop {
             // Use m.x2 as the right extent set by the layout.
             let loop_x2 = m.x2;
@@ -360,7 +359,14 @@ pub fn render_svg(scene: &Scene) -> String {
                 stroke_dash,
                 hidden
             ));
-            render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, stroke_width, hidden);
+            render_sequence_arrow_heads(
+                &mut out,
+                m,
+                stroke_color,
+                arrow_fill,
+                stroke_width,
+                hidden,
+            );
         }
 
         if let Some(virtual_ep) = m.from_virtual {

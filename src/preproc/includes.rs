@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use crate::diagnostic::Diagnostic;
 
 use super::{
-    IncludeTarget, ParseOptions, PreprocState, PreprocessDirective, PreprocVariableScope,
+    IncludeTarget, ParseOptions, PreprocState, PreprocVariableScope, PreprocessDirective,
     MAX_INCLUDE_DEPTH,
 };
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]

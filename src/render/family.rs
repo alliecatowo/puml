@@ -1918,14 +1918,14 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Layout constants
     // ─────────────────────────────────────────────────────────────────────────
-    let cell_w = 200i32;   // component box width
-    let cell_h = 80i32;    // component box height
+    let cell_w = 200i32; // component box width
+    let cell_h = 80i32; // component box height
     let inner_cols = 3i32; // columns inside a package
     let inner_gap = 40i32; // gap between nodes inside a package
-    let pkg_pad = 24i32;   // padding inside package frame
-    let pkg_tab = 28i32;   // height of the package label tab at top
+    let pkg_pad = 24i32; // padding inside package frame
+    let pkg_tab = 28i32; // height of the package label tab at top
     let canvas_margin = 40i32;
-    let pkg_gap = 32i32;   // gap between packages on the canvas
+    let pkg_gap = 32i32; // gap between packages on the canvas
     let outer_cols = 2i32; // package layout columns (1 if few packages)
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2016,7 +2016,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
         let rows = (n + cols - 1) / cols;
         let inner_w = cols * cell_w + (cols - 1).max(0) * inner_gap;
-        let inner_h = rows * (cell_h + inner_gap) - inner_gap.min(if rows > 0 { inner_gap } else { 0 });
+        let inner_h =
+            rows * (cell_h + inner_gap) - inner_gap.min(if rows > 0 { inner_gap } else { 0 });
         let inner_h = inner_h.max(cell_h);
 
         // Build display label matching the old RenderGroupFrame::display_label() format:
@@ -2069,7 +2070,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .as_deref()
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
-    let header_h = if title_lines > 0 { 16 + title_lines * 22 } else { 0 };
+    let header_h = if title_lines > 0 {
+        16 + title_lines * 22
+    } else {
+        0
+    };
 
     // Choose column count for packages on the canvas
     let n_pkgs = pkg_layouts.len() as i32;
@@ -2201,8 +2206,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
     let projection_extra_height = family_projection_extra_height(&doc.json_projections);
     let svg_width = (all_pkg_right + canvas_margin).max(400);
-    let svg_height =
-        all_pkg_bottom.max(ungrouped_bottom) + canvas_margin + projection_extra_height;
+    let svg_height = all_pkg_bottom.max(ungrouped_bottom) + canvas_margin + projection_extra_height;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Start SVG output
@@ -2295,11 +2299,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let mut found_any = false;
             for mid in &frame.member_ids {
                 // Try direct lookup, or strip namespace prefix
-                let lookup_key = mid
-                    .rsplit("::")
-                    .next()
-                    .unwrap_or(mid.as_str())
-                    .to_string();
+                let lookup_key = mid.rsplit("::").next().unwrap_or(mid.as_str()).to_string();
                 let found = positions
                     .get(mid.as_str())
                     .or_else(|| positions.get(lookup_key.as_str()));
@@ -2533,26 +2533,50 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let vh_mid_y = (y1 + y2) / 2;
             let vh_pts = [(x1, y1), (x1, vh_mid_y), (x2, vh_mid_y), (x2, y2)];
 
-            let hv_col = count_polyline_collisions(&hv_pts, &rel_obstacles, (fx, fy, fw, fh), (tx, ty, tw, th));
-            let vh_col = count_polyline_collisions(&vh_pts, &rel_obstacles, (fx, fy, fw, fh), (tx, ty, tw, th));
+            let hv_col = count_polyline_collisions(
+                &hv_pts,
+                &rel_obstacles,
+                (fx, fy, fw, fh),
+                (tx, ty, tw, th),
+            );
+            let vh_col = count_polyline_collisions(
+                &vh_pts,
+                &rel_obstacles,
+                (fx, fy, fw, fh),
+                (tx, ty, tw, th),
+            );
 
             // Pick the preferred L-shape
             let (l_pts, l_col) = if dx_abs >= dy_abs {
-                if vh_col <= hv_col { (&vh_pts[..], vh_col) } else { (&hv_pts[..], hv_col) }
+                if vh_col <= hv_col {
+                    (&vh_pts[..], vh_col)
+                } else {
+                    (&hv_pts[..], hv_col)
+                }
             } else {
-                if hv_col <= vh_col { (&hv_pts[..], hv_col) } else { (&vh_pts[..], vh_col) }
+                if hv_col <= vh_col {
+                    (&hv_pts[..], hv_col)
+                } else {
+                    (&vh_pts[..], vh_col)
+                }
             };
 
             // ── Z-shape escalation if L still collides ────────────────────────
             // Gather all blocking boxes from rel_obstacles (including package frames)
             let blocking: Vec<(i32, i32, i32, i32)> = if l_col > 0 {
-                rel_obstacles.iter().copied().filter(|&b| {
-                    b != (fx, fy, fw, fh) && b != (tx, ty, tw, th)
-                        && l_pts.windows(2).any(|seg| {
-                            segment_intersects_rect(seg[0].0, seg[0].1, seg[1].0, seg[1].1,
-                                b.0, b.1, b.2, b.3)
-                        })
-                }).collect()
+                rel_obstacles
+                    .iter()
+                    .copied()
+                    .filter(|&b| {
+                        b != (fx, fy, fw, fh)
+                            && b != (tx, ty, tw, th)
+                            && l_pts.windows(2).any(|seg| {
+                                segment_intersects_rect(
+                                    seg[0].0, seg[0].1, seg[1].0, seg[1].1, b.0, b.1, b.2, b.3,
+                                )
+                            })
+                    })
+                    .collect()
             } else {
                 Vec::new()
             };
@@ -2570,34 +2594,45 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 // Generate candidate waypoints: edges of every blocking box
                 let mut waypoint_candidates: Vec<(i32, i32)> = Vec::new();
                 for &(bx, by, bw, bh) in &blocking {
-                    waypoint_candidates.push((bx + bw / 2, by - gap));       // above
-                    waypoint_candidates.push((bx + bw / 2, by + bh + gap));  // below
-                    waypoint_candidates.push((bx - gap,    by + bh / 2));    // left
+                    waypoint_candidates.push((bx + bw / 2, by - gap)); // above
+                    waypoint_candidates.push((bx + bw / 2, by + bh + gap)); // below
+                    waypoint_candidates.push((bx - gap, by + bh / 2)); // left
                     waypoint_candidates.push((bx + bw + gap, by + bh / 2)); // right
-                    // Also try corners (useful for routing around package frames)
-                    waypoint_candidates.push((bx - gap,    by - gap));
+                                                                            // Also try corners (useful for routing around package frames)
+                    waypoint_candidates.push((bx - gap, by - gap));
                     waypoint_candidates.push((bx + bw + gap, by - gap));
-                    waypoint_candidates.push((bx - gap,    by + bh + gap));
+                    waypoint_candidates.push((bx - gap, by + bh + gap));
                     waypoint_candidates.push((bx + bw + gap, by + bh + gap));
                 }
 
                 'waypoint_loop: for &(wx, wy) in &waypoint_candidates {
                     // Z1: H→V→H  (x1,y1)→(wx,y1)→(wx,y2)→(x2,y2)
-                    let z1: Vec<(i32,i32)> = vec![(x1,y1),(wx,y1),(wx,y2),(x2,y2)];
+                    let z1: Vec<(i32, i32)> = vec![(x1, y1), (wx, y1), (wx, y2), (x2, y2)];
                     // Z2: V→H→V  (x1,y1)→(x1,wy)→(x2,wy)→(x2,y2)
-                    let z2: Vec<(i32,i32)> = vec![(x1,y1),(x1,wy),(x2,wy),(x2,y2)];
+                    let z2: Vec<(i32, i32)> = vec![(x1, y1), (x1, wy), (x2, wy), (x2, y2)];
                     // Z3: 5-seg H→V→H with waypoint intermediate
-                    let z3: Vec<(i32,i32)> = vec![(x1,y1),(wx,y1),(wx,wy),(x2,wy),(x2,y2)];
+                    let z3: Vec<(i32, i32)> =
+                        vec![(x1, y1), (wx, y1), (wx, wy), (x2, wy), (x2, y2)];
                     // Z4: 5-seg V→H→V with waypoint intermediate
-                    let z4: Vec<(i32,i32)> = vec![(x1,y1),(x1,wy),(wx,wy),(wx,y2),(x2,y2)];
+                    let z4: Vec<(i32, i32)> =
+                        vec![(x1, y1), (x1, wy), (wx, wy), (wx, y2), (x2, y2)];
 
                     for cand in [&z1, &z2, &z3, &z4] {
-                        if cand.len() > 5 { continue; }
-                        let c = count_polyline_collisions(cand, &rel_obstacles, (fx,fy,fw,fh), (tx,ty,tw,th));
+                        if cand.len() > 5 {
+                            continue;
+                        }
+                        let c = count_polyline_collisions(
+                            cand,
+                            &rel_obstacles,
+                            (fx, fy, fw, fh),
+                            (tx, ty, tw, th),
+                        );
                         if c < best_col {
                             best_col = c;
                             best = Some(cand.clone());
-                            if c == 0 { break 'waypoint_loop; }
+                            if c == 0 {
+                                break 'waypoint_loop;
+                            }
                         }
                     }
                 }
@@ -2726,7 +2761,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     // Compute adjusted positions for each label
-    let mut adjusted_labels: Vec<(i32, i32, String, String)> = vec![(0, 0, String::new(), String::new()); n];
+    let mut adjusted_labels: Vec<(i32, i32, String, String)> =
+        vec![(0, 0, String::new(), String::new()); n];
     for (_root, indices) in &groups {
         let count = indices.len() as i32;
         // Base position: centroid of the group
@@ -2738,7 +2774,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             // Symmetric vertical fan: rank 0 → -(N-1)/2 * stride, etc.
             let dy = v_stride * (rank - (count - 1) / 2);
             // Secondary horizontal stagger for even/odd when N ≥ 3
-            let dx = if count >= 3 && (rank % 2 == 1) { h_stagger } else { 0 };
+            let dx = if count >= 3 && (rank % 2 == 1) {
+                h_stagger
+            } else {
+                0
+            };
             adjusted_labels[idx] = (
                 base_x + dx,
                 base_y + dy,
@@ -2750,7 +2790,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
     // Emit the final labels
     for (lx, ly, text, color) in &adjusted_labels {
-        if text.is_empty() { continue; }
+        if text.is_empty() {
+            continue;
+        }
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
             lx, ly, escape_text(color), escape_text(text)
@@ -2769,7 +2811,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
 
 /// Check if a line segment (x1,y1)→(x2,y2) intersects a rectangle (bx,by,bw,bh).
 /// Uses the parametric Liang–Barsky / separating axis test.
-fn segment_intersects_rect(x1: i32, y1: i32, x2: i32, y2: i32, bx: i32, by: i32, bw: i32, bh: i32) -> bool {
+fn segment_intersects_rect(
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    bx: i32,
+    by: i32,
+    bw: i32,
+    bh: i32,
+) -> bool {
     // Grow the box by 4px to give a small margin
     let margin = 4;
     let rx0 = bx - margin;
@@ -2795,7 +2846,9 @@ fn segment_intersects_rect(x1: i32, y1: i32, x2: i32, y2: i32, bx: i32, by: i32,
         let (t_lo, t_hi) = if t1 < t2 { (t1, t2) } else { (t2, t1) };
         tmin = tmin.max(t_lo);
         tmax = tmax.min(t_hi);
-        if tmin > tmax { return false; }
+        if tmin > tmax {
+            return false;
+        }
     }
 
     // Clip against top/bottom
@@ -2809,7 +2862,9 @@ fn segment_intersects_rect(x1: i32, y1: i32, x2: i32, y2: i32, bx: i32, by: i32,
         let (t_lo, t_hi) = if t1 < t2 { (t1, t2) } else { (t2, t1) };
         tmin = tmin.max(t_lo);
         tmax = tmax.min(t_hi);
-        if tmin > tmax { return false; }
+        if tmin > tmax {
+            return false;
+        }
     }
 
     // The intersection is within the segment if tmin ≤ tmax and tmin < 1 and tmax > 0
@@ -3467,16 +3522,20 @@ fn render_family_node_shape_styled(
                 // 3D cube for deployment nodes (fix #495)
                 FamilyNodeKind::Node | FamilyNodeKind::Frame => {
                     let depth = 10i32; // 3D offset
-                    // Back face (top-right shadow)
+                                       // Back face (top-right shadow)
                     out.push_str(&format!(
                         "<polygon class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
                          points=\"{},{} {},{} {},{} {},{}\" \
                          fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
                         kind_label,
-                        x + depth, y,          // top-left of back face
-                        x + w + depth, y,      // top-right of back face
-                        x + w + depth, y + h,  // bottom-right of back face
-                        x + depth, y + h,      // bottom-left of back face (= right edge of front)
+                        x + depth,
+                        y, // top-left of back face
+                        x + w + depth,
+                        y, // top-right of back face
+                        x + w + depth,
+                        y + h, // bottom-right of back face
+                        x + depth,
+                        y + h, // bottom-left of back face (= right edge of front)
                         escape_text(fill),
                         comp_style.border_color
                     ));
@@ -3484,10 +3543,14 @@ fn render_family_node_shape_styled(
                     out.push_str(&format!(
                         "<polygon points=\"{},{} {},{} {},{} {},{}\" \
                          fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y,                  // front-top-left
-                        x + depth, y - depth + depth, // back-top-left (same y for simplicity, offset right)
-                        x + w + depth, y,      // back-top-right
-                        x + w, y,              // front-top-right
+                        x,
+                        y, // front-top-left
+                        x + depth,
+                        y - depth + depth, // back-top-left (same y for simplicity, offset right)
+                        x + w + depth,
+                        y, // back-top-right
+                        x + w,
+                        y, // front-top-right
                         escape_text(fill),
                         comp_style.border_color
                     ));
@@ -3495,10 +3558,14 @@ fn render_family_node_shape_styled(
                     out.push_str(&format!(
                         "<polygon points=\"{},{} {},{} {},{} {},{}\" \
                          fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x + w, y,              // front-top-right
-                        x + w + depth, y,      // back-top-right
-                        x + w + depth, y + h,  // back-bottom-right
-                        x + w, y + h,          // front-bottom-right
+                        x + w,
+                        y, // front-top-right
+                        x + w + depth,
+                        y, // back-top-right
+                        x + w + depth,
+                        y + h, // back-bottom-right
+                        x + w,
+                        y + h, // front-bottom-right
                         escape_text(fill),
                         comp_style.border_color
                     ));
@@ -3507,7 +3574,11 @@ fn render_family_node_shape_styled(
                         "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
                          x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
                          fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                        kind_label, x, y, w, h,
+                        kind_label,
+                        x,
+                        y,
+                        w,
+                        h,
                         escape_text(fill),
                         comp_style.border_color
                     ));

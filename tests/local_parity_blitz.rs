@@ -329,11 +329,23 @@ stop
 "#,
     )
     .expect("activity note and branch labels should render");
-    assert!(activity_svg.contains("ready?"), "condition text should appear in diamond");
-    assert!(activity_svg.contains("yes / fast"), "then-guard should float on outgoing arrow");
+    assert!(
+        activity_svg.contains("ready?"),
+        "condition text should appear in diamond"
+    );
+    assert!(
+        activity_svg.contains("yes / fast"),
+        "then-guard should float on outgoing arrow"
+    );
     assert!(activity_svg.contains("note right: manual review"));
-    assert!(activity_svg.contains("again?"), "repeat condition should appear in diamond");
-    assert!(activity_svg.contains("yes / no"), "repeat guard labels should float on arrow");
+    assert!(
+        activity_svg.contains("again?"),
+        "repeat condition should appear in diamond"
+    );
+    assert!(
+        activity_svg.contains("yes / no"),
+        "repeat guard labels should float on arrow"
+    );
 }
 
 #[test]

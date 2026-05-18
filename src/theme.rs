@@ -1798,10 +1798,7 @@ pub enum GenericSkinParamValue {
 // ─── Gantt ────────────────────────────────────────────────────────────────────
 
 /// Classify a skinparam key/value pair for Gantt diagrams.
-pub fn classify_gantt_skinparam(
-    key: &str,
-    value: &str,
-) -> SkinParamSupport<GenericSkinParamValue> {
+pub fn classify_gantt_skinparam(key: &str, value: &str) -> SkinParamSupport<GenericSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
         "backgroundcolor" | "ganttbackgroundcolor" | "ganttdiagrambackgroundcolor" => {
@@ -1865,11 +1862,7 @@ pub fn classify_mindmap_skinparam(
             .ok()
             .map(|n| SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(n)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "arrowcolor"
-        | "mindmaparrowcolor"
-        | "nodefontname"
-        | "mindmapfontname"
-        | "roundcorner"
+        "arrowcolor" | "mindmaparrowcolor" | "nodefontname" | "mindmapfontname" | "roundcorner"
         | "mindmaproundcorner" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
@@ -1964,11 +1957,7 @@ pub fn classify_nwdiag_skinparam(
             .ok()
             .map(|n| SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(n)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
-        "arrowcolor"
-        | "nwdiagarrowcolor"
-        | "nwdiagfontname"
-        | "fontname"
-        | "networkcolor"
+        "arrowcolor" | "nwdiagarrowcolor" | "nwdiagfontname" | "fontname" | "networkcolor"
         | "nwdiagnetworkcolor" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
@@ -2043,10 +2032,7 @@ pub fn classify_sdl_skinparam(key: &str, value: &str) -> SkinParamSupport<Generi
 // ─── Ditaa ────────────────────────────────────────────────────────────────────
 
 /// Classify a skinparam key/value pair for Ditaa diagrams.
-pub fn classify_ditaa_skinparam(
-    key: &str,
-    value: &str,
-) -> SkinParamSupport<GenericSkinParamValue> {
+pub fn classify_ditaa_skinparam(key: &str, value: &str) -> SkinParamSupport<GenericSkinParamValue> {
     let normalized = key.trim().to_ascii_lowercase();
     match normalized.as_str() {
         "backgroundcolor" | "ditaabackgroundcolor" => parse_color_value(value)

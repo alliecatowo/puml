@@ -20,8 +20,8 @@ use puml::model::{
 use puml::source::Span;
 use puml::{
     extract_markdown_diagrams, extract_metadata, normalize_family,
-    preprocess_with_pipeline_options, render, render_svg_pages_from_model, specialized,
-    CompatMode, DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
+    preprocess_with_pipeline_options, render, render_svg_pages_from_model, specialized, CompatMode,
+    DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
     NormalizedDocument, ParsePipelineOptions, TextOutputMode,
 };
 use serde::Serialize;

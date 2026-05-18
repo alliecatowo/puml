@@ -23,7 +23,6 @@ use regex::render_regex;
 pub(crate) use ditaa::render_ditaa_from_parts;
 pub(crate) use math::render_math_from_parts;
 
-
 /// Try to render `source` as one of the specialized diagram families.
 /// Returns `Some(svg)` if the source is recognized, `None` otherwise.
 pub fn try_render_specialized(source: &str) -> Option<Result<String, Diagnostic>> {

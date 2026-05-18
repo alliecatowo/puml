@@ -279,7 +279,11 @@ pub(super) fn normalize_with_options(
                         if let Some(lbl) = &g.label {
                             let first_line = lbl.lines().next().unwrap_or("");
                             if let Some(over_spec) = first_line.strip_prefix("over ") {
-                                for id in over_spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+                                for id in over_spec
+                                    .split(',')
+                                    .map(str::trim)
+                                    .filter(|s| !s.is_empty())
+                                {
                                     ensure_implicit(&mut participants, &mut participant_ix, id);
                                 }
                             }

@@ -3,21 +3,21 @@ use std::path::PathBuf;
 
 use crate::diagnostic::Diagnostic;
 
-use super::{
-    ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
-    PreprocVariableScope, PreprocessDirective, MAX_INCLUDE_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
-};
 use super::builtins::{
     execute_procedure_call, invoke_dynamic_procedure, parse_callable_definition,
     preprocessor_foreach_bindings,
 };
 use super::includes::{
-    consume_preprocessor_block, evaluate_assert_expression, evaluate_preprocess_expr,
-    eval_simple_arithmetic, find_matching_endfor, find_matching_endwhile, parse_preprocess_directive,
-    process_import_directive, process_include_directive, process_include_many_directive,
-    extract_url, fetch_url_include,
+    consume_preprocessor_block, eval_simple_arithmetic, evaluate_assert_expression,
+    evaluate_preprocess_expr, extract_url, fetch_url_include, find_matching_endfor,
+    find_matching_endwhile, parse_preprocess_directive, process_import_directive,
+    process_include_directive, process_include_many_directive,
 };
 use super::macros::{expand_preprocessor_text, parse_macro_define, parse_named_call};
+use super::{
+    ConditionalFrame, ParseOptions, PreprocCallableKind, PreprocLoopSignal, PreprocState,
+    PreprocVariableScope, PreprocessDirective, MAX_INCLUDE_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
+};
 
 pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
     let mut state = PreprocState::default();

@@ -41,7 +41,6 @@ fn render_svg_pragma_teoz_boundary_keeps_sequence_render_output_stable() {
     assert_eq!(base_svg, pragma_svg);
 }
 
-
 #[test]
 fn render_core_uml_broad_partials_surface_expected_labels() {
     let cases = [

@@ -47,13 +47,13 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         let layer_y = y;
         // ArchiMate standard layer colours (#529).
         let bg = match *layer {
-            "strategy"    => "#ffffcc", // Strategy — pale yellow
-            "business"    => "#ffff88", // Business — yellow
+            "strategy" => "#ffffcc",    // Strategy — pale yellow
+            "business" => "#ffff88",    // Business — yellow
             "application" => "#cce0ff", // Application — light blue
-            "technology"  => "#c8ffc8", // Technology — light green
-            "motivation"  => "#ffe0ff", // Motivation — pale violet
-            "junction"    => "#f1f5f9", // Junction — neutral grey
-            _             => "#f1f5f9",
+            "technology" => "#c8ffc8",  // Technology — light green
+            "motivation" => "#ffe0ff",  // Motivation — pale violet
+            "junction" => "#f1f5f9",    // Junction — neutral grey
+            _ => "#f1f5f9",
         };
         out.push_str(&format!(
             "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",

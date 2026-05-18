@@ -327,8 +327,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 let fork_cx = frame.fork_cx;
                 suppress_prev_arrow.insert(i);
                 let slot_y = frame.fork_slot_y;
-                let branch_col_cx =
-                    fork_branch_cx(fork_cx, new_branch_idx, n_branches, fork_col_w);
+                let branch_col_cx = fork_branch_cx(fork_cx, new_branch_idx, n_branches, fork_col_w);
                 node_layouts.push(NodeLayout {
                     cx: branch_col_cx,
                     slot_y,
@@ -371,8 +370,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
 
                 // Fix up cx positions for all nodes inside branches
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
-                    let col_cx =
-                        fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
+                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
                     let branch_end_idx = if branch_idx + 1 < n_branches {
                         frame.fork_again_indices[branch_idx]
                     } else {
@@ -405,8 +403,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 // each branch (otherwise it duplicates the fork->branch arrow).
                 let fork_bar_arrow_out_y = frame.fork_slot_y + ARROW_OUT;
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
-                    let col_cx =
-                        fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
+                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
                     extra_arrows.push((fork_cx, fork_bar_arrow_out_y, col_cx, branch_start_y));
                     // Suppress the standard prev->cur arrow for the branch's first node
                     suppress_prev_arrow.insert(branch.start_node_idx);
@@ -416,8 +413,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 // Use effective_col_w (same as branch layout) so the bar
                 // matches the actual branch spread without overflowing canvas.
                 let bar_span_half = if n_branches > 1 {
-                    let leftmost =
-                        fork_branch_cx(fork_cx, 0, n_branches, effective_col_w) - effective_col_w / 2;
+                    let leftmost = fork_branch_cx(fork_cx, 0, n_branches, effective_col_w)
+                        - effective_col_w / 2;
                     let rightmost =
                         fork_branch_cx(fork_cx, n_branches - 1, n_branches, effective_col_w)
                             + effective_col_w / 2;
@@ -438,10 +435,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     || meta.step_kind == "PartitionEnd"
                     || meta.step_kind == "OldStyle";
                 if is_partition_marker
-                    && matches!(
-                        doc.nodes[i].kind,
-                        FamilyNodeKind::ActivityPartition
-                    )
+                    && matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityPartition)
                 {
                     // Zero-height: sit at current_slot_y, no advancement.
                     let slot_y = current_slot_y;

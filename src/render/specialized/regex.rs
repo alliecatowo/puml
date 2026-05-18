@@ -61,7 +61,14 @@ pub fn render_regex_svg(document: &RegexDocument) -> String {
     out
 }
 
-fn render_regex_row(out: &mut String, source: &str, tokens: &[RegexToken], y: i32, width: i32, _min_width: i32) {
+fn render_regex_row(
+    out: &mut String,
+    source: &str,
+    tokens: &[RegexToken],
+    y: i32,
+    width: i32,
+    _min_width: i32,
+) {
     out.push_str(&format!(
         "<text x=\"24\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">/{}/</text>",
         y - 4,

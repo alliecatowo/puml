@@ -249,7 +249,10 @@ fn parity_harness_report_schema_is_stable() {
     let entries = json["doc_examples"]["entries"]
         .as_array()
         .expect("doc_examples.entries should be an array");
-    for entry in entries.iter().filter(|e| e["status"].as_str() == Some("excluded")) {
+    for entry in entries
+        .iter()
+        .filter(|e| e["status"].as_str() == Some("excluded"))
+    {
         assert!(
             entry["exclusion_reason"]
                 .as_str()

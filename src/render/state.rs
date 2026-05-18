@@ -46,8 +46,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             }
         }
     }
-    let mut child_node_names: std::collections::BTreeSet<&str> =
-        std::collections::BTreeSet::new();
+    let mut child_node_names: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     for node in nodes {
         collect_composite_children(node, &mut child_node_names);
     }
@@ -76,9 +75,16 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         .count();
     let has_fork_join_choice = nodes.iter().any(|n| {
         !child_node_names.contains(n.name.as_str())
-            && matches!(n.kind, StateNodeKind::Fork | StateNodeKind::Join | StateNodeKind::Choice)
+            && matches!(
+                n.kind,
+                StateNodeKind::Fork | StateNodeKind::Join | StateNodeKind::Choice
+            )
     });
-    let cols: i32 = if has_fork_join_choice || top_level_count <= 3 { 1 } else { 2 };
+    let cols: i32 = if has_fork_join_choice || top_level_count <= 3 {
+        1
+    } else {
+        2
+    };
 
     // BFS topological sort of top-level nodes by reachability depth from initial states.
     // This puts [*] and early states before composites/late states in the layout order,
@@ -136,8 +142,14 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             .collect();
         ordered.sort_by_key(|n| {
             (
-                depth_map.get(n.name.as_str()).copied().unwrap_or(usize::MAX),
-                name_to_orig.get(n.name.as_str()).copied().unwrap_or(usize::MAX),
+                depth_map
+                    .get(n.name.as_str())
+                    .copied()
+                    .unwrap_or(usize::MAX),
+                name_to_orig
+                    .get(n.name.as_str())
+                    .copied()
+                    .unwrap_or(usize::MAX),
             )
         });
         ordered
@@ -154,7 +166,9 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         col_idx += 1;
         let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
         let y = col_y[col as usize];
-        let (w, h) = *node_sizes.get(&node.name).unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
+        let (w, h) = *node_sizes
+            .get(&node.name)
+            .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
         place_node(node, x, y, w, h, &node_sizes, &mut placed);
         col_y[col as usize] = y + h + STATE_NODE_GAP_Y;
     }
@@ -211,8 +225,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         let to_p = placed.get(&t.to);
         if let (Some(fp), Some(tp)) = (from_p, to_p) {
             // Check if the reverse edge also exists (bidirectional pair)
-            let has_reverse = t.from != t.to
-                && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+            let has_reverse =
+                t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
             let (x1, y1, x2, y2) = edge_anchors(fp, tp);
             let stroke = escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color));
             let sw = t.thickness.unwrap_or(2).clamp(1, 8);
@@ -312,10 +326,7 @@ fn compute_node_size(
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (34, 34),
         StateNodeKind::StartEnd | StateNodeKind::End => (26, 26),
         StateNodeKind::Normal => {
-            let has_children = node
-                .regions
-                .iter()
-                .any(|r| !r.is_empty());
+            let has_children = node.regions.iter().any(|r| !r.is_empty());
 
             if !has_children {
                 // Simple state box
@@ -375,10 +386,7 @@ fn place_node(
     sizes: &std::collections::BTreeMap<String, (i32, i32)>,
     placed: &mut std::collections::BTreeMap<String, PlacedNode>,
 ) {
-    placed.insert(
-        node.name.clone(),
-        PlacedNode { x, y, w, h },
-    );
+    placed.insert(node.name.clone(), PlacedNode { x, y, w, h });
     // For metadata emission
     let _ = state_node_kind_name(&node.kind);
 

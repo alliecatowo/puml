@@ -4491,12 +4491,18 @@ fn dump_capabilities_outputs_manifest_shape() {
     // Output is now the real LSP protocol-level capabilities object (same as
     // what the server returns in its initialize response).
     let json: Value = serde_json::from_slice(&out).unwrap();
-    assert!(json["completionProvider"]["resolveProvider"].as_bool().unwrap_or(false));
+    assert!(json["completionProvider"]["resolveProvider"]
+        .as_bool()
+        .unwrap_or(false));
     assert!(json["hoverProvider"].as_bool().unwrap_or(false));
     assert!(json["definitionProvider"].as_bool().unwrap_or(false));
     assert!(json["referencesProvider"].as_bool().unwrap_or(false));
-    assert!(json["documentFormattingProvider"].as_bool().unwrap_or(false));
-    assert!(json["documentRangeFormattingProvider"].as_bool().unwrap_or(false));
+    assert!(json["documentFormattingProvider"]
+        .as_bool()
+        .unwrap_or(false));
+    assert!(json["documentRangeFormattingProvider"]
+        .as_bool()
+        .unwrap_or(false));
     assert!(json["codeActionProvider"].as_bool().unwrap_or(false));
     assert!(json["colorProvider"].as_bool().unwrap_or(false));
     assert!(json["foldingRangeProvider"].as_bool().unwrap_or(false));
@@ -4512,8 +4518,12 @@ fn dump_capabilities_outputs_manifest_shape() {
         .as_array()
         .expect("semanticTokensProvider.legend.tokenTypes must be an array");
     assert!(token_types.iter().any(|t| t == "keyword"));
-    assert!(json["semanticTokensProvider"]["full"].as_bool().unwrap_or(false));
-    assert!(json["workspace"]["workspaceFolders"]["supported"].as_bool().unwrap_or(false));
+    assert!(json["semanticTokensProvider"]["full"]
+        .as_bool()
+        .unwrap_or(false));
+    assert!(json["workspace"]["workspaceFolders"]["supported"]
+        .as_bool()
+        .unwrap_or(false));
 }
 
 #[test]
@@ -5459,9 +5469,18 @@ fn state_transitions_accept_short_and_directional_arrows() {
 fn activity_if_then_branch_label_is_preserved() {
     let src = "@startuml\nstart\nif (in stock?) then (yes)\n:Ship;\nelse (no)\n:Notify;\nendif\nstop\n@enduml\n";
     let svg = render_source_to_svg(src).expect("activity svg should render");
-    assert!(svg.contains("in stock?"), "condition text should appear in diamond");
-    assert!(svg.contains("yes"), "then-guard should appear on outgoing arrow");
-    assert!(svg.contains("no"), "else-guard should appear on outgoing arrow");
+    assert!(
+        svg.contains("in stock?"),
+        "condition text should appear in diamond"
+    );
+    assert!(
+        svg.contains("yes"),
+        "then-guard should appear on outgoing arrow"
+    );
+    assert!(
+        svg.contains("no"),
+        "else-guard should appear on outgoing arrow"
+    );
 }
 
 #[test]
