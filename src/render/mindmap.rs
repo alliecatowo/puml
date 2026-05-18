@@ -30,6 +30,19 @@ fn render_multiline_text(
     font_weight: &str,
 ) -> String {
     let lines: Vec<&str> = text.split('\n').collect();
+    // Single-line case: emit a plain `<text>` element so test helpers that
+    // inspect direct text content keep working.
+    if lines.len() <= 1 {
+        return format!(
+            "<text x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">{txt}</text>",
+            x = x,
+            y_center = y_center,
+            ff = font_family,
+            fs = font_size,
+            fw = font_weight,
+            txt = escape_text(text),
+        );
+    }
     let n = lines.len() as i32;
     let line_h = (font_size as f32 * 1.25) as i32;
     let total_h = line_h * (n - 1);
