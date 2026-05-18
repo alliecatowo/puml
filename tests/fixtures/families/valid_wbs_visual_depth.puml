@@ -1,0 +1,10 @@
+@startwbs
+left to right direction
+*[#fef3c7] Program
+**[#dbeafe] Build [x]
+***[#e0f2fe] Parser
+***[#dcfce7] Renderer
+**[#fef9c3] Launch [%80]
+***[#fee2e2] Docs
+***[#ede9fe] Release
+@endwbs
