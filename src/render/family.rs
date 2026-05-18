@@ -3071,12 +3071,20 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 3: De-collide edge labels
     // ─────────────────────────────────────────────────────────────────────────
-    // Group labels whose initial centers are within 24px Manhattan distance,
-    // then fan them out symmetrically (vertically first, horizontal stagger
-    // as a secondary de-overlap pass).
-    let cluster_dist = 24i32;
-    let v_stride = 18i32; // vertical fan step per label within a group
-    let h_stagger = 20i32; // horizontal shift applied when still overlapping after v-fan
+    // Group labels whose initial centers are within 40px Manhattan distance,
+    // then fan them out symmetrically. For N≥3 labels in the same cluster we
+    // use a wider vertical stride and alternate left/right horizontal offsets so
+    // no three labels ever stack at the same (x,y). This handles the "source
+    // text ×3" cluster (Bug A/C) and the "style tokens / annotations" cluster
+    // (Bug B in the original issue list — visually identical problem).
+    let cluster_dist = 40i32;
+    // Base vertical stride; bumped to 24px for clusters of 3+ (was 18px).
+    let v_stride_base = 18i32;
+    let v_stride_large = 24i32; // used when count >= 3
+    // Horizontal stagger: labels in a cluster fan left/right so their x differs
+    // even when they share the same y channel.
+    //   rank 0 → -h_stagger, rank 1 → 0, rank 2 → +h_stagger, …
+    let h_stagger = 28i32;
 
     // Sort pending labels by (y, x) so groups form deterministically.
     let mut sorted_labels = pending_labels;
@@ -3113,6 +3121,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         vec![(0, 0, String::new(), String::new()); n];
     for indices in groups.values() {
         let count = indices.len() as i32;
+        let v_stride = if count >= 3 { v_stride_large } else { v_stride_base };
         // Base position: centroid of the group
         let base_x: i32 = indices.iter().map(|&i| sorted_labels[i].x).sum::<i32>() / count;
         let base_y: i32 = indices.iter().map(|&i| sorted_labels[i].y).sum::<i32>() / count;
@@ -3121,9 +3130,14 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let rank = rank as i32;
             // Symmetric vertical fan: rank 0 → -(N-1)/2 * stride, etc.
             let dy = v_stride * (rank - (count - 1) / 2);
-            // Secondary horizontal stagger for even/odd when N ≥ 3
-            let dx = if count >= 3 && (rank % 2 == 1) {
-                h_stagger
+            // Horizontal stagger for N≥3: spread labels left/right so 3-stacked
+            // labels end up at different x positions even on the same y channel.
+            // Pattern: rank 0 → -h_stagger, rank 1 → 0, rank 2 → +h_stagger, …
+            let dx = if count >= 3 {
+                (rank - (count - 1) / 2) * h_stagger
+            } else if count == 2 && rank == 1 {
+                // Slight nudge right for 2-label clusters
+                12
             } else {
                 0
             };
