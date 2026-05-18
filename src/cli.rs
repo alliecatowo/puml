@@ -121,9 +121,13 @@ pub struct Cli {
     #[arg(long, action = ArgAction::SetTrue)]
     pub stdrpt: bool,
 
-    /// Disable URL includes (`!include https://...`). Any URL include target will
-    /// produce a clear diagnostic instead of fetching. By default URL includes
-    /// are enabled (matching PlantUML behaviour).
+    /// Allow URL includes (`!include https://...`, `!includeurl`, and `file://`).
+    /// URL includes are disabled by default to avoid surprise network or local file reads.
+    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "no_url_includes")]
+    pub allow_url_includes: bool,
+
+    /// Disable URL includes (`!include https://...`). Kept as a compatibility
+    /// flag; URL includes are already disabled unless `--allow-url-includes` is passed.
     #[arg(long, action = ArgAction::SetTrue)]
     pub no_url_includes: bool,
 }
