@@ -1930,3 +1930,38 @@ fn theme_classifies_salt_skinparam() {
         SkinParamSupport::UnsupportedKey
     );
 }
+
+#[test]
+fn preproc_break_outside_loop_reports_stable_code() {
+    let err = parse("!break\n@startuml\nAlice -> Bob\n@enduml\n")
+        .expect_err("break outside loops should fail");
+    assert!(err.message.contains("E_PREPROC_BREAK_OUTSIDE_LOOP"));
+}
+
+#[test]
+fn preproc_continue_outside_loop_reports_stable_code() {
+    let err = parse("!continue\n@startuml\nAlice -> Bob\n@enduml\n")
+        .expect_err("continue outside loops should fail");
+    assert!(err.message.contains("E_PREPROC_CONTINUE_OUTSIDE_LOOP"));
+}
+
+#[test]
+fn preproc_endfor_without_foreach_reports_stable_code() {
+    let err = parse("!endfor\n@startuml\nAlice -> Bob\n@enduml\n")
+        .expect_err("endfor without foreach should fail");
+    assert!(err.message.contains("E_PREPROC_FOREACH_UNEXPECTED"));
+}
+
+#[test]
+fn preproc_endwhile_without_while_reports_stable_code() {
+    let err = parse("!endwhile\n@startuml\nAlice -> Bob\n@enduml\n")
+        .expect_err("endwhile without while should fail");
+    assert!(err.message.contains("E_PREPROC_WHILE_UNEXPECTED"));
+}
+
+#[test]
+fn preproc_elseif_after_else_reports_order_error() {
+    let src = "!if 1\n!else\n!elseif 1\n!endif\n@startuml\nAlice -> Bob\n@enduml\n";
+    let err = parse(src).expect_err("elseif after else should fail");
+    assert!(err.message.contains("E_PREPROC_COND_ORDER"));
+}

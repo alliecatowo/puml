@@ -1,5 +1,5 @@
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test
-cargo llvm-cov --all-features --workspace --fail-under-lines 85
+cargo llvm-cov --all-features --workspace --fail-under-lines 87
 cargo build --release
