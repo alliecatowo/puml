@@ -14,6 +14,12 @@
       "min_text_elements": 4
     },
     {
+      "path": "docs/examples/themes/theme_sunlust.puml",
+      "family": "sequence",
+      "expected_text": ["sunlust Theme Showcase", "alt success", "else error", "log success", "log error"],
+      "min_text_elements": 10
+    },
+    {
       "path": "docs/examples/class/01_basic.puml",
       "family": "class",
       "expected_text": ["Animal", "Dog"],
