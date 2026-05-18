@@ -75,6 +75,10 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t = DiagnosticsFormat::Human)]
     pub diagnostics: DiagnosticsFormat,
 
+    /// When to use ANSI color in human CLI output.
+    #[arg(long, value_enum, default_value_t = ColorChoice::Auto)]
+    pub color: ColorChoice,
+
     /// Input frontend dialect (`auto` uses file extensions and markdown fence tags).
     #[arg(long, value_enum, default_value_t = Dialect::Auto)]
     pub dialect: Dialect,
@@ -167,6 +171,13 @@ pub enum DiagnosticsFormat {
     Human,
     Json,
     Stdrpt,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum ColorChoice {
+    Auto,
+    Always,
+    Never,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
