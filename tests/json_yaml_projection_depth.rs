@@ -59,18 +59,18 @@ fn yaml_nested_maps_arrays_render_depth_metadata_and_geometry() {
     let svg = puml::render_source_to_svg(src).expect("yaml render");
 
     assert!(svg.contains("data-projection=\"yaml\""));
-    assert!(svg.contains("data-yaml-node-count=\"9\""));
-    assert!(svg.contains("data-yaml-max-depth=\"3\""));
-    assert!(svg.contains("class=\"data-tree-node yaml-node yaml-depth-3\""));
-    assert!(svg.contains("data-yaml-label=\"- id: us\""));
+    assert!(svg.contains("data-yaml-node-count=\"12\""));
+    assert!(svg.contains("data-yaml-max-depth=\"4\""));
+    assert!(svg.contains("class=\"data-tree-node yaml-node yaml-depth-4\""));
+    assert!(svg.contains("data-yaml-label=\"[0]: {...}\""));
     assert!(svg.contains("data-yaml-label=\"replicas: 3\""));
 
-    let service_x = row_rect_x(&svg, "data-yaml-label=\"service:\"");
-    let regions_x = row_rect_x(&svg, "data-yaml-label=\"regions:\"");
-    let region_item_x = row_rect_x(&svg, "data-yaml-label=\"- id: us\"");
+    let service_x = row_rect_x(&svg, "data-yaml-label=\"service: {...}\"");
+    let regions_x = row_rect_x(&svg, "data-yaml-label=\"regions: [...]\"");
+    let region_item_x = row_rect_x(&svg, "data-yaml-label=\"[0]: {...}\"");
     let replica_x = row_rect_x(&svg, "data-yaml-label=\"replicas: 3\"");
 
-    assert_eq!(service_x, 24);
+    assert_eq!(service_x, 42);
     assert_eq!(regions_x - service_x, 18);
     assert_eq!(region_item_x - regions_x, 18);
     assert_eq!(replica_x - region_item_x, 18);
