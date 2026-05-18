@@ -36,7 +36,9 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .map(|frame| frame.depth)
         .max()
         .unwrap_or(0);
-    // Auto-size node_width from longest member text / node name (fix #572)
+    // Auto-size node_width from longest member text / node name (fix #572).
+    // char_width=7px (monospace), padding=24px (accounts for left+right insets).
+    // Upper clamp raised to 600 so long member lines are never truncated.
     let node_width: i32 = {
         let name_px = document
             .nodes
@@ -48,10 +50,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             .nodes
             .iter()
             .flat_map(|n| n.members.iter())
-            .map(|m| m.text.chars().count() as i32 * 7 + 28)
+            .map(|m| m.text.chars().count() as i32 * 7 + 24)
             .max()
             .unwrap_or(0);
-        name_px.max(member_px).clamp(160, 320)
+        name_px.max(member_px).clamp(160, 600)
     };
     // col_gap wide enough for edge labels between adjacent nodes (fix #564, #575)
     let col_gap: i32 = 80;
