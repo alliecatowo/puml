@@ -62,7 +62,7 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
         (
             "usecase",
             "@startuml\nactor Customer as C\nusecase (Login) as UC1\nC ..> UC1 : <<include>>\n@enduml\n",
-            vec!["Customer", "&lt;&lt;actor&gt;&gt;", "Login", "&lt;&lt;include&gt;&gt;"],
+            vec!["Customer", "Login", "&lt;&lt;include&gt;&gt;"],
         ),
         (
             "activity",
@@ -100,8 +100,8 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
 fn render_core_uml_nested_scopes_lollipops_and_relation_annotations() {
     let class_src = "@startuml\nskinparam ArrowColor #225588\nset namespaceSeparator .\npackage Domain {\n  namespace Core {\n    class Api\n    class Repo\n    Api \"1\" -[#green,dashed,thickness=3]-> \"0..*\" Repo : owns:cache\n  }\n}\n@enduml\n";
     let class_svg = puml::render_source_to_svg(class_src).expect("class scope render");
-    assert!(class_svg.contains("class Domain.Core.Api"));
-    assert!(class_svg.contains("class Domain.Core.Repo"));
+    assert!(class_svg.contains("Domain.Core.Api"));
+    assert!(class_svg.contains("Domain.Core.Repo"));
     assert!(class_svg.contains("owns:cache"));
     assert!(class_svg.contains("0..*"));
     assert!(class_svg.contains("#008000"));

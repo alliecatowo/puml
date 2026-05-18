@@ -185,10 +185,22 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 }
                 let mut members = decl.members;
                 let fill_color = extract_family_node_fill_color(&mut members);
+                // An `actor` declaration becomes a UseCaseDecl with `<<actor>>` as its
+                // first member. Detect this and promote it to Actor kind so the renderer
+                // can draw a stick figure instead of an ellipse.
+                let resolved_kind = if members
+                    .first()
+                    .is_some_and(|m| m.text.trim() == "<<actor>>")
+                {
+                    let _ = members.remove(0); // strip the marker — it was only for detection
+                    FamilyNodeKind::Actor
+                } else {
+                    FamilyNodeKind::UseCase
+                };
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
-                        kind: FamilyNodeKind::UseCase,
+                        kind: resolved_kind,
                         name: decl.name,
                         alias: decl.alias,
                         members,
