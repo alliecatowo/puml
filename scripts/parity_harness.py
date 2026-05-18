@@ -714,7 +714,7 @@ def main() -> int:
     if args.fail_on_doc_drift and report["doc_examples"]["summary"]["failed"] > 0:
         print(
             "[parity] docs example drift detected: "
-            f"failed={report["doc_examples"]["summary"]["failed"]}",
+            f'failed={report["doc_examples"]["summary"]["failed"]}',
             file=sys.stderr,
         )
         return 4
