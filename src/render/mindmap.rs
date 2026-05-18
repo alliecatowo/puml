@@ -213,78 +213,77 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         .max()
         .unwrap_or(0);
 
-    // Compute the actual maximum right-edge x reached by any rendered right-side node.
-    // `draw_mindmap_subtree` sets nx = node_x_center for right-side nodes and
-    // advances next_x_center = node_x_center + X_STEP + nw - NODE_PAD_X, so the
-    // rightmost edge can exceed the simple depth-based estimate.
-    fn max_right_x(
+    let root_cy = canvas_h / 2;
+
+    // Draw nodes recursively — track y-cursors per side.
+    // We assign y by a preorder traversal respecting leaf count.
+    let mut y_positions = vec![0i32; n];
+    {
+        // Right side
+        let mut y_cursor = root_cy - (total_right_leaves as i32 * Y_STEP) / 2 + Y_STEP / 2;
+        assign_y_positions(nodes, &right_roots, &mut y_positions, &mut y_cursor, Y_STEP);
+        // Left side
+        y_cursor = root_cy - (total_left_leaves as i32 * Y_STEP) / 2 + Y_STEP / 2;
+        assign_y_positions(nodes, &left_roots, &mut y_positions, &mut y_cursor, Y_STEP);
+    }
+
+    fn subtree_bounds(
         nodes: &[crate::model::FamilyNode],
         idx: usize,
         node_x_center: i32,
         x_step: i32,
         node_pad_x: i32,
-    ) -> i32 {
+        is_left: bool,
+    ) -> (i32, i32) {
         let nw = (multiline_char_width(&nodes[idx].name) * 7 + 20).clamp(70, 220);
-        let right_edge = node_x_center + nw;
+        let nx = if is_left {
+            node_x_center - nw
+        } else {
+            node_x_center
+        };
         let children = family_tree_child_indices(nodes, idx);
-        let next_x = node_x_center + x_step + nw - node_pad_x;
-        children.iter().fold(right_edge, |acc, &c| {
-            acc.max(max_right_x(nodes, c, next_x, x_step, node_pad_x))
-        })
-    }
-    fn max_left_x(
-        nodes: &[crate::model::FamilyNode],
-        idx: usize,
-        node_x_center: i32,
-        x_step: i32,
-    ) -> i32 {
-        let nw = (multiline_char_width(&nodes[idx].name) * 7 + 20).clamp(70, 220);
-        // For left side: nx = node_x_center - nw, so left edge = node_x_center - nw
-        let left_edge = node_x_center - nw;
-        let children = family_tree_child_indices(nodes, idx);
-        let next_x = node_x_center - x_step;
-        children.iter().fold(left_edge, |acc, &c| {
-            acc.min(max_left_x(nodes, c, next_x, x_step))
-        })
+        let next_x_center = if is_left {
+            node_x_center - x_step
+        } else {
+            node_x_center + x_step + nw - node_pad_x
+        };
+        children
+            .iter()
+            .fold((nx, nx + nw), |(acc_min, acc_max), &c| {
+                let (child_min, child_max) =
+                    subtree_bounds(nodes, c, next_x_center, x_step, node_pad_x, is_left);
+                (acc_min.min(child_min), acc_max.max(child_max))
+            })
     }
 
-    const RIGHT_MARGIN: i32 = 40;
-    let right_w = (max_right_depth as i32) * X_STEP + 240;
-    let left_w = (max_left_depth as i32) * X_STEP + 240;
-    let root_cx_prelim = MARGIN + left_w + root_w / 2;
-    // Compute actual rightmost and leftmost x reached after layout
+    let depth_bias = (max_left_depth as i32) * X_STEP + 240;
+    let root_cx_prelim = MARGIN + depth_bias + root_w / 2;
+    let root_min_x = root_cx_prelim - root_w / 2;
+    let root_max_x = root_cx_prelim + root_w / 2;
     let actual_max_right = {
         let right_start = root_cx_prelim + root_w / 2 + X_STEP - NODE_PAD_X;
         right_roots
             .iter()
-            .map(|&i| max_right_x(nodes, i, right_start, X_STEP, NODE_PAD_X))
+            .map(|&i| subtree_bounds(nodes, i, right_start, X_STEP, NODE_PAD_X, false).1)
             .max()
-            .unwrap_or(root_cx_prelim + root_w / 2)
+            .unwrap_or(root_max_x)
     };
     let actual_min_left = {
         let left_start = root_cx_prelim - root_w / 2 - X_STEP + NODE_PAD_X;
         left_roots
             .iter()
-            .map(|&i| max_left_x(nodes, i, left_start, X_STEP))
+            .map(|&i| subtree_bounds(nodes, i, left_start, X_STEP, NODE_PAD_X, true).0)
             .min()
-            .unwrap_or(root_cx_prelim - root_w / 2)
+            .unwrap_or(root_min_x)
     };
-    // If nodes overflow the preliminary estimate, grow the canvas.
-    let needed_right = actual_max_right + RIGHT_MARGIN;
-    let needed_left_pad = if actual_min_left < MARGIN {
-        MARGIN - actual_min_left
-    } else {
-        0
-    };
-    // Apply extra left padding by shifting root_cx right if needed.
-    let extra_left = needed_left_pad;
-    let canvas_w =
-        (left_w + root_w + right_w + 2 * MARGIN + extra_left).max(needed_right + extra_left);
+    let actual_min_x = root_min_x.min(actual_min_left);
+    let actual_max_x = root_max_x.max(actual_max_right);
+    let extra_left = (MARGIN - actual_min_x).max(0);
+    let canvas_w = actual_max_x + extra_left + MARGIN;
     let mindmap_leaves = (0..n)
         .filter(|&idx| family_tree_child_indices(nodes, idx).is_empty())
         .count();
     let root_cx = root_cx_prelim + extra_left;
-    let root_cy = canvas_h / 2;
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -310,18 +309,6 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             ));
             ty += 20;
         }
-    }
-
-    // Draw nodes recursively — track y-cursors per side.
-    // We assign y by a preorder traversal respecting leaf count.
-    let mut y_positions = vec![0i32; n];
-    {
-        // Right side
-        let mut y_cursor = root_cy - (total_right_leaves as i32 * Y_STEP) / 2 + Y_STEP / 2;
-        assign_y_positions(nodes, &right_roots, &mut y_positions, &mut y_cursor, Y_STEP);
-        // Left side
-        y_cursor = root_cy - (total_left_leaves as i32 * Y_STEP) / 2 + Y_STEP / 2;
-        assign_y_positions(nodes, &left_roots, &mut y_positions, &mut y_cursor, Y_STEP);
     }
 
     // Draw root node
