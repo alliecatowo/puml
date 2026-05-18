@@ -209,7 +209,7 @@ fn parity_harness_report_schema_is_stable() {
     );
     assert_eq!(
         json["doc_examples"]["summary"]["excluded"].as_u64(),
-        Some(4),
+        Some(3),
         "intentionally excluded docs examples should be explicit and rare"
     );
 
@@ -242,24 +242,23 @@ fn parity_harness_report_schema_is_stable() {
         "parity harness doc gallery discovery should stay in lock-step with all docs/examples source files and supported fenced snippets"
     );
 
+    // The mixed-family `nonuml_parity_gantt_chart_topology.puml` fixture was
+    // deleted in the Wave 1 docs reorg (#460); the harness now reports a smaller
+    // set of intentional exclusions. Assert that whatever exclusions remain
+    // each carry an explicit `exclusion_reason`.
     let entries = json["doc_examples"]["entries"]
         .as_array()
         .expect("doc_examples.entries should be an array");
-    let excluded = entries
-        .iter()
-        .find(|entry| {
-            entry["source_ref"].as_str()
-                == Some("docs/examples/nonuml_parity_gantt_chart_topology.puml")
-        })
-        .expect("mixed-family topology source should be reported");
-    assert_eq!(excluded["status"].as_str(), Some("excluded"));
-    assert!(
-        excluded["exclusion_reason"]
-            .as_str()
-            .map(|reason| reason.contains("mixed-family"))
-            .unwrap_or(false),
-        "excluded docs example should carry a concrete reason"
-    );
+    for entry in entries.iter().filter(|e| e["status"].as_str() == Some("excluded")) {
+        assert!(
+            entry["exclusion_reason"]
+                .as_str()
+                .map(|reason| !reason.is_empty())
+                .unwrap_or(false),
+            "excluded docs example {:?} should carry a concrete exclusion_reason",
+            entry["source_ref"].as_str().unwrap_or("?")
+        );
+    }
 }
 
 #[test]

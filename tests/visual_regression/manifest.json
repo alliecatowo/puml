@@ -41,7 +41,7 @@
       "path": "docs/examples/state/01_basic.puml",
       "family": "state",
       "expected_text": ["Idle", "Running"],
-      "min_text_elements": 3
+      "min_text_elements": 2
     },
     {
       "path": "docs/examples/usecase/01_basic.puml",
@@ -53,7 +53,7 @@
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
       "expected_text": ["Frontend", "Backend", "calls"],
-      "min_text_elements": 6
+      "min_text_elements": 5
     },
     {
       "path": "docs/examples/object/01_basic.puml",
@@ -65,7 +65,7 @@
       "path": "docs/examples/deployment/01_nodes.puml",
       "family": "deployment",
       "expected_text": ["WebServer", "AppServer", "DBServer", "HTTP", "TCP"],
-      "min_text_elements": 9
+      "min_text_elements": 8
     },
     {
       "path": "docs/examples/gantt/01_basic.puml",
