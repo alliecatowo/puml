@@ -11,10 +11,12 @@ on:
       - 'crates/**'
       - 'tests/fixtures/**'
       - 'tests/oracle_smoke.rs'
+      - 'tests/oracle_promoted_fixtures.json'
       - 'docs/examples/**'
       - 'stdlib/**'
       - 'scripts/oracle.sh'
       - 'scripts/oracle_report_summary.py'
+      - 'scripts/oracle_promoted_gate.py'
       - '.github/workflows/oracle.yml'
   push:
     branches:
@@ -26,10 +28,12 @@ on:
       - 'crates/**'
       - 'tests/fixtures/**'
       - 'tests/oracle_smoke.rs'
+      - 'tests/oracle_promoted_fixtures.json'
       - 'docs/examples/**'
       - 'stdlib/**'
       - 'scripts/oracle.sh'
       - 'scripts/oracle_report_summary.py'
+      - 'scripts/oracle_promoted_gate.py'
       - '.github/workflows/oracle.yml'
   workflow_dispatch:
 
@@ -54,6 +58,9 @@ jobs:
       # Pinned PlantUML version — bump intentionally, never use "latest".
       PLANTUML_VERSION: "1.2024.7"
       PLANTUML_JAR: plantuml-1.2024.7.jar
+      # SHA-256 of the official plantuml-1.2024.7.jar from GitHub Releases.
+      # Recompute with: curl -fsSL <jar-url> | sha256sum
+      PLANTUML_JAR_SHA256: "e34c12bbe9944f1f338ca3d88c9b116b86300cc8e90b35c4086b825b5ae96d24"
 
     steps:
       - name: Checkout
@@ -152,11 +159,14 @@ jobs:
         if: steps.changes.outputs.run_oracle == 'true'
         run: |
           if [[ ! -f "${PLANTUML_JAR}" ]]; then
-            echo "ERROR: JAR not found after download step" >&2
+            echo "ERROR: JAR not found after download/cache step" >&2
             exit 1
           fi
+          # SHA-256 check — hard fail on mismatch (catches corrupted downloads and
+          # cache poisoning; applies both on fresh downloads and cache hits).
+          echo "${PLANTUML_JAR_SHA256}  ${PLANTUML_JAR}" | sha256sum --check --strict
           JAR_SIZE=$(stat -c%s "${PLANTUML_JAR}")
-          echo "[oracle] JAR size: ${JAR_SIZE} bytes"
+          echo "[oracle] JAR size: ${JAR_SIZE} bytes (SHA-256 verified)"
           java -jar "${PLANTUML_JAR}" -version
 
       - name: Setup Rust toolchain

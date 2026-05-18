@@ -9,7 +9,7 @@ BRANCH="main"
 REPO=""
 STRICT_REQUIRED_STATUS_CHECKS="false"
 REQUIRED_APPROVING_REVIEW_COUNT=0
-CHECK_CONTEXTS=("fmt-clippy-test-coverage-quick")
+CHECK_CONTEXTS=("fmt-clippy-test-coverage-quick" "differential-svg-oracle")
 
 usage() {
   cat <<'USAGE'
@@ -21,8 +21,9 @@ Modes:
   verify  Read branch protection/rulesets via GitHub API and fail if required policy is missing.
   apply   Attempt to enforce policy via branch protection API, then verify.
 
-Required policy (issue #90):
+Required policy (issues #90, #452):
   - Require status check context: fmt-clippy-test-coverage-quick
+  - Require status check context: differential-svg-oracle
   - Keep PR-based merges available without mandatory human approval
   - Do not require PR branches to be up to date before merge
   - Disallow force pushes on main
@@ -116,11 +117,11 @@ verify_policy() {
   fi
 
   set +e
-  python3 - "$tmp_protection" "$tmp_rulesets" "$BRANCH" "${CHECK_CONTEXTS[0]}" <<'PY'
+  python3 - "$tmp_protection" "$tmp_rulesets" "$BRANCH" "${CHECK_CONTEXTS[@]}" <<'PY'
 import json
 import sys
 
-protection_path, rulesets_path, branch, required_context = sys.argv[1:5]
+protection_path, rulesets_path, branch, *required_contexts = sys.argv[1:]
 
 with open(protection_path, "r", encoding="utf-8") as fh:
     protection = json.load(fh)
@@ -134,9 +135,10 @@ def protection_satisfies(p):
 
     failures = []
     required_status = p.get("required_status_checks") or {}
-    required = required_status.get("contexts") or []
-    if required_context not in required:
-        failures.append(f"missing required status check context: {required_context}")
+    registered = required_status.get("contexts") or []
+    for ctx in required_contexts:
+        if ctx not in registered:
+            failures.append(f"missing required status check context: {ctx}")
     if required_status.get("strict") is not False:
         failures.append("strict required status checks must be disabled to avoid rebase churn")
 
@@ -164,7 +166,7 @@ def ruleset_satisfies(rule):
     if not branch_match(rule):
         return False
 
-    has_required_context = False
+    registered_contexts = set()
     blocks_force_push = False
     blocks_deletion = False
 
@@ -174,8 +176,7 @@ def ruleset_satisfies(rule):
 
         if r_type == "required_status_checks":
             for chk in params.get("required_status_checks") or []:
-                if chk.get("context") == required_context:
-                    has_required_context = True
+                registered_contexts.add(chk.get("context"))
 
         if r_type == "pull_request":
             if params.get("required_approving_review_count", 0) > 0:
@@ -187,7 +188,8 @@ def ruleset_satisfies(rule):
         if r_type == "deletion":
             blocks_deletion = True
 
-    return has_required_context and blocks_force_push and blocks_deletion
+    has_all_contexts = all(ctx in registered_contexts for ctx in required_contexts)
+    return has_all_contexts and blocks_force_push and blocks_deletion
 
 ok_bp, bp_failures = protection_satisfies(protection)
 ok_rs = any(ruleset_satisfies(rule) for rule in (rulesets or []))
@@ -212,11 +214,13 @@ PY
 
 if [[ "$MODE" == "apply" ]]; then
   payload="$(mktemp)"
+  # Build the JSON contexts array from CHECK_CONTEXTS.
+  contexts_json="$(python3 -c "import json,sys; print(json.dumps(sys.argv[1:]))" "${CHECK_CONTEXTS[@]}")"
   cat >"$payload" <<JSON
 {
   "required_status_checks": {
     "strict": ${STRICT_REQUIRED_STATUS_CHECKS},
-    "contexts": ["${CHECK_CONTEXTS[0]}"]
+    "contexts": ${contexts_json}
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {
