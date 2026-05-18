@@ -18,6 +18,20 @@
       }
     },
     {
+      "name": "puml_diagnostics",
+      "description": "Validate puml source and return the structured `puml.diagnostics` JSON payload.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "include_root": { "type": "string" },
+          "allow_url_includes": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "puml_render_svg",
       "description": "Render puml source to SVG and return SVG content.",
       "input": {

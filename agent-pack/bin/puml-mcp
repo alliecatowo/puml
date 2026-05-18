@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+AGENT_PACK = ROOT / "agent-pack"
 SERVER_INFO = {"name": "puml-mcp", "version": "0.0.1"}
 
 
@@ -16,8 +19,29 @@ def _safe_rel(path: str) -> Path:
     return p
 
 
+def _configured_puml_cmd():
+    configured = os.environ.get("PUML_MCP_PUML_BIN") or os.environ.get("PUML_BIN")
+    if configured:
+        return [configured]
+
+    bundled = AGENT_PACK / "bin" / "puml"
+    if bundled.is_file() and os.access(bundled, os.X_OK):
+        return [str(bundled)]
+
+    path_bin = shutil.which("puml")
+    if path_bin:
+        return [path_bin]
+
+    if (ROOT / "Cargo.toml").is_file():
+        return ["cargo", "run", "--quiet", "--"]
+
+    raise RuntimeError(
+        "puml binary not found; set PUML_MCP_PUML_BIN or install agent-pack/bin/puml"
+    )
+
+
 def _run_puml(args, stdin_text=None):
-    cmd = ["cargo", "run", "--quiet", "--"] + args
+    cmd = _configured_puml_cmd() + args
     proc = subprocess.run(cmd, input=stdin_text, text=True, capture_output=True, cwd=ROOT)
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -35,6 +59,32 @@ def _diag(err: str):
     return [err] if err else []
 
 
+def _diagnostics_payload(err: str):
+    err = (err or "").strip()
+    if not err:
+        return {"schema": "puml.diagnostics", "schema_version": 1, "diagnostics": []}
+    try:
+        payload = json.loads(err)
+    except json.JSONDecodeError:
+        return {
+            "schema": "puml.diagnostics",
+            "schema_version": 1,
+            "diagnostics": [
+                {
+                    "code": None,
+                    "severity": "error",
+                    "message": err,
+                    "span": None,
+                    "line": None,
+                    "column": None,
+                    "snippet": None,
+                    "caret": None,
+                }
+            ],
+        }
+    return payload
+
+
 def puml_check(params):
     text, path = _validate_one_source(params)
     include_root = params.get("include_root")
@@ -50,6 +100,24 @@ def puml_check(params):
         args += ["-"]
         code, _out, err = _run_puml(args, stdin_text=text)
     return {"ok": code == 0, "diagnostics": _diag(err)}
+
+
+def puml_diagnostics(params):
+    text, path = _validate_one_source(params)
+    include_root = params.get("include_root")
+    args = ["--check", "--diagnostics", "json"]
+    if not params.get("allow_url_includes", False):
+        args += ["--no-url-includes"]
+    if include_root:
+        args += ["--include-root", include_root]
+    if path:
+        args += [str(_safe_rel(path))]
+        code, _out, err = _run_puml(args)
+    else:
+        args += ["-"]
+        code, _out, err = _run_puml(args, stdin_text=text)
+    payload = _diagnostics_payload(err)
+    return {"ok": code == 0, "diagnostics": payload}
 
 
 def puml_render_svg(params):
@@ -111,6 +179,7 @@ def puml_render_file(params):
 
 TOOLS = {
     "puml_check": puml_check,
+    "puml_diagnostics": puml_diagnostics,
     "puml_render_svg": puml_render_svg,
     "puml_render_file": puml_render_file,
 }
@@ -119,6 +188,20 @@ TOOL_LIST = [
     {
         "name": "puml_check",
         "description": "Validate puml source using `puml --check`.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "text": {"type": "string"},
+                "include_root": {"type": "string"},
+                "allow_url_includes": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "puml_diagnostics",
+        "description": "Validate puml source and return the structured `puml.diagnostics` JSON payload.",
         "inputSchema": {
             "type": "object",
             "properties": {
