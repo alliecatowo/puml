@@ -1534,7 +1534,14 @@ pub fn classify_component_skinparam(
         | "deploymentstereotypefontsize"
         | "deploymentstereotypefontname"
         | "portfontsize"
-        | "portfontname" => SkinParamSupport::SupportedNoop,
+        | "portfontname"
+        // Decorative layout hints — recognized as no-op (benign PlantUML compat)
+        | "packagestyle"
+        | "packagebordercolor"
+        | "packagebackgroundcolor"
+        | "packagefontcolor"
+        | "packagefontsize"
+        | "packagefontname" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }

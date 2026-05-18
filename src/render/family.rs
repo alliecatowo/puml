@@ -912,6 +912,8 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
     // Render groups (together/package/namespace) as labeled frames before class boxes
     for group in &document.groups {
         let group_label = match group.label.as_deref() {
+            // `rectangle` is a visual-boundary keyword; show just the label (fix #553)
+            Some(lbl) if group.kind == "rectangle" => lbl.to_string(),
             Some(lbl) => format!("{} {}", group.kind, lbl),
             None => group.kind.clone(),
         };
@@ -2027,6 +2029,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
         let label = if raw_label.is_empty() {
             group.kind.clone()
+        } else if group.kind == "rectangle" {
+            // `rectangle` is a visual-boundary keyword (e.g. usecase system boundary, fix #553);
+            // the label alone is the intended display name.
+            raw_label.clone()
         } else {
             format!("{} {}", group.kind, raw_label)
         };
@@ -2343,9 +2349,22 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Collect all obstacle boxes for collision detection (all node boxes)
+    // Collect all obstacle boxes for collision detection.
+    // `all_boxes` holds individual node boxes (used for all arrows).
+    // `pkg_boxes` holds package frames with a list of member node IDs, so we
+    // can exclude a package from blocking an arrow that starts or ends inside it.
     // ─────────────────────────────────────────────────────────────────────────
     let all_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
+    // Package frames: (rect, member_node_ids)
+    let pkg_frame_boxes: Vec<((i32, i32, i32, i32), &[String])> = pkg_layouts
+        .iter()
+        .enumerate()
+        .map(|(i, pkg)| {
+            let fw = pkg_frame_widths[i];
+            let fh = pkg_frame_heights[i];
+            ((pkg.abs_x, pkg.abs_y, fw, fh), pkg.node_ids.as_slice())
+        })
+        .collect();
 
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 2: Draw relations with L-shape routing on collision
@@ -2448,13 +2467,29 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         // Skip L-routing when a direction is explicitly specified (directed
         // relations must stay straight to preserve test-verified geometry).
         // Also skip when the relation is hidden (direction doesn't matter).
+
+        // Build a combined obstacle list: individual node boxes + package frames
+        // that do NOT contain the source or target node.
+        let rel_obstacles: Vec<(i32, i32, i32, i32)> = {
+            let mut obs: Vec<(i32, i32, i32, i32)> = all_boxes.clone();
+            for &(rect, members) in &pkg_frame_boxes {
+                // A package frame is not an obstacle for arrows that start/end inside it
+                let src_inside = members.iter().any(|m| m == &from_name);
+                let tgt_inside = members.iter().any(|m| m == &to_name);
+                if !src_inside && !tgt_inside {
+                    obs.push(rect);
+                }
+            }
+            obs
+        };
+
         let line_collides = if rel.direction.is_some() || rel.hidden {
             false
         } else {
-            // Check if the direct line (x1,y1)→(x2,y2) passes through any obstacle
-            // box that is not the source or destination.
+            // Check if the direct line (x1,y1)→(x2,y2) passes through any individual
+            // component box. Package frames are NOT used for the straight-line trigger
+            // (they're only used to improve L/Z route quality when routing is needed).
             all_boxes.iter().any(|&(bx, by, bw, bh)| {
-                // Skip source and target boxes
                 if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th) {
                     return false;
                 }
@@ -2480,9 +2515,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             label_mx = (x1 + x2) / 2;
             label_my = (y1 + y2) / 2 - 12;
         } else {
-            // L-shape routing: pick elbow point
-            // Strategy: if source and target are in different horizontal bands,
-            // route H→V→H (horizontal first); else V→H→V.
+            // L-shape / Z-shape routing
+            // Strategy: try L first (2 segments); if still collides try Z-shapes;
+            // cap at 5 segments, fall back to best L if nothing cleans up.
             let src_cx = fx + fw / 2;
             let tgt_cx = tx + tw / 2;
             let src_cy = fy + fh / 2;
@@ -2490,33 +2525,87 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let dx_abs = (tgt_cx - src_cx).abs();
             let dy_abs = (tgt_cy - src_cy).abs();
 
-            // Elbow: go to mid-x first, then down/up
-            let elbow_x = (x1 + x2) / 2;
-            let elbow_y_a = y1; // horizontal first, then vertical
-            let elbow_y_b = y2;
-            let elbow_x_a = x1; // vertical first, then horizontal
-            let elbow_x_b = x2;
-
-            // Try H→V (go horizontal to mid-x, then vertical)
-            let hv_mid_x = elbow_x;
+            // ── Two L-shape candidates ────────────────────────────────────────
+            // H→V: go horizontal to mid-x, then vertical
+            let hv_mid_x = (x1 + x2) / 2;
             let hv_pts = [(x1, y1), (hv_mid_x, y1), (hv_mid_x, y2), (x2, y2)];
-
-            // Try V→H (go vertical to mid-y, then horizontal)
+            // V→H: go vertical to mid-y, then horizontal
             let vh_mid_y = (y1 + y2) / 2;
             let vh_pts = [(x1, y1), (x1, vh_mid_y), (x2, vh_mid_y), (x2, y2)];
 
-            // Pick the route with fewer collisions
-            let hv_collisions = count_polyline_collisions(&hv_pts, &all_boxes, (fx, fy, fw, fh), (tx, ty, tw, th));
-            let vh_collisions = count_polyline_collisions(&vh_pts, &all_boxes, (fx, fy, fw, fh), (tx, ty, tw, th));
+            let hv_col = count_polyline_collisions(&hv_pts, &rel_obstacles, (fx, fy, fw, fh), (tx, ty, tw, th));
+            let vh_col = count_polyline_collisions(&vh_pts, &rel_obstacles, (fx, fy, fw, fh), (tx, ty, tw, th));
 
-            let pts = if dx_abs >= dy_abs {
-                // Mostly horizontal: prefer V→H
-                if vh_collisions <= hv_collisions { &vh_pts[..] } else { &hv_pts[..] }
+            // Pick the preferred L-shape
+            let (l_pts, l_col) = if dx_abs >= dy_abs {
+                if vh_col <= hv_col { (&vh_pts[..], vh_col) } else { (&hv_pts[..], hv_col) }
             } else {
-                // Mostly vertical: prefer H→V
-                if hv_collisions <= vh_collisions { &hv_pts[..] } else { &vh_pts[..] }
+                if hv_col <= vh_col { (&hv_pts[..], hv_col) } else { (&vh_pts[..], vh_col) }
             };
 
+            // ── Z-shape escalation if L still collides ────────────────────────
+            // Gather all blocking boxes from rel_obstacles (including package frames)
+            let blocking: Vec<(i32, i32, i32, i32)> = if l_col > 0 {
+                rel_obstacles.iter().copied().filter(|&b| {
+                    b != (fx, fy, fw, fh) && b != (tx, ty, tw, th)
+                        && l_pts.windows(2).any(|seg| {
+                            segment_intersects_rect(seg[0].0, seg[0].1, seg[1].0, seg[1].1,
+                                b.0, b.1, b.2, b.3)
+                        })
+                }).collect()
+            } else {
+                Vec::new()
+            };
+
+            let best_pts: Vec<(i32, i32)> = if l_col == 0 || blocking.is_empty() {
+                // L is clean — use it
+                l_pts.to_vec()
+            } else {
+                // Try Z-routes by generating waypoints around every blocking box.
+                // Use clearance = 12px outside the box edge.
+                let gap = 12i32;
+                let mut best: Option<Vec<(i32, i32)>> = None;
+                let mut best_col = l_col;
+
+                // Generate candidate waypoints: edges of every blocking box
+                let mut waypoint_candidates: Vec<(i32, i32)> = Vec::new();
+                for &(bx, by, bw, bh) in &blocking {
+                    waypoint_candidates.push((bx + bw / 2, by - gap));       // above
+                    waypoint_candidates.push((bx + bw / 2, by + bh + gap));  // below
+                    waypoint_candidates.push((bx - gap,    by + bh / 2));    // left
+                    waypoint_candidates.push((bx + bw + gap, by + bh / 2)); // right
+                    // Also try corners (useful for routing around package frames)
+                    waypoint_candidates.push((bx - gap,    by - gap));
+                    waypoint_candidates.push((bx + bw + gap, by - gap));
+                    waypoint_candidates.push((bx - gap,    by + bh + gap));
+                    waypoint_candidates.push((bx + bw + gap, by + bh + gap));
+                }
+
+                'waypoint_loop: for &(wx, wy) in &waypoint_candidates {
+                    // Z1: H→V→H  (x1,y1)→(wx,y1)→(wx,y2)→(x2,y2)
+                    let z1: Vec<(i32,i32)> = vec![(x1,y1),(wx,y1),(wx,y2),(x2,y2)];
+                    // Z2: V→H→V  (x1,y1)→(x1,wy)→(x2,wy)→(x2,y2)
+                    let z2: Vec<(i32,i32)> = vec![(x1,y1),(x1,wy),(x2,wy),(x2,y2)];
+                    // Z3: 5-seg H→V→H with waypoint intermediate
+                    let z3: Vec<(i32,i32)> = vec![(x1,y1),(wx,y1),(wx,wy),(x2,wy),(x2,y2)];
+                    // Z4: 5-seg V→H→V with waypoint intermediate
+                    let z4: Vec<(i32,i32)> = vec![(x1,y1),(x1,wy),(wx,wy),(wx,y2),(x2,y2)];
+
+                    for cand in [&z1, &z2, &z3, &z4] {
+                        if cand.len() > 5 { continue; }
+                        let c = count_polyline_collisions(cand, &rel_obstacles, (fx,fy,fw,fh), (tx,ty,tw,th));
+                        if c < best_col {
+                            best_col = c;
+                            best = Some(cand.clone());
+                            if c == 0 { break 'waypoint_loop; }
+                        }
+                    }
+                }
+
+                best.unwrap_or_else(|| l_pts.to_vec())
+            };
+
+            let pts = best_pts.as_slice();
             let pts_str: String = pts
                 .iter()
                 .map(|(px, py)| format!("{},{}", px, py))
@@ -2537,7 +2626,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let longest_seg = pts.windows(2).max_by_key(|seg| {
                 let (ax, ay) = seg[0];
                 let (bx, by_) = seg[1];
-                ((bx - ax).pow(2) + (by_ - ay).pow(2))
+                (bx - ax).pow(2) + (by_ - ay).pow(2)
             });
             let (lmx, lmy) = match longest_seg {
                 Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
@@ -2545,8 +2634,6 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             };
             label_mx = lmx;
             label_my = lmy;
-
-            let _ = (elbow_y_a, elbow_y_b, elbow_x_a, elbow_x_b); // suppress warnings
         }
 
         if rel.left_lollipop {
@@ -2601,27 +2688,69 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 3: De-collide edge labels
     // ─────────────────────────────────────────────────────────────────────────
-    // Group labels by proximity (within 20px Manhattan distance) and fan out
-    let label_stride = 14i32;
-    let proximity = 20i32;
+    // Group labels whose initial centers are within 24px Manhattan distance,
+    // then fan them out symmetrically (vertically first, horizontal stagger
+    // as a secondary de-overlap pass).
+    let cluster_dist = 24i32;
+    let v_stride = 18i32; // vertical fan step per label within a group
+    let h_stagger = 20i32; // horizontal shift applied when still overlapping after v-fan
 
-    // For each label, assign it a vertical offset based on how many prior labels
-    // are "nearby".
-    let mut adjusted_labels: Vec<(i32, i32, String, String)> = Vec::new();
-    for label in &pending_labels {
-        // Count how many already-placed labels are within proximity
-        let nearby_count = adjusted_labels
-            .iter()
-            .filter(|(ax, ay, _, _)| {
-                (ax - label.x).abs() + (ay - label.y).abs() < proximity
-            })
-            .count() as i32;
-        let dy_offset = nearby_count * label_stride;
-        adjusted_labels.push((label.x, label.y + dy_offset, label.text.clone(), label.color.clone()));
+    // Sort pending labels by (y, x) so groups form deterministically.
+    let mut sorted_labels = pending_labels;
+    sorted_labels.sort_by_key(|l| (l.y, l.x));
+
+    // Assign each label to a group (simple greedy union-find by proximity).
+    // group_id[i] = index of the earliest label in the same cluster.
+    let n = sorted_labels.len();
+    let mut group_id: Vec<usize> = (0..n).collect();
+    for i in 0..n {
+        for j in 0..i {
+            let dist = (sorted_labels[i].x - sorted_labels[j].x).abs()
+                + (sorted_labels[i].y - sorted_labels[j].y).abs();
+            if dist < cluster_dist {
+                // Merge: point i to the root of j's group
+                let root = group_id[j];
+                for k in 0..=i {
+                    if group_id[k] == group_id[i] {
+                        group_id[k] = root;
+                    }
+                }
+            }
+        }
+    }
+
+    // Collect groups: map root → list of label indices
+    let mut groups: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
+    for (i, &root) in group_id.iter().enumerate() {
+        groups.entry(root).or_default().push(i);
+    }
+
+    // Compute adjusted positions for each label
+    let mut adjusted_labels: Vec<(i32, i32, String, String)> = vec![(0, 0, String::new(), String::new()); n];
+    for (_root, indices) in &groups {
+        let count = indices.len() as i32;
+        // Base position: centroid of the group
+        let base_x: i32 = indices.iter().map(|&i| sorted_labels[i].x).sum::<i32>() / count;
+        let base_y: i32 = indices.iter().map(|&i| sorted_labels[i].y).sum::<i32>() / count;
+
+        for (rank, &idx) in indices.iter().enumerate() {
+            let rank = rank as i32;
+            // Symmetric vertical fan: rank 0 → -(N-1)/2 * stride, etc.
+            let dy = v_stride * (rank - (count - 1) / 2);
+            // Secondary horizontal stagger for even/odd when N ≥ 3
+            let dx = if count >= 3 && (rank % 2 == 1) { h_stagger } else { 0 };
+            adjusted_labels[idx] = (
+                base_x + dx,
+                base_y + dy,
+                sorted_labels[idx].text.clone(),
+                sorted_labels[idx].color.clone(),
+            );
+        }
     }
 
     // Emit the final labels
     for (lx, ly, text, color) in &adjusted_labels {
+        if text.is_empty() { continue; }
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
             lx, ly, escape_text(color), escape_text(text)
@@ -3154,7 +3283,16 @@ struct RenderGroupFrame {
 impl RenderGroupFrame {
     fn display_label(&self) -> String {
         match self.label.as_deref() {
-            Some(label) if !label.is_empty() => format!("{} {}", self.kind, label),
+            Some(label) if !label.is_empty() => {
+                // For boundary keywords like `rectangle` (used in usecase diagrams as
+                // system-boundary frames, fix #553), the label alone is the display
+                // name — the keyword is structural, not part of the visible text.
+                if self.kind == "rectangle" {
+                    label.to_string()
+                } else {
+                    format!("{} {}", self.kind, label)
+                }
+            }
             _ => self.kind.clone(),
         }
     }
