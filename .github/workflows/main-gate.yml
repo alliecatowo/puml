@@ -48,6 +48,41 @@ jobs:
       - name: wasm check
         run: cargo check --target wasm32-unknown-unknown -p puml-wasm
 
+      - name: Build puml CLI binary for diagram regen
+        run: cargo build --release
+
+      - name: Regenerate diagram artifacts
+        run: |
+          set -euo pipefail
+          PUML_BIN="./target/release/puml"
+
+          # Regenerate SVG and PNG for all .puml files in docs/examples/ and docs/diagrams/
+          for puml_file in $(find docs/examples docs/diagrams -name "*.puml" | sort); do
+            base="${puml_file%.puml}"
+            echo "Rendering ${puml_file} → ${base}.svg and ${base}.png"
+            "${PUML_BIN}" "${puml_file}" -o "${base}.svg"
+            "${PUML_BIN}" "${puml_file}" -o "${base}.png"
+          done
+
+          # Regenerate markdown snippet diagrams
+          if [[ -f docs/examples/sequence/README.md ]]; then
+            echo "Rendering markdown snippets from docs/examples/sequence/README.md"
+            "${PUML_BIN}" --from-markdown --multi docs/examples/sequence/README.md
+          fi
+
+      - name: Check for uncommitted diagram changes (post-regen)
+        run: |
+          set -euo pipefail
+          # If regen produced uncommitted changes, the committer forgot to regenerate
+          git diff --exit-code docs/examples docs/diagrams || {
+            echo "ERROR: Diagram artifacts are stale after regeneration." >&2
+            echo "The committer must run diagram regeneration before pushing to main." >&2
+            echo "" >&2
+            echo "Stale files:" >&2
+            git diff --name-only docs/examples docs/diagrams >&2
+            exit 1
+          }
+
       - name: docs examples drift gate
         run: python3 ./scripts/parity_harness.py --quiet --fail-on-doc-drift
 
