@@ -1,6 +1,6 @@
 @startchart
-bar chart
-  "2024" : 100
-  "2025" : 140
-  "2026" : 190
+title Multi-Series Bar Chart
+bar "Series A" [100, 140, 190]
+bar "Series B" [60, 85, 110]
+h-axis "Year" ["2024", "2025", "2026"]
 @endchart

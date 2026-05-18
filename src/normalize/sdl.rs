@@ -57,7 +57,16 @@ pub(super) fn normalize_sdl(document: Document) -> Result<SdlDocument, Diagnosti
             continue;
         }
         if let Some((keyword, name)) = split_sdl_keyword_decl(line) {
-            let (name, kind) = parse_sdl_state_decl(name, keyword);
+            // When `start <name>` is used with a non-empty name, the named state
+            // is a regular SDL state rectangle — not the UML start filled-circle.
+            // The start pseudostate circle is only appropriate for bare `start` (no name).
+            // `stop <name>` however still designates the final/stop pseudostate and
+            // retains its double-circle appearance per SDL convention.
+            let effective_kind = match keyword {
+                SdlStateKind::Start if !name.trim().is_empty() => SdlStateKind::State,
+                other => other,
+            };
+            let (name, kind) = parse_sdl_state_decl(name, effective_kind);
             record_state(&name, kind, &mut state_index, &mut states);
             continue;
         }

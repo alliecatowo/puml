@@ -2949,10 +2949,9 @@ fn preprocessor_function_and_procedure_args_expand_deterministically() {
         .iter()
         .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
         .collect::<Vec<_>>();
-    assert_eq!(
-        fn_labels,
-        vec!["\"A\" + \"->\" + \"B\"", "\"C\" + \"->\" + \"D\""]
-    );
+    // `+` is the string concatenation operator in PlantUML preprocessor (#582).
+    // `!return $lhs + "->" + $rhs` should evaluate to the joined string.
+    assert_eq!(fn_labels, vec!["A->B", "C->D"]);
 
     let proc_out = Command::cargo_bin("puml")
         .expect("binary")

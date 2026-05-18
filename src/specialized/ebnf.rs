@@ -418,15 +418,46 @@ fn ebnf_parse_alternation(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize)
     }
 }
 
+fn ebnf_token_starts_item(tok: &EbnfToken) -> bool {
+    matches!(
+        tok,
+        EbnfToken::Literal(_)
+            | EbnfToken::Ident(_)
+            | EbnfToken::LBrace
+            | EbnfToken::LBracket
+            | EbnfToken::LParen
+            | EbnfToken::Question
+    )
+}
+
 fn ebnf_parse_sequence(tokens: &[EbnfToken], pos: usize) -> (RailNode, usize) {
     let mut items = Vec::new();
     let (first, mut p) = ebnf_parse_item(tokens, pos);
     items.push(first);
-    while p < tokens.len() && tokens[p] == EbnfToken::Comma {
-        p += 1;
-        let (item, new_p) = ebnf_parse_item(tokens, p);
-        items.push(item);
-        p = new_p;
+    loop {
+        if p >= tokens.len() {
+            break;
+        }
+        // ISO EBNF uses commas as sequence separators; PlantUML EBNF uses
+        // implicit concatenation (juxtaposition). Support both: consume an
+        // optional comma, then continue if the next token starts an item.
+        let (skip, next_p) = if tokens[p] == EbnfToken::Comma {
+            (true, p + 1)
+        } else {
+            (false, p)
+        };
+        if next_p < tokens.len() && ebnf_token_starts_item(&tokens[next_p]) {
+            p = next_p;
+            let (item, new_p) = ebnf_parse_item(tokens, p);
+            items.push(item);
+            p = new_p;
+        } else if skip {
+            // Trailing comma — stop sequence
+            p = next_p;
+            break;
+        } else {
+            break;
+        }
     }
     if items.len() == 1 {
         (items.remove(0), p)

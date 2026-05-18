@@ -80,7 +80,8 @@ Waiting -> Done : complete
     let svg = puml::render_source_to_svg(src).expect("sdl render");
 
     assert!(svg.contains("SDL With Transitions"));
-    assert!(svg.contains("data-sdl-kind=\"start\""));
+    // `start Idle` means "initial named state Idle" → renders as a regular state rectangle (#496).
+    // Only bare `start` (no name) renders as the UML filled-circle pseudostate.
     assert!(svg.contains("data-sdl-kind=\"state\""));
     assert!(svg.contains("data-sdl-kind=\"stop\""));
     assert!(svg.contains("class=\"sdl-transition\""));

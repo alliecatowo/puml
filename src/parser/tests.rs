@@ -768,7 +768,9 @@ mod tests {
         .unwrap();
         match &doc.statements[0].kind {
             StatementKind::Message(m) => {
-                assert_eq!(m.label.as_deref(), Some("\"A\" + \"B\""));
+                // `+` is the string concatenation operator in PlantUML preprocessor (#582).
+                // `!return $x + $y` with $x="A" and $y="B" should produce "AB".
+                assert_eq!(m.label.as_deref(), Some("AB"));
             }
             other => panic!("unexpected statement: {other:?}"),
         }
