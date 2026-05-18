@@ -64,7 +64,7 @@ Notes:
 - messages without source spans stay single-line by design.
 - use `--diagnostics json` for machine-readable diagnostics payloads in CI/tooling.
 - JSON contract is versioned as `schema: "puml.diagnostics"` + `schema_version: 1`.
-- diagnostics are always emitted to `stderr`; mode outputs (SVG / dump JSON) stay on `stdout`.
+- diagnostics are always emitted to `stderr`; mode outputs (SVG, HTML, raster bytes, dump JSON) stay on `stdout`.
 
 Example:
 

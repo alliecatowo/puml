@@ -100,6 +100,124 @@ fn png_output_scales_dimensions_by_dpi() {
 }
 
 #[test]
+fn html_output_writes_self_contained_document_to_stdout() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "html", "-"])
+        .write_stdin("@startuml\nAlice -> Bob: hi\n@enduml\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("<!doctype html>"))
+        .stdout(predicate::str::contains("<svg"))
+        .stdout(predicate::str::contains("Alice"));
+}
+
+#[test]
+fn html_file_input_defaults_to_html_extension() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single_valid.puml");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "html", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let output = tmp.path().join("single_valid.html");
+    let actual = fs::read_to_string(output).unwrap();
+    assert!(actual.starts_with("<!doctype html>"));
+    assert!(actual.contains("<svg"));
+}
+
+#[test]
+fn jpg_and_webp_outputs_are_valid_raster_exports() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single_valid.puml");
+    let jpg = tmp.path().join("single_valid.jpg");
+    let webp = tmp.path().join("single_valid.webp");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--format",
+            "jpg",
+            "--output",
+            jpg.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--format",
+            "webp",
+            "--output",
+            webp.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let jpg_bytes = fs::read(&jpg).unwrap();
+    assert!(jpg_bytes.starts_with(&[0xff, 0xd8, 0xff]));
+    let jpg_image = image::load_from_memory(&jpg_bytes).expect("jpg should decode");
+    assert_eq!(jpg_image.dimensions(), (328, 160));
+
+    let webp_bytes = fs::read(&webp).unwrap();
+    assert!(webp_bytes.starts_with(b"RIFF"));
+    assert_eq!(&webp_bytes[8..12], b"WEBP");
+    let webp_image = image::load_from_memory(&webp_bytes).expect("webp should decode");
+    assert_eq!(webp_image.dimensions(), (328, 160));
+}
+
+#[test]
+fn jpg_and_webp_file_inputs_default_to_format_extensions() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("single_valid.puml");
+    fs::copy(fixture("single_valid.puml"), &input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "jpg", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "webp", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    assert!(tmp.path().join("single_valid.jpg").exists());
+    assert!(tmp.path().join("single_valid.webp").exists());
+}
+
+#[test]
+fn jpg_stdout_writes_image_bytes() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--format", "jpg", "-"])
+        .write_stdin("@startuml\nAlice -> Bob: hi\n@enduml\n")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    assert!(out.starts_with(&[0xff, 0xd8, 0xff]));
+}
+
+#[test]
 fn txt_output_writes_structural_text_to_stdout() {
     Command::cargo_bin("puml")
         .expect("binary")

@@ -87,6 +87,9 @@ Render from stdin or write PNG:
 ```bash
 cat hello.puml | puml - > hello.svg
 puml --format png --dpi 192 hello.puml -o hello@2x.png
+puml --format html hello.puml -o hello.html
+puml --format jpg hello.puml -o hello.jpg
+puml --format webp hello.puml -o hello.webp
 ```
 
 Lint diagrams embedded in Markdown:
