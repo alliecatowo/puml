@@ -1,5 +1,8 @@
+mod svg_test_helpers;
+
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::{render_source_to_svg_for_family, DiagramFamily, NormalizedDocument};
+use svg_test_helpers::{attr, bounds, SvgDoc};
 
 #[test]
 fn chart_axes_named_series_arrays_and_legend_render() {
@@ -14,15 +17,45 @@ legend right
 
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
         .expect("chart parity slice should render");
-    assert!(svg.contains("data-chart-type=\"bar\""));
-    assert!(svg.contains("data-chart-legend=\"right\""));
-    assert!(svg.contains("Revenue"));
-    assert!(svg.contains("Q1"));
-    assert!(svg.contains("Q2"));
-    assert!(svg.contains("Sales"));
-    assert!(svg.contains("Costs"));
-    assert!(svg.contains("#3498db"));
-    assert!(svg.contains("#e67e22"));
+    let doc = SvgDoc::parse(&svg);
+    assert_eq!(doc.root_attr("data-chart-type"), Some("bar"));
+    assert_eq!(doc.root_attr("data-chart-horizontal"), Some("false"));
+
+    assert!(!doc.texts_containing("Revenue").is_empty());
+    for text in ["Q1", "Q2", "Sales", "Costs"] {
+        assert!(
+            !doc.texts_containing(text).is_empty(),
+            "expected visible chart text containing {text:?}"
+        );
+    }
+
+    let sales_bar = doc.first_with_attr("rect", "fill", "#3498db");
+    let costs_bar = doc.first_with_attr("rect", "fill", "#e67e22");
+    let sales_bounds = bounds(sales_bar);
+    let costs_bounds = bounds(costs_bar);
+    assert!(sales_bounds.width > 0.0 && sales_bounds.height > 0.0);
+    assert!(costs_bounds.width > 0.0 && costs_bounds.height > 0.0);
+    assert!(
+        sales_bounds.x < costs_bounds.x || sales_bounds.y < costs_bounds.y,
+        "series bars should occupy distinct chart positions"
+    );
+
+    let legend = doc.first_with_attr("g", "data-chart-legend", "right");
+    assert!(doc
+        .elements_with_class("rect", "chart-legend-swatch")
+        .iter()
+        .any(|node| attr(*node, "fill") == "#3498db"));
+    assert!(
+        bounds(
+            legend
+                .children()
+                .find(|node| node.has_tag_name("rect"))
+                .unwrap()
+        )
+        .width
+            > 0.0,
+        "legend should have a visible frame"
+    );
 }
 
 #[test]
@@ -237,10 +270,19 @@ legend at top center background #f8fafc border #0f172a text #111827
 
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
         .expect("chart axis semantic ticks should render");
-    assert!(svg.contains("class=\"chart-axis-tick chart-axis-tick-v\""));
-    assert!(svg.contains("data-chart-axis-tick=\"5\""));
-    assert!(svg.contains("class=\"chart-axis-grid chart-axis-grid-h\""));
-    assert!(svg.contains("class=\"chart-legend\" data-chart-legend=\"top\""));
+    let doc = SvgDoc::parse(&svg);
+    let tick = doc.first_with_attr("text", "data-chart-axis-tick", "5");
+    assert_eq!(attr(tick, "class"), "chart-axis-tick chart-axis-tick-v");
+    assert!(!doc
+        .elements_with_class("line", "chart-axis-grid-h")
+        .is_empty());
+    assert_eq!(
+        attr(
+            doc.first_with_attr("g", "data-chart-legend", "top"),
+            "class"
+        ),
+        "chart-legend"
+    );
 }
 
 #[test]
