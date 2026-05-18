@@ -52,6 +52,27 @@ stop
 }
 
 #[test]
+fn activity_partition_example_keeps_start_below_lane_header() {
+    let src = include_str!("../docs/examples/activity/07_partition.puml");
+    let svg = puml::render_source_to_svg(src).expect("activity partition example should render");
+    let doc = SvgDoc::parse(&svg);
+
+    assert!(svg.contains("Worker"));
+    assert!(svg.contains("Backend"));
+    assert!(svg.contains("Frontend"));
+
+    let start = doc
+        .elements("circle")
+        .into_iter()
+        .next()
+        .expect("activity start node should render");
+    assert!(
+        f64_attr(start, "cy") - 12.0 >= 86.0,
+        "start node should stay inside lane content and below the header row"
+    );
+}
+
+#[test]
 fn state_internals_history_choice_depth_renders_expected_shapes_and_actions() {
     let src = r#"@startuml
 title State internals/history/choice depth
