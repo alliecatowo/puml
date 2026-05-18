@@ -222,6 +222,11 @@ jobs:
 
           # exit 2 (<50% match) and exit 3 (promoted fixture regression) are
           # hard CI failures; 0 and 1 are broad-corpus advisory/pass statuses.
+          if [[ ! -f docs/benchmarks/oracle_report.json ]]; then
+            echo "[oracle] HARD FAIL: missing report file after oracle.sh exit ${ORACLE_EXIT}" >&2
+            exit 1
+          fi
+
           if [[ "${ORACLE_EXIT}" -eq 2 ]]; then
             echo "[oracle] HARD FAIL: match% < 50%" >&2
             exit 2
@@ -229,6 +234,10 @@ jobs:
           if [[ "${ORACLE_EXIT}" -eq 3 ]]; then
             echo "[oracle] HARD FAIL: promoted oracle fixture gate failed" >&2
             exit 3
+          fi
+          if [[ "${ORACLE_EXIT}" -lt 0 || "${ORACLE_EXIT}" -gt 3 ]]; then
+            echo "[oracle] HARD FAIL: unexpected oracle.sh exit code ${ORACLE_EXIT}" >&2
+            exit "${ORACLE_EXIT}"
           fi
           exit 0
 
