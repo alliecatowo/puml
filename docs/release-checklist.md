@@ -19,7 +19,7 @@
   `latest.{md,csv,json}` and `latest_trend.{md,json}`.
 - [ ] Branch protection/ruleset requires PR gate checks before merge to `main`.
 - [ ] Branch protection/ruleset validation passes: `./scripts/branch-protection.sh verify`.
-- [ ] If `./scripts/branch-protection.sh apply` was blocked by permissions, include failing-then-passing verification evidence in PR notes per `docs/branch-protection.md`.
+- [ ] If `./scripts/branch-protection.sh apply` was blocked by permissions, include failing-then-passing verification evidence in PR notes per `docs/internal/branch-protection.md`.
 
 ## Benchmark / Perf / Size Contract
 
@@ -52,9 +52,9 @@
 ## Contract and Docs
 
 - [ ] `README.md` reflects current CLI behavior and command entry points.
-- [ ] `docs/release-contract-audit.md` reflects latest audited full/quick gate command contract.
-- [ ] `docs/decision-log.md` includes new intentional contract changes.
-- [ ] `docs/coverage-status.md` updated if coverage posture changed materially.
+- [ ] `docs/internal/release-contract-audit.md` reflects latest audited full/quick gate command contract.
+- [ ] `docs/internal/architecture-decisions.md` includes new intentional contract changes.
+- [ ] `docs/internal/coverage-status.md` updated if coverage posture changed materially.
 - [ ] `docs/parity-roadmap.md` reflects current parity priorities.
 - [ ] Troubleshooting and fixture/snapshot docs still match workflow.
 - [ ] `--help` text is consistent with docs for `--check`, `--dump`, `--multi`, `--include-root`, `--lint-input`, `--lint-glob`, and `--lint-report`.

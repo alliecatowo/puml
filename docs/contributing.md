@@ -33,7 +33,7 @@
 - [ ] `./scripts/autonomy-check.sh` passes.
 - [ ] `agent-pack` manifest/runtime contracts stay in sync (`validate_agent_pack.py`).
 - [ ] Docs updated for command or contract changes.
-- [ ] Any intentional contract deviation logged in `docs/decision-log.md`.
+- [ ] Any intentional contract deviation logged in `docs/internal/architecture-decisions.md`.
 
 ## Issues and discussions
 

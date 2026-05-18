@@ -129,6 +129,6 @@ Scaffolding phase is complete when:
 - Parity roadmap contains family-by-family execution slices.
 
 Current follow-up acceptance now lives in
-`docs/audits/plantuml_parity_source_of_truth.md` and the relevant fixture/oracle
+`docs/internal/parity/plantuml_parity_source_of_truth.md` and the relevant fixture/oracle
 reports. Do not use this historical scaffolding checklist as the current parity
 status table.

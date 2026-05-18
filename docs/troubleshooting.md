@@ -28,7 +28,7 @@ Fix approach:
 - Add focused tests under `tests/` and/or fixtures under `tests/fixtures/`.
 - Re-run `./scripts/check-all.sh`.
 
-Reference: `docs/coverage-status.md`.
+Reference: `docs/internal/coverage-status.md`.
 
 ## Benchmark runs are noisy or unavailable
 
@@ -140,4 +140,4 @@ Fix workflow:
 - If intentional, update snapshots with `INSTA_UPDATE=always cargo test`.
 - If unintentional, fix code and keep existing snapshots.
 
-Reference: `docs/fixture-snapshot-workflow.md`.
+Reference: `docs/internal/fixture-snapshot-workflow.md`.

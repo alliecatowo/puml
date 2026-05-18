@@ -91,4 +91,4 @@ The [sequence family in the gallery](@/gallery.md) holds dozens of examples cove
 
 ## Limitations
 
-PlantUML 1:1 parity is the roadmap goal, not the current claim. See [`docs/audits/plantuml_parity_source_of_truth.md`](https://github.com/alliecatowo/puml/blob/main/docs/audits/plantuml_parity_source_of_truth.md) for the canonical implemented / partial / missing status per row.
+PlantUML 1:1 parity is the roadmap goal, not the current claim. See [`docs/internal/parity/plantuml_parity_source_of_truth.md`](https://github.com/alliecatowo/puml/blob/main/docs/internal/parity/plantuml_parity_source_of_truth.md) for the canonical implemented / partial / missing status per row.
