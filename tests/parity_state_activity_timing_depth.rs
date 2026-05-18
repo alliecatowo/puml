@@ -87,7 +87,11 @@ JoinNode --> [H]
     assert!(!doc.texts_containing("H*").is_empty());
     let history_circles = doc.elements("circle");
     assert_eq!(history_circles.len(), 2);
-    assert!(f64_attr(history_circles[1], "cx") > f64_attr(history_circles[0], "cx"));
+    // The two history circles must be at different positions (cx or cy differs),
+    // regardless of whether single- or two-column layout is used.
+    let cx_diff = (f64_attr(history_circles[1], "cx") - f64_attr(history_circles[0], "cx")).abs();
+    let cy_diff = (f64_attr(history_circles[1], "cy") - f64_attr(history_circles[0], "cy")).abs();
+    assert!(cx_diff > 0.0 || cy_diff > 0.0, "history circles must be at distinct positions");
 
     let ready_to_choice = doc.first_with_attr("line", "data-state-from", "Ready");
     assert_eq!(attr(ready_to_choice, "data-state-to"), "ChoiceNode");

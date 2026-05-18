@@ -60,22 +60,96 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         compute_node_size(node, &mut node_sizes);
     }
 
-    // Second pass: assign positions to top-level nodes (2-column layout),
-    // then recurse to assign child positions relative to their parent.
+    // Second pass: assign positions to top-level nodes, then recurse to assign
+    // child positions relative to their parent.
     // Only position nodes that are not children of a composite.
+    //
+    // Layout policy:
+    // - Use a single column when fork/join/choice nodes are present (linear flow).
+    // - Use a single column when there are ≤ 3 top-level nodes (avoids side-by-side
+    //   placement of [*] and a single composite state, fix #555).
+    // - Otherwise use a 2-column grid for denser layouts.
+    // In all cases, sort nodes by BFS depth from initial states.
+    let top_level_count = nodes
+        .iter()
+        .filter(|n| !child_node_names.contains(n.name.as_str()))
+        .count();
+    let has_fork_join_choice = nodes.iter().any(|n| {
+        !child_node_names.contains(n.name.as_str())
+            && matches!(n.kind, StateNodeKind::Fork | StateNodeKind::Join | StateNodeKind::Choice)
+    });
+    let cols: i32 = if has_fork_join_choice || top_level_count <= 3 { 1 } else { 2 };
+
+    // BFS topological sort of top-level nodes by reachability depth from initial states.
+    // This puts [*] and early states before composites/late states in the layout order,
+    // preventing visual inversions (e.g. join above the tasks it joins).
+    let layout_order: Vec<&StateNode> = {
+        let mut depth_map: std::collections::BTreeMap<&str, usize> =
+            std::collections::BTreeMap::new();
+        let transition_targets: std::collections::BTreeSet<&str> =
+            transitions.iter().map(|t| t.to.as_str()).collect();
+        let all_node_names: Vec<&str> = nodes
+            .iter()
+            .filter(|n| !child_node_names.contains(n.name.as_str()))
+            .map(|n| n.name.as_str())
+            .collect();
+        // Seed: nodes with no incoming transitions (true start nodes) or named "[*]"
+        let mut queue: std::collections::VecDeque<(&str, usize)> =
+            std::collections::VecDeque::new();
+        for &name in &all_node_names {
+            if name == "[*]" || !transition_targets.contains(name) {
+                depth_map.insert(name, 0);
+                queue.push_back((name, 0));
+            }
+        }
+        // BFS: for each reachable top-level target, record minimum depth
+        let mut visited: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        while let Some((name, depth)) = queue.pop_front() {
+            if !visited.insert(name) {
+                continue;
+            }
+            for t in transitions {
+                if t.from == name && !child_node_names.contains(t.to.as_str()) {
+                    let target = t.to.as_str();
+                    let new_depth = depth + 1;
+                    let entry = depth_map.entry(target).or_insert(usize::MAX);
+                    if new_depth < *entry {
+                        *entry = new_depth;
+                    }
+                    queue.push_back((target, new_depth));
+                }
+            }
+        }
+        // Unreachable nodes get MAX depth (appear at bottom)
+        for &name in &all_node_names {
+            depth_map.entry(name).or_insert(usize::MAX);
+        }
+        // Sort by (BFS depth, original doc order) so layout matches diagram flow
+        let name_to_orig: std::collections::BTreeMap<&str, usize> = nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.name.as_str(), i))
+            .collect();
+        let mut ordered: Vec<&StateNode> = nodes
+            .iter()
+            .filter(|n| !child_node_names.contains(n.name.as_str()))
+            .collect();
+        ordered.sort_by_key(|n| {
+            (
+                depth_map.get(n.name.as_str()).copied().unwrap_or(usize::MAX),
+                name_to_orig.get(n.name.as_str()).copied().unwrap_or(usize::MAX),
+            )
+        });
+        ordered
+    };
+
     let mut placed: std::collections::BTreeMap<String, PlacedNode> =
         std::collections::BTreeMap::new();
 
-    let cols = 2i32;
-    // We need to compute each top-level node's (w, h) before positioning, then
-    // stack them column by column tracking actual row heights.
+    // Place top-level nodes in column order, using the BFS-sorted layout_order.
     let mut col_y = [STATE_MARGIN + 50, STATE_MARGIN + 50];
-    let mut col_idx = 0usize; // tracks column separately since we may skip nodes
-    for node in nodes.iter() {
-        // Skip nodes that are owned by a composite parent
-        if child_node_names.contains(node.name.as_str()) {
-            continue;
-        }
+    let mut col_idx = 0usize;
+    for node in &layout_order {
         let col = (col_idx as i32) % cols;
         col_idx += 1;
         let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
