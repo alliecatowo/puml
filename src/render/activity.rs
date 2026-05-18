@@ -394,11 +394,15 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     extra_arrows.push((col_cx, branch_arrow_out_y, fork_cx, slot_y));
                 }
 
-                // Arrows from fork bar down into each branch column
+                // Arrows from fork bar down into each branch column.
+                // Suppress the standard prev->cur arrow for the first node of
+                // each branch (otherwise it duplicates the fork->branch arrow).
                 let fork_bar_arrow_out_y = frame.fork_slot_y + ARROW_OUT;
-                for branch_idx in 0..n_branches {
+                for (branch_idx, branch) in frame.branches.iter().enumerate() {
                     let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, fork_col_w);
                     extra_arrows.push((fork_cx, fork_bar_arrow_out_y, col_cx, branch_start_y));
+                    // Suppress the standard prev->cur arrow for the branch's first node
+                    suppress_prev_arrow.insert(branch.start_node_idx);
                 }
 
                 // Compute bar half-width spanning all branch columns
@@ -418,26 +422,50 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 current_slot_y = next_slot_y;
             }
             _ => {
-                let slot_y = current_slot_y;
-                let arrow_out_y = slot_y + ARROW_OUT;
-                let next_slot_y = slot_y + step_h;
-                node_layouts.push(NodeLayout {
-                    cx,
-                    slot_y,
-                    arrow_out_y,
-                    next_slot_y,
-                });
-                for frame in &mut if_stack {
-                    if !frame.in_else {
-                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                // Partition/swimlane markers are zero-height layout nodes that
+                // switch the active lane but take no vertical space and draw no
+                // arrow from the previous node.
+                let is_partition_marker = meta.step_kind == "PartitionStart"
+                    || meta.step_kind == "PartitionEnd"
+                    || meta.step_kind == "OldStyle";
+                if is_partition_marker
+                    && matches!(
+                        doc.nodes[i].kind,
+                        FamilyNodeKind::ActivityPartition
+                    )
+                {
+                    // Zero-height: sit at current_slot_y, no advancement.
+                    let slot_y = current_slot_y;
+                    node_layouts.push(NodeLayout {
+                        cx,
+                        slot_y,
+                        arrow_out_y: slot_y,
+                        next_slot_y: slot_y,
+                    });
+                    // Suppress the prev->cur arrow (no diagonal crossing lines)
+                    suppress_prev_arrow.insert(i);
+                } else {
+                    let slot_y = current_slot_y;
+                    let arrow_out_y = slot_y + ARROW_OUT;
+                    let next_slot_y = slot_y + step_h;
+                    node_layouts.push(NodeLayout {
+                        cx,
+                        slot_y,
+                        arrow_out_y,
+                        next_slot_y,
+                    });
+                    for frame in &mut if_stack {
+                        if !frame.in_else {
+                            frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                        }
                     }
+                    // Inside a fork branch, update branch end_next_slot
+                    if let Some(fork_frame) = fork_stack.last_mut() {
+                        let bi = fork_frame.current_branch;
+                        fork_frame.branches[bi].end_next_slot = next_slot_y;
+                    }
+                    current_slot_y = next_slot_y;
                 }
-                // Inside a fork branch, update branch end_next_slot
-                if let Some(fork_frame) = fork_stack.last_mut() {
-                    let bi = fork_frame.current_branch;
-                    fork_frame.branches[bi].end_next_slot = next_slot_y;
-                }
-                current_slot_y = next_slot_y;
             }
         }
     }
@@ -483,6 +511,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
 
     let lane_left = |idx: i32| -> i32 { lane_area_x + idx * lane_w };
 
+    let has_named_lanes = lanes.iter().any(|l| l != "default");
+    // Lane header height: if we have named lanes, reserve space for the header label.
+    let lane_header_h = if has_named_lanes { 24i32 } else { 0i32 };
+
     for (idx, lane) in lanes.iter().enumerate() {
         let lx = lane_left(idx as i32);
         let bg = if idx % 2 == 0 {
@@ -490,19 +522,30 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         } else {
             "#f1f5f9"
         };
+        // Lane body (below header)
         out.push_str(&format!(
             "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
             lx,
-            header_h - 8,
+            header_h + lane_header_h,
             lane_w,
-            height - header_h - 20,
+            height - header_h - lane_header_h - 20,
             bg
         ));
         if lane != "default" {
+            // Lane header box
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+                lx,
+                header_h,
+                lane_w,
+                lane_header_h,
+                if idx % 2 == 0 { "#e2e8f0" } else { "#dde5ef" }
+            ));
+            // Lane name centered in the header box
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
                 lx + lane_w / 2,
-                header_h + 10,
+                header_h + lane_header_h / 2 + 4,
                 escape_text(&act_style.font_color),
                 escape_text(lane)
             ));
@@ -689,20 +732,27 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
             }
             FamilyNodeKind::ActivityPartition => {
-                out.push_str(&format!(
-                    "<rect x=\"24\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
-                    y + 4,
-                    width - 48,
-                    escape_text(&act_style.background_color),
-                    escape_text(&act_style.border_color)
-                ));
-                out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" fill=\"{}\">{}</text>",
-                    cx,
-                    y + 27,
-                    escape_text(&act_style.font_color),
-                    escape_text(&format!("partition: {}", label))
-                ));
+                // Old-style |Lane| markers and PartitionEnd are invisible —
+                // the lane column background already shows the boundary.
+                // PartitionStart draws a subtle header label within the lane.
+                if step_kind == "PartitionStart" {
+                    // Partition label: draw a small header tag at top of the
+                    // current lane column (using cx which is the lane center).
+                    // The label is drawn at y (which == current_slot_y at partition
+                    // start, but since height is 0 this is the exact boundary point).
+                    // We skip the rect — the lane column background handles that.
+                    let clean_label = label.trim_matches('"').trim();
+                    if !clean_label.is_empty() {
+                        out.push_str(&format!(
+                            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" font-weight=\"600\" fill=\"{}\" opacity=\"0.7\">[{}]</text>",
+                            cx,
+                            y + 12,
+                            escape_text(&act_style.font_color),
+                            escape_text(clean_label)
+                        ));
+                    }
+                }
+                // PartitionEnd and OldStyle lane-switch: render nothing
             }
             _ => {
                 out.push_str(&format!(
