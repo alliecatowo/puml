@@ -165,23 +165,34 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         std::collections::BTreeMap::new();
     for n in &gl_nodes {
         // Full scoped id always resolves to itself.
-        gl_name_to_id.entry(n.id.clone()).or_insert_with(|| n.id.clone());
+        gl_name_to_id
+            .entry(n.id.clone())
+            .or_insert_with(|| n.id.clone());
         // Unscoped tail (last "::" component) resolves to the full scoped id.
         if let Some(tail) = n.id.rsplit("::").next() {
-            gl_name_to_id.entry(tail.to_string()).or_insert_with(|| n.id.clone());
+            gl_name_to_id
+                .entry(tail.to_string())
+                .or_insert_with(|| n.id.clone());
         }
     }
     // Also map alias → scoped id and node.name → scoped id.
     for node in &document.nodes {
         if let Some(alias) = &node.alias {
             let scoped = node.alias.clone().unwrap_or_else(|| node.name.clone());
-            gl_name_to_id.entry(alias.clone()).or_insert_with(|| scoped.clone());
-            gl_name_to_id.entry(node.name.clone()).or_insert_with(|| scoped);
+            gl_name_to_id
+                .entry(alias.clone())
+                .or_insert_with(|| scoped.clone());
+            gl_name_to_id
+                .entry(node.name.clone())
+                .or_insert_with(|| scoped);
         }
     }
 
     let resolve_gl = |name: &str| -> String {
-        gl_name_to_id.get(name).cloned().unwrap_or_else(|| name.to_string())
+        gl_name_to_id
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
     };
 
     // Build EdgeSpec list — IDs must be "r{i}" to match the lookup key below.
@@ -285,9 +296,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     // Use the layout engine's canvas size as a floor for both dimensions.
     let gl_canvas_right = gl_result_class.canvas_width as i32;
     let gl_canvas_bottom = gl_result_class.canvas_height as i32;
-    let svg_width = (margin_x * 2
-        + col_count * node_width
-        + (col_count - 1) * col_gap)
+    let svg_width = (margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap)
         .max(gl_canvas_right + margin_x);
     let svg_height = (nodes_bottom + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
 
@@ -363,7 +372,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     //      corner staggered with LABEL_FAN_GAP px between them.
     //
     // Strategy: build two cluster types, de-collide, populate label_override.
-    const LABEL_FAN_GAP: i32 = 80;   // horizontal gap between fanned labels
+    const LABEL_FAN_GAP: i32 = 80; // horizontal gap between fanned labels
     const LABEL_CLUSTER_BAND: i32 = 18; // px y-range to detect same-channel clusters
 
     // Map rel_idx → de-collided (lx, ly)
@@ -400,10 +409,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     relation.direction.as_deref(),
                 )
             } else {
-                pick_port(
-                    (from.x, from.y, from.w, from.h),
-                    (to.x, to.y, to.w, to.h),
-                )
+                pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
             };
             let ortho_pts: Option<Vec<(i32, i32)>> =
                 if relation.direction.is_none() && !relation.hidden {
@@ -439,7 +445,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             } else {
                 ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
             };
-            raw_labels.push(RawLabel { rel_idx, to_name, lx, ly });
+            raw_labels.push(RawLabel {
+                rel_idx,
+                to_name,
+                lx,
+                ly,
+            });
         }
 
         // Group labelled edges by their resolved target node name.
@@ -467,10 +478,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             sorted.sort_unstable();
             for (slot, &raw_idx) in sorted.iter().enumerate() {
                 let offset = (slot as i32) * LABEL_FAN_GAP - (n - 1) * LABEL_FAN_GAP / 2;
-                label_override.insert(
-                    raw_labels[raw_idx].rel_idx,
-                    (anchor_cx + offset, anchor_y),
-                );
+                label_override.insert(raw_labels[raw_idx].rel_idx, (anchor_cx + offset, anchor_y));
             }
         }
 
@@ -497,8 +505,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             if cluster.len() < 2 {
                 continue;
             }
-            let mean_x = cluster.iter().map(|&i| raw_labels[i].lx).sum::<i32>()
-                / cluster.len() as i32;
+            let mean_x =
+                cluster.iter().map(|&i| raw_labels[i].lx).sum::<i32>() / cluster.len() as i32;
             let mut sorted = cluster.clone();
             sorted.sort_by_key(|&i| raw_labels[i].lx);
             let n = sorted.len() as i32;
@@ -573,16 +581,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         // Edge IDs are "r{rel_idx}" matching gl_edges_class construction above.
         // Fall back to a straight <line> when no pre-computed path is available
         // (explicit direction override, hidden, or layout produced no path).
-        let ortho_pts: Option<Vec<(i32, i32)>> =
-            if relation.direction.is_none() && !relation.hidden {
-                gl_result_class
-                    .edge_paths
-                    .get(&format!("r{rel_idx}"))
-                    .filter(|p| p.len() >= 2)
-                    .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
-            } else {
-                None
-            };
+        let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
+        {
+            gl_result_class
+                .edge_paths
+                .get(&format!("r{rel_idx}"))
+                .filter(|p| p.len() >= 2)
+                .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+        } else {
+            None
+        };
 
         // Label midpoint — computed in each branch below.
         let (label_mx, label_my);
@@ -618,9 +626,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                         (bx - ax).pow(2) + (by_ - ay).pow(2)
                     });
                     match longest_seg {
-                        Some(seg) => {
-                            ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
-                        }
+                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
                         None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
                     }
                 }
@@ -4039,15 +4045,19 @@ fn render_family_node_shape_styled(
                 // 3D cube for deployment nodes (fix #571)
                 FamilyNodeKind::Node | FamilyNodeKind::Frame => {
                     let offset = 12i32; // 3D depth offset (right and up)
-                    // Top face: parallelogram from front-top edge to back-top edge (shifted right+up).
-                    // Points: front-top-left → back-top-left → back-top-right → front-top-right
+                                        // Top face: parallelogram from front-top edge to back-top edge (shifted right+up).
+                                        // Points: front-top-left → back-top-left → back-top-right → front-top-right
                     out.push_str(&format!(
                         "<polygon points=\"{},{} {},{} {},{} {},{}\" \
                          fill=\"#d4dff7\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y,                           // front-top-left
-                        x + offset, y - offset,         // back-top-left (up + right)
-                        x + w + offset, y - offset,     // back-top-right
-                        x + w, y,                       // front-top-right
+                        x,
+                        y, // front-top-left
+                        x + offset,
+                        y - offset, // back-top-left (up + right)
+                        x + w + offset,
+                        y - offset, // back-top-right
+                        x + w,
+                        y, // front-top-right
                         comp_style.border_color
                     ));
                     // Right face: parallelogram from front-right edge to back-right edge.
@@ -4055,10 +4065,14 @@ fn render_family_node_shape_styled(
                     out.push_str(&format!(
                         "<polygon points=\"{},{} {},{} {},{} {},{}\" \
                          fill=\"#b8c8ef\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x + w, y,                           // front-top-right
-                        x + w + offset, y - offset,         // back-top-right
-                        x + w + offset, y + h - offset,     // back-bottom-right
-                        x + w, y + h,                       // front-bottom-right
+                        x + w,
+                        y, // front-top-right
+                        x + w + offset,
+                        y - offset, // back-top-right
+                        x + w + offset,
+                        y + h - offset, // back-bottom-right
+                        x + w,
+                        y + h, // front-bottom-right
                         comp_style.border_color
                     ));
                     // Front face (main visible face, drawn last so it sits on top)

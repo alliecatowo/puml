@@ -185,10 +185,8 @@ mod tests {
     #[test]
     fn to_json_with_source_includes_code_location_and_snippet() {
         let source = "alpha\nβeta line\nomega";
-        let diagnostic = Diagnostic::error_code("E_UTF", "bad token").with_span(Span {
-            start: 6,
-            end: 8,
-        });
+        let diagnostic =
+            Diagnostic::error_code("E_UTF", "bad token").with_span(Span { start: 6, end: 8 });
 
         let json = diagnostic.to_json_with_source(source);
         assert_eq!(json.code.as_deref(), Some("E_UTF"));
@@ -217,13 +215,7 @@ mod tests {
         let source = "abc\ndef";
 
         assert_eq!(
-            render_caret_line(
-                source,
-                Span {
-                    start: 4,
-                    end: 400,
-                }
-            ),
+            render_caret_line(source, Span { start: 4, end: 400 }),
             "def\n^^^"
         );
         assert_eq!(

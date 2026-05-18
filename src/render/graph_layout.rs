@@ -230,7 +230,10 @@ fn assign_ranks(
         let mut group_members: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for n in nodes {
             if let Some(parent) = &n.parent {
-                group_members.entry(parent.clone()).or_default().push(n.id.clone());
+                group_members
+                    .entry(parent.clone())
+                    .or_default()
+                    .push(n.id.clone());
             }
         }
 
@@ -891,10 +894,7 @@ fn route_edges(
         let raw = (track as f64 - n_tracks / 2.0) * TRACK_SPACING;
         // Compute the inter-rank gap for this channel to bound the fan width.
         let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
-        let next_top = rank_top_y
-            .get(&(ch + 1))
-            .copied()
-            .unwrap_or(bot + 80.0);
+        let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
         let gap = next_top - bot;
         if gap >= 16.0 {
             let max_half = (gap - 8.0) / 2.0;
@@ -986,10 +986,7 @@ fn route_edges(
             // boundary.  Normal layouts (rank_separation ≥ 80px) are unaffected.
             let soft_clamp_ch_y = |ch: usize, raw: f64| -> f64 {
                 let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
-                let next_top = rank_top_y
-                    .get(&(ch + 1))
-                    .copied()
-                    .unwrap_or(bot + 80.0);
+                let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
                 let gap = next_top - bot;
                 if gap < 16.0 {
                     // Degenerate gap: clamp to exact midpoint.
