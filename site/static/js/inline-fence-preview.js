@@ -38,13 +38,19 @@ function hydrateFence(pre) {
   const toolbar = document.createElement('div');
   toolbar.className = 'puml-fence-toolbar';
 
+  const language = document.createElement('span');
+  language.className = 'puml-fence-lang';
+  language.textContent = lang;
+
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'puml-fence-toggle';
+  button.className = 'puml-fence-toggle puml-fence-bubble';
   button.setAttribute('aria-controls', panelId);
   button.setAttribute('aria-expanded', 'false');
-  button.title = `Toggle rendered ${lang} preview`;
-  button.textContent = 'Preview';
+  button.setAttribute('aria-pressed', 'false');
+  button.dataset.renderState = 'idle';
+  button.title = `Show rendered ${lang} graph`;
+  button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2.5 11.5h3v2h-3zM6.5 6.5h3v7h-3zM10.5 2.5h3v11h-3z"/></svg><span>Graph</span>';
 
   const body = document.createElement('div');
   body.className = 'puml-fence-body';
@@ -58,6 +64,7 @@ function hydrateFence(pre) {
   panel.setAttribute('aria-label', `Rendered ${lang} diagram preview`);
 
   pre.parentNode.insertBefore(wrapper, pre);
+  toolbar.appendChild(language);
   toolbar.appendChild(button);
   body.append(pre, panel);
   wrapper.append(toolbar, body);
@@ -71,33 +78,46 @@ function hydrateFence(pre) {
       wrapper.classList.remove('is-open');
       panel.hidden = true;
       button.setAttribute('aria-expanded', 'false');
-      button.textContent = 'Preview';
+      button.setAttribute('aria-pressed', 'false');
+      button.title = `Show rendered ${lang} graph`;
+      setButtonLabel(button, 'Graph');
       return;
     }
 
     wrapper.classList.add('is-open');
     panel.hidden = false;
     button.setAttribute('aria-expanded', 'true');
-    button.textContent = 'Hide preview';
+    button.setAttribute('aria-pressed', 'true');
+    button.title = `Hide rendered ${lang} graph`;
+    setButtonLabel(button, 'Hide');
 
     if (!hasRendered && !isRendering) {
       isRendering = true;
+      button.dataset.renderState = 'loading';
       renderLoading(panel);
       try {
         const result = await getEngine().render(source, { frontend: lang });
         if (result.ok) {
           renderSvgs(panel, result.svgs);
           hasRendered = true;
+          button.dataset.renderState = 'ready';
         } else {
           renderDiagnostic(panel, result.diagnostics?.[0]);
+          button.dataset.renderState = 'error';
         }
       } catch (e) {
         renderDiagnostic(panel, { severity: 'error', message: e.message || String(e) });
+        button.dataset.renderState = 'error';
       } finally {
         isRendering = false;
       }
     }
   });
+}
+
+function setButtonLabel(button, label) {
+  const text = button.querySelector('span:last-child');
+  if (text) text.textContent = label;
 }
 
 function renderLoading(panel) {

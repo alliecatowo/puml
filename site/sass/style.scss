@@ -698,31 +698,69 @@ blockquote {
 
 .puml-fence-toolbar {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
   justify-content: flex-end;
-  padding: 6px 8px;
+  padding: 5px 8px 5px 12px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
+}
+
+.puml-fence-lang {
+  min-width: 0;
+  margin-right: auto;
+  color: var(--text-mute);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .puml-fence-toggle {
   appearance: none;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: var(--bg-elev);
+  background: color-mix(in srgb, var(--bg-elev) 88%, var(--accent));
   color: var(--text);
   font-family: var(--sans);
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
   min-height: 28px;
-  padding: 7px 11px;
+  padding: 6px 10px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.18);
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+
+.puml-fence-toggle svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  flex: 0 0 auto;
 }
 
 .puml-fence-toggle:hover,
 .puml-fence-toggle:focus-visible {
   border-color: var(--accent);
+  background: color-mix(in srgb, var(--bg-elev) 78%, var(--accent));
   outline: none;
+}
+
+.puml-fence-toggle:hover {
+  transform: translateY(-1px);
+}
+
+.puml-fence-toggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line-strong));
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-elev));
+}
+
+.puml-fence-bubble {
+  white-space: nowrap;
 }
 
 .puml-fence-body {

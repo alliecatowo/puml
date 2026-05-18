@@ -12,6 +12,7 @@ const publicRoot = join(siteRoot, 'public');
 const markdownFencePagePath = join(publicRoot, 'guide', 'markdown-fences', 'index.html');
 const statePagePath = join(publicRoot, 'guide', 'state', 'index.html');
 const scriptPath = join(publicRoot, 'js', 'inline-fence-preview.js');
+const stylesheetPath = join(publicRoot, 'style.css');
 const wasmJsPath = join(publicRoot, 'wasm', 'puml_wasm.js');
 const wasmPath = join(publicRoot, 'wasm', 'puml_wasm_bg.wasm');
 const reportPath = resolve('target', 'site-smoke', 'inline-fence-preview.json');
@@ -72,6 +73,12 @@ function assertScriptContains(script, needle, message) {
   assert(script.includes(needle), message, `script contains ${needle}`, { needle });
 }
 
+function assertStylesheetContains(stylesheet, needle, message) {
+  const compactStylesheet = stylesheet.replace(/\s+/g, '');
+  const compactNeedle = needle.replace(/\s+/g, '');
+  assert(compactStylesheet.includes(compactNeedle), message, `stylesheet contains ${needle}`, { needle });
+}
+
 const markdownFencePage = readBuiltPage(markdownFencePagePath, 'Markdown fences');
 const statePage = readBuiltPage(statePagePath, 'State guide');
 
@@ -82,6 +89,13 @@ assert(
   { scriptPath },
 );
 const script = readFileSync(scriptPath, 'utf8');
+assert(
+  existsSync(stylesheetPath),
+  `missing site stylesheet: ${stylesheetPath}`,
+  'site stylesheet exists',
+  { stylesheetPath },
+);
+const stylesheet = readFileSync(stylesheetPath, 'utf8');
 
 for (const [label, page] of [
   ['Markdown fences', markdownFencePage],
@@ -121,13 +135,31 @@ for (const lang of ['puml', 'plantuml', 'picouml']) {
 
 for (const [name, needle] of [
   ['marks hydrated wrappers', 'data-puml-fence-preview'],
-  ['creates toggle buttons', 'puml-fence-toggle'],
+  ['creates compact graph bubble buttons', 'puml-fence-bubble'],
+  ['shows fence language labels', 'puml-fence-lang'],
   ['initializes collapsed state', "aria-expanded', 'false'"],
+  ['initializes unpressed toggle state', "aria-pressed', 'false'"],
+  ['marks loading render state', "button.dataset.renderState = 'loading'"],
+  ['marks ready render state', "button.dataset.renderState = 'ready'"],
+  ['marks failed render state', "button.dataset.renderState = 'error'"],
   ['links toggles to panels', 'aria-controls'],
   ['calls the frontend-aware WASM renderer', 'getEngine().render(source, { frontend: lang })'],
   ['inserts rendered SVG pages', 'renderSvgs(panel, result.svgs)'],
 ]) {
   assertScriptContains(script, needle, `hydrator is missing expected behavior: ${name}`);
+}
+
+for (const [name, needle] of [
+  ['styles graph bubble', '.puml-fence-bubble'],
+  ['keeps graph button compact', 'white-space: nowrap'],
+  ['lays out open preview beside source on desktop', 'grid-template-columns: minmax(0, 1fr) minmax(300px, .92fr)'],
+  ['stacks preview below source on smaller screens', '.puml-fence-preview.is-open .puml-fence-body { grid-template-columns: 1fr'],
+]) {
+  assertStylesheetContains(
+    stylesheet,
+    needle,
+    `stylesheet is missing expected inline graph preview behavior: ${name}`,
+  );
 }
 
 if (requireWasm) {
