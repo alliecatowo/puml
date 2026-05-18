@@ -38,8 +38,39 @@ enum BlockKind {
     Chart,
 }
 
-fn parse_start_block_kind(line: &str) -> Option<BlockKind> {
-    parse_block_marker_kind(line, true)
+/// Like `parse_block_marker_kind`, but also returns the trimmed text that
+/// follows the `@startXxx` keyword on the same line (the "qualifier").
+/// For example, `@startchart area` returns `(Chart, "area")`.
+fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)> {
+    let lower = line.to_ascii_lowercase();
+    let markers: &[(&str, BlockKind)] = &[
+        ("@startmindmap", BlockKind::MindMap),
+        ("@startchronology", BlockKind::Chronology),
+        ("@startjson", BlockKind::Json),
+        ("@startyaml", BlockKind::Yaml),
+        ("@startnwdiag", BlockKind::Nwdiag),
+        ("@startarchimate", BlockKind::Archimate),
+        ("@startregex", BlockKind::Regex),
+        ("@startebnf", BlockKind::Ebnf),
+        ("@startlatex", BlockKind::Math),
+        ("@startmath", BlockKind::Math),
+        ("@startditaa", BlockKind::Ditaa),
+        ("@startchart", BlockKind::Chart),
+        ("@startsdl", BlockKind::Sdl),
+        ("@startgantt", BlockKind::Gantt),
+        ("@startwbs", BlockKind::Wbs),
+        ("@startsalt", BlockKind::Salt),
+        ("@startuml", BlockKind::Uml),
+    ];
+    for (marker, kind) in markers {
+        if lower.starts_with(marker) {
+            let rest = &line[marker.len()..];
+            if rest.is_empty() || rest.starts_with(char::is_whitespace) {
+                return Some((*kind, rest.trim()));
+            }
+        }
+    }
+    None
 }
 
 fn parse_end_block_kind(line: &str) -> Option<BlockKind> {

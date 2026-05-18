@@ -53,7 +53,7 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
-        if let Some(start_kind) = parse_start_block_kind(line) {
+        if let Some((start_kind, qualifier)) = parse_start_block_kind_with_qualifier(line) {
             if in_block {
                 return Err(Diagnostic::error(
                     "unmatched @startuml/@enduml boundary: found new @start marker before closing previous block",
@@ -65,6 +65,17 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             block_start_span = Some(span);
             if let Some(candidate) = start_block_family(start_kind) {
                 detected_kind = Some(select_diagram_kind(detected_kind, candidate, span)?);
+            }
+            // For raw-body blocks (chart, regex, ebnf, …) emit any inline qualifier
+            // after @startXxx as a synthetic first body line so the normalizer can
+            // use it (e.g. `@startchart area` → subtype "area").
+            if !qualifier.is_empty()
+                && (is_raw_body_block(start_kind) || block_kind_is_raw_body(start_kind))
+            {
+                statements.push(Statement {
+                    span,
+                    kind: StatementKind::RawBody(qualifier.to_string()),
+                });
             }
             i += 1;
             continue;

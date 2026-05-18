@@ -94,6 +94,12 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
         ChartSubtype::Line => {
             render_chart_line(&mut out, document, &series, &categories, plot, style)
         }
+        ChartSubtype::Area => {
+            render_chart_area(&mut out, document, &series, &categories, plot, style)
+        }
+        ChartSubtype::Scatter => {
+            render_chart_scatter(&mut out, document, &series, &categories, plot, style)
+        }
         ChartSubtype::Pie => {
             let points = effective_chart_points(document, &series, &categories);
             render_chart_pie(
@@ -260,6 +266,110 @@ fn render_chart_line(
             points,
             escape_text(&color)
         ));
+    }
+}
+
+fn render_chart_area(
+    out: &mut String,
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+    categories: &[String],
+    plot: ChartPlotArea,
+    style: &crate::theme::ChartStyle,
+) {
+    render_chart_axes(out, document, categories, plot, style);
+    if series.is_empty() || categories.is_empty() {
+        return;
+    }
+    let (min_value, max_value) = chart_value_range(document, series);
+    let count = categories.len() as i32;
+    let step = ((plot.right - plot.left) as f64) / ((count.max(2) - 1) as f64).max(1.0);
+    for (series_idx, item) in series.iter().enumerate() {
+        let color = chart_series_color(document, item, series_idx, style.line_color.as_str());
+        let mut line_points = String::new();
+        let mut fill_points = format!("{},{} ", plot.left, plot.bottom);
+        for (idx, category) in categories.iter().enumerate() {
+            let value = item.values.get(idx).copied().unwrap_or(0.0);
+            let px = plot.left + ((idx as f64) * step) as i32;
+            let py = chart_y_for_value(value, min_value, max_value, plot);
+            if !line_points.is_empty() {
+                line_points.push(' ');
+            }
+            line_points.push_str(&format!("{px},{py}"));
+            fill_points.push_str(&format!("{px},{py} "));
+            if series_idx == 0 {
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                    escape_text(&style.font_color),
+                    escape_text(category),
+                    tx = px,
+                    ty = plot.bottom + 16
+                ));
+            }
+        }
+        fill_points.push_str(&format!("{},{}", plot.right, plot.bottom));
+        // Filled area polygon with 20% opacity
+        out.push_str(&format!(
+            "<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"0.2\" stroke=\"none\"/>",
+            fill_points,
+            escape_text(&color)
+        ));
+        // Line on top
+        out.push_str(&format!(
+            "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            line_points,
+            escape_text(&color)
+        ));
+        // Dots
+        for (idx, _category) in categories.iter().enumerate() {
+            let value = item.values.get(idx).copied().unwrap_or(0.0);
+            let px = plot.left + ((idx as f64) * step) as i32;
+            let py = chart_y_for_value(value, min_value, max_value, plot);
+            out.push_str(&format!(
+                "<circle class=\"chart-point\" data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                format_chart_value(value),
+                escape_text(&color)
+            ));
+        }
+    }
+}
+
+fn render_chart_scatter(
+    out: &mut String,
+    document: &ChartDocument,
+    series: &[crate::model::ChartSeries],
+    categories: &[String],
+    plot: ChartPlotArea,
+    style: &crate::theme::ChartStyle,
+) {
+    render_chart_axes(out, document, categories, plot, style);
+    if series.is_empty() || categories.is_empty() {
+        return;
+    }
+    let (min_value, max_value) = chart_value_range(document, series);
+    let count = categories.len() as i32;
+    let step = ((plot.right - plot.left) as f64) / ((count.max(2) - 1) as f64).max(1.0);
+    for (series_idx, item) in series.iter().enumerate() {
+        let color = chart_series_color(document, item, series_idx, style.series_color.as_str());
+        for (idx, category) in categories.iter().enumerate() {
+            let value = item.values.get(idx).copied().unwrap_or(0.0);
+            let px = plot.left + ((idx as f64) * step) as i32;
+            let py = chart_y_for_value(value, min_value, max_value, plot);
+            out.push_str(&format!(
+                "<circle class=\"chart-point\" data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"4\" fill=\"{}\" stroke=\"white\" stroke-width=\"1.5\"/>",
+                format_chart_value(value),
+                escape_text(&color)
+            ));
+            if series_idx == 0 {
+                out.push_str(&format!(
+                    "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                    escape_text(&style.font_color),
+                    escape_text(category),
+                    tx = px,
+                    ty = plot.bottom + 16
+                ));
+            }
+        }
     }
 }
 
@@ -901,6 +1011,8 @@ fn chart_subtype_name(subtype: ChartSubtype) -> &'static str {
         ChartSubtype::Bar => "bar",
         ChartSubtype::Line => "line",
         ChartSubtype::Pie => "pie",
+        ChartSubtype::Area => "area",
+        ChartSubtype::Scatter => "scatter",
     }
 }
 

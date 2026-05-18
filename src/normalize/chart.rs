@@ -74,6 +74,14 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
                     subtype = ChartSubtype::Pie;
                     continue;
                 }
+                "area" | "area chart" | "areachart" => {
+                    subtype = ChartSubtype::Area;
+                    continue;
+                }
+                "scatter" | "scatter chart" | "scatterchart" => {
+                    subtype = ChartSubtype::Scatter;
+                    continue;
+                }
                 _ => {
                     // not a subtype keyword; fall through to data parsing.
                 }

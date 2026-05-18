@@ -364,6 +364,8 @@ pub enum ChartSubtype {
     Bar,
     Line,
     Pie,
+    Area,
+    Scatter,
 }
 
 #[derive(Debug, Clone)]
