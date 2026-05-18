@@ -1903,51 +1903,308 @@ pub fn render_deployment_svg(doc: &FamilyDocument) -> String {
 }
 
 fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
+    // Do NOT emit a visible "component/deployment diagram" label — it was leaking
+    // as unwanted canvas text (fix #490, #494).
+    let _ = family;
+
     // Extract component style (use defaults if not present)
     let comp_style = match &doc.family_style {
         Some(FamilyStyle::Component(s)) => s.clone(),
         _ => ComponentStyle::default(),
     };
 
-    let cols = 3i32;
-    let cell_w = 200i32;
-    let cell_h = 80i32;
-    let margin_x = 40i32;
-    let margin_y = 60i32;
-    let gap = 40i32;
-    let n = doc.nodes.len() as i32;
-    let rows = (n + cols - 1) / cols;
-    let group_frames = collect_render_group_frames(&doc.groups);
-    let max_group_depth = group_frames
+    // ─────────────────────────────────────────────────────────────────────────
+    // Layout constants
+    // ─────────────────────────────────────────────────────────────────────────
+    let cell_w = 200i32;   // component box width
+    let cell_h = 80i32;    // component box height
+    let inner_cols = 3i32; // columns inside a package
+    let inner_gap = 40i32; // gap between nodes inside a package
+    let pkg_pad = 24i32;   // padding inside package frame
+    let pkg_tab = 28i32;   // height of the package label tab at top
+    let canvas_margin = 40i32;
+    let pkg_gap = 32i32;   // gap between packages on the canvas
+    let outer_cols = 2i32; // package layout columns (1 if few packages)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1: Build group membership maps
+    // ─────────────────────────────────────────────────────────────────────────
+    // Build a map: node_id -> first group label/scope that contains it
+    let mut node_to_group: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
+
+    // Collect groups from FamilyDocument directly (not via collect_render_group_frames
+    // which deduplicates; we want direct per-group ordering).
+    // Use doc.groups as the authoritative list; filter to depth-0 package groups.
+    let pkg_groups: Vec<&crate::model::FamilyGroup> = doc.groups.iter().collect();
+
+    for (g_idx, group) in pkg_groups.iter().enumerate() {
+        for member_id in &group.member_ids {
+            node_to_group.entry(member_id.clone()).or_insert(g_idx);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1b: Lay out each group's children in a local sub-grid
+    // ─────────────────────────────────────────────────────────────────────────
+    struct PackageLayout {
+        group_idx: usize,
+        /// Display label: "kind label" (e.g. "package Frontends")
+        label: String,
+        /// Raw scope key for data-uml-group attribute (e.g. "Frontends")
+        scope: String,
+        kind: String,
+        // child node IDs in document order
+        node_ids: Vec<String>,
+        // local (x,y) for each child within the package interior (0-based)
+        local_positions: Vec<(i32, i32)>,
+        // total interior size (before pkg_pad is applied)
+        inner_w: i32,
+        inner_h: i32,
+        // absolute canvas position of the package top-left (set later)
+        abs_x: i32,
+        abs_y: i32,
+    }
+
+    // Order packages by their first occurrence in doc.groups
+    let mut pkg_layouts: Vec<PackageLayout> = Vec::new();
+    let mut seen_groups: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+
+    for (g_idx, group) in pkg_groups.iter().enumerate() {
+        if seen_groups.contains(&g_idx) {
+            continue;
+        }
+        seen_groups.insert(g_idx);
+
+        // Collect nodes that belong to this group, in document order
+        let mut node_ids_in_group: Vec<String> = Vec::new();
+        for node in &doc.nodes {
+            let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+            if node_to_group.get(&key) == Some(&g_idx)
+                || node_to_group.get(&node.name) == Some(&g_idx)
+            {
+                if !node_ids_in_group.contains(&key) {
+                    node_ids_in_group.push(key);
+                }
+            }
+        }
+
+        if node_ids_in_group.is_empty() {
+            // No known nodes — still create a placeholder package
+            // (the member_ids from the group may not have been seen as nodes yet)
+            for mid in &group.member_ids {
+                if !node_ids_in_group.contains(mid) {
+                    node_ids_in_group.push(mid.clone());
+                }
+            }
+        }
+
+        // Compute local positions in a sub-grid
+        let n = node_ids_in_group.len() as i32;
+        let cols = inner_cols.min(n.max(1));
+        let local_positions: Vec<(i32, i32)> = node_ids_in_group
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let col = (i as i32) % cols;
+                let row = (i as i32) / cols;
+                (col * (cell_w + inner_gap), row * (cell_h + inner_gap))
+            })
+            .collect();
+
+        let rows = (n + cols - 1) / cols;
+        let inner_w = cols * cell_w + (cols - 1).max(0) * inner_gap;
+        let inner_h = rows * (cell_h + inner_gap) - inner_gap.min(if rows > 0 { inner_gap } else { 0 });
+        let inner_h = inner_h.max(cell_h);
+
+        // Build display label matching the old RenderGroupFrame::display_label() format:
+        // "kind label" if label is non-empty, else just "kind".
+        let raw_label = group.label.clone().unwrap_or_default();
+        let scope = if raw_label.is_empty() {
+            group.kind.clone()
+        } else {
+            raw_label.clone()
+        };
+        let label = if raw_label.is_empty() {
+            group.kind.clone()
+        } else {
+            format!("{} {}", group.kind, raw_label)
+        };
+
+        pkg_layouts.push(PackageLayout {
+            group_idx: g_idx,
+            label,
+            scope,
+            kind: group.kind.clone(),
+            node_ids: node_ids_in_group,
+            local_positions,
+            inner_w,
+            inner_h,
+            abs_x: 0,
+            abs_y: 0,
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1c: Place packages on the canvas
+    // ─────────────────────────────────────────────────────────────────────────
+    // pkg frame total size = inner + 2*pkg_pad wide, pkg_tab + pkg_pad + inner_h + pkg_pad tall
+    let pkg_frame_widths: Vec<i32> = pkg_layouts
         .iter()
-        .map(|frame| frame.depth)
-        .max()
-        .unwrap_or(0);
+        .map(|p| p.inner_w + pkg_pad * 2)
+        .collect();
+    let pkg_frame_heights: Vec<i32> = pkg_layouts
+        .iter()
+        .map(|p| p.inner_h + pkg_pad * 2 + pkg_tab)
+        .collect();
+
     let title_lines = doc
         .title
         .as_deref()
         .map(|v| v.lines().count() as i32)
         .unwrap_or(0);
-    let header_h = 40 + title_lines * 22;
-    let width = (margin_x * 2) + (cols * cell_w) + ((cols - 1).max(0) * gap);
-    let projection_extra_height = family_projection_extra_height(&doc.json_projections);
-    let height = header_h
-        + margin_y
-        + (rows.max(1) * cell_h)
-        + ((rows - 1).max(0) * gap)
-        + 60
-        + (doc.groups.len() as i32 * 12)
-        + ((max_group_depth as i32) * 24)
-        + projection_extra_height;
+    let header_h = if title_lines > 0 { 16 + title_lines * 22 } else { 0 };
 
-    // Position lookup by name and alias.
+    // Choose column count for packages on the canvas
+    let n_pkgs = pkg_layouts.len() as i32;
+    let pkg_cols = if n_pkgs <= 1 { 1 } else { outer_cols };
+
+    // Compute per-column widths and per-row heights
+    let col_count = pkg_cols as usize;
+    let mut col_widths: Vec<i32> = vec![0i32; col_count];
+    let pkg_row_count = ((n_pkgs + pkg_cols - 1) / pkg_cols) as usize;
+    let mut row_heights: Vec<i32> = vec![0i32; pkg_row_count];
+
+    for (i, fw) in pkg_frame_widths.iter().enumerate() {
+        let col = i % col_count;
+        col_widths[col] = col_widths[col].max(*fw);
+    }
+    for (i, fh) in pkg_frame_heights.iter().enumerate() {
+        let row = i / col_count;
+        row_heights[row] = row_heights[row].max(*fh);
+    }
+
+    // Compute cumulative col/row offsets
+    let col_offsets: Vec<i32> = {
+        let mut offs = vec![0i32; col_count];
+        let mut x = canvas_margin;
+        for (i, w) in col_widths.iter().enumerate() {
+            offs[i] = x;
+            x += w + pkg_gap;
+        }
+        offs
+    };
+    let row_offsets: Vec<i32> = {
+        let mut offs = vec![0i32; pkg_row_count];
+        let mut y = canvas_margin + header_h;
+        for (i, h) in row_heights.iter().enumerate() {
+            offs[i] = y;
+            y += h + pkg_gap;
+        }
+        offs
+    };
+
+    // Assign absolute positions to packages
+    for (i, pkg) in pkg_layouts.iter_mut().enumerate() {
+        let col = i % col_count;
+        let row = i / col_count;
+        pkg.abs_x = col_offsets[col];
+        pkg.abs_y = row_offsets[row];
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1d: Build the position lookup (node_id -> absolute bounding box)
+    // ─────────────────────────────────────────────────────────────────────────
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
         std::collections::BTreeMap::new();
 
+    for pkg in &pkg_layouts {
+        // Package interior starts at (abs_x + pkg_pad, abs_y + pkg_tab + pkg_pad)
+        let base_x = pkg.abs_x + pkg_pad;
+        let base_y = pkg.abs_y + pkg_tab + pkg_pad;
+        for (node_id, &(lx, ly)) in pkg.node_ids.iter().zip(pkg.local_positions.iter()) {
+            let abs_nx = base_x + lx;
+            let abs_ny = base_y + ly;
+            positions.insert(node_id.clone(), (abs_nx, abs_ny, cell_w, cell_h));
+        }
+    }
+
+    // Also handle any nodes not in any group (ungrouped nodes fall back to flat grid)
+    let ungrouped: Vec<&crate::model::FamilyNode> = doc
+        .nodes
+        .iter()
+        .filter(|n| {
+            let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
+            !positions.contains_key(&key) && !positions.contains_key(&n.name)
+        })
+        .collect();
+
+    // Find a safe Y below all packages
+    let pkg_bottom = row_offsets
+        .last()
+        .copied()
+        .unwrap_or(canvas_margin + header_h)
+        + row_heights.last().copied().unwrap_or(0)
+        + pkg_gap;
+
+    for (idx, node) in ungrouped.iter().enumerate() {
+        let col = (idx as i32) % inner_cols;
+        let row = (idx as i32) / inner_cols;
+        let x = canvas_margin + col * (cell_w + inner_gap);
+        let y = pkg_bottom + row * (cell_h + inner_gap);
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        positions.insert(key, (x, y, cell_w, cell_h));
+        if let Some(alias) = &node.alias {
+            positions.insert(alias.clone(), (x, y, cell_w, cell_h));
+        }
+    }
+
+    // Also register name→position for nodes that have aliases
+    // (so relations using name still resolve)
+    for node in &doc.nodes {
+        if let Some(alias) = &node.alias {
+            if let Some(&pos) = positions.get(alias.as_str()) {
+                positions.entry(node.name.clone()).or_insert(pos);
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Compute SVG canvas size
+    // ─────────────────────────────────────────────────────────────────────────
+    let all_pkg_right = pkg_layouts
+        .iter()
+        .enumerate()
+        .map(|(i, pkg)| pkg.abs_x + pkg_frame_widths[i])
+        .max()
+        .unwrap_or(canvas_margin);
+    let all_pkg_bottom = pkg_layouts
+        .iter()
+        .enumerate()
+        .map(|(i, pkg)| pkg.abs_y + pkg_frame_heights[i])
+        .max()
+        .unwrap_or(canvas_margin + header_h);
+
+    // Ungrouped nodes bottom
+    let ungrouped_bottom = if ungrouped.is_empty() {
+        0
+    } else {
+        let ungrouped_rows = (ungrouped.len() as i32 + inner_cols - 1) / inner_cols;
+        pkg_bottom + ungrouped_rows * (cell_h + inner_gap)
+    };
+
+    let projection_extra_height = family_projection_extra_height(&doc.json_projections);
+    let svg_width = (all_pkg_right + canvas_margin).max(400);
+    let svg_height =
+        all_pkg_bottom.max(ungrouped_bottom) + canvas_margin + projection_extra_height;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Start SVG output
+    // ─────────────────────────────────────────────────────────────────────────
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        width, height, width, height
+        svg_width, svg_height, svg_width, svg_height
     ));
     out.push_str(&format!(
         "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
@@ -1955,77 +2212,153 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     ));
     render_relation_marker_defs(&mut out, &comp_style.arrow_color);
 
-    let mut y_cursor = 28;
+    // Title
     if let Some(title) = &doc.title {
+        let mut ty = canvas_margin;
         for line in title.lines() {
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"18\" font-weight=\"600\">{}</text>",
-                margin_x,
-                y_cursor,
-                escape_text(line)
+                canvas_margin, ty, escape_text(line)
             ));
-            y_cursor += 22;
-        }
-    }
-    // Do NOT emit a visible "component/deployment diagram" label — it was leaking
-    // as unwanted canvas text (fix #490, #494). Emit as hidden metadata only.
-    let _ = family; // family used for SVG data attribute below
-
-    for (idx, node) in doc.nodes.iter().enumerate() {
-        let col = (idx as i32) % cols;
-        let row = (idx as i32) / cols;
-        let x = margin_x + col * (cell_w + gap);
-        let y = header_h + margin_y + row * (cell_h + gap);
-        render_family_node_shape_styled(&mut out, node, x, y, cell_w, cell_h, &comp_style);
-        let id_name = node.name.clone();
-        let id_alias = node.alias.clone();
-        positions.insert(id_name, (x, y, cell_w, cell_h));
-        if let Some(alias) = id_alias {
-            positions.insert(alias, (x, y, cell_w, cell_h));
+            ty += 22;
         }
     }
 
-    for group in &group_frames {
-        let mut gx_min = i32::MAX;
-        let mut gy_min = i32::MAX;
-        let mut gx_max = i32::MIN;
-        let mut gy_max = i32::MIN;
-        let mut found_any = false;
-        for member_id in &group.member_ids {
-            if let Some((x, y, w, h)) = positions.get(member_id.as_str()) {
-                gx_min = gx_min.min(*x);
-                gy_min = gy_min.min(*y);
-                gx_max = gx_max.max(*x + *w);
-                gy_max = gy_max.max(*y + *h);
-                found_any = true;
-            }
-        }
-        if !found_any {
-            continue;
-        }
-        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
-        let pad = 14 + depth_outset;
-        let label_h = 20 + depth_outset;
-        let fx = gx_min - pad;
-        let fy = gy_min - pad - label_h;
-        let fw = gx_max - gx_min + pad * 2;
-        let fh = gy_max - gy_min + pad * 2 + label_h;
-        let label = group.display_label();
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1e: Render package frames (BEFORE nodes, so nodes sit on top)
+    // ─────────────────────────────────────────────────────────────────────────
+    for (i, pkg) in pkg_layouts.iter().enumerate() {
+        let fw = pkg_frame_widths[i];
+        let fh = pkg_frame_heights[i];
+        let fx = pkg.abs_x;
+        let fy = pkg.abs_y;
+
+        // Tab rectangle (label background) — use scope for data-uml-group
+        let tab_w = ((pkg.label.len() as i32) * 8 + 16).max(60).min(fw);
         out.push_str(&format!(
-            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"6 4\"/>",
-            escape_text(&group.scope),
+            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"#f8faff\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            escape_text(&pkg.scope),
             comp_style.border_color
         ));
+        // Tab label background (small header rectangle at top-left)
         out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
-            fx + 8,
-            fy + 14,
+            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            pkg_tab,
             comp_style.border_color,
-            escape_text(&label)
+            comp_style.border_color
+        ));
+        // Flatten bottom corners of tab (cover the rounded bottom)
+        out.push_str(&format!(
+            "<rect x=\"{fx}\" y=\"{}\" width=\"{tab_w}\" height=\"8\" fill=\"{}\" stroke=\"none\"/>",
+            fy + pkg_tab - 8,
+            comp_style.border_color
+        ));
+        // Package label text in the tab (display label includes kind prefix)
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#ffffff\">{}</text>",
+            fx + 8,
+            fy + pkg_tab - 8,
+            escape_text(&pkg.label)
+        ));
+        // Horizontal separator line between tab and content area
+        out.push_str(&format!(
+            "<line x1=\"{fx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+            fy + pkg_tab,
+            fx + fw,
+            fy + pkg_tab,
+            comp_style.border_color
         ));
     }
 
-    // Draw relations with shared relation-style semantics.
+    // ── Nested sub-group frames (from collect_render_group_frames, depth > 0) ──
+    // These handle nested packages like `node Rack { ... }` inside `package Edge { ... }`.
+    // We draw them after top-level packages (so they appear inside), before nodes.
+    {
+        let all_group_frames = collect_render_group_frames(&doc.groups);
+        let max_group_depth = all_group_frames.iter().map(|f| f.depth).max().unwrap_or(0);
+        for frame in &all_group_frames {
+            if frame.depth == 0 {
+                // Top-level frames are already drawn above
+                continue;
+            }
+            // Compute bounding box of all member nodes in this sub-frame
+            let mut gx_min = i32::MAX;
+            let mut gy_min = i32::MAX;
+            let mut gx_max = i32::MIN;
+            let mut gy_max = i32::MIN;
+            let mut found_any = false;
+            for mid in &frame.member_ids {
+                // Try direct lookup, or strip namespace prefix
+                let lookup_key = mid
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or(mid.as_str())
+                    .to_string();
+                let found = positions
+                    .get(mid.as_str())
+                    .or_else(|| positions.get(lookup_key.as_str()));
+                if let Some(&(bx, by, bw, bh)) = found {
+                    gx_min = gx_min.min(bx);
+                    gy_min = gy_min.min(by);
+                    gx_max = gx_max.max(bx + bw);
+                    gy_max = gy_max.max(by + bh);
+                    found_any = true;
+                }
+            }
+            if !found_any {
+                continue;
+            }
+            let depth_outset = (max_group_depth.saturating_sub(frame.depth) as i32) * 8;
+            let pad = 10 + depth_outset;
+            let label_h = 20 + depth_outset;
+            let fx = gx_min - pad;
+            let fy = gy_min - pad - label_h;
+            let fw = gx_max - gx_min + pad * 2;
+            let fh = gy_max - gy_min + pad * 2 + label_h;
+            let sub_label = frame.display_label();
+            out.push_str(&format!(
+                "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>",
+                escape_text(&frame.scope),
+                comp_style.border_color
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                fx + 6,
+                fy + 13,
+                comp_style.border_color,
+                escape_text(&sub_label)
+            ));
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1f: Render nodes
+    // ─────────────────────────────────────────────────────────────────────────
+    for node in &doc.nodes {
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        let Some(&(nx, ny, nw, nh)) = positions.get(&key) else {
+            continue;
+        };
+        render_family_node_shape_styled(&mut out, node, nx, ny, nw, nh, &comp_style);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Collect all obstacle boxes for collision detection (all node boxes)
+    // ─────────────────────────────────────────────────────────────────────────
+    let all_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 2: Draw relations with L-shape routing on collision
+    // Phase 3: Collect edge label positions, then de-collide at the end
+    // ─────────────────────────────────────────────────────────────────────────
+    struct PendingLabel {
+        x: i32,
+        y: i32,
+        text: String,
+        color: String,
+    }
+    let mut pending_labels: Vec<PendingLabel> = Vec::new();
+
     for (rel_idx, rel) in doc.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
             normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
@@ -2034,6 +2367,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let (Some(&(fx, fy, fw, fh)), Some(&(tx, ty, tw, th))) = (from_box, to_box) else {
             continue;
         };
+
+        // Compute anchor points (edge of box, not center)
         let (x1, y1, x2, y2) = if rel.direction.is_some() {
             compute_edge_anchors_for_direction(
                 (fx, fy, fw, fh),
@@ -2049,6 +2384,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
             (x1, y1, x2, y2)
         };
+
         let style = arrow_style(&normalized_arrow);
         let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
         let marker_prefix = if rel.line_color.is_some() && relation_color != comp_style.arrow_color
@@ -2060,12 +2396,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             String::new()
         };
         let stroke_width = rel.thickness.unwrap_or(2).clamp(1, 8);
-        let dash = if style.dashed || rel.dashed {
+        let dash_attr = if style.dashed || rel.dashed {
             " stroke-dasharray=\"5 3\""
         } else {
             ""
         };
-        let visibility = if rel.hidden {
+        let visibility_attr = if rel.hidden {
             " visibility=\"hidden\""
         } else {
             ""
@@ -2080,46 +2416,139 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let direction_attr = rel
             .direction
             .as_deref()
-            .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
+            .map(|d| format!(" data-uml-direction=\"{}\"", escape_text(d)))
             .unwrap_or_default();
-        let mut style_tokens = Vec::new();
-        if rel.line_color.is_some() {
-            style_tokens.push(format!("color:{relation_color}"));
-        }
-        if style.dashed || rel.dashed {
-            style_tokens.push("dashed".to_string());
-        }
-        if rel.hidden {
-            style_tokens.push("hidden".to_string());
-        }
-        if rel.thickness.is_some() {
-            style_tokens.push(format!("thickness:{stroke_width}"));
-        }
-        let style_attr = if style_tokens.is_empty() {
-            String::new()
-        } else {
-            format!(
-                " data-uml-relation-style=\"{}\"",
-                escape_text(&style_tokens.join(" "))
-            )
+
+        // Build data-uml-relation-style metadata (same as old renderer)
+        let style_attr = {
+            let mut tokens: Vec<String> = Vec::new();
+            if rel.line_color.is_some() {
+                tokens.push(format!("color:{relation_color}"));
+            }
+            if style.dashed || rel.dashed {
+                tokens.push("dashed".to_string());
+            }
+            if rel.hidden {
+                tokens.push("hidden".to_string());
+            }
+            if rel.thickness.is_some() {
+                tokens.push(format!("thickness:{stroke_width}"));
+            }
+            if tokens.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " data-uml-relation-style=\"{}\"",
+                    escape_text(&tokens.join(" "))
+                )
+            }
         };
-        out.push_str(&format!(
-            "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-            escape_text(&from_name),
-            escape_text(&to_name),
-            escape_text(&normalized_arrow),
-            x1,
-            y1,
-            x2,
-            y2,
-            relation_color,
-            stroke_width,
-            dash,
-            visibility,
-            direction_attr,
-            style_attr,
-            markers
-        ));
+
+        // ── Phase 2: Collision check & L-shape routing ──────────────────────
+        // Skip L-routing when a direction is explicitly specified (directed
+        // relations must stay straight to preserve test-verified geometry).
+        // Also skip when the relation is hidden (direction doesn't matter).
+        let line_collides = if rel.direction.is_some() || rel.hidden {
+            false
+        } else {
+            // Check if the direct line (x1,y1)→(x2,y2) passes through any obstacle
+            // box that is not the source or destination.
+            all_boxes.iter().any(|&(bx, by, bw, bh)| {
+                // Skip source and target boxes
+                if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th) {
+                    return false;
+                }
+                segment_intersects_rect(x1, y1, x2, y2, bx, by, bw, bh)
+            })
+        };
+
+        // Label midpoint
+        let label_color = "#1e293b";
+        let (label_mx, label_my);
+
+        if !line_collides {
+            // Straight line
+            out.push_str(&format!(
+                "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                escape_text(&from_name),
+                escape_text(&to_name),
+                escape_text(&normalized_arrow),
+                x1, y1, x2, y2,
+                relation_color, stroke_width,
+                dash_attr, visibility_attr, direction_attr, style_attr, markers
+            ));
+            label_mx = (x1 + x2) / 2;
+            label_my = (y1 + y2) / 2 - 12;
+        } else {
+            // L-shape routing: pick elbow point
+            // Strategy: if source and target are in different horizontal bands,
+            // route H→V→H (horizontal first); else V→H→V.
+            let src_cx = fx + fw / 2;
+            let tgt_cx = tx + tw / 2;
+            let src_cy = fy + fh / 2;
+            let tgt_cy = ty + th / 2;
+            let dx_abs = (tgt_cx - src_cx).abs();
+            let dy_abs = (tgt_cy - src_cy).abs();
+
+            // Elbow: go to mid-x first, then down/up
+            let elbow_x = (x1 + x2) / 2;
+            let elbow_y_a = y1; // horizontal first, then vertical
+            let elbow_y_b = y2;
+            let elbow_x_a = x1; // vertical first, then horizontal
+            let elbow_x_b = x2;
+
+            // Try H→V (go horizontal to mid-x, then vertical)
+            let hv_mid_x = elbow_x;
+            let hv_pts = [(x1, y1), (hv_mid_x, y1), (hv_mid_x, y2), (x2, y2)];
+
+            // Try V→H (go vertical to mid-y, then horizontal)
+            let vh_mid_y = (y1 + y2) / 2;
+            let vh_pts = [(x1, y1), (x1, vh_mid_y), (x2, vh_mid_y), (x2, y2)];
+
+            // Pick the route with fewer collisions
+            let hv_collisions = count_polyline_collisions(&hv_pts, &all_boxes, (fx, fy, fw, fh), (tx, ty, tw, th));
+            let vh_collisions = count_polyline_collisions(&vh_pts, &all_boxes, (fx, fy, fw, fh), (tx, ty, tw, th));
+
+            let pts = if dx_abs >= dy_abs {
+                // Mostly horizontal: prefer V→H
+                if vh_collisions <= hv_collisions { &vh_pts[..] } else { &hv_pts[..] }
+            } else {
+                // Mostly vertical: prefer H→V
+                if hv_collisions <= vh_collisions { &hv_pts[..] } else { &vh_pts[..] }
+            };
+
+            let pts_str: String = pts
+                .iter()
+                .map(|(px, py)| format!("{},{}", px, py))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            out.push_str(&format!(
+                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                escape_text(&from_name),
+                escape_text(&to_name),
+                escape_text(&normalized_arrow),
+                pts_str,
+                relation_color, stroke_width,
+                dash_attr, visibility_attr, direction_attr, markers
+            ));
+
+            // Label at longest segment midpoint
+            let longest_seg = pts.windows(2).max_by_key(|seg| {
+                let (ax, ay) = seg[0];
+                let (bx, by_) = seg[1];
+                ((bx - ax).pow(2) + (by_ - ay).pow(2))
+            });
+            let (lmx, lmy) = match longest_seg {
+                Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
+                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+            };
+            label_mx = lmx;
+            label_my = lmy;
+
+            let _ = (elbow_y_a, elbow_y_b, elbow_x_a, elbow_x_b); // suppress warnings
+        }
+
         if rel.left_lollipop {
             render_lollipop_endpoint(&mut out, x1, y1, relation_color);
         }
@@ -2127,81 +2556,158 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             render_lollipop_endpoint(&mut out, x2, y2, relation_color);
         }
         if let Some(stereotype) = &rel.stereotype {
-            let mx = (x1 + x2) / 2;
-            let my = (y1 + y2) / 2 - if rel.label.is_some() { 20 } else { 6 };
+            let sx = (x1 + x2) / 2;
+            let sy = (y1 + y2) / 2 - if rel.label.is_some() { 20 } else { 6 };
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">&lt;&lt;{}&gt;&gt;</text>",
-                mx,
-                my,
-                escape_text(stereotype)
+                sx, sy, escape_text(stereotype)
             ));
         }
         if let Some(label) = &rel.label {
-            let label = usecase_dependency_label(Some(label)).unwrap_or(label);
-            // For mostly-horizontal lines, place the label above the midpoint.
-            // For mostly-vertical lines, offset right and up to clear the arrowhead.
-            // Clearance: -12px above midpoint for both orientations (fix #462, #477).
-            let dx_abs = (x2 - x1).abs();
-            let dy_abs = (y2 - y1).abs();
-            let (mx, my) = if dy_abs > dx_abs {
-                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 12)
-            } else {
-                ((x1 + x2) / 2, (y1 + y2) / 2 - 16)
-            };
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">{}</text>",
-                mx,
-                my,
-                escape_text(label)
-            ));
+            let label_text = usecase_dependency_label(Some(label)).unwrap_or(label);
+            pending_labels.push(PendingLabel {
+                x: label_mx,
+                y: label_my,
+                text: label_text.to_string(),
+                color: label_color.to_string(),
+            });
         }
         if let Some(left) = &rel.left_cardinality {
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x1 - 4,
-                y1 - 6,
-                escape_text(left)
+                x1 - 4, y1 - 6, escape_text(left)
             ));
         }
         if let Some(right) = &rel.right_cardinality {
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x2 + 4,
-                y2 - 6,
-                escape_text(right)
+                x2 + 4, y2 - 6, escape_text(right)
             ));
         }
         if let Some(left_role) = &rel.left_role {
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x1 - 4,
-                y1 + 12,
-                escape_text(left_role)
+                x1 - 4, y1 + 12, escape_text(left_role)
             ));
         }
         if let Some(right_role) = &rel.right_role {
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x2 + 4,
-                y2 + 12,
-                escape_text(right_role)
+                x2 + 4, y2 + 12, escape_text(right_role)
             ));
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 3: De-collide edge labels
+    // ─────────────────────────────────────────────────────────────────────────
+    // Group labels by proximity (within 20px Manhattan distance) and fan out
+    let label_stride = 14i32;
+    let proximity = 20i32;
+
+    // For each label, assign it a vertical offset based on how many prior labels
+    // are "nearby".
+    let mut adjusted_labels: Vec<(i32, i32, String, String)> = Vec::new();
+    for label in &pending_labels {
+        // Count how many already-placed labels are within proximity
+        let nearby_count = adjusted_labels
+            .iter()
+            .filter(|(ax, ay, _, _)| {
+                (ax - label.x).abs() + (ay - label.y).abs() < proximity
+            })
+            .count() as i32;
+        let dy_offset = nearby_count * label_stride;
+        adjusted_labels.push((label.x, label.y + dy_offset, label.text.clone(), label.color.clone()));
+    }
+
+    // Emit the final labels
+    for (lx, ly, text, color) in &adjusted_labels {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            lx, ly, escape_text(color), escape_text(text)
+        ));
+    }
+
+    // JSON projections
     if !doc.json_projections.is_empty() {
-        let proj_y = header_h
-            + margin_y
-            + (rows.max(1) * cell_h)
-            + ((rows - 1).max(0) * gap)
-            + 24
-            + (doc.groups.len() as i32 * 12)
-            + ((max_group_depth as i32) * 24);
-        render_family_projection_boxes(&mut out, &doc.json_projections, margin_x, proj_y, 340);
+        let proj_y = all_pkg_bottom.max(ungrouped_bottom) + 16;
+        render_family_projection_boxes(&mut out, &doc.json_projections, canvas_margin, proj_y, 340);
     }
 
     out.push_str("</svg>");
     out
+}
+
+/// Check if a line segment (x1,y1)→(x2,y2) intersects a rectangle (bx,by,bw,bh).
+/// Uses the parametric Liang–Barsky / separating axis test.
+fn segment_intersects_rect(x1: i32, y1: i32, x2: i32, y2: i32, bx: i32, by: i32, bw: i32, bh: i32) -> bool {
+    // Grow the box by 4px to give a small margin
+    let margin = 4;
+    let rx0 = bx - margin;
+    let ry0 = by - margin;
+    let rx1 = bx + bw + margin;
+    let ry1 = by + bh + margin;
+
+    // Parametric: P(t) = (x1 + t*dx, y1 + t*dy)
+    let dx = (x2 - x1) as f64;
+    let dy = (y2 - y1) as f64;
+    let mut tmin = 0.0f64;
+    let mut tmax = 1.0f64;
+
+    // Clip against left/right
+    if dx.abs() < 1e-9 {
+        // Vertical segment
+        if (x1 < rx0) || (x1 > rx1) {
+            return false;
+        }
+    } else {
+        let t1 = (rx0 as f64 - x1 as f64) / dx;
+        let t2 = (rx1 as f64 - x1 as f64) / dx;
+        let (t_lo, t_hi) = if t1 < t2 { (t1, t2) } else { (t2, t1) };
+        tmin = tmin.max(t_lo);
+        tmax = tmax.min(t_hi);
+        if tmin > tmax { return false; }
+    }
+
+    // Clip against top/bottom
+    if dy.abs() < 1e-9 {
+        if (y1 < ry0) || (y1 > ry1) {
+            return false;
+        }
+    } else {
+        let t1 = (ry0 as f64 - y1 as f64) / dy;
+        let t2 = (ry1 as f64 - y1 as f64) / dy;
+        let (t_lo, t_hi) = if t1 < t2 { (t1, t2) } else { (t2, t1) };
+        tmin = tmin.max(t_lo);
+        tmax = tmax.min(t_hi);
+        if tmin > tmax { return false; }
+    }
+
+    // The intersection is within the segment if tmin ≤ tmax and tmin < 1 and tmax > 0
+    tmin < tmax && tmax > 0.01 && tmin < 0.99
+}
+
+/// Count how many obstacles (excluding src/tgt) are intersected by a polyline.
+fn count_polyline_collisions(
+    pts: &[(i32, i32)],
+    all_boxes: &[(i32, i32, i32, i32)],
+    src: (i32, i32, i32, i32),
+    tgt: (i32, i32, i32, i32),
+) -> usize {
+    let mut count = 0;
+    for seg in pts.windows(2) {
+        let (ax, ay) = seg[0];
+        let (bx_, by_) = seg[1];
+        for &(obx, oby, obw, obh) in all_boxes {
+            if (obx, oby, obw, obh) == src || (obx, oby, obw, obh) == tgt {
+                continue;
+            }
+            if segment_intersects_rect(ax, ay, bx_, by_, obx, oby, obw, obh) {
+                count += 1;
+            }
+        }
+    }
+    count
 }
 
 #[derive(Debug, Clone)]
