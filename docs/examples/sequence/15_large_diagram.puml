@@ -1,11 +1,12 @@
-@startuml
+@startuml sequence
 title E-Commerce Order Flow
+autonumber
 actor Customer
 participant "Web App" as Web
 participant "Order Service" as Orders
 participant "Inventory" as Inv
 participant "Payment" as Pay
-database "Order DB" as DB
+participant "Order DB" as DB
 queue "Email Queue" as Mail
 
 Customer -> Web: place order
