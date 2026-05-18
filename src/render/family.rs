@@ -377,9 +377,22 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 ));
             }
         }
-        let rendered_label = usecase_dependency.or(relation.label.as_deref());
-        if let Some(label) = rendered_label {
-            // Place label at 40% from source, clamped 30px from each endpoint (fix #564, #575).
+        // UseCase dependency labels (<<extend>>, <<include>>) at midpoint above the edge (fix #575).
+        // Regular relation labels at 40% from source, clamped 30px from endpoints (fix #564).
+        if let Some(label) = usecase_dependency {
+            let dx_abs = (x2 - x1).abs();
+            let dy_abs = (y2 - y1).abs();
+            let (lx, ly) = if dy_abs > dx_abs {
+                ((x1 + x2) / 2 + 14, (y1 + y2) / 2 - 6)
+            } else {
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 14)
+            };
+            out.push_str(&format!(
+                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
+                member_color = class_style.member_color,
+                txt = escape_text(label)
+            ));
+        } else if let Some(label) = relation.label.as_deref() {
             let dx = x2 - x1;
             let dy = y2 - y1;
             let dx_abs = dx.abs();
