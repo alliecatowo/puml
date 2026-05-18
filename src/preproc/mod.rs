@@ -4,8 +4,6 @@ use std::path::PathBuf;
 #[cfg(all(not(target_arch = "wasm32"), feature = "url-includes"))]
 use std::time::Duration;
 
-use crate::diagnostic::Diagnostic;
-
 mod builtins;
 mod control;
 mod includes;
