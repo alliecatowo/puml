@@ -7149,6 +7149,29 @@ fn extract_svg_width_attr(svg: &str) -> Option<i32> {
     rest[..end].parse::<i32>().ok()
 }
 
+fn svg_elements_with_attr<'a>(svg: &'a str, attr: &str, value: &str) -> Vec<&'a str> {
+    let needle = format!("{attr}=\"{value}\"");
+    svg.split('<')
+        .filter(|element| element.contains(&needle))
+        .collect()
+}
+
+fn svg_attr_i32(element: &str, attr: &str) -> i32 {
+    let key = format!("{attr}=\"");
+    let start = element.find(&key).expect("attribute start") + key.len();
+    let rest = &element[start..];
+    let end = rest.find('"').expect("attribute end");
+    rest[..end].parse::<i32>().expect("integer SVG attribute")
+}
+
+fn svg_group_with_attr<'a>(svg: &'a str, attr: &str, value: &str) -> &'a str {
+    let needle = format!("{attr}=\"{value}\"");
+    let start = svg.find(&needle).expect("group attribute");
+    let rest = &svg[start..];
+    let end = rest.find("</g>").expect("group close") + "</g>".len();
+    &rest[..end]
+}
+
 #[test]
 fn salt_advanced_widgets_render_tree_menu_tab_scroll_and_table() {
     let src = "@startsalt\n{\n{T\n+ Root\n++ Leaf\n}\n{* File | Edit | View}\n{/ General | Advanced}\n{S vertical 55%}\n| Name | \"Search\" |\n}\n@endsalt\n";
@@ -7310,6 +7333,70 @@ XXXX\n\
     assert!(svg.contains("data-salt-open=\"true\""));
     assert!(svg.contains("[person]"));
     assert!(svg.contains("[account-login]"));
+}
+
+#[test]
+fn salt_layout_depth_fixture_has_widget_dom_and_span_geometry() {
+    let src = fs::read_to_string(fixture("families/valid_salt_layout_depth.puml"))
+        .expect("fixture should load");
+    let svg = render_source_to_svg(&src).expect("salt layout depth fixture should render");
+
+    assert!(svg.contains("data-salt-style=\"canvas\""));
+    assert!(svg.contains("fill=\"#f8fafc\""));
+    assert!(svg.contains("stroke=\"#334155\""));
+    assert_eq!(
+        svg_elements_with_attr(&svg, "data-salt-widget", "groupbox").len(),
+        2,
+        "nested groupbox rows should render as distinct widgets"
+    );
+    assert!(svg.contains("data-salt-widget=\"menu\" data-salt-open=\"true\""));
+    assert_eq!(
+        svg_elements_with_attr(&svg, "data-salt-widget", "tab").len(),
+        3
+    );
+    assert!(svg.contains("data-salt-tree-depth=\"0\""));
+    assert!(svg.contains("data-salt-tree-depth=\"1\""));
+    assert!(svg.contains("data-salt-sprite=\"folder\""));
+    assert!(svg.contains("data-salt-sprite-ref=\"folder\""));
+    assert!(svg.contains("data-salt-icons=\"person\""));
+    assert!(svg.contains("data-salt-icons=\"account-login\""));
+    assert!(svg.contains("data-salt-creole=\"true\""));
+
+    let span = svg_elements_with_attr(&svg, "data-salt-colspan", "2")
+        .into_iter()
+        .next()
+        .expect("fixture should render a merged table cell");
+    assert!(
+        span.contains("data-salt-span-width="),
+        "span group should expose merged geometry"
+    );
+
+    let headers = svg_elements_with_attr(&svg, "data-salt-widget", "header");
+    assert_eq!(headers.len(), 3);
+    let field_header_x = svg_attr_i32(headers[0], "x");
+    let value_header_x = svg_attr_i32(headers[1], "x");
+    let notes_header_x = svg_attr_i32(headers[2], "x");
+    assert!(
+        field_header_x < value_header_x && value_header_x < notes_header_x,
+        "table header x positions should increase left-to-right"
+    );
+
+    let tree_nodes = svg_elements_with_attr(&svg, "data-salt-widget", "tree");
+    assert_eq!(tree_nodes.len(), 2);
+    let root_tree = svg_group_with_attr(&svg, "data-salt-tree-depth", "0");
+    let nested_tree = svg_group_with_attr(&svg, "data-salt-tree-depth", "1");
+    let root_branch_x = svg_attr_i32(root_tree, "x1");
+    let nested_branch_x = svg_attr_i32(nested_tree, "x1");
+    assert!(
+        nested_branch_x > root_branch_x,
+        "nested tree item should be indented in geometry"
+    );
+
+    let textareas = svg_elements_with_attr(&svg, "data-salt-widget", "textarea");
+    assert_eq!(textareas.len(), 2);
+    assert!(textareas
+        .iter()
+        .any(|el| el.contains("data-salt-scroll-vertical=\"true\"")));
 }
 
 #[test]

@@ -1,0 +1,43 @@
+@startsalt
+<style>
+saltDiagram {
+  BackgroundColor #f8fafc
+  FontColor #0f172a
+  LineColor #334155
+}
+button {
+  BackgroundColor #fed7aa
+}
+input {
+  BackgroundColor #ecfeff
+}
+menu {
+  BackgroundColor #ede9fe
+}
+tab {
+  BackgroundColor #fef3c7
+}
+</style>
+{
+{^ Account Shell}
+{^ Credentials}
+{* File | Edit | View | Tools | Help}
+{/ Login | Audit | Admin}
+{T
++ Root
+++ Nested leaf
+}
+<<folder
+.XX.
+XXXX
+>>
+{#
+. | = Field | = Value | = Notes
+1 | User<&person> | "//Ada//" | *
+2 | <<folder>> | [Save <&account-login>] | Done
+}
+{SI
+Scoped **scroll** body
+}
+}
+@endsalt

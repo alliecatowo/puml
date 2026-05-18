@@ -289,6 +289,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         .expect("dry-run report should rank expected drift areas");
     for expected_area in [
         "Salt widget breadth",
+        "Salt widget/layout depth",
         "chart axis legend style",
         "dynamic preprocessor invocation",
         "mindmap orientation layout",
@@ -306,6 +307,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         .as_array()
         .expect("dry-run report should contain fixture array");
     let mut saw_salt = false;
+    let mut saw_salt_depth = false;
     let mut saw_preproc = false;
     for fixture in fixtures {
         assert_eq!(fixture["local"]["attempted"].as_bool(), Some(false));
@@ -331,6 +333,17 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
                 Some("drift")
             );
         }
+        if rel == "families/valid_salt_layout_depth.puml" {
+            saw_salt_depth = true;
+            assert_eq!(
+                fixture["classification"]["drift_area"].as_str(),
+                Some("Salt widget/layout depth")
+            );
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("drift")
+            );
+        }
         if rel == "errors/invalid_preproc_dynamic_invoke.puml" {
             saw_preproc = true;
             assert_eq!(
@@ -341,6 +354,10 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
     }
 
     assert!(saw_salt, "Salt partial fixture should be in dry-run corpus");
+    assert!(
+        saw_salt_depth,
+        "Salt layout depth fixture should be in dry-run corpus"
+    );
     assert!(
         saw_preproc,
         "advanced preprocessor partial fixture should be in dry-run corpus"
