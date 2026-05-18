@@ -37,11 +37,18 @@ pub(super) fn render_ebnf(source: &str) -> Result<String, Diagnostic> {
     let max_inner_w = layouts.iter().map(|(_, l)| l.width).max().unwrap_or(200);
     let note_w = if notes.is_empty() { 0 } else { 220 };
     let svg_w = max_inner_w + margin * 2 + 40 + note_w;
+    // Each rule renders at y+10, so the total height consumed per rule is
+    // (label_h + 10 + layout.height + gap_between).  Also add the title height
+    // when a title is shown inline, plus a bottom margin (#510).
+    let title_extra = if doc_title.is_some() { 32 } else { 0 };
+    let bottom_pad = 24;
     let total_h: i32 = layouts
         .iter()
-        .map(|(_, l)| l.height + label_h + gap_between)
+        .map(|(_, l)| l.height + label_h + 10 + gap_between)
         .sum::<i32>()
-        + margin * 2;
+        + margin * 2
+        + title_extra
+        + bottom_pad;
 
     let mut out = String::new();
     out.push_str(&svg_header(svg_w, total_h));

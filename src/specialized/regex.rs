@@ -5,15 +5,23 @@ use super::shared::strip_block;
 use crate::diagnostic::Diagnostic;
 
 pub(super) fn render_regex(source: &str) -> Result<String, Diagnostic> {
-    let (body, _title) = strip_block(source, "@startregex", "@endregex");
+    let (body, inline_title) = strip_block(source, "@startregex", "@endregex");
     let mut locale = RegexLocale::English;
     let mut patterns = Vec::new();
+    let mut body_title: Option<String> = None;
     for raw in body.lines() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('\'') {
             continue;
         }
         let lower = line.to_ascii_lowercase();
+        // Strip `title` directives from body and use them as the diagram title (#514).
+        if lower.starts_with("title ") {
+            if body_title.is_none() {
+                body_title = Some(line[6..].trim().to_string());
+            }
+            continue;
+        }
         if let Some(rest) = lower
             .strip_prefix("locale ")
             .or_else(|| lower.strip_prefix("language "))
@@ -40,7 +48,10 @@ pub(super) fn render_regex(source: &str) -> Result<String, Diagnostic> {
                 .collect(),
         )
     };
-    let title = format!("/{}/", pattern.replace('\n', " | "));
+    // Use explicit title from inline or body directive; fall back to pattern string (#514).
+    let title = inline_title
+        .or(body_title)
+        .unwrap_or_else(|| format!("/{}/", pattern.replace('\n', " | ")));
     let svg = render_railroad(&title, &node).replacen(
         "<svg ",
         &format!(

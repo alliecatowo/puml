@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-18T03:49:35Z",
+  "generated_at_utc": "2026-05-18T08:42:59Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
@@ -28,13 +28,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
           "svg_bytes": 1640,
           "viewbox": null
@@ -52,13 +52,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
           "svg_bytes": 2451,
           "viewbox": null
@@ -76,15 +76,15 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
-          "svg_bytes": 4139,
+          "svg_bytes": 3781,
           "viewbox": null
         }
       },
@@ -100,15 +100,15 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
-          "svg_bytes": 2620,
+          "svg_bytes": 2886,
           "viewbox": null
         }
       },
@@ -124,13 +124,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
           "svg_bytes": 2783,
           "viewbox": null
@@ -148,13 +148,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
           "svg_bytes": 2318,
           "viewbox": null
@@ -172,13 +172,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
           "svg_bytes": 3171,
           "viewbox": null
@@ -196,13 +196,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": ""
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "",
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
         "metadata": {
           "svg_bytes": 2385,
           "viewbox": null
@@ -220,7 +220,7 @@
         "passed": false,
         "exit_code": 1,
         "diagnostics": [],
-        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @enduml at line 1 without a preceding @startuml\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^\n\n{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @enduml at line 1 without a preceding @startuml\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
       },
       "render": {
         "attempted": false,
@@ -244,7 +244,7 @@
         "passed": false,
         "exit_code": 1,
         "diagnostics": [],
-        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": \"E_PARSE_UNKNOWN\",\n      \"severity\": \"error\",\n      \"message\": \"[E_PARSE_UNKNOWN] unsupported syntax: `[E_NOTE_INVALID] malformed note syntax: `note of A: bad``\",\n      \"span\": {\n        \"start\": 38,\n        \"end\": 52\n      },\n      \"line\": 4,\n      \"column\": 1,\n      \"snippet\": \"note of A: bad\",\n      \"caret\": \"^^^^^^^^^^^^^^\"\n    }\n  ]\n}"
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^\n\n{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": \"E_PARSE_UNKNOWN\",\n      \"severity\": \"error\",\n      \"message\": \"[E_PARSE_UNKNOWN] unsupported syntax: `[E_NOTE_INVALID] malformed note syntax: `note of A: bad``\",\n      \"span\": {\n        \"start\": 38,\n        \"end\": 52\n      },\n      \"line\": 4,\n      \"column\": 1,\n      \"snippet\": \"note of A: bad\",\n      \"caret\": \"^^^^^^^^^^^^^^\"\n    }\n  ]\n}"
       },
       "render": {
         "attempted": false,
@@ -268,7 +268,7 @@
         "passed": false,
         "exit_code": 1,
         "diagnostics": [],
-        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @startuml at line 3 before closing previous block started at line 1\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
+        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^\n\n{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @startuml at line 3 before closing previous block started at line 1\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
       },
       "render": {
         "attempted": false,
@@ -289,10 +289,10 @@
   ],
   "doc_examples": {
     "summary": {
-      "total": 258,
-      "passed": 254,
-      "excluded": 4,
-      "failed": 0
+      "total": 257,
+      "passed": 238,
+      "excluded": 3,
+      "failed": 16
     },
     "entries": [
       {
@@ -691,12 +691,15 @@
         "source_ref": "docs/examples/c4/02_person_system.puml",
         "artifact_svg": "docs/examples/c4/02_person_system.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -730,12 +733,15 @@
         "source_ref": "docs/examples/c4/05_persons_only.puml",
         "artifact_svg": "docs/examples/c4/05_persons_only.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -743,12 +749,15 @@
         "source_ref": "docs/examples/c4/06_external_systems.puml",
         "artifact_svg": "docs/examples/c4/06_external_systems.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -756,12 +765,15 @@
         "source_ref": "docs/examples/c4/07_microservices.puml",
         "artifact_svg": "docs/examples/c4/07_microservices.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1016,12 +1028,15 @@
         "source_ref": "docs/examples/class/10_full_domain.puml",
         "artifact_svg": "docs/examples/class/10_full_domain.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1499,12 +1514,15 @@
         "source_ref": "docs/examples/ebnf/01_simple_grammar.puml",
         "artifact_svg": "docs/examples/ebnf/01_simple_grammar.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1512,12 +1530,15 @@
         "source_ref": "docs/examples/ebnf/02_optional_repetition.puml",
         "artifact_svg": "docs/examples/ebnf/02_optional_repetition.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1525,12 +1546,15 @@
         "source_ref": "docs/examples/ebnf/03_complex.puml",
         "artifact_svg": "docs/examples/ebnf/03_complex.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1752,21 +1776,6 @@
         "exclusion_reason": null,
         "status": "pass",
         "notes": []
-      },
-      {
-        "source_markdown": "",
-        "source_kind": "source_file",
-        "source_ref": "docs/examples/nonuml_parity_gantt_chart_topology.puml",
-        "artifact_svg": "docs/examples/nonuml_parity_gantt_chart_topology.svg",
-        "artifact_exists": false,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
-        "excluded": true,
-        "exclusion_reason": "mixed-family topology parity source; parser intentionally rejects multiple diagram families in one document, so there is no canonical single-SVG docs artifact",
-        "status": "excluded",
-        "notes": [
-          "mixed-family topology parity source; parser intentionally rejects multiple diagram families in one document, so there is no canonical single-SVG docs artifact"
-        ]
       },
       {
         "source_markdown": "",
@@ -2907,12 +2916,15 @@
         "source_ref": "docs/examples/state/03_concurrent.puml",
         "artifact_svg": "docs/examples/state/03_concurrent.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -2920,12 +2932,15 @@
         "source_ref": "docs/examples/state/04_history.puml",
         "artifact_svg": "docs/examples/state/04_history.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -2946,12 +2961,15 @@
         "source_ref": "docs/examples/state/06_entry_exit.puml",
         "artifact_svg": "docs/examples/state/06_entry_exit.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -2959,12 +2977,15 @@
         "source_ref": "docs/examples/state/07_nested.puml",
         "artifact_svg": "docs/examples/state/07_nested.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -3481,12 +3502,15 @@
         "source_ref": "docs/examples/usecase/01_basic.puml",
         "artifact_svg": "docs/examples/usecase/01_basic.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -3494,12 +3518,15 @@
         "source_ref": "docs/examples/usecase/02_with_actors.puml",
         "artifact_svg": "docs/examples/usecase/02_with_actors.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -3507,12 +3534,15 @@
         "source_ref": "docs/examples/usecase/03_extends_includes.puml",
         "artifact_svg": "docs/examples/usecase/03_extends_includes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -3520,12 +3550,15 @@
         "source_ref": "docs/examples/usecase/04_with_packages.puml",
         "artifact_svg": "docs/examples/usecase/04_with_packages.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
