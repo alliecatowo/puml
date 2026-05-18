@@ -175,10 +175,11 @@ jobs:
         run: cargo build --release
 
       # Run the oracle shell conformance suite (fixture-by-fixture SVG diff).
-      # Soft-fail thresholds:
+      # Broad corpus thresholds:
       #   exit 0 = match% >= 80%  (PASS)
       #   exit 1 = 50% <= match% < 80%  (WARN, advisory)
       #   exit 2 = match% < 50%  (HARD FAIL)
+      #   exit 3 = promoted fixture regression  (HARD FAIL)
       - name: Run oracle conformance suite (scripts/oracle.sh)
         if: steps.changes.outputs.run_oracle == 'true'
         id: oracle
@@ -219,10 +220,15 @@ jobs:
             } >> "${GITHUB_OUTPUT}"
           fi
 
-          # exit 2 (<50% match) = hard CI failure; 0 and 1 are soft/advisory.
+          # exit 2 (<50% match) and exit 3 (promoted fixture regression) are
+          # hard CI failures; 0 and 1 are broad-corpus advisory/pass statuses.
           if [[ "${ORACLE_EXIT}" -eq 2 ]]; then
             echo "[oracle] HARD FAIL: match% < 50%" >&2
             exit 2
+          fi
+          if [[ "${ORACLE_EXIT}" -eq 3 ]]; then
+            echo "[oracle] HARD FAIL: promoted oracle fixture gate failed" >&2
+            exit 3
           fi
           exit 0
 
