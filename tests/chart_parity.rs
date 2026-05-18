@@ -317,3 +317,21 @@ line \"Actual\" [3,8]
     assert!(line_svg.contains("class=\"chart-point\" data-chart-value=\"8\""));
     assert!(line_svg.contains("class=\"chart-value-label\""));
 }
+
+#[test]
+fn chart_long_title_expands_canvas_width() {
+    let src = "@startchart
+title This is a deliberately long chart title that should not clip near the right edge
+bar \"Revenue\" [12,18,20]
+@endchart
+";
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("long-title chart should render");
+    let doc = SvgDoc::parse(&svg);
+    let width = doc
+        .root_attr("width")
+        .and_then(|value| value.parse::<f64>().ok())
+        .expect("chart width should be present");
+    assert!(width > 780.0, "long title should expand chart width");
+    assert!(svg.contains("deliberately long chart title"));
+}

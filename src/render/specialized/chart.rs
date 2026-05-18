@@ -1,7 +1,17 @@
 use super::*;
 
 pub fn render_chart_svg(document: &ChartDocument) -> String {
-    let width = 780;
+    let title_lines: Vec<&str> = document
+        .title
+        .as_deref()
+        .map(|title| title.lines().collect())
+        .unwrap_or_default();
+    let title_px = title_lines
+        .iter()
+        .map(|line| estimate_text_width(line, 16))
+        .max()
+        .unwrap_or(0);
+    let width = 780.max(title_px + 80);
     let height = 420;
     let style = &document.style;
     let series = effective_chart_series(document);
@@ -31,12 +41,14 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
         escape_text(&style.font_color)
     ));
     let mut y = 28;
-    if let Some(title) = &document.title {
-        out.push_str(&format!(
-            "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
-            escape_text(title)
-        ));
-        y += 22;
+    if !title_lines.is_empty() {
+        for line in &title_lines {
+            out.push_str(&format!(
+                "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"16\" font-weight=\"600\">{}</text>",
+                escape_text(line)
+            ));
+            y += 22;
+        }
     }
     // Suppress visible type-name label (#488) — it leaks into the axis title slot.
     // The type is already encoded in the SVG root attribute data-chart-type.
@@ -1082,4 +1094,8 @@ fn chart_legend_v_name(value: LegendVAlign) -> &'static str {
         LegendVAlign::Top => "top",
         LegendVAlign::Bottom => "bottom",
     }
+}
+
+fn estimate_text_width(text: &str, font_size: i32) -> i32 {
+    ((text.chars().count() as i32) * font_size * 3) / 5
 }
