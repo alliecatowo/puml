@@ -1,7 +1,24 @@
 use super::*;
 
 pub fn render_ebnf_svg(document: &EbnfDocument) -> String {
-    let width = 820;
+    // Auto-expand canvas width to fit the widest rule (#510): each token ~8px/char +
+    // 8px gap, plus 120px for the rule name + margins.
+    let min_width = 820_i32;
+    let max_token_row_px: i32 = document
+        .rules
+        .iter()
+        .map(|rule| {
+            let labels = ebnf_tokens_to_labels(&rule.tokens);
+            let row_px: i32 = labels
+                .iter()
+                .map(|l| (l.len() as i32 * 8).clamp(36, 400) + 8)
+                .sum::<i32>()
+                + 120;
+            row_px
+        })
+        .max()
+        .unwrap_or(0);
+    let width = min_width.max(max_token_row_px + 48);
     let row_height = 90;
     let height = 80 + (document.rules.len().max(1) as i32) * row_height;
     let mut out = String::new();
@@ -62,7 +79,8 @@ pub fn render_ebnf_svg(document: &EbnfDocument) -> String {
                     ty = baseline + 4
                 ));
                 x += box_w + 8;
-                if x > width - 80 {
+                // With auto-expanded canvas, only break when truly out of space.
+                if x > width - 48 {
                     break;
                 }
             }
