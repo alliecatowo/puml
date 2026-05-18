@@ -2582,216 +2582,276 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             }
         };
 
-        // ── Phase 2: Collision check & L-shape routing ──────────────────────
-        // Skip L-routing when a direction is explicitly specified (directed
-        // relations must stay straight to preserve test-verified geometry).
-        // Also skip when the relation is hidden (direction doesn't matter).
+        // ── Phase 2: Edge routing ────────────────────────────────────────────
+        // Prefer the orthogonal polyline from the hierarchical layout engine
+        // (graph_layout::route_edges, Stage 3 of #593).  Fall back to the
+        // existing L/Z-shape collision-avoidance router when no pre-computed
+        // path is available (e.g. explicit `direction` override, or the edge
+        // was not included in the layout pass).
 
-        // Build a combined obstacle list: individual node boxes + package frames
-        // that do NOT contain the source or target node.
-        let rel_obstacles: Vec<(i32, i32, i32, i32)> = {
-            let mut obs: Vec<(i32, i32, i32, i32)> = all_boxes.clone();
-            for &(rect, members) in &pkg_frame_boxes {
-                // A package frame is not an obstacle for arrows that start/end inside it
-                let src_inside = members.iter().any(|m| m == &from_name);
-                let tgt_inside = members.iter().any(|m| m == &to_name);
-                if !src_inside && !tgt_inside {
-                    obs.push(rect);
-                }
-            }
-            obs
-        };
-
-        let line_collides = if rel.direction.is_some() || rel.hidden {
-            false
-        } else {
-            // Check if the direct line (x1,y1)→(x2,y2) passes through any individual
-            // component box. Package frames are NOT used for the straight-line trigger
-            // (they're only used to improve L/Z route quality when routing is needed).
-            all_boxes.iter().any(|&(bx, by, bw, bh)| {
-                if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th) {
-                    return false;
-                }
-                segment_intersects_rect(x1, y1, x2, y2, (bx, by, bw, bh))
-            })
-        };
-
-        // Label midpoint
+        // Label midpoint (set in each branch below)
         let label_color = "#1e293b";
         let (label_mx, label_my);
 
-        if !line_collides {
-            // Straight line
-            out.push_str(&format!(
-                "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-                escape_text(&from_name),
-                escape_text(&to_name),
-                escape_text(&normalized_arrow),
-                x1, y1, x2, y2,
-                relation_color, stroke_width,
-                dash_attr, visibility_attr, direction_attr, style_attr, markers
-            ));
-            label_mx = (x1 + x2) / 2;
-            label_my = (y1 + y2) / 2 - 12;
-        } else {
-            // L-shape / Z-shape routing
-            // Strategy: try L first (2 segments); if still collides try Z-shapes;
-            // cap at 5 segments, fall back to best L if nothing cleans up.
-            let src_cx = fx + fw / 2;
-            let tgt_cx = tx + tw / 2;
-            let src_cy = fy + fh / 2;
-            let tgt_cy = ty + th / 2;
-            let dx_abs = (tgt_cx - src_cx).abs();
-            let dy_abs = (tgt_cy - src_cy).abs();
-
-            // ── Two L-shape candidates ────────────────────────────────────────
-            // H→V: go horizontal to mid-x, then vertical
-            let hv_mid_x = (x1 + x2) / 2;
-            let hv_pts = [(x1, y1), (hv_mid_x, y1), (hv_mid_x, y2), (x2, y2)];
-            // V→H: go vertical to mid-y, then horizontal
-            let vh_mid_y = (y1 + y2) / 2;
-            let vh_pts = [(x1, y1), (x1, vh_mid_y), (x2, vh_mid_y), (x2, y2)];
-
-            let hv_col = count_polyline_collisions(
-                &hv_pts,
-                &rel_obstacles,
-                (fx, fy, fw, fh),
-                (tx, ty, tw, th),
-            );
-            let vh_col = count_polyline_collisions(
-                &vh_pts,
-                &rel_obstacles,
-                (fx, fy, fw, fh),
-                (tx, ty, tw, th),
-            );
-
-            // Pick the preferred L-shape
-            let (l_pts, l_col) = if dx_abs >= dy_abs {
-                if vh_col <= hv_col {
-                    (&vh_pts[..], vh_col)
-                } else {
-                    (&hv_pts[..], hv_col)
-                }
+        // Try the orthogonal path from graph_layout first.
+        // Edge IDs are "r{rel_idx}" matching the gl_edges construction above.
+        let ortho_path_f64: Option<Vec<(i32, i32)>> =
+            if rel.direction.is_none() && !rel.hidden {
+                gl_result
+                    .edge_paths
+                    .get(&format!("r{rel_idx}"))
+                    .filter(|p| p.len() >= 2)
+                    .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
             } else {
-                if hv_col <= vh_col {
-                    (&hv_pts[..], hv_col)
-                } else {
-                    (&vh_pts[..], vh_col)
-                }
+                None
             };
 
-            // ── Z-shape escalation if L still collides ────────────────────────
-            // Gather all blocking boxes from rel_obstacles (including package frames)
-            let blocking: Vec<(i32, i32, i32, i32)> = if l_col > 0 {
-                rel_obstacles
-                    .iter()
-                    .copied()
-                    .filter(|&b| {
-                        b != (fx, fy, fw, fh)
-                            && b != (tx, ty, tw, th)
-                            && l_pts.windows(2).any(|seg| {
-                                segment_intersects_rect(
-                                    seg[0].0,
-                                    seg[0].1,
-                                    seg[1].0,
-                                    seg[1].1,
-                                    (b.0, b.1, b.2, b.3),
-                                )
-                            })
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-
-            let best_pts: Vec<(i32, i32)> = if l_col == 0 || blocking.is_empty() {
-                // L is clean — use it
-                l_pts.to_vec()
-            } else {
-                // Try Z-routes by generating waypoints around every blocking box.
-                // Use clearance = 12px outside the box edge.
-                let gap = 12i32;
-                let mut best: Option<Vec<(i32, i32)>> = None;
-                let mut best_col = l_col;
-
-                // Generate candidate waypoints: edges of every blocking box
-                let mut waypoint_candidates: Vec<(i32, i32)> = Vec::new();
-                for &(bx, by, bw, bh) in &blocking {
-                    waypoint_candidates.push((bx + bw / 2, by - gap)); // above
-                    waypoint_candidates.push((bx + bw / 2, by + bh + gap)); // below
-                    waypoint_candidates.push((bx - gap, by + bh / 2)); // left
-                    waypoint_candidates.push((bx + bw + gap, by + bh / 2)); // right
-                                                                            // Also try corners (useful for routing around package frames)
-                    waypoint_candidates.push((bx - gap, by - gap));
-                    waypoint_candidates.push((bx + bw + gap, by - gap));
-                    waypoint_candidates.push((bx - gap, by + bh + gap));
-                    waypoint_candidates.push((bx + bw + gap, by + bh + gap));
-                }
-
-                'waypoint_loop: for &(wx, wy) in &waypoint_candidates {
-                    // Z1: H→V→H  (x1,y1)→(wx,y1)→(wx,y2)→(x2,y2)
-                    let z1: Vec<(i32, i32)> = vec![(x1, y1), (wx, y1), (wx, y2), (x2, y2)];
-                    // Z2: V→H→V  (x1,y1)→(x1,wy)→(x2,wy)→(x2,y2)
-                    let z2: Vec<(i32, i32)> = vec![(x1, y1), (x1, wy), (x2, wy), (x2, y2)];
-                    // Z3: 5-seg H→V→H with waypoint intermediate
-                    let z3: Vec<(i32, i32)> =
-                        vec![(x1, y1), (wx, y1), (wx, wy), (x2, wy), (x2, y2)];
-                    // Z4: 5-seg V→H→V with waypoint intermediate
-                    let z4: Vec<(i32, i32)> =
-                        vec![(x1, y1), (x1, wy), (wx, wy), (wx, y2), (x2, y2)];
-
-                    for cand in [&z1, &z2, &z3, &z4] {
-                        if cand.len() > 5 {
-                            continue;
-                        }
-                        let c = count_polyline_collisions(
-                            cand,
-                            &rel_obstacles,
-                            (fx, fy, fw, fh),
-                            (tx, ty, tw, th),
-                        );
-                        if c < best_col {
-                            best_col = c;
-                            best = Some(cand.clone());
-                            if c == 0 {
-                                break 'waypoint_loop;
-                            }
-                        }
-                    }
-                }
-
-                best.unwrap_or_else(|| l_pts.to_vec())
-            };
-
-            let pts = best_pts.as_slice();
-            let pts_str: String = pts
+        if let Some(orth_pts) = ortho_path_f64 {
+            // ── Orthogonal polyline from layout engine ────────────────────────
+            let pts_str: String = orth_pts
                 .iter()
-                .map(|(px, py)| format!("{},{}", px, py))
+                .map(|(px, py)| format!("{px},{py}"))
                 .collect::<Vec<_>>()
                 .join(" ");
 
             out.push_str(&format!(
-                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
                 escape_text(&from_name),
                 escape_text(&to_name),
                 escape_text(&normalized_arrow),
                 pts_str,
                 relation_color, stroke_width,
-                dash_attr, visibility_attr, direction_attr, markers
+                dash_attr, visibility_attr, direction_attr, style_attr, markers
             ));
 
-            // Label at longest segment midpoint
-            let longest_seg = pts.windows(2).max_by_key(|seg| {
-                let (ax, ay) = seg[0];
-                let (bx, by_) = seg[1];
-                (bx - ax).pow(2) + (by_ - ay).pow(2)
-            });
-            let (lmx, lmy) = match longest_seg {
-                Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+            // Label at midpoint of the longest horizontal segment; fall back to
+            // the overall polyline midpoint when no horizontal segment exists.
+            let longest_horiz = orth_pts.windows(2).filter(|seg| seg[0].1 == seg[1].1).max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
+            let (lmx, lmy) = match longest_horiz {
+                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                None => {
+                    // Fall back to midpoint of longest segment overall
+                    let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2)
+                    });
+                    match longest_seg {
+                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
+                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                    }
+                }
             };
             label_mx = lmx;
             label_my = lmy;
+        } else {
+            // ── Legacy L/Z-shape routing ──────────────────────────────────────
+            // Skip L-routing when a direction is explicitly specified (directed
+            // relations must stay straight to preserve test-verified geometry).
+            // Also skip when the relation is hidden (direction doesn't matter).
+
+            // Build a combined obstacle list: individual node boxes + package frames
+            // that do NOT contain the source or target node.
+            let rel_obstacles: Vec<(i32, i32, i32, i32)> = {
+                let mut obs: Vec<(i32, i32, i32, i32)> = all_boxes.clone();
+                for &(rect, members) in &pkg_frame_boxes {
+                    // A package frame is not an obstacle for arrows that start/end inside it
+                    let src_inside = members.iter().any(|m| m == &from_name);
+                    let tgt_inside = members.iter().any(|m| m == &to_name);
+                    if !src_inside && !tgt_inside {
+                        obs.push(rect);
+                    }
+                }
+                obs
+            };
+
+            let line_collides = if rel.direction.is_some() || rel.hidden {
+                false
+            } else {
+                // Check if the direct line (x1,y1)→(x2,y2) passes through any individual
+                // component box. Package frames are NOT used for the straight-line trigger
+                // (they're only used to improve L/Z route quality when routing is needed).
+                all_boxes.iter().any(|&(bx, by, bw, bh)| {
+                    if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th) {
+                        return false;
+                    }
+                    segment_intersects_rect(x1, y1, x2, y2, (bx, by, bw, bh))
+                })
+            };
+
+            if !line_collides {
+                // Straight line
+                out.push_str(&format!(
+                    "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                    escape_text(&from_name),
+                    escape_text(&to_name),
+                    escape_text(&normalized_arrow),
+                    x1, y1, x2, y2,
+                    relation_color, stroke_width,
+                    dash_attr, visibility_attr, direction_attr, style_attr, markers
+                ));
+                label_mx = (x1 + x2) / 2;
+                label_my = (y1 + y2) / 2 - 12;
+            } else {
+                // L-shape / Z-shape routing
+                // Strategy: try L first (2 segments); if still collides try Z-shapes;
+                // cap at 5 segments, fall back to best L if nothing cleans up.
+                let src_cx = fx + fw / 2;
+                let tgt_cx = tx + tw / 2;
+                let src_cy = fy + fh / 2;
+                let tgt_cy = ty + th / 2;
+                let dx_abs = (tgt_cx - src_cx).abs();
+                let dy_abs = (tgt_cy - src_cy).abs();
+
+                // ── Two L-shape candidates ────────────────────────────────────────
+                // H→V: go horizontal to mid-x, then vertical
+                let hv_mid_x = (x1 + x2) / 2;
+                let hv_pts = [(x1, y1), (hv_mid_x, y1), (hv_mid_x, y2), (x2, y2)];
+                // V→H: go vertical to mid-y, then horizontal
+                let vh_mid_y = (y1 + y2) / 2;
+                let vh_pts = [(x1, y1), (x1, vh_mid_y), (x2, vh_mid_y), (x2, y2)];
+
+                let hv_col = count_polyline_collisions(
+                    &hv_pts,
+                    &rel_obstacles,
+                    (fx, fy, fw, fh),
+                    (tx, ty, tw, th),
+                );
+                let vh_col = count_polyline_collisions(
+                    &vh_pts,
+                    &rel_obstacles,
+                    (fx, fy, fw, fh),
+                    (tx, ty, tw, th),
+                );
+
+                // Pick the preferred L-shape
+                let (l_pts, l_col) = if dx_abs >= dy_abs {
+                    if vh_col <= hv_col {
+                        (&vh_pts[..], vh_col)
+                    } else {
+                        (&hv_pts[..], hv_col)
+                    }
+                } else {
+                    if hv_col <= vh_col {
+                        (&hv_pts[..], hv_col)
+                    } else {
+                        (&vh_pts[..], vh_col)
+                    }
+                };
+
+                // ── Z-shape escalation if L still collides ────────────────────────
+                // Gather all blocking boxes from rel_obstacles (including package frames)
+                let blocking: Vec<(i32, i32, i32, i32)> = if l_col > 0 {
+                    rel_obstacles
+                        .iter()
+                        .copied()
+                        .filter(|&b| {
+                            b != (fx, fy, fw, fh)
+                                && b != (tx, ty, tw, th)
+                                && l_pts.windows(2).any(|seg| {
+                                    segment_intersects_rect(
+                                        seg[0].0,
+                                        seg[0].1,
+                                        seg[1].0,
+                                        seg[1].1,
+                                        (b.0, b.1, b.2, b.3),
+                                    )
+                                })
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+
+                let best_pts: Vec<(i32, i32)> = if l_col == 0 || blocking.is_empty() {
+                    // L is clean — use it
+                    l_pts.to_vec()
+                } else {
+                    // Try Z-routes by generating waypoints around every blocking box.
+                    // Use clearance = 12px outside the box edge.
+                    let gap = 12i32;
+                    let mut best: Option<Vec<(i32, i32)>> = None;
+                    let mut best_col = l_col;
+
+                    // Generate candidate waypoints: edges of every blocking box
+                    let mut waypoint_candidates: Vec<(i32, i32)> = Vec::new();
+                    for &(bx, by, bw, bh) in &blocking {
+                        waypoint_candidates.push((bx + bw / 2, by - gap)); // above
+                        waypoint_candidates.push((bx + bw / 2, by + bh + gap)); // below
+                        waypoint_candidates.push((bx - gap, by + bh / 2)); // left
+                        waypoint_candidates.push((bx + bw + gap, by + bh / 2)); // right
+                                                                                // Also try corners (useful for routing around package frames)
+                        waypoint_candidates.push((bx - gap, by - gap));
+                        waypoint_candidates.push((bx + bw + gap, by - gap));
+                        waypoint_candidates.push((bx - gap, by + bh + gap));
+                        waypoint_candidates.push((bx + bw + gap, by + bh + gap));
+                    }
+
+                    'waypoint_loop: for &(wx, wy) in &waypoint_candidates {
+                        // Z1: H→V→H  (x1,y1)→(wx,y1)→(wx,y2)→(x2,y2)
+                        let z1: Vec<(i32, i32)> = vec![(x1, y1), (wx, y1), (wx, y2), (x2, y2)];
+                        // Z2: V→H→V  (x1,y1)→(x1,wy)→(x2,wy)→(x2,y2)
+                        let z2: Vec<(i32, i32)> = vec![(x1, y1), (x1, wy), (x2, wy), (x2, y2)];
+                        // Z3: 5-seg H→V→H with waypoint intermediate
+                        let z3: Vec<(i32, i32)> =
+                            vec![(x1, y1), (wx, y1), (wx, wy), (x2, wy), (x2, y2)];
+                        // Z4: 5-seg V→H→V with waypoint intermediate
+                        let z4: Vec<(i32, i32)> =
+                            vec![(x1, y1), (x1, wy), (wx, wy), (wx, y2), (x2, y2)];
+
+                        for cand in [&z1, &z2, &z3, &z4] {
+                            if cand.len() > 5 {
+                                continue;
+                            }
+                            let c = count_polyline_collisions(
+                                cand,
+                                &rel_obstacles,
+                                (fx, fy, fw, fh),
+                                (tx, ty, tw, th),
+                            );
+                            if c < best_col {
+                                best_col = c;
+                                best = Some(cand.clone());
+                                if c == 0 {
+                                    break 'waypoint_loop;
+                                }
+                            }
+                        }
+                    }
+
+                    best.unwrap_or_else(|| l_pts.to_vec())
+                };
+
+                let pts = best_pts.as_slice();
+                let pts_str: String = pts
+                    .iter()
+                    .map(|(px, py)| format!("{},{}", px, py))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                out.push_str(&format!(
+                    "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                    escape_text(&from_name),
+                    escape_text(&to_name),
+                    escape_text(&normalized_arrow),
+                    pts_str,
+                    relation_color, stroke_width,
+                    dash_attr, visibility_attr, direction_attr, markers
+                ));
+
+                // Label at longest segment midpoint
+                let longest_seg = pts.windows(2).max_by_key(|seg| {
+                    let (ax, ay) = seg[0];
+                    let (bx, by_) = seg[1];
+                    (bx - ax).pow(2) + (by_ - ay).pow(2)
+                });
+                let (lmx, lmy) = match longest_seg {
+                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
+                    None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                };
+                label_mx = lmx;
+                label_my = lmy;
+            }
         }
 
         if rel.left_lollipop {
