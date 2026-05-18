@@ -55,8 +55,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             .unwrap_or(0);
         name_px.max(member_px).clamp(160, 600)
     };
-    // col_gap wide enough for edge labels between adjacent nodes (fix #564, #575)
-    let col_gap: i32 = 80;
+    // Reserve enough horizontal gap for the longest relation label so object
+    // edge labels stay clear of adjacent box borders (#564, #484).
+    let relation_label_gap = document
+        .relations
+        .iter()
+        .filter_map(|rel| rel.label.as_ref())
+        .map(|label| (label.chars().count() as i32) * 7 + 24)
+        .max()
+        .unwrap_or(0);
+    let col_gap: i32 = 80.max(relation_label_gap);
     let row_gap: i32 = 64;
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
@@ -2324,7 +2332,6 @@ pub fn render_deployment_svg(doc: &FamilyDocument) -> String {
 fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Do NOT emit a visible "component/deployment diagram" label — it was leaking
     // as unwanted canvas text (fix #490, #494).
-    let _ = family;
 
     // Extract component style (use defaults if not present)
     let comp_style = match &doc.family_style {
@@ -2696,17 +2703,29 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let gl_canvas_bottom = gl_result.canvas_height as i32;
 
     let projection_extra_height = family_projection_extra_height(&doc.json_projections);
+    let relation_label_half_width = doc
+        .relations
+        .iter()
+        .filter_map(|rel| rel.label.as_ref())
+        .map(|label| ((label.chars().count() as i32) * 7 + 12) / 2)
+        .max()
+        .unwrap_or(0);
+    let right_gutter = if family == "deployment" {
+        canvas_margin.max(12 + relation_label_half_width)
+    } else {
+        canvas_margin
+    };
     // svg_width: the dominant right-edge estimate is max_node_drawn_right (which
     // already includes shape_right_extra); we also floor on gl_canvas_right and
-    // all_pkg_right for backwards compatibility.  A final + canvas_margin gives the
-    // right gutter.  The extra + shape_right_extra ensures Node/Frame 3D back-faces
-    // have a full canvas_margin of clearance beyond their visible right edge.
+    // all_pkg_right for backwards compatibility.  Deployment diagrams reserve an
+    // extra right gutter for relation labels so rightmost nodes and labels do not
+    // clip at the canvas boundary (#569).
     let svg_width = all_pkg_right
         .max(gl_canvas_right)
         .max(max_node_drawn_right)
         .max(ungrouped_right)
         .max(canvas_margin)
-        + canvas_margin;
+        + right_gutter;
     let svg_width = svg_width.max(400);
     let svg_height = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
         + canvas_margin
