@@ -30,7 +30,33 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let margin_x: i32 = 32;
     let margin_top: i32 = 32;
     let col_count: i32 = 3;
-    let node_width: i32 = 200;
+    // Base node width — may grow per-node based on longest member text (fix #473)
+    let node_width_base: i32 = 160;
+    let node_width_max: i32 = 300;
+    // Monospace char width estimate at font-size 11 (member text), 13 (title)
+    let member_char_w: i32 = 7;
+    let title_char_w: i32 = 8;
+    let node_padding_x: i32 = 20; // left+right padding inside box
+    // Compute per-node widths; all nodes in a column share the max width
+    let compute_node_min_width = |node: &crate::model::FamilyNode| -> i32 {
+        let name_w = (node.name.chars().count() as i32) * title_char_w + node_padding_x * 2;
+        let member_w = node
+            .members
+            .iter()
+            .map(|m| (m.text.trim().chars().count() as i32) * member_char_w + node_padding_x)
+            .max()
+            .unwrap_or(0);
+        name_w.max(member_w).clamp(node_width_base, node_width_max)
+    };
+    // Per-column max width
+    let mut col_widths: Vec<i32> = vec![node_width_base; col_count as usize];
+    for (idx, node) in document.nodes.iter().enumerate() {
+        let col = (idx as i32) % col_count;
+        let nw = compute_node_min_width(node);
+        col_widths[col as usize] = col_widths[col as usize].max(nw);
+    }
+    // For simplicity, use the global maximum so all nodes have the same width
+    let node_width: i32 = col_widths.iter().copied().max().unwrap_or(node_width_base);
     let col_gap: i32 = 48;
     let row_gap: i32 = 64;
     let header_height: i32 = 30;
@@ -1920,9 +1946,21 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         render_family_node_shape_styled(&mut out, node, x, y, cell_w, cell_h, &comp_style);
         let id_name = node.name.clone();
         let id_alias = node.alias.clone();
-        positions.insert(id_name, (x, y, cell_w, cell_h));
+        // For Interface/Port nodes, use the actual circle/square dimensions for anchor
+        // computation so arrows connect properly to the rendered shape (fix #504).
+        let (eff_x, eff_y, eff_w, eff_h) = match node.kind {
+            FamilyNodeKind::Interface => {
+                let r = 18i32;
+                (x + cell_w / 2 - r, y + cell_h / 2 - r, r * 2, r * 2)
+            },
+            FamilyNodeKind::Port => {
+                (x + cell_w / 2 - 12, y + cell_h / 2 - 12, 24, 24)
+            },
+            _ => (x, y, cell_w, cell_h),
+        };
+        positions.insert(id_name, (eff_x, eff_y, eff_w, eff_h));
         if let Some(alias) = id_alias {
-            positions.insert(alias, (x, y, cell_w, cell_h));
+            positions.insert(alias, (eff_x, eff_y, eff_w, eff_h));
         }
     }
 
