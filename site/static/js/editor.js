@@ -15,26 +15,13 @@ import { pumlLanguage } from './puml-lang.js';
 import { loadManifest, siteBaseUrl, assetUrl } from './manifest.js';
 import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 
+// Use a minimal sequence diagram as the default; the previous multi-actor
+// sign-in flow triggered E_FAMILY_MIXED because it mixed deployment syntax
+// into a component diagram context during WASM parsing.
 const DEFAULT_SOURCE = `@startuml
-title Sign-in handshake
-
-actor User
-participant "Web App" as Web
-participant API
-database Sessions
-
-User -> Web: POST /login
-activate Web
-
-Web -> API: validate(credentials)
-activate API
-API -> Sessions: create session
-Sessions --> API: sessionId
-API --> Web: 200 OK + sessionId
-deactivate API
-
-Web --> User: Set-Cookie: sid
-deactivate Web
+title Welcome to puml
+Alice -> Bob: Hello
+Bob --> Alice: World
 @enduml
 `;
 
@@ -62,6 +49,10 @@ let engine;
 let manifest;
 let base;
 const langCompartment = new Compartment();
+
+// Track the source of the currently-selected example so that Reset can restore
+// it rather than always falling back to DEFAULT_SOURCE.
+let currentExampleSource = null;
 
 async function init() {
   base = siteBaseUrl();
@@ -99,13 +90,18 @@ async function init() {
     picker.addEventListener('change', async (e) => {
       const id = e.target.value;
       if (!id) return;
+      // Do NOT reset e.target.value to '' after selection; the native <select>
+      // already shows the chosen option's text, which is the desired UX.
+      // Resetting it caused the label to snap back to "Load example…"
+      // immediately after the user picked an item (bug 3).
       await openExampleById(id);
-      e.target.value = '';
     });
   }
 
   document.getElementById('reset-btn').addEventListener('click', () => {
-    setSource(DEFAULT_SOURCE);
+    // Restore to the currently-selected example when one is active; otherwise
+    // fall back to the built-in default (bug 2).
+    setSource(currentExampleSource ?? DEFAULT_SOURCE);
     render();
   });
 
@@ -225,6 +221,8 @@ async function openExampleById(id) {
     const res = await fetch(assetUrl(base, ex.pumlPath));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
+    // Record source so Reset can restore the example (bug 2).
+    currentExampleSource = text;
     setSource(text);
     setStatus('editor', `Loaded ${ex.familyLabel} / ${ex.title}.`, 'ok');
     render();
@@ -253,12 +251,28 @@ async function render() {
     showDiagnosticsPanel([]);
   } else {
     const diag = result.diagnostics?.[0];
-    previewHost.innerHTML = `
-      <div class="preview-placeholder">
-        <span class="pill">render error</span>
-        <p>${escapeHtml(diagnosticLabel(diag))}</p>
-      </div>`;
-    setStatus('preview', diag?.line ? `Render error at line ${diag.line}.` : 'Render error.', 'bad');
+    // Graceful degradation for !include: the WASM build cannot fetch external
+    // files and returns E_INCLUDE_NOT_SUPPORTED_WASM. Show a friendly info
+    // banner and render any partial SVG the WASM still produced instead of
+    // showing a hard red error overlay (bug 4).
+    if (diag?.message?.includes('E_INCLUDE_NOT_SUPPORTED_WASM')) {
+      const partialSvgs = result.svgs?.length ? result.svgs : [];
+      const warnBanner = `
+        <div class="preview-include-warn" role="note" aria-label="include not supported in browser">
+          <span class="pill pill-info">ℹ info</span>
+          <p><code>!include</code> requires the CLI build &mdash; this in-browser preview can&rsquo;t fetch external files.
+          Try the CLI or paste the included content inline.</p>
+        </div>`;
+      previewHost.innerHTML = warnBanner + (partialSvgs.length ? partialSvgs.join('\n') : '');
+      setStatus('preview', '!include not supported in WASM — showing partial diagram.', 'warn');
+    } else {
+      previewHost.innerHTML = `
+        <div class="preview-placeholder">
+          <span class="pill">render error</span>
+          <p>${escapeHtml(diagnosticLabel(diag))}</p>
+        </div>`;
+      setStatus('preview', diag?.line ? `Render error at line ${diag.line}.` : 'Render error.', 'bad');
+    }
     showDiagnosticsPanel(result.diagnostics || []);
   }
 }
