@@ -40,7 +40,7 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 --diagnostics human|json     diagnostics output format (default: human)
 --stdrpt                     one-line diagnostics: severity\tcode\tfile:line:col\tmessage
 --dialect auto|plantuml|mermaid|picouml
-                             select frontend input dialect (default: auto)
+                             select frontend input dialect; auto uses file extensions and fences
 --compat strict|extended     semantic compatibility policy (default: strict)
 --determinism strict|full    determinism policy (default: strict)
 --include-root DIR           resolve `!include` from this root for stdin
@@ -60,12 +60,13 @@ The `puml` CLI is the canonical reference implementation of the engine. Everythi
 # explicit dialect (default is auto)
 puml --dialect plantuml input.puml
 puml --dialect mermaid input.mmd
-puml --dialect picouml input.pico.puml
+puml --dialect picouml input.picouml
 ```
 
-- `auto` and `plantuml` parse PlantUML through the shared pipeline.
+- `auto` uses input hints first: `.picouml` files and `picouml` markdown fences route through the PicoUML adapter, while `mermaid` fences route through the Mermaid adapter.
+- `plantuml` parses PlantUML-compatible source through the shared pipeline.
 - `mermaid` accepts `sequenceDiagram`, `flowchart`/`graph`, `classDiagram`, `stateDiagram`/`stateDiagram-v2`, and `erDiagram`.
-- `picouml` routes through PicoUML normalization &mdash; `@startpicouml` / `@endpicouml` markers are converted to PlantUML markers before parsing.
+- `picouml` routes through PicoUML adapter rewrites first, then the same parser, model, layout, and renderer as PlantUML-compatible inputs.
 
 ## Includes and remote sources
 

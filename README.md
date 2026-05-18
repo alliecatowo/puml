@@ -98,7 +98,7 @@ That does not mean perfect PlantUML parity. The honest workflow is: run `puml --
 | Surface | Current framing |
 |---|---|
 | PlantUML | Primary compatibility target; many families render, advanced feature depth varies. |
-| PicoUML | First-class project language direction via `@startpicouml`, `--dialect picouml`, and `picouml` fences. |
+| PicoUML | First-class project language direction via `.picouml`, `@startpicouml`, `--dialect picouml`, and `picouml` fences. Current support is an adapter into the shared PlantUML-compatible pipeline. |
 | Mermaid | Adapter frontend for selected families such as sequence, flowchart/graph, class, state, and ER. |
 | Markdown | Supported fenced diagram extraction for docs linting and rendering. |
 | WASM/site | Browser editor and docs gallery use the same renderer through `crates/puml-wasm`. |

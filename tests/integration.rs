@@ -479,6 +479,25 @@ fn picouml_extension_routes_canonical_surface_in_auto_dialect() {
 }
 
 #[test]
+fn picouml_extension_routes_shorthand_surface_in_auto_dialect() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("shorthand.picouml");
+    fs::write(
+        &input,
+        "@startpicouml\nAlice => Bob : sync call\nBob <~ Carol : async reply\n@endpicouml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["--check", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
 fn picouml_frontend_rejects_mixed_marker_forms_deterministically() {
     Command::cargo_bin("puml")
         .expect("binary")
