@@ -451,6 +451,57 @@ fn render_sequence_teoz_response_below_arrow_keeps_reply_label_under_dashed_rout
 }
 
 #[test]
+fn render_sequence_self_call_keeps_visible_arrowhead_after_groups_and_dividers() {
+    for fixture_name in [
+        "docs/examples/sequence/17_all_groups.puml",
+        "docs/examples/sequence/23_dividers.puml",
+    ] {
+        let src = std::fs::read_to_string(fixture(fixture_name)).expect("fixture");
+        let svg = puml::render_source_to_svg(&src).expect("self-call render");
+
+        assert!(
+            svg.contains("L 252 300"),
+            "self-call path should stop at the arrowhead base in {fixture_name}"
+        );
+        assert!(
+            svg.contains("<polygon points=\"244,300 252,295 252,305\"")
+                || svg.contains("<polygon points=\"84,300 92,295 92,305\""),
+            "self-call arrowhead should remain visible in {fixture_name}"
+        );
+    }
+}
+
+#[test]
+fn render_sequence_ref_over_keeps_followup_response_label_below_box() {
+    let src = std::fs::read_to_string(fixture("docs/examples/sequence/22_ref_over.puml"))
+        .expect("fixture");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let ref_box = scene
+        .groups
+        .iter()
+        .find(|group| group.kind.eq_ignore_ascii_case("ref"))
+        .expect("ref group");
+    let response = scene
+        .messages
+        .iter()
+        .find(|message| message.label.as_deref() == Some("response"))
+        .expect("response message");
+    let response_label_top = response.route_y - 8;
+
+    assert!(
+        response_label_top > ref_box.y + ref_box.height,
+        "response label should clear the bottom of the ref box"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains(">response</text>"));
+    assert!(svg.contains(">ref</text>"));
+}
+
+#[test]
 fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
     let src = fixture("e2e/sequence_parity_vertical_slice.puml");
     let ast = puml::parse(&src).expect("parse");
