@@ -364,9 +364,15 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     next_slot_y,
                 });
 
+                // Compute effective column width based on actual branch count and
+                // available lane width, so columns fit neatly within the canvas.
+                // Use lane_w / n_branches but keep minimum of 120px per column.
+                let effective_col_w = (lane_w / n_branches as i32).max(120).min(fork_col_w);
+
                 // Fix up cx positions for all nodes inside branches
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
-                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, fork_col_w);
+                    let col_cx =
+                        fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
                     let branch_end_idx = if branch_idx + 1 < n_branches {
                         frame.fork_again_indices[branch_idx]
                     } else {
@@ -384,7 +390,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                                 fork_cx,
                                 branch_idx + 1,
                                 n_branches,
-                                fork_col_w,
+                                effective_col_w,
                             );
                             layout.cx = next_col_cx;
                         }
@@ -399,19 +405,22 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 // each branch (otherwise it duplicates the fork->branch arrow).
                 let fork_bar_arrow_out_y = frame.fork_slot_y + ARROW_OUT;
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
-                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, fork_col_w);
+                    let col_cx =
+                        fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
                     extra_arrows.push((fork_cx, fork_bar_arrow_out_y, col_cx, branch_start_y));
                     // Suppress the standard prev->cur arrow for the branch's first node
                     suppress_prev_arrow.insert(branch.start_node_idx);
                 }
 
-                // Compute bar half-width spanning all branch columns
+                // Compute bar half-width spanning all branch columns.
+                // Use effective_col_w (same as branch layout) so the bar
+                // matches the actual branch spread without overflowing canvas.
                 let bar_span_half = if n_branches > 1 {
                     let leftmost =
-                        fork_branch_cx(fork_cx, 0, n_branches, fork_col_w) - fork_col_w / 2;
+                        fork_branch_cx(fork_cx, 0, n_branches, effective_col_w) - effective_col_w / 2;
                     let rightmost =
-                        fork_branch_cx(fork_cx, n_branches - 1, n_branches, fork_col_w)
-                            + fork_col_w / 2;
+                        fork_branch_cx(fork_cx, n_branches - 1, n_branches, effective_col_w)
+                            + effective_col_w / 2;
                     (rightmost - leftmost) / 2
                 } else {
                     (lane_w - 24).clamp(60, 110)
