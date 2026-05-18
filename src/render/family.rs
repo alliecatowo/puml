@@ -2630,6 +2630,17 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Compute SVG canvas size from hierarchical layout result
     // ─────────────────────────────────────────────────────────────────────────
+
+    // 3D cube offset: Node and Frame kinds render a back-right face that extends
+    // `cube_offset` pixels to the right (and up) of the layout bounding box.
+    // We must add this to all right-edge estimates so the cube clears the canvas
+    // right margin (fix #565 #569).
+    const CUBE_OFFSET: i32 = 12;
+    let has_3d_node = doc.nodes.iter().any(|n| {
+        matches!(n.kind, FamilyNodeKind::Node | FamilyNodeKind::Frame)
+    });
+    let shape_right_extra = if has_3d_node { CUBE_OFFSET } else { 0 };
+
     let all_pkg_right = pkg_layouts
         .iter()
         .enumerate()
@@ -2643,7 +2654,24 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .max()
         .unwrap_or(canvas_margin + header_h);
 
-    // Also account for ungrouped nodes
+    // Rightmost drawn position across all placed nodes, including any 3D cube
+    // back-face extension.  This is the source-of-truth for the right canvas edge
+    // when the graph-layout estimate (gl_canvas_right) falls short.
+    let max_node_drawn_right = positions
+        .values()
+        .map(|&(nx, _, nw, _)| nx + nw + shape_right_extra)
+        .max()
+        .unwrap_or(canvas_margin);
+
+    // Ungrouped nodes are placed by a fallback grid that is independent of the
+    // graph-layout pass; their rightmost column must also contribute to svg_width.
+    let ungrouped_right = if ungrouped.is_empty() {
+        0
+    } else {
+        // The last occupied column index among all ungrouped rows.
+        let last_col = ((ungrouped.len() as i32) - 1) % inner_cols;
+        canvas_margin + last_col * (cell_w + inner_gap) + cell_w + shape_right_extra
+    };
     let ungrouped_bottom = if ungrouped.is_empty() {
         0
     } else {
@@ -2656,7 +2684,17 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let gl_canvas_bottom = gl_result.canvas_height as i32;
 
     let projection_extra_height = family_projection_extra_height(&doc.json_projections);
-    let svg_width = all_pkg_right.max(gl_canvas_right).max(canvas_margin) + canvas_margin;
+    // svg_width: the dominant right-edge estimate is max_node_drawn_right (which
+    // already includes shape_right_extra); we also floor on gl_canvas_right and
+    // all_pkg_right for backwards compatibility.  A final + canvas_margin gives the
+    // right gutter.  The extra + shape_right_extra ensures Node/Frame 3D back-faces
+    // have a full canvas_margin of clearance beyond their visible right edge.
+    let svg_width = all_pkg_right
+        .max(gl_canvas_right)
+        .max(max_node_drawn_right)
+        .max(ungrouped_right)
+        .max(canvas_margin)
+        + canvas_margin;
     let svg_width = svg_width.max(400);
     let svg_height = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
         + canvas_margin

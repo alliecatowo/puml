@@ -197,19 +197,29 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
 /// declaration's children (and their children). These are added to the global transition list
 /// so the renderer can route them even though they live inside composite nodes.
 /// Also ensures that all referenced endpoint names have a corresponding flat node entry.
+///
+/// `[*]` references inside a composite are scoped to the parent composite name:
+/// - `[*]` as source becomes `[*]__in__{parent}` (initial pseudo-state inside the composite)
+/// - `[*]` as target becomes `[*]__end__{parent}` (local final state inside the composite)
+/// This prevents internal flow from hijacking the outer diagram's global pseudo-state.
 fn collect_decl_transitions(
     decl: &crate::ast::StateDecl,
     nodes: &mut Vec<StateNode>,
     transitions: &mut Vec<ModelStateTransition>,
 ) {
+    // Mirror state_decl_to_node's naming logic.
+    let parent_name = decl.alias.as_deref().unwrap_or(decl.name.as_str());
+
     for child_stmt in &decl.children {
         match &child_stmt.kind {
             StatementKind::StateTransition(t) => {
-                ensure_state_node(nodes, &t.from);
-                ensure_state_node(nodes, &t.to);
+                let from = scope_pseudo_star(&t.from, parent_name, false);
+                let to = scope_pseudo_star(&t.to, parent_name, true);
+                ensure_state_node(nodes, &from);
+                ensure_state_node(nodes, &to);
                 transitions.push(ModelStateTransition {
-                    from: t.from.clone(),
-                    to: t.to.clone(),
+                    from,
+                    to,
                     label: t.label.clone(),
                     line_color: t.line_color.clone(),
                     dashed: t.dashed,
@@ -224,6 +234,20 @@ fn collect_decl_transitions(
             }
             _ => {}
         }
+    }
+}
+
+/// Rewrite `[*]` to a composite-scoped synthetic name.
+/// Non-`[*]` names are passed through unchanged.
+fn scope_pseudo_star(name: &str, parent: &str, is_target: bool) -> String {
+    if name == "[*]" {
+        if is_target {
+            format!("[*]__end__{parent}")
+        } else {
+            format!("[*]__in__{parent}")
+        }
+    } else {
+        name.to_string()
     }
 }
 
@@ -311,14 +335,20 @@ fn ensure_state_node(nodes: &mut Vec<StateNode>, name: &str) {
     if nodes.iter().any(|n| n.name == name) {
         return;
     }
-    let kind = match name {
-        "[*]" => StateNodeKind::StartEnd,
-        "[H]" => StateNodeKind::HistoryShallow,
-        "[H*]" => StateNodeKind::HistoryDeep,
-        _ => StateNodeKind::Normal,
+    let kind = if name == "[*]" {
+        StateNodeKind::StartEnd
+    } else if name == "[H]" {
+        StateNodeKind::HistoryShallow
+    } else if name == "[H*]" {
+        StateNodeKind::HistoryDeep
+    } else if name.starts_with("[*]__in__") {
+        StateNodeKind::StartEnd
+    } else if name.starts_with("[*]__end__") {
+        StateNodeKind::End
+    } else {
+        StateNodeKind::Normal
     };
     let display = match name {
-        "[*]" => None,
         "[H]" => Some("H".to_string()),
         "[H*]" => Some("H*".to_string()),
         _ => None,
