@@ -1,8 +1,8 @@
 use puml::ast::{DiagramKind, StatementKind};
 use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, document_symbols, hover as language_hover, resolve_completion_item,
-    CompletionItemKind, DocumentSymbolKind,
+    completion_items, diagnostics_with_options, document_symbols, hover as language_hover,
+    resolve_completion_item, CompletionItemKind, DocumentSymbolKind,
 };
 use puml::scene::LayoutOptions;
 use puml::{
@@ -1002,25 +1002,6 @@ fn render_family_document_svg(family: &FamilyDocument) -> String {
     }
 }
 
-fn normalized_warnings(model: &NormalizedDocument) -> &[puml::Diagnostic] {
-    match model {
-        NormalizedDocument::Sequence(sequence) => &sequence.warnings,
-        NormalizedDocument::Family(family) => &family.warnings,
-        NormalizedDocument::Timeline(timeline) => &timeline.warnings,
-        NormalizedDocument::State(state) => &state.warnings,
-        NormalizedDocument::Json(doc) => &doc.warnings,
-        NormalizedDocument::Yaml(doc) => &doc.warnings,
-        NormalizedDocument::Nwdiag(doc) => &doc.warnings,
-        NormalizedDocument::Archimate(doc) => &doc.warnings,
-        NormalizedDocument::Regex(doc) => &doc.warnings,
-        NormalizedDocument::Ebnf(doc) => &doc.warnings,
-        NormalizedDocument::Math(doc) => &doc.warnings,
-        NormalizedDocument::Sdl(doc) => &doc.warnings,
-        NormalizedDocument::Ditaa(doc) => &doc.warnings,
-        NormalizedDocument::Chart(doc) => &doc.warnings,
-    }
-}
-
 fn open(v: &Value) -> Option<(String, i64, String)> {
     Some((
         v.pointer("/params/textDocument/uri")?.as_str()?.to_string(),
@@ -1329,39 +1310,38 @@ mod tests {
     }
 }
 fn pub_diag(w: &mut impl Write, uri: &str, ver: i64, src: &str) -> io::Result<()> {
-    let ds = match lsp_parse(src).and_then(normalize_family) {
-        Ok(m) => normalized_warnings(&m)
-            .iter()
-            .map(|d| {
-                diag(
-                    src,
-                    &d.message,
-                    d.span.map(|s| (s.start, s.end)),
-                    d.severity,
-                )
-            })
-            .collect(),
-        Err(e) => vec![diag(
-            src,
-            &e.message,
-            e.span.map(|s| (s.start, s.end)),
-            e.severity,
-        )],
-    };
+    let report = diagnostics_with_options(src, &ParsePipelineOptions::default());
+    let ds = report.diagnostics.iter().map(diag).collect::<Vec<_>>();
     notif(
         w,
         "textDocument/publishDiagnostics",
         json!({"uri":uri,"version":ver,"diagnostics":ds}),
     )
 }
-fn diag(src: &str, msg: &str, sp: Option<(usize, usize)>, sev: Severity) -> Value {
-    let (s, e) = sp.unwrap_or((0, 1));
+fn diag(diagnostic: &puml::language_service::LanguageDiagnostic) -> Value {
+    let range = diagnostic
+        .range
+        .map(|range| {
+            json!({
+                "start": {
+                    "line": range.start.line.saturating_sub(1),
+                    "character": range.start.column.saturating_sub(1)
+                },
+                "end": {
+                    "line": range.end.line.saturating_sub(1),
+                    "character": range.end.column.saturating_sub(1)
+                }
+            })
+        })
+        .unwrap_or_else(
+            || json!({"start":{"line":0,"character":0},"end":{"line":0,"character":1}}),
+        );
     json!({
-        "range":{"start":pos(src,s),"end":pos(src,e.max(s+1))},
-        "severity":lsp_severity(sev),
+        "range": range,
+        "severity":lsp_severity(diagnostic.severity),
         "source":"puml",
-        "code":split_diagnostic_code(msg),
-        "message":msg
+        "code":diagnostic.code.clone(),
+        "message":diagnostic.message.clone()
     })
 }
 
@@ -1372,15 +1352,6 @@ fn lsp_severity(severity: Severity) -> i32 {
     }
 }
 
-fn split_diagnostic_code(message: &str) -> Option<&str> {
-    let rest = message.strip_prefix('[')?;
-    let (code, _tail) = rest.split_once("] ")?;
-    if code.is_empty() {
-        None
-    } else {
-        Some(code)
-    }
-}
 fn pos(src: &str, off: usize) -> Value {
     let (l, c) = offset_to_lc(src, off);
     json!({"line":l,"character":c})

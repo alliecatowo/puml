@@ -1,6 +1,7 @@
+use puml::diagnostic::Severity;
 use puml::language_service::{
-    completion_items, document_symbols, hover, resolve_completion_item, CompletionItemKind,
-    DocumentSymbolKind,
+    completion_items, diagnostics, document_symbols, hover, resolve_completion_item,
+    CompletionItemKind, DocumentSymbolKind,
 };
 use puml::source::Span;
 
@@ -72,4 +73,34 @@ fn hover_returns_plain_word_for_unknown_identifiers_without_lsp_transport() {
     let markdown = hover(source, (1, 1)).expect("hover").markdown;
 
     assert_eq!(markdown, "`Alice`");
+}
+
+#[test]
+fn diagnostics_reports_parse_errors_without_lsp_transport() {
+    let source = "@startuml\nA ->\n@enduml\n";
+
+    let report = diagnostics(source);
+
+    assert_eq!(report.diagnostics.len(), 1);
+    let diagnostic = &report.diagnostics[0];
+    assert_eq!(diagnostic.code.as_deref(), Some("E_ARROW_INVALID"));
+    assert_eq!(diagnostic.severity, Severity::Error);
+    assert_eq!(diagnostic.span, Some(Span::new(10, 14)));
+    assert_eq!(diagnostic.range.unwrap().start.line, 2);
+    assert_eq!(diagnostic.range.unwrap().start.column, 1);
+}
+
+#[test]
+fn diagnostics_reports_normalization_warnings_without_lsp_transport() {
+    let source = "@startuml\nskinparam TotallyUnknownColor red\nA -> B\n@enduml\n";
+
+    let report = diagnostics(source);
+
+    assert_eq!(report.diagnostics.len(), 1);
+    let diagnostic = &report.diagnostics[0];
+    assert_eq!(diagnostic.code.as_deref(), Some("W_SKINPARAM_UNSUPPORTED"));
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(diagnostic.span, Some(Span::new(10, 43)));
+    assert_eq!(diagnostic.range.unwrap().start.line, 2);
+    assert_eq!(diagnostic.range.unwrap().start.column, 1);
 }
