@@ -410,6 +410,13 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
             FamilyNodeKind::ActivityDecision => {
                 // diamond
+                // Split "condition / guard" — condition inside diamond, guard floats
+                // on the outgoing "then" arrow (right side of diamond).
+                let (condition_text, then_guard) = if let Some(idx) = label.find(" / ") {
+                    (&label[..idx], Some(&label[idx + 3..]))
+                } else {
+                    (label.as_str(), None)
+                };
                 let dx = 100;
                 let dy = 22;
                 out.push_str(&format!(
@@ -425,13 +432,24 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     act_style.diamond_color,
                     act_style.border_color
                 ));
+                // Condition text inside the diamond
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
                     cx,
                     y + 2 + dy + 4,
                     escape_text(&act_style.font_color),
-                    escape_text(&label)
+                    escape_text(condition_text)
                 ));
+                // Guard label floats at the right tip of the diamond (then-branch side)
+                if let Some(guard) = then_guard {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+                        cx + dx + 4,
+                        y + 2 + dy + 4,
+                        escape_text(&act_style.font_color),
+                        escape_text(guard)
+                    ));
+                }
                 if step_kind.contains("WhileStart") {
                     out.push_str(&format!(
                         "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">while</text>",

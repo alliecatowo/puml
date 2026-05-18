@@ -33,7 +33,7 @@ Account --> Ledger : posts
 "#,
     )
     .expect("class render should succeed");
-    assert_eq!(class_svg.matches(">class Account<").count(), 1);
+    assert_eq!(class_svg.matches(">Account<").count(), 1);
     assert!(class_svg.contains("+id: UUID"));
     assert!(class_svg.contains("+close()"));
 
@@ -319,9 +319,11 @@ stop
 "#,
     )
     .expect("activity note and branch labels should render");
-    assert!(activity_svg.contains("ready? / yes / fast"));
+    assert!(activity_svg.contains("ready?"), "condition text should appear in diamond");
+    assert!(activity_svg.contains("yes / fast"), "then-guard should float on outgoing arrow");
     assert!(activity_svg.contains("note right: manual review"));
-    assert!(activity_svg.contains("again? / yes / no"));
+    assert!(activity_svg.contains("again?"), "repeat condition should appear in diamond");
+    assert!(activity_svg.contains("yes / no"), "repeat guard labels should float on arrow");
 }
 
 #[test]
