@@ -119,6 +119,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         let idx = lane_index(lane_name);
         lane_area_x + idx * lane_w + lane_w / 2
     };
+    let has_named_lanes = lanes.iter().any(|l| l != "default");
+    let lane_header_h = if has_named_lanes { 24i32 } else { 0i32 };
 
     // Width reserved for each fork branch column
     let fork_col_w = (lane_w / 2).max(160i32);
@@ -165,6 +167,9 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         start_node_idx: usize,
         end_next_slot: i32,
     }
+    struct RepeatFrame {
+        body_start_idx: usize,
+    }
 
     // Per-node layout
     struct NodeLayout {
@@ -182,9 +187,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     // Indices of nodes for which we suppress the standard prev->cur arrow
     let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
 
-    let mut current_slot_y = header_h;
+    let mut current_slot_y = header_h + lane_header_h;
     let mut if_stack: Vec<IfFrame> = Vec::new();
     let mut fork_stack: Vec<ForkFrame> = Vec::new();
+    let mut repeat_stack: Vec<RepeatFrame> = Vec::new();
 
     for (i, meta) in metas.iter().enumerate() {
         let base_cx = lane_center_x(&meta.lane_name);
@@ -335,6 +341,36 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     next_slot_y: slot_y + step_h,
                 });
                 current_slot_y = frame.branch_start_y;
+            }
+            "RepeatStart" => {
+                let slot_y = current_slot_y;
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y: slot_y,
+                    next_slot_y: slot_y,
+                });
+                suppress_prev_arrow.insert(i);
+                repeat_stack.push(RepeatFrame {
+                    body_start_idx: i + 1,
+                });
+            }
+            "RepeatWhile" => {
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                if let Some(repeat_frame) = repeat_stack.pop() {
+                    if let Some(body_layout) = node_layouts.get(repeat_frame.body_start_idx) {
+                        extra_arrows.push((cx, arrow_out_y, body_layout.cx, body_layout.slot_y));
+                    }
+                }
+                current_slot_y = next_slot_y;
             }
             "EndFork" => {
                 let mut frame = fork_stack.pop().expect("endfork without fork");
@@ -514,10 +550,6 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
 
     let lane_left = |idx: i32| -> i32 { lane_area_x + idx * lane_w };
 
-    let has_named_lanes = lanes.iter().any(|l| l != "default");
-    // Lane header height: if we have named lanes, reserve space for the header label.
-    let lane_header_h = if has_named_lanes { 24i32 } else { 0i32 };
-
     for (idx, lane) in lanes.iter().enumerate() {
         let lx = lane_left(idx as i32);
         let bg = if idx % 2 == 0 {
@@ -676,14 +708,6 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                         escape_text(&act_style.font_color)
                     ));
                 }
-                if step_kind.contains("RepeatWhile") {
-                    out.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">repeat while</text>",
-                        cx,
-                        y + 54,
-                        escape_text(&act_style.font_color)
-                    ));
-                }
             }
             FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                 if step_kind.contains("ForkAgain") {
@@ -732,25 +756,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             FamilyNodeKind::ActivityPartition => {
                 // Old-style |Lane| markers and PartitionEnd are invisible —
                 // the lane column background already shows the boundary.
-                // PartitionStart draws a subtle header label within the lane.
-                if step_kind == "PartitionStart" {
-                    // Partition label: draw a small header tag at top of the
-                    // current lane column (using cx which is the lane center).
-                    // The label is drawn at y (which == current_slot_y at partition
-                    // start, but since height is 0 this is the exact boundary point).
-                    // We skip the rect — the lane column background handles that.
-                    let clean_label = label.trim_matches('"').trim();
-                    if !clean_label.is_empty() {
-                        out.push_str(&format!(
-                            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" font-weight=\"600\" fill=\"{}\" opacity=\"0.7\">[{}]</text>",
-                            cx,
-                            y + 12,
-                            escape_text(&act_style.font_color),
-                            escape_text(clean_label)
-                        ));
-                    }
-                }
-                // PartitionEnd and OldStyle lane-switch: render nothing
+                // PartitionStart, PartitionEnd, and old-style lane switches are
+                // layout-only markers; the swimlane header already names the lane.
             }
             _ => {
                 out.push_str(&format!(
@@ -771,11 +778,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             while prev_idx > 0 {
                 let prev_kind = &doc.nodes[prev_idx].kind;
                 let prev_step = &metas[prev_idx].step_kind;
-                let is_partition_marker = matches!(prev_kind, FamilyNodeKind::ActivityPartition)
+                let is_invisible_control = (matches!(prev_kind, FamilyNodeKind::ActivityPartition)
                     && (prev_step == "PartitionStart"
                         || prev_step == "PartitionEnd"
-                        || prev_step == "OldStyle");
-                if !is_partition_marker {
+                        || prev_step == "OldStyle"))
+                    || prev_step == "RepeatStart";
+                if !is_invisible_control {
                     break;
                 }
                 prev_idx -= 1;
