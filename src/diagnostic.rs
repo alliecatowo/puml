@@ -183,6 +183,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn line_col_and_render_with_source_handle_spans_and_plain_messages() {
+        let source = "alpha\nβeta line\nomega";
+        let diagnostic =
+            Diagnostic::error("bad token").with_span(Span { start: 6, end: 10 });
+
+        assert_eq!(diagnostic.line_col(source), Some((2, 1)));
+        assert_eq!(
+            diagnostic.render_with_source(source),
+            "bad token at line 2, column 1\nβeta line\n^^^^"
+        );
+
+        let plain = Diagnostic::warning("heads up");
+        assert_eq!(plain.line_col(source), None);
+        assert_eq!(plain.render_with_source(source), "heads up");
+    }
+
+    #[test]
     fn to_json_with_source_includes_code_location_and_snippet() {
         let source = "alpha\nβeta line\nomega";
         let diagnostic =
@@ -222,5 +239,19 @@ mod tests {
             render_caret_line(source, Span { start: 4, end: 4 }),
             "def\n^"
         );
+    }
+
+    #[test]
+    fn coded_messages_require_non_empty_bracket_prefix() {
+        let coded = Diagnostic::error_code("E_PARSE", "unexpected token");
+        let empty = Diagnostic::warning("[] missing code");
+        let plain = Diagnostic::warning("[oops]missing separator");
+
+        assert_eq!(
+            coded.to_json_with_source("x").code.as_deref(),
+            Some("E_PARSE")
+        );
+        assert_eq!(empty.to_json_with_source("x").code, None);
+        assert_eq!(plain.to_json_with_source("x").code, None);
     }
 }

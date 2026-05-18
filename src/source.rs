@@ -36,3 +36,27 @@ impl Source {
         &self.text[span.start.min(self.text.len())..span.end.min(self.text.len())]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn span_len_and_empty_state_handle_reversed_bounds() {
+        assert_eq!(Span::new(3, 8).len(), 5);
+        assert_eq!(Span::new(8, 3).len(), 0);
+        assert!(!Span::new(3, 8).is_empty());
+        assert!(Span::new(8, 3).is_empty());
+        assert!(Span::new(4, 4).is_empty());
+    }
+
+    #[test]
+    fn source_slice_clamps_to_text_bounds() {
+        let source = Source::new("diagram");
+
+        assert_eq!(source.as_str(), "diagram");
+        assert_eq!(source.slice(Span::new(2, 5)), "agr");
+        assert_eq!(source.slice(Span::new(4, 99)), "ram");
+        assert_eq!(source.slice(Span::new(99, 120)), "");
+    }
+}
