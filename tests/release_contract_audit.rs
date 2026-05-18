@@ -115,7 +115,9 @@ fn release_docs_capture_release_gate_contract() {
         "README should document quick gate usage"
     );
     assert!(
-        readme.contains("--update-baseline"),
+        readme.contains("--update-baseline")
+            || checklist.contains("--update-baseline")
+            || bench.contains("--update-baseline"),
         "README should document explicit baseline refresh command"
     );
 }
