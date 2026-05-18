@@ -341,7 +341,12 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     if !document.closed_weekdays.is_empty() {
         let mut day = min_day;
         while day < max_day_exclusive {
-            if is_gantt_closed_weekday_number(day, &document.closed_weekdays) {
+            if is_gantt_closed_weekday_number(day, &document.closed_weekdays)
+                && !document
+                    .open_ranges
+                    .iter()
+                    .any(|range| (range.start_day..=range.end_day).contains(&day))
+            {
                 let x = day_to_x(day);
                 let w = (day_to_x(day.saturating_add(1)) - x).max(2);
                 out.push_str(&format!(

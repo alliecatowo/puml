@@ -110,6 +110,17 @@ FIXTURES: List[Dict[str, Any]] = [
         "expect_tokens": [],
     },
     {
+        "fixture": "families/valid_gantt_calendar_resource_scale.puml",
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "Gantt calendar and resource layout",
+        "drift_reason": "Gantt calendar exclusions, reopened dates, resource loads, dependencies, and milestone positioning are active but still narrower than full PlantUML layout semantics",
+        "next_ticket": "Continue issue #352 by comparing Gantt task/milestone geometry against Java PlantUML oracle output.",
+        "plantuml_reference": "https://plantuml.com/gantt-diagram",
+        "expect_tokens": ["Design", "Build", "Release"],
+    },
+    {
         "fixture": "families/valid_mindmap_orientation.puml",
         "category": "family-partial",
         "support_status": "partial",

@@ -377,6 +377,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         .expect("dry-run report should rank expected drift areas");
     for expected_area in [
         "Salt widget breadth",
+        "Gantt calendar and resource layout",
         "chart axis legend style",
         "dynamic preprocessor invocation",
         "mindmap orientation layout",
@@ -393,6 +394,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
     let fixtures = v["fixtures"]
         .as_array()
         .expect("dry-run report should contain fixture array");
+    let mut saw_gantt = false;
     let mut saw_salt = false;
     let mut saw_preproc = false;
     let mut saw_component_style = false;
@@ -420,6 +422,17 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
                 Some("drift")
             );
         }
+        if rel == "families/valid_gantt_calendar_resource_scale.puml" {
+            saw_gantt = true;
+            assert_eq!(
+                fixture["classification"]["drift_area"].as_str(),
+                Some("Gantt calendar and resource layout")
+            );
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("drift")
+            );
+        }
         if rel == "errors/invalid_preproc_dynamic_invoke.puml" {
             saw_preproc = true;
             assert_eq!(
@@ -440,6 +453,10 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         }
     }
 
+    assert!(
+        saw_gantt,
+        "Gantt calendar/resource fixture should be in dry-run corpus"
+    );
     assert!(saw_salt, "Salt partial fixture should be in dry-run corpus");
     assert!(
         saw_preproc,
