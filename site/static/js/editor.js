@@ -181,10 +181,30 @@ async function init() {
   }
 }
 
+// Debounced auto-render: wait 400 ms after the last keystroke before
+// calling render().  If a render is already in flight (renderInFlight is
+// true) we don't cancel the timer — we just let the in-flight render
+// finish, and the timer queued here will fire afterwards.
 let renderTimer = null;
+let renderInFlight = false;
+
 function scheduleAutoRender() {
   if (renderTimer) clearTimeout(renderTimer);
-  renderTimer = setTimeout(render, 400);
+  renderTimer = setTimeout(async () => {
+    renderTimer = null;
+    // If another render is already in progress, re-queue and let it finish
+    // first so we always render the latest source without cancelling work.
+    if (renderInFlight) {
+      scheduleAutoRender();
+      return;
+    }
+    renderInFlight = true;
+    try {
+      await render();
+    } finally {
+      renderInFlight = false;
+    }
+  }, 400);
 }
 
 function setSource(text) {
