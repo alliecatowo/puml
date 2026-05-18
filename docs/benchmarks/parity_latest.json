@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-18T08:42:59Z",
+  "generated_at_utc": "2026-05-18T17:23:06Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml",
+    "cwd": "/home/Allie/develop/puml/.claude/worktrees/agent-a820c698908057c2e",
     "quick_mode": false
   },
   "oracle": {
@@ -28,13 +28,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
           "svg_bytes": 1640,
           "viewbox": null
@@ -52,13 +52,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
           "svg_bytes": 2451,
           "viewbox": null
@@ -76,13 +76,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
           "svg_bytes": 3781,
           "viewbox": null
@@ -100,13 +100,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
           "svg_bytes": 2886,
           "viewbox": null
@@ -124,13 +124,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
           "svg_bytes": 2783,
           "viewbox": null
@@ -148,13 +148,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
           "svg_bytes": 2318,
           "viewbox": null
@@ -172,15 +172,15 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
-          "svg_bytes": 3171,
+          "svg_bytes": 3170,
           "viewbox": null
         }
       },
@@ -196,13 +196,13 @@
         "passed": true,
         "exit_code": 0,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^"
+        "stderr": ""
       },
       "render": {
         "attempted": true,
         "passed": true,
         "exit_code": 0,
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^",
+        "stderr": "",
         "metadata": {
           "svg_bytes": 2385,
           "viewbox": null
@@ -220,7 +220,7 @@
         "passed": false,
         "exit_code": 1,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^\n\n{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @enduml at line 1 without a preceding @startuml\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
+        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @enduml at line 1 without a preceding @startuml\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
       },
       "render": {
         "attempted": false,
@@ -244,7 +244,7 @@
         "passed": false,
         "exit_code": 1,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^\n\n{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": \"E_PARSE_UNKNOWN\",\n      \"severity\": \"error\",\n      \"message\": \"[E_PARSE_UNKNOWN] unsupported syntax: `[E_NOTE_INVALID] malformed note syntax: `note of A: bad``\",\n      \"span\": {\n        \"start\": 38,\n        \"end\": 52\n      },\n      \"line\": 4,\n      \"column\": 1,\n      \"snippet\": \"note of A: bad\",\n      \"caret\": \"^^^^^^^^^^^^^^\"\n    }\n  ]\n}"
+        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": \"E_PARSE_UNKNOWN\",\n      \"severity\": \"error\",\n      \"message\": \"[E_PARSE_UNKNOWN] unsupported syntax: `[E_NOTE_INVALID] malformed note syntax: `note of A: bad``\",\n      \"span\": {\n        \"start\": 38,\n        \"end\": 52\n      },\n      \"line\": 4,\n      \"column\": 1,\n      \"snippet\": \"note of A: bad\",\n      \"caret\": \"^^^^^^^^^^^^^^\"\n    }\n  ]\n}"
       },
       "render": {
         "attempted": false,
@@ -268,7 +268,7 @@
         "passed": false,
         "exit_code": 1,
         "diagnostics": [],
-        "stderr": "warning: unused import: `crate::diagnostic::Diagnostic`\n --> src/preproc/mod.rs:7:5\n  |\n7 | use crate::diagnostic::Diagnostic;\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `PreprocMacro`\n --> src/preproc/builtins.rs:8:26\n  |\n8 |     PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,\n  |                          ^^^^^^^^^^^^\n\nwarning: unused import: `std::time::Duration`\n  --> src/preproc/includes.rs:10:5\n   |\n10 | use std::time::Duration;\n   |     ^^^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MAX_INCLUDE_DEPTH`\n  --> src/preproc/includes.rs:19:5\n   |\n19 |     MAX_INCLUDE_DEPTH,\n   |     ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `PreprocParam`\n --> src/preproc/macros.rs:7:5\n  |\n7 |     PreprocParam, PreprocState, PreprocVariableScope, PreprocessDirective,\n  |     ^^^^^^^^^^^^\n\n{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @startuml at line 3 before closing previous block started at line 1\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
+        "stderr": "{\n  \"schema\": \"puml.diagnostics\",\n  \"schema_version\": 1,\n  \"diagnostics\": [\n    {\n      \"code\": null,\n      \"severity\": \"error\",\n      \"message\": \"unmatched @startuml/@enduml boundary: found @startuml at line 3 before closing previous block started at line 1\",\n      \"span\": null,\n      \"line\": null,\n      \"column\": null,\n      \"snippet\": null,\n      \"caret\": null\n    }\n  ]\n}"
       },
       "render": {
         "attempted": false,
@@ -290,9 +290,9 @@
   "doc_examples": {
     "summary": {
       "total": 257,
-      "passed": 238,
+      "passed": 205,
       "excluded": 3,
-      "failed": 16
+      "failed": 49
     },
     "entries": [
       {
@@ -678,12 +678,15 @@
         "source_ref": "docs/examples/c4/01_context.puml",
         "artifact_svg": "docs/examples/c4/01_context.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -707,12 +710,15 @@
         "source_ref": "docs/examples/c4/03_containers.puml",
         "artifact_svg": "docs/examples/c4/03_containers.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -720,12 +726,15 @@
         "source_ref": "docs/examples/c4/04_components.puml",
         "artifact_svg": "docs/examples/c4/04_components.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -781,12 +790,15 @@
         "source_ref": "docs/examples/c4/08_simple_saas.puml",
         "artifact_svg": "docs/examples/c4/08_simple_saas.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -794,12 +806,15 @@
         "source_ref": "docs/examples/c4/09_data_platform.puml",
         "artifact_svg": "docs/examples/c4/09_data_platform.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -807,12 +822,15 @@
         "source_ref": "docs/examples/c4/10_security_zones.puml",
         "artifact_svg": "docs/examples/c4/10_security_zones.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -911,12 +929,15 @@
         "source_ref": "docs/examples/class/01_basic.puml",
         "artifact_svg": "docs/examples/class/01_basic.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -924,12 +945,15 @@
         "source_ref": "docs/examples/class/02_inheritance.puml",
         "artifact_svg": "docs/examples/class/02_inheritance.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -937,12 +961,15 @@
         "source_ref": "docs/examples/class/03_composition_aggregation.puml",
         "artifact_svg": "docs/examples/class/03_composition_aggregation.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -950,12 +977,15 @@
         "source_ref": "docs/examples/class/04_dependency.puml",
         "artifact_svg": "docs/examples/class/04_dependency.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -963,12 +993,15 @@
         "source_ref": "docs/examples/class/05_visibility.puml",
         "artifact_svg": "docs/examples/class/05_visibility.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -976,12 +1009,15 @@
         "source_ref": "docs/examples/class/06_abstract_interface.puml",
         "artifact_svg": "docs/examples/class/06_abstract_interface.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -989,12 +1025,15 @@
         "source_ref": "docs/examples/class/07_stereotypes.puml",
         "artifact_svg": "docs/examples/class/07_stereotypes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1002,12 +1041,15 @@
         "source_ref": "docs/examples/class/08_packages.puml",
         "artifact_svg": "docs/examples/class/08_packages.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1015,12 +1057,15 @@
         "source_ref": "docs/examples/class/09_static_modifiers.puml",
         "artifact_svg": "docs/examples/class/09_static_modifiers.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1044,12 +1089,15 @@
         "source_ref": "docs/examples/class/11_generics.puml",
         "artifact_svg": "docs/examples/class/11_generics.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1057,12 +1105,15 @@
         "source_ref": "docs/examples/class/12_all_relations.puml",
         "artifact_svg": "docs/examples/class/12_all_relations.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1070,12 +1121,15 @@
         "source_ref": "docs/examples/class/13_abstract_interface.puml",
         "artifact_svg": "docs/examples/class/13_abstract_interface.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1083,12 +1137,15 @@
         "source_ref": "docs/examples/class/14_nested_packages.puml",
         "artifact_svg": "docs/examples/class/14_nested_packages.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1096,12 +1153,15 @@
         "source_ref": "docs/examples/class/15_enum_annotation.puml",
         "artifact_svg": "docs/examples/class/15_enum_annotation.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1109,12 +1169,15 @@
         "source_ref": "docs/examples/class/16_interface_hierarchy.puml",
         "artifact_svg": "docs/examples/class/16_interface_hierarchy.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1122,12 +1185,15 @@
         "source_ref": "docs/examples/class/17_pattern_observer.puml",
         "artifact_svg": "docs/examples/class/17_pattern_observer.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1135,12 +1201,15 @@
         "source_ref": "docs/examples/class/18_pattern_factory.puml",
         "artifact_svg": "docs/examples/class/18_pattern_factory.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1148,12 +1217,15 @@
         "source_ref": "docs/examples/class/19_repository_pattern.puml",
         "artifact_svg": "docs/examples/class/19_repository_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1161,12 +1233,15 @@
         "source_ref": "docs/examples/class/20_visibility_modifiers.puml",
         "artifact_svg": "docs/examples/class/20_visibility_modifiers.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1174,12 +1249,15 @@
         "source_ref": "docs/examples/class/21_microservices.puml",
         "artifact_svg": "docs/examples/class/21_microservices.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1187,12 +1265,15 @@
         "source_ref": "docs/examples/class/22_ddd.puml",
         "artifact_svg": "docs/examples/class/22_ddd.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1200,12 +1281,15 @@
         "source_ref": "docs/examples/class/23_event_sourcing.puml",
         "artifact_svg": "docs/examples/class/23_event_sourcing.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1213,12 +1297,15 @@
         "source_ref": "docs/examples/class/24_cqrs.puml",
         "artifact_svg": "docs/examples/class/24_cqrs.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1226,12 +1313,15 @@
         "source_ref": "docs/examples/class/25_builder_pattern.puml",
         "artifact_svg": "docs/examples/class/25_builder_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1239,12 +1329,15 @@
         "source_ref": "docs/examples/class/26_strategy_pattern.puml",
         "artifact_svg": "docs/examples/class/26_strategy_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1252,12 +1345,15 @@
         "source_ref": "docs/examples/class/27_chain_of_responsibility.puml",
         "artifact_svg": "docs/examples/class/27_chain_of_responsibility.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1265,12 +1361,15 @@
         "source_ref": "docs/examples/class/28_composite_pattern.puml",
         "artifact_svg": "docs/examples/class/28_composite_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1278,12 +1377,15 @@
         "source_ref": "docs/examples/class/29_decorator_pattern.puml",
         "artifact_svg": "docs/examples/class/29_decorator_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1291,12 +1393,15 @@
         "source_ref": "docs/examples/class/30_command_pattern.puml",
         "artifact_svg": "docs/examples/class/30_command_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1514,15 +1619,12 @@
         "source_ref": "docs/examples/ebnf/01_simple_grammar.puml",
         "artifact_svg": "docs/examples/ebnf/01_simple_grammar.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1530,15 +1632,12 @@
         "source_ref": "docs/examples/ebnf/02_optional_repetition.puml",
         "artifact_svg": "docs/examples/ebnf/02_optional_repetition.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1546,15 +1645,12 @@
         "source_ref": "docs/examples/ebnf/03_complex.puml",
         "artifact_svg": "docs/examples/ebnf/03_complex.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1822,12 +1918,15 @@
         "source_ref": "docs/examples/object/01_basic.puml",
         "artifact_svg": "docs/examples/object/01_basic.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1835,12 +1934,15 @@
         "source_ref": "docs/examples/object/02_with_attributes.puml",
         "artifact_svg": "docs/examples/object/02_with_attributes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1848,12 +1950,15 @@
         "source_ref": "docs/examples/object/03_with_links.puml",
         "artifact_svg": "docs/examples/object/03_with_links.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1861,12 +1966,15 @@
         "source_ref": "docs/examples/object/04_with_stereotypes.puml",
         "artifact_svg": "docs/examples/object/04_with_stereotypes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -2916,15 +3024,12 @@
         "source_ref": "docs/examples/state/03_concurrent.puml",
         "artifact_svg": "docs/examples/state/03_concurrent.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -2932,15 +3037,12 @@
         "source_ref": "docs/examples/state/04_history.puml",
         "artifact_svg": "docs/examples/state/04_history.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -2961,15 +3063,12 @@
         "source_ref": "docs/examples/state/06_entry_exit.puml",
         "artifact_svg": "docs/examples/state/06_entry_exit.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -2977,15 +3076,12 @@
         "source_ref": "docs/examples/state/07_nested.puml",
         "artifact_svg": "docs/examples/state/07_nested.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -3097,12 +3193,15 @@
         "source_ref": "docs/examples/themes/05_plain_class.puml",
         "artifact_svg": "docs/examples/themes/05_plain_class.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
