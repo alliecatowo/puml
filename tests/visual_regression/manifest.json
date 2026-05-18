@@ -114,6 +114,21 @@
       "family": "sdl",
       "expected_text": ["Idle", "Processing", "Waiting", "Done", "request", "complete"],
       "min_text_elements": 8
+    },
+    {
+      "path": "docs/diagrams/architecture-overview.puml",
+      "family": "component",
+      "expected_text": [
+        "expanded source",
+        "token tree",
+        "raw nodes",
+        "NormalizedDocument",
+        "style tokens",
+        "annotations",
+        "parse_with_options",
+        "browser call"
+      ],
+      "min_text_elements": 20
     }
   ]
 }

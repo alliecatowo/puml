@@ -466,17 +466,34 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     //      corner staggered with LABEL_FAN_GAP px between them.
     //
     // Strategy: build two cluster types, de-collide, populate label_override.
-    const LABEL_FAN_GAP: i32 = 80; // horizontal gap between fanned labels
+    const LABEL_FAN_GAP: i32 = 24; // minimum gutter between fanned label boxes
     const LABEL_CLUSTER_BAND: i32 = 18; // px y-range to detect same-channel clusters
 
     // Map rel_idx → de-collided (lx, ly)
     let mut label_override: std::collections::BTreeMap<usize, (i32, i32)> =
         std::collections::BTreeMap::new();
+    let avoid_node_box_overlap = |lx: i32, ly: i32, label_half_w: i32| -> (i32, i32) {
+        let mut adjusted_y = ly;
+        for _ in 0..8 {
+            let overlap = node_boxes.values().find(|bbox| {
+                lx + label_half_w >= bbox.x - 8
+                    && lx - label_half_w <= bbox.x + bbox.w + 8
+                    && adjusted_y >= bbox.y - 14
+                    && adjusted_y <= bbox.y + bbox.h + 6
+            });
+            match overlap {
+                Some(bbox) => adjusted_y = bbox.y - 18,
+                None => break,
+            }
+        }
+        (lx, adjusted_y)
+    };
 
     {
         struct RawLabel {
             rel_idx: usize,
             to_name: String,
+            text: String,
             lx: i32,
             ly: i32,
         }
@@ -539,9 +556,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             } else {
                 ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
             };
+            let label = relation.label.as_deref().unwrap_or_default();
             raw_labels.push(RawLabel {
                 rel_idx,
                 to_name,
+                text: label.to_string(),
                 lx,
                 ly,
             });
@@ -570,9 +589,19 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             // Sort by raw_label index (declaration order) for determinism.
             let mut sorted = group.clone();
             sorted.sort_unstable();
-            for (slot, &raw_idx) in sorted.iter().enumerate() {
-                let offset = (slot as i32) * LABEL_FAN_GAP - (n - 1) * LABEL_FAN_GAP / 2;
-                label_override.insert(raw_labels[raw_idx].rel_idx, (anchor_cx + offset, anchor_y));
+            let total_width = sorted
+                .iter()
+                .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
+                .sum::<i32>()
+                + (n - 1) * LABEL_FAN_GAP;
+            let mut cursor = -total_width / 2;
+            for &raw_idx in &sorted {
+                let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
+                let center_offset = cursor + label_half_w;
+                let anchor =
+                    avoid_node_box_overlap(anchor_cx + center_offset, anchor_y, label_half_w);
+                label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
+                cursor += label_half_w * 2 + LABEL_FAN_GAP;
             }
         }
 
@@ -604,12 +633,25 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let mut sorted = cluster.clone();
             sorted.sort_by_key(|&i| raw_labels[i].lx);
             let n = sorted.len() as i32;
-            for (slot, &raw_idx) in sorted.iter().enumerate() {
-                let offset = (slot as i32) * LABEL_FAN_GAP - (n - 1) * LABEL_FAN_GAP / 2;
+            let total_width = sorted
+                .iter()
+                .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
+                .sum::<i32>()
+                + (n - 1) * LABEL_FAN_GAP;
+            let mut cursor = -total_width / 2;
+            for &raw_idx in &sorted {
+                let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
+                let center_offset = cursor + label_half_w;
+                let anchor = avoid_node_box_overlap(
+                    mean_x + center_offset,
+                    raw_labels[raw_idx].ly,
+                    label_half_w,
+                );
                 label_override.insert(
                     raw_labels[raw_idx].rel_idx,
-                    (mean_x + offset, raw_labels[raw_idx].ly),
+                    anchor,
                 );
+                cursor += label_half_w * 2 + LABEL_FAN_GAP;
             }
         }
     }
@@ -831,6 +873,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 svg_width - margin_x - 8 - label_half_w,
             );
             let ly = (ly + pair_label_lane).max(margin_top + 10);
+            let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
@@ -868,6 +911,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 svg_width - margin_x - 8 - label_half_w,
             );
             let ly = (ly + pair_label_lane).max(margin_top + 10);
+            let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
