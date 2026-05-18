@@ -460,6 +460,41 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
     )
 }
 
+pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
+    match model {
+        NormalizedDocument::Sequence(sequence) => {
+            let scenes = layout::layout_pages(sequence, LayoutOptions::default());
+            scenes.iter().map(render::render_svg).collect::<Vec<_>>()
+        }
+        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
+        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
+        NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
+        NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
+        NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
+        NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
+        NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
+        NormalizedDocument::Regex(doc) => vec![render::render_regex_svg(doc)],
+        NormalizedDocument::Ebnf(doc) => vec![render::render_ebnf_svg(doc)],
+        NormalizedDocument::Math(doc) => vec![render::render_math_svg(doc)],
+        NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
+        NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
+        NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
+    }
+}
+
+pub fn render_family_document_svg(family: &FamilyDocument) -> String {
+    match family.kind {
+        ast::DiagramKind::Salt => render::render_salt_svg(family),
+        ast::DiagramKind::Component => render::render_component_svg(family),
+        ast::DiagramKind::Deployment => render::render_deployment_svg(family),
+        ast::DiagramKind::Activity => render::render_activity_svg(family),
+        ast::DiagramKind::Timing => render::render_timing_svg(family),
+        ast::DiagramKind::MindMap => render::render_mindmap_svg(family),
+        ast::DiagramKind::Wbs => render::render_wbs_svg(family),
+        _ => render::render_family_stub_svg(family),
+    }
+}
+
 fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
     match kind {
         ast::DiagramKind::Sequence => DiagramFamily::Sequence,

@@ -12,19 +12,17 @@ use puml::ast::{
     DiagramKind, Document, Group, Message, Note, ParticipantDecl,
     ParticipantRole as AstParticipantRole, Statement, StatementKind,
 };
-use puml::layout;
 use puml::model::{
     Participant, ParticipantRole as ModelParticipantRole, SequenceDocument, SequenceEvent,
     SequenceEventKind, StateDocument, TimelineDocument, VirtualEndpoint, VirtualEndpointKind,
     VirtualEndpointSide,
 };
-use puml::scene::LayoutOptions;
 use puml::source::Span;
 use puml::{
     extract_markdown_diagrams, extract_metadata, normalize_family,
-    preprocess_with_pipeline_options, render, specialized, CompatMode, DeterminismMode, Diagnostic,
-    DiagnosticJson, DiagramInput, FrontendSelection, NormalizedDocument, ParsePipelineOptions,
-    TextOutputMode,
+    preprocess_with_pipeline_options, render, render_svg_pages_from_model, specialized,
+    CompatMode, DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
+    NormalizedDocument, ParsePipelineOptions, TextOutputMode,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -1367,41 +1365,6 @@ fn svg_to_html_document(svg: &str) -> String {
     format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>puml diagram</title>\n<style>html,body{{margin:0;min-height:100%;background:#fff;}}body{{display:flex;align-items:flex-start;justify-content:center;padding:16px;box-sizing:border-box;}}svg{{max-width:100%;height:auto;}}</style>\n</head>\n<body>\n{svg}\n</body>\n</html>"
     )
-}
-
-fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
-    match model {
-        NormalizedDocument::Sequence(sequence) => {
-            let scenes = layout::layout_pages(sequence, LayoutOptions::default());
-            scenes.iter().map(render::render_svg).collect::<Vec<_>>()
-        }
-        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
-        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
-        NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
-        NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
-        NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
-        NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
-        NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
-        NormalizedDocument::Regex(doc) => vec![render::render_regex_svg(doc)],
-        NormalizedDocument::Ebnf(doc) => vec![render::render_ebnf_svg(doc)],
-        NormalizedDocument::Math(doc) => vec![render::render_math_svg(doc)],
-        NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
-        NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
-        NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
-    }
-}
-
-fn render_family_document_svg(family: &puml::FamilyDocument) -> String {
-    match family.kind {
-        DiagramKind::Salt => render::render_salt_svg(family),
-        DiagramKind::Component => render::render_component_svg(family),
-        DiagramKind::Deployment => render::render_deployment_svg(family),
-        DiagramKind::Activity => render::render_activity_svg(family),
-        DiagramKind::Timing => render::render_timing_svg(family),
-        DiagramKind::MindMap => render::render_mindmap_svg(family),
-        DiagramKind::Wbs => render::render_wbs_svg(family),
-        _ => render::render_family_stub_svg(family),
-    }
 }
 
 fn parse_for_cli(

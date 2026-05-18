@@ -3,8 +3,9 @@
 
 use puml::ast::DiagramKind;
 use puml::{
-    layout, normalize_family, parse_with_pipeline_options, render, Diagnostic, FamilyDocument,
-    FrontendSelection, NormalizedDocument, ParsePipelineOptions,
+    normalize_family, parse_with_pipeline_options, render_family_document_svg,
+    render_svg_pages_from_model, Diagnostic, FrontendSelection, NormalizedDocument,
+    ParsePipelineOptions,
 };
 use wasm_bindgen::prelude::*;
 
@@ -162,41 +163,6 @@ fn frontend_selection_from_hint(raw: &str) -> Result<FrontendSelection, Diagnost
             "E_FRONTEND_UNKNOWN",
             format!("unknown frontend/dialect hint `{other}`"),
         )),
-    }
-}
-
-fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
-    match model {
-        NormalizedDocument::Sequence(sequence) => {
-            let scenes = layout::layout_pages(sequence, puml::LayoutOptions::default());
-            scenes.iter().map(render::render_svg).collect::<Vec<_>>()
-        }
-        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
-        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
-        NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
-        NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
-        NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
-        NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
-        NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
-        NormalizedDocument::Regex(doc) => vec![render::render_regex_svg(doc)],
-        NormalizedDocument::Ebnf(doc) => vec![render::render_ebnf_svg(doc)],
-        NormalizedDocument::Math(doc) => vec![render::render_math_svg(doc)],
-        NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
-        NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
-        NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
-    }
-}
-
-fn render_family_document_svg(family: &FamilyDocument) -> String {
-    match family.kind {
-        DiagramKind::Salt => render::render_salt_svg(family),
-        DiagramKind::Component => render::render_component_svg(family),
-        DiagramKind::Deployment => render::render_deployment_svg(family),
-        DiagramKind::Activity => render::render_activity_svg(family),
-        DiagramKind::Timing => render::render_timing_svg(family),
-        DiagramKind::MindMap => render::render_mindmap_svg(family),
-        DiagramKind::Wbs => render::render_wbs_svg(family),
-        _ => render::render_family_stub_svg(family),
     }
 }
 
