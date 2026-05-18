@@ -1,7 +1,7 @@
 use super::geometry::{clip_to_box_edge, compute_edge_anchors_for_direction};
 use super::relation::{
     arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
-    render_relation_marker_defs, usecase_dependency_label,
+    render_relation_marker_defs, render_relation_marker_defs_with_prefix, usecase_dependency_label,
 };
 use super::svg::escape_text;
 use crate::ast::MemberModifier;
@@ -1766,7 +1766,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     // Draw relations with shared relation-style semantics.
-    for rel in &doc.relations {
+    for (rel_idx, rel) in doc.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
             normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
         let from_box = positions.get(&from_name);
@@ -1791,6 +1791,14 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
         let style = arrow_style(&normalized_arrow);
         let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
+        let marker_prefix = if rel.line_color.is_some() && relation_color != comp_style.arrow_color
+        {
+            let prefix = format!("uml-rel-{rel_idx}-");
+            render_relation_marker_defs_with_prefix(&mut out, relation_color, &prefix);
+            prefix
+        } else {
+            String::new()
+        };
         let stroke_width = rel.thickness.unwrap_or(2).clamp(1, 8);
         let dash = if style.dashed || rel.dashed {
             " stroke-dasharray=\"5 3\""
@@ -1804,19 +1812,53 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
         let mut markers = String::new();
         if let Some(end) = style.end_marker {
-            markers.push_str(&format!(" marker-end=\"url(#{end})\""));
+            markers.push_str(&format!(" marker-end=\"url(#{marker_prefix}{end})\""));
         }
         if let Some(start) = style.start_marker {
-            markers.push_str(&format!(" marker-start=\"url(#{start})\""));
+            markers.push_str(&format!(" marker-start=\"url(#{marker_prefix}{start})\""));
         }
         let direction_attr = rel
             .direction
             .as_deref()
             .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
             .unwrap_or_default();
+        let mut style_tokens = Vec::new();
+        if rel.line_color.is_some() {
+            style_tokens.push(format!("color:{relation_color}"));
+        }
+        if style.dashed || rel.dashed {
+            style_tokens.push("dashed".to_string());
+        }
+        if rel.hidden {
+            style_tokens.push("hidden".to_string());
+        }
+        if rel.thickness.is_some() {
+            style_tokens.push(format!("thickness:{stroke_width}"));
+        }
+        let style_attr = if style_tokens.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " data-uml-relation-style=\"{}\"",
+                escape_text(&style_tokens.join(" "))
+            )
+        };
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
-            x1, y1, x2, y2, relation_color, stroke_width, dash, visibility, direction_attr, markers
+            "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+            escape_text(&from_name),
+            escape_text(&to_name),
+            escape_text(&normalized_arrow),
+            x1,
+            y1,
+            x2,
+            y2,
+            relation_color,
+            stroke_width,
+            dash,
+            visibility,
+            direction_attr,
+            style_attr,
+            markers
         ));
         if rel.left_lollipop {
             render_lollipop_endpoint(&mut out, x1, y1, relation_color);

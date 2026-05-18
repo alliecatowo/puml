@@ -120,6 +120,17 @@ FIXTURES: List[Dict[str, Any]] = [
         "plantuml_reference": "https://plantuml.com/mindmap-diagram",
         "expect_tokens": [],
     },
+    {
+        "fixture": "families/valid_component_style_oracle_slice.puml",
+        "category": "component-style-core",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "component relation style semantics",
+        "drift_reason": "component package, port, interface, relation color, dash, hidden, lollipop, and stereotype metadata are covered by the implemented slice",
+        "next_ticket": "Expand remaining component/deployment styling breadth after this oracle-backed vertical slice.",
+        "plantuml_reference": "https://plantuml.com/component-diagram",
+        "expect_tokens": ["Gateway", "HTTPS", "Orders API", "publishes", "mounted"],
+    },
 ]
 
 

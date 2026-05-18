@@ -26,11 +26,12 @@
     ]
   },
   "summary": {
-    "total": 9,
+    "total": 10,
     "passed": 0,
     "failed": 0,
-    "not_run": 9,
+    "not_run": 10,
     "by_fixture_category": {
+      "component-style-core": 1,
       "family-partial": 3,
       "preprocessor-advanced": 1,
       "sequence-core": 2,
@@ -39,13 +40,13 @@
       "styling-partial": 1
     },
     "by_support_status": {
-      "implemented": 4,
+      "implemented": 5,
       "partial": 5
     },
     "by_expected_oracle_category": {
       "drift": 4,
       "jar-only": 1,
-      "match": 4
+      "match": 5
     },
     "top_expected_drift_categories": [
       {
@@ -543,6 +544,43 @@
         "drift_reason": "mindmap orientation metadata is deterministic but not full PlantUML layout parity",
         "next_ticket": "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement.",
         "plantuml_reference": "https://plantuml.com/mindmap-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "families/valid_component_style_oracle_slice.puml",
+      "classification": {
+        "category": "component-style-core",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "component relation style semantics",
+        "drift_reason": "component package, port, interface, relation color, dash, hidden, lollipop, and stereotype metadata are covered by the implemented slice",
+        "next_ticket": "Expand remaining component/deployment styling breadth after this oracle-backed vertical slice.",
+        "plantuml_reference": "https://plantuml.com/component-diagram"
       },
       "local": {
         "attempted": false,
