@@ -12,7 +12,26 @@ lto = false
 name = "puml"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.88"
+description = "Fast, no-Java PlantUML-compatible diagram rendering as a Rust CLI and library."
+license = "MIT"
+repository = "https://github.com/alliecatowo/puml"
+homepage = "https://alliecatowo.github.io/puml/"
+documentation = "https://alliecatowo.github.io/puml/guide/cli/"
+readme = "README.md"
+keywords = ["plantuml", "diagram", "svg", "cli", "renderer"]
+categories = ["command-line-utilities", "parser-implementations", "rendering", "visualization"]
 default-run = "puml"
+# Package allowlist: files not listed here are excluded from crates.io.
+include = [
+    "/Cargo.lock",
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+    "/docs/examples/**",
+    "/src/**",
+    "/stdlib/**",
+]
 
 [features]
 default = ["cli"]

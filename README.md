@@ -42,6 +42,12 @@ This is an ambitious open-source engine and an AI-driven swarm development proje
 
 ## Quick Start
 
+Install from crates.io:
+
+```bash
+cargo install puml --bin puml
+```
+
 Install from GitHub:
 
 ```bash
