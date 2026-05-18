@@ -3073,7 +3073,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     // Collect groups: map root → list of label indices
-    let mut groups: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
+    let mut groups: std::collections::BTreeMap<usize, Vec<usize>> = std::collections::BTreeMap::new();
     for (i, &root) in group_id.iter().enumerate() {
         groups.entry(root).or_default().push(i);
     }

@@ -9,7 +9,7 @@
 //!   4. Group bounds      — bounding box over all children + padding
 //!   5. Edge routing      — orthogonal channel-based routing (Stage 3)
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API types
@@ -328,8 +328,8 @@ fn minimise_crossings(
     }
 
     // Build neighbour maps for barycenter calculation
-    let mut above_neighbors: HashMap<&str, Vec<&str>> = HashMap::new();
-    let mut below_neighbors: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut above_neighbors: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let mut below_neighbors: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for e in edges {
         below_neighbors
             .entry(e.from.as_str())
@@ -349,7 +349,7 @@ fn minimise_crossings(
         // Downward sweep: sort each rank by barycenter of rank-above neighbors
         for r in 1..=max_rank {
             // Clone the above-rank ordering so we can mutably borrow the current rank.
-            let pos_above: HashMap<String, f64> = rank_order
+            let pos_above: BTreeMap<String, f64> = rank_order
                 .get(&(r - 1))
                 .map(|above| {
                     above
@@ -372,7 +372,7 @@ fn minimise_crossings(
 
         // Upward sweep: sort each rank by barycenter of rank-below neighbors
         for r in (0..max_rank).rev() {
-            let pos_below: HashMap<String, f64> = rank_order
+            let pos_below: BTreeMap<String, f64> = rank_order
                 .get(&(r + 1))
                 .map(|below| {
                     below
@@ -405,8 +405,8 @@ fn minimise_crossings(
 #[allow(dead_code)]
 fn barycenter(
     node: &str,
-    neighbor_map: &HashMap<&str, Vec<&str>>,
-    positions: &HashMap<&str, f64>,
+    neighbor_map: &BTreeMap<&str, Vec<&str>>,
+    positions: &BTreeMap<&str, f64>,
 ) -> f64 {
     let Some(neighbors) = neighbor_map.get(node) else {
         return f64::MAX;
@@ -425,8 +425,8 @@ fn barycenter(
 /// Barycenter using owned-String position map (avoids borrow conflicts in sweeps).
 fn barycenter_owned(
     node: &str,
-    neighbor_map: &HashMap<&str, Vec<&str>>,
-    positions: &HashMap<String, f64>,
+    neighbor_map: &BTreeMap<&str, Vec<&str>>,
+    positions: &BTreeMap<String, f64>,
 ) -> f64 {
     let Some(neighbors) = neighbor_map.get(node) else {
         return f64::MAX;
