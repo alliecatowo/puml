@@ -125,6 +125,14 @@ fn texts(svg: &str) -> Vec<SvgElement> {
     elements(svg, "text")
 }
 
+fn svg_attr(svg: &str, name: &str) -> String {
+    let close = svg.find('>').expect("svg root tag should close");
+    let tag = &svg[svg.find("<svg ").expect("svg root tag should exist") + 5..close];
+    parse_attrs(tag)
+        .remove(name)
+        .unwrap_or_else(|| panic!("missing svg attribute {name}"))
+}
+
 fn text_position(svg: &str, label: &str) -> (i32, i32) {
     let text = texts(svg)
         .into_iter()
@@ -273,6 +281,96 @@ fn mindmap_left_right_styles_are_asserted_by_node_geometry() {
         release.attr_i32("x") > delivery.attr_i32("x") + delivery.attr_i32("width"),
         "right grandchild should be farther right than its parent"
     );
+}
+
+#[test]
+fn parity_status_mindmap_nodes_stay_inside_svg_bounds_with_padding() {
+    let src = r#"@startmindmap
+* PlantUML\nParity Status
+
+** Core UML Families
+*** Sequence\n[broad]
+**** Participants & lifelines
+**** Alt / opt / loop blocks
+**** Autonumber
+**** Notes & separators
+*** Class\n[broad]
+**** Inheritance / composition
+**** Interfaces & abstract
+**** Generics
+*** State\n[broad]
+**** Nested sub-states
+**** Concurrent regions
+**** History pseudostates
+**** Fork / join / choice
+*** Activity\n[partial]
+**** Basic flow
+**** Branch & merge
+**** Swimlanes
+*** Use Case\n[partial]
+*** Component\n[partial]
+*** Deployment\n[partial]
+*** Object\n[partial]
+
+** Non-UML Families
+*** Mindmap\n[broad]
+*** WBS\n[broad]
+*** Gantt\n[partial]
+**** Tasks & milestones
+**** Dependencies
+*** Salt (wireframe)\n[partial]
+*** JSON / YAML\n[partial]
+*** Timing\n[partial]
+*** Chronology\n[partial]
+*** NWDiag\n[partial]
+*** Archimate\n[partial]
+*** Chart\n[partial]
+*** EBNF\n[partial]
+*** Regex\n[stub]
+*** SDL\n[stub]
+*** Ditaa\n[stub]
+*** Math\n[stub]
+
+** Preprocessor
+*** !include (file)\n[broad]
+*** !include (URL)\n[opt-in]
+*** !define / !undef\n[broad]
+*** !if / !ifdef\n[broad]
+*** Macros\n[broad]
+*** !theme\n[partial]
+*** stdlib icons\n[partial]
+
+** Output Formats
+*** SVG\n[broad]
+*** PNG\n[broad]
+*** JPEG / WEBP\n[broad]
+*** utxt / atxt\n[partial]
+*** HTML\n[partial]
+@endmindmap"#;
+    let svg = render_source_to_svg(&src).expect("parity status mindmap should render");
+    let svg_width = svg_attr(&svg, "width")
+        .parse::<i32>()
+        .expect("svg width should be numeric");
+
+    let mindmap_nodes = rects(&svg)
+        .into_iter()
+        .filter(|rect| rect.class_contains("mindmap-node"))
+        .collect::<Vec<_>>();
+    assert!(
+        !mindmap_nodes.is_empty(),
+        "parity status render should include mindmap nodes"
+    );
+
+    for rect in mindmap_nodes {
+        assert!(
+            rect.attr_i32("x") >= 8,
+            "mindmap node should keep at least 8px left padding: {rect:?}"
+        );
+        assert!(
+            rect.attr_i32("x") + rect.attr_i32("width") <= svg_width - 8,
+            "mindmap node should keep at least 8px right padding: {rect:?}"
+        );
+    }
 }
 
 #[test]
