@@ -74,8 +74,8 @@ fn markdown_table_rows(rel: &str) -> Vec<Vec<String>> {
 fn parity_gap_csv_statuses_are_machine_readable_and_non_blank() {
     let allowed: BTreeSet<&str> = ["implemented", "partial", "missing"].into_iter().collect();
     for rel in [
-        "docs/audits/parity_gap_core.csv",
-        "docs/audits/parity_gap_nonuml.csv",
+        "docs/internal/parity/parity_gap_core.csv",
+        "docs/internal/parity/parity_gap_nonuml.csv",
     ] {
         let (header, rows) = load_csv(rel);
         let status_idx = header
@@ -107,7 +107,7 @@ fn parity_gap_csv_statuses_are_machine_readable_and_non_blank() {
 #[test]
 fn parity_source_of_truth_markdown_statuses_are_machine_readable() {
     let allowed: BTreeSet<&str> = ["implemented", "partial", "missing"].into_iter().collect();
-    let rows = markdown_table_rows("docs/audits/plantuml_parity_source_of_truth.md");
+    let rows = markdown_table_rows("docs/internal/parity/plantuml_parity_source_of_truth.md");
     assert!(
         !rows.is_empty(),
         "source-of-truth table should not be empty"
@@ -156,7 +156,7 @@ fn parity_source_of_truth_markdown_statuses_are_machine_readable() {
 
 #[test]
 fn parity_source_of_truth_contains_required_official_reference_pages() {
-    let raw = fs::read_to_string(repo_path("docs/audits/plantuml_parity_source_of_truth.md"))
+    let raw = fs::read_to_string(repo_path("docs/internal/parity/plantuml_parity_source_of_truth.md"))
         .expect("source-of-truth markdown");
     let required = [
         "https://plantuml.com/sequence-diagram",
@@ -191,7 +191,7 @@ fn parity_source_of_truth_contains_required_official_reference_pages() {
 
 #[test]
 fn nonuml_missing_rows_do_not_contradict_fixture_backed_support() {
-    let (header, rows) = load_csv("docs/audits/parity_gap_nonuml.csv");
+    let (header, rows) = load_csv("docs/internal/parity/parity_gap_nonuml.csv");
     let status_idx = header
         .iter()
         .position(|h| h == "status")
@@ -254,7 +254,7 @@ fn nonuml_missing_rows_do_not_contradict_fixture_backed_support() {
         let status = row[status_idx].trim();
         if status == "missing" && evidence.contains("tests/fixtures/") {
             panic!(
-                "docs/audits/parity_gap_nonuml.csv row {} is `missing` but cites fixture evidence",
+                "docs/internal/parity/parity_gap_nonuml.csv row {} is `missing` but cites fixture evidence",
                 idx + 2
             );
         }
@@ -265,7 +265,7 @@ fn nonuml_missing_rows_do_not_contradict_fixture_backed_support() {
                 continue;
             }
             panic!(
-                "docs/audits/parity_gap_nonuml.csv row {} marks `{family}` as missing despite fixture-backed support",
+                "docs/internal/parity/parity_gap_nonuml.csv row {} marks `{family}` as missing despite fixture-backed support",
                 idx + 2
             );
         }

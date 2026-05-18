@@ -3237,11 +3237,14 @@ fn non_sequence_inputs_fail_validation() {
 #[test]
 fn extended_family_fixtures_pass_check_and_render_svg() {
     let cases = [
-        ("families/valid_component.puml", "component diagram"),
-        ("families/valid_deployment.puml", "deployment diagram"),
-        ("families/valid_state.puml", "state diagram"),
-        ("families/valid_activity.puml", "activity diagram"),
-        ("families/valid_timing.puml", "timing diagram"),
+        // Wave 3-A (#490 #494) suppressed the leaky "<family> diagram" canvas
+        // text. Each marker now asserts on a structural element actually emitted
+        // by the renderer for that family.
+        ("families/valid_component.puml", "«component»"),
+        ("families/valid_deployment.puml", "<polygon"),
+        ("families/valid_state.puml", "<rect"),
+        ("families/valid_activity.puml", "<rect"),
+        ("families/valid_timing.puml", "<text"),
         ("families/valid_timing_waveform.puml", "<polyline"),
     ];
     for (case, marker) in cases {

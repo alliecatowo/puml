@@ -164,9 +164,18 @@ Rel_Serving_Down(source, j1, "down route")
     assert!(svg.contains("stroke-width=\"2.5\""));
     assert!(svg.contains("stroke=\"#2563eb\""));
     assert!(svg.contains("class=\"archimate-junction\""));
-    assert!(svg.contains("data-archimate-kind=\"triggering\" data-archimate-direction=\"left\" data-archimate-style=\"bold\" x1=\"100\" y1=\"246\" x2=\"390\" y2=\"246\""));
-    assert!(svg.contains("data-archimate-kind=\"flow\" data-archimate-direction=\"right\" data-archimate-style=\"#2563eb\" x1=\"240\" y1=\"246\" x2=\"250\" y2=\"246\""));
-    assert!(svg.contains("data-archimate-kind=\"serving\" data-archimate-direction=\"down\" data-archimate-style=\"\" x1=\"170\" y1=\"266\" x2=\"170\" y2=\"466\""));
+    // Wave 3-E (#502): empty Archimate layers are now skipped from height
+    // calculation, shifting absolute y-coordinates. Assert on the kind/direction/
+    // style metadata that drives the relation, not on exact pixel positions.
+    assert!(svg.contains(
+        "data-archimate-kind=\"triggering\" data-archimate-direction=\"left\" data-archimate-style=\"bold\""
+    ));
+    assert!(svg.contains(
+        "data-archimate-kind=\"flow\" data-archimate-direction=\"right\" data-archimate-style=\"#2563eb\""
+    ));
+    assert!(svg.contains(
+        "data-archimate-kind=\"serving\" data-archimate-direction=\"down\" data-archimate-style=\"\""
+    ));
 }
 
 #[test]

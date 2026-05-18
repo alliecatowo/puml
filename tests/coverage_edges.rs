@@ -818,7 +818,9 @@ fn normalize_ignores_horizontal_rule_unknown_syntax_passthrough() {
 }
 
 #[test]
-fn normalize_expands_bidirectional_message_into_two_events() {
+fn normalize_emits_single_bidirectional_message_event() {
+    // Wave 3-B (#531): bidirectional `<->` now emits a single message event
+    // with arrowheads on both ends rather than two separate one-way events.
     let src = "@startuml\nA <-> B : ping\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
     let model = normalize::normalize(doc).expect("normalize should succeed");
@@ -828,7 +830,7 @@ fn normalize_expands_bidirectional_message_into_two_events() {
         .iter()
         .filter(|e| matches!(e.kind, SequenceEventKind::Message { .. }))
         .count();
-    assert_eq!(messages, 2);
+    assert_eq!(messages, 1);
 }
 
 #[test]

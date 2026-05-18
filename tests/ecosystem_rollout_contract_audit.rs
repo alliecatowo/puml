@@ -96,8 +96,8 @@ fn parity_roadmap_fixture_paths_exist() {
 
 #[test]
 fn decision_log_captures_current_preprocessor_contract() {
-    let log = fs::read_to_string(repo_path("docs/decision-log.md"))
-        .expect("failed to read docs/decision-log.md");
+    let log = fs::read_to_string(repo_path("docs/internal/architecture-decisions.md"))
+        .expect("failed to read docs/internal/architecture-decisions.md");
     assert!(
         log.contains("bounded preprocessing as executable today"),
         "decision log should describe bounded preprocessing as executable"

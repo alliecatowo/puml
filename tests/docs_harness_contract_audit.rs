@@ -6,28 +6,25 @@ fn repo_path(rel: &str) -> PathBuf {
 }
 
 #[test]
-fn readme_links_agent_swarm_runbooks_and_quick_validation_loops() {
-    let readme = fs::read_to_string(repo_path("README.md")).expect("read README.md");
-    for needle in [
-        "Agent and swarm development",
-        "./scripts/harness-check.sh --quick",
-        "./scripts/autonomy-check.sh --quick",
-        "./scripts/branch-protection.sh verify",
-        "python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet",
-        "docs/codex-workflow.md",
-        "docs/autonomous-workflow-cookbook.md",
+fn internal_agent_runbooks_present_after_docs_reorg() {
+    // README and CONTRIBUTING are user-facing post-docs-reorg. Agent runbook
+    // material lives in docs/internal/agents/ — verify the canonical files exist
+    // and carry the key script-runbook commands.
+    for path in [
+        "docs/internal/agents/codex-workflow.md",
+        "docs/internal/agents/autonomous-workflow-cookbook.md",
     ] {
         assert!(
-            readme.contains(needle),
-            "README agent/swarm development section missing: {needle}"
+            repo_path(path).exists(),
+            "internal agent runbook should exist after docs reorg: {path}"
         );
     }
 }
 
 #[test]
 fn codex_workflow_doc_has_codex_claude_runbook_and_gallery_refresh_commands() {
-    let doc = fs::read_to_string(repo_path("docs/codex-workflow.md"))
-        .expect("read docs/codex-workflow.md");
+    let doc = fs::read_to_string(repo_path("docs/internal/agents/codex-workflow.md"))
+        .expect("read docs/internal/agents/codex-workflow.md");
     for needle in [
         "Codex and Claude",
         "## Exact Codex + Claude Runbook",
@@ -49,8 +46,8 @@ fn codex_workflow_doc_has_codex_claude_runbook_and_gallery_refresh_commands() {
 
 #[test]
 fn autonomous_cookbook_documents_dedicated_worktree_issue_flow() {
-    let doc = fs::read_to_string(repo_path("docs/autonomous-workflow-cookbook.md"))
-        .expect("read docs/autonomous-workflow-cookbook.md");
+    let doc = fs::read_to_string(repo_path("docs/internal/agents/autonomous-workflow-cookbook.md"))
+        .expect("read docs/internal/agents/autonomous-workflow-cookbook.md");
     for needle in [
         "git worktree add ../puml-issue-131 -b feat/issue-131-docs-harness origin/main",
         "./scripts/harness-check.sh --quick",

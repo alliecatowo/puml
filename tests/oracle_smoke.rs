@@ -608,50 +608,50 @@ fn oracle_report_summary_publishes_top_drift_families() {
 // oracle_drift_threshold_documented
 // ---------------------------------------------------------------------------
 
-/// Verify that `docs/oracle-thresholds.md` exists and documents both the 80%
+/// Verify that `docs/internal/oracle-thresholds.md` exists and documents both the 80%
 /// and 50% exit-code thresholds so the semantics are always discoverable.
 #[test]
 fn oracle_drift_threshold_documented() {
-    let doc = repo_path("docs/oracle-thresholds.md");
+    let doc = repo_path("docs/internal/oracle-thresholds.md");
 
     assert!(
         doc.exists(),
-        "docs/oracle-thresholds.md must exist (see issue #212)"
+        "docs/internal/oracle-thresholds.md must exist (see issue #212)"
     );
 
     let contents =
-        std::fs::read_to_string(&doc).expect("docs/oracle-thresholds.md must be readable");
+        std::fs::read_to_string(&doc).expect("docs/internal/oracle-thresholds.md must be readable");
 
     assert!(
         contents.contains("80"),
-        "docs/oracle-thresholds.md must document the 80% match threshold"
+        "docs/internal/oracle-thresholds.md must document the 80% match threshold"
     );
 
     assert!(
         contents.contains("50"),
-        "docs/oracle-thresholds.md must document the 50% match threshold"
+        "docs/internal/oracle-thresholds.md must document the 50% match threshold"
     );
 
     // Verify the exit codes are documented
     assert!(
         contents.contains("exit"),
-        "docs/oracle-thresholds.md must document exit codes"
+        "docs/internal/oracle-thresholds.md must document exit codes"
     );
     assert!(
         contents.contains("comparison-only"),
-        "docs/oracle-thresholds.md must document comparison-only oracle usage"
+        "docs/internal/oracle-thresholds.md must document comparison-only oracle usage"
     );
     assert!(
         contents.contains("dry-run"),
-        "docs/oracle-thresholds.md must document the Java-free dry-run schema"
+        "docs/internal/oracle-thresholds.md must document the Java-free dry-run schema"
     );
     assert!(
         contents.contains("oracle_report_summary.json"),
-        "docs/oracle-thresholds.md must document the durable summary artifact"
+        "docs/internal/oracle-thresholds.md must document the durable summary artifact"
     );
     assert!(
         contents.contains("not a pixel-perfect parity claim"),
-        "docs/oracle-thresholds.md must avoid overclaiming pixel-perfect parity"
+        "docs/internal/oracle-thresholds.md must avoid overclaiming pixel-perfect parity"
     );
 
     // Verify the script actually encodes these thresholds too

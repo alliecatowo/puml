@@ -66,13 +66,24 @@ fn family_routing_stub_renders_class_deterministically() {
     assert!(f64_attr(class_label, "x") > 0.0);
     assert!(f64_attr(class_label, "y") > 0.0);
 
+    let label_x = f64_attr(class_label, "x");
+    let label_y = f64_attr(class_label, "y");
     let class_box = doc
         .elements("rect")
         .into_iter()
         .find(|node| {
-            node.attribute("width") == Some("200") && node.attribute("height") == Some("38")
+            if node.attribute("x").is_none() || node.attribute("y").is_none() {
+                return false;
+            }
+            let b = bounds(*node);
+            b.width >= 80.0
+                && b.height >= 24.0
+                && label_x >= b.x
+                && label_x <= b.right()
+                && label_y >= b.y
+                && label_y <= b.bottom()
         })
-        .expect("class render should include a visible class box");
+        .expect("class render should include a visible class box containing the label");
     let class_bounds = bounds(class_box);
     assert!(class_bounds.width > 0.0 && class_bounds.height > 0.0);
     assert!(f64_attr(class_label, "x") > class_bounds.x);

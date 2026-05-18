@@ -28,19 +28,18 @@ fn branch_protection_script_contains_required_checks() {
 
 #[test]
 fn docs_capture_branch_protection_validation_command() {
-    let readme = fs::read_to_string(repo_path("README.md")).expect("failed to read README.md");
     let checklist = fs::read_to_string(repo_path("docs/release-checklist.md"))
         .expect("failed to read docs/release-checklist.md");
-    let policy = fs::read_to_string(repo_path("docs/branch-protection.md"))
-        .expect("failed to read docs/branch-protection.md");
+    let policy = fs::read_to_string(repo_path("docs/internal/branch-protection.md"))
+        .expect("failed to read docs/internal/branch-protection.md");
 
-    assert!(
-        readme.contains("./scripts/branch-protection.sh verify"),
-        "README should document the branch protection verification command"
-    );
     assert!(
         checklist.contains("./scripts/branch-protection.sh verify"),
         "release checklist should include branch protection verification"
+    );
+    assert!(
+        policy.contains("./scripts/branch-protection.sh verify"),
+        "branch protection doc should document the verify command"
     );
     assert!(
         policy.contains("./scripts/branch-protection.sh apply"),

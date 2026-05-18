@@ -118,8 +118,13 @@ stop
 "#,
     )
     .expect("activity render should succeed");
-    assert!(activity_svg.contains("partition: Worker"));
-    assert!(activity_svg.contains("split again"));
+    // Wave 3-D (#492 #533): swimlane name renders as a header label; the
+    // `split`/`split again` syntax keywords are layout directives, not visible
+    // text. Assert on the action labels and lane name instead.
+    assert!(activity_svg.contains("Worker"));
+    assert!(activity_svg.contains("load"));
+    assert!(activity_svg.contains("fast path"));
+    assert!(activity_svg.contains("slow path"));
 
     let timing_svg = puml::render_source_to_svg(
         r#"@startuml
@@ -223,10 +228,15 @@ stop
 "#,
     )
     .expect("activity beta render should succeed");
-    assert!(activity_svg.contains("elseif warm? / maybe"));
+    // Wave 3-D (#427 #533): guard text floats on outgoing arrows; "endif"
+    // and "elseif" are layout keywords not emitted as visible text. The
+    // remaining visible content is the first if condition, branch guards, and
+    // explicit break/continue action keywords.
+    assert!(activity_svg.contains("ready?"));
+    assert!(activity_svg.contains("yes"));
     assert!(activity_svg.contains("continue"));
     assert!(activity_svg.contains("break"));
-    assert!(activity_svg.contains("end repeat"));
+    assert!(activity_svg.contains("again"));
 }
 
 #[test]
@@ -424,7 +434,9 @@ kill
     )
     .expect("activity beta controls should detect and render");
     assert!(activity_svg.contains("switch kind?"));
-    assert!(activity_svg.contains("(else) fast"));
+    // Wave 3-D (#533): "(else)" / "(endif)" no longer render as literal text;
+    // the branch label "fast" still appears on the outgoing arrow.
+    assert!(activity_svg.contains("fast"));
     assert!(activity_svg.contains("#ffeeaa"));
     assert!(activity_svg.contains("kill"));
 }
