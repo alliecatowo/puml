@@ -1467,12 +1467,53 @@ fn render_class_node(
     ));
 
     // Members — split by `--` / `..` divider tokens to draw compartment lines (fix #468).
-    // We detect whether a member is a divider and emit a horizontal rule instead.
+    // We also auto-insert a divider between the last attribute and the first operation
+    // when there is no explicit divider in the source (fix #468 second compartment).
+    //
+    // Pre-scan: detect whether there are both attributes and operations in display_members
+    // so we know to auto-insert a divider at the transition boundary.
+    let has_explicit_divider = display_members
+        .iter()
+        .any(|m| m.text.trim() == "--" || m.text.trim() == "..");
+    let auto_divider = if !has_explicit_divider {
+        // Determine the index of the first operation (text containing '(') after at least one attribute.
+        let mut first_op_idx: Option<usize> = None;
+        let mut seen_attr = false;
+        for (i, m) in display_members.iter().enumerate() {
+            let t = m.text.trim();
+            if t == "--" || t == ".." || t.is_empty() {
+                continue;
+            }
+            // Strip visibility prefix before checking for '('
+            let (_vis, _col, rest) = parse_visibility_member(t);
+            if rest.contains('(') {
+                if seen_attr {
+                    first_op_idx = Some(i);
+                }
+                break;
+            } else {
+                seen_attr = true;
+            }
+        }
+        first_op_idx
+    } else {
+        None
+    };
+
     let mut my = y + effective_header_h + 16;
     let mut section_started = false; // tracks if we've seen at least one non-divider member
-    for member in display_members {
+    for (midx, member) in display_members.iter().enumerate() {
         let raw_text = member.text.trim();
-        // Detect divider tokens (explicit `--` or `..` compartment separator)
+        // Auto-insert divider before the first operation when no explicit divider exists (fix #468)
+        if auto_divider == Some(midx) {
+            let div_y = my - 8;
+            out.push_str(&format!(
+                "<line x1=\"{x}\" y1=\"{div_y}\" x2=\"{x2}\" y2=\"{div_y}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+                x2 = x + w
+            ));
+            section_started = false;
+        }
+        // Detect explicit divider tokens (`--` or `..` compartment separator)
         if raw_text == "--" || raw_text == ".." {
             // Draw a horizontal divider line (fix #468)
             let div_y = my - 8;
