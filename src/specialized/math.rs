@@ -648,6 +648,7 @@ const SUB_SCALE: f64 = 0.65;
 const SUP_SCALE: f64 = 0.65;
 const FRAC_PAD: f64 = 4.0;
 const SQRT_LEAN: f64 = 8.0; // width of the radical foot
+const SVG_MATH_FONT_FAMILY: &str = "'Noto Sans Math','STIX Two Math','Cambria Math','Latin Modern Math','DejaVu Serif','Times New Roman',serif";
 
 fn char_width(font_size: f64) -> f64 {
     font_size * CHAR_W_RATIO
@@ -670,8 +671,9 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             let height = font_size * 1.2;
             let ascent = font_size * 0.8;
             let svg = format!(
-                "<text x=\"0\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\">{}</text>",
+                "<text x=\"0\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\">{}</text>",
                 ascent,
+                SVG_MATH_FONT_FAMILY,
                 font_size,
                 escape_xml(s)
             );
@@ -688,8 +690,9 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             let height = font_size * 1.2;
             let ascent = font_size * 0.8;
             let svg = format!(
-                "<text x=\"0\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\">{}</text>",
+                "<text x=\"0\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\">{}</text>",
                 ascent,
+                SVG_MATH_FONT_FAMILY,
                 font_size,
                 escape_xml(s)
             );
@@ -706,8 +709,9 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             let height = font_size * 1.2;
             let ascent = font_size * 0.8;
             let svg = format!(
-                "<text x=\"0\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\">{}</text>",
+                "<text x=\"0\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\">{}</text>",
                 ascent,
+                SVG_MATH_FONT_FAMILY,
                 font_size,
                 escape_xml(&c.to_string())
             );
@@ -772,8 +776,8 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             match env.as_str() {
                 "pmatrix" => {
                     svg.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">(</text><text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">)</text>",
-                        fence_w / 2.0, ascent, total_h * 1.15, total_w - fence_w / 2.0, ascent, total_h * 1.15
+                        "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">(</text><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">)</text>",
+                        fence_w / 2.0, ascent, SVG_MATH_FONT_FAMILY, total_h * 1.15, total_w - fence_w / 2.0, ascent, SVG_MATH_FONT_FAMILY, total_h * 1.15
                     ));
                 }
                 "bmatrix" => {
@@ -784,8 +788,8 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 }
                 "Bmatrix" => {
                     svg.push_str(&format!(
-                        "<text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">{{</text><text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">}}</text>",
-                        fence_w / 2.0, ascent, total_h * 1.15, total_w - fence_w / 2.0, ascent, total_h * 1.15
+                        "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">{{</text><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">}}</text>",
+                        fence_w / 2.0, ascent, SVG_MATH_FONT_FAMILY, total_h * 1.15, total_w - fence_w / 2.0, ascent, SVG_MATH_FONT_FAMILY, total_h * 1.15
                     ));
                 }
                 "vmatrix" | "Vmatrix" => {
@@ -931,9 +935,10 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
             let bottom_x = fence_w + (body_w - bottom_l.width) / 2.0;
             let bottom_y = top_l.height + gap;
             let svg = format!(
-                "<g data-math-construct=\"binom\"><text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">(</text><g transform=\"translate({},{})\">{}</g><g transform=\"translate({},{})\">{}</g><text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">)</text></g>",
+                "<g data-math-construct=\"binom\"><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">(</text><g transform=\"translate({},{})\">{}</g><g transform=\"translate({},{})\">{}</g><text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">)</text></g>",
                 fence_w / 2.0,
                 ascent,
+                SVG_MATH_FONT_FAMILY,
                 total_h * 1.1,
                 top_x,
                 0.0,
@@ -943,6 +948,7 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
                 bottom_l.svg,
                 total_w - fence_w / 2.0,
                 ascent,
+                SVG_MATH_FONT_FAMILY,
                 total_h * 1.1
             );
             Layout {
@@ -1082,10 +1088,10 @@ fn layout_expr(expr: &Expr, font_size: f64) -> Layout {
 
             let svg = format!(
                 "<g transform=\"translate({},{})\">{}</g>\
-                 <text x=\"{}\" y=\"{}\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">{}</text>\
+                 <text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"#111\" text-anchor=\"middle\">{}</text>\
                  <g transform=\"translate({},{})\">{}</g>",
                 sup_x, sup_y, sup_l.svg,
-                op_x + op_char_w / 2.0, op_y + op_ascent, op_font, escape_xml(&op_char),
+                op_x + op_char_w / 2.0, op_y + op_ascent, SVG_MATH_FONT_FAMILY, op_font, escape_xml(&op_char),
                 sub_x, sub_y, sub_l.svg
             );
             Layout {
@@ -1169,8 +1175,9 @@ pub(crate) fn render_math_from_parts(
 
     if let Some(t) = title {
         out.push_str(&format!(
-            "<text x=\"{}\" y=\"22\" font-family=\"Noto Sans Math,STIX Two Math,serif\" font-size=\"14\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#333\">{}</text>",
+            "<text x=\"{}\" y=\"22\" font-family=\"{}\" font-size=\"14\" font-weight=\"600\" text-anchor=\"middle\" fill=\"#333\">{}</text>",
             w / 2,
+            SVG_MATH_FONT_FAMILY,
             escape_xml(t)
         ));
     }
