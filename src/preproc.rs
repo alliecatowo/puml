@@ -30,21 +30,12 @@ struct IncludeTarget {
     tag: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ParseOptions {
     pub include_root: Option<PathBuf>,
     /// When true, `!include https://...`, `!includeurl`, and `file://` URL
     /// targets fetch or read content. Defaults to false to avoid surprise IO.
     pub allow_url_includes: bool,
-}
-
-impl Default for ParseOptions {
-    fn default() -> Self {
-        Self {
-            include_root: None,
-            allow_url_includes: false,
-        }
-    }
 }
 
 pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {

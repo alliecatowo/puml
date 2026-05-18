@@ -76,6 +76,9 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
 
     let integration = fs::read_to_string(repo_path("tests/integration.rs"))
         .expect("failed to read tests/integration.rs");
+    let integration_preprocessor =
+        fs::read_to_string(repo_path("tests/integration/preprocessor.rs"))
+            .expect("failed to read tests/integration/preprocessor.rs");
     let coverage_edges = fs::read_to_string(repo_path("tests/coverage_edges.rs"))
         .expect("failed to read tests/coverage_edges.rs");
     let coverage_utilities = fs::read_to_string(repo_path("tests/coverage_utilities.rs"))
@@ -101,6 +104,10 @@ fn conformance_matrix_fixture_paths_exist_and_test_anchors_resolve() {
                 "tests/integration.rs" => assert!(
                     integration.contains(&needle),
                     "missing integration anchor referenced by matrix: {anchor}"
+                ),
+                "tests/integration/preprocessor.rs" => assert!(
+                    integration_preprocessor.contains(&needle),
+                    "missing integration preprocessor anchor referenced by matrix: {anchor}"
                 ),
                 "tests/coverage_edges.rs" => assert!(
                     coverage_edges.contains(&needle),
