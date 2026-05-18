@@ -16,14 +16,17 @@ pub fn render_timeline_svg(document: &TimelineDocument) -> String {
 }
 
 fn render_gantt_svg(document: &TimelineDocument) -> String {
-    let width: i32 = 800;
+    // Extra right padding so the last date-header label (≤10 chars × ~7px + gap) is
+    // never clipped by the canvas edge (#485).  80px covers "YYYY-MM-DD" comfortably.
+    let right_pad: i32 = 80;
+    let width: i32 = 800 + right_pad;
     let margin_x: i32 = 32;
     let label_col_w: i32 = 160;
     let bar_height: i32 = 20;
     let row_gap: i32 = 14;
     let header_h: i32 = 28;
     let chart_left: i32 = margin_x + label_col_w + 12;
-    let chart_right: i32 = width - margin_x;
+    let chart_right: i32 = width - margin_x - right_pad;
     let chart_w: i32 = chart_right - chart_left;
 
     let title_h = document
