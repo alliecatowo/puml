@@ -179,7 +179,7 @@ jobs:
   coverage:
     name: coverage
     needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    if: needs.changes.outputs.run_full_gate == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -309,6 +309,7 @@ jobs:
       RUN_DOCS_EXAMPLES_DRIFT: ${{ needs.changes.outputs.run_docs_examples_drift }}
       RUN_WASM_CHECK: ${{ needs.changes.outputs.run_wasm_check }}
       RUN_SITE_SMOKE: ${{ needs.changes.outputs.run_site_smoke }}
+      IS_BOT_DEP_UPDATER: ${{ github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]' }}
       CHANGES_RESULT: ${{ needs.changes.result }}
       FMT_RESULT: ${{ needs.fmt.result }}
       CLIPPY_RESULT: ${{ needs.clippy.result }}
@@ -353,7 +354,9 @@ jobs:
             require_success "fmt" "${FMT_RESULT}"
             require_success "clippy" "${CLIPPY_RESULT}"
             require_success "test" "${TEST_RESULT}"
-            require_success "coverage" "${COVERAGE_RESULT}"
+            if [[ "${IS_BOT_DEP_UPDATER}" != "true" ]]; then
+              require_success "coverage" "${COVERAGE_RESULT}"
+            fi
           fi
 
           if [[ "${RUN_WASM_CHECK}" == "true" ]]; then
