@@ -1377,7 +1377,35 @@ fn render_class_node(
     }
 
     if matches!(node.kind, FamilyNodeKind::UseCase) {
-        // Ellipse rendering for use cases
+        // Ellipse rendering for use cases.
+        // Determine the display name (fix #578):
+        //   - When node.name is a scoped identifier (contains "::"), the parser may have
+        //     stored the actual label as members[0] (tab-encoded). Use that if present.
+        //   - Otherwise strip the namespace prefix from node.name.
+        let (uc_display_name, uc_member_skip): (String, usize) = if node.name.contains("::") {
+            let first_member_is_label = node.members.first().is_some_and(|m| {
+                let t = m.text.trim();
+                !t.is_empty()
+                    && !t.starts_with("<<")
+                    && !t.starts_with('+')
+                    && !t.starts_with('-')
+                    && !t.starts_with('#')
+                    && !t.starts_with('~')
+                    && !t.starts_with('{')
+                    && !t.starts_with('\x1f')
+                    && !t.contains(':')
+                    && !t.contains('(')
+            });
+            if first_member_is_label {
+                (node.members[0].text.trim().to_string(), 1)
+            } else {
+                let short = node.name.rsplit("::").next().unwrap_or(&node.name);
+                (short.to_string(), 0)
+            }
+        } else {
+            (node.name.clone(), 0)
+        };
+
         let cx = x + w / 2;
         let cy = y + h / 2;
         let rx = w / 2;
@@ -1385,18 +1413,18 @@ fn render_class_node(
         out.push_str(&format!(
             "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
         ));
-        // Name centered — the alias is the internal id only; do NOT display it (fix #478)
+        // Name centered — the alias is the internal id only; do NOT display it (fix #478).
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
             title_font_size,
             escape_text(&class_style.font_color),
             ty = cy + 4,
-            name = escape_text(&node.name)
+            name = escape_text(&uc_display_name)
         ));
-        // Members rendered below the ellipse (rare for usecases)
+        // Members rendered below the ellipse (skip tab-encoded display-name entry).
         let mut my = y + h + 14;
-        for member in &node.members {
+        for member in node.members.iter().skip(uc_member_skip) {
             out.push_str(&format!(
                 "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{mc}\">{m}</text>",
                 escape_text(font_family),
@@ -1933,7 +1961,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let pkg_tab = 28i32; // height of the package label tab at top
     let canvas_margin = 40i32;
     let pkg_gap = 32i32; // gap between packages on the canvas
-    // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
+                         // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
     let _outer_cols = 2i32;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2117,12 +2145,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let mut node_ids_in_group: Vec<String> = Vec::new();
         for node in &doc.nodes {
             let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-            if node_to_group.get(&key) == Some(&g_idx)
-                || node_to_group.get(&node.name) == Some(&g_idx)
+            if (node_to_group.get(&key) == Some(&g_idx)
+                || node_to_group.get(&node.name) == Some(&g_idx))
+                && !node_ids_in_group.contains(&key)
             {
-                if !node_ids_in_group.contains(&key) {
-                    node_ids_in_group.push(key);
-                }
+                node_ids_in_group.push(key);
             }
         }
         if node_ids_in_group.is_empty() {
@@ -2164,7 +2191,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                         (max_y - min_y) + pad * 2 + pkg_tab,
                     )
                 } else {
-                    (canvas_margin, canvas_margin + header_h, 200, 80 + pkg_tab + pkg_pad * 2)
+                    (
+                        canvas_margin,
+                        canvas_margin + header_h,
+                        200,
+                        80 + pkg_tab + pkg_pad * 2,
+                    )
                 }
             });
 
@@ -2254,14 +2286,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let gl_canvas_bottom = gl_result.canvas_height as i32;
 
     let projection_extra_height = family_projection_extra_height(&doc.json_projections);
-    let svg_width = all_pkg_right
-        .max(gl_canvas_right)
-        .max(canvas_margin)
-        + canvas_margin;
+    let svg_width = all_pkg_right.max(gl_canvas_right).max(canvas_margin) + canvas_margin;
     let svg_width = svg_width.max(400);
-    let svg_height = all_pkg_bottom
-        .max(ungrouped_bottom)
-        .max(gl_canvas_bottom)
+    let svg_height = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
         + canvas_margin
         + projection_extra_height;
 
@@ -2413,7 +2440,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     let all_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
     // Package frames: (rect, member_node_ids)
-    let pkg_frame_boxes: Vec<((i32, i32, i32, i32), &[String])> = pkg_layouts
+    type PkgFrameBox<'a> = ((i32, i32, i32, i32), &'a [String]);
+    let pkg_frame_boxes: Vec<PkgFrameBox> = pkg_layouts
         .iter()
         .enumerate()
         .map(|(i, pkg)| {
@@ -2547,7 +2575,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th) {
                     return false;
                 }
-                segment_intersects_rect(x1, y1, x2, y2, bx, by, bw, bh)
+                segment_intersects_rect(x1, y1, x2, y2, (bx, by, bw, bh))
             })
         };
 
@@ -2626,7 +2654,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                             && b != (tx, ty, tw, th)
                             && l_pts.windows(2).any(|seg| {
                                 segment_intersects_rect(
-                                    seg[0].0, seg[0].1, seg[1].0, seg[1].1, b.0, b.1, b.2, b.3,
+                                    seg[0].0,
+                                    seg[0].1,
+                                    seg[1].0,
+                                    seg[1].1,
+                                    (b.0, b.1, b.2, b.3),
                                 )
                             })
                     })
@@ -2817,7 +2849,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Compute adjusted positions for each label
     let mut adjusted_labels: Vec<(i32, i32, String, String)> =
         vec![(0, 0, String::new(), String::new()); n];
-    for (_root, indices) in &groups {
+    for indices in groups.values() {
         let count = indices.len() as i32;
         // Base position: centroid of the group
         let base_x: i32 = indices.iter().map(|&i| sorted_labels[i].x).sum::<i32>() / count;
@@ -2870,10 +2902,7 @@ fn segment_intersects_rect(
     y1: i32,
     x2: i32,
     y2: i32,
-    bx: i32,
-    by: i32,
-    bw: i32,
-    bh: i32,
+    (bx, by, bw, bh): (i32, i32, i32, i32),
 ) -> bool {
     // Grow the box by 4px to give a small margin
     let margin = 4;
@@ -2940,7 +2969,7 @@ fn count_polyline_collisions(
             if (obx, oby, obw, obh) == src || (obx, oby, obw, obh) == tgt {
                 continue;
             }
-            if segment_intersects_rect(ax, ay, bx_, by_, obx, oby, obw, obh) {
+            if segment_intersects_rect(ax, ay, bx_, by_, (obx, oby, obw, obh)) {
                 count += 1;
             }
         }
