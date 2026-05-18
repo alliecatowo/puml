@@ -5236,17 +5236,19 @@ fn object_diagram_renders_underlined_header_and_rects() {
 
 #[test]
 fn uml_declaration_stereotypes_and_component_shorthand_aliases_render() {
+    // Fix #551: user-defined stereotypes on class/object nodes now render as
+    // guillemet labels («…») in the class header, NOT as member rows.
     let class_src = "@startuml\nclass Order <<Entity>>\n@enduml\n";
     let class_svg = render_source_to_svg(class_src).expect("stereotype svg should render");
     assert!(
-        class_svg.contains("&lt;&lt;Entity&gt;&gt;"),
-        "class stereotype should render"
+        class_svg.contains("\u{ab}Entity\u{bb}"),
+        "class stereotype should render as guillemet in header (fix #551)"
     );
     let object_src = "@startuml\nobject cache <<singleton>>\n@enduml\n";
     let object_svg = render_source_to_svg(object_src).expect("object stereotype svg should render");
     assert!(
-        object_svg.contains("&lt;&lt;singleton&gt;&gt;"),
-        "object stereotype should render"
+        object_svg.contains("\u{ab}singleton\u{bb}"),
+        "object stereotype should render as guillemet in header (fix #551)"
     );
     let usecase_src =
         "@startuml\nactor Shopper <<primary>> as S\nusecase Checkout <<critical>> as UC\nS --> UC : starts\n@enduml\n";

@@ -80,27 +80,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     for (idx, node) in document.nodes.iter().enumerate() {
         let col = (idx as i32) % col_count;
         let row = (idx as i32) / col_count;
-        // Detect if the first member is a type-stereotype marker (consumed by the header rendering).
-        // Such members are NOT displayed as ordinary member lines (fix height computation for #470).
-        let has_type_stereotype = node.members.first().is_some_and(|m| {
-            matches!(
-                m.text.as_str(),
-                "<<enum>>"
-                    | "<<interface>>"
-                    | "<<abstract>>"
-                    | "<<abstract class>>"
-                    | "<<annotation>>"
-                    | "<<protocol>>"
-                    | "<<struct>>"
-            )
-        });
-        let display_member_count = if has_type_stereotype {
-            node.members.len().saturating_sub(1)
-        } else {
-            node.members.len()
-        };
-        // Extra header height when we show a stereotype label (14px for the label line)
-        let stereotype_extra_h = if has_type_stereotype { 14 } else { 0 };
+        // Count header stereotype members (built-in type marker + user-defined <<…>> markers).
+        // These are rendered in the header, not as member rows (fix #470, #551).
+        let header_stereotype_count = count_header_stereotype_members(&node.members);
+        let display_member_count = node.members.len().saturating_sub(header_stereotype_count);
+        // Extra header height: 14px per stereotype label shown above the class name.
+        let stereotype_extra_h = (header_stereotype_count as i32) * 14;
         let body_h = if node.kind == FamilyNodeKind::Note {
             let lines = node
                 .label
@@ -135,24 +120,9 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     for (idx, node) in document.nodes.iter().enumerate() {
         let col = (idx as i32) % col_count;
         let row = (idx as i32) / col_count;
-        let has_type_stereotype2 = node.members.first().is_some_and(|m| {
-            matches!(
-                m.text.as_str(),
-                "<<enum>>"
-                    | "<<interface>>"
-                    | "<<abstract>>"
-                    | "<<abstract class>>"
-                    | "<<annotation>>"
-                    | "<<protocol>>"
-                    | "<<struct>>"
-            )
-        });
-        let display_member_count2 = if has_type_stereotype2 {
-            node.members.len().saturating_sub(1)
-        } else {
-            node.members.len()
-        };
-        let stereotype_extra_h2 = if has_type_stereotype2 { 14 } else { 0 };
+        let header_stereotype_count2 = count_header_stereotype_members(&node.members);
+        let display_member_count2 = node.members.len().saturating_sub(header_stereotype_count2);
+        let stereotype_extra_h2 = (header_stereotype_count2 as i32) * 14;
         let body_h = if node.kind == FamilyNodeKind::Note {
             let lines = node
                 .label
@@ -1251,6 +1221,49 @@ struct ClassNodeGeometry {
     header_h: i32,
 }
 
+/// Return the recognised kind-stereotype label for a type-marker member
+/// (e.g. `"<<enum>>"` → `Some("«enumeration»")`).  Only the built-in
+/// keyword markers produced by the parser qualify; user-defined stereotypes
+/// like `"<<controller>>"` are NOT covered here (they are handled separately).
+fn builtin_type_stereotype_label(text: &str) -> Option<&'static str> {
+    match text {
+        "<<enum>>" => Some("\u{ab}enumeration\u{bb}"),
+        "<<interface>>" => Some("\u{ab}interface\u{bb}"),
+        "<<abstract>>" | "<<abstract class>>" => Some("\u{ab}abstract\u{bb}"),
+        "<<annotation>>" => Some("\u{ab}annotation\u{bb}"),
+        "<<protocol>>" => Some("\u{ab}protocol\u{bb}"),
+        "<<struct>>" => Some("\u{ab}struct\u{bb}"),
+        _ => None,
+    }
+}
+
+/// Return true if `text` is an arbitrary user-defined stereotype marker
+/// (any `<<…>>` value that is NOT one of the built-in type keywords).
+fn is_user_stereotype(text: &str) -> bool {
+    text.starts_with("<<") && text.ends_with(">>") && builtin_type_stereotype_label(text).is_none()
+}
+
+/// Count how many leading members of `members` are header stereotypes that
+/// should be rendered in the class-box header rather than as member rows.
+/// This includes the optional built-in type marker (first position) plus any
+/// consecutive user-defined stereotype markers that immediately follow it.
+fn count_header_stereotype_members(members: &[crate::ast::ClassMember]) -> usize {
+    let mut skip = 0;
+    // First member may be a built-in type marker (e.g. <<enum>>).
+    if members
+        .first()
+        .is_some_and(|m| builtin_type_stereotype_label(&m.text).is_some())
+    {
+        skip += 1;
+    }
+    // Any consecutive user-defined <<…>> members directly after the type marker
+    // (or at the start if there was no type marker) are also header stereotypes.
+    while skip < members.len() && is_user_stereotype(&members[skip].text) {
+        skip += 1;
+    }
+    skip
+}
+
 fn render_class_node(
     out: &mut String,
     node: &crate::model::FamilyNode,
@@ -1388,34 +1401,30 @@ fn render_class_node(
         return;
     }
 
-    // Determine the kind-stereotype label from the first member marker (fix #470).
-    // Markers like `<<enum>>`, `<<interface>>`, `<<abstract>>`, `<<abstract class>>`
-    // are injected by the parser and should be displayed as guillemet labels, NOT
-    // as ordinary members.
-    let type_stereotype_label: Option<&'static str> = node.members.first().and_then(|m| {
-        match m.text.as_str() {
-            "<<enum>>" => Some("\u{ab}enumeration\u{bb}"),
-            "<<interface>>" => Some("\u{ab}interface\u{bb}"),
-            "<<abstract>>" | "<<abstract class>>" => Some("\u{ab}abstract\u{bb}"),
-            "<<annotation>>" => Some("\u{ab}annotation\u{bb}"),
-            "<<protocol>>" => Some("\u{ab}protocol\u{bb}"),
-            "<<struct>>" => Some("\u{ab}struct\u{bb}"),
-            _ => None,
+    // Collect all leading header stereotype labels (built-in type markers + user-defined
+    // <<…>> markers — fix #470 for built-in types, fix #551 for user stereotypes).
+    // These are rendered as guillemet labels in the header, NOT as ordinary member rows.
+    let header_skip = count_header_stereotype_members(&node.members);
+    // Build the list of guillemet labels to show in the header (top → bottom).
+    let mut header_stereotype_labels: Vec<String> = Vec::new();
+    for m in &node.members[..header_skip] {
+        if let Some(builtin) = builtin_type_stereotype_label(&m.text) {
+            header_stereotype_labels.push(builtin.to_string());
+        } else if is_user_stereotype(&m.text) {
+            // Convert <<foo>> → «foo»
+            let inner = m.text.trim_start_matches("<<").trim_end_matches(">>");
+            header_stereotype_labels.push(format!("\u{ab}{inner}\u{bb}"));
         }
-    });
-    // Members to display: skip the type-stereotype marker (first member) if it was consumed above
-    let display_members = if type_stereotype_label.is_some() {
-        &node.members[1..]
-    } else {
-        &node.members[..]
-    };
+    }
+    // Members to display: skip all header stereotype members
+    let display_members = &node.members[header_skip..];
 
     // Outer rect
     out.push_str(&format!(
         "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
     ));
-    // Header band — taller when we display a stereotype label (fix #470)
-    let stereotype_extra = if type_stereotype_label.is_some() { 14 } else { 0 };
+    // Header band — taller when we display stereotype labels (14px per label — fix #470, #551)
+    let stereotype_extra = (header_stereotype_labels.len() as i32) * 14;
     let effective_header_h = header_h + stereotype_extra;
     out.push_str(&format!(
         "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{hh}\" rx=\"4\" ry=\"4\" fill=\"{header_fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
@@ -1428,12 +1437,12 @@ fn render_class_node(
         x2 = x + w
     ));
 
-    // Stereotype label above the class name (fix #470)
-    if let Some(label) = type_stereotype_label {
+    // Render each stereotype label above the class name in the header (fix #470, #551)
+    for (i, label) in header_stereotype_labels.iter().enumerate() {
         out.push_str(&format!(
             "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"10\" fill=\"{fc}\">{lbl}</text>",
             tx = x + w / 2,
-            ty = y + 13,
+            ty = y + 13 + (i as i32) * 14,
             ff = escape_text(font_family),
             fc = escape_text(&class_style.font_color),
             lbl = escape_text(label)

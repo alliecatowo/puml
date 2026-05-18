@@ -621,7 +621,8 @@ class Account <<entity>> {
     assert!(class_svg.contains("data-uml-visibility=\"package\""));
     assert!(class_svg.contains("data-uml-modifier=\"static\""));
     assert!(class_svg.contains("data-uml-modifier=\"abstract\""));
-    assert!(class_svg.contains("&lt;&lt;entity&gt;&gt;"));
+    // Fix #551: user stereotypes now render as guillemet labels in the header
+    assert!(class_svg.contains("\u{ab}entity\u{bb}"));
 
     let state_svg = puml::render_source_to_svg(
         r##"@startuml
