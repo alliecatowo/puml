@@ -1,4 +1,4 @@
-use super::geometry::{clip_to_box_edge, compute_edge_anchors_for_direction};
+use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 use super::relation::{
     arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
     render_relation_marker_defs, render_relation_marker_defs_with_prefix, usecase_dependency_label,
@@ -261,11 +261,21 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 style.end_marker = Some("arrow-open");
             }
         }
-        let (x1, y1, x2, y2) = compute_edge_anchors_for_direction(
-            (from.x, from.y, from.w, from.h),
-            (to.x, to.y, to.w, to.h),
-            relation.direction.as_deref(),
-        );
+        let (x1, y1, x2, y2) = if relation.direction.is_some() {
+            compute_edge_anchors_for_direction(
+                (from.x, from.y, from.w, from.h),
+                (to.x, to.y, to.w, to.h),
+                relation.direction.as_deref(),
+            )
+        } else {
+            // Port-based anchoring: attach to mid-point of the nearest box edge
+            // (left/right for horizontal-dominant, top/bottom for vertical-dominant).
+            // Part of the layout engine refactor (#591, #590 epic).
+            pick_port(
+                (from.x, from.y, from.w, from.h),
+                (to.x, to.y, to.w, to.h),
+            )
+        };
         let relation_color = relation
             .line_color
             .as_deref()
@@ -2387,7 +2397,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             continue;
         };
 
-        // Compute anchor points (edge of box, not center)
+        // Compute anchor points (edge of box, not center).
+        // Port-based anchoring: attach to mid-point of the nearest box edge
+        // (left/right for horizontal-dominant, top/bottom for vertical-dominant).
+        // Part of the layout engine refactor (#591, #590 epic).
         let (x1, y1, x2, y2) = if rel.direction.is_some() {
             compute_edge_anchors_for_direction(
                 (fx, fy, fw, fh),
@@ -2395,13 +2408,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 rel.direction.as_deref(),
             )
         } else {
-            let cx1 = fx + fw / 2;
-            let cy1 = fy + fh / 2;
-            let cx2 = tx + tw / 2;
-            let cy2 = ty + th / 2;
-            let (x1, y1) = clip_to_box_edge((cx1, cy1), (cx2, cy2), (fx, fy, fw, fh));
-            let (x2, y2) = clip_to_box_edge((cx2, cy2), (cx1, cy1), (tx, ty, tw, th));
-            (x1, y1, x2, y2)
+            pick_port((fx, fy, fw, fh), (tx, ty, tw, th))
         };
 
         let style = arrow_style(&normalized_arrow);
