@@ -71,7 +71,7 @@ fn parse_json_projection_block(
                 '}' => {
                     depth -= 1;
                     if depth == 0 {
-                        let body = inline_after_brace[..j].trim().to_string();
+                        let body = dedent_projection_body(&[inline_after_brace[..j].trim()]);
                         let kind = if is_yaml {
                             StatementKind::YamlProjection { alias, body }
                         } else {
@@ -92,13 +92,12 @@ fn parse_json_projection_block(
     let mut i = start + 1;
     while i < lines.len() {
         let (raw, _span) = lines[i];
-        let trimmed = raw.trim();
         // Check for matching closing brace.
         let mut consumed_close = false;
         let mut close_pos = 0;
         let mut in_quotes = false;
         let mut prev_escape = false;
-        for (pos, ch) in trimmed.char_indices() {
+        for (pos, ch) in raw.char_indices() {
             if in_quotes {
                 if ch == '"' && !prev_escape {
                     in_quotes = false;
@@ -123,11 +122,11 @@ fn parse_json_projection_block(
         }
         if consumed_close {
             // Everything before the closing `}` is part of the body.
-            let last_body = trimmed[..close_pos].trim();
+            let last_body = raw[..close_pos].trim_end();
             if !last_body.is_empty() {
                 body_lines.push(last_body);
             }
-            let body = body_lines.join("\n");
+            let body = dedent_projection_body(&body_lines);
             let kind = if is_yaml {
                 StatementKind::YamlProjection { alias, body }
             } else {
@@ -135,7 +134,7 @@ fn parse_json_projection_block(
             };
             return Ok(Some((kind, i)));
         }
-        body_lines.push(trimmed);
+        body_lines.push(raw.trim_end());
         i += 1;
     }
 
@@ -144,6 +143,27 @@ fn parse_json_projection_block(
         "[E_PROJECTION_UNCLOSED] `{keyword} {alias}` block has no matching closing `}}`"
     ))
     .with_span(lines[start].1))
+}
+
+fn dedent_projection_body(lines: &[&str]) -> String {
+    let common_indent = lines
+        .iter()
+        .filter_map(|line| {
+            if line.trim().is_empty() {
+                None
+            } else {
+                Some(line.chars().take_while(|ch| *ch == ' ').count())
+            }
+        })
+        .min()
+        .unwrap_or(0);
+    let prefix = " ".repeat(common_indent);
+
+    lines
+        .iter()
+        .map(|line| line.strip_prefix(&prefix).unwrap_or(line))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Parse a single salt wireframe row line into a `SaltGridRow` statement.
@@ -236,4 +256,3 @@ fn parse_salt_cell(text: &str) -> SaltCell {
     // Plain text → Label
     SaltCell::Label(text.to_string())
 }
-
