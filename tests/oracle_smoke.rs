@@ -673,6 +673,40 @@ fn oracle_drift_threshold_documented() {
 }
 
 #[test]
+fn oracle_evidence_refresh_documents_live_vs_sentinel_evidence() {
+    let doc = repo_path("docs/benchmarks/oracle_evidence_refresh.md");
+    assert!(doc.exists(), "oracle evidence refresh summary should exist");
+
+    let contents =
+        std::fs::read_to_string(&doc).expect("oracle evidence refresh summary must be readable");
+
+    for needle in [
+        "Java PlantUML actually ran",
+        "plantuml-1.2024.7.jar",
+        "comparison-only evidence",
+        "not a runtime",
+        "skip sentinels",
+        "not conformance evidence",
+        "Top Drift Buckets",
+        "strict shell metrics",
+    ] {
+        assert!(
+            contents.contains(needle),
+            "oracle evidence refresh summary should document: {needle}"
+        );
+    }
+
+    assert!(
+        contents.contains("5 passed and 8 failed"),
+        "live smoke result should remain explicit until the next intentional refresh"
+    );
+    assert!(
+        contents.contains("0 match, 50 drift, 1 `puml-only`, 1 `jar-only`, 0 `both-fail`"),
+        "focused shell-oracle result should remain explicit until the next intentional refresh"
+    );
+}
+
+#[test]
 fn oracle_script_renders_ours_to_temp_outputs_without_overwrite() {
     let script = repo_path("scripts/oracle.sh");
     let script_contents =

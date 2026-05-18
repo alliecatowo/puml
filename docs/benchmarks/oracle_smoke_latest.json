@@ -26,55 +26,63 @@
     ]
   },
   "summary": {
-    "total": 10,
+    "total": 13,
     "passed": 0,
     "failed": 0,
-    "not_run": 10,
+    "not_run": 13,
     "by_fixture_category": {
       "component-style-core": 1,
-      "family-partial": 3,
+      "family-partial": 5,
       "preprocessor-advanced": 1,
+      "sequence-advanced": 1,
       "sequence-core": 2,
       "sequence-fragments": 1,
       "sequence-notes": 1,
       "styling-partial": 1
     },
     "by_support_status": {
-      "implemented": 5,
-      "partial": 5
+      "implemented": 6,
+      "partial": 7
     },
     "by_expected_oracle_category": {
-      "drift": 4,
+      "drift": 6,
       "jar-only": 1,
-      "match": 5
+      "match": 6
     },
     "top_expected_drift_categories": [
       {
         "category": "family-partial",
-        "fixture_count": 3,
+        "fixture_count": 5,
         "expected_oracle_categories": {
-          "drift": 3
+          "drift": 5
         },
         "support_statuses": {
-          "partial": 3
+          "partial": 5
         },
         "representative_fixtures": [
           "families/valid_chart_bar_quarterly.puml",
+          "families/valid_gantt_calendar_resource_scale.puml",
           "families/valid_mindmap_orientation.puml",
+          "families/valid_salt_layout_depth.puml",
           "families/valid_salt_login_form.puml"
         ],
         "drift_reasons": [
+          "Gantt calendar exclusions, reopened dates, resource loads, dependencies, and milestone positioning are active but still narrower than full PlantUML layout semantics",
+          "Salt nested containers, spans, icons, sprites, and scoped styles now have local DOM geometry coverage while PlantUML layout parity remains partial",
           "Salt widget breadth is intentionally narrower than the Java PlantUML reference",
           "chart axis, legend, and style semantics remain fixture-backed partial parity",
           "mindmap orientation metadata is deterministic but not full PlantUML layout parity"
         ],
         "next_tickets": [
           "Close chart axis, legend positioning, palette, and style semantics against PlantUML reference output.",
+          "Continue issue #352 by comparing Gantt task/milestone geometry against Java PlantUML oracle output.",
           "Expand Salt widget/layout parity around form controls, menus, tables, and style propagation.",
-          "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement."
+          "Implement deeper mindmap orientation/layout semantics and add oracle fixtures for left/right branch placement.",
+          "Promote more Salt container semantics to structural layout once row/column span and grouped child containment match PlantUML more closely."
         ],
         "plantuml_references": [
           "https://plantuml.com/chart-diagram",
+          "https://plantuml.com/gantt-diagram",
           "https://plantuml.com/mindmap-diagram",
           "https://plantuml.com/salt"
         ]
@@ -126,6 +134,28 @@
     ],
     "top_expected_drift_areas": [
       {
+        "drift_area": "Gantt calendar and resource layout",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "drift": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "families/valid_gantt_calendar_resource_scale.puml"
+        ],
+        "drift_reasons": [
+          "Gantt calendar exclusions, reopened dates, resource loads, dependencies, and milestone positioning are active but still narrower than full PlantUML layout semantics"
+        ],
+        "next_tickets": [
+          "Continue issue #352 by comparing Gantt task/milestone geometry against Java PlantUML oracle output."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/gantt-diagram"
+        ]
+      },
+      {
         "drift_area": "Salt widget breadth",
         "fixture_count": 1,
         "expected_oracle_categories": {
@@ -142,6 +172,28 @@
         ],
         "next_tickets": [
           "Expand Salt widget/layout parity around form controls, menus, tables, and style propagation."
+        ],
+        "plantuml_references": [
+          "https://plantuml.com/salt"
+        ]
+      },
+      {
+        "drift_area": "Salt widget/layout depth",
+        "fixture_count": 1,
+        "expected_oracle_categories": {
+          "drift": 1
+        },
+        "support_statuses": {
+          "partial": 1
+        },
+        "representative_fixtures": [
+          "families/valid_salt_layout_depth.puml"
+        ],
+        "drift_reasons": [
+          "Salt nested containers, spans, icons, sprites, and scoped styles now have local DOM geometry coverage while PlantUML layout parity remains partial"
+        ],
+        "next_tickets": [
+          "Promote more Salt container semantics to structural layout once row/column span and grouped child containment match PlantUML more closely."
         ],
         "plantuml_references": [
           "https://plantuml.com/salt"
@@ -387,6 +439,43 @@
       }
     },
     {
+      "fixture": "arrows/valid_teoz_response_below_arrow.puml",
+      "classification": {
+        "category": "sequence-advanced",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "sequence teoz response labels",
+        "drift_reason": "teoz parallel arrows, styled crossing arrows, note across, and response labels below dashed arrows should stay close to the PlantUML reference",
+        "next_ticket": "Keep as the issue #350 advanced sequence sentinel; expand only with focused oracle evidence.",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
       "fixture": "styling/valid_skinparam_unsupported.puml",
       "classification": {
         "category": "styling-partial",
@@ -498,6 +587,43 @@
       }
     },
     {
+      "fixture": "families/valid_salt_layout_depth.puml",
+      "classification": {
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "Salt widget/layout depth",
+        "drift_reason": "Salt nested containers, spans, icons, sprites, and scoped styles now have local DOM geometry coverage while PlantUML layout parity remains partial",
+        "next_ticket": "Promote more Salt container semantics to structural layout once row/column span and grouped child containment match PlantUML more closely.",
+        "plantuml_reference": "https://plantuml.com/salt"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
       "fixture": "families/valid_chart_bar_quarterly.puml",
       "classification": {
         "category": "family-partial",
@@ -507,6 +633,43 @@
         "drift_reason": "chart axis, legend, and style semantics remain fixture-backed partial parity",
         "next_ticket": "Close chart axis, legend positioning, palette, and style semantics against PlantUML reference output.",
         "plantuml_reference": "https://plantuml.com/chart-diagram"
+      },
+      "local": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null
+      },
+      "oracle": {
+        "attempted": false,
+        "exit_code": null,
+        "stderr": "",
+        "svg_bytes": null,
+        "command": "plantuml -tsvg -pipe"
+      },
+      "comparison": {
+        "state": "not-run",
+        "passed": null,
+        "notes": [
+          "dry run: local and oracle render commands were not executed"
+        ],
+        "token_checks": [],
+        "local_viewbox": null,
+        "oracle_viewbox": null,
+        "local_tags": {},
+        "oracle_tags": {}
+      }
+    },
+    {
+      "fixture": "families/valid_gantt_calendar_resource_scale.puml",
+      "classification": {
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "Gantt calendar and resource layout",
+        "drift_reason": "Gantt calendar exclusions, reopened dates, resource loads, dependencies, and milestone positioning are active but still narrower than full PlantUML layout semantics",
+        "next_ticket": "Continue issue #352 by comparing Gantt task/milestone geometry against Java PlantUML oracle output.",
+        "plantuml_reference": "https://plantuml.com/gantt-diagram"
       },
       "local": {
         "attempted": false,
