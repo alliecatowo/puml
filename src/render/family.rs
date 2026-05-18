@@ -36,9 +36,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         .map(|frame| frame.depth)
         .max()
         .unwrap_or(0);
-    // Auto-size node_width from longest member text / node name (fix #572).
-    // char_width=7px (monospace), padding=24px (accounts for left+right insets).
-    // Upper clamp raised to 600 so long member lines are never truncated.
+    // Auto-size node_width from longest member text / node name (fix #572)
     let node_width: i32 = {
         let name_px = document
             .nodes
@@ -50,10 +48,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             .nodes
             .iter()
             .flat_map(|n| n.members.iter())
-            .map(|m| m.text.chars().count() as i32 * 7 + 24)
+            .map(|m| m.text.chars().count() as i32 * 7 + 28)
             .max()
             .unwrap_or(0);
-        name_px.max(member_px).clamp(160, 600)
+        name_px.max(member_px).clamp(160, 320)
     };
     // col_gap wide enough for edge labels between adjacent nodes (fix #564, #575)
     let col_gap: i32 = 80;
@@ -159,18 +157,18 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     // gl_nodes. Relations reference nodes by their short name (e.g. "Browse") or
     // alias (e.g. "MP"), but gl_nodes use the scoped key (e.g.
     // "Online Store::Browse"). Without this, edges never match node IDs and
-    // every node ends up at rank 0.
+    // every node ends up at rank 0 — producing a flat horizontal strip.
     let mut gl_name_to_id: std::collections::BTreeMap<String, String> =
         std::collections::BTreeMap::new();
     for n in &gl_nodes {
         // Full scoped id always resolves to itself.
         gl_name_to_id.entry(n.id.clone()).or_insert_with(|| n.id.clone());
-        // Unscoped tail (last "::" component).
+        // Unscoped tail (last "::" component) resolves to the full scoped id.
         if let Some(tail) = n.id.rsplit("::").next() {
             gl_name_to_id.entry(tail.to_string()).or_insert_with(|| n.id.clone());
         }
     }
-    // Also map alias → scoped id (node.alias → node.name → scoped key).
+    // Also map alias → scoped id and node.name → scoped id.
     for node in &document.nodes {
         if let Some(alias) = &node.alias {
             let scoped = node.alias.clone().unwrap_or_else(|| node.name.clone());
@@ -184,7 +182,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     };
 
     // Build EdgeSpec list — IDs must be "r{i}" to match the lookup key below.
-    // Resolve from/to through the name map so scoped node IDs are used.
+    // Resolve from/to through the name map so scoped node IDs are used and
+    // the rank assignment correctly differentiates nodes within each package.
     let gl_edges_class: Vec<GlEdgeSpec> = document
         .relations
         .iter()
@@ -3104,7 +3103,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     // Collect groups: map root → list of label indices
-    let mut groups: std::collections::BTreeMap<usize, Vec<usize>> = std::collections::BTreeMap::new();
+    let mut groups: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
     for (i, &root) in group_id.iter().enumerate() {
         groups.entry(root).or_default().push(i);
     }
@@ -3451,27 +3450,16 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
             ));
         }
         FamilyNodeKind::Node | FamilyNodeKind::Frame => {
-            // 3D cube: top face (parallelogram) + right face + front face (fix #571)
-            let offset = 12i32;
-            // Top face
+            // 3D-ish prism: outer rect with offset shadow
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#d4dff7\" stroke=\"#3730a3\" stroke-width=\"1\"/>",
-                x, y,
-                x + offset, y - offset,
-                x + w + offset, y - offset,
-                x + w, y
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#eef2ff\" stroke=\"#3730a3\" stroke-width=\"1\"/>",
+                x + 6,
+                y + 6,
+                w,
+                h
             ));
-            // Right face
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"#b8c8ef\" stroke=\"#3730a3\" stroke-width=\"1\"/>",
-                x + w, y,
-                x + w + offset, y - offset,
-                x + w + offset, y + h - offset,
-                x + w, y + h
-            ));
-            // Front face
-            out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#eef2ff\" stroke=\"#3730a3\" stroke-width=\"1.5\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#ffffff\" stroke=\"#3730a3\" stroke-width=\"1.5\"/>",
                 x, y, w, h
             ));
         }
@@ -3876,32 +3864,57 @@ fn render_family_node_shape_styled(
                 .as_deref()
                 .unwrap_or(&comp_style.background_color);
             match node.kind {
-                // 3D cube for deployment nodes (fix #571)
+                // 3D cube for deployment nodes (fix #495)
                 FamilyNodeKind::Node | FamilyNodeKind::Frame => {
-                    let offset = 12i32; // 3D depth offset (right and up)
-                    // Top face: parallelogram from front-top edge to back-top edge (shifted right+up).
-                    // Points: front-top-left → back-top-left → back-top-right → front-top-right
+                    let depth = 10i32; // 3D offset
+                                       // Back face (top-right shadow)
                     out.push_str(&format!(
-                        "<polygon points=\"{},{} {},{} {},{} {},{}\" \
-                         fill=\"#d4dff7\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y,                           // front-top-left
-                        x + offset, y - offset,         // back-top-left (up + right)
-                        x + w + offset, y - offset,     // back-top-right
-                        x + w, y,                       // front-top-right
+                        "<polygon class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
+                         points=\"{},{} {},{} {},{} {},{}\" \
+                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        kind_label,
+                        x + depth,
+                        y, // top-left of back face
+                        x + w + depth,
+                        y, // top-right of back face
+                        x + w + depth,
+                        y + h, // bottom-right of back face
+                        x + depth,
+                        y + h, // bottom-left of back face (= right edge of front)
+                        escape_text(fill),
                         comp_style.border_color
                     ));
-                    // Right face: parallelogram from front-right edge to back-right edge.
-                    // Points: front-top-right → back-top-right → back-bottom-right → front-bottom-right
+                    // Top face (parallelogram)
                     out.push_str(&format!(
                         "<polygon points=\"{},{} {},{} {},{} {},{}\" \
-                         fill=\"#b8c8ef\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x + w, y,                           // front-top-right
-                        x + w + offset, y - offset,         // back-top-right
-                        x + w + offset, y + h - offset,     // back-bottom-right
-                        x + w, y + h,                       // front-bottom-right
+                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x,
+                        y, // front-top-left
+                        x + depth,
+                        y - depth + depth, // back-top-left (same y for simplicity, offset right)
+                        x + w + depth,
+                        y, // back-top-right
+                        x + w,
+                        y, // front-top-right
+                        escape_text(fill),
                         comp_style.border_color
                     ));
-                    // Front face (main visible face, drawn last so it sits on top)
+                    // Right face (parallelogram)
+                    out.push_str(&format!(
+                        "<polygon points=\"{},{} {},{} {},{} {},{}\" \
+                         fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x + w,
+                        y, // front-top-right
+                        x + w + depth,
+                        y, // back-top-right
+                        x + w + depth,
+                        y + h, // back-bottom-right
+                        x + w,
+                        y + h, // front-bottom-right
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                    // Front face (main visible face)
                     out.push_str(&format!(
                         "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" \
                          x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
