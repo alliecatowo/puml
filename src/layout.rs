@@ -111,6 +111,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let mut event_rows: i32 = 0;
     let mut autonumber = AutonumberState::default();
     let mut teoz_route_lanes_by_row: BTreeMap<i32, i32> = BTreeMap::new();
+    // Track the y-coordinate of the last message that arrived at each participant
+    // so that explicit `activate X` can pin the bar start to the arriving message row.
+    let mut last_arrival_y: BTreeMap<String, i32> = BTreeMap::new();
 
     for event in &document.events {
         match &event.kind {
@@ -158,6 +161,11 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 );
                 let has_label_lines = !label_lines.is_empty();
                 let row_units = (label_lines.len() as i32).max(1);
+                // Record arrival y for the recipient so that an immediately
+                // following explicit `activate` can pin its bar to this row.
+                if to_virtual.is_none() && !to.is_empty() {
+                    last_arrival_y.insert(to.clone(), y);
+                }
                 messages.push(MessageLine {
                     from_id: from.clone(),
                     to_id: to.clone(),
@@ -223,14 +231,22 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 autonumber.update(raw.as_deref());
             }
             SequenceEventKind::Activate(id) => {
-                let y = events_top + (event_rows * options.message_row_height);
+                let current_y = events_top + (event_rows * options.message_row_height);
+                // Pin the activation bar to the y-coordinate of the most recent
+                // message that arrived at this participant (i.e. the arrow head
+                // position), so the bar visually starts at the incoming call
+                // rather than at the next event row.
+                let y1 = last_arrival_y
+                    .get(id.as_str())
+                    .copied()
+                    .unwrap_or(current_y);
                 let depth = activation_stack
                     .iter()
                     .filter(|open| open.participant_id == *id)
                     .count();
                 activation_stack.push(OpenActivation {
                     participant_id: id.clone(),
-                    y1: y,
+                    y1,
                     depth,
                 });
             }
@@ -343,7 +359,12 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                             height,
                             separators: Vec::new(),
                         });
-                        event_rows += row_units_for_height(height, options.message_row_height);
+                        // Add a clearance buffer (one label height) so the
+                        // label on the first message after the ref box does not
+                        // clip into the box's lower border.  The label is
+                        // drawn at line_y - 8, so we need the next row to be
+                        // at least (box_height + 16) px below the ref start.
+                        event_rows += row_units_for_height(height + 16, options.message_row_height);
                         continue;
                     } else {
                         groups.push(GroupBox {
@@ -602,6 +623,40 @@ fn normalize_label_lines(text: &str, max_chars: usize, policy: TextOverflowPolic
     }
 }
 
+/// Count the *visual* (display) characters in a word, stripping creole/HTML
+/// markup tags so that `<color:red>`, `</color>`, `<size:18>`, `</size>`,
+/// `<b>`, `</b>`, `<i>`, `</i>`, `<u>`, `</u>`, `<&icon>`, etc. do not
+/// inflate the character count used for line-wrapping decisions.
+fn visual_char_count(word: &str) -> usize {
+    let chars: Vec<char> = word.chars().collect();
+    let len = chars.len();
+    let mut count = 0;
+    let mut i = 0;
+    while i < len {
+        if chars[i] == '<' {
+            // Try to skip a markup tag: collect up to '>'.
+            let mut j = i + 1;
+            // Allow at most 32 chars inside the tag to avoid consuming large
+            // non-tag `<...` sequences (e.g. math operators).
+            while j < len && j - i <= 32 && chars[j] != '>' {
+                j += 1;
+            }
+            if j < len && chars[j] == '>' {
+                // Consumed a tag — skip it entirely (no visual chars).
+                i = j + 1;
+                continue;
+            }
+            // No closing '>' found within limit — treat '<' as a visual char.
+            count += 1;
+            i += 1;
+        } else {
+            count += 1;
+            i += 1;
+        }
+    }
+    count
+}
+
 fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
     if line.is_empty() {
         return vec![String::new()];
@@ -613,31 +668,52 @@ fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
 
     let mut lines = Vec::new();
     let mut current = String::new();
+    // Track the *visual* length of `current` separately from its raw length.
+    let mut current_visual: usize = 0;
     for word in words {
-        let word_len = word.chars().count();
+        let word_visual = visual_char_count(word);
         if current.is_empty() {
-            if word_len <= max_chars {
+            if word_visual <= max_chars {
                 current.push_str(word);
+                current_visual = word_visual;
             } else {
-                for chunk in chunk_text(word, max_chars) {
-                    lines.push(chunk);
+                // Word is visually longer than max_chars.  If it contains
+                // markup (visual_len < raw len) keep it whole rather than
+                // splitting mid-tag; otherwise chunk it the old way.
+                let word_raw = word.chars().count();
+                if word_visual < word_raw {
+                    // Contains markup — don't chunk it.
+                    current.push_str(word);
+                    current_visual = word_visual;
+                } else {
+                    for chunk in chunk_text(word, max_chars) {
+                        lines.push(chunk);
+                    }
                 }
             }
             continue;
         }
 
-        let next_len = current.chars().count() + 1 + word_len;
-        if next_len <= max_chars {
+        let next_visual = current_visual + 1 + word_visual;
+        if next_visual <= max_chars {
             current.push(' ');
             current.push_str(word);
+            current_visual = next_visual;
         } else {
             lines.push(current);
-            if word_len <= max_chars {
+            let word_raw = word.chars().count();
+            if word_visual <= max_chars {
                 current = word.to_string();
+                current_visual = word_visual;
+            } else if word_visual < word_raw {
+                // Contains markup — keep whole.
+                current = word.to_string();
+                current_visual = word_visual;
             } else {
                 let mut chunks = chunk_text(word, max_chars);
                 let tail = chunks.pop().unwrap_or_default();
                 lines.extend(chunks);
+                current_visual = visual_char_count(&tail);
                 current = tail;
             }
         }

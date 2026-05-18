@@ -8,20 +8,25 @@ pub(crate) fn creole_text(
     base_color: &str,
 ) -> String {
     let lines = tokenize_creole(label);
+    let label_lower = label.to_ascii_lowercase();
     let has_markup = label.contains("**")
         || label.contains("//")
         || label.contains("\"\"")
         || label.contains("__")
         || label.contains("--")
         || label.contains("[[")
-        || label.contains("<color")
-        || label.contains("<size")
-        || label.contains("<b>")
-        || label.contains("<B>")
-        || label.contains("<i>")
-        || label.contains("<I>")
-        || label.contains("<u>")
-        || label.contains("<U>")
+        || label_lower.contains("<color")
+        || label_lower.contains("</color")
+        || label_lower.contains("<size")
+        || label_lower.contains("</size")
+        || label_lower.contains("<font")
+        || label_lower.contains("</font")
+        || label_lower.contains("<b>")
+        || label_lower.contains("</b>")
+        || label_lower.contains("<i>")
+        || label_lower.contains("</i>")
+        || label_lower.contains("<u>")
+        || label_lower.contains("</u>")
         || label.contains("<&");
 
     if !has_markup && lines.len() == 1 {

@@ -769,11 +769,35 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
         }
 
-        // Arrow from previous node (suppressed for branch-control nodes)
+        // Arrow from previous node (suppressed for branch-control nodes).
+        // Walk back past zero-height partition markers to find the real
+        // predecessor so cross-lane edges are drawn correctly (#588).
         if i > 0 && !suppress_prev_arrow.contains(&i) {
-            let prev = &node_layouts[i - 1];
-            let (px, py) = (prev.cx, prev.arrow_out_y);
-            emit_activity_arrow(&mut out, px, py, cx, y, &act_style.arrow_color);
+            let mut prev_idx = i - 1;
+            while prev_idx > 0 {
+                let prev_kind = &doc.nodes[prev_idx].kind;
+                let prev_step = &metas[prev_idx].step_kind;
+                let is_partition_marker = matches!(prev_kind, FamilyNodeKind::ActivityPartition)
+                    && (prev_step == "PartitionStart"
+                        || prev_step == "PartitionEnd"
+                        || prev_step == "OldStyle");
+                if !is_partition_marker {
+                    break;
+                }
+                prev_idx -= 1;
+            }
+            let prev = &node_layouts[prev_idx];
+            // Skip the arrow if it would be zero-length (same src and dst)
+            if prev.cx != cx || prev.arrow_out_y != y {
+                emit_activity_arrow(
+                    &mut out,
+                    prev.cx,
+                    prev.arrow_out_y,
+                    cx,
+                    y,
+                    &act_style.arrow_color,
+                );
+            }
         }
 
         // Extra arrows for if-branching and fork connections
