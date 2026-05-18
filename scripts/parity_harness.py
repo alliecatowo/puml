@@ -44,11 +44,6 @@ DOC_EXAMPLE_EXCLUSIONS = {
         "rejects deployment nodes inside a component diagram, so the legacy "
         "SVG is not treated as a regenerated docs artifact"
     ),
-    "docs/examples/nonuml_parity_gantt_chart_topology.puml": (
-        "mixed-family topology parity source; parser intentionally rejects "
-        "multiple diagram families in one document, so there is no canonical "
-        "single-SVG docs artifact"
-    ),
     "docs/examples/sequence/15_large_diagram.puml": (
         "mixed sequence/component/deployment compatibility example; parser "
         "currently rejects deployment nodes inside a component diagram, so "
