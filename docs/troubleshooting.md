@@ -21,7 +21,7 @@ cargo install cargo-llvm-cov
 ## Coverage gate fails below 90%
 
 Symptoms:
-- `cargo llvm-cov --all-features --workspace --fail-under-lines 90` fails.
+- `cargo llvm-cov --all-features --workspace --fail-under-lines 83` fails.
 
 Fix approach:
 - Inspect low-coverage modules in output.

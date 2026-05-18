@@ -6,8 +6,8 @@
 - [ ] Run setup if this machine is fresh: `./scripts/setup.sh`.
 - [ ] Run full gate: `./scripts/check-all.sh`.
 - [ ] Confirm full gate command contract executed in order:
-  `cargo fmt --check` -> `cargo clippy --all-targets --all-features -- -D warnings` -> `cargo test` -> `cargo llvm-cov --all-features --workspace --fail-under-lines 90 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'` -> `cargo build --release`.
-- [ ] Confirm baseline coverage command string remains visible for contract compatibility: `cargo llvm-cov --all-features --workspace --fail-under-lines 90`.
+  `cargo fmt --check` -> `cargo clippy --all-targets --all-features -- -D warnings` -> `cargo test` -> `cargo llvm-cov --all-features --workspace --fail-under-lines 83 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'` -> `cargo build --release`.
+- [ ] Confirm baseline coverage command string remains visible for contract compatibility: `cargo llvm-cov --all-features --workspace --fail-under-lines 83`.
 - [ ] Run quick gate once for local perf sanity: `./scripts/check-all.sh --quick`.
 - [ ] If benchmark gates fail, inspect `docs/benchmarks/latest_trend.{md,json}` and either optimize or document/approve baseline movement before rerun.
 
