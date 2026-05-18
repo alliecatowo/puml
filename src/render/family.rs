@@ -271,10 +271,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             // Port-based anchoring: attach to mid-point of the nearest box edge
             // (left/right for horizontal-dominant, top/bottom for vertical-dominant).
             // Part of the layout engine refactor (#591, #590 epic).
-            pick_port(
-                (from.x, from.y, from.w, from.h),
-                (to.x, to.y, to.w, to.h),
-            )
+            pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
         let relation_color = relation
             .line_color
