@@ -112,7 +112,6 @@ fn gantt_without_project_start_uses_absolute_milestone_as_epoch_anchor() {
     );
 }
 
-
 #[test]
 fn gantt_renders_resource_lanes_project_date_axis_and_workload_duration() {
     let src = r#"@startgantt
@@ -524,10 +523,21 @@ stop
 "#;
     let svg = puml::render_source_to_svg(src).expect("activity render");
     assert!(svg.contains("while"));
-    assert!(svg.contains("(endwhile)"));
+    // Bug #584: (endwhile) is a layout-only marker — it must NOT appear as a
+    // visible process node. Same suppression as (else)/(endif) from Wave 3-D #533.
+    assert!(
+        !svg.contains("(endwhile)"),
+        "(endwhile) must not render as a visible text node"
+    );
     // Wave 3-D (#533) intentionally suppresses "(else)" and "(endif)" literal canvas text
-    assert!(svg.contains("done"), "then-branch action must appear in SVG");
-    assert!(svg.contains("retry"), "else-branch action must appear in SVG");
+    assert!(
+        svg.contains("done"),
+        "then-branch action must appear in SVG"
+    );
+    assert!(
+        svg.contains("retry"),
+        "else-branch action must appear in SVG"
+    );
 }
 
 #[test]
