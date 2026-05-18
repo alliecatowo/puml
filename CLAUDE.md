@@ -264,5 +264,159 @@ Check the epic body for child issues — that's where active implementation work
 
 ---
 
+## 11. Development Flows
+
+This section is the authoritative encyclopedia of the flows this project uses. When in
+doubt about which flow to use, read the "when to use" note for each.
+
+### Flow A: Walk-the-board → file → fix → close
+
+**When:** Standing audit loop; the orchestrator or an assigned triage agent walks the
+open issue board between waves.
+
+1. `gh issue list --state open --label P0 --limit 30` — find high-priority open work
+2. `gh issue view <N>` — read full body + acceptance criteria
+3. If no issue exists yet for the bug you are about to fix, `gh issue create` first
+4. Apply the implementation flow (B or C below)
+5. `gh issue close <N>` on completion
+6. After every wave, re-audit: `gh issue list` + render PNG corpus + spot-check visually
+
+### Flow B: PR-per-agent (the default after Wave 22)
+
+**When:** Any implementer agent doing feature work, bug fixes, refactors, test additions,
+or documentation. **This is the default going forward.** The harness provisions a
+worktree automatically via `isolation: "worktree"`.
+
+1. Branch is created as `<type>/issue-<NNN>-<slug>` (harness does this)
+2. Implement + commit using conventional-commits; include `Closes #<NNN>` in the commit
+   footer
+3. Push: `git push -u origin <branch>`
+4. Open PR: `gh pr create --title "<type>(<scope>): <subject>" --body "..."` — include
+   visual evidence and test plan; body must contain `Closes #<NNN>`
+5. Enable auto-merge: `gh pr merge <PR> --auto --squash --delete-branch`
+6. Label: `gh issue edit <N> --add-label in-review`
+7. **Baby the PR**: poll `gh pr checks <PR>` until green; if CI fails, fix on the same
+   branch and re-push; address every Copilot code-review comment
+8. If `main` moves: `git fetch origin && git rebase origin/main`; resolve conflicts
+   deliberately; `git push --force-with-lease`
+9. After merge: GitHub auto-closes the issue via the `Closes #` link
+
+Deep runbook: `docs/internal/agents/autonomous-workflow-cookbook.md`
+
+### Flow C: Direct-to-main (orchestrator + emergencies only)
+
+**When (and only when):**
+- Emergency CI unblockers (cargo fmt drift, snapshot bless after intentional renderer
+  change)
+- Orchestrator merging parallel wave results into a single coherent commit on main
+- Documentation-only commits authored by the user directly
+- Reconciliation passes where multiple workers' branches need synthesis before any single
+  PR makes sense
+
+**Not for implementer agents.** If you are an implementer, use Flow B.
+
+### Flow D: Checkpoint branches (multi-agent sprint synthesis)
+
+**When:** 3+ parallel workers whose results need combining before merging, especially
+when multiple workers will touch the same high-contention files (see section 12).
+
+1. Orchestrator creates: `git checkout -b chore/wave-<NN>-checkpoint` from current main
+2. Each worker opens a PR against the checkpoint branch (not main)
+3. After all worker PRs merge to checkpoint, orchestrator opens ONE PR from checkpoint
+   to main with synthesized result
+4. Required for visual-render waves where multiple workers touch `render/family.rs`
+
+### Flow E: Hotfix sprint
+
+**When:** Bug found on origin/main that is blocking other work or blocking CI.
+
+1. Branch from main: `git checkout -b fix/hotfix-<short>`
+2. Minimum correct fix; one commit
+3. Open PR, enable auto-merge, baby it through CI
+4. After merge, file a follow-up ticket if root-cause analysis revealed something deeper
+
+### Flow F: Coverage ratchet
+
+**When:** Coverage falls below gate, or as a standing "always have a coverage worker in
+every swarm wave" directive.
+
+1. `cargo llvm-cov` — measure current %
+2. Identify lowest-coverage modules not in the ignore-regex
+3. Add MEANINGFUL tests (not synthetic fill) in 3-5 module batches
+4. Bump `--fail-under-lines` threshold in `scripts/check-all.sh`
+5. PR-per-agent (Flow B)
+6. Always include a coverage-uplift worker in every swarm wave
+
+### Flow G: Visual self-driving loop
+
+**When:** After a render change, or on a scheduled visual-quality wave.
+
+1. Regenerate PNG corpus: `python3 scripts/render_corpus.py --force`
+2. Multimodal audit: spawn 3-4 Sonnet agents, each reads ~25 PNGs, files GH issues per
+   visual flaw found
+3. Synthesize findings into a wave plan
+4. Fire implementer wave (Flow B), grouped by file locality
+5. After merges land, regenerate corpus, re-audit, loop until pixel-perfect
+
+Audit notes live at: `docs/internal/visual-audit-<date>.md`
+
+---
+
+## 12. Concurrency and conflict patterns
+
+- When 2+ workers will likely touch the same file, **queue them sequentially** OR use
+  Flow D (checkpoint branch)
+- `src/render/family.rs` — most contended file in the repo; always coordinate before
+  assigning multiple workers to it in the same wave
+- `src/render/graph_layout.rs` — second most contended; same rule applies
+- A worker that discovers a merge conflict mid-rebase should **stop, report, and let the
+  orchestrator resolve** rather than force-resolving and possibly silently dropping code
+
+---
+
+## 13. Memory and persistent notes
+
+- Orchestrator memory: `/home/Allie/.claude/projects/-home-Allie-develop-puml/memory/`
+- Running visual audit notes: `docs/internal/visual-audit-<date>.md`
+- **Agents append to existing notes files; do not create a new file for the same audit
+  cycle**
+- Per-agent memory links are in `memory/MEMORY.md`; read before spawning subagents
+
+---
+
+## 14. CI gates that block merge
+
+| Workflow | What it checks |
+|---|---|
+| `pr-gate.yml` | fmt, clippy, test, coverage (85% line gate), wasm build, docs drift, site smoke |
+| `main-gate.yml` | Same as pr-gate + diagram drift safety net |
+| `oracle.yml` | Differential conformance against PlantUML JAR |
+
+Notes:
+- `differential-svg-oracle` is currently **NOT** a required check; will become required
+  once oracle JAR pinning is verified — do not treat a red oracle as a merge blocker yet
+- Coverage gate is `--fail-under-lines 85` in `scripts/check-all.sh`; bump it in Flow F
+- Docs drift check runs `python3 scripts/parity_harness.py --fail-on-doc-drift`
+
+---
+
+## 15. Issue label taxonomy
+
+| Label | Meaning |
+|---|---|
+| `P0` / `P1` / `P2` / `P3` | Priority (P0 = drop everything) |
+| `agent-ready` | Has enough context for an agent to act without further clarification |
+| `bug` | Regression or correctness defect |
+| `enhancement` | New capability or behavior improvement |
+| `refactor` | Internal restructure with no behavior change |
+| `epic` | Parent tracking issue; child issues listed in body |
+| `parity` | PlantUML compatibility gap |
+| `visual-audit` | Found by a multimodal visual audit (Flow G) |
+| `in-progress` | A branch exists and work has started |
+| `in-review` | PR is open and awaiting CI + review |
+| `architecture` | Touches the layout engine or other core architecture decisions |
+
+---
+
 *This file is authoritative for agent behavior. If it conflicts with another doc, this
 wins — and file an issue so we can reconcile.*
