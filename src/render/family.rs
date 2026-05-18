@@ -16,6 +16,42 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
     render_class_svg(document)
 }
 
+fn relation_pair_label_lane_map(document: &FamilyDocument) -> std::collections::BTreeMap<usize, i32> {
+    let mut pair_counts: std::collections::BTreeMap<(String, String), i32> =
+        std::collections::BTreeMap::new();
+    let mut pair_seen: std::collections::BTreeMap<(String, String), i32> =
+        std::collections::BTreeMap::new();
+    let mut lanes = std::collections::BTreeMap::new();
+
+    for relation in &document.relations {
+        let key = if relation.from <= relation.to {
+            (relation.from.clone(), relation.to.clone())
+        } else {
+            (relation.to.clone(), relation.from.clone())
+        };
+        *pair_counts.entry(key).or_insert(0) += 1;
+    }
+
+    for (idx, relation) in document.relations.iter().enumerate() {
+        let key = if relation.from <= relation.to {
+            (relation.from.clone(), relation.to.clone())
+        } else {
+            (relation.to.clone(), relation.from.clone())
+        };
+        let count = pair_counts.get(&key).copied().unwrap_or(1);
+        let seen = pair_seen.entry(key).or_insert(0);
+        let lane = if count <= 1 {
+            0
+        } else {
+            (*seen * 2 - (count - 1)) * 10
+        };
+        *seen += 1;
+        lanes.insert(idx, lane);
+    }
+
+    lanes
+}
+
 /// Render Class/Object/UseCase documents as a real SVG with boxed nodes
 /// (header + member compartment) laid out in a simple grid, plus arrows
 /// for the document's relations.
@@ -60,8 +96,19 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let relation_label_gap = document
         .relations
         .iter()
-        .filter_map(|rel| rel.label.as_ref())
-        .map(|label| (label.chars().count() as i32) * 7 + 24)
+        .map(|rel| {
+            let label_w = rel
+                .label
+                .as_ref()
+                .map(|label| (label.chars().count() as i32) * 7 + 24)
+                .unwrap_or(0);
+            let stereotype_w = rel
+                .stereotype
+                .as_ref()
+                .map(|label| (label.chars().count() as i32) * 7 + 56)
+                .unwrap_or(0);
+            label_w.max(stereotype_w)
+        })
         .max()
         .unwrap_or(0);
     let col_gap: i32 = 80.max(relation_label_gap);
@@ -75,8 +122,9 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let group_top_reserve = if group_frames.is_empty() {
         0
     } else {
-        ((max_group_depth as i32) + 1) * 40
+        ((max_group_depth as i32) + 1) * 52
     };
+    let relation_pair_label_lanes = relation_pair_label_lane_map(document);
 
     // Compute heights per node
     #[derive(Clone, Copy)]
@@ -734,10 +782,14 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 txt = escape_text(right_role)
             ));
         }
+        let pair_label_lane = relation_pair_label_lanes
+            .get(&rel_idx)
+            .copied()
+            .unwrap_or(0);
         if let Some(stereotype) = &relation.stereotype {
             if usecase_dependency.is_none() {
                 let sx = label_mx;
-                let sy = label_my - if relation.label.is_some() { 8 } else { 6 };
+                let sy = label_my - if relation.label.is_some() { 18 } else { 14 } + pair_label_lane;
                 out.push_str(&format!(
                     "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
                     member_color = class_style.member_color,
@@ -778,7 +830,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 margin_x + 8 + label_half_w,
                 svg_width - margin_x - 8 - label_half_w,
             );
-            let ly = ly.max(margin_top + 10);
+            let ly = (ly + pair_label_lane).max(margin_top + 10);
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
@@ -815,7 +867,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 margin_x + 8 + label_half_w,
                 svg_width - margin_x - 8 - label_half_w,
             );
-            let ly = ly.max(margin_top + 10);
+            let ly = (ly + pair_label_lane).max(margin_top + 10);
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
@@ -847,8 +899,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
         // Add padding around the member bounding box
         let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
-        let pad = 16 + depth_outset;
-        let label_header = 40 + depth_outset; // extra space at top for the group label (was 28; bumped to clear first-child node)
+        let pad = 20 + depth_outset;
+        let label_header = 52 + depth_outset; // keep package tab/header text above enclosed nodes in nested frames (#570)
         let fx = gx_min - pad;
         let fy = gy_min - pad - label_header;
         let fw = (gx_max - gx_min) + pad * 2;

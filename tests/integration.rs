@@ -5245,6 +5245,51 @@ fn class_relations_with_roles_render_endpoint_role_labels() {
 }
 
 #[test]
+fn class_parallel_relations_stagger_labels_for_shared_node_pairs() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("class/12_all_relations.puml")).unwrap(),
+    )
+    .expect("class all relations example should render");
+    let extends_label = svg_text_positions(&svg, "&lt;&lt;extends&gt;&gt;")
+        .into_iter()
+        .next()
+        .expect("extends stereotype position");
+    let association_label = svg_text_positions(&svg, "association")
+        .into_iter()
+        .next()
+        .expect("association label position");
+    assert!(
+        (extends_label.0 - association_label.0).abs() >= 12
+            || (extends_label.1 - association_label.1).abs() >= 12,
+        "shared-pair labels should not overlap"
+    );
+}
+
+#[test]
+fn class_package_headers_stay_above_nested_members() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("class/14_nested_packages.puml")).unwrap(),
+    )
+    .expect("nested class packages should render");
+    let package_label = svg_text_positions(&svg, "package repository")
+        .into_iter()
+        .next()
+        .expect("repository package label");
+    let user_service = svg_text_positions(&svg, "UserService")
+        .into_iter()
+        .next()
+        .expect("user service position");
+    let product_service = svg_text_positions(&svg, "ProductService")
+        .into_iter()
+        .next()
+        .expect("product service position");
+    assert!(
+        package_label.1 + 12 < user_service.1.min(product_service.1),
+        "nested package label should stay above enclosed service nodes"
+    );
+}
+
+#[test]
 fn component_and_deployment_edges_render_advanced_markers_and_dashes() {
     let component_src = "@startuml\ncomponent API\ninterface Gateway\nport Ingress\nAPI o-- Gateway : exposes\nIngress <|-- API : binds\n@enduml\n";
     let component_svg = render_source_to_svg(component_src).expect("component svg should render");
