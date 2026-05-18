@@ -80,7 +80,7 @@ fn include_http_url_fetches_content_and_renders() {
         .success();
 
     // Verify mock was hit
-    _mock.assert_hits(1);
+    _mock.assert_calls(1);
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn include_http_url_cache_hit_no_second_network_call() {
         .success();
 
     // Mock should have been called once
-    _mock.assert_hits(1);
+    _mock.assert_calls(1);
 
     let svg1 = fs::read_to_string(&output1).unwrap();
 
@@ -131,7 +131,7 @@ fn include_http_url_cache_hit_no_second_network_call() {
         .success();
 
     // Still only 1 network call
-    _mock.assert_hits(1);
+    _mock.assert_calls(1);
 
     let svg2 = fs::read_to_string(&output2).unwrap();
     assert_eq!(
@@ -212,8 +212,8 @@ fn include_http_redirect_is_rejected_without_following_location() {
         .failure()
         .stderr(predicate::str::contains("E_INCLUDE_URL_REDIRECT"));
 
-    redirect_mock.assert_hits(1);
-    target_mock.assert_hits(0);
+    redirect_mock.assert_calls(1);
+    target_mock.assert_calls(0);
 }
 
 #[test]
@@ -247,7 +247,7 @@ fn include_http_response_larger_than_cap_is_rejected() {
         .failure()
         .stderr(predicate::str::contains("E_INCLUDE_URL_TOO_LARGE"));
 
-    _mock.assert_hits(1);
+    _mock.assert_calls(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +276,7 @@ fn url_includes_disabled_by_default_produces_disabled_diagnostic() {
         .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 
     // Network should NOT have been called
-    _mock.assert_hits(0);
+    _mock.assert_calls(0);
 }
 
 #[test]
@@ -301,7 +301,7 @@ fn no_url_includes_flag_remains_a_disabled_diagnostic_alias() {
         .failure()
         .stderr(predicate::str::contains("E_INCLUDE_URL_DISABLED"));
 
-    _mock.assert_hits(0);
+    _mock.assert_calls(0);
 }
 
 // ---------------------------------------------------------------------------
