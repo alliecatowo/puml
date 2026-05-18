@@ -147,6 +147,38 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         }
     }
 
+    // ── Post-process: split [*] into initial pseudostate + final state ──────
+    // Per UML spec, the initial pseudostate [*] should have exactly ONE outgoing
+    // transition (to the first sub-state). Exit transitions (Foo --> [*]) must
+    // terminate at a distinct FinalState node (filled circle with ring), not at
+    // the same dot as the initial pseudostate.
+    //
+    // If [*] is used as BOTH source (initial) and target (final) in this diagram,
+    // we create a synthetic node "[*]__end" with kind=End and rewrite all
+    // incoming transitions from "[*]" to "[*]__end".
+    {
+        let star_as_source = transitions.iter().any(|t| t.from == "[*]");
+        let star_as_target = transitions.iter().any(|t| t.to == "[*]");
+        if star_as_source && star_as_target {
+            // Insert the synthetic final-state node
+            let final_node = StateNode {
+                name: "[*]__end".to_string(),
+                display: None,
+                kind: StateNodeKind::End,
+                stereotype: None,
+                internal_actions: Vec::new(),
+                regions: Vec::new(),
+            };
+            nodes.push(final_node);
+            // Rewrite all transitions whose target is [*] to point at [*]__end
+            for t in transitions.iter_mut() {
+                if t.to == "[*]" {
+                    t.to = "[*]__end".to_string();
+                }
+            }
+        }
+    }
+
     Ok(StateDocument {
         kind: document.kind,
         nodes,
