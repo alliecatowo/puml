@@ -38,6 +38,11 @@ Checked on 2026-05-17 with `gh api graphql` and `gh project item-list`:
   2026-05-17 to match the existing repository label and reduce manual board
   cleanup for lower-priority issues.
 
+GitHub's current Projects docs support the repo-side approach used here:
+GraphQL can update project items and fields, built-in workflows are enabled in
+the project UI, and Actions/user tokens are the practical bridge for user-owned
+Project v2 boards.
+
 ## Usage
 
 ```bash
@@ -143,6 +148,19 @@ Behavior:
 - closing issues referenced by an open PR -> `Status: Merging`
 - closing issues referenced by a merged PR -> `Status: Done`
 - labels named `P0`, `P1`, `P2`, or `P3` -> matching `Priority`
+
+Recommended native workflows to enable in the project UI when a maintainer is
+available:
+
+| Workflow | Recommended state | Reason |
+|---|---:|---|
+| Auto-add to project | On | Already on; keeps newly matching repo items from being missed. |
+| Auto-add sub-issues to project | On | Already on; keeps parent/sub-issue work visible. |
+| Item closed | On | Low-risk duplicate safety for moving closed issues/PRs to Done. |
+| Pull request merged | On | Low-risk duplicate safety for moving merged PRs to Done. |
+| Pull request linked to issue | On | Useful if the project should surface PR-linked implementation work immediately. |
+| Item added to project | Optional | Set to `Todo` only if manually added draft/triage items should always start there. |
+| Auto-close issue | Off | Higher risk because changing board state would close issues. |
 
 The workflow uses `secrets.PUML_PROJECT_TOKEN`. For user-owned Projects v2
 boards, a PAT with `project` scope is required in practice because repository
