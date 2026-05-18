@@ -50,6 +50,10 @@ let manifest;
 let base;
 const langCompartment = new Compartment();
 
+// Track the source of the currently-selected example so that Reset can restore
+// it rather than always falling back to DEFAULT_SOURCE.
+let currentExampleSource = null;
+
 async function init() {
   base = siteBaseUrl();
   engine = new WasmRenderer(base);
@@ -86,13 +90,18 @@ async function init() {
     picker.addEventListener('change', async (e) => {
       const id = e.target.value;
       if (!id) return;
+      // Do NOT reset e.target.value to '' after selection; the native <select>
+      // already shows the chosen option's text, which is the desired UX.
+      // Resetting it caused the label to snap back to "Load example…"
+      // immediately after the user picked an item (bug 3).
       await openExampleById(id);
-      e.target.value = '';
     });
   }
 
   document.getElementById('reset-btn').addEventListener('click', () => {
-    setSource(DEFAULT_SOURCE);
+    // Restore to the currently-selected example when one is active; otherwise
+    // fall back to the built-in default (bug 2).
+    setSource(currentExampleSource ?? DEFAULT_SOURCE);
     render();
   });
 
@@ -192,6 +201,8 @@ async function openExampleById(id) {
     const res = await fetch(assetUrl(base, ex.pumlPath));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
+    // Record source so Reset can restore the example (bug 2).
+    currentExampleSource = text;
     setSource(text);
     setStatus('editor', `Loaded ${ex.familyLabel} / ${ex.title}.`, 'ok');
     render();
