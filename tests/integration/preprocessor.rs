@@ -115,6 +115,30 @@ fn preprocessor_dynamic_call_user_func_invokes_function_expression() {
 }
 
 #[test]
+fn preprocessor_dynamic_invoke_procedure_dispatches_variable_and_alias_forms() {
+    let out = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("preprocessor/valid_dynamic_invoke_procedure.puml"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: Value = serde_json::from_slice(&out).unwrap();
+    let labels = json["statements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|stmt| stmt["kind"]["Message"]["label"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["via-var", "alias"]);
+}
+
+#[test]
 fn preprocessor_color_math_builtins_expand_deterministically() {
     let out = Command::cargo_bin("puml")
         .expect("binary")
