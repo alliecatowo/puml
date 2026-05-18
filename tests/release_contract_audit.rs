@@ -83,6 +83,18 @@ fn release_docs_capture_release_gate_contract() {
         "bench gate should require explicit baseline updates"
     );
     assert!(
+        bench.contains("--check-artifacts") && bench.contains("validate-artifacts"),
+        "bench gate should expose checked-in artifact policy validation"
+    );
+    assert!(
+        bench_docs.contains("./scripts/bench.sh --check-artifacts"),
+        "bench docs should describe artifact policy validation"
+    );
+    assert!(
+        checklist.contains("./scripts/bench.sh --check-artifacts"),
+        "release checklist should require artifact policy validation"
+    );
+    assert!(
         bench_docs.contains("absolute delta floor `>40ms`"),
         "bench docs should describe full-mode regression delta floor"
     );

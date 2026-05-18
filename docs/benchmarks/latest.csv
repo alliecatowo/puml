@@ -1,7 +1,7 @@
 name,tool,mean_ms,stddev_ms,runs,timestamp_utc
-cold_start_help,time,140.000,6.325,5,2026-05-15T20:17:06Z
-parser_check,time,136.000,4.899,5,2026-05-15T20:17:06Z
-parser_dump_scene,time,134.000,4.899,5,2026-05-15T20:17:06Z
-render_file,time,112.000,16.000,5,2026-05-15T20:17:06Z
-render_stdin,time,88.000,4.000,5,2026-05-15T20:17:06Z
-render_stdin_multi,time,90.000,0.000,5,2026-05-15T20:17:06Z
+cold_start_help,python-perf-counter,99.737,2.606,12,2026-05-18T00:17:52Z
+parser_check,python-perf-counter,96.765,2.345,12,2026-05-18T00:17:52Z
+parser_dump_scene,python-perf-counter,94.806,2.608,12,2026-05-18T00:17:52Z
+render_file,python-perf-counter,97.095,2.385,12,2026-05-18T00:17:52Z
+render_stdin,python-perf-counter,94.295,1.978,12,2026-05-18T00:17:52Z
+render_stdin_multi,python-perf-counter,94.455,2.455,12,2026-05-18T00:17:52Z
