@@ -54,11 +54,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         ));
         y_header += 20;
     }
-    out.push_str(&format!(
-        "<text x=\"40\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">state diagram</text>",
-        y_header,
-        escape_text(&state_style.font_color)
-    ));
+    // Do NOT emit a visible "state diagram" canvas text — it leaks as unwanted label
+    let _ = y_header; // suppress unused variable warning
 
     let mut incoming: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
     let mut outgoing: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
@@ -108,7 +105,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             }
             if let Some(label) = &t.label {
                 let mx = (x1 + x2) / 2;
-                let my = (y1 + y2) / 2 - 6;
+                // Keep at least 12px clearance from the arrow shaft (fix #483)
+                let my = (y1 + y2) / 2 - 12;
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
                     mx, my, escape_text(&state_style.font_color), escape_text(label)

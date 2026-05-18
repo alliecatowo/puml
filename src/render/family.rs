@@ -420,14 +420,21 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
         let group_label = group.display_label();
 
-        // Frame rectangle
+        // Frame rectangle — rectangle groups (system boundaries in usecase) get a solid border
+        // while other groups get a dashed border (fix #479)
+        let (frame_stroke, frame_dash) = if group.kind == "rectangle" {
+            ("#374151", "")  // solid dark border for system boundary
+        } else {
+            ("#6366f1", " stroke-dasharray=\"5 3\"")  // dashed purple for package/namespace
+        };
         out.push_str(&format!(
-            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
+            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"4\" ry=\"4\" fill=\"none\" stroke=\"{frame_stroke}\" stroke-width=\"1.5\"{frame_dash}/>",
             escape_text(&group.scope)
         ));
         // Group label text
+        let label_color = if group.kind == "rectangle" { "#374151" } else { "#4338ca" };
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{label_color}\">{label}</text>",
             tx = fx + 8,
             ty = fy + 14,
             label = escape_text(&group_label)

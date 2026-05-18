@@ -1161,6 +1161,31 @@ fn parse_class_scoping_block(
         )));
     }
 
+    // rectangle "Label" { ... } — used in usecase diagrams as system boundary frames (fix #479)
+    if lower.starts_with("rectangle ") && line.trim_end().ends_with('{') {
+        let rest = line.strip_prefix("rectangle ").unwrap_or("").trim();
+        let label_raw = rest.trim_end_matches('{').trim();
+        let label = clean_ident(label_raw.trim_matches('"'));
+        let end_idx = find_scoping_block_end(lines, start);
+        if end_idx == start {
+            return Err(Diagnostic::error(
+                "[E_CLASS_RECTANGLE_UNCLOSED] unclosed `rectangle` block: missing `}`",
+            )
+            .with_span(lines[start].1));
+        }
+        let content =
+            collect_scoped_class_group_content(lines, start, end_idx, std::slice::from_ref(&label));
+        return Ok(Some((
+            StatementKind::ClassGroup {
+                kind: "rectangle".to_string(),
+                label: if label.is_empty() { None } else { Some(label) },
+                members: content.members,
+                relations: content.relations,
+            },
+            end_idx,
+        )));
+    }
+
     Ok(None)
 }
 
