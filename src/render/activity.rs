@@ -713,22 +713,17 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
             }
             FamilyNodeKind::ActivityMerge => {
-                // Else and EndIf are invisible control-flow markers — they
-                // drive arrow routing but must never appear as visible text.
-                if step_kind.contains("Else") || step_kind.contains("EndIf") {
+                // Else, EndIf, EndWhile, and RepeatStart are invisible
+                // control-flow markers — they drive arrow routing but must
+                // never appear as visible text nodes (#584, #585).
+                if step_kind.contains("Else")
+                    || step_kind.contains("EndIf")
+                    || step_kind.contains("EndWhile")
+                    || step_kind.contains("RepeatStart")
+                {
                     // no visual output — layout only
                 } else {
-                    let merge_label = if step_kind.contains("EndWhile") {
-                        if label.is_empty() {
-                            "(endwhile)".to_string()
-                        } else {
-                            format!("({label})")
-                        }
-                    } else if step_kind.contains("RepeatStart") {
-                        "(repeat)".to_string()
-                    } else {
-                        format!("(merge) {}", label)
-                    };
+                    let merge_label = format!("(merge) {}", label);
                     if !merge_label.is_empty() {
                         out.push_str(&format!(
                             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
