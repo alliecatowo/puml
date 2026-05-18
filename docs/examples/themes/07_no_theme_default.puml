@@ -1,7 +1,7 @@
 @startuml sequence
 title Default Theme (no !theme directive)
-component "User" as User
-component "App" as App
+participant "User" as User
+participant "App" as App
 User --> App : action
 App --> User : result
 @enduml
