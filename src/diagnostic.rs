@@ -177,3 +177,58 @@ fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
 fn byte_col_to_visual_col(s: &str) -> usize {
     s.chars().count()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_json_with_source_includes_code_location_and_snippet() {
+        let source = "alpha\nβeta line\nomega";
+        let diagnostic = Diagnostic::error_code("E_UTF", "bad token").with_span(Span {
+            start: 6,
+            end: 8,
+        });
+
+        let json = diagnostic.to_json_with_source(source);
+        assert_eq!(json.code.as_deref(), Some("E_UTF"));
+        assert_eq!(json.severity, "error");
+        assert_eq!(json.line, Some(2));
+        assert_eq!(json.column, Some(1));
+        assert_eq!(json.snippet.as_deref(), Some("βeta line"));
+        assert_eq!(json.caret.as_deref(), Some("^^"));
+    }
+
+    #[test]
+    fn to_json_with_source_without_span_keeps_optional_fields_empty() {
+        let diagnostic = Diagnostic::warning("[] not a coded warning");
+        let json = diagnostic.to_json_with_source("source");
+
+        assert_eq!(json.code, None);
+        assert_eq!(json.severity, "warning");
+        assert_eq!(json.line, None);
+        assert_eq!(json.column, None);
+        assert_eq!(json.snippet, None);
+        assert_eq!(json.caret, None);
+    }
+
+    #[test]
+    fn render_caret_line_clamps_to_line_bounds_and_marks_zero_length_spans() {
+        let source = "abc\ndef";
+
+        assert_eq!(
+            render_caret_line(
+                source,
+                Span {
+                    start: 4,
+                    end: 400,
+                }
+            ),
+            "def\n^^^"
+        );
+        assert_eq!(
+            render_caret_line(source, Span { start: 4, end: 4 }),
+            "def\n^"
+        );
+    }
+}

@@ -18,10 +18,10 @@ rustup component add llvm-tools-preview
 cargo install cargo-llvm-cov
 ```
 
-## Coverage gate fails below 90%
+## Coverage gate fails below 85%
 
 Symptoms:
-- `cargo llvm-cov --all-features --workspace --fail-under-lines 83` fails.
+- `cargo llvm-cov --all-features --workspace --fail-under-lines 85` fails.
 
 Fix approach:
 - Inspect low-coverage modules in output.
