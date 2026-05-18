@@ -1,6 +1,9 @@
 use puml::ast::{DiagramKind, StatementKind};
 use puml::diagnostic::Severity;
-use puml::language_service::{document_symbols, DocumentSymbolKind};
+use puml::language_service::{
+    completion_items, document_symbols, hover as language_hover, resolve_completion_item,
+    CompletionItemKind, DocumentSymbolKind,
+};
 use puml::scene::LayoutOptions;
 use puml::{
     layout, normalize_family, parse_with_pipeline_options, render, Document, FamilyDocument,
@@ -28,14 +31,6 @@ struct TokenHit {
     start: usize,
     len: usize,
     token_type: u32,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct CompletionSpec {
-    label: &'static str,
-    kind: u32,
-    detail: &'static str,
-    documentation: &'static str,
 }
 
 fn main() {
@@ -414,12 +409,13 @@ fn caps() -> Value {
     })
 }
 fn completions() -> Vec<Value> {
-    completion_specs()
+    let list = completion_items();
+    list.items
         .iter()
-        .map(|spec| {
+        .map(|item| {
             json!({
-                "label": spec.label,
-                "kind": spec.kind
+                "label": item.label,
+                "kind": lsp_completion_item_kind(item.kind)
             })
         })
         .collect()
@@ -430,7 +426,7 @@ fn resolve_completion(item: &Value) -> Value {
     let Some(label) = item.get("label").and_then(Value::as_str) else {
         return resolved;
     };
-    let Some(spec) = completion_specs().iter().find(|entry| entry.label == label) else {
+    let Some(spec) = resolve_completion_item(label) else {
         return resolved;
     };
     if let Some(obj) = resolved.as_object_mut() {
@@ -443,567 +439,23 @@ fn resolve_completion(item: &Value) -> Value {
     resolved
 }
 
-fn completion_specs() -> &'static [CompletionSpec] {
-    const KEYWORD: u32 = 14;
-    const OPERATOR: u32 = 24;
-    const SNIPPET: u32 = 15;
-    &[
-        CompletionSpec {
-            label: "@startuml",
-            kind: KEYWORD,
-            detail: "Directive",
-            documentation: "Start a sequence diagram block.",
-        },
-        CompletionSpec {
-            label: "@enduml",
-            kind: KEYWORD,
-            detail: "Directive",
-            documentation: "End a sequence diagram block.",
-        },
-        CompletionSpec {
-            label: "title",
-            kind: KEYWORD,
-            detail: "Metadata",
-            documentation: "Set a diagram title.",
-        },
-        CompletionSpec {
-            label: "header",
-            kind: KEYWORD,
-            detail: "Metadata",
-            documentation: "Set a diagram header.",
-        },
-        CompletionSpec {
-            label: "footer",
-            kind: KEYWORD,
-            detail: "Metadata",
-            documentation: "Set a diagram footer.",
-        },
-        CompletionSpec {
-            label: "caption",
-            kind: KEYWORD,
-            detail: "Metadata",
-            documentation: "Set a diagram caption.",
-        },
-        CompletionSpec {
-            label: "legend",
-            kind: KEYWORD,
-            detail: "Metadata",
-            documentation: "Start a legend block.",
-        },
-        CompletionSpec {
-            label: "participant",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare a participant.",
-        },
-        CompletionSpec {
-            label: "actor",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare an actor participant.",
-        },
-        CompletionSpec {
-            label: "boundary",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare a boundary participant.",
-        },
-        CompletionSpec {
-            label: "control",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare a control participant.",
-        },
-        CompletionSpec {
-            label: "entity",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare an entity participant.",
-        },
-        CompletionSpec {
-            label: "database",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare a database participant.",
-        },
-        CompletionSpec {
-            label: "collections",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare a collections participant.",
-        },
-        CompletionSpec {
-            label: "queue",
-            kind: KEYWORD,
-            detail: "Participant",
-            documentation: "Declare a queue participant.",
-        },
-        CompletionSpec {
-            label: "box",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start a participant box group.",
-        },
-        CompletionSpec {
-            label: "end box",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "End a participant box group.",
-        },
-        CompletionSpec {
-            label: "note left of",
-            kind: KEYWORD,
-            detail: "Note",
-            documentation: "Attach a note to the left side of a target.",
-        },
-        CompletionSpec {
-            label: "note right of",
-            kind: KEYWORD,
-            detail: "Note",
-            documentation: "Attach a note to the right side of a target.",
-        },
-        CompletionSpec {
-            label: "note over",
-            kind: KEYWORD,
-            detail: "Note",
-            documentation: "Attach a note over one or more targets.",
-        },
-        CompletionSpec {
-            label: "note across",
-            kind: KEYWORD,
-            detail: "Note",
-            documentation: "Attach a note across all participants.",
-        },
-        CompletionSpec {
-            label: "hnote over",
-            kind: KEYWORD,
-            detail: "Note",
-            documentation: "Attach a hex note over one or more targets.",
-        },
-        CompletionSpec {
-            label: "rnote over",
-            kind: KEYWORD,
-            detail: "Note",
-            documentation: "Attach a rectangle note over one or more targets.",
-        },
-        CompletionSpec {
-            label: "ref over",
-            kind: KEYWORD,
-            detail: "Reference",
-            documentation: "Declare a reference block over participants.",
-        },
-        CompletionSpec {
-            label: "alt",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start an alt block.",
-        },
-        CompletionSpec {
-            label: "else",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start an alternate branch within alt/par.",
-        },
-        CompletionSpec {
-            label: "opt",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start an opt block.",
-        },
-        CompletionSpec {
-            label: "loop",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start a loop block.",
-        },
-        CompletionSpec {
-            label: "par",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start a parallel block.",
-        },
-        CompletionSpec {
-            label: "break",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start a break block.",
-        },
-        CompletionSpec {
-            label: "critical",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start a critical block.",
-        },
-        CompletionSpec {
-            label: "group",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "Start a generic group block.",
-        },
-        CompletionSpec {
-            label: "end",
-            kind: KEYWORD,
-            detail: "Group",
-            documentation: "End the current group or note block.",
-        },
-        CompletionSpec {
-            label: "activate",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Activate a participant lifeline.",
-        },
-        CompletionSpec {
-            label: "deactivate",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Deactivate a participant lifeline.",
-        },
-        CompletionSpec {
-            label: "create",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Create a participant instance.",
-        },
-        CompletionSpec {
-            label: "destroy",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Destroy a participant instance.",
-        },
-        CompletionSpec {
-            label: "return",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Emit a return message.",
-        },
-        CompletionSpec {
-            label: "autoactivate on",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Enable auto-activation on messages.",
-        },
-        CompletionSpec {
-            label: "autoactivate off",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Disable auto-activation on messages.",
-        },
-        CompletionSpec {
-            label: "autonumber",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Enable automatic message numbering.",
-        },
-        CompletionSpec {
-            label: "autonumber stop",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Stop automatic message numbering.",
-        },
-        CompletionSpec {
-            label: "autonumber resume",
-            kind: KEYWORD,
-            detail: "Lifecycle",
-            documentation: "Resume automatic message numbering.",
-        },
-        CompletionSpec {
-            label: "hide footbox",
-            kind: KEYWORD,
-            detail: "Style",
-            documentation: "Hide participant footboxes.",
-        },
-        CompletionSpec {
-            label: "show footbox",
-            kind: KEYWORD,
-            detail: "Style",
-            documentation: "Show participant footboxes.",
-        },
-        CompletionSpec {
-            label: "skinparam sequence {}",
-            kind: SNIPPET,
-            detail: "Style",
-            documentation: "Insert a sequence skinparam block.",
-        },
-        CompletionSpec {
-            label: "!include",
-            kind: KEYWORD,
-            detail: "Preprocessor",
-            documentation: "Include another source file.",
-        },
-        CompletionSpec {
-            label: "!define",
-            kind: KEYWORD,
-            detail: "Preprocessor",
-            documentation: "Define a preprocessor macro.",
-        },
-        CompletionSpec {
-            label: "!undef",
-            kind: KEYWORD,
-            detail: "Preprocessor",
-            documentation: "Undefine a preprocessor macro.",
-        },
-        CompletionSpec {
-            label: "newpage",
-            kind: KEYWORD,
-            detail: "Pagination",
-            documentation: "Split output into a new page.",
-        },
-        CompletionSpec {
-            label: "class",
-            kind: KEYWORD,
-            detail: "Class Diagram",
-            documentation: "Declare a class node.",
-        },
-        CompletionSpec {
-            label: "interface",
-            kind: KEYWORD,
-            detail: "Class Diagram",
-            documentation: "Declare an interface node.",
-        },
-        CompletionSpec {
-            label: "enum",
-            kind: KEYWORD,
-            detail: "Class Diagram",
-            documentation: "Declare an enum node.",
-        },
-        CompletionSpec {
-            label: "abstract class",
-            kind: KEYWORD,
-            detail: "Class Diagram",
-            documentation: "Declare an abstract class node.",
-        },
-        CompletionSpec {
-            label: "package",
-            kind: KEYWORD,
-            detail: "Family Diagram",
-            documentation: "Group family diagram nodes under a package.",
-        },
-        CompletionSpec {
-            label: "namespace",
-            kind: KEYWORD,
-            detail: "Family Diagram",
-            documentation: "Group family diagram nodes under a namespace.",
-        },
-        CompletionSpec {
-            label: "state",
-            kind: KEYWORD,
-            detail: "State Diagram",
-            documentation: "Declare a state node.",
-        },
-        CompletionSpec {
-            label: "[*]",
-            kind: KEYWORD,
-            detail: "State Diagram",
-            documentation: "State diagram start or end marker.",
-        },
-        CompletionSpec {
-            label: "start",
-            kind: KEYWORD,
-            detail: "Activity Diagram",
-            documentation: "Start an activity diagram flow.",
-        },
-        CompletionSpec {
-            label: "stop",
-            kind: KEYWORD,
-            detail: "Activity Diagram",
-            documentation: "Stop an activity diagram flow.",
-        },
-        CompletionSpec {
-            label: "if",
-            kind: KEYWORD,
-            detail: "Activity Diagram",
-            documentation: "Start an activity branch.",
-        },
-        CompletionSpec {
-            label: "then",
-            kind: KEYWORD,
-            detail: "Activity Diagram",
-            documentation: "Mark the positive activity branch.",
-        },
-        CompletionSpec {
-            label: "endif",
-            kind: KEYWORD,
-            detail: "Activity Diagram",
-            documentation: "End an activity branch.",
-        },
-        CompletionSpec {
-            label: "== divider ==",
-            kind: SNIPPET,
-            detail: "Structure",
-            documentation: "Insert a divider row.",
-        },
-        CompletionSpec {
-            label: "... delay ...",
-            kind: SNIPPET,
-            detail: "Structure",
-            documentation: "Insert a delay row.",
-        },
-        CompletionSpec {
-            label: "|||",
-            kind: KEYWORD,
-            detail: "Structure",
-            documentation: "Insert a spacer row.",
-        },
-        CompletionSpec {
-            label: "->",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Solid message arrow.",
-        },
-        CompletionSpec {
-            label: "-->",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Dashed message arrow.",
-        },
-        CompletionSpec {
-            label: "<-",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Solid reverse message arrow.",
-        },
-        CompletionSpec {
-            label: "<--",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Dashed reverse message arrow.",
-        },
-        CompletionSpec {
-            label: "->>",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Open-head forward arrow.",
-        },
-        CompletionSpec {
-            label: "-->>",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Open-head dashed forward arrow.",
-        },
-        CompletionSpec {
-            label: "<<-",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Open-head reverse arrow.",
-        },
-        CompletionSpec {
-            label: "<<--",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Open-head dashed reverse arrow.",
-        },
-        CompletionSpec {
-            label: "->x",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Forward arrow to lost endpoint.",
-        },
-        CompletionSpec {
-            label: "x->",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Forward arrow from found endpoint.",
-        },
-        CompletionSpec {
-            label: "-x",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Endpoint loss marker in expanded forms.",
-        },
-        CompletionSpec {
-            label: "->o",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Forward arrow to open endpoint.",
-        },
-        CompletionSpec {
-            label: "o->",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Forward arrow from open endpoint.",
-        },
-        CompletionSpec {
-            label: "<->",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Bidirectional solid arrow.",
-        },
-        CompletionSpec {
-            label: "<-->",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Bidirectional dashed arrow.",
-        },
-        CompletionSpec {
-            label: "-[#color]>",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Forward arrow with custom color.",
-        },
-        CompletionSpec {
-            label: "-[#color,dashed]>",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Forward dashed arrow with custom color.",
-        },
-        CompletionSpec {
-            label: "-[#color,bold]>",
-            kind: OPERATOR,
-            detail: "Arrow",
-            documentation: "Forward bold arrow with custom color.",
-        },
-        CompletionSpec {
-            label: "++",
-            kind: OPERATOR,
-            detail: "Lifecycle Suffix",
-            documentation: "Activate target lifeline after this message.",
-        },
-        CompletionSpec {
-            label: "--",
-            kind: OPERATOR,
-            detail: "Lifecycle Suffix",
-            documentation: "Deactivate source lifeline after this message.",
-        },
-        CompletionSpec {
-            label: "**",
-            kind: OPERATOR,
-            detail: "Lifecycle Suffix",
-            documentation: "Create target participant from this message.",
-        },
-        CompletionSpec {
-            label: "!!",
-            kind: OPERATOR,
-            detail: "Lifecycle Suffix",
-            documentation: "Destroy target participant from this message.",
-        },
-    ]
+fn hover(d: &Doc, posn: (u64, u64)) -> Option<Value> {
+    language_hover(&d.text, posn).map(|hover| {
+        json!({
+            "contents": {
+                "kind": "markdown",
+                "value": hover.markdown
+            }
+        })
+    })
 }
 
-fn hover(d: &Doc, posn: (u64, u64)) -> Option<Value> {
-    if let Some(symbol) = symbol_at_pos(&d.text, posn) {
-        if let Some(spec) = completion_specs()
-            .iter()
-            .find(|entry| entry.label == symbol)
-        {
-            return Some(json!({
-                "contents":{
-                    "kind":"markdown",
-                    "value":format!("`{}`\n\n{}", spec.label, spec.documentation)
-                }
-            }));
-        }
+fn lsp_completion_item_kind(kind: CompletionItemKind) -> u32 {
+    match kind {
+        CompletionItemKind::Keyword => 14,
+        CompletionItemKind::Snippet => 15,
+        CompletionItemKind::Operator => 24,
     }
-    let (s, e) = word_range_at_pos(&d.text, posn)?;
-    let w = &d.text[s..e];
-    if let Some(spec) = completion_specs().iter().find(|entry| entry.label == w) {
-        return Some(json!({
-            "contents":{
-                "kind":"markdown",
-                "value":format!("`{}`\n\n{}", spec.label, spec.documentation)
-            }
-        }));
-    }
-    Some(json!({"contents":{"kind":"markdown","value":format!("`{w}`")}}))
 }
 
 fn definition(d: &Doc, uri: &str, posn: (u64, u64)) -> Option<Value> {
@@ -1393,46 +845,6 @@ fn find_word_refs(src: &str, sym: &str) -> Vec<RefHit> {
     v
 }
 
-fn symbol_at_pos(src: &str, posn: (u64, u64)) -> Option<&'static str> {
-    let off = lc_to_offset(src, posn.0 as usize, posn.1 as usize);
-    if off >= src.len() {
-        return None;
-    }
-    // Match longer symbols first to avoid prefix collisions (e.g. `-->` before `->`).
-    const SYMBOLS: &[&str] = &[
-        "-[#color,dashed]>",
-        "-[#color,bold]>",
-        "-[#color]>",
-        "-->>",
-        "<<--",
-        "<-->",
-        "->>",
-        "<<-",
-        "-->",
-        "<--",
-        "<->",
-        "->x",
-        "x->",
-        "->o",
-        "o->",
-        "->",
-        "<-",
-        "-x",
-        "++",
-        "--",
-        "**",
-        "!!",
-    ];
-    for symbol in SYMBOLS {
-        for (start, _) in src.match_indices(symbol) {
-            let end = start + symbol.len();
-            if off >= start && off < end {
-                return Some(symbol);
-            }
-        }
-    }
-    None
-}
 fn is_ident(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
