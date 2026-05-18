@@ -53,14 +53,14 @@ Before opening a PR, **always** run:
 
 ```bash
 cargo fmt
-cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets --all-features -- -D warnings
 cargo test --quiet
 ```
 
 Checklist:
 
 - [ ] `cargo fmt` — no formatting violations (CI rejects unformatted code; see issues #253)
-- [ ] `cargo clippy --all-targets -- -D warnings` — zero warnings
+- [ ] `cargo clippy --all-targets --all-features -- -D warnings` — zero warnings
 - [ ] `cargo test --quiet` — all tests pass
 - [ ] PR body references the relevant issue (`Closes #NNN`)
 

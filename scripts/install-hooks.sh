@@ -66,7 +66,7 @@ lefthook install
 echo ""
 echo "lefthook hooks installed."
 echo "  pre-commit : cargo fmt --check"
-echo "  pre-push   : cargo clippy --all-targets -- -D warnings"
+echo "  pre-push   : cargo clippy --all-targets --all-features -- -D warnings"
 echo "  pre-push   : cargo test --lib --quiet"
 echo ""
 echo "To uninstall: ./scripts/install-hooks.sh --uninstall"
