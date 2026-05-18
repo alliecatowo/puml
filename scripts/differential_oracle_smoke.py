@@ -115,6 +115,17 @@ FIXTURES: List[Dict[str, Any]] = [
         "expect_tokens": ["Login"],
     },
     {
+        "fixture": "families/valid_salt_layout_depth.puml",
+        "category": "family-partial",
+        "support_status": "partial",
+        "expected_oracle_category": "drift",
+        "drift_area": "Salt widget/layout depth",
+        "drift_reason": "Salt nested containers, spans, icons, sprites, and scoped styles now have local DOM geometry coverage while PlantUML layout parity remains partial",
+        "next_ticket": "Promote more Salt container semantics to structural layout once row/column span and grouped child containment match PlantUML more closely.",
+        "plantuml_reference": "https://plantuml.com/salt",
+        "expect_tokens": ["Account Shell", "Nested leaf", "Save"],
+    },
+    {
         "fixture": "families/valid_chart_bar_quarterly.puml",
         "category": "family-partial",
         "support_status": "partial",

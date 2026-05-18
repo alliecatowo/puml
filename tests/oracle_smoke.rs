@@ -377,6 +377,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         .expect("dry-run report should rank expected drift areas");
     for expected_area in [
         "Salt widget breadth",
+        "Salt widget/layout depth",
         "Gantt calendar and resource layout",
         "chart axis legend style",
         "dynamic preprocessor invocation",
@@ -396,6 +397,7 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         .expect("dry-run report should contain fixture array");
     let mut saw_gantt = false;
     let mut saw_salt = false;
+    let mut saw_salt_depth = false;
     let mut saw_preproc = false;
     let mut saw_component_style = false;
     for fixture in fixtures {
@@ -416,6 +418,17 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
             assert_eq!(
                 fixture["classification"]["support_status"].as_str(),
                 Some("partial")
+            );
+            assert_eq!(
+                fixture["classification"]["expected_oracle_category"].as_str(),
+                Some("drift")
+            );
+        }
+        if rel == "families/valid_salt_layout_depth.puml" {
+            saw_salt_depth = true;
+            assert_eq!(
+                fixture["classification"]["drift_area"].as_str(),
+                Some("Salt widget/layout depth")
             );
             assert_eq!(
                 fixture["classification"]["expected_oracle_category"].as_str(),
@@ -458,6 +471,10 @@ fn differential_oracle_dry_run_schema_lists_fixture_categories() {
         "Gantt calendar/resource fixture should be in dry-run corpus"
     );
     assert!(saw_salt, "Salt partial fixture should be in dry-run corpus");
+    assert!(
+        saw_salt_depth,
+        "Salt layout depth fixture should be in dry-run corpus"
+    );
     assert!(
         saw_preproc,
         "advanced preprocessor partial fixture should be in dry-run corpus"

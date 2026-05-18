@@ -97,11 +97,20 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
             continue;
         }
         let mut col_x = MARGIN;
+        let rendered_cells = salt_row_layout(cells, &col_widths, MIN_CELL_W);
 
-        for (col_idx, cell) in cells.iter().enumerate() {
-            let cell_w = col_widths.get(col_idx).copied().unwrap_or(MIN_CELL_W);
-            render_salt_cell_svg(&mut out, cell, col_x, row_y, cell_w, CELL_H, &style);
-            col_x += cell_w;
+        for cell in rendered_cells {
+            render_salt_cell_svg(
+                &mut out,
+                cell.cell,
+                col_x,
+                row_y,
+                cell.width,
+                CELL_H,
+                cell.colspan,
+                &style,
+            );
+            col_x += cell.width;
         }
 
         // Row separator line (skip the last row)
@@ -137,6 +146,42 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+struct SaltRenderedCell<'a> {
+    cell: &'a SaltCellRender,
+    width: i32,
+    colspan: usize,
+}
+
+fn salt_row_layout<'a>(
+    cells: &'a [SaltCellRender],
+    col_widths: &[i32],
+    min_cell_w: i32,
+) -> Vec<SaltRenderedCell<'a>> {
+    let mut rendered: Vec<SaltRenderedCell<'a>> = Vec::new();
+    for (col_idx, cell) in cells.iter().enumerate() {
+        let width = col_widths.get(col_idx).copied().unwrap_or(min_cell_w);
+        if matches!(cell, SaltCellRender::TableSpan) {
+            if let Some(previous) = rendered.last_mut() {
+                previous.width += width;
+                previous.colspan += 1;
+            } else {
+                rendered.push(SaltRenderedCell {
+                    cell,
+                    width,
+                    colspan: 1,
+                });
+            }
+        } else {
+            rendered.push(SaltRenderedCell {
+                cell,
+                width,
+                colspan: 1,
+            });
+        }
+    }
+    rendered
 }
 
 fn is_salt_separator_row(cells: &[SaltCellRender]) -> bool {
@@ -256,7 +301,7 @@ impl SaltRenderStyle {
                 self.accent_fill = value;
                 true
             }
-            "bordercolor" | "saltbordercolor" => {
+            "bordercolor" | "linecolor" | "saltbordercolor" | "saltlinecolor" => {
                 self.border_color = value;
                 true
             }
@@ -467,6 +512,7 @@ struct SaltTransformState {
     in_tree: bool,
     in_text_area: bool,
     in_style: bool,
+    in_sprite_def: bool,
     style_scope: Option<String>,
     table_header_pending: bool,
 }
@@ -514,10 +560,18 @@ fn transform_salt_row(
         return None;
     }
 
+    if state.in_sprite_def {
+        if lower.starts_with(">>") {
+            state.in_sprite_def = false;
+        }
+        return None;
+    }
+
     if matches!(trimmed, "{" | "}") {
         if trimmed == "}" {
             state.in_tree = false;
             state.in_text_area = false;
+            state.in_sprite_def = false;
             state.table_header_pending = false;
         }
         return None;
@@ -530,6 +584,7 @@ fn transform_salt_row(
     }
 
     if let Some(name) = parse_salt_sprite_def(trimmed) {
+        state.in_sprite_def = true;
         return Some(vec![SaltCellRender::SpriteDef(name)]);
     }
 
@@ -649,6 +704,9 @@ fn promote_salt_header_cell(cell: SaltCellRender) -> SaltCellRender {
 
 fn parse_salt_sprite_def(line: &str) -> Option<String> {
     let trimmed = line.trim();
+    if trimmed.ends_with(">>") {
+        return None;
+    }
     let inner = trimmed.strip_prefix("<<")?;
     let name = inner
         .split_whitespace()
@@ -843,8 +901,15 @@ fn render_salt_cell_svg(
     y: i32,
     w: i32,
     h: i32,
+    colspan: usize,
     style: &SaltRenderStyle,
 ) {
+    if colspan > 1 {
+        out.push_str(&format!(
+            "<g data-salt-widget=\"table-span\" data-salt-colspan=\"{}\" data-salt-span-width=\"{}\">",
+            colspan, w
+        ));
+    }
     let pad = 8;
     let text_y = y + h / 2 + 4;
     match cell {
@@ -1367,5 +1432,8 @@ fn render_salt_cell_svg(
                 ));
             }
         }
+    }
+    if colspan > 1 {
+        out.push_str("</g>");
     }
 }
