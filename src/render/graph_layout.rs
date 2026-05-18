@@ -39,8 +39,12 @@ pub struct GraphLayout {
     /// Map node id → (x, y) of top-left corner.
     pub node_positions: BTreeMap<String, (f64, f64)>,
     /// Map node id → assigned rank (0 = top).
+    /// Exposed for diagnostics and Stage 3 orthogonal routing.
+    #[allow(dead_code)]
     pub node_ranks: BTreeMap<String, usize>,
     /// Map edge id → two-point path (straight line anchor points).
+    /// Will be used by Stage 3 orthogonal routing.
+    #[allow(dead_code)]
     pub edge_paths: BTreeMap<String, Vec<(f64, f64)>>,
     /// Map group id → bounding rect (x, y, w, h).
     pub group_bounds: BTreeMap<String, (f64, f64, f64, f64)>,
@@ -54,6 +58,8 @@ pub struct GraphLayout {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     TopDown,
+    /// Planned for Stage 3 (left-to-right flow for wide diagrams).
+    #[allow(dead_code)]
     LeftRight,
 }
 
@@ -66,6 +72,8 @@ pub struct LayoutOptions {
     pub node_separation: f64,
     /// Padding inside group containers.
     pub group_padding: f64,
+    /// Flow direction (TopDown or LeftRight).
+    #[allow(dead_code)]
     pub direction: Direction,
     /// Left/top margin around the full canvas.
     pub canvas_margin: f64,
@@ -665,6 +673,8 @@ fn pick_port_f64(
 
 /// Convert a GraphLayout position map from f64 to i32 tuples (x, y, w, h)
 /// given the node size list for width/height lookup.
+/// Used by Stage 3 (orthogonal routing integration).
+#[allow(dead_code)]
 pub fn layout_to_i32_positions(
     layout: &GraphLayout,
     nodes: &[NodeSize],

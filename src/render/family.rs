@@ -1936,7 +1936,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let pkg_tab = 28i32; // height of the package label tab at top
     let canvas_margin = 40i32;
     let pkg_gap = 32i32; // gap between packages on the canvas
-    let outer_cols = 2i32; // package layout columns (1 if few packages)
+    // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
+    let _outer_cols = 2i32;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 1: Build group membership maps
@@ -2084,9 +2085,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // frames. We populate it from the hierarchical layout's group_bounds.
     // ─────────────────────────────────────────────────────────────────────────
     struct PackageLayout {
+        #[allow(dead_code)]
         group_idx: usize,
         label: String,
         scope: String,
+        #[allow(dead_code)]
         kind: String,
         node_ids: Vec<String>,
         // absolute canvas position of the package frame top-left
