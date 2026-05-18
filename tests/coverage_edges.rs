@@ -1703,3 +1703,226 @@ fn css3_color_to_hex_covers_full_set() {
     assert_eq!(css3_color_to_hex("midnightblue"), Some("#191970"));
     assert_eq!(css3_color_to_hex("notacolor"), None);
 }
+
+// ─── Tests: classify_*_skinparam for previously-missing families (#442) ───────
+
+#[test]
+fn theme_classifies_gantt_skinparam() {
+    use puml::theme::{classify_gantt_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_gantt_skinparam("BackgroundColor", "red"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
+            "#ff0000".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_gantt_skinparam("GanttFontColor", "#aabbcc"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontColor(
+            "#aabbcc".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_gantt_skinparam("FontSize", "14"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(14))
+    );
+    assert_eq!(
+        classify_gantt_skinparam("TodayColor", "blue"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_gantt_skinparam("completelymadeupkey", "val"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_mindmap_skinparam() {
+    use puml::theme::{classify_mindmap_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_mindmap_skinparam("BackgroundColor", "#123456"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
+            "#123456".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_mindmap_skinparam("NodeFontColor", "green"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontColor(
+            "#008000".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_mindmap_skinparam("RoundCorner", "10"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_mindmap_skinparam("unknownmindmapkey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_wbs_skinparam() {
+    use puml::theme::{classify_wbs_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_wbs_skinparam("BorderColor", "navy"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BorderColor(
+            "#000080".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_wbs_skinparam("FontSize", "12"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(12))
+    );
+    assert_eq!(
+        classify_wbs_skinparam("RoundCorner", "5"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_wbs_skinparam("unknownwbskey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_timeline_skinparam() {
+    use puml::theme::{classify_timeline_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_timeline_skinparam("BackgroundColor", "white"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
+            "#ffffff".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_timeline_skinparam("TimelineFontColor", "#010203"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontColor(
+            "#010203".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_timeline_skinparam("ArrowColor", "black"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_timeline_skinparam("inventedkey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_nwdiag_skinparam() {
+    use puml::theme::{classify_nwdiag_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_nwdiag_skinparam("FontColor", "red"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontColor(
+            "#ff0000".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_nwdiag_skinparam("FontSize", "10"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(10))
+    );
+    assert_eq!(
+        classify_nwdiag_skinparam("NetworkColor", "blue"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_nwdiag_skinparam("inventedkey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_archimate_skinparam() {
+    use puml::theme::{classify_archimate_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_archimate_skinparam("BackgroundColor", "#aabbcc"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
+            "#aabbcc".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_archimate_skinparam("BorderColor", "teal"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BorderColor(
+            "#008080".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_archimate_skinparam("ArchiMateStyle", "sketch"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_archimate_skinparam("inventedkey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_sdl_skinparam() {
+    use puml::theme::{classify_sdl_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_sdl_skinparam("BackgroundColor", "#112233"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
+            "#112233".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_sdl_skinparam("FontSize", "16"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(16))
+    );
+    assert_eq!(
+        classify_sdl_skinparam("FontName", "Courier"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_sdl_skinparam("inventedsdlkey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_ditaa_skinparam() {
+    use puml::theme::{classify_ditaa_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_ditaa_skinparam("BackgroundColor", "silver"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
+            "#c0c0c0".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_ditaa_skinparam("FontColor", "#ff0000"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontColor(
+            "#ff0000".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_ditaa_skinparam("Shadowing", "true"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_ditaa_skinparam("inventedditaakey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
+
+#[test]
+fn theme_classifies_salt_skinparam() {
+    use puml::theme::{classify_salt_skinparam, GenericSkinParamValue, SkinParamSupport};
+    assert_eq!(
+        classify_salt_skinparam("BackgroundColor", "ivory"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::BackgroundColor(
+            "#fffff0".to_string()
+        ))
+    );
+    assert_eq!(
+        classify_salt_skinparam("FontSize", "11"),
+        SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(11))
+    );
+    assert_eq!(
+        classify_salt_skinparam("RoundCorner", "4"),
+        SkinParamSupport::SupportedNoop
+    );
+    assert_eq!(
+        classify_salt_skinparam("inventedsaltkey", "x"),
+        SkinParamSupport::UnsupportedKey
+    );
+}
