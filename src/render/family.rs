@@ -2276,8 +2276,14 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // above the top-rank nodes stays on canvas (the group bounds computation
     // subtracts group_padding + label_reserve above the minimum node y).
     let group_top_overhead = (pkg_pad + pkg_tab) as f64; // 24 + 28 = 52px
+    // rank_sep_extra: extra vertical space between ranks to accommodate both
+    // the package-frame header tab (28px) and edge labels (≈20px) without
+    // overlapping. Added on top of inner_gap so there is breathing room for
+    // stacked arrow labels and the group-frame tab when multiple edges fan
+    // into a lower-rank group.
+    let rank_sep_extra = (pkg_tab + 24) as f64; // 52px extra (tab + label clearance)
     let gl_options = GlOptions {
-        rank_separation: (cell_h + inner_gap) as f64,
+        rank_separation: (cell_h + inner_gap) as f64 + rank_sep_extra,
         node_separation: inner_gap as f64,
         group_padding: pkg_pad as f64,
         direction: crate::render::graph_layout::Direction::TopDown,
@@ -2786,25 +2792,78 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 dash_attr, visibility_attr, direction_attr, style_attr, markers
             ));
 
-            // Label at midpoint of the longest horizontal segment; fall back to
-            // the overall polyline midpoint when no horizontal segment exists.
-            let longest_horiz = orth_pts
-                .windows(2)
-                .filter(|seg| seg[0].1 == seg[1].1)
-                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
-            let (lmx, lmy) = match longest_horiz {
-                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                None => {
-                    // Fall back to midpoint of longest segment overall
-                    let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    });
-                    match longest_seg {
-                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+            // Label placement for orthogonal paths.
+            //
+            // Single-hop edges (exactly 4 points: src_port, bend1, bend2, tgt_port):
+            //   Use the FIRST vertical segment (src_port → bend1).  This anchors the
+            //   label at the source's unique x position so multiple edges entering the
+            //   same destination spread out naturally (Bug A/C: "source text ×3").
+            //
+            // Multi-hop edges (>4 points — staircase routing across several ranks):
+            //   The first vertical is near the source and often lands on an intermediate
+            //   node (e.g. Theme→Renderer's first descent passes through Diagnostics).
+            //   Instead use the PENULTIMATE vertical segment (second from target port).
+            //   This is always in the inter-rank channel just above the destination,
+            //   which is clear of intermediate node boxes and clearly readable.
+            //
+            // Fallback: longest horizontal, then overall midpoint.
+            let n_pts = orth_pts.len();
+            let (lmx, lmy) = if n_pts >= 3 {
+                let first = orth_pts[0];
+                let second = orth_pts[1];
+                let is_single_hop = n_pts == 4; // [src, bend1, bend2, tgt]
+                let first_is_vertical = first.0 == second.0;
+
+                if is_single_hop && first_is_vertical {
+                    // Single-hop: use first vertical segment, nudge 6px left of line.
+                    let mid_y = (first.1 + second.1) / 2;
+                    (first.0 - 6, mid_y - 6)
+                } else {
+                    // Multi-hop staircase: use the LAST HORIZONTAL SEGMENT before the
+                    // target port.  This horizontal is in the inter-rank channel just
+                    // above the destination node — clearly readable and semantically
+                    // close to where the edge enters its target.  Each edge approaches
+                    // the target along a different horizontal (different y in the last
+                    // inter-rank channel), giving unique label positions.
+                    //
+                    // Fall back to the longest vertical if no horizontal exists
+                    // (collinear nodes where the whole path is a single vertical).
+                    let last_horiz = orth_pts
+                        .windows(2)
+                        .filter(|seg| seg[0].1 == seg[1].1) // horizontal: same y
+                        .last();
+                    match last_horiz {
+                        Some(seg) => {
+                            // Place the label at the midpoint of the last horizontal,
+                            // 12px above the line.
+                            ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12)
+                        }
+                        None => {
+                            // No horizontal segments (straight vertical path): use the
+                            // longest vertical segment.
+                            let longest_vert = orth_pts
+                                .windows(2)
+                                .filter(|seg| seg[0].0 == seg[1].0)
+                                .max_by_key(|seg| (seg[1].1 - seg[0].1).abs());
+                            match longest_vert {
+                                Some(seg) => {
+                                    (seg[0].0 - 6, (seg[0].1 + seg[1].1) / 2 - 6)
+                                }
+                                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                            }
+                        }
                     }
+                }
+            } else {
+                // Very short path: fall back to overall midpoint.
+                let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
+                    let (ax, ay) = seg[0];
+                    let (bx, by_) = seg[1];
+                    (bx - ax).pow(2) + (by_ - ay).pow(2)
+                });
+                match longest_seg {
+                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
+                    None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
                 }
             };
             label_mx = lmx;
@@ -3072,12 +3131,23 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 3: De-collide edge labels
     // ─────────────────────────────────────────────────────────────────────────
-    // Group labels whose initial centers are within 24px Manhattan distance,
-    // then fan them out symmetrically (vertically first, horizontal stagger
-    // as a secondary de-overlap pass).
-    let cluster_dist = 24i32;
-    let v_stride = 18i32; // vertical fan step per label within a group
-    let h_stagger = 20i32; // horizontal shift applied when still overlapping after v-fan
+    // Group labels whose initial centers are within 40px Manhattan distance,
+    // then fan them out symmetrically. For N≥3 labels in the same cluster we
+    // use a wider vertical stride and alternate left/right horizontal offsets so
+    // no three labels ever stack at the same (x,y). This handles the "source
+    // text ×3" cluster (Bug A/C) and the "style tokens / annotations" cluster
+    // (Bug B in the original issue list — visually identical problem).
+    // Cluster proximity: labels within this Manhattan distance are grouped.
+    // Set large enough to catch labels on adjacent staircase tracks (which are
+    // ~28px apart in both x and y in the penultimate-segment placement scheme).
+    let cluster_dist = 64i32;
+    // Base vertical stride; bumped to 24px for clusters of 3+ (was 18px).
+    let v_stride_base = 18i32;
+    let v_stride_large = 24i32; // used when count >= 3
+    // Horizontal stagger: labels in a cluster fan left/right so their x differs
+    // even when they share the same y channel.
+    //   rank 0 → -h_stagger, rank 1 → 0, rank 2 → +h_stagger, …
+    let h_stagger = 28i32;
 
     // Sort pending labels by (y, x) so groups form deterministically.
     let mut sorted_labels = pending_labels;
@@ -3114,6 +3184,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         vec![(0, 0, String::new(), String::new()); n];
     for indices in groups.values() {
         let count = indices.len() as i32;
+        let v_stride = if count >= 3 { v_stride_large } else { v_stride_base };
         // Base position: centroid of the group
         let base_x: i32 = indices.iter().map(|&i| sorted_labels[i].x).sum::<i32>() / count;
         let base_y: i32 = indices.iter().map(|&i| sorted_labels[i].y).sum::<i32>() / count;
@@ -3122,9 +3193,14 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let rank = rank as i32;
             // Symmetric vertical fan: rank 0 → -(N-1)/2 * stride, etc.
             let dy = v_stride * (rank - (count - 1) / 2);
-            // Secondary horizontal stagger for even/odd when N ≥ 3
-            let dx = if count >= 3 && (rank % 2 == 1) {
-                h_stagger
+            // Horizontal stagger for N≥3: spread labels left/right so 3-stacked
+            // labels end up at different x positions even on the same y channel.
+            // Pattern: rank 0 → -h_stagger, rank 1 → 0, rank 2 → +h_stagger, …
+            let dx = if count >= 3 {
+                (rank - (count - 1) / 2) * h_stagger
+            } else if count == 2 && rank == 1 {
+                // Slight nudge right for 2-label clusters
+                12
             } else {
                 0
             };
