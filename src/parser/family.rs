@@ -1302,6 +1302,11 @@ fn collect_scoped_class_group_content(
                     encoded.push('\t');
                     encoded.push_str(&name);
                 }
+                // Embed actor marker so the normalizer can promote to Actor kind.
+                if keyword == "actor" {
+                    encoded.push('\t');
+                    encoded.push_str("<<actor>>");
+                }
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
                     encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
@@ -1481,7 +1486,6 @@ fn group_body_contains_component_family(
             || lower.starts_with("folder ")
             || lower.starts_with("file ")
             || lower.starts_with("card ")
-            || lower.starts_with("actor ")
             || lower.starts_with("port ")
             || lower.starts_with("portin ")
             || lower.starts_with("portout ")
@@ -1521,6 +1525,7 @@ fn group_body_contains_usecase_family(
         let lower = line.to_ascii_lowercase();
         lower.starts_with("usecase ")
             || lower.starts_with("usecase(")
+            || lower.starts_with("actor ")
             || parse_parenthesized_usecase_decl(line).is_some()
     })
 }

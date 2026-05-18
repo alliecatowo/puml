@@ -66,6 +66,11 @@ fn parse_component_scoping_block(
             return Ok(None);
         }
     }
+    // rectangle blocks that contain usecase/actor content belong to usecase diagrams,
+    // not component diagrams — let the class/usecase scoping-block parser handle them.
+    if kind == "rectangle" && group_body_contains_usecase_family(lines, start, end_idx) {
+        return Ok(None);
+    }
     if kind == "namespace" && !group_body_contains_component_family(lines, start, end_idx) {
         return Ok(None);
     }

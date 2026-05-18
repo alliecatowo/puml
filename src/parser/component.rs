@@ -28,6 +28,12 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         if rest_raw.is_empty() {
             return None;
         }
+        // If the rest ends with `{`, this is a scoping block declaration (e.g.
+        // `rectangle "System" { ... }`), not a flat component declaration.
+        // Let parse_component_scoping_block handle it instead.
+        if rest_raw.ends_with('{') {
+            continue;
+        }
         if looks_like_family_relation_tail(rest_raw) {
             continue;
         }

@@ -278,11 +278,24 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         n.name == node_id || n.alias.as_deref() == Some(node_id.as_str())
                     });
                     if !already_exists {
-                        let nk = match node_kind {
-                            FamilyNodeKind::Object => FamilyNodeKind::Object,
-                            FamilyNodeKind::UseCase => FamilyNodeKind::UseCase,
-                            _ => FamilyNodeKind::Class,
+                        // Detect actor marker embedded by the parser for `actor`
+                        // declarations inside usecase scoping blocks (e.g.
+                        // `rectangle "System" { actor User }`).
+                        let has_actor_marker = encoded_members
+                            .iter()
+                            .any(|m| m.text.trim() == "<<actor>>");
+                        let nk = if has_actor_marker {
+                            FamilyNodeKind::Actor
+                        } else {
+                            match node_kind {
+                                FamilyNodeKind::Object => FamilyNodeKind::Object,
+                                FamilyNodeKind::UseCase => FamilyNodeKind::UseCase,
+                                _ => FamilyNodeKind::Class,
+                            }
                         };
+                        // Strip the actor marker from the members list — it was
+                        // only needed for kind detection.
+                        encoded_members.retain(|m| m.text.trim() != "<<actor>>");
                         nodes.push(FamilyNode {
                             kind: nk,
                             name: node_id,

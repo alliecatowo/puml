@@ -1,9 +1,23 @@
 @startuml
-usecase Browse
-usecase AddToCart
-usecase Checkout
-usecase ManageProducts as MP
-usecase ManageOrders as MO
+actor Customer
+actor Manager
+
+rectangle "Online Store" {
+  usecase Browse
+  usecase AddToCart
+  usecase Checkout
+}
+
+rectangle "Back Office" {
+  usecase ManageProducts as MP
+  usecase ManageOrders as MO
+}
+
+Customer --> Browse
+Customer --> AddToCart
+Customer --> Checkout
+Manager --> MP
+Manager --> MO
 Browse --> AddToCart
 AddToCart --> Checkout
 MP --> MO : depends
