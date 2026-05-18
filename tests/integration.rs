@@ -6303,6 +6303,123 @@ fn state_transition_labels_appear_in_svg() {
     );
 }
 
+fn state_svg_element_after_metadata<'a>(
+    doc: &'a roxmltree::Document<'a>,
+    node_name: &str,
+) -> roxmltree::Node<'a, 'a> {
+    doc.descendants()
+        .find(|node| {
+            node.has_tag_name("metadata") && node.attribute("data-state-node") == Some(node_name)
+        })
+        .and_then(|node| node.next_sibling_element())
+        .unwrap_or_else(|| panic!("missing rendered element for state node {node_name}"))
+}
+
+fn state_svg_attr_i32(node: roxmltree::Node<'_, '_>, attr: &str) -> i32 {
+    node.attribute(attr)
+        .unwrap_or_else(|| panic!("missing attribute {attr}"))
+        .parse::<i32>()
+        .unwrap_or_else(|_| panic!("invalid integer attribute {attr}"))
+}
+
+#[test]
+fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_flow() {
+    let src = fs::read_to_string("docs/examples/state/08_full_machine.puml").unwrap();
+    let svg = render_source_to_svg(&src).expect("full machine state example should render");
+    let doc = roxmltree::Document::parse(&svg).expect("state SVG should parse");
+
+    let confirm_edge = doc
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("line")
+                && node.attribute("data-state-from") == Some("Pending")
+                && node.attribute("data-state-to") == Some("fork1")
+        })
+        .expect("Pending -> fork1 edge should render");
+    let confirm_label = doc
+        .descendants()
+        .find(|node| node.has_tag_name("text") && node.text() == Some("confirm"))
+        .expect("Pending -> fork1 label should render");
+    assert_eq!(confirm_label.text(), Some("confirm"));
+    assert_ne!(
+        state_svg_attr_i32(confirm_label, "x"),
+        state_svg_attr_i32(confirm_edge, "x1"),
+        "vertical edge label should be offset from the arrow shaft"
+    );
+
+    let instock_edge = doc
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("line")
+                && node.attribute("data-state-from") == Some("choice1")
+                && node.attribute("data-state-to") == Some("join1")
+        })
+        .expect("choice1 -> join1 edge should render");
+    let instock_label = doc
+        .descendants()
+        .find(|node| node.has_tag_name("text") && node.text() == Some("in stock"))
+        .expect("choice1 -> join1 label should render");
+    assert_eq!(instock_label.text(), Some("in stock"));
+    assert_ne!(
+        state_svg_attr_i32(instock_label, "x"),
+        state_svg_attr_i32(instock_edge, "x1"),
+        "branch label should be offset from the crossing arrow shaft"
+    );
+
+    let delivered_rect = state_svg_element_after_metadata(&doc, "Delivered");
+    let final_state_circle = state_svg_element_after_metadata(&doc, "[*]__end");
+    let delivered_bottom =
+        state_svg_attr_i32(delivered_rect, "y") + state_svg_attr_i32(delivered_rect, "height");
+    let final_state_center_y = state_svg_attr_i32(final_state_circle, "cy");
+    assert!(
+        final_state_center_y > delivered_bottom,
+        "final state should render below Delivered so the terminal arrow stays in canvas"
+    );
+}
+
+#[test]
+fn state_arch_lifecycle_composites_render_enclosing_boxes() {
+    let src = fs::read_to_string("docs/diagrams/diagram-family-lifecycle.puml").unwrap();
+    let svg = render_source_to_svg(&src).expect("diagram family lifecycle should render");
+    let doc = roxmltree::Document::parse(&svg).expect("state SVG should parse");
+
+    let styled_rect = state_svg_element_after_metadata(&doc, "Styled");
+    let skin_rect = state_svg_element_after_metadata(&doc, "SkinParams");
+    let palette_rect = state_svg_element_after_metadata(&doc, "Palette");
+
+    let styled_x = state_svg_attr_i32(styled_rect, "x");
+    let styled_y = state_svg_attr_i32(styled_rect, "y");
+    let styled_w = state_svg_attr_i32(styled_rect, "width");
+    let styled_h = state_svg_attr_i32(styled_rect, "height");
+    assert!(
+        styled_x <= state_svg_attr_i32(skin_rect, "x")
+            && styled_y <= state_svg_attr_i32(skin_rect, "y")
+            && styled_x + styled_w
+                >= state_svg_attr_i32(palette_rect, "x") + state_svg_attr_i32(palette_rect, "width")
+            && styled_y + styled_h
+                >= state_svg_attr_i32(palette_rect, "y") + state_svg_attr_i32(palette_rect, "height"),
+        "Styled should render an enclosing box around its child states"
+    );
+
+    let rendered_rect = state_svg_element_after_metadata(&doc, "Rendered");
+    let svg_rect = state_svg_element_after_metadata(&doc, "SVGOut");
+    let txt_rect = state_svg_element_after_metadata(&doc, "TxtOut");
+
+    let rendered_x = state_svg_attr_i32(rendered_rect, "x");
+    let rendered_y = state_svg_attr_i32(rendered_rect, "y");
+    let rendered_w = state_svg_attr_i32(rendered_rect, "width");
+    let rendered_h = state_svg_attr_i32(rendered_rect, "height");
+    assert!(
+        rendered_x <= state_svg_attr_i32(svg_rect, "x")
+            && rendered_y <= state_svg_attr_i32(svg_rect, "y")
+            && rendered_x + rendered_w
+                >= state_svg_attr_i32(txt_rect, "x") + state_svg_attr_i32(txt_rect, "width")
+            && rendered_y + rendered_h
+                >= state_svg_attr_i32(txt_rect, "y") + state_svg_attr_i32(txt_rect, "height"),
+        "Rendered should render an enclosing box around its child states"
+    );
+}
+
 #[test]
 fn state_basic_render_produces_valid_svg() {
     let src = "@startuml\nstate Active\n[*] --> Active\nActive --> [*]\n@enduml\n";
