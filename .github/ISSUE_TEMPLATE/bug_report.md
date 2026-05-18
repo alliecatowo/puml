@@ -1,38 +1,56 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
-assignees: ''
-
+name: 🐛 Bug report
+about: Report something PUML does wrong (parser error, render bug, CLI quirk, LSP issue)
+title: "[bug] "
+labels: ["bug", "agent-ready"]
+assignees: []
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## What happened
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+<!-- One or two sentences. What did you do, what did PUML do, what should it have done? -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Minimal reproducible source
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+<!--
+Paste the smallest `.puml` snippet that reproduces the issue.
+If the input is a large file, attach it instead.
+-->
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+```puml
+@startuml
+Alice -> Bob: example
+@enduml
+```
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+## Command + version
 
-**Additional context**
-Add any other context about the problem here.
+```sh
+$ puml --version
+# (paste output)
+
+$ puml <args> <input>
+# (paste output, including stderr)
+```
+
+## What the output looks like (if it's a render bug)
+
+<!--
+Attach the broken PNG/SVG so we can see it. If it's an SVG, drag-drop a PNG screenshot
+instead — GitHub doesn't render inline SVG attachments.
+-->
+
+| Got | Expected |
+|-----|----------|
+|     |          |
+
+## Environment
+
+- OS: <!-- e.g. macOS 14.3, Ubuntu 22.04, Windows 11 -->
+- Architecture: <!-- e.g. x86_64, aarch64 -->
+- Install method: <!-- cargo install / pre-built binary / built from source -->
+- Surface: <!-- CLI / LSP / WASM / VS Code extension / Studio -->
+
+## Additional context
+
+<!-- Anything else? Workarounds, theories, related issues, links to PlantUML behavior -->

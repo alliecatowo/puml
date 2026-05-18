@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/alliecatowo/puml/discussions
+    about: Open-ended questions, ideas, show-and-tell, or anything that isn't a bug or a feature request.
+  - name: 📖 Documentation
+    url: https://alliecatowo.github.io/puml/
+    about: Install guide, quickstart, comparison with PlantUML/Mermaid, FAQ, CI integration.
+  - name: 🔒 Security
+    url: https://github.com/alliecatowo/puml/security/policy
+    about: Please report security vulnerabilities privately via GitHub Security Advisories — not as a public issue.
