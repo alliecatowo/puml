@@ -1008,12 +1008,13 @@ Scope for `v0.0.1`:
 
 - Codex plugin manifest and Claude plugin manifest are included in the spec as concrete templates.
 - MCP server contract is scoped to check/render/export workflows that can run on top of the existing `puml` CLI.
-- LSP integration is explicitly deferred for this profile.
+- `.lsp.json` host wiring metadata is included for hosts that can launch `bin/puml-lsp`.
 - Skills are authored to require `puml_check` and never claim success without a passing check.
 
 ### Deferred in `v0.0.1`
 
-- live diagnostics and completions from LSP
+- bundled LSP binaries inside release archives
+- host-specific live diagnostics and completions integration
 - rename/hover/code-action style editing affordances
 - LSP-backed editor integrations inside host IDE surfaces
 
@@ -1052,7 +1053,7 @@ Scope for `v0.0.1`:
 }
 ```
 
-`v0.0.1` intentionally omits `.lsp.json` from required runtime wiring because the binary does not exist yet.
+`v0.0.1` includes `.lsp.json` host wiring metadata for `bin/puml-lsp`; release archives still need bundled LSP binaries before this becomes a zero-config plugin experience.
 
 ### MCP tool contract for `v0.0.1`
 
