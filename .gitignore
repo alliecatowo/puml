@@ -3,3 +3,11 @@ target/
 .claude/worktrees/
 __pycache__/
 *.py[cod]
+
+# Auto-regenerated render artifacts — produced by `puml --format png` on every
+# build and by the pages.yml CI step. Source of truth is the .puml file +
+# committed .svg. Do NOT track the PNG renders to avoid binary churn.
+# Exceptions kept tracked:
+#   - tests/visual_baselines/**/*.png  (visual regression baselines)
+#   - docs/diagrams/*.png              (intentionally embedded in README/site)
+docs/examples/**/*.png
