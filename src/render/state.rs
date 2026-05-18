@@ -30,6 +30,28 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // We use a two-column top-level layout for the outer nodes, then compute
     // each composite's size bottom-up from its children.
 
+    // Pre-compute the set of all node names that appear as children inside
+    // composite states. These nodes are positioned and rendered by their parent
+    // and must be excluded from the top-level layout and rendering loops.
+    // (The normalizer may add them to the flat nodes list to ensure edge routing
+    // has valid endpoint coordinates, but their placement is owned by the parent.)
+    fn collect_composite_children<'a>(
+        node: &'a StateNode,
+        set: &mut std::collections::BTreeSet<&'a str>,
+    ) {
+        for region in &node.regions {
+            for child in region {
+                set.insert(child.name.as_str());
+                collect_composite_children(child, set);
+            }
+        }
+    }
+    let mut child_node_names: std::collections::BTreeSet<&str> =
+        std::collections::BTreeSet::new();
+    for node in nodes {
+        collect_composite_children(node, &mut child_node_names);
+    }
+
     // First pass: compute sizes of all nodes recursively.
     // We build a flat map: name → PlacedNode (x, y computed in second pass).
     let mut node_sizes: std::collections::BTreeMap<String, (i32, i32)> =
@@ -40,6 +62,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
 
     // Second pass: assign positions to top-level nodes (2-column layout),
     // then recurse to assign child positions relative to their parent.
+    // Only position nodes that are not children of a composite.
     let mut placed: std::collections::BTreeMap<String, PlacedNode> =
         std::collections::BTreeMap::new();
 
@@ -47,8 +70,14 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // We need to compute each top-level node's (w, h) before positioning, then
     // stack them column by column tracking actual row heights.
     let mut col_y = [STATE_MARGIN + 50, STATE_MARGIN + 50];
-    for (idx, node) in nodes.iter().enumerate() {
-        let col = (idx as i32) % cols;
+    let mut col_idx = 0usize; // tracks column separately since we may skip nodes
+    for node in nodes.iter() {
+        // Skip nodes that are owned by a composite parent
+        if child_node_names.contains(node.name.as_str()) {
+            continue;
+        }
+        let col = (col_idx as i32) % cols;
+        col_idx += 1;
         let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
         let y = col_y[col as usize];
         let (w, h) = *node_sizes.get(&node.name).unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
@@ -96,11 +125,20 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         *outgoing.entry(t.from.as_str()).or_insert(0) += 1;
     }
 
+    // Build a set of all (from, to) pairs to detect bidirectional edges
+    let edge_set: std::collections::BTreeSet<(&str, &str)> = transitions
+        .iter()
+        .map(|t| (t.from.as_str(), t.to.as_str()))
+        .collect();
+
     // Draw transitions first (arrows behind nodes)
     for t in transitions {
         let from_p = placed.get(&t.from);
         let to_p = placed.get(&t.to);
         if let (Some(fp), Some(tp)) = (from_p, to_p) {
+            // Check if the reverse edge also exists (bidirectional pair)
+            let has_reverse = t.from != t.to
+                && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
             let (x1, y1, x2, y2) = edge_anchors(fp, tp);
             let stroke = escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color));
             let sw = t.thickness.unwrap_or(2).clamp(1, 8);
@@ -118,6 +156,25 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
                     escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                 ));
+            } else if has_reverse {
+                // Bidirectional pair: use a curved path offset to the right of the line
+                // so both arrows are visible without overlapping.
+                let (ox1, oy1, ox2, oy2) = offset_parallel_edge(x1, y1, x2, y2, 10);
+                let cpx = (ox1 + ox2) / 2;
+                let cpy = (oy1 + oy2) / 2;
+                out.push_str(&format!(
+                    "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {} {} Q {} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    escape_text(&t.from), escape_text(&t.to),
+                    ox1, oy1, cpx, cpy, ox2, oy2,
+                    stroke, sw, dash, hidden, dir
+                ));
+                if let Some(label) = &t.label {
+                    out.push_str(&format!(
+                        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
+                        cpx, cpy - 6, escape_text(&state_style.font_color), escape_text(label)
+                    ));
+                }
+                continue;
             } else {
                 out.push_str(&format!(
                     "<line class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
@@ -140,6 +197,11 @@ pub fn render_state_svg(document: &StateDocument) -> String {
 
     // Draw nodes (composites drawn recursively, children inside parent box)
     for node in nodes {
+        // Skip nodes that are rendered as children of a composite
+        // (child_node_names was computed before placement and rendering loops)
+        if child_node_names.contains(node.name.as_str()) {
+            continue;
+        }
         if let Some(p) = placed.get(&node.name) {
             let inc = *incoming.get(node.name.as_str()).unwrap_or(&0);
             let out_c = *outgoing.get(node.name.as_str()).unwrap_or(&0);
@@ -279,6 +341,22 @@ fn place_node(
             }
         }
     }
+}
+
+/// Offset a line segment by `d` pixels perpendicular to its direction (to the right).
+/// Used to separate bidirectional parallel edges so both arrows are visible.
+fn offset_parallel_edge(x1: i32, y1: i32, x2: i32, y2: i32, d: i32) -> (i32, i32, i32, i32) {
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq == 0 {
+        return (x1, y1, x2, y2);
+    }
+    // Perpendicular unit vector (rotated 90° clockwise): (dy, -dx) / |len|
+    let len = (len_sq as f64).sqrt();
+    let ox = ((dy as f64 / len) * d as f64).round() as i32;
+    let oy = ((-dx as f64 / len) * d as f64).round() as i32;
+    (x1 + ox, y1 + oy, x2 + ox, y2 + oy)
 }
 
 /// Compute the edge anchor points between two placed nodes.
