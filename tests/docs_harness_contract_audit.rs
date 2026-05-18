@@ -6,21 +6,20 @@ fn repo_path(rel: &str) -> PathBuf {
 }
 
 #[test]
-fn readme_autonomy_harness_section_lists_required_commands() {
+fn readme_links_agent_swarm_runbooks_and_quick_validation_loops() {
     let readme = fs::read_to_string(repo_path("README.md")).expect("read README.md");
     for needle in [
-        "## Autonomy Harness",
+        "Agent and swarm development",
         "./scripts/harness-check.sh --quick",
-        "./scripts/harness-check.sh",
         "./scripts/autonomy-check.sh --quick",
-        "./scripts/autonomy-check.sh",
+        "./scripts/branch-protection.sh verify",
         "python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet",
         "docs/codex-workflow.md",
         "docs/autonomous-workflow-cookbook.md",
     ] {
         assert!(
             readme.contains(needle),
-            "README autonomy harness section missing: {needle}"
+            "README agent/swarm development section missing: {needle}"
         );
     }
 }

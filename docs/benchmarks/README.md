@@ -51,6 +51,7 @@ python3 scripts/oracle_report_summary.py \
 - `docs/benchmarks/oracle_report.md` (generated in CI from live JAR evidence)
 - `docs/benchmarks/oracle_report_summary.json` (generated in CI from live JAR evidence)
 - `docs/benchmarks/oracle_smoke_latest.json`
+- `docs/benchmarks/oracle_evidence_refresh.md` (stable local live-oracle audit summary)
 
 All benchmark artifacts are deterministic in structure and key ordering. Value fields like timestamps, host metadata, and measured timings are expected to change run-to-run.
 Gate-bearing JSON artifacts (`latest.json`, `latest_trend.json`, `baseline_full.json`, and `baseline_quick.json`) include `benchmark_policy.version` metadata. Run `./scripts/bench.sh --check-artifacts` before release review or after changing gate limits so stale committed evidence cannot silently drift from the active policy.
@@ -99,3 +100,4 @@ or optimization plan instead of blocking all main merges on the pre-URL-include 
 - Default artifact mode: `--dry-run` metadata, fixed fixture corpus, expected drift categories, ranked top drift areas, no renderer execution.
 - Optional live mode: small fixed corpus, token-presence checks, viewBox checks, structured JSON report.
 - Runtime requirements: none for `--dry-run`; optional live mode requires `plantuml`, `java` (headless), and any PlantUML-side dependencies such as `graphviz`.
+- Stable local live-run findings are summarized in `docs/benchmarks/oracle_evidence_refresh.md`; keep timestamped live JSON under `target/` unless intentionally refreshing checked-in evidence.
