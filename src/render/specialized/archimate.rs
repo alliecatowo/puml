@@ -11,7 +11,13 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         "junction",
     ];
     let lane_height = 80;
-    let height = 80 + (layers.len() as i32) * lane_height;
+    // Count only layers that have content (#502) to avoid blank bands.
+    let populated_layer_count = layers
+        .iter()
+        .filter(|&&layer| document.elements.iter().any(|e| e.layer == layer))
+        .count()
+        .max(1);
+    let height = 80 + (populated_layer_count as i32) * lane_height;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
@@ -29,15 +35,25 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
     let mut element_bounds: BTreeMap<String, (i32, i32, i32, i32)> = BTreeMap::new();
     let mut element_markup = String::new();
     for layer in layers.iter() {
+        // Only render layers that have at least one element (#502).
+        let layer_elements: Vec<_> = document
+            .elements
+            .iter()
+            .filter(|e| e.layer == *layer)
+            .collect();
+        if layer_elements.is_empty() {
+            continue;
+        }
         let layer_y = y;
+        // ArchiMate standard layer colours (#529).
         let bg = match *layer {
-            "strategy" => "#fee2e2",
-            "business" => "#fef3c7",
-            "application" => "#dbeafe",
-            "technology" => "#dcfce7",
-            "motivation" => "#ede9fe",
-            "junction" => "#f1f5f9",
-            _ => "#f1f5f9",
+            "strategy"    => "#ffffcc", // Strategy — pale yellow
+            "business"    => "#ffff88", // Business — yellow
+            "application" => "#cce0ff", // Application — light blue
+            "technology"  => "#c8ffc8", // Technology — light green
+            "motivation"  => "#ffe0ff", // Motivation — pale violet
+            "junction"    => "#f1f5f9", // Junction — neutral grey
+            _             => "#f1f5f9",
         };
         out.push_str(&format!(
             "<rect x=\"24\" y=\"{}\" width=\"712\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
@@ -49,7 +65,7 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
             escape_text(layer)
         ));
         let mut x = 100;
-        for elem in document.elements.iter().filter(|e| e.layer == *layer) {
+        for elem in layer_elements {
             let fill = elem.fill.as_deref().unwrap_or("white");
             let stroke = elem.stroke.as_deref().unwrap_or("#334155");
             let elem_y = layer_y + 22;
