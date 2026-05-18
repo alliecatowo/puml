@@ -447,6 +447,19 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
         required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
     },
     FocusedTextFixture {
+        path: "docs/diagrams/architecture-overview.puml",
+        required_text: &[
+            "expanded source",
+            "token tree",
+            "raw nodes",
+            "NormalizedDocument",
+            "style tokens",
+            "annotations",
+            "parse_with_options",
+            "browser call",
+        ],
+    },
+    FocusedTextFixture {
         path: "docs/examples/sdl/02_with_transitions.puml",
         required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
     },
