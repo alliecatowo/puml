@@ -1172,6 +1172,9 @@ fn map_frontend(
     dialect: CliDialect,
     frontend_hint: Option<FrontendSelection>,
 ) -> FrontendSelection {
+    // Auto mode is the only mode that accepts routing hints from file
+    // extensions (`.picouml`) or markdown fence tags (`picouml`, `mermaid`).
+    // Explicit `--dialect` keeps user intent ahead of extension names.
     if matches!(dialect, CliDialect::Auto) {
         if let Some(hint) = frontend_hint {
             return hint;

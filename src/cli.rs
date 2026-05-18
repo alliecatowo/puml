@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "puml",
     version,
-    about = "Rust-native PlantUML-compatible diagram renderer"
+    about = "Rust-native PlantUML-compatible diagram renderer with PicoUML and Mermaid adapter frontends"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -75,7 +75,7 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t = DiagnosticsFormat::Human)]
     pub diagnostics: DiagnosticsFormat,
 
-    /// Input dialect frontend.
+    /// Input frontend dialect (`auto` uses file extensions and markdown fence tags).
     #[arg(long, value_enum, default_value_t = Dialect::Auto)]
     pub dialect: Dialect,
 
@@ -130,7 +130,7 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
-    /// Format PlantUML source files in place, or verify/print formatting changes.
+    /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
 }
 
@@ -144,7 +144,7 @@ pub struct FormatArgs {
     #[arg(long, action = ArgAction::SetTrue)]
     pub diff: bool,
 
-    /// PlantUML source files to format.
+    /// PlantUML-compatible source files to format.
     #[arg(value_name = "FILE", required = true)]
     pub files: Vec<PathBuf>,
 }
