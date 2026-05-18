@@ -6,6 +6,38 @@ weight = 10
 
 `puml` is organized around one rule: **source text is canonical**. Everything else &mdash; AST, model, scene, SVG &mdash; is a deterministic projection of the source.
 
+The diagrams below were authored in PUML syntax and rendered with `puml` itself &mdash; a self-hosting stress test that also exposes layout bugs. Source files live in `docs/diagrams/`; SVG outputs are committed alongside them.
+
+## Component overview
+
+The high-level structure: Frontends translate source into a shared internal form; the Pipeline Core preprocesses, parses, normalizes, and renders; Transports (CLI, LSP, WASM) all drive the same pipeline.
+
+![Architecture overview](https://raw.githubusercontent.com/alliecatowo/puml/main/docs/diagrams/architecture-overview.svg)
+
+## Request pipeline
+
+The exact call sequence for `puml hello.puml` — from source text through preprocessor, parser, normalizer, and renderer to SVG output. Error paths show where diagnostics are emitted.
+
+![Pipeline sequence](https://raw.githubusercontent.com/alliecatowo/puml/main/docs/diagrams/pipeline-sequence.svg)
+
+## Language service layers
+
+The `language_service` module provides hover, completion, semantic tokens, format, and diagnostics. All four surfaces (LSP, WASM, CLI, VS Code) consume these types through thin transport adapters.
+
+![Language service layers](https://raw.githubusercontent.com/alliecatowo/puml/main/docs/diagrams/language-service-layers.svg)
+
+## Diagram family lifecycle
+
+The state machine a single diagram traverses: Source &rarr; Tokenized &rarr; Parsed &rarr; Normalized &rarr; Styled &rarr; Rendered &rarr; Output, with error transitions to a Diagnostics terminal at any stage.
+
+![Diagram family lifecycle](https://raw.githubusercontent.com/alliecatowo/puml/main/docs/diagrams/diagram-family-lifecycle.svg)
+
+## Parity status
+
+Implementation depth across all diagram families and feature areas.
+
+![Parity status](https://raw.githubusercontent.com/alliecatowo/puml/main/docs/diagrams/parity-status.svg)
+
 ## Crate layout
 
 The repository is a single workspace crate today, with module-level seams that make a future split into sub-crates straightforward.

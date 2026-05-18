@@ -129,6 +129,17 @@ A VS Code extension is in this repo under `extensions/vscode/`. *(Screenshot pen
 
 </details>
 
+<details>
+<summary><b>How PUML works</b></summary>
+
+![Architecture overview](docs/diagrams/architecture-overview.svg)
+
+PUML is structured as a three-layer pipeline. **Frontends** (PlantUML, PicoUML, Mermaid adapter) translate source text into a shared internal format. The **pipeline core** runs that text through a preprocessor (include resolution, macro expansion), a winnow-based parser that produces a span-annotated AST, a normalizer that detects the diagram family and builds a canonical model, and a renderer that emits deterministic SVG. **Transports** — the CLI binary, the `puml-lsp` LSP server, and the `puml-wasm` WebAssembly crate — all drive the same pipeline, with the `language_service` module providing hover, completion, semantic tokens, and diagnostics across all three surfaces.
+
+See [the architecture doc](docs/architecture.md) for the full system breakdown with sequence, lifecycle, class, and parity diagrams.
+
+</details>
+
 ## Documentation
 
 - [Install guide](docs/install.md)
