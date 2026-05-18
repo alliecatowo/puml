@@ -47,12 +47,12 @@ pub fn render_archimate_svg(document: &ArchimateDocument) -> String {
         let layer_y = y;
         // ArchiMate standard layer colours (#529).
         let bg = match *layer {
-            "strategy" => "#ffffcc",    // Strategy — pale yellow
-            "business" => "#ffff88",    // Business — yellow
-            "application" => "#cce0ff", // Application — light blue
-            "technology" => "#c8ffc8",  // Technology — light green
-            "motivation" => "#ffe0ff",  // Motivation — pale violet
-            "junction" => "#f1f5f9",    // Junction — neutral grey
+            "strategy" => "#F5DEAA",
+            "business" => "#FFFFB0",
+            "application" => "#D5E8F0",
+            "technology" => "#D5F5DD",
+            "motivation" => "#E0D5F5",
+            "junction" => "#f1f5f9",
             _ => "#f1f5f9",
         };
         out.push_str(&format!(
@@ -259,6 +259,7 @@ fn render_archimate_element_shape(out: &mut String, element: ArchimateElementRen
                 escape_text(fill),
                 escape_text(stroke)
             ));
+            render_archimate_role_icon(out, kind, x, y, w, stroke);
         }
         "node" => {
             out.push_str(&format!(
@@ -344,6 +345,42 @@ fn render_archimate_element_shape(out: &mut String, element: ArchimateElementRen
         }
     }
     out.push_str("</g>");
+}
+
+fn render_archimate_role_icon(
+    out: &mut String,
+    kind: &str,
+    x: i32,
+    y: i32,
+    w: i32,
+    stroke: &str,
+) {
+    let icon_x = x + w - 22;
+    let icon_y = y + 8;
+    let lower = kind.to_ascii_lowercase();
+    if lower.contains("service") {
+        out.push_str(&format!(
+            "<polygon class=\"archimate-role-icon\" data-archimate-role-icon=\"service\" points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/>",
+            icon_x,
+            icon_y,
+            icon_x + 10,
+            icon_y + 5,
+            icon_x,
+            icon_y + 10,
+            escape_text(stroke)
+        ));
+    } else if lower.contains("process") || lower.contains("function") || lower.contains("event") {
+        let center_x = icon_x + 5;
+        let center_y = icon_y + 5;
+        out.push_str(&format!(
+            "<g class=\"archimate-role-icon\" data-archimate-role-icon=\"process\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.2\" stroke-linecap=\"round\"><circle cx=\"{}\" cy=\"{}\" r=\"3\"/><circle cx=\"{}\" cy=\"{}\" r=\"6\" stroke-dasharray=\"0.5 5.5\"/></g>",
+            escape_text(stroke),
+            center_x,
+            center_y,
+            center_x,
+            center_y
+        ));
+    }
 }
 
 fn archimate_shape_for(layer: &str, kind: &str) -> &'static str {

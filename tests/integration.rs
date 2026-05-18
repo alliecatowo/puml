@@ -5672,12 +5672,34 @@ fn archimate_docs_examples_render_typed_shapes_and_edges() {
     assert!(relations_svg.contains("data-archimate-kind=\"service\""));
     assert!(relations_svg.contains("data-archimate-kind=\"assignment\""));
     assert!(relations_svg.contains("marker-start=\"url(#archimate-assignment)\""));
+    assert!(relations_svg.contains("data-archimate-role-icon=\"process\""));
+    assert!(relations_svg.contains("data-archimate-role-icon=\"service\""));
+    assert!(relations_svg.contains("fill=\"#FFFFB0\""));
+    assert!(relations_svg.contains("fill=\"#D5E8F0\""));
     assert!(relations_svg.contains("assigned"));
 
     let flows_svg = render_source_to_svg(&flows).expect("render flow archimate example");
     assert!(flows_svg.contains("data-archimate-kind=\"flow\""));
     assert!(flows_svg.contains("stroke-dasharray=\"5 3\""));
     assert!(flows_svg.contains("routes"));
+}
+
+#[test]
+fn archimate_layer_palette_matches_spec_hexes() {
+    let src = r#"@startarchimate
+archimate "Capability" as cap <<strategy>>
+archimate "Order Process" as proc <<business>>
+archimate "Order Service" as svc <<application>>
+archimate "Gateway" as gw <<technology>>
+archimate "Goal" as goal <<motivation>>
+@endarchimate"#;
+
+    let svg = render_source_to_svg(src).expect("render archimate palette example");
+    assert!(svg.contains("fill=\"#F5DEAA\""));
+    assert!(svg.contains("fill=\"#FFFFB0\""));
+    assert!(svg.contains("fill=\"#D5E8F0\""));
+    assert!(svg.contains("fill=\"#D5F5DD\""));
+    assert!(svg.contains("fill=\"#E0D5F5\""));
 }
 
 // ---- stdlib catalog tests (#173) ----
