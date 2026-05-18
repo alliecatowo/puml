@@ -2,6 +2,7 @@ pub mod ast;
 pub mod creole;
 pub mod diagnostic;
 pub mod formatter;
+pub mod language_service;
 // Frontend adapters translate non-default input surfaces into PlantUML-shaped
 // source before the shared parser, normalizer, layout, and renderer run.
 mod frontend;

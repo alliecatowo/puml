@@ -1,5 +1,6 @@
-use puml::ast::{DiagramKind, ParticipantDecl, StatementKind};
+use puml::ast::{DiagramKind, StatementKind};
 use puml::diagnostic::Severity;
+use puml::language_service::{document_symbols, DocumentSymbolKind};
 use puml::scene::LayoutOptions;
 use puml::{
     layout, normalize_family, parse_with_pipeline_options, render, Document, FamilyDocument,
@@ -251,7 +252,7 @@ fn main() {
                     .unwrap_or("");
                 let out = docs
                     .get(uri)
-                    .map(document_symbols)
+                    .map(document_symbols_lsp)
                     .unwrap_or(Value::Array(vec![]));
                 let _ = resp(&mut w, id, out);
             }
@@ -1032,26 +1033,23 @@ fn rename(d: &Doc, uri: &str, posn: (u64, u64), new_name: &str) -> Value {
     json!({"changes":{uri:edits}})
 }
 
-fn document_symbols(d: &Doc) -> Value {
-    let mut v = Vec::new();
-    if let Some(doc) = &d.parsed {
-        for st in &doc.statements {
-            match &st.kind {
-                StatementKind::Participant(ParticipantDecl { name, .. }) => {
-                    v.push(sym(name, 5, &d.text, st.span.start, st.span.end))
-                }
-                StatementKind::Message(m) => v.push(sym(
-                    &format!("{} {} {}", m.from, m.arrow, m.to),
-                    12,
-                    &d.text,
-                    st.span.start,
-                    st.span.end,
-                )),
-                _ => {}
-            }
-        }
-    }
-    Value::Array(v)
+fn document_symbols_lsp(d: &Doc) -> Value {
+    let symbols = d
+        .parsed
+        .as_ref()
+        .map(document_symbols)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|symbol| {
+            json!({
+                "name": symbol.name,
+                "kind": lsp_symbol_kind(symbol.kind),
+                "range": range(&d.text, symbol.span.start, symbol.span.end),
+                "selectionRange": range(&d.text, symbol.selection_span.start, symbol.selection_span.end)
+            })
+        })
+        .collect();
+    Value::Array(symbols)
 }
 fn workspace_symbols(docs: &HashMap<String, Doc>, q: &str) -> Value {
     let mut out = Vec::new();
@@ -1068,8 +1066,11 @@ fn workspace_symbols(docs: &HashMap<String, Doc>, q: &str) -> Value {
     }
     Value::Array(out)
 }
-fn sym(name: &str, kind: i32, src: &str, s: usize, e: usize) -> Value {
-    json!({"name":name,"kind":kind,"range":range(src,s,e),"selectionRange":range(src,s,e)})
+fn lsp_symbol_kind(kind: DocumentSymbolKind) -> i32 {
+    match kind {
+        DocumentSymbolKind::Participant => 5,
+        DocumentSymbolKind::Message => 12,
+    }
 }
 
 fn formatting_edits(text: &str) -> Value {
