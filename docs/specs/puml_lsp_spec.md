@@ -1,36 +1,36 @@
 # `puml-lsp` Specification
 
-A real language server for native PlantUML-compatible sequence diagrams: parse, diagnose, complete, rename, preview, export, and refactor with full `puml` feature parity.
+A real language server for native PlantUML-compatible diagrams: parse, diagnose, expose a limited current language-service surface, preview, and export. Full family-aware completion, hover, references, rename, semantic tokens, formatting, and code actions remain roadmap work tracked by #190 unless explicitly marked current below.
 
 This is not an editor helper. This is the language intelligence layer for the whole product. The CLI, browser studio, Codex plugin, Claude plugin, MCP tools, and every future extension must be able to rely on this server and the shared language-service core.
 
 ## Runtime contract snapshot (Current, audited in issue #24)
 
-The sections below describe target architecture. The current shipped runtime surface that is already implemented and safe for ecosystem integration today is:
+The sections below describe target architecture unless explicitly marked current. The current shipped runtime surface that is already implemented and safe for ecosystem integration today is:
 
 - `textDocument/publishDiagnostics` on `didOpen`/`didChange`/`didSave`
-- completion (+ resolve)
-- hover
-- definition
-- references
-- rename (including prepare rename)
-- document symbols + workspace symbols
-- semantic tokens (`textDocument/semanticTokens/full`)
-- formatting (`textDocument/formatting` + range formatting)
+- completion (+ resolve): static keyword, snippet, and operator items shared across diagram families; not context-aware or participant-aware yet
+- hover: docs for known static completion labels and generic symbol hovers elsewhere; family-specific semantic hover is roadmap
+- definition: participant declaration lookup for parsed sequence-style participant declarations
+- references: current-document lexical same-word matches only
+- rename (including prepare rename): current-document lexical same-word edits only; no semantic alias/display-name safety yet
+- document symbols + workspace symbols: participant/message symbols from parsed open documents
+- semantic tokens (`textDocument/semanticTokens/full`): full-document token stream using the current tokenizer legend; no range or delta provider
+- formatting (`textDocument/formatting` + range formatting): trailing-whitespace trim and final-newline normalization
 - folding ranges
 - selection ranges
 - document links
 - document colors + color presentations
-- code actions
+- code actions: formatting retry command action only
 - `workspace/executeCommand` with:
   - `puml.applyFormat`
   - `puml.renderSvg`
 
 Current baseline capability mirror:
 
-- CLI `--dump-capabilities` reports `server: "puml-lsp"` and commands `puml.applyFormat`, `puml.renderSvg`.
+- CLI `--dump-capabilities` reports `server: "puml-lsp"`, commands `puml.applyFormat`, `puml.renderSvg`, current limited request scopes, and a #190 roadmap section.
 - VS Code scaffold preview routes through `puml.renderSvg`.
-- Sequence-first parity remains the current shipped scope; other roadmap ambitions in this spec are target-only until implemented and contract-tested.
+- Completion/hover depth remains intentionally uneven across sequence, class, activity, gantt, JSON, and YAML. Roadmap ambitions in this spec are target-only until implemented and contract-tested.
 
 ## Product position
 
@@ -40,8 +40,8 @@ The promise:
 
 - instant diagnostics while typing
 - syntax highlighting from the real parser, not regex themes
-- completions for every sequence primitive
-- hover docs for every directive and arrow
+- family-aware completions for every supported primitive
+- hover docs for every directive, arrow, and family-specific construct
 - go-to-definition for aliases, includes, and participant declarations
 - rename participant/alias safely across the diagram
 - code actions that repair broken diagrams

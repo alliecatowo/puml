@@ -6,16 +6,16 @@ weight = 30
 
 > Mirror of [`docs/specs/puml_studio_spa_spec.md`](https://github.com/alliecatowo/puml/blob/main/docs/specs/puml_studio_spa_spec.md) &mdash; the in-repo file is the source of truth.
 
-A local-first browser studio for writing, drawing, styling, rendering, exporting, and sharing native `puml` sequence diagrams.
+A local-first browser studio for writing, drawing, styling, rendering, exporting, and sharing native `puml` diagrams.
 
-The site is the public proof that `puml` is not just a CLI. It is the fastest way to make sequence diagrams without installing Java, Graphviz, or a desktop app.
+The site is the public proof that `puml` is not just a CLI. It should make the supported diagram families feel fast and local without installing Java, Graphviz, or a desktop app.
 
 ## Product position
 
 `puml-studio` is the browser face of the product:
 
 - paste PlantUML-compatible sequence syntax
-- write with syntax highlighting, diagnostics, completions, and hover
+- write with syntax highlighting and diagnostics; completions and hover stay target-state until dedicated Studio/WASM exports land
 - build diagrams visually with WYSIWYG controls
 - render instantly through the same Rust engine as the CLI
 - apply polished style presets
@@ -271,19 +271,23 @@ Rules:
 - The main thread never blocks on render.
 - WASM load failure is a first-class error state with recovery UI.
 
-## Runtime contract snapshot (Current, audited in issue #23)
+## Runtime Contract Snapshot (Current)
 
-The sections above describe the target Studio runtime. The current contract that already exists in the Rust runtime and is safe for Studio integration today is:
+The sections above describe the target Studio runtime. The current contract that
+already exists in the Rust runtime and is safe for Studio integration is narrower
+than the target editor/designer feature list, but broader than the original
+sequence-only scaffold. Treat the parity source-of-truth audit as the current
+family support table.
 
 ### Rust library surface available now
 
 - `parse(source) -> Document | Diagnostic`
-- `normalize(document) -> SequenceDocument | Diagnostic`
+- family-aware normalization/model construction for the implemented runtime paths, with sequence remaining the deepest Studio-ready lane
 - `layout::layout_pages(sequence, LayoutOptions::default()) -> Scene[]`
 - `render::render_svg(scene) -> string`
 - `render_source_to_svg(source) -> string | Diagnostic` for single-page sequence diagrams
 - `render_source_to_svgs(source) -> string[] | Diagnostic` for multi-page sequence output
-- `render_source_to_svg_for_family` / `render_source_to_svgs_for_family` currently enforce sequence-only rendering and deterministic errors for unsupported families
+- `render_source_to_svg_for_family` / `render_source_to_svgs_for_family` route supported families through deterministic render paths and return deterministic diagnostics for unsupported families or constructs
 - `extract_markdown_diagrams(source) -> DiagramInput[]` for fenced diagram extraction
 
 ### CLI/runtime contract available now
@@ -294,6 +298,7 @@ The sections above describe the target Studio runtime. The current contract that
 - `--dump-capabilities` exposes the LSP capability manifest, including custom requests:
   - `puml.applyFormat`
   - `puml.renderSvg`
+- The same manifest marks completion, hover, references, rename, semantic tokens, formatting, and code actions as shipped-limited where handlers exist but family-aware/shared behavior is not complete.
 
 ### Studio binding guidance for current runtime
 
@@ -301,6 +306,7 @@ The sections above describe the target Studio runtime. The current contract that
   - compile path = parse + normalize + layout + render
   - structural exports = `--dump` equivalents (`ast`, `model`, `scene`)
   - diagnostics payload = `puml.diagnostics` schema contract
+- Keep the first Studio product slice focused on sequence unless non-sequence WASM exports, examples, hit-testing metadata, and designer transforms are explicitly implemented and tested.
 - Do not advertise editor-LSP parity features (complete/hover/definition/references/format transforms through WASM) as shipped Studio runtime until dedicated exports land in `puml-wasm`.
 - Any new Studio API in this spec must be backed by:
   - implementation in runtime crates
