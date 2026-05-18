@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-18T03:40:24Z",
+  "generated_at_utc": "2026-05-18T03:49:35Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml/.claude/worktrees/agent-a0e4a13153d205b84",
+    "cwd": "/home/Allie/develop/puml",
     "quick_mode": false
   },
   "oracle": {
@@ -290,9 +290,9 @@
   "doc_examples": {
     "summary": {
       "total": 258,
-      "passed": 192,
+      "passed": 254,
       "excluded": 4,
-      "failed": 62
+      "failed": 0
     },
     "entries": [
       {
@@ -314,15 +314,12 @@
         "source_ref": "docs/examples/activity/02_if_then_else.puml",
         "artifact_svg": "docs/examples/activity/02_if_then_else.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -330,15 +327,12 @@
         "source_ref": "docs/examples/activity/03_nested_if.puml",
         "artifact_svg": "docs/examples/activity/03_nested_if.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -359,15 +353,12 @@
         "source_ref": "docs/examples/activity/05_while_loop.puml",
         "artifact_svg": "docs/examples/activity/05_while_loop.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -375,15 +366,12 @@
         "source_ref": "docs/examples/activity/06_repeat_until.puml",
         "artifact_svg": "docs/examples/activity/06_repeat_until.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -404,15 +392,12 @@
         "source_ref": "docs/examples/activity/08_order_processing.puml",
         "artifact_svg": "docs/examples/activity/08_order_processing.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -420,15 +405,12 @@
         "source_ref": "docs/examples/activity/09_error_handling.puml",
         "artifact_svg": "docs/examples/activity/09_error_handling.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -436,15 +418,12 @@
         "source_ref": "docs/examples/activity/10_authentication.puml",
         "artifact_svg": "docs/examples/activity/10_authentication.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -452,15 +431,12 @@
         "source_ref": "docs/examples/activity/11_data_pipeline.puml",
         "artifact_svg": "docs/examples/activity/11_data_pipeline.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -468,15 +444,12 @@
         "source_ref": "docs/examples/activity/12_deployment.puml",
         "artifact_svg": "docs/examples/activity/12_deployment.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -484,15 +457,12 @@
         "source_ref": "docs/examples/activity/13_user_registration.puml",
         "artifact_svg": "docs/examples/activity/13_user_registration.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -500,15 +470,12 @@
         "source_ref": "docs/examples/activity/14_purchase_flow.puml",
         "artifact_svg": "docs/examples/activity/14_purchase_flow.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -516,15 +483,12 @@
         "source_ref": "docs/examples/activity/15_report_generation.puml",
         "artifact_svg": "docs/examples/activity/15_report_generation.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -545,15 +509,12 @@
         "source_ref": "docs/examples/activity_new/02_if_else.puml",
         "artifact_svg": "docs/examples/activity_new/02_if_else.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -574,15 +535,12 @@
         "source_ref": "docs/examples/activity_new/04_while.puml",
         "artifact_svg": "docs/examples/activity_new/04_while.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -590,15 +548,12 @@
         "source_ref": "docs/examples/activity_new/05_repeat.puml",
         "artifact_svg": "docs/examples/activity_new/05_repeat.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -723,15 +678,12 @@
         "source_ref": "docs/examples/c4/01_context.puml",
         "artifact_svg": "docs/examples/c4/01_context.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -739,15 +691,12 @@
         "source_ref": "docs/examples/c4/02_person_system.puml",
         "artifact_svg": "docs/examples/c4/02_person_system.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -755,15 +704,12 @@
         "source_ref": "docs/examples/c4/03_containers.puml",
         "artifact_svg": "docs/examples/c4/03_containers.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -771,15 +717,12 @@
         "source_ref": "docs/examples/c4/04_components.puml",
         "artifact_svg": "docs/examples/c4/04_components.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -787,15 +730,12 @@
         "source_ref": "docs/examples/c4/05_persons_only.puml",
         "artifact_svg": "docs/examples/c4/05_persons_only.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -803,15 +743,12 @@
         "source_ref": "docs/examples/c4/06_external_systems.puml",
         "artifact_svg": "docs/examples/c4/06_external_systems.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -819,15 +756,12 @@
         "source_ref": "docs/examples/c4/07_microservices.puml",
         "artifact_svg": "docs/examples/c4/07_microservices.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -835,15 +769,12 @@
         "source_ref": "docs/examples/c4/08_simple_saas.puml",
         "artifact_svg": "docs/examples/c4/08_simple_saas.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -851,15 +782,12 @@
         "source_ref": "docs/examples/c4/09_data_platform.puml",
         "artifact_svg": "docs/examples/c4/09_data_platform.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -867,15 +795,12 @@
         "source_ref": "docs/examples/c4/10_security_zones.puml",
         "artifact_svg": "docs/examples/c4/10_security_zones.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -974,15 +899,12 @@
         "source_ref": "docs/examples/class/01_basic.puml",
         "artifact_svg": "docs/examples/class/01_basic.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -990,15 +912,12 @@
         "source_ref": "docs/examples/class/02_inheritance.puml",
         "artifact_svg": "docs/examples/class/02_inheritance.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1006,15 +925,12 @@
         "source_ref": "docs/examples/class/03_composition_aggregation.puml",
         "artifact_svg": "docs/examples/class/03_composition_aggregation.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1022,15 +938,12 @@
         "source_ref": "docs/examples/class/04_dependency.puml",
         "artifact_svg": "docs/examples/class/04_dependency.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1038,15 +951,12 @@
         "source_ref": "docs/examples/class/05_visibility.puml",
         "artifact_svg": "docs/examples/class/05_visibility.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1054,15 +964,12 @@
         "source_ref": "docs/examples/class/06_abstract_interface.puml",
         "artifact_svg": "docs/examples/class/06_abstract_interface.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1070,15 +977,12 @@
         "source_ref": "docs/examples/class/07_stereotypes.puml",
         "artifact_svg": "docs/examples/class/07_stereotypes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1086,15 +990,12 @@
         "source_ref": "docs/examples/class/08_packages.puml",
         "artifact_svg": "docs/examples/class/08_packages.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1102,15 +1003,12 @@
         "source_ref": "docs/examples/class/09_static_modifiers.puml",
         "artifact_svg": "docs/examples/class/09_static_modifiers.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1118,15 +1016,12 @@
         "source_ref": "docs/examples/class/10_full_domain.puml",
         "artifact_svg": "docs/examples/class/10_full_domain.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1134,15 +1029,12 @@
         "source_ref": "docs/examples/class/11_generics.puml",
         "artifact_svg": "docs/examples/class/11_generics.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1150,15 +1042,12 @@
         "source_ref": "docs/examples/class/12_all_relations.puml",
         "artifact_svg": "docs/examples/class/12_all_relations.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1166,15 +1055,12 @@
         "source_ref": "docs/examples/class/13_abstract_interface.puml",
         "artifact_svg": "docs/examples/class/13_abstract_interface.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1182,15 +1068,12 @@
         "source_ref": "docs/examples/class/14_nested_packages.puml",
         "artifact_svg": "docs/examples/class/14_nested_packages.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1198,15 +1081,12 @@
         "source_ref": "docs/examples/class/15_enum_annotation.puml",
         "artifact_svg": "docs/examples/class/15_enum_annotation.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1214,15 +1094,12 @@
         "source_ref": "docs/examples/class/16_interface_hierarchy.puml",
         "artifact_svg": "docs/examples/class/16_interface_hierarchy.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1230,15 +1107,12 @@
         "source_ref": "docs/examples/class/17_pattern_observer.puml",
         "artifact_svg": "docs/examples/class/17_pattern_observer.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1246,15 +1120,12 @@
         "source_ref": "docs/examples/class/18_pattern_factory.puml",
         "artifact_svg": "docs/examples/class/18_pattern_factory.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1262,15 +1133,12 @@
         "source_ref": "docs/examples/class/19_repository_pattern.puml",
         "artifact_svg": "docs/examples/class/19_repository_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1278,15 +1146,12 @@
         "source_ref": "docs/examples/class/20_visibility_modifiers.puml",
         "artifact_svg": "docs/examples/class/20_visibility_modifiers.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1294,15 +1159,12 @@
         "source_ref": "docs/examples/class/21_microservices.puml",
         "artifact_svg": "docs/examples/class/21_microservices.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1310,15 +1172,12 @@
         "source_ref": "docs/examples/class/22_ddd.puml",
         "artifact_svg": "docs/examples/class/22_ddd.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1326,15 +1185,12 @@
         "source_ref": "docs/examples/class/23_event_sourcing.puml",
         "artifact_svg": "docs/examples/class/23_event_sourcing.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1342,15 +1198,12 @@
         "source_ref": "docs/examples/class/24_cqrs.puml",
         "artifact_svg": "docs/examples/class/24_cqrs.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1358,15 +1211,12 @@
         "source_ref": "docs/examples/class/25_builder_pattern.puml",
         "artifact_svg": "docs/examples/class/25_builder_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1374,15 +1224,12 @@
         "source_ref": "docs/examples/class/26_strategy_pattern.puml",
         "artifact_svg": "docs/examples/class/26_strategy_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1390,15 +1237,12 @@
         "source_ref": "docs/examples/class/27_chain_of_responsibility.puml",
         "artifact_svg": "docs/examples/class/27_chain_of_responsibility.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1406,15 +1250,12 @@
         "source_ref": "docs/examples/class/28_composite_pattern.puml",
         "artifact_svg": "docs/examples/class/28_composite_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1422,15 +1263,12 @@
         "source_ref": "docs/examples/class/29_decorator_pattern.puml",
         "artifact_svg": "docs/examples/class/29_decorator_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1438,15 +1276,12 @@
         "source_ref": "docs/examples/class/30_command_pattern.puml",
         "artifact_svg": "docs/examples/class/30_command_pattern.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1703,15 +1538,12 @@
         "source_ref": "docs/examples/gantt/01_basic.puml",
         "artifact_svg": "docs/examples/gantt/01_basic.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1719,15 +1551,12 @@
         "source_ref": "docs/examples/gantt/02_milestones.puml",
         "artifact_svg": "docs/examples/gantt/02_milestones.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1735,15 +1564,12 @@
         "source_ref": "docs/examples/gantt/03_constraints.puml",
         "artifact_svg": "docs/examples/gantt/03_constraints.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1751,15 +1577,12 @@
         "source_ref": "docs/examples/gantt/04_dated.puml",
         "artifact_svg": "docs/examples/gantt/04_dated.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1767,15 +1590,12 @@
         "source_ref": "docs/examples/gantt/05_multi_task.puml",
         "artifact_svg": "docs/examples/gantt/05_multi_task.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1783,15 +1603,12 @@
         "source_ref": "docs/examples/gantt/06_with_legend.puml",
         "artifact_svg": "docs/examples/gantt/06_with_legend.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -3259,15 +3076,12 @@
         "source_ref": "docs/examples/themes/05_plain_class.puml",
         "artifact_svg": "docs/examples/themes/05_plain_class.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
