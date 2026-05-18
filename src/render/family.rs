@@ -2117,12 +2117,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let mut node_ids_in_group: Vec<String> = Vec::new();
         for node in &doc.nodes {
             let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-            if node_to_group.get(&key) == Some(&g_idx)
-                || node_to_group.get(&node.name) == Some(&g_idx)
+            if (node_to_group.get(&key) == Some(&g_idx)
+                || node_to_group.get(&node.name) == Some(&g_idx))
+                && !node_ids_in_group.contains(&key)
             {
-                if !node_ids_in_group.contains(&key) {
-                    node_ids_in_group.push(key);
-                }
+                node_ids_in_group.push(key);
             }
         }
         if node_ids_in_group.is_empty() {
@@ -2413,7 +2412,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     let all_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
     // Package frames: (rect, member_node_ids)
-    let pkg_frame_boxes: Vec<((i32, i32, i32, i32), &[String])> = pkg_layouts
+    type PkgFrameBox<'a> = ((i32, i32, i32, i32), &'a [String]);
+    let pkg_frame_boxes: Vec<PkgFrameBox> = pkg_layouts
         .iter()
         .enumerate()
         .map(|(i, pkg)| {
@@ -2547,7 +2547,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th) {
                     return false;
                 }
-                segment_intersects_rect(x1, y1, x2, y2, bx, by, bw, bh)
+                segment_intersects_rect(x1, y1, x2, y2, (bx, by, bw, bh))
             })
         };
 
@@ -2626,7 +2626,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                             && b != (tx, ty, tw, th)
                             && l_pts.windows(2).any(|seg| {
                                 segment_intersects_rect(
-                                    seg[0].0, seg[0].1, seg[1].0, seg[1].1, b.0, b.1, b.2, b.3,
+                                    seg[0].0, seg[0].1, seg[1].0, seg[1].1, (b.0, b.1, b.2, b.3),
                                 )
                             })
                     })
@@ -2817,7 +2817,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Compute adjusted positions for each label
     let mut adjusted_labels: Vec<(i32, i32, String, String)> =
         vec![(0, 0, String::new(), String::new()); n];
-    for (_root, indices) in &groups {
+    for indices in groups.values() {
         let count = indices.len() as i32;
         // Base position: centroid of the group
         let base_x: i32 = indices.iter().map(|&i| sorted_labels[i].x).sum::<i32>() / count;
@@ -2870,10 +2870,7 @@ fn segment_intersects_rect(
     y1: i32,
     x2: i32,
     y2: i32,
-    bx: i32,
-    by: i32,
-    bw: i32,
-    bh: i32,
+    (bx, by, bw, bh): (i32, i32, i32, i32),
 ) -> bool {
     // Grow the box by 4px to give a small margin
     let margin = 4;
@@ -2940,7 +2937,7 @@ fn count_polyline_collisions(
             if (obx, oby, obw, obh) == src || (obx, oby, obw, obh) == tgt {
                 continue;
             }
-            if segment_intersects_rect(ax, ay, bx_, by_, obx, oby, obw, obh) {
+            if segment_intersects_rect(ax, ay, bx_, by_, (obx, oby, obw, obh)) {
                 count += 1;
             }
         }
