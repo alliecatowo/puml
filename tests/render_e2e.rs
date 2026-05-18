@@ -974,7 +974,9 @@ fn render_svg_handles_ref_else_and_multi_target_notes() {
     let src = fixture("groups/valid_ref_and_else_rendering.puml");
     let svg = puml::render_source_to_svg(&src).expect("render should succeed");
 
-    assert!(svg.contains("ref over A, B"));
+    // "ref" appears in the pentagon header; "over A, B" appears in the ref body.
+    assert!(svg.contains(">ref<") || svg.contains(">ref "));
+    assert!(svg.contains("over A, B"));
     assert!(svg.contains("else fallback"));
     assert_snapshot!("render_svg_handles_ref_else_and_multi_target_notes", svg);
 }
@@ -1531,7 +1533,9 @@ fn overflow_svg_text_positions_stay_within_associated_rects() {
         "note_line_two_for_bounds_guardrail",
         "note_line_three_for_bounds_guardrail",
         "alt branch_label_for_bounds_guardrail",
-        "ref over A, B",
+        // The ref header pentagon now just shows "ref"; the participant list
+        // appears as the first body line ("over A, B").
+        "over A, B",
         "ref_line_one_for_bounds_guardrail",
         "ref_line_two_for_bounds_guardrail",
         "ref_line_three_for_bounds_guardrail",

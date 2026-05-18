@@ -130,14 +130,17 @@ pub(super) fn normalize_with_options(
                     ))
                     .with_span(stmt.span)
                 })?;
-                let directions = if parsed_arrow.bidirectional {
-                    vec![
-                        (m.from.clone(), m.to.clone()),
-                        (m.to.clone(), m.from.clone()),
-                    ]
+                // Determine the canonical (sender, receiver) pair for the event.
+                // • Bidirectional arrows (<->) keep from/to as written; the
+                //   render arrow already carries heads on both sides.
+                // • Reversed left-facing arrows (e.g. `Bob <- Alice`) swap
+                //   from/to so that x1 always belongs to the sender.
+                let (event_from, event_to) = if parsed_arrow.reversed {
+                    (m.to.clone(), m.from.clone())
                 } else {
-                    vec![(m.from.clone(), m.to.clone())]
+                    (m.from.clone(), m.to.clone())
                 };
+                let directions = vec![(event_from, event_to)];
 
                 for (from, to) in directions {
                     let from_virtual = virtual_endpoint(from.as_str(), true);
@@ -269,6 +272,18 @@ pub(super) fn normalize_with_options(
                             span: stmt.span,
                             branch_has_content: false,
                         });
+                    } else {
+                        // For `ref over A, B, C` auto-create any participants
+                        // that haven't been declared yet so the ref box can
+                        // span their lifelines.
+                        if let Some(lbl) = &g.label {
+                            let first_line = lbl.lines().next().unwrap_or("");
+                            if let Some(over_spec) = first_line.strip_prefix("over ") {
+                                for id in over_spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+                                    ensure_implicit(&mut participants, &mut participant_ix, id);
+                                }
+                            }
+                        }
                     }
                     events.push(SequenceEvent {
                         span: stmt.span,
@@ -1048,7 +1063,10 @@ fn validate_virtual_endpoint_combination(
 #[derive(Debug, Clone)]
 struct ParsedMessageArrow {
     render_arrow: String,
-    bidirectional: bool,
+    /// True when the original arrow was left-facing (e.g. `<-`).  The caller
+    /// must swap from/to before storing the event so that `from` always
+    /// represents the semantic sender and x1 is the sender's centre.
+    reversed: bool,
     left_modifier: Option<String>,
     right_modifier: Option<String>,
 }
@@ -1072,21 +1090,72 @@ fn parse_message_arrow(raw: &str) -> Option<ParsedMessageArrow> {
         .or_else(|| stripped_left.strip_suffix('x'))
         .unwrap_or(stripped_left);
     let bidirectional = matches!(stripped, "<->" | "<-->" | "<<->>" | "<<-->>");
+
+    // Detect left-facing arrows (the LHS of the syntax is the receiver, not
+    // the sender).  Bidirectional arrows are not reversed because they have
+    // heads on both ends anyway.
+    let reversed = !bidirectional
+        && (stripped.starts_with("<<-") || stripped.starts_with("<-"))
+        && !stripped.contains('>');
+
     let render_arrow = if bidirectional {
+        // Emit a single render arrow that carries heads on both ends.
         if stripped.contains("--") {
-            "-->".to_string()
+            "<-->".to_string()
         } else {
-            "->".to_string()
+            "<->".to_string()
         }
+    } else if reversed {
+        // Mirror the arrow to its right-facing equivalent so that the render
+        // engine always sees x1 < x2 with a right-pointing head.
+        mirror_arrow(&base)
     } else {
         base
     };
     Some(ParsedMessageArrow {
         render_arrow,
-        bidirectional,
+        reversed,
         left_modifier,
         right_modifier,
     })
+}
+
+/// Flip a left-facing arrow string to its right-facing mirror.
+///
+/// `<-` → `->`, `<--` → `-->`, `<<-` → `->>`, `<<--` → `-->>`
+/// Endpoint markers (o/x) swap sides as well.
+fn mirror_arrow(base: &str) -> String {
+    let canonical = base.replace(['/', '\\'], "");
+    // Strip endpoint markers.
+    let left_marker = canonical.chars().next().filter(|c| matches!(c, 'o' | 'x'));
+    let right_marker = canonical.chars().last().filter(|c| matches!(c, 'o' | 'x'));
+    let inner = canonical
+        .strip_prefix(|c| matches!(c, 'o' | 'x'))
+        .unwrap_or(&canonical);
+    let inner = inner
+        .strip_suffix(|c| matches!(c, 'o' | 'x'))
+        .unwrap_or(inner);
+
+    // Map the dash-only core (<-, <--, <<-, <<--) to its mirror.
+    let mirrored_core = match inner {
+        "<-" => "->",
+        "<--" => "-->",
+        "<<-" => "->>",
+        "<<--" => "-->>",
+        // Fallback: just return the original.
+        _ => return base.to_string(),
+    };
+
+    // Re-attach markers (swapped).
+    let mut out = String::new();
+    if let Some(m) = right_marker {
+        out.push(m);
+    }
+    out.push_str(mirrored_core);
+    if let Some(m) = left_marker {
+        out.push(m);
+    }
+    out
 }
 
 fn decode_arrow_modifiers(raw: &str) -> Option<(String, Option<String>, Option<String>)> {

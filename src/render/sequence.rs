@@ -133,10 +133,7 @@ pub fn render_svg(scene: &Scene) -> String {
             group_border
         ));
 
-        if let Some(label) = &g.label {
-            let header = label.lines().next().unwrap_or("");
-            let header_full = format!("{} {}", g.kind, header);
-            let header_trimmed = header_full.trim();
+        {
             let header_font_color = scene
                 .style
                 .group_header_font_color
@@ -151,27 +148,90 @@ pub fn render_svg(scene: &Scene) -> String {
                 GroupHeaderFontStyle::Italic => " font-style=\"italic\"",
                 _ => "",
             };
-            out.push_str(&creole_text(
-                g.x + 8,
-                g.y + 16,
-                &format!(
-                    "font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}"
-                ),
-                header_trimmed,
-                header_font_color,
-            ));
-            if g.kind.eq_ignore_ascii_case("ref") {
-                let mut y = g.y + 32;
-                for line in label.lines().skip(1) {
-                    out.push_str(&creole_text(
-                        g.x + 8,
-                        y,
-                        "font-family=\"monospace\" font-size=\"12\"",
-                        line,
-                        "black",
-                    ));
-                    y += 16;
+            if is_ref {
+                // ref box: "ref" appears alone in a small pentagon notch at the
+                // top-left; the participant list and body text go in the body.
+                let notch_w = 32_i32;
+                let notch_h = 20_i32;
+                let cut = 6_i32;
+                out.push_str(&format!(
+                    "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    g.x, g.y,
+                    g.x + notch_w, g.y,
+                    g.x + notch_w, g.y + notch_h - cut,
+                    g.x + notch_w - cut, g.y + notch_h,
+                    g.x, g.y + notch_h,
+                    group_fill, group_border
+                ));
+                out.push_str(&creole_text(
+                    g.x + 6,
+                    g.y + 14,
+                    &format!("font-family=\"monospace\" font-size=\"11\" {header_font_weight}{header_font_style_attr}"),
+                    "ref",
+                    header_font_color,
+                ));
+                // Body: all label lines starting from the first one.
+                if let Some(label) = &g.label {
+                    let mut y = g.y + 32;
+                    for line in label.lines() {
+                        out.push_str(&creole_text(
+                            g.x + 8,
+                            y,
+                            "font-family=\"monospace\" font-size=\"12\"",
+                            line,
+                            "black",
+                        ));
+                        y += 16;
+                    }
                 }
+            } else if let Some(label) = &g.label {
+                // Combined-fragment header: a small pentagon notch at the top-left
+                // showing "<kind> <condition>".
+                let first_line = label.lines().next().unwrap_or("");
+                let header_text = format!("{} {}", g.kind, first_line).trim().to_string();
+                // Estimate the notch width from the text content.
+                let char_w = 7_i32;
+                let notch_w = (header_text.chars().count() as i32 * char_w + 16)
+                    .clamp(40, g.width - 4);
+                let notch_h = 20_i32;
+                let cut = 6_i32;
+                out.push_str(&format!(
+                    "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    g.x, g.y,
+                    g.x + notch_w, g.y,
+                    g.x + notch_w, g.y + notch_h - cut,
+                    g.x + notch_w - cut, g.y + notch_h,
+                    g.x, g.y + notch_h,
+                    group_fill, group_border
+                ));
+                out.push_str(&creole_text(
+                    g.x + 8,
+                    g.y + 14,
+                    &format!("font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}"),
+                    &header_text,
+                    header_font_color,
+                ));
+            } else {
+                // No label — kind only.
+                let notch_w = (g.kind.chars().count() as i32 * 7 + 16).clamp(40, g.width - 4);
+                let notch_h = 20_i32;
+                let cut = 6_i32;
+                out.push_str(&format!(
+                    "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    g.x, g.y,
+                    g.x + notch_w, g.y,
+                    g.x + notch_w, g.y + notch_h - cut,
+                    g.x + notch_w - cut, g.y + notch_h,
+                    g.x, g.y + notch_h,
+                    group_fill, group_border
+                ));
+                out.push_str(&creole_text(
+                    g.x + 8,
+                    g.y + 14,
+                    &format!("font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}"),
+                    &g.kind,
+                    header_font_color,
+                ));
             }
         }
 
@@ -185,9 +245,12 @@ pub fn render_svg(scene: &Scene) -> String {
                 scene.style.group_border_color
             ));
             if let Some(label) = &sep.label {
+                // Place the label above the dashed divider so it doesn't
+                // overlap the rule.  A baseline of sep.y - 4 sits just above
+                // the 1 px stroke and leaves a small gap.
                 out.push_str(&creole_text(
                     g.x + 8,
-                    sep.y - 6,
+                    sep.y - 14,
                     "font-family=\"monospace\" font-size=\"11\" fill=\"#333\"",
                     label,
                     "#333",
@@ -235,31 +298,54 @@ pub fn render_svg(scene: &Scene) -> String {
             .clamp(1.0, 8.0);
         let style_attrs = sequence_message_line_style_attrs(m);
         let line_y = m.route_y;
-        if m.x1 == m.x2 {
-            let loop_w = 46;
-            let loop_h = 26;
-            let dir = if m.arrow.starts_with('<') { -1 } else { 1 };
-            let x2 = m.x1 + dir * loop_w;
+        // A self-loop is detected by from_id == to_id (x1 != x2 because the
+        // layout gives the loop a non-zero width).
+        let is_self_loop = m.from_id == m.to_id
+            && m.from_virtual.is_none()
+            && m.to_virtual.is_none();
+        if is_self_loop {
+            // Use m.x2 as the right extent set by the layout.
+            let loop_x2 = m.x2;
+            // Keep the loop height small enough to stay within the allocated
+            // message row (the layout gives this row ~24 px of vertical space).
+            let loop_h = 20;
+            // Three-segment UML self-call: right → down → back-left to lifeline.
             out.push_str(&format!(
-                "<path{} d=\"M {} {} C {} {}, {} {}, {} {} S {} {}, {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
+                "<path{} d=\"M {} {} L {} {} L {} {} L {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
                 style_attrs,
-                m.x1,
-                line_y,
-                x2,
-                line_y,
-                x2,
-                line_y + loop_h,
-                m.x1,
-                line_y + loop_h,
-                x2,
-                line_y + loop_h * 2,
-                m.x1,
-                line_y + loop_h * 2,
+                m.x1, line_y,
+                loop_x2, line_y,
+                loop_x2, line_y + loop_h,
+                m.x1, line_y + loop_h,
                 stroke_color,
                 stroke_width,
                 stroke_dash,
                 hidden
             ));
+            // Arrowhead at the bottom of the loop, pointing left (from the right).
+            let head_stroke_width = m
+                .style
+                .thickness
+                .map(f32::from)
+                .unwrap_or(1.0)
+                .clamp(1.0, 8.0);
+            let open_head = m.arrow.contains(">>") || m.arrow.contains("<<");
+            let tip_x = m.x1;
+            let tip_y = line_y + loop_h;
+            let back_x = tip_x + 8; // back is to the right
+            if open_head {
+                out.push_str(&format!(
+                    "<polyline points=\"{},{} {},{} {},{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                    back_x, tip_y - 5, tip_x, tip_y, back_x, tip_y + 5,
+                    stroke_color, head_stroke_width, hidden
+                ));
+            } else {
+                out.push_str(&format!(
+                    "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                    tip_x, tip_y, back_x, tip_y - 5, back_x, tip_y + 5,
+                    arrow_fill, stroke_color, head_stroke_width, hidden
+                ));
+            }
         } else {
             out.push_str(&format!(
                 "<line{} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}/>",
@@ -273,8 +359,8 @@ pub fn render_svg(scene: &Scene) -> String {
                 stroke_dash,
                 hidden
             ));
+            render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, stroke_width, hidden);
         }
-        render_sequence_arrow_heads(&mut out, m, stroke_color, arrow_fill, stroke_width, hidden);
 
         if let Some(virtual_ep) = m.from_virtual {
             render_virtual_endpoint_marker(&mut out, m.x1, line_y, virtual_ep.kind);

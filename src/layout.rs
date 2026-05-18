@@ -852,16 +852,16 @@ fn group_content_min_size(kind: &str, label: Option<&str>) -> (i32, i32) {
     let mut height = GROUP_HEADER_BASELINE_Y + GROUP_BOTTOM_PADDING;
 
     if kind.eq_ignore_ascii_case("ref") {
-        let mut body_lines = 0;
+        // For ref boxes all label lines (including the first "over ..." line)
+        // appear in the body.  Count the header line too.
+        let mut body_lines = 1; // the first line already consumed above
         for line in lines {
             max_width = max_width.max(estimate_text_px_width(line));
             body_lines += 1;
         }
-        if body_lines > 0 {
-            height = GROUP_REF_BODY_BASELINE_Y
-                + ((body_lines - 1) * TEXT_LINE_HEIGHT)
-                + GROUP_BOTTOM_PADDING;
-        }
+        height = GROUP_REF_BODY_BASELINE_Y
+            + ((body_lines - 1) * TEXT_LINE_HEIGHT)
+            + GROUP_BOTTOM_PADDING;
     }
 
     (max_width + (GROUP_TEXT_INSET_X * 2), height)

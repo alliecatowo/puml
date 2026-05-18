@@ -1,0 +1,57 @@
+---
+source: tests/integration.rs
+assertion_line: 1039
+expression: json
+---
+{
+  "caption": null,
+  "chronology_events": [],
+  "closed_ranges": [],
+  "closed_weekdays": [],
+  "constraints": [
+    {
+      "kind": "happens",
+      "subject": "Kickoff",
+      "target": "2026-05-01"
+    },
+    {
+      "kind": "requires",
+      "subject": "Build",
+      "target": "[Design]"
+    }
+  ],
+  "footer": null,
+  "header": null,
+  "kind": "Gantt",
+  "legend": null,
+  "milestones": [
+    {
+      "happens_on": "2026-05-01",
+      "name": "Kickoff"
+    }
+  ],
+  "open_ranges": [],
+  "project_start": null,
+  "project_start_day": null,
+  "separators": [],
+  "tasks": [
+    {
+      "duration_days": 14,
+      "name": "Design",
+      "resource_allocations": [],
+      "resources": [],
+      "start_day": 20574,
+      "workload_days": 14
+    },
+    {
+      "duration_days": 14,
+      "name": "Build",
+      "resource_allocations": [],
+      "resources": [],
+      "start_day": 20588,
+      "workload_days": 14
+    }
+  ],
+  "title": null,
+  "warnings": []
+}
