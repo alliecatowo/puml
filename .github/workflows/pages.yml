@@ -75,6 +75,28 @@ jobs:
           sudo tar -xzf /tmp/zola.tar.gz -C /usr/local/bin/
           zola --version
 
+      - name: Build puml CLI binary
+        run: cargo build --release
+
+      - name: Regenerate diagram artifacts
+        run: |
+          set -euo pipefail
+          PUML_BIN="./target/release/puml"
+
+          # Regenerate SVG and PNG for all .puml files in docs/examples/ and docs/diagrams/
+          for puml_file in $(find docs/examples docs/diagrams -name "*.puml" | sort); do
+            base="${puml_file%.puml}"
+            echo "Rendering ${puml_file} → ${base}.svg and ${base}.png"
+            "${PUML_BIN}" "${puml_file}" -o "${base}.svg"
+            "${PUML_BIN}" "${puml_file}" -o "${base}.png"
+          done
+
+          # Regenerate markdown snippet diagrams
+          if [[ -f docs/examples/sequence/README.md ]]; then
+            echo "Rendering markdown snippets from docs/examples/sequence/README.md"
+            "${PUML_BIN}" --from-markdown --multi docs/examples/sequence/README.md
+          fi
+
       - name: Mirror specs into site content
         run: node scripts/mirror-specs.mjs
 
