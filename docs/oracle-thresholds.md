@@ -43,6 +43,36 @@ These categories are report classifications, not runtime behavior. A fixture
 classified as `drift`, `jar-only`, or `puml-only` is evidence for a known parity
 gap; it does not enable a fallback renderer.
 
+## Promoted Fixture Gate
+
+The broad oracle corpus remains advisory except for the below-50% match hard
+failure described later in this document. A smaller promoted fixture list in
+`tests/oracle_promoted_fixtures.json` is the blocking parity contract: every
+promoted fixture defaults to `allowed_categories: ["match"]`.
+
+When `scripts/oracle.sh` completes a live JAR-backed run, it invokes
+`scripts/oracle_promoted_gate.py` against the generated `oracle_report.json`.
+The gate annotates the report with a `promoted_gate` object and exits `3` if a
+promoted fixture appears as unexpected `drift`, `puml-only`, `jar-only`, or
+parse-fail (`both-fail`) output, or if the promoted fixture disappeared from the
+oracle report. CI treats exit `3` as blocking.
+
+Intentional promoted gaps must be explicit in the manifest, for example:
+
+```json
+{
+  "path": "tests/fixtures/basic/some_fixture.puml",
+  "allowed_categories": ["match", "drift"],
+  "reason": "tracked layout-only drift while semantic parity work continues"
+}
+```
+
+That explicit allowance is for fixtures that are still important enough to keep
+promoted, but whose current oracle category is a known and reviewed exception.
+The exploratory full-corpus oracle report still lists all drift, JAR-only,
+puml-only, and parse-fail categories for triage; those rows are advisory unless
+they are also in the promoted manifest without an explicit expectation.
+
 ## Dry-run schema
 
 `scripts/differential_oracle_smoke.py --dry-run` writes
@@ -141,17 +171,19 @@ otherwise                    → match
 | `0` | match% ≥ 80 % | Conformance is good |
 | `1` | 50 % ≤ match% < 80 % | Advisory warning; CI passes and PR comment reports `WARN` |
 | `2` | match% < 50 % | Hard failure; CI blocks the PR |
+| `3` | promoted fixture gate failed | Hard failure; CI blocks the PR |
 
 Only `match` contributes to match%. Fixtures in `drift`, `puml-only`,
 `jar-only`, and `both-fail` all reduce the match percentage because the
 denominator is the full fixture count.
 
-The GitHub Actions gate in `.github/workflows/oracle.yml` treats only exit code
-`2` as blocking. Exit codes `0` and `1` are converted to a successful workflow
-step, so SVG metric drift, JAR-only fixtures, puml-only fixtures, and parse
-failures are advisory unless the overall match percentage drops below 50%.
-The PR comment summarizes the categories so reviewers can triage regressions
-even when the gate remains advisory.
+The GitHub Actions gate in `.github/workflows/oracle.yml` treats exit codes `2`
+and `3` as blocking. Exit codes `0` and `1` are converted to a successful
+workflow step, so broad SVG metric drift, JAR-only fixtures, puml-only fixtures,
+and parse failures are advisory unless the overall match percentage drops below
+50% or the row belongs to the promoted fixture list without an explicit
+expectation. The PR comment summarizes the categories so reviewers can triage
+regressions even when the full-corpus report remains advisory.
 
 The generated CI summary is intentionally worded as conformance evidence. It is
 not a pixel-perfect parity claim: puml and Java PlantUML use different layout
@@ -175,6 +207,12 @@ report is written to `docs/benchmarks/oracle_report.json` with this schema:
     "puml_only": 0,
     "jar_only": 0,
     "both_fail": 0
+  },
+  "promoted_gate": {
+    "status": "pass",
+    "total": 2,
+    "passed": 2,
+    "violations": []
   },
   "fixtures": [
     {

@@ -3,6 +3,7 @@
 #
 # Usage:
 #   ./scripts/oracle.sh [--corpus-dir <dir>] [--examples-dir <dir>] [--report-file <path>]
+#                     [--promoted-fixtures <path>]
 #
 # Environment:
 #   PUML_ORACLE_JAR   Absolute path to plantuml.jar.
@@ -29,6 +30,7 @@
 #   0  — PUML_ORACLE_JAR unset (skip) OR match% >= 80%
 #   1  — 50% <= match% < 80%
 #   2  — match% < 50%
+#   3  — promoted oracle fixture gate failed
 
 set -euo pipefail
 
@@ -39,6 +41,7 @@ JAVA_BIN="${PUML_ORACLE_JAVA:-java}"
 CORPUS_DIR="${ROOT_DIR}/tests/fixtures"
 EXAMPLES_DIR="${ROOT_DIR}/docs/examples"
 REPORT_FILE="${ROOT_DIR}/docs/benchmarks/oracle_report.json"
+PROMOTED_FIXTURES="${ROOT_DIR}/tests/oracle_promoted_fixtures.json"
 BINARY="${ROOT_DIR}/target/release/puml"
 
 # ---------------------------------------------------------------------------
@@ -68,6 +71,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --report-file=*)
       REPORT_FILE="${1#*=}"
+      shift
+      ;;
+    --promoted-fixtures)
+      PROMOTED_FIXTURES="$2"
+      shift 2
+      ;;
+    --promoted-fixtures=*)
+      PROMOTED_FIXTURES="${1#*=}"
       shift
       ;;
     -h|--help)
@@ -369,11 +380,31 @@ REPORT="$(printf \
   "${N_BOTH_FAIL}" \
   "${FIXTURES_JSON}")"
 
-printf '%s\n' "${REPORT}"
 mkdir -p "$(dirname "${REPORT_FILE}")"
 printf '%s\n' "${REPORT}" > "${REPORT_FILE}"
+PROMOTED_EXIT=0
+if [[ -n "${PROMOTED_FIXTURES}" && -f "${PROMOTED_FIXTURES}" ]]; then
+  set +e
+  python3 "${ROOT_DIR}/scripts/oracle_promoted_gate.py" \
+    --report "${REPORT_FILE}" \
+    --manifest "${PROMOTED_FIXTURES}" \
+    --write >&2
+  PROMOTED_EXIT=$?
+  set -e
+elif [[ -n "${PROMOTED_FIXTURES}" ]]; then
+  echo "[oracle] promoted fixture manifest not found: ${PROMOTED_FIXTURES}" >&2
+  PROMOTED_EXIT=3
+fi
+cat "${REPORT_FILE}"
 echo "[oracle] report written to ${REPORT_FILE}" >&2
 echo "[oracle] summary: total=${TOTAL} match=${N_MATCH} drift=${N_DRIFT} puml_only=${N_PUML_ONLY} jar_only=${N_JAR_ONLY} both_fail=${N_BOTH_FAIL} match_pct=${MATCH_PCT}%" >&2
+if [[ "${PROMOTED_EXIT}" -eq 3 ]]; then
+  echo "[oracle] HARD FAIL: promoted oracle fixture gate failed" >&2
+  exit 3
+elif [[ "${PROMOTED_EXIT}" -ne 0 ]]; then
+  echo "[oracle] HARD FAIL: promoted oracle fixture gate errored with exit ${PROMOTED_EXIT}" >&2
+  exit "${PROMOTED_EXIT}"
+fi
 
 # ---------------------------------------------------------------------------
 # Exit codes: 0 = >=80% match; 1 = 50–79%; 2 = <50%
