@@ -26,11 +26,21 @@ stop
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("activity render should succeed");
+    let doc = SvgDoc::parse(&svg);
 
     // Wave 3-A (#490) suppressed "activity diagram" canvas leak; Wave 3-D
     // (#492) replaced "partition: <name>" prefix with lane header labels.
     assert!(svg.contains("API"));
     assert!(svg.contains("Worker"));
+    let start = doc
+        .elements("circle")
+        .into_iter()
+        .next()
+        .expect("activity start node should render");
+    assert!(
+        f64_attr(start, "cy") > 86.0,
+        "start node should sit below the swimlane header row"
+    );
     // Wave 3-D (#487): fork branches now render their action labels directly,
     // not synthetic "branch N" markers.
     assert!(svg.contains("validate payload"));
@@ -265,6 +275,7 @@ api --> Gateway : exposes
 fn activity_beta_loop_branch_labels_render_is_and_not_clauses() {
     let src = include_str!("fixtures/families/valid_activity_loop_branch_labels.puml");
     let svg = puml::render_source_to_svg(src).expect("activity loop labels should render");
+    let doc = SvgDoc::parse(&svg);
 
     assert!(
         svg.contains("healthy?"),
@@ -283,5 +294,14 @@ fn activity_beta_loop_branch_labels_render_is_and_not_clauses() {
         "repeat while guards should float on arrow"
     );
     assert!(svg.contains("#008080"));
-    assert!(svg.contains("repeat while"));
+    assert!(
+        !svg.contains(">repeat while<"),
+        "repeat while should drive control flow without rendering as a visible label"
+    );
+    assert!(
+        doc.elements("line")
+            .into_iter()
+            .any(|line| f64_attr(line, "y2") < f64_attr(line, "y1")),
+        "repeat and while loops should emit at least one upward back-edge"
+    );
 }
