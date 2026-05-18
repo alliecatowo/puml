@@ -4640,6 +4640,106 @@ fn nwdiag_family_renders_deterministic_svg_with_networks() {
 }
 
 #[test]
+fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
+    let src = fs::read_to_string(fixture(
+        "non_sequence/valid_nwdiag_multi_network_addresses.puml",
+    ))
+    .unwrap();
+    let svg = render_source_to_svg(&src).expect("render nwdiag topology depth fixture");
+
+    assert!(
+        svg.contains("data-nwdiag-addresses=\"10.0.0.10, fd00:10::10\""),
+        "public lb should preserve every bracketed address: {svg}"
+    );
+    assert!(
+        svg.contains("edge lb [10.0.0.10, fd00:10::10]"),
+        "multi-address label should render both values: {svg}"
+    );
+    assert!(
+        svg.contains("stroke-dasharray=\"5 3\""),
+        "dashed node style should reach SVG geometry"
+    );
+    assert!(
+        svg.contains("width=\"240\""),
+        "node width attribute should affect SVG geometry"
+    );
+
+    let public_y = svg_rect_y(
+        &svg,
+        "class=\"nwdiag-network\"",
+        "network public (10.0.0.x/24)",
+    )
+    .expect("public network y");
+    let private_y = svg_rect_y(
+        &svg,
+        "class=\"nwdiag-network\"",
+        "network private (192.168.1.x/24)",
+    )
+    .expect("private network y");
+    assert!(
+        private_y > public_y,
+        "private network should be laid out below public network"
+    );
+
+    let public_lb = svg_node_rect(&svg, "lb", "10.0.0.10, fd00:10::10").expect("public lb rect");
+    let private_lb =
+        svg_node_rect(&svg, "lb", "192.168.1.10, fd00:192::10").expect("private lb rect");
+    assert_eq!(
+        public_lb.x, private_lb.x,
+        "shared node column should be stable"
+    );
+    assert!(
+        private_lb.y > public_lb.y,
+        "shared node should appear in each network row"
+    );
+
+    let group_y = svg_rect_y(&svg, "class=\"nwdiag-group\"", "group edge").expect("group y");
+    assert!(
+        group_y > private_y,
+        "global group membership section should remain below network topology"
+    );
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct SvgRectGeom {
+    x: i32,
+    y: i32,
+}
+
+fn svg_rect_y(svg: &str, rect_needle: &str, following_text: &str) -> Option<i32> {
+    let text_ix = svg.find(following_text)?;
+    let before_text = &svg[..text_ix];
+    let rect_ix = before_text.rfind(rect_needle)?;
+    let tag = before_text[rect_ix..].split_once('>')?.0;
+    svg_attr_i32(tag, "y")
+}
+
+fn svg_node_rect(svg: &str, name: &str, addresses: &str) -> Option<SvgRectGeom> {
+    let mut rest = svg;
+    let name_attr = format!("data-nwdiag-name=\"{name}\"");
+    let addresses_attr = format!("data-nwdiag-addresses=\"{addresses}\"");
+    while let Some(ix) = rest.find("<rect class=\"nwdiag-node\"") {
+        rest = &rest[ix..];
+        let tag = rest.split_once('>')?.0;
+        if tag.contains(&name_attr) && tag.contains(&addresses_attr) {
+            return Some(SvgRectGeom {
+                x: svg_attr_i32(tag, "x")?,
+                y: svg_attr_i32(tag, "y")?,
+            });
+        }
+        rest = &rest["<rect".len()..];
+    }
+    None
+}
+
+fn svg_attr_i32(tag: &str, attr: &str) -> Option<i32> {
+    let needle = format!("{attr}=\"");
+    let rest = tag.split_once(&needle)?.1;
+    let value = rest.split_once('"')?.0;
+    value.parse().ok()
+}
+
+#[test]
 fn archimate_family_check_mode_passes_for_valid_input() {
     Command::cargo_bin("puml")
         .expect("binary")
