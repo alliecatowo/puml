@@ -1,14 +1,20 @@
 @startuml
-title Partitioned Activity (No Swimlanes)
+title Partitioned Activity
 start
-:User Click;
-:Validate Form;
-:Receive Request;
-:Authenticate;
-:Process;
-:Query Data;
-:Return Rows;
-:Format Response;
-:Render UI;
+partition Worker {
+  :User Click;
+  :Validate Form;
+}
+partition Backend {
+  :Receive Request;
+  :Authenticate;
+  :Process;
+  :Query Data;
+  :Return Rows;
+}
+partition Frontend {
+  :Format Response;
+  :Render UI;
+}
 stop
 @enduml
