@@ -491,12 +491,27 @@ fn extract_projection_kv_lines(body: &str, format: &str) -> Vec<String> {
         }
     }
     if format == "yaml" {
-        let lines = extract_yaml_kv_lines(body);
+        let lines = parse_projection_yaml_value(body)
+            .map(|value| {
+                let mut lines = Vec::new();
+                flatten_projection_yaml("", &value, &mut lines);
+                lines
+            })
+            .unwrap_or_else(|| extract_yaml_kv_lines(body));
         if !lines.is_empty() {
             return lines;
         }
     }
     extract_json_kv_lines(body)
+}
+
+fn parse_projection_yaml_value(body: &str) -> Option<yaml_rust2::Yaml> {
+    yaml_rust2::YamlLoader::load_from_str(body.trim())
+        .ok()
+        .and_then(|docs| {
+            docs.into_iter()
+                .find(|doc| !matches!(doc, yaml_rust2::Yaml::BadValue))
+        })
 }
 
 fn parse_projection_json_value(body: &str) -> Option<serde_json::Value> {
@@ -590,6 +605,41 @@ fn flatten_projection_json(prefix: &str, value: &serde_json::Value, lines: &mut 
         serde_json::Value::Number(n) => lines.push(format!("{prefix}: {n}")),
         serde_json::Value::Bool(b) => lines.push(format!("{prefix}: {b}")),
         serde_json::Value::Null => lines.push(format!("{prefix}: null")),
+    }
+}
+
+fn flatten_projection_yaml(prefix: &str, value: &yaml_rust2::Yaml, lines: &mut Vec<String>) {
+    match value {
+        yaml_rust2::Yaml::Hash(map) => {
+            for (key, value) in map {
+                let key = projection_yaml_label(key);
+                let next = if prefix.is_empty() {
+                    key
+                } else {
+                    format!("{prefix}.{key}")
+                };
+                flatten_projection_yaml(&next, value, lines);
+            }
+        }
+        yaml_rust2::Yaml::Array(items) => {
+            for (idx, value) in items.iter().enumerate() {
+                flatten_projection_yaml(&format!("{prefix}[{idx}]"), value, lines);
+            }
+        }
+        scalar => lines.push(format!("{prefix}: {}", projection_yaml_label(scalar))),
+    }
+}
+
+fn projection_yaml_label(value: &yaml_rust2::Yaml) -> String {
+    match value {
+        yaml_rust2::Yaml::Real(s) | yaml_rust2::Yaml::String(s) => s.clone(),
+        yaml_rust2::Yaml::Integer(n) => n.to_string(),
+        yaml_rust2::Yaml::Boolean(b) => b.to_string(),
+        yaml_rust2::Yaml::Alias(id) => format!("*{id}"),
+        yaml_rust2::Yaml::Null => "null".to_string(),
+        yaml_rust2::Yaml::BadValue => "(invalid)".to_string(),
+        yaml_rust2::Yaml::Array(_) => "[...]".to_string(),
+        yaml_rust2::Yaml::Hash(_) => "{...}".to_string(),
     }
 }
 
