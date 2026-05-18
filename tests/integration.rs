@@ -1014,6 +1014,7 @@ fn check_mode_passes_for_additional_valid_fixtures() {
         "include/valid_includesub.puml",
         "include/valid_c4_context.puml",
         "include/valid_awslib_ec2.puml",
+        "stdlib_include_tag/valid_stdlib_tagged_angle_include.puml",
         // preprocessor advanced directives
         "preprocessor/valid_while_variable_loop.puml",
         "preprocessor/valid_undef.puml",
@@ -5652,6 +5653,37 @@ fn stdlib_angle_bracket_include_is_idempotent_when_included_twice() {
         .success()
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn stdlib_angle_bracket_include_supports_tagged_fixture() {
+    let stdout = Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--dump",
+            "ast",
+            &fixture("stdlib_include_tag/valid_stdlib_tagged_angle_include.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty())
+        .get_output()
+        .stdout
+        .clone();
+
+    let ast: Value = serde_json::from_slice(&stdout).expect("valid JSON AST");
+    let stmts = ast["statements"].as_array().expect("statements array");
+    assert_eq!(
+        stmts.len(),
+        1,
+        "tagged stdlib include must omit untagged body lines"
+    );
+    assert_eq!(stmts[0]["kind"]["Message"]["from"], "Alice");
+    assert_eq!(stmts[0]["kind"]["Message"]["to"], "Bob");
+    assert_eq!(
+        stmts[0]["kind"]["Message"]["label"],
+        "from tagged stdlib include"
+    );
 }
 
 #[test]
