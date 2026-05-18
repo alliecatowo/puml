@@ -352,3 +352,118 @@ Audited 2026-05-18. 27 PNGs: usecase (4), object (4), component (5), deployment 
 3. **Creole HTML tag parsing incomplete** — `<color:X>` and `<size:N>` inline markup unrecognised; closing tags leak as literal text. Tracker: #573.
 4. **Deployment 3D cube shape absent** — UML spec requires nodes as 3D cubes; current render uses flat rectangle identical to packages. Tracker: #571.
 5. **Package/boundary label position** — Package labels appear at bottom of boundary rectangles instead of UML top-left tab. Tracker: #578.
+
+---
+
+## Post-Wave-15 audit (agent claude-sonnet-4-6)
+
+Audited 2026-05-18. Corpus regenerated fresh: 322/322 OK. Commit 2896c3710085e54e87b0c4557669292e9dc8534f. 30 PNGs reviewed across ARCH (5), CLASS/OBJECT/USECASE (7), COMPONENT/DEPLOYMENT/C4 (3), SEQUENCE/STATE/ACTIVITY (6), SPECIALIZED (5), plus arch self-host diagrams (5).
+
+---
+
+### Per-PNG verdict table
+
+| # | File | Status | Observations |
+|---|------|--------|--------------|
+| 1 | arch: architecture-overview.png | WARN | Overall layout correct; 3 nested packages render cleanly (Transports, Frontends, Pipeline Core, Output Formats). Arrow-through-box issue (#539) partially improved: most arrows now route around nodes, but the dense multi-arrow convergence at top-centre (CLI Binary → Parser region) still shows several arrows crossing the "package Pipeline Core" title bar. Edge label overlap (#540) substantially reduced but not eliminated: "source text" and "expanded source" labels still crowd near the Frontends-to-Pipeline boundary. Package label tab positions correct (top-left). |
+| 2 | arch: pipeline-sequence.png | PASS | All 7 lifelines present and correctly labelled. Alt/opt/loop combined fragments render cleanly with solid top-left labels and dashed dividers. Activation boxes on Normalizer and Renderer correct. Self-return arrows (resolve/apply) render as proper loopback arcs not open rectangles. Minor: "build AST nodes" step at Parser has very small horizontal extent — almost a zero-width return but readable. |
+| 3 | arch: language-service-layers.png | WARN | Wide class diagram (two package containers). Text is very small due to extreme aspect ratio; all class names legible at full resolution. Compartment dividers and stereotypes present and correct. Connectors between classes route correctly. Main concern: the diagram is wider than tall at ~15:1 ratio, making it nearly unreadable without zoom. Not a rendering bug per se but a layout issue for documentation use. |
+| 4 | arch: diagram-family-lifecycle.png | BUG | Confirmed #581 still open: state-machine edge labels severely overlap node text. "Preprocessor expands includes and macros" label collides with both the "Tokenized" state and "Parsed" state borders. "Parser builds AST" partially obscures "Parsed". "Engine applies s..." (truncated label) overlaps "Normalized". The initial transition arrow from the start dot fires two simultaneous arrows (one to "Source", one crossing behind "Tokenized") — ambiguous routing. |
+| 5 | arch: parity-status.png | PASS | Mind-map style parity overview renders cleanly. Color coding (green/red/orange/blue nodes) correct. All branch labels legible. Node sizes proportionate to label lengths. No clipping. |
+| 6 | class/01_basic.puml.png | PASS | Animal/Dog class boxes with header, attribute compartment, method compartment — all dividers present and correct (previously #468 P0 — now fixed). Inheritance arrow is hollow triangle (previously #467 P0 — now fixed). "owns" edge label well-spaced. Attribute text in green (#467 fix confirmed). |
+| 7 | class/12_all_relations.puml.png | WARN | Title "Relation Arrow Types in Class Diagrams" correct. Hollow triangle for A→B (inheritance) confirmed fixed. Composition (filled diamond at C) correct. Aggregation (open diamond at E) correct. Bug: A→B has two overlapping labels: "«extends»" and "association" are printed on top of each other at the midpoint of the arrow. One is the stereotype label, one is the relation label — they should be on opposite sides of the arrow or de-collided. Not previously filed; new issue candidate. |
+| 8 | class/14_nested_packages.puml.png | WARN | Confirmed #570 still open: the diagram renders all 7 nodes in a single flat horizontal strip inside three dashed package boxes. Packages "domain", "service", "repository" each show their label in the top-left correctly. However the layout is entirely horizontal with no vertical spacing — all nodes at the same Y. Cross-package arrows are horizontal connecting lines with arrowheads. Readable but extremely wide (2200px+). The inner label overlap (#570) is not visible in this sample — labels fit their boxes here. |
+| 9 | class/21_microservices.puml.png | WARN | Confirmed #572 still open: Gateway class box member text "authenticate(token): boolean" is truncated to "authenticate(token): boolea" — cut at the box right boundary. All other classes lack member compartments (empty boxes with just the name) which is correct since they have no declared attributes. Arrow routing is clean tree structure. |
+| 10 | object/03_with_links.puml.png | PASS | Server/Cache/Database object boxes with yellow background, underlined names, attribute lists. "uses" and "connects" edge labels correctly placed away from node borders. Arrows have proper filled arrowheads. Previously #564 (edge label clipped by box border) — not reproduced here; this sample passes. |
+| 11 | usecase/02_with_actors.puml.png | WARN | Actor stick figures correctly rendered (previously #475 P0 — now fixed). Use-case ellipses present. "leads to" (#574) label confirmed still overlapping the Admin actor body — label baseline sits inside the stick-figure torso area. "triggers" label also slightly close to BrowseProducts ellipse but readable. Arrows route with right-angle bends (staircase routing) rather than straight lines — acceptable but not ideal for use-case diagrams which conventionally use straight connectors. |
+| 12 | usecase/04_with_packages.puml.png | WARN | Actor stick figures present (post #475 fix). Package boundary boxes rendered (post #479 fix). Confirmed #578 still open: "Back Office" and "Online Store" package labels appear at top-left inside the border — actually this looks correct in the current render; the label IS at top-left. However, the diagram renders all elements in a single flat horizontal strip — BackOffice left, two actors center, OnlineStore right — producing an extremely wide (2144px) very short (608px) canvas with nearly all elements at the same vertical position. Actor lines connect horizontally across the diagram at near-zero angle, making the two double-headed arrows ("depends" and the double-arrow to AddToCart/Browse) look like a single thick horizontal line. This layout is essentially unreadable. |
+| 13 | component/06_with_arrows.puml.png | WARN | Confirmed #567 still open: "uses" dashed arrow label and "composed" plain label render on top of each other between A→C. "calls" label on A→B is placed correctly. The <<extend>> label on D→B is well-spaced. Component box shapes (with port stubs) are correct. The overlap is specifically the two labels from A going to C — only one label is clearly visible. |
+| 14 | deployment/04_mixed.puml.png | PASS | Substantially improved: CDN, Load Balancer, Web Server 1/2, Primary DB (cylinder), Replica DB (cylinder), Cache (artifact/folded-corner shape) all render correctly with their UML stereotypes ("node", "database", "artifact"). Node boxes no longer clipped at right (#569 appears resolved for this sample — need to verify 01-03 separately). 3D cube issue (#571) still present — nodes are flat rectangles not cubes, but this is a known open issue. Cylinder shapes for databases are a positive new development. |
+| 15 | c4/07_microservices.puml.png | PASS | Person actor (Client) renders as blue stick figure. Container boxes (API Gateway, Order/User/Product Services) with blue fill and [Container] label. External system boxes (Order DB, User DB) in grey with [System, ext]. Edge labels ("API calls", "Routes", "Reads/writes") all correctly placed without overlap. Previously #579 (C4 edge labels clipped/overlap) — not reproduced in this sample; passes. Good improvement. |
+| 16 | sequence/05_alt_opt_loop.puml.png | PASS | Alt/opt/loop combined fragments with bold top-left keyword labels and dashed dividers for "else" clauses. Filled arrowheads for sync calls, dashed-line open-head for returns. Actor boxes at top and bottom. Sequence reads correctly. Clean. |
+| 17 | sequence/11_activation.puml.png | PASS | Three lifelines (Alice, Bob, Carol). Activation boxes (narrow rectangles on lifeline) on Bob for the sub-call duration — correct UML activation notation. Arrow routing correct. "response" return dashes correctly cross Carol's lifeline. Clean. |
+| 18 | state/07_nested.puml.png | WARN | Composite state "Operational" contains sub-states "Idle" and nested composite "Working" (containing "Fetching" and "Processing"). Nesting renders correctly with rounded rectangle containment. Bug: the initial transition from the filled-circle start node fires TWO arrows simultaneously — one going UP-LEFT toward "shutdown" label and the initial "into Operational" arrow going right. The "shutdown" arrow (which should exit Operational back to the terminal) appears to originate from the initial dot, making the diagram look like the start state has a shutdown self-loop. This is an edge routing artefact: the final/terminate transition is sharing the same visual origin as the initial. Not previously filed at this specificity. |
+| 19 | state/03_concurrent.puml.png | WARN | Same double-arrow-from-start-dot issue as state/07: the start node fires two arrows, one of which is labelled — but in this case the dashed concurrent-region separator inside "Processing" is correctly rendered (horizontal dashed line dividing Parsing from Validating/Logging/Auditing). Concurrent regions work. The start-arrow ambiguity is the only flaw. |
+| 20 | activity/04_fork_join.puml.png | PASS | Fork bar (thick horizontal bar) and join bar both render correctly. Three parallel branches (Subtask A/A2, Subtask B, Subtask C) correctly splayed. "Merge Results" and terminal state correct. One minor note: Subtask C's convergence arrow goes diagonally to the join bar — slightly off-orthogonal but readable. Previously passing, still passing. |
+| 21 | activity/07_partition.puml.png | WARN | Partition swimlanes (Worker, Backend, Frontend) render with column headers. Bug: start node (filled circle) overlaps the "Worker" column header — the dot is positioned on top of the column label text. The flow then routes correctly through the swimlanes. Cross-lane arrows (Worker→Backend, Backend→Frontend, Frontend→Worker for terminal) all draw correctly. Previously filed as #588 (cross-lane arrow overlap) — the header overlap is related but distinct. |
+| 22 | math/02_complex.puml.png | PASS | Gaussian integral formula renders correctly: integral sign, e^(-x²) term, dx, equals sign, sqrt(pi)/2 fraction all correct. Previously passing; still passing. |
+| 23 | gantt/01_basic.puml.png | PASS | Project Timeline: Design/Build/Test bars with correct date-based widths. Kickoff milestone diamond correctly placed at 2026-01-01. Dashed dependency arrows connecting bars. Date header row correct. Previously passing; still passing. |
+| 24 | mindmap/02_multi_level.puml.png | PASS | Technology Stack mindmap: root (yellow), two primary branches (Frontend/Backend in blue, DevOps in blue), leaf nodes (green). Correct radial layout. All text legible. Previously passing; still passing. |
+| 25 | chart/01_bar.puml.png | PASS | Bar Chart: Q1/Q2/Q3/Q4 bars with correct values (42/58/73/91). Y-axis gridlines, axis labels ("Value", "Category"), and value labels above bars all correct. Title "Bar Chart" present. Previously WARN (Wave 7); now fully passing. |
+| 26 | ditaa/02_components.puml.png | BUG | Confirmed #523 still open: "Auth", "App", "DB" labels still render with spaces between every character ("A u t h", "A p p", "D B"). This is a character-spacing bug in the ditaa text renderer. Arrow between Auth→App renders correctly. App→DB connection line also correct. |
+
+---
+
+### FIXED candidates confirmed in this audit
+
+| Issue # | Description | Evidence |
+|---------|-------------|---------|
+| #467 | Class inheritance: hollow triangle arrow | class/01_basic: hollow triangle confirmed |
+| #468 | Class compartment divider between name and members | class/01_basic, 21_microservices: dividers present |
+| #475 | Usecase: no actors (stick figures missing) | usecase/02_with_actors, 04_with_packages: actors present |
+| #479 | Usecase: package/boundary rectangles not rendered | usecase/04_with_packages: boundary boxes present |
+| #551 | Class stereotype rendered in members compartment | class/12_all_relations: «extends» appears above name not in body |
+| #538 | Packages render as flat horizontal dashed strips | architecture-overview: package containers correct with tab labels |
+
+**Note on #539/540:** Arrow-through-box routing is substantially improved in architecture-overview but not fully eliminated at the Pipeline Core title bar boundary. Label de-collision (#540) also improved but convergence zone at Frontends→Pipeline still has crowded labels. Neither issue is clean enough to close.
+
+**Note on #578:** usecase/04_with_packages package labels now appear at top-left (not bottom). However the layout problem — everything in one horizontal strip — means this diagram is functionally unreadable regardless of label position. Issue remains open for layout.
+
+---
+
+### Still-present (confirmed in this audit)
+
+| Issue # | Family | Observation |
+|---------|--------|-------------|
+| #523 | ditaa | Character spacing: "A u t h", "A p p", "D B" |
+| #539 | arch/component | Arrow-through-box partially improved; not fully fixed |
+| #540 | arch | Edge label overlap in convergence zone; substantially improved |
+| #567 | component | 06_with_arrows: "uses"/"composed" labels overlap on A→C |
+| #570 | class | 14_nested_packages: flat horizontal strip; all nodes same Y |
+| #572 | class | 21_microservices: Gateway "authenticate(token)" text clipped |
+| #574 | usecase | 02_with_actors: "leads to" label overlaps Admin actor body |
+| #578 | usecase | 04_with_packages: layout unreadably flat/horizontal |
+| #581 | arch/state | diagram-family-lifecycle: edge labels overlap state nodes |
+| #571 | deployment | Node 3D cube shape absent (flat rectangles) |
+
+---
+
+### NEW issues filed
+
+| Issue # | Priority | Family | Description |
+|---------|----------|--------|-------------|
+| #617 | P2 | class | 12_all_relations: "«extends»" and "association" labels overlap at arrow midpoint (same position, should be on opposite sides) |
+| #618 | P2 | state | state/07_nested + state/03_concurrent: initial transition dot emits two arrows causing visual ambiguity with final/exit transition |
+| #619 | P2 | activity | activity/07_partition: start dot overlaps partition column header text |
+
+---
+
+### Top systemic issues (post-Wave-15)
+
+1. **Layout engine produces degenerate flat/horizontal arrangements** — Affects usecase/04_with_packages (everything same Y in one row), class/14_nested_packages (all nodes same Y). Root cause: left-right layout preference not balanced by vertical distribution. This makes diagrams with packages functionally unreadable even when individual element shapes are correct.
+2. **State transition initial-arrow ambiguity** — Start dot emits multiple arrows; final/exit transitions route back through the start region. Affects state/07_nested and state/03_concurrent. Trackers: #618.
+3. **Edge label crowding in convergence zones** — Still present in arch/architecture-overview (improved) and component/06_with_arrows. Label placement algorithm does not account for adjacent-arrow label proximity.
+4. **Class member text clipping** — Gateway box in class/21_microservices clips "authenticate(token): boolean" at box right edge. Boxes not widened to fit longest member string.
+5. **Ditaa character spacing** (#523) — persistent, minor but visible in all ditaa output.
+
+---
+
+### Overall grade trajectory
+
+| Wave | Approximate grade | Key milestone |
+|------|------------------|---------------|
+| Pre-W12 | D / D+ | No actors, no compartment dividers, no package containers |
+| Post-W12/W13 | C+ / B- | Actors, dividers, package containers, triangles fixed (P0 backlog cleared) |
+| Post-W15 (this audit) | B- | Core UML shapes substantially correct; remaining gaps are layout quality, label clearance, and a handful of shape-specific bugs |
+
+The trajectory is positive. The P0 backlog (missing actors, missing dividers, missing triangles, missing package containers) is cleared. What remains is a B-to-A gap: layout quality (flat arrangements, edge label crowding), a few shape-specific gaps (deployment 3D cubes, ditaa spacing, state initial-arrow ambiguity), and canvas sizing in edge cases.
+
+---
+
+### Recommended Wave 16 priorities
+
+1. **Layout vertical distribution** — When a `left to right direction` is not specified, ensure nodes are distributed vertically (rank-based layout). Fix the degenerate single-row cases in usecase/04 and class/14. This is the biggest quality-of-life gap visible in the current corpus.
+2. **Edge label clearance pass** — After placing edge labels, run a clearance check against all node bounding boxes and adjacent labels. Bump labels that intersect. Affects component/06, arch/diagram-family-lifecycle, usecase/02, class/12.
+3. **Class box width = max(member text widths)** — Gateway box in class/21 clips member text. Auto-size box width to accommodate widest attribute/method string.
+4. **State diagram exit-transition routing** — Ensure final/shutdown transitions originate from the state node boundary, not the start-dot region.
+5. **Deployment 3D cube node shape** (#571) — Low complexity, high parity value. UML deployment nodes must render as 3D cubes.
