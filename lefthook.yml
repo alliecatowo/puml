@@ -29,7 +29,7 @@ pre-push:
   commands:
     clippy:
       name: cargo clippy
-      run: cargo clippy --all-targets -- -D warnings
+      run: cargo clippy --all-targets --all-features -- -D warnings
       fail_text: |
         clippy found warnings. Fix them before pushing (warnings are errors in CI).
     test-lib:
