@@ -10,7 +10,7 @@ Audit date: `2026-05-15` (America/Los_Angeles)
 1. `cargo fmt --check`
 2. `cargo clippy --all-targets --all-features -- -D warnings`
 3. `cargo test`
-4. `cargo llvm-cov --all-features --workspace --fail-under-lines 83 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'`
+4. `cargo llvm-cov --all-features --workspace --fail-under-lines 85 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'`
 5. `cargo build --release`
 6. `./scripts/bench.sh --enforce-gates`
 
@@ -26,7 +26,7 @@ Quick mode contract:
 
 - Script gate enforcement:
   - [x] `scripts/check-all.sh` full mode now includes `cargo build --release`.
-  - [x] `scripts/check-all.sh` full mode scopes coverage to core workspace files and excludes CLI entrypoint binaries and the library facade (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`) while keeping the 90% line gate.
+  - [x] `scripts/check-all.sh` full mode scopes coverage to core workspace files and excludes CLI entrypoint binaries and the library facade (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`) while keeping the 85% line gate.
 - Deterministic regression checks:
   - [x] `tests/release_contract_audit.rs` validates required full-gate command ordering.
   - [x] `tests/release_contract_audit.rs` verifies release docs mention coverage + release build contract and pins scoped coverage regex.
@@ -38,7 +38,7 @@ Quick mode contract:
 
 ## Epic #30 Closure Evidence
 
-- `./scripts/check-all.sh` passed end-to-end (fmt, clippy, tests, scoped 90% coverage gate, release build, full benchmark gates).
+- `./scripts/check-all.sh` passed end-to-end (fmt, clippy, tests, scoped 85% coverage gate, release build, full benchmark gates).
 - `./scripts/check-all.sh --quick` passed end-to-end (fmt, clippy, tests, quick benchmark gates).
 - `./scripts/harness-check.sh` passed (agent-pack contracts, MCP smoke checks, parity harness).
 - `tests/svg_bounds_audit.rs` now enforces docs-example parity closure with `doc_examples.summary.failed == 0`.
