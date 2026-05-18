@@ -368,7 +368,7 @@ Landed (2026-05-15): `--check`, `--dump`, `--multi`, `--from-markdown`, `--diagn
 #87 is closed. Follow-up runtime gaps are tracked on their owning parity rows
 rather than by reopening the blitz issue:
 - `hide unlinked` filters unreferenced explicit sequence participants; broader non-sequence `hide @unlinked` parity remains tracked separately.
-- `--format png` is supported through deterministic SVG rasterization with `--dpi`; advanced PlantUML raster flags beyond DPI remain out of scope.
+- `--format png`, `--format jpg`, and `--format webp` are supported through deterministic SVG rasterization with `--dpi`; advanced PlantUML raster flags beyond DPI remain out of scope. `--format html` writes a self-contained HTML document around the rendered SVG.
 
 #### Differential Oracle — Smoke Workflow Landed / Full Parity Deferred
 

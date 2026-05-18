@@ -47,6 +47,8 @@ struct MultiSvgOut {
     #[serde(skip_serializing_if = "Option::is_none")]
     svg: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    html: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     text: Option<String>,
 }
 
@@ -547,7 +549,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 .map(|base| format!("{base}.{}", output_extension(cli.format)));
             all.push(RenderedOutput {
                 name_hint,
-                content: svg,
+                content: render_svg_export_content(&svg, cli.format),
             });
             return Ok(all);
         }
@@ -587,10 +589,13 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     }
 
     if input_path.is_none() && outputs.len() > 1 {
-        if cli.format == OutputFormat::Png {
+        if cli.format.is_binary() {
             return Err((
                 EXIT_VALIDATION,
-                "multiple PNG outputs on stdin are not supported; provide file input or --output"
+                format!(
+                    "multiple {} outputs on stdin are not supported; provide file input or --output",
+                    output_extension(cli.format).to_uppercase()
+                )
                     .to_string(),
             ));
         }
@@ -602,6 +607,11 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     format!("diagram-{}.{}", idx + 1, output_extension(cli.format))
                 }),
                 svg: if cli.format == OutputFormat::Svg {
+                    Some(out.content.clone())
+                } else {
+                    None
+                },
+                html: if cli.format == OutputFormat::Html {
                     Some(out.content.clone())
                 } else {
                     None
@@ -654,13 +664,21 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
 
     if outputs.len() == 1 {
         match cli.format {
-            OutputFormat::Svg => {
+            OutputFormat::Svg | OutputFormat::Html => {
                 println!("{}", outputs[0].content);
             }
-            OutputFormat::Png => {
+            OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
                 io::stdout()
                     .write_all(&binary_outputs[0].bytes)
-                    .map_err(|e| (EXIT_IO, format!("failed to write PNG to stdout: {e}")))?;
+                    .map_err(|e| {
+                        (
+                            EXIT_IO,
+                            format!(
+                                "failed to write {} to stdout: {e}",
+                                output_extension(cli.format).to_uppercase()
+                            ),
+                        )
+                    })?;
             }
             OutputFormat::Txt | OutputFormat::Atxt | OutputFormat::Utxt => {
                 print!("{}", outputs[0].content);
@@ -1205,8 +1223,24 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
 fn render_pages_from_model(model: &NormalizedDocument, format: OutputFormat) -> Vec<String> {
     match format.text_mode() {
         Some(mode) => render::render_text_pages(model, mode),
-        None => render_svg_pages_from_model(model),
+        None => render_svg_pages_from_model(model)
+            .into_iter()
+            .map(|svg| render_svg_export_content(&svg, format))
+            .collect(),
     }
+}
+
+fn render_svg_export_content(svg: &str, format: OutputFormat) -> String {
+    match format {
+        OutputFormat::Html => svg_to_html_document(svg),
+        _ => svg.to_string(),
+    }
+}
+
+fn svg_to_html_document(svg: &str) -> String {
+    format!(
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>puml diagram</title>\n<style>html,body{{margin:0;min-height:100%;background:#fff;}}body{{display:flex;align-items:flex-start;justify-content:center;padding:16px;box-sizing:border-box;}}svg{{max-width:100%;height:auto;}}</style>\n</head>\n<body>\n{svg}\n</body>\n</html>"
+    )
 }
 
 fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
@@ -1717,7 +1751,10 @@ fn transactional_write_fail_after() -> Option<usize> {
 fn output_extension(format: OutputFormat) -> &'static str {
     match format {
         OutputFormat::Svg => "svg",
+        OutputFormat::Html => "html",
         OutputFormat::Png => "png",
+        OutputFormat::Jpg => "jpg",
+        OutputFormat::Webp => "webp",
         OutputFormat::Txt => "txt",
         OutputFormat::Atxt => "atxt",
         OutputFormat::Utxt => "utxt",
@@ -1726,7 +1763,14 @@ fn output_extension(format: OutputFormat) -> &'static str {
 
 impl OutputFormat {
     fn uses_svg_renderer(self) -> bool {
-        matches!(self, Self::Svg | Self::Png)
+        matches!(
+            self,
+            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp
+        )
+    }
+
+    fn is_binary(self) -> bool {
+        matches!(self, Self::Png | Self::Jpg | Self::Webp)
     }
 
     fn is_text(self) -> bool {
@@ -1735,7 +1779,7 @@ impl OutputFormat {
 
     fn text_mode(self) -> Option<TextOutputMode> {
         match self {
-            Self::Svg | Self::Png => None,
+            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp => None,
             Self::Txt => Some(TextOutputMode::Txt),
             Self::Atxt => Some(TextOutputMode::Atxt),
             Self::Utxt => Some(TextOutputMode::Utxt),
@@ -1749,10 +1793,14 @@ fn render_output_bytes(
     dpi: f32,
 ) -> Result<RenderedBinaryOutput, (u8, String)> {
     let bytes = match format {
-        OutputFormat::Svg | OutputFormat::Txt | OutputFormat::Atxt | OutputFormat::Utxt => {
-            output.content.as_bytes().to_vec()
+        OutputFormat::Svg
+        | OutputFormat::Html
+        | OutputFormat::Txt
+        | OutputFormat::Atxt
+        | OutputFormat::Utxt => output.content.as_bytes().to_vec(),
+        OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
+            svg_to_raster_bytes(&output.content, format, dpi)?
         }
-        OutputFormat::Png => svg_to_png_bytes(&output.content, dpi)?,
     };
     Ok(RenderedBinaryOutput {
         name_hint: output.name_hint.clone(),
@@ -1760,7 +1808,29 @@ fn render_output_bytes(
     })
 }
 
-fn svg_to_png_bytes(svg: &str, dpi: f32) -> Result<Vec<u8>, (u8, String)> {
+struct RasterizedSvg {
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+}
+
+fn svg_to_raster_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<u8>, (u8, String)> {
+    let raster = rasterize_svg(svg, dpi)?;
+    match format {
+        OutputFormat::Png => encode_png(&raster),
+        OutputFormat::Jpg => encode_jpg(&raster),
+        OutputFormat::Webp => encode_webp(&raster),
+        _ => Err((
+            EXIT_INTERNAL,
+            format!(
+                "format '{}' does not use SVG raster export",
+                output_extension(format)
+            ),
+        )),
+    }
+}
+
+fn rasterize_svg(svg: &str, dpi: f32) -> Result<RasterizedSvg, (u8, String)> {
     let mut opt = resvg::usvg::Options::default();
     let fontdb = opt.fontdb_mut();
     fontdb.load_system_fonts();
@@ -1792,11 +1862,63 @@ fn svg_to_png_bytes(svg: &str, dpi: f32) -> Result<Vec<u8>, (u8, String)> {
     let transform = tiny_skia::Transform::from_scale(scale, scale);
     resvg::render(&tree, transform, &mut pixmap.as_mut());
 
+    Ok(RasterizedSvg {
+        width,
+        height,
+        rgba: pixmap.data().to_vec(),
+    })
+}
+
+fn encode_png(raster: &RasterizedSvg) -> Result<Vec<u8>, (u8, String)> {
     let mut png = Vec::new();
     image::codecs::png::PngEncoder::new(&mut png)
-        .write_image(pixmap.data(), width, height, image::ColorType::Rgba8.into())
+        .write_image(
+            &raster.rgba,
+            raster.width,
+            raster.height,
+            image::ColorType::Rgba8.into(),
+        )
         .map_err(|e| (EXIT_IO, format!("failed to encode PNG: {e}")))?;
     Ok(png)
+}
+
+fn encode_jpg(raster: &RasterizedSvg) -> Result<Vec<u8>, (u8, String)> {
+    let rgb = rgba_to_rgb_over_white(&raster.rgba);
+    let mut jpg = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpg, 90)
+        .write_image(
+            &rgb,
+            raster.width,
+            raster.height,
+            image::ColorType::Rgb8.into(),
+        )
+        .map_err(|e| (EXIT_IO, format!("failed to encode JPG: {e}")))?;
+    Ok(jpg)
+}
+
+fn encode_webp(raster: &RasterizedSvg) -> Result<Vec<u8>, (u8, String)> {
+    let mut webp = Vec::new();
+    image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
+        .write_image(
+            &raster.rgba,
+            raster.width,
+            raster.height,
+            image::ColorType::Rgba8.into(),
+        )
+        .map_err(|e| (EXIT_IO, format!("failed to encode WebP: {e}")))?;
+    Ok(webp)
+}
+
+fn rgba_to_rgb_over_white(rgba: &[u8]) -> Vec<u8> {
+    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
+    for pixel in rgba.chunks_exact(4) {
+        let alpha = pixel[3] as u16;
+        for channel in &pixel[..3] {
+            let value = ((*channel as u16 * alpha) + (255 * (255 - alpha)) + 127) / 255;
+            rgb.push(value as u8);
+        }
+    }
+    rgb
 }
 
 fn ast_to_json(doc: &Document) -> Value {

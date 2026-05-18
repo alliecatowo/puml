@@ -160,7 +160,10 @@ pub struct FormatArgs {
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
 pub enum OutputFormat {
     Svg,
+    Html,
     Png,
+    Jpg,
+    Webp,
     Txt,
     Atxt,
     Utxt,
