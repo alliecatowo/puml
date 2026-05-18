@@ -290,11 +290,46 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     }
 
     // ── Canvas dimensions from layout result ──────────────────────────────────
+    let nodes_right = node_boxes
+        .values()
+        .map(|b| b.x + b.w)
+        .max()
+        .unwrap_or(margin_x);
     let nodes_bottom = node_boxes
         .values()
         .map(|b| b.y + b.h)
         .max()
         .unwrap_or(margin_top + title_block_height);
+    let mut groups_right = margin_x;
+    let mut groups_bottom = margin_top + title_block_height;
+    for group in &group_frames {
+        let mut gx_min = i32::MAX;
+        let mut gy_min = i32::MAX;
+        let mut gx_max = i32::MIN;
+        let mut gy_max = i32::MIN;
+        let mut found_any = false;
+        for member_id in &group.member_ids {
+            if let Some(bx) = node_boxes.get(member_id.as_str()) {
+                gx_min = gx_min.min(bx.x);
+                gy_min = gy_min.min(bx.y);
+                gx_max = gx_max.max(bx.x + bx.w);
+                gy_max = gy_max.max(bx.y + bx.h);
+                found_any = true;
+            }
+        }
+        if !found_any {
+            continue;
+        }
+        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
+        let pad = 16 + depth_outset;
+        let label_header = 40 + depth_outset;
+        let fx = gx_min - pad;
+        let fy = gy_min - pad - label_header;
+        let fw = (gx_max - gx_min) + pad * 2;
+        let fh = (gy_max - gy_min) + pad * 2 + label_header;
+        groups_right = groups_right.max(fx + fw);
+        groups_bottom = groups_bottom.max(fy + fh);
+    }
 
     // Compute width / height of the SVG; account for JSON projection height.
     let proj_extra_height: i32 = document.json_projections.iter().fold(0, |acc, proj| {
@@ -305,8 +340,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let gl_canvas_right = gl_result_class.canvas_width as i32;
     let gl_canvas_bottom = gl_result_class.canvas_height as i32;
     let svg_width = (margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap)
-        .max(gl_canvas_right + margin_x);
-    let svg_height = (nodes_bottom + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
+        .max(gl_canvas_right + margin_x)
+        .max(nodes_right + margin_x)
+        .max(groups_right + margin_x);
+    let svg_height =
+        (nodes_bottom.max(groups_bottom) + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -707,18 +745,32 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 ));
             }
         }
-        // UseCase dependency labels (<<extend>>, <<include>>) at midpoint above edge (fix #575).
-        // Regular relation labels placed at label_mx/label_my (orthogonal-aware).
+        // UseCase dependency labels (<<extend>>, <<include>>) use the same
+        // de-collision pre-pass as other relation labels so shared channels do
+        // not stack labels on top of each other (#575, #482).
         if let Some(label) = usecase_dependency {
-            let (lx, ly) = if ortho_pts.is_some() {
+            let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
+                (ox, oy)
+            } else if ortho_pts.is_some() {
                 (label_mx, label_my)
             } else {
-                let dx_abs = (x2 - x1).abs();
-                let dy_abs = (y2 - y1).abs();
-                if dy_abs > dx_abs {
-                    ((x1 + x2) / 2 + 14, (y1 + y2) / 2 - 6)
+                let dx = x2 - x1;
+                let dy = y2 - y1;
+                let dx_abs = dx.abs();
+                let dy_abs = dy.abs();
+                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
+                if edge_len <= 2 {
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
                 } else {
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 14)
+                    let clearance = 30i32;
+                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
+                    let raw_x = x1 + dx * t_num / edge_len;
+                    let raw_y = y1 + dy * t_num / edge_len;
+                    if dy_abs > dx_abs {
+                        (raw_x + 14, raw_y - 6)
+                    } else {
+                        (raw_x, raw_y - 14)
+                    }
                 }
             };
             let label_half_w = ((label.chars().count() as i32) * 3).max(18);
@@ -804,18 +856,44 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
         let group_label = group.display_label();
 
+        let uses_tab_header = matches!(group.kind.as_str(), "rectangle" | "package");
+
         // Frame rectangle
         out.push_str(&format!(
             "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
             escape_text(&group.scope)
         ));
-        // Group label text
-        out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
-            tx = fx + 8,
-            ty = fy + 14,
-            label = escape_text(&group_label)
-        ));
+        if uses_tab_header {
+            let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
+            let tab_h = 24;
+            out.push_str(&format!(
+                "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{tab_h}\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#6366f1\" stroke-width=\"1.5\"/>"
+            ));
+            out.push_str(&format!(
+                "<rect x=\"{fx}\" y=\"{}\" width=\"{tab_w}\" height=\"8\" fill=\"#ffffff\" stroke=\"none\"/>",
+                fy + tab_h - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
+                tx = fx + 8,
+                ty = fy + 16,
+                label = escape_text(&group_label)
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{fx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#6366f1\" stroke-width=\"1\"/>",
+                fy + tab_h,
+                fx + fw,
+                fy + tab_h
+            ));
+        } else {
+            // Group label text
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
+                tx = fx + 8,
+                ty = fy + 14,
+                label = escape_text(&group_label)
+            ));
+        }
     }
 
     // Render nodes
@@ -2655,9 +2733,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // We must add this to all right-edge estimates so the cube clears the canvas
     // right margin (fix #565 #569).
     const CUBE_OFFSET: i32 = 12;
-    let has_3d_node = doc.nodes.iter().any(|n| {
-        matches!(n.kind, FamilyNodeKind::Node | FamilyNodeKind::Frame)
-    });
+    let has_3d_node = doc
+        .nodes
+        .iter()
+        .any(|n| matches!(n.kind, FamilyNodeKind::Node | FamilyNodeKind::Frame));
     let shape_right_extra = if has_3d_node { CUBE_OFFSET } else { 0 };
 
     let all_pkg_right = pkg_layouts

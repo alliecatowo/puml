@@ -4912,6 +4912,48 @@ fn svg_attr_i32(tag: &str, attr: &str) -> Option<i32> {
     value.parse().ok()
 }
 
+fn svg_text_positions(svg: &str, text: &str) -> Vec<(i32, i32)> {
+    let marker = format!(">{text}</text>");
+    let mut positions = Vec::new();
+    let mut start = 0usize;
+    while let Some(rel_ix) = svg[start..].find(&marker) {
+        let abs_ix = start + rel_ix;
+        let Some(tag_start) = svg[..abs_ix].rfind("<text ") else {
+            break;
+        };
+        let tag = svg[tag_start..]
+            .split_once('>')
+            .map(|(tag, _)| tag)
+            .unwrap_or("");
+        let Some(x) = svg_attr_i32(tag, "x") else {
+            break;
+        };
+        let Some(y) = svg_attr_i32(tag, "y") else {
+            break;
+        };
+        positions.push((x, y));
+        start = abs_ix + marker.len();
+    }
+    positions
+}
+
+fn svg_relation_element<'a>(svg: &'a str, from: &str, to: &str) -> Option<&'a str> {
+    let from_attr = format!("data-uml-from=\"{from}\"");
+    let to_attr = format!("data-uml-to=\"{to}\"");
+    svg.split('<')
+        .find(|element| element.contains(&from_attr) && element.contains(&to_attr))
+}
+
+fn svg_relation_end(element: &str) -> Option<(i32, i32)> {
+    if let Some((_, points_rest)) = element.split_once("points=\"") {
+        let points = points_rest.split_once('"')?.0;
+        let last = points.split_whitespace().last()?;
+        let (x, y) = last.split_once(',')?;
+        return Some((x.parse().ok()?, y.parse().ok()?));
+    }
+    Some((svg_attr_i32(element, "x2")?, svg_attr_i32(element, "y2")?))
+}
+
 #[test]
 fn archimate_family_check_mode_passes_for_valid_input() {
     Command::cargo_bin("puml")
@@ -5434,6 +5476,102 @@ fn usecase_include_extend_dependencies_render_as_dashed_open_arrows() {
     assert!(svg.contains("marker-end=\"url(#arrow-open)\""));
     assert!(svg.contains("&lt;&lt;include&gt;&gt;"));
     assert!(svg.contains("&lt;&lt;extend&gt;&gt;"));
+}
+
+#[test]
+fn component_family_canvas_keeps_rightmost_nodes_inside_viewbox() {
+    for src in [
+        fs::read_to_string(example("component/01_basic.puml")).unwrap(),
+        fs::read_to_string(example("component/02_interfaces.puml")).unwrap(),
+        fs::read_to_string(example("component/05_with_notes.puml")).unwrap(),
+    ] {
+        let svg = render_source_to_svg(&src).expect("component example should render");
+        let svg_width = extract_svg_width_attr(&svg).expect("svg width");
+        let rightmost_component = svg_elements_with_attr(&svg, "data-uml-kind", "component")
+            .into_iter()
+            .map(|element| {
+                svg_attr_i32_required(element, "x") + svg_attr_i32_required(element, "width")
+            })
+            .max()
+            .expect("component nodes");
+        let rightmost_interface = svg_elements_with_attr(&svg, "data-uml-kind", "interface")
+            .into_iter()
+            .map(|element| {
+                svg_attr_i32_required(element, "cx") + svg_attr_i32_required(element, "r")
+            })
+            .max()
+            .unwrap_or(0);
+        let rightmost_drawn = rightmost_component.max(rightmost_interface);
+        assert!(
+            svg_width >= rightmost_drawn + 24,
+            "rightmost component/interface should keep a right margin"
+        );
+    }
+}
+
+#[test]
+fn usecase_relation_labels_clear_arrowheads_and_each_other() {
+    let overlap_svg = render_source_to_svg(
+        &fs::read_to_string(example("usecase/03_extends_includes.puml")).unwrap(),
+    )
+    .expect("usecase overlap example should render");
+    let mut dependency_positions = svg_text_positions(&overlap_svg, "&lt;&lt;extend&gt;&gt;");
+    dependency_positions.extend(svg_text_positions(&overlap_svg, "&lt;&lt;include&gt;&gt;"));
+    assert_eq!(
+        dependency_positions.len(),
+        3,
+        "expected three dependency labels"
+    );
+    for i in 0..dependency_positions.len() {
+        for j in (i + 1)..dependency_positions.len() {
+            let dx = (dependency_positions[i].0 - dependency_positions[j].0).abs();
+            let dy = (dependency_positions[i].1 - dependency_positions[j].1).abs();
+            assert!(dx >= 40 || dy >= 12, "dependency labels should not collide");
+        }
+    }
+
+    let basic_svg =
+        render_source_to_svg(&fs::read_to_string(example("usecase/01_basic.puml")).unwrap())
+            .expect("basic usecase example should render");
+    let label = svg_text_positions(&basic_svg, "leads to")
+        .into_iter()
+        .next()
+        .expect("relation label position");
+    let relation = svg_relation_element(&basic_svg, "Login", "Register").expect("relation element");
+    let end = svg_relation_end(relation).expect("relation endpoint");
+    assert!(
+        (label.0 - end.0).abs() >= 24 || (label.1 - end.1).abs() >= 18,
+        "relation label should clear the arrowhead attachment point"
+    );
+    assert!(
+        label.1 < end.1,
+        "relation label should float above the arrowhead endpoint"
+    );
+}
+
+#[test]
+fn usecase_package_boundaries_render_tab_headers_and_short_names() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("usecase/04_with_packages.puml")).unwrap(),
+    )
+    .expect("usecase package example should render");
+    let frame = svg_elements_with_attr(&svg, "data-uml-group", "Back Office")
+        .into_iter()
+        .find(|element| element.contains("class=\"uml-group-frame\""))
+        .expect("back office frame");
+    let frame_y = svg_attr_i32_required(frame, "y");
+    let label = svg_text_positions(&svg, "Back Office")
+        .into_iter()
+        .next()
+        .expect("back office label");
+    assert!(
+        label.1 <= frame_y + 20,
+        "boundary label should render in the top tab area"
+    );
+    assert!(svg.contains(">ManageProducts<"));
+    assert!(svg.contains(">ManageOrders<"));
+    assert!(!svg.contains("Back Office::MP"));
+    assert!(!svg.contains("Back Office::MO"));
 }
 
 #[test]
