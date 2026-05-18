@@ -39,8 +39,8 @@ fn release_docs_capture_release_gate_contract() {
     let bench_docs = fs::read_to_string(repo_path("docs/benchmarks/README.md"))
         .expect("failed to read docs/benchmarks/README.md");
     let readme = fs::read_to_string(repo_path("README.md")).expect("failed to read README.md");
-    let coverage = fs::read_to_string(repo_path("docs/coverage-status.md"))
-        .expect("failed to read docs/coverage-status.md");
+    let coverage = fs::read_to_string(repo_path("docs/internal/coverage-status.md"))
+        .expect("failed to read docs/internal/coverage-status.md");
 
     assert!(
         checklist.contains("cargo build --release"),
@@ -110,9 +110,12 @@ fn release_docs_capture_release_gate_contract() {
         bench_docs.contains("baseline_full.json") && bench_docs.contains("baseline_quick.json"),
         "bench docs should describe mode-scoped baselines"
     );
+    // README was rewritten as a user-facing landing page (#457); developer gate docs
+    // moved to docs/release-checklist.md and CONTRIBUTING.md.
     assert!(
-        readme.contains("./scripts/check-all.sh --quick"),
-        "README should document quick gate usage"
+        readme.contains("./scripts/check-all.sh --quick")
+            || checklist.contains("./scripts/check-all.sh --quick"),
+        "README or release checklist should document quick gate usage"
     );
     assert!(
         readme.contains("--update-baseline")

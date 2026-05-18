@@ -41,13 +41,15 @@ fn render_svg_pragma_teoz_boundary_keeps_sequence_render_output_stable() {
     assert_eq!(base_svg, pragma_svg);
 }
 
+
 #[test]
 fn render_core_uml_broad_partials_surface_expected_labels() {
     let cases = [
         (
             "class",
             "@startuml\ninterface Gateway\nabstract class Shape\nGateway -[#blue,dashed]-> Shape : adapts\n@enduml\n",
-            vec!["Gateway", "&lt;&lt;interface&gt;&gt;", "Shape", "adapts"],
+            // Wave 3 renderer now uses Unicode guillemets («»), not HTML-escaped angle pairs
+            vec!["Gateway", "\u{00ab}interface\u{00bb}", "Shape", "adapts"],
         ),
         (
             "object",
@@ -67,11 +69,11 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
         (
             "activity",
             "@startuml\nstart\nswitch (kind?)\ncase (A)\n:Do A;\nendswitch\nsplit\n:one;\nsplit again\n:two;\nend split\nlabel retry\ngoto retry\nbackward: retry path;\nkill\n@enduml\n",
+            // Wave 3-D (#533) suppresses "(else) A" and "branch 2" canvas literals;
+            // verify the content and control-flow nodes that are still rendered
             vec![
                 "switch kind?",
-                "(else) A",
                 "Do A",
-                "branch 2",
                 "goto retry",
                 "backward retry path",
             ],
