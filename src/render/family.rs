@@ -1933,7 +1933,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let pkg_tab = 28i32; // height of the package label tab at top
     let canvas_margin = 40i32;
     let pkg_gap = 32i32; // gap between packages on the canvas
-    let outer_cols = 2i32; // package layout columns (1 if few packages)
+    // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
+    let _outer_cols = 2i32;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 1: Build group membership maps
@@ -1954,123 +1955,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Phase 1b: Lay out each group's children in a local sub-grid
+    // Phase 1b–1d: Hierarchical graph layout (Stage 2, #592)
+    //
+    // Build NodeSize + EdgeSpec lists, run layout_hierarchical, then extract
+    // the resulting positions back into the pkg_layouts / positions structures
+    // that the rendering code below expects.
     // ─────────────────────────────────────────────────────────────────────────
-    struct PackageLayout {
-        group_idx: usize,
-        /// Display label: "kind label" (e.g. "package Frontends")
-        label: String,
-        /// Raw scope key for data-uml-group attribute (e.g. "Frontends")
-        scope: String,
-        kind: String,
-        // child node IDs in document order
-        node_ids: Vec<String>,
-        // local (x,y) for each child within the package interior (0-based)
-        local_positions: Vec<(i32, i32)>,
-        // total interior size (before pkg_pad is applied)
-        inner_w: i32,
-        inner_h: i32,
-        // absolute canvas position of the package top-left (set later)
-        abs_x: i32,
-        abs_y: i32,
-    }
-
-    // Order packages by their first occurrence in doc.groups
-    let mut pkg_layouts: Vec<PackageLayout> = Vec::new();
-    let mut seen_groups: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
-
-    for (g_idx, group) in pkg_groups.iter().enumerate() {
-        if seen_groups.contains(&g_idx) {
-            continue;
-        }
-        seen_groups.insert(g_idx);
-
-        // Collect nodes that belong to this group, in document order
-        let mut node_ids_in_group: Vec<String> = Vec::new();
-        for node in &doc.nodes {
-            let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-            if node_to_group.get(&key) == Some(&g_idx)
-                || node_to_group.get(&node.name) == Some(&g_idx)
-            {
-                if !node_ids_in_group.contains(&key) {
-                    node_ids_in_group.push(key);
-                }
-            }
-        }
-
-        if node_ids_in_group.is_empty() {
-            // No known nodes — still create a placeholder package
-            // (the member_ids from the group may not have been seen as nodes yet)
-            for mid in &group.member_ids {
-                if !node_ids_in_group.contains(mid) {
-                    node_ids_in_group.push(mid.clone());
-                }
-            }
-        }
-
-        // Compute local positions in a sub-grid
-        let n = node_ids_in_group.len() as i32;
-        let cols = inner_cols.min(n.max(1));
-        let local_positions: Vec<(i32, i32)> = node_ids_in_group
-            .iter()
-            .enumerate()
-            .map(|(i, _)| {
-                let col = (i as i32) % cols;
-                let row = (i as i32) / cols;
-                (col * (cell_w + inner_gap), row * (cell_h + inner_gap))
-            })
-            .collect();
-
-        let rows = (n + cols - 1) / cols;
-        let inner_w = cols * cell_w + (cols - 1).max(0) * inner_gap;
-        let inner_h =
-            rows * (cell_h + inner_gap) - inner_gap.min(if rows > 0 { inner_gap } else { 0 });
-        let inner_h = inner_h.max(cell_h);
-
-        // Build display label matching the old RenderGroupFrame::display_label() format:
-        // "kind label" if label is non-empty, else just "kind".
-        let raw_label = group.label.clone().unwrap_or_default();
-        let scope = if raw_label.is_empty() {
-            group.kind.clone()
-        } else {
-            raw_label.clone()
-        };
-        let label = if raw_label.is_empty() {
-            group.kind.clone()
-        } else if group.kind == "rectangle" {
-            // `rectangle` is a visual-boundary keyword (e.g. usecase system boundary, fix #553);
-            // the label alone is the intended display name.
-            raw_label.clone()
-        } else {
-            format!("{} {}", group.kind, raw_label)
-        };
-
-        pkg_layouts.push(PackageLayout {
-            group_idx: g_idx,
-            label,
-            scope,
-            kind: group.kind.clone(),
-            node_ids: node_ids_in_group,
-            local_positions,
-            inner_w,
-            inner_h,
-            abs_x: 0,
-            abs_y: 0,
-        });
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Phase 1c: Place packages on the canvas
-    // ─────────────────────────────────────────────────────────────────────────
-    // pkg frame total size = inner + 2*pkg_pad wide, pkg_tab + pkg_pad + inner_h + pkg_pad tall
-    let pkg_frame_widths: Vec<i32> = pkg_layouts
-        .iter()
-        .map(|p| p.inner_w + pkg_pad * 2)
-        .collect();
-    let pkg_frame_heights: Vec<i32> = pkg_layouts
-        .iter()
-        .map(|p| p.inner_h + pkg_pad * 2 + pkg_tab)
-        .collect();
+    use crate::render::graph_layout::{
+        layout_hierarchical, EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions,
+        NodeSize as GlNodeSize,
+    };
 
     let title_lines = doc
         .title
@@ -2083,71 +1977,224 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         0
     };
 
-    // Choose column count for packages on the canvas
-    let n_pkgs = pkg_layouts.len() as i32;
-    let pkg_cols = if n_pkgs <= 1 { 1 } else { outer_cols };
-
-    // Compute per-column widths and per-row heights
-    let col_count = pkg_cols as usize;
-    let mut col_widths: Vec<i32> = vec![0i32; col_count];
-    let pkg_row_count = ((n_pkgs + pkg_cols - 1) / pkg_cols) as usize;
-    let mut row_heights: Vec<i32> = vec![0i32; pkg_row_count];
-
-    for (i, fw) in pkg_frame_widths.iter().enumerate() {
-        let col = i % col_count;
-        col_widths[col] = col_widths[col].max(*fw);
-    }
-    for (i, fh) in pkg_frame_heights.iter().enumerate() {
-        let row = i / col_count;
-        row_heights[row] = row_heights[row].max(*fh);
-    }
-
-    // Compute cumulative col/row offsets
-    let col_offsets: Vec<i32> = {
-        let mut offs = vec![0i32; col_count];
-        let mut x = canvas_margin;
-        for (i, w) in col_widths.iter().enumerate() {
-            offs[i] = x;
-            x += w + pkg_gap;
+    // Build the group-id lookup: group scope string → group index
+    // We use the first group's scope key as parent id for layout.
+    // group_scope_by_idx[g_idx] → scope string used as parent id.
+    let group_scope_by_idx: Vec<String> = {
+        let mut scopes: Vec<String> = Vec::new();
+        let mut seen: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+        for (g_idx, group) in pkg_groups.iter().enumerate() {
+            if seen.contains(&g_idx) {
+                continue;
+            }
+            seen.insert(g_idx);
+            let raw_label = group.label.clone().unwrap_or_default();
+            let scope = if raw_label.is_empty() {
+                group.kind.clone()
+            } else {
+                raw_label.clone()
+            };
+            // Ensure unique scope strings (append index if needed)
+            let unique_scope = if scopes.contains(&scope) {
+                format!("{scope}_{g_idx}")
+            } else {
+                scope
+            };
+            scopes.push(unique_scope);
         }
-        offs
+        scopes
     };
-    let row_offsets: Vec<i32> = {
-        let mut offs = vec![0i32; pkg_row_count];
-        let mut y = canvas_margin + header_h;
-        for (i, h) in row_heights.iter().enumerate() {
-            offs[i] = y;
-            y += h + pkg_gap;
-        }
-        offs
+    // Map: group_idx → scope (for node parent assignment)
+    let group_scope_map: std::collections::BTreeMap<usize, &str> = group_scope_by_idx
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (i, s.as_str()))
+        .collect();
+
+    // Build NodeSize list
+    let gl_nodes: Vec<GlNodeSize> = doc
+        .nodes
+        .iter()
+        .map(|n| {
+            let key = n.alias.clone().unwrap_or_else(|| n.name.clone());
+            let parent = node_to_group
+                .get(&key)
+                .or_else(|| node_to_group.get(&n.name))
+                .and_then(|g_idx| group_scope_map.get(g_idx))
+                .map(|s| s.to_string());
+            GlNodeSize {
+                id: key,
+                width: cell_w as f64,
+                height: cell_h as f64,
+                parent,
+            }
+        })
+        .collect();
+
+    // Build EdgeSpec list from doc.relations
+    let gl_edges: Vec<GlEdgeSpec> = doc
+        .relations
+        .iter()
+        .enumerate()
+        .map(|(i, rel)| GlEdgeSpec {
+            id: format!("r{i}"),
+            from: rel.from.clone(),
+            to: rel.to.clone(),
+        })
+        .collect();
+
+    // Layout options derived from the existing constants.
+    // Add (pkg_pad + pkg_tab) to canvas_margin so that the group label tab
+    // above the top-rank nodes stays on canvas (the group bounds computation
+    // subtracts group_padding + label_reserve above the minimum node y).
+    let group_top_overhead = (pkg_pad + pkg_tab) as f64; // 24 + 28 = 52px
+    let gl_options = GlOptions {
+        rank_separation: (cell_h + inner_gap) as f64,
+        node_separation: inner_gap as f64,
+        group_padding: pkg_pad as f64,
+        direction: crate::render::graph_layout::Direction::TopDown,
+        canvas_margin: canvas_margin as f64 + header_h as f64 + group_top_overhead,
     };
 
-    // Assign absolute positions to packages
-    for (i, pkg) in pkg_layouts.iter_mut().enumerate() {
-        let col = i % col_count;
-        let row = i / col_count;
-        pkg.abs_x = col_offsets[col];
-        pkg.abs_y = row_offsets[row];
-    }
+    // Run hierarchical layout
+    let gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Phase 1d: Build the position lookup (node_id -> absolute bounding box)
-    // ─────────────────────────────────────────────────────────────────────────
+    // Convert f64 positions to i32 for the rest of the renderer
     let mut positions: std::collections::BTreeMap<String, (i32, i32, i32, i32)> =
         std::collections::BTreeMap::new();
+    for (id, &(x, y)) in &gl_result.node_positions {
+        positions.insert(id.clone(), (x as i32, y as i32, cell_w, cell_h));
+    }
 
-    for pkg in &pkg_layouts {
-        // Package interior starts at (abs_x + pkg_pad, abs_y + pkg_tab + pkg_pad)
-        let base_x = pkg.abs_x + pkg_pad;
-        let base_y = pkg.abs_y + pkg_tab + pkg_pad;
-        for (node_id, &(lx, ly)) in pkg.node_ids.iter().zip(pkg.local_positions.iter()) {
-            let abs_nx = base_x + lx;
-            let abs_ny = base_y + ly;
-            positions.insert(node_id.clone(), (abs_nx, abs_ny, cell_w, cell_h));
+    // Also register name→position for nodes with aliases
+    for node in &doc.nodes {
+        if let Some(alias) = &node.alias {
+            if let Some(&pos) = positions.get(alias.as_str()) {
+                positions.entry(node.name.clone()).or_insert(pos);
+            }
         }
     }
 
-    // Also handle any nodes not in any group (ungrouped nodes fall back to flat grid)
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 1b (compat): Build PackageLayout list from group_bounds
+    //
+    // The rendering code below (Phase 1e) iterates pkg_layouts to draw package
+    // frames. We populate it from the hierarchical layout's group_bounds.
+    // ─────────────────────────────────────────────────────────────────────────
+    struct PackageLayout {
+        #[allow(dead_code)]
+        group_idx: usize,
+        label: String,
+        scope: String,
+        #[allow(dead_code)]
+        kind: String,
+        node_ids: Vec<String>,
+        // absolute canvas position of the package frame top-left
+        abs_x: i32,
+        abs_y: i32,
+        // frame total size (including label tab)
+        frame_w: i32,
+        frame_h: i32,
+    }
+
+    let mut pkg_layouts: Vec<PackageLayout> = Vec::new();
+    let mut seen_groups2: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+
+    for (g_idx, group) in pkg_groups.iter().enumerate() {
+        if seen_groups2.contains(&g_idx) {
+            continue;
+        }
+        seen_groups2.insert(g_idx);
+
+        // Get this group's scope string (pkg_layouts.len() == index before push)
+        let scope_idx = pkg_layouts.len();
+        let scope = group_scope_by_idx
+            .get(scope_idx)
+            .cloned()
+            .unwrap_or_else(|| group.kind.clone());
+
+        // Collect node IDs for this group (for package frame member-id list)
+        let mut node_ids_in_group: Vec<String> = Vec::new();
+        for node in &doc.nodes {
+            let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+            if node_to_group.get(&key) == Some(&g_idx)
+                || node_to_group.get(&node.name) == Some(&g_idx)
+            {
+                if !node_ids_in_group.contains(&key) {
+                    node_ids_in_group.push(key);
+                }
+            }
+        }
+        if node_ids_in_group.is_empty() {
+            for mid in &group.member_ids {
+                if !node_ids_in_group.contains(mid) {
+                    node_ids_in_group.push(mid.clone());
+                }
+            }
+        }
+
+        // Get frame bounds from hierarchical layout result, or fall back
+        let (fx, fy, fw, fh) = gl_result
+            .group_bounds
+            .get(&scope)
+            .copied()
+            .map(|(x, y, w, h)| (x as i32, y as i32, w as i32, h as i32))
+            .unwrap_or_else(|| {
+                // Fallback: bounding box of member nodes + padding
+                let mut min_x = i32::MAX;
+                let mut min_y = i32::MAX;
+                let mut max_x = i32::MIN;
+                let mut max_y = i32::MIN;
+                let mut found = false;
+                for nid in &node_ids_in_group {
+                    if let Some(&(nx, ny, nw, nh)) = positions.get(nid.as_str()) {
+                        min_x = min_x.min(nx);
+                        min_y = min_y.min(ny);
+                        max_x = max_x.max(nx + nw);
+                        max_y = max_y.max(ny + nh);
+                        found = true;
+                    }
+                }
+                if found {
+                    let pad = pkg_pad;
+                    (
+                        min_x - pad,
+                        min_y - pad - pkg_tab,
+                        (max_x - min_x) + pad * 2,
+                        (max_y - min_y) + pad * 2 + pkg_tab,
+                    )
+                } else {
+                    (canvas_margin, canvas_margin + header_h, 200, 80 + pkg_tab + pkg_pad * 2)
+                }
+            });
+
+        let raw_label = group.label.clone().unwrap_or_default();
+        let label = if raw_label.is_empty() {
+            group.kind.clone()
+        } else if group.kind == "rectangle" {
+            raw_label.clone()
+        } else {
+            format!("{} {}", group.kind, raw_label)
+        };
+
+        pkg_layouts.push(PackageLayout {
+            group_idx: g_idx,
+            label,
+            scope,
+            kind: group.kind.clone(),
+            node_ids: node_ids_in_group,
+            abs_x: fx,
+            abs_y: fy,
+            frame_w: fw,
+            frame_h: fh,
+        });
+    }
+
+    // derive pkg_frame_widths/heights for compat
+    let pkg_frame_widths: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_w).collect();
+    let pkg_frame_heights: Vec<i32> = pkg_layouts.iter().map(|p| p.frame_h).collect();
+
+    // Ungrouped nodes (not placed by layout — place them below the canvas)
     let ungrouped: Vec<&crate::model::FamilyNode> = doc
         .nodes
         .iter()
@@ -2157,12 +2204,13 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         })
         .collect();
 
-    // Find a safe Y below all packages
-    let pkg_bottom = row_offsets
-        .last()
-        .copied()
+    // Find a safe Y below everything placed
+    let pkg_bottom = pkg_layouts
+        .iter()
+        .enumerate()
+        .map(|(i, p)| p.abs_y + pkg_frame_heights[i])
+        .max()
         .unwrap_or(canvas_margin + header_h)
-        + row_heights.last().copied().unwrap_or(0)
         + pkg_gap;
 
     for (idx, node) in ungrouped.iter().enumerate() {
@@ -2177,18 +2225,8 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         }
     }
 
-    // Also register name→position for nodes that have aliases
-    // (so relations using name still resolve)
-    for node in &doc.nodes {
-        if let Some(alias) = &node.alias {
-            if let Some(&pos) = positions.get(alias.as_str()) {
-                positions.entry(node.name.clone()).or_insert(pos);
-            }
-        }
-    }
-
     // ─────────────────────────────────────────────────────────────────────────
-    // Compute SVG canvas size
+    // Compute SVG canvas size from hierarchical layout result
     // ─────────────────────────────────────────────────────────────────────────
     let all_pkg_right = pkg_layouts
         .iter()
@@ -2203,7 +2241,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .max()
         .unwrap_or(canvas_margin + header_h);
 
-    // Ungrouped nodes bottom
+    // Also account for ungrouped nodes
     let ungrouped_bottom = if ungrouped.is_empty() {
         0
     } else {
@@ -2211,9 +2249,21 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         pkg_bottom + ungrouped_rows * (cell_h + inner_gap)
     };
 
+    // Also use gl_result canvas size as a floor
+    let gl_canvas_right = gl_result.canvas_width as i32;
+    let gl_canvas_bottom = gl_result.canvas_height as i32;
+
     let projection_extra_height = family_projection_extra_height(&doc.json_projections);
-    let svg_width = (all_pkg_right + canvas_margin).max(400);
-    let svg_height = all_pkg_bottom.max(ungrouped_bottom) + canvas_margin + projection_extra_height;
+    let svg_width = all_pkg_right
+        .max(gl_canvas_right)
+        .max(canvas_margin)
+        + canvas_margin;
+    let svg_width = svg_width.max(400);
+    let svg_height = all_pkg_bottom
+        .max(ungrouped_bottom)
+        .max(gl_canvas_bottom)
+        + canvas_margin
+        + projection_extra_height;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Start SVG output
