@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::diagnostic::Diagnostic;
 
 use super::{
-    ParseOptions, PreprocCallable, PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState,
+    ParseOptions, PreprocCallable, PreprocCallableKind, PreprocParam, PreprocState,
     MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_WHILE_ITERATIONS,
 };
 

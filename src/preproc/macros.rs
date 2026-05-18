@@ -6,8 +6,8 @@ use super::builtins::{
     dispatch_builtin, execute_function_call, extract_parenthesized_args, split_args,
 };
 use super::{
-    PreprocCallableKind, PreprocMacro, PreprocParam, PreprocState, PreprocVariableScope,
-    PreprocessDirective, MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_MACRO_EXPANSION_BYTES,
+    PreprocCallableKind, PreprocMacro, PreprocState, PreprocVariableScope, PreprocessDirective,
+    MAX_PREPROC_CALL_DEPTH, MAX_PREPROC_MACRO_EXPANSION_BYTES,
 };
 
 pub(super) fn parse_macro_define(body: &str) -> Result<Option<(String, PreprocMacro)>, Diagnostic> {
