@@ -19,7 +19,14 @@ file reads.
 HTTP(S) URL includes are cached under `$XDG_CACHE_HOME/puml/includes/<sha256>`
 or `$HOME/.cache/puml/includes/<sha256>` when `XDG_CACHE_HOME` is not set.
 The cache keeps repeated renders byte-stable and avoids repeated network calls
-for the same URL.
+for the same URL. Cache entries do not currently expire automatically; remove
+the matching cache file or the `puml/includes` cache directory to force a fresh
+fetch.
+
+Network fetches use a 10 second connect/read/write timeout, do not follow HTTP
+redirects, and reject response bodies larger than 1 MiB before caching them.
+Redirects fail with `E_INCLUDE_URL_REDIRECT`; oversized responses fail with
+`E_INCLUDE_URL_TOO_LARGE`.
 
 `file://` URL includes are not cached; when URL includes are enabled they read
 directly from the local filesystem path named by the URL.
