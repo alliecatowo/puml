@@ -230,12 +230,28 @@ async function render() {
       : `Rendered.`, 'ok');
   } else {
     const diag = result.diagnostics?.[0];
-    previewHost.innerHTML = `
-      <div class="preview-placeholder">
-        <span class="pill">render error</span>
-        <p>${escapeHtml(diagnosticLabel(diag))}</p>
-      </div>`;
-    setStatus('preview', diag?.line ? `Render error at line ${diag.line}.` : 'Render error.', 'bad');
+    // Graceful degradation for !include: the WASM build cannot fetch external
+    // files and returns E_INCLUDE_NOT_SUPPORTED_WASM.  Show a friendly info
+    // banner and render any partial SVG the WASM still produced instead of
+    // showing a hard red error overlay (bug 4).
+    if (diag?.message?.includes('E_INCLUDE_NOT_SUPPORTED_WASM')) {
+      const partialSvgs = result.svgs?.length ? result.svgs : [];
+      const warnBanner = `
+        <div class="preview-include-warn" role="note" aria-label="include not supported in browser">
+          <span class="pill pill-info">ℹ info</span>
+          <p><code>!include</code> requires the CLI build &mdash; this in-browser preview can&rsquo;t fetch external files.
+          Try the CLI or paste the included content inline.</p>
+        </div>`;
+      previewHost.innerHTML = warnBanner + (partialSvgs.length ? partialSvgs.join('\n') : '');
+      setStatus('preview', '!include not supported in WASM — showing partial diagram.', 'warn');
+    } else {
+      previewHost.innerHTML = `
+        <div class="preview-placeholder">
+          <span class="pill">render error</span>
+          <p>${escapeHtml(diagnosticLabel(diag))}</p>
+        </div>`;
+      setStatus('preview', diag?.line ? `Render error at line ${diag.line}.` : 'Render error.', 'bad');
+    }
   }
 }
 
