@@ -54,7 +54,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         name_px.max(member_px).clamp(160, 320)
     };
     // col_gap wide enough for edge labels between adjacent nodes (fix #564, #575)
-    let col_gap: i32 = 64;
+    let col_gap: i32 = 96;
     let row_gap: i32 = 64;
     let header_height: i32 = 30;
     let member_line_height: i32 = 16;
