@@ -218,6 +218,68 @@ fn assign_ranks(
         ranks.entry(n.id.clone()).or_insert(0);
     }
 
+    // ── Group-cohesion rank snap (Bug 2: Theme Engine placement) ──────────────
+    // When a root node (no DAG predecessors) lives in a declared parent group
+    // whose other members are at a different rank, snap the root to the median
+    // sibling rank provided the snap doesn't violate DAG constraints:
+    //   median_rank < min(rank[successors])
+    // This keeps Theme Engine inside Shared Services instead of floating to
+    // rank-0 alongside Transports (CLI/LSP/WASM).
+    {
+        // Build group → member_ids list from NodeSize.parent field.
+        let mut group_members: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for n in nodes {
+            if let Some(parent) = &n.parent {
+                group_members.entry(parent.clone()).or_default().push(n.id.clone());
+            }
+        }
+
+        for (_group, members) in &group_members {
+            if members.len() < 2 {
+                continue;
+            }
+            let mut member_ranks: Vec<usize> = members
+                .iter()
+                .filter_map(|id| ranks.get(id))
+                .copied()
+                .collect();
+            if member_ranks.is_empty() {
+                continue;
+            }
+            member_ranks.sort_unstable();
+            let median_rank = member_ranks[member_ranks.len() / 2];
+
+            for id in members {
+                let current_rank = match ranks.get(id) {
+                    Some(&r) => r,
+                    None => continue,
+                };
+                if current_rank == median_rank {
+                    continue;
+                }
+                // Only snap root nodes (no predecessors in the working DAG).
+                let has_preds = dag_rev
+                    .get(id.as_str())
+                    .map(|preds| !preds.is_empty())
+                    .unwrap_or(false);
+                if has_preds {
+                    continue;
+                }
+                // Confirm DAG constraint: median_rank < min(rank[successors]).
+                let min_succ_rank: Option<usize> = dag_fwd
+                    .get(id.as_str())
+                    .and_then(|succs| succs.iter().filter_map(|s| ranks.get(*s)).copied().min());
+                let ok = match min_succ_rank {
+                    Some(min_s) => median_rank < min_s,
+                    None => true,
+                };
+                if ok {
+                    ranks.insert(id.clone(), median_rank);
+                }
+            }
+        }
+    }
+
     (ranks, reversed)
 }
 

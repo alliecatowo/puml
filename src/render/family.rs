@@ -352,6 +352,165 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
     }
 
+    // ── Label de-collision pre-pass ───────────────────────────────────────────
+    // Multiple edges arriving at the same target produce labels that cluster.
+    // Two scenarios:
+    //   1. Same-y cluster: edges share the same horizontal routing channel →
+    //      labels land at the same y.  Fan horizontally.
+    //   2. Same-target cluster: 3+ differently-ranked edges converge on a single
+    //      node (e.g. Theme/Diag/Normalizer → Renderer) → labels near the top
+    //      edge of the target box pile up.  Place them at the target's top-left
+    //      corner staggered with LABEL_FAN_GAP px between them.
+    //
+    // Strategy: build two cluster types, de-collide, populate label_override.
+    const LABEL_FAN_GAP: i32 = 80;   // horizontal gap between fanned labels
+    const LABEL_CLUSTER_BAND: i32 = 18; // px y-range to detect same-channel clusters
+
+    // Map rel_idx → de-collided (lx, ly)
+    let mut label_override: std::collections::BTreeMap<usize, (i32, i32)> =
+        std::collections::BTreeMap::new();
+
+    {
+        struct RawLabel {
+            rel_idx: usize,
+            to_name: String,
+            lx: i32,
+            ly: i32,
+        }
+        let mut raw_labels: Vec<RawLabel> = Vec::new();
+
+        for (rel_idx, relation) in document.relations.iter().enumerate() {
+            if relation.label.is_none() {
+                continue;
+            }
+            let (from_name, to_name, _arrow) =
+                normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
+            let from = match node_boxes.get(&from_name) {
+                Some(b) => b,
+                None => continue,
+            };
+            let to = match node_boxes.get(&to_name) {
+                Some(b) => b,
+                None => continue,
+            };
+            let (x1, y1, x2, y2) = if relation.direction.is_some() {
+                compute_edge_anchors_for_direction(
+                    (from.x, from.y, from.w, from.h),
+                    (to.x, to.y, to.w, to.h),
+                    relation.direction.as_deref(),
+                )
+            } else {
+                pick_port(
+                    (from.x, from.y, from.w, from.h),
+                    (to.x, to.y, to.w, to.h),
+                )
+            };
+            let ortho_pts: Option<Vec<(i32, i32)>> =
+                if relation.direction.is_none() && !relation.hidden {
+                    gl_result_class
+                        .edge_paths
+                        .get(&format!("r{rel_idx}"))
+                        .filter(|p| p.len() >= 2)
+                        .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+                } else {
+                    None
+                };
+            let (lx, ly) = if let Some(ref pts) = ortho_pts {
+                let longest_horiz = pts
+                    .windows(2)
+                    .filter(|seg| seg[0].1 == seg[1].1)
+                    .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
+                match longest_horiz {
+                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                    None => {
+                        let longest_seg = pts.windows(2).max_by_key(|seg| {
+                            let (ax, ay) = seg[0];
+                            let (bx, by_) = seg[1];
+                            (bx - ax).pow(2) + (by_ - ay).pow(2)
+                        });
+                        match longest_seg {
+                            Some(seg) => {
+                                ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
+                            }
+                            None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                        }
+                    }
+                }
+            } else {
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+            };
+            raw_labels.push(RawLabel { rel_idx, to_name, lx, ly });
+        }
+
+        // Group labelled edges by their resolved target node name.
+        // When ≥ 2 edges share a target, place labels above the target's top
+        // edge in a horizontal row fanned by LABEL_FAN_GAP px.
+        let mut by_target: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, rl) in raw_labels.iter().enumerate() {
+            by_target.entry(rl.to_name.clone()).or_default().push(i);
+        }
+        for (to_name, group) in &by_target {
+            if group.len() < 2 {
+                continue;
+            }
+            let target_box = match node_boxes.get(to_name.as_str()) {
+                Some(b) => b,
+                None => continue,
+            };
+            // Anchor: 14px above target top, centred on target box.
+            let anchor_y = target_box.y - 14;
+            let anchor_cx = target_box.x + target_box.w / 2;
+            let n = group.len() as i32;
+            // Sort by raw_label index (declaration order) for determinism.
+            let mut sorted = group.clone();
+            sorted.sort_unstable();
+            for (slot, &raw_idx) in sorted.iter().enumerate() {
+                let offset = (slot as i32) * LABEL_FAN_GAP - (n - 1) * LABEL_FAN_GAP / 2;
+                label_override.insert(
+                    raw_labels[raw_idx].rel_idx,
+                    (anchor_cx + offset, anchor_y),
+                );
+            }
+        }
+
+        // Additionally, cluster any remaining labels that are within
+        // LABEL_CLUSTER_BAND px in y (same horizontal channel) and not yet
+        // covered by the target-based fan.
+        let mut y_clusters: Vec<Vec<usize>> = Vec::new();
+        for i in 0..raw_labels.len() {
+            // Skip labels already handled by the target-based fan.
+            if label_override.contains_key(&raw_labels[i].rel_idx) {
+                continue;
+            }
+            let ly_i = raw_labels[i].ly;
+            let found = y_clusters.iter().position(|cluster| {
+                let rep = raw_labels[*cluster.first().unwrap()].ly;
+                (ly_i - rep).abs() <= LABEL_CLUSTER_BAND
+            });
+            match found {
+                Some(ci) => y_clusters[ci].push(i),
+                None => y_clusters.push(vec![i]),
+            }
+        }
+        for cluster in &y_clusters {
+            if cluster.len() < 2 {
+                continue;
+            }
+            let mean_x = cluster.iter().map(|&i| raw_labels[i].lx).sum::<i32>()
+                / cluster.len() as i32;
+            let mut sorted = cluster.clone();
+            sorted.sort_by_key(|&i| raw_labels[i].lx);
+            let n = sorted.len() as i32;
+            for (slot, &raw_idx) in sorted.iter().enumerate() {
+                let offset = (slot as i32) * LABEL_FAN_GAP - (n - 1) * LABEL_FAN_GAP / 2;
+                label_override.insert(
+                    raw_labels[raw_idx].rel_idx,
+                    (mean_x + offset, raw_labels[raw_idx].ly),
+                );
+            }
+        }
+    }
     // Render relations first so node rectangles cover endpoints
     for (rel_idx, relation) in document.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
@@ -554,7 +713,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 txt = escape_text(label)
             ));
         } else if let Some(label) = relation.label.as_deref() {
-            let (lx, ly) = if ortho_pts.is_some() {
+            // Use de-collided position from the pre-pass when available.
+            let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
+                (ox, oy)
+            } else if ortho_pts.is_some() {
                 (label_mx, label_my)
             } else {
                 let dx = x2 - x1;
@@ -2160,7 +2322,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let inner_cols = 3i32; // columns inside a package
     let inner_gap = 40i32; // gap between nodes inside a package
     let pkg_pad = 24i32; // padding inside package frame
-    let pkg_tab = 28i32; // height of the package label tab at top
+    let pkg_tab = 40i32; // height of the package label tab at top (was 28; bumped to clear first-child node)
     let canvas_margin = 40i32;
     let pkg_gap = 32i32; // gap between packages on the canvas
                          // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
@@ -2277,7 +2439,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Add (pkg_pad + pkg_tab) to canvas_margin so that the group label tab
     // above the top-rank nodes stays on canvas (the group bounds computation
     // subtracts group_padding + label_reserve above the minimum node y).
-    let group_top_overhead = (pkg_pad + pkg_tab) as f64; // 24 + 28 = 52px
+    let group_top_overhead = (pkg_pad + pkg_tab) as f64; // 24 + 40 = 64px (pkg_tab bumped)
     let gl_options = GlOptions {
         rank_separation: (cell_h + inner_gap) as f64,
         node_separation: inner_gap as f64,
@@ -2662,6 +2824,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         y: i32,
         text: String,
         color: String,
+        to_name: String,
     }
     let mut pending_labels: Vec<PendingLabel> = Vec::new();
 
@@ -3043,6 +3206,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 y: label_my,
                 text: label_text.to_string(),
                 color: label_color.to_string(),
+                to_name: to_name.clone(),
             });
         }
         if let Some(left) = &rel.left_cardinality {
@@ -3074,81 +3238,61 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 3: De-collide edge labels
     // ─────────────────────────────────────────────────────────────────────────
-    // Group labels whose initial centers are within 40px Manhattan distance,
-    // then fan them out symmetrically. For N≥3 labels in the same cluster we
-    // use a wider vertical stride and alternate left/right horizontal offsets so
-    // no three labels ever stack at the same (x,y). This handles the "source
-    // text ×3" cluster (Bug A/C) and the "style tokens / annotations" cluster
-    // (Bug B in the original issue list — visually identical problem).
-    let cluster_dist = 40i32;
-    // Base vertical stride; bumped to 24px for clusters of 3+ (was 18px).
-    let v_stride_base = 18i32;
-    let v_stride_large = 24i32; // used when count >= 3
-    // Horizontal stagger: labels in a cluster fan left/right so their x differs
-    // even when they share the same y channel.
-    //   rank 0 → -h_stagger, rank 1 → 0, rank 2 → +h_stagger, …
-    let h_stagger = 28i32;
+    // Strategy: cluster labels by their destination node name.  When ≥2 labels
+    // target the same node, fan them HORIZONTALLY above the target's top edge.
+    // This correctly handles "source text ×3" (all targeting Parser) and
+    // "NormalizedDocument / style tokens / annotations" (all targeting Renderer)
+    // regardless of how far apart their raw label positions are.
+    //
+    // For labels not sharing a target (solo labels or labels that already have
+    // unique target nodes), fall back to emitting them at their raw position.
+    const LABEL_FAN_H_GAP: i32 = 85; // horizontal gap between adjacent fanned labels
 
-    // Sort pending labels by (y, x) so groups form deterministically.
-    let mut sorted_labels = pending_labels;
-    sorted_labels.sort_by_key(|l| (l.y, l.x));
-
-    // Assign each label to a group (simple greedy union-find by proximity).
-    // group_id[i] = index of the earliest label in the same cluster.
-    let n = sorted_labels.len();
-    let mut group_id: Vec<usize> = (0..n).collect();
-    for i in 0..n {
-        for j in 0..i {
-            let dist = (sorted_labels[i].x - sorted_labels[j].x).abs()
-                + (sorted_labels[i].y - sorted_labels[j].y).abs();
-            if dist < cluster_dist {
-                // Merge: point i to the root of j's group
-                let root = group_id[j];
-                for k in 0..=i {
-                    if group_id[k] == group_id[i] {
-                        group_id[k] = root;
-                    }
-                }
-            }
-        }
+    // Build target → list of pending_label indices
+    let mut by_target_ph3: std::collections::BTreeMap<String, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, pl) in pending_labels.iter().enumerate() {
+        by_target_ph3.entry(pl.to_name.clone()).or_default().push(i);
     }
 
-    // Collect groups: map root → list of label indices
-    let mut groups: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
-    for (i, &root) in group_id.iter().enumerate() {
-        groups.entry(root).or_default().push(i);
-    }
-
-    // Compute adjusted positions for each label
+    let n = pending_labels.len();
     let mut adjusted_labels: Vec<(i32, i32, String, String)> =
         vec![(0, 0, String::new(), String::new()); n];
-    for indices in groups.values() {
-        let count = indices.len() as i32;
-        let v_stride = if count >= 3 { v_stride_large } else { v_stride_base };
-        // Base position: centroid of the group
-        let base_x: i32 = indices.iter().map(|&i| sorted_labels[i].x).sum::<i32>() / count;
-        let base_y: i32 = indices.iter().map(|&i| sorted_labels[i].y).sum::<i32>() / count;
 
-        for (rank, &idx) in indices.iter().enumerate() {
-            let rank = rank as i32;
-            // Symmetric vertical fan: rank 0 → -(N-1)/2 * stride, etc.
-            let dy = v_stride * (rank - (count - 1) / 2);
-            // Horizontal stagger for N≥3: spread labels left/right so 3-stacked
-            // labels end up at different x positions even on the same y channel.
-            // Pattern: rank 0 → -h_stagger, rank 1 → 0, rank 2 → +h_stagger, …
-            let dx = if count >= 3 {
-                (rank - (count - 1) / 2) * h_stagger
-            } else if count == 2 && rank == 1 {
-                // Slight nudge right for 2-label clusters
-                12
-            } else {
-                0
+    for (to_name, indices) in &by_target_ph3 {
+        let count = indices.len() as i32;
+        if count >= 2 {
+            // Fan horizontally above the target node's top edge.
+            let target_box = positions.get(to_name.as_str());
+            let (anchor_cx, anchor_y) = match target_box {
+                Some(&(tx, ty, tw, _)) => (tx + tw / 2, ty - 14),
+                None => {
+                    // Fallback: use mean position of the pending labels.
+                    let mx = indices.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
+                    let my = indices.iter().map(|&i| pending_labels[i].y).sum::<i32>() / count;
+                    (mx, my)
+                }
             };
-            adjusted_labels[idx] = (
-                base_x + dx,
-                base_y + dy,
-                sorted_labels[idx].text.clone(),
-                sorted_labels[idx].color.clone(),
+            // Sort by original x for left-to-right ordering.
+            let mut sorted_idx = indices.clone();
+            sorted_idx.sort_by_key(|&i| pending_labels[i].x);
+            for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
+                let offset = (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
+                adjusted_labels[raw_idx] = (
+                    anchor_cx + offset,
+                    anchor_y,
+                    pending_labels[raw_idx].text.clone(),
+                    pending_labels[raw_idx].color.clone(),
+                );
+            }
+        } else {
+            // Solo label: emit at raw position.
+            let &raw_idx = indices.first().unwrap();
+            adjusted_labels[raw_idx] = (
+                pending_labels[raw_idx].x,
+                pending_labels[raw_idx].y,
+                pending_labels[raw_idx].text.clone(),
+                pending_labels[raw_idx].color.clone(),
             );
         }
     }
