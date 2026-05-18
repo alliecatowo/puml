@@ -932,6 +932,10 @@ fn parse_mindmap_or_wbs_node(line: &str) -> Option<MindMapWbsNode> {
     if label.is_empty() {
         return None;
     }
+    // PlantUML interprets `\n` in label text as a line break (#560).
+    // Convert the literal backslash-n sequence to an actual newline so the
+    // renderer's multi-line text emission path can wrap it.
+    label = label.replace("\\n", "\n");
 
     // Parse WBS checkbox suffix: `[x]`, `[ ]`, `[%NN]` at end of label.
     let checkbox = parse_wbs_checkbox(&mut label);

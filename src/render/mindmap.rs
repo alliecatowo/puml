@@ -17,6 +17,57 @@ fn family_node_fill<'a>(node: &'a crate::model::FamilyNode, fallback: &'a str) -
     node.fill_color.as_deref().unwrap_or(fallback)
 }
 
+/// Emit a centered multi-line `<text>` element. PlantUML supports `\n` in node
+/// labels for explicit line breaks (#560); the parser converts the escape to a
+/// real newline and this helper paints each line as a `<tspan>` centered around
+/// `y_center`.
+fn render_multiline_text(
+    x: i32,
+    y_center: i32,
+    text: &str,
+    font_size: i32,
+    font_family: &str,
+    font_weight: &str,
+) -> String {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let n = lines.len() as i32;
+    let line_h = (font_size as f32 * 1.25) as i32;
+    let total_h = line_h * (n - 1);
+    let start_y = y_center - total_h / 2;
+    let mut out = format!(
+        "<text x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">",
+        x = x,
+        y_center = y_center,
+        ff = font_family,
+        fs = font_size,
+        fw = font_weight,
+    );
+    for (i, line) in lines.iter().enumerate() {
+        let y = start_y + (i as i32) * line_h;
+        out.push_str(&format!(
+            "<tspan x=\"{x}\" y=\"{y}\">{}</tspan>",
+            escape_text(line),
+            x = x,
+            y = y,
+        ));
+    }
+    out.push_str("</text>");
+    out
+}
+
+/// Width of a multi-line label = the longest line, in monospace char units.
+fn multiline_char_width(text: &str) -> i32 {
+    text.split('\n')
+        .map(|s| s.chars().count() as i32)
+        .max()
+        .unwrap_or(0)
+}
+
+/// Number of lines in a (possibly multi-line) label.
+fn multiline_line_count(text: &str) -> i32 {
+    text.split('\n').count() as i32
+}
+
 /// Render a `@startmindmap` document as SVG.
 ///
 /// Layout: horizontal tree — root centred; right-side branches extend right,
@@ -205,10 +256,13 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         child_count = family_tree_child_indices(nodes, 0).len(),
         fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
     ));
-    out.push_str(&format!(
-        "<text x=\"{cx}\" y=\"{cy}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\">{}</text>",
-        escape_text(&nodes[0].name),
-        cx = root_cx, cy = root_cy
+    out.push_str(&render_multiline_text(
+        root_cx,
+        root_cy,
+        &nodes[0].name,
+        13,
+        "monospace",
+        "600",
     ));
 
     // Draw right-side branches.
@@ -354,7 +408,13 @@ fn draw_mindmap_subtree(
 ) {
     let node = &nodes[idx];
     let ny = y_positions[idx];
-    let nw = (node.name.chars().count() as i32 * 7 + 20).clamp(70, 200);
+    let nw = (multiline_char_width(&node.name) * 7 + 20).clamp(70, 220);
+    let lines = multiline_line_count(&node.name);
+    let node_h = if lines > 1 {
+        (node_h + (lines - 1) * 16).min(node_h * lines.max(1))
+    } else {
+        node_h
+    };
     let nx = if is_left {
         node_x_center - nw
     } else {
@@ -393,11 +453,13 @@ fn draw_mindmap_subtree(
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
         fill = escape_text(family_node_fill(node, mindmap_node_fill(node.depth)))
     ));
-    out.push_str(&format!(
-        "<text x=\"{cx}\" y=\"{cy}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
-        escape_text(&node.name),
-        cx = nx + nw / 2,
-        cy = ny
+    out.push_str(&render_multiline_text(
+        nx + nw / 2,
+        ny,
+        &node.name,
+        12,
+        "monospace",
+        "400",
     ));
 
     let next_x_center = if is_left {
