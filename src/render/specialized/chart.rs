@@ -38,9 +38,11 @@ pub fn render_chart_svg(document: &ChartDocument) -> String {
         ));
         y += 22;
     }
+    // Suppress visible type-name label (#488) — it leaks into the axis title slot.
+    // The type is already encoded in the SVG root attribute data-chart-type.
     out.push_str(&format!(
-        "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">{}</text>",
-        type_name
+        "<metadata data-chart-subtype-label=\"{}\"/>",
+        escape_text(type_name)
     ));
     if !document.palette.is_empty() {
         out.push_str(&format!(
@@ -243,12 +245,14 @@ fn render_chart_line(
                 escape_text(&color)
             ));
             if !matches!(document.label_mode, ChartLabelMode::None) {
+                // Offset label above the point with enough clearance to avoid
+                // overlapping with category tick labels (#491).
                 out.push_str(&format!(
                     "<text class=\"chart-value-label\" data-chart-label-mode=\"{}\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
                     chart_label_mode_name(document.label_mode),
                     format_chart_value(value),
-                    tx = px,
-                    ty = py - 7
+                    tx = px + 14, // shift right to avoid tick label below
+                    ty = py - 10  // raise by an extra 3px
                 ));
             }
             if series_idx == 0 {
