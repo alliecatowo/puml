@@ -779,6 +779,21 @@ fn route_edges(
     }
 
     // ── Path generation ────────────────────────────────────────────────────────
+    //
+    // Every cross-rank edge MUST route through the inter-rank channel, producing
+    // a path of the form:
+    //   [src_port, (src_x, ch_y), (tgt_x, ch_y), tgt_port]
+    // for a single-hop downward edge.  When src_x == tgt_x the two middle points
+    // coincide and the path is purely vertical, but it still passes through the
+    // channel waypoint so the renderer never emits a featureless straight line.
+    //
+    // The ch_y value (base channel y + track offset) is clamped to remain
+    // strictly between src_port_y and tgt_port_y so that high track numbers
+    // caused by multi-rank spanning edges consuming intermediate channel slots
+    // cannot push ch_y to or past the target node boundary.
+    //
+    // After building each path, adjacent duplicate points are removed so the
+    // final polyline always has ≥3 distinct waypoints for cross-rank edges.
 
     let mut paths: BTreeMap<String, Vec<(f64, f64)>> = BTreeMap::new();
 
@@ -843,6 +858,24 @@ fn route_edges(
                 (ei.tgt_rank, ei.src_rank)
             };
 
+            // Clamp a raw channel y so it stays strictly between the two port y
+            // values (leaving at least 2px clearance on each side).  This prevents
+            // high track numbers from pushing ch_y past the target node boundary,
+            // which would collapse the intermediate waypoints into the endpoint.
+            let clamp_ch_y = |raw: f64| -> f64 {
+                let (lo, hi) = if goes_down {
+                    (src_port_y + 2.0, tgt_port_y - 2.0)
+                } else {
+                    (tgt_port_y + 2.0, src_port_y - 2.0)
+                };
+                if lo <= hi {
+                    raw.clamp(lo, hi)
+                } else {
+                    // Degenerate gap (src and tgt are extremely close): use midpoint.
+                    (src_port_y + tgt_port_y) / 2.0
+                }
+            };
+
             // Build polyline segment by segment through each channel.
             // For a downward edge from rank R0 to rank R1 (R0 < R1):
             //   start at src_port → vertical to channel(R0) → horizontal → vertical to channel(R0+1) ... → tgt_port
@@ -850,8 +883,11 @@ fn route_edges(
             pts.push((src_port_x, src_port_y));
 
             if max_r - min_r == 1 {
-                // Single channel hop: straight L-shape
-                let ch_y = channel_y(min_r) + track_offset;
+                // Single channel hop.  Always route through the inter-rank channel
+                // so that every cross-rank edge has perpendicular exit and entry,
+                // even when src_x == tgt_x (in that case the horizontal segment
+                // has zero width but the path still passes through the channel).
+                let ch_y = clamp_ch_y(channel_y(min_r) + track_offset);
                 pts.push((src_port_x, ch_y));
                 pts.push((tgt_port_x, ch_y));
             } else {
@@ -859,7 +895,7 @@ fn route_edges(
                 let n_hops = (max_r - min_r) as f64;
                 for hop in 0..(max_r - min_r) {
                     let ch = min_r + hop;
-                    let ch_y_val = channel_y(ch) + track_offset;
+                    let ch_y_val = clamp_ch_y(channel_y(ch) + track_offset);
                     // Interpolate x toward target across hops for a staircase effect.
                     let t = (hop as f64 + 1.0) / n_hops;
                     let mid_x = if goes_down {
@@ -881,6 +917,11 @@ fn route_edges(
             }
 
             pts.push((tgt_port_x, tgt_port_y));
+
+            // Remove adjacent duplicate points so the final polyline is compact
+            // (≥3 distinct waypoints for a single-hop cross-rank edge).
+            pts.dedup();
+
             pts
         };
 
@@ -1097,8 +1138,10 @@ mod tests {
 
     #[test]
     fn orthogonal_path_has_more_than_two_points_for_cross_rank_edge() {
-        // A → B across ranks; orthogonal routing should produce at least 4 waypoints
-        // (src_port, ch_entry, ch_exit, tgt_port).
+        // A → B across ranks; orthogonal routing should produce at least 3 waypoints
+        // after dedup (src_port, channel_waypoint, tgt_port).  When src_x == tgt_x
+        // the two ch_entry/ch_exit points coincide and dedup reduces the path to 3
+        // distinct points; when src_x != tgt_x all 4 points are distinct.
         let nodes = vec![make_node("A", None), make_node("B", None)];
         let edges = vec![make_edge("e1", "A", "B")];
         let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
@@ -1107,8 +1150,8 @@ mod tests {
             .get("e1")
             .expect("edge e1 should have a path");
         assert!(
-            path.len() >= 4,
-            "Orthogonal cross-rank path should have ≥4 points, got {} points: {:?}",
+            path.len() >= 3,
+            "Orthogonal cross-rank path should have ≥3 points, got {} points: {:?}",
             path.len(),
             path
         );
