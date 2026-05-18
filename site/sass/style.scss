@@ -608,6 +608,60 @@ blockquote {
   font-size: 13.5px;
 }
 
+// Diagnostics panel — sits between the editor area and the status bar.
+// Shown only when the last render produced at least one diagnostic.
+.diagnostics-panel {
+  background: color-mix(in srgb, var(--bad) 10%, var(--bg-elev));
+  border-top: 1px solid color-mix(in srgb, var(--bad) 40%, var(--line));
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diag-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.diag-loc {
+  appearance: none;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--bad) 55%, var(--line));
+  border-radius: 4px;
+  color: var(--bad);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+.diag-loc:hover,
+.diag-loc:focus-visible {
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  border-color: var(--bad);
+  outline: none;
+}
+
+.diag-msg {
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+.diag-error .diag-loc { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+.diag-warn .diag-loc  { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.diag-info .diag-loc  { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.diag-warn  { background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: 4px; }
+.diag-info  { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; }
+
 .preview-host {
   flex: 1;
   background: #ffffff;
