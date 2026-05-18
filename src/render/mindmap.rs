@@ -237,7 +237,6 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         idx: usize,
         node_x_center: i32,
         x_step: i32,
-        node_pad_x: i32,
     ) -> i32 {
         let nw = (multiline_char_width(&nodes[idx].name) * 7 + 20).clamp(70, 220);
         // For left side: nx = node_x_center - nw, so left edge = node_x_center - nw
@@ -245,7 +244,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         let children = family_tree_child_indices(nodes, idx);
         let next_x = node_x_center - x_step;
         children.iter().fold(left_edge, |acc, &c| {
-            acc.min(max_left_x(nodes, c, next_x, x_step, node_pad_x))
+            acc.min(max_left_x(nodes, c, next_x, x_step))
         })
     }
 
@@ -266,7 +265,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         let left_start = root_cx_prelim - root_w / 2 - X_STEP + NODE_PAD_X;
         left_roots
             .iter()
-            .map(|&i| max_left_x(nodes, i, left_start, X_STEP, NODE_PAD_X))
+            .map(|&i| max_left_x(nodes, i, left_start, X_STEP))
             .min()
             .unwrap_or(root_cx_prelim - root_w / 2)
     };

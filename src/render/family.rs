@@ -30,23 +30,41 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let margin_x: i32 = 32;
     let margin_top: i32 = 32;
     let col_count: i32 = 3;
-    let node_width: i32 = 200;
-    let col_gap: i32 = 48;
-    let row_gap: i32 = 64;
-    let header_height: i32 = 30;
-    let member_line_height: i32 = 16;
-    let member_padding: i32 = 8;
-    let empty_member_pad: i32 = 8;
     let group_frames = collect_render_group_frames(&document.groups);
     let max_group_depth = group_frames
         .iter()
         .map(|frame| frame.depth)
         .max()
         .unwrap_or(0);
+    // Auto-size node_width from longest member text / node name (fix #572)
+    let node_width: i32 = {
+        let name_px = document
+            .nodes
+            .iter()
+            .map(|n| n.name.chars().count() as i32 * 8 + 32)
+            .max()
+            .unwrap_or(200);
+        let member_px = document
+            .nodes
+            .iter()
+            .flat_map(|n| n.members.iter())
+            .map(|m| m.text.chars().count() as i32 * 7 + 28)
+            .max()
+            .unwrap_or(0);
+        name_px.max(member_px).clamp(160, 320)
+    };
+    // col_gap wide enough for edge labels between adjacent nodes (fix #564, #575)
+    let col_gap: i32 = 64;
+    let row_gap: i32 = 64;
+    let header_height: i32 = 30;
+    let member_line_height: i32 = 16;
+    let member_padding: i32 = 8;
+    let empty_member_pad: i32 = 8;
+    // group_top_reserve must match label_header+pad used in frame rendering loop
     let group_top_reserve = if group_frames.is_empty() {
         0
     } else {
-        ((max_group_depth as i32) + 1) * 24
+        ((max_group_depth as i32) + 1) * 28
     };
 
     // Compute heights per node
@@ -361,17 +379,24 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
         let rendered_label = usecase_dependency.or(relation.label.as_deref());
         if let Some(label) = rendered_label {
-            // For mostly-horizontal lines, place the label above the midpoint.
-            // For mostly-vertical lines, offset right and up to clear the arrowhead.
-            // Clearance: -12px above midpoint for both orientations (fix #462, #469).
-            let dx_abs = (x2 - x1).abs();
-            let dy_abs = (y2 - y1).abs();
-            let (lx, ly) = if dy_abs > dx_abs {
-                // Mostly vertical: shift label right of midpoint with -12 clearance
-                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 12)
+            // Place label at 40% from source, clamped 30px from each endpoint (fix #564, #575).
+            let dx = x2 - x1;
+            let dy = y2 - y1;
+            let dx_abs = dx.abs();
+            let dy_abs = dy.abs();
+            let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
+            let (lx, ly) = if edge_len <= 2 {
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
             } else {
-                // Mostly horizontal: place label above midpoint with -16 clearance
-                ((x1 + x2) / 2, (y1 + y2) / 2 - 16)
+                let clearance = 30i32;
+                let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
+                let raw_x = x1 + dx * t_num / edge_len;
+                let raw_y = y1 + dy * t_num / edge_len;
+                if dy_abs > dx_abs {
+                    (raw_x + 14, raw_y - 6)
+                } else {
+                    (raw_x, raw_y - 14)
+                }
             };
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
@@ -404,8 +429,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
         // Add padding around the member bounding box
         let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
-        let pad = 12 + depth_outset;
-        let label_header = 20 + depth_outset; // extra space at top for the group label
+        let pad = 16 + depth_outset;
+        let label_header = 28 + depth_outset; // extra space at top for the group label
         let fx = gx_min - pad;
         let fy = gy_min - pad - label_header;
         let fw = (gx_max - gx_min) + pad * 2;
@@ -1385,6 +1410,33 @@ fn render_class_node(
         out.push_str(&format!(
             "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
         ));
+        // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
+        // the human-readable label as members[0] when the parser embeds `as DisplayName`
+        // inside a group. Detect this by checking that members[0] is plain text (not a
+        // UML modifier line) and use it as the displayed label (fix #578).
+        let (uc_display_name, uc_member_skip): (&str, usize) = if node.name.contains("::") {
+            let first_member_is_label = node.members.first().is_some_and(|m| {
+                let t = m.text.trim();
+                !t.is_empty()
+                    && !t.starts_with("<<")
+                    && !t.starts_with('+')
+                    && !t.starts_with('-')
+                    && !t.starts_with('#')
+                    && !t.starts_with('~')
+                    && !t.starts_with('{')
+                    && !t.starts_with('\x1f')
+                    && !t.contains(':')
+                    && !t.contains('(')
+            });
+            if first_member_is_label {
+                (node.members[0].text.trim(), 1)
+            } else {
+                let short = node.name.rsplit("::").next().unwrap_or(&node.name);
+                (short, 0)
+            }
+        } else {
+            (node.name.as_str(), 0)
+        };
         // Name centered — the alias is the internal id only; do NOT display it (fix #478)
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
@@ -1392,11 +1444,11 @@ fn render_class_node(
             title_font_size,
             escape_text(&class_style.font_color),
             ty = cy + 4,
-            name = escape_text(&node.name)
+            name = escape_text(uc_display_name)
         ));
-        // Members rendered below the ellipse (rare for usecases)
+        // Members rendered below the ellipse (rare for usecases), skipping display-label slot
         let mut my = y + h + 14;
-        for member in &node.members {
+        for member in node.members.iter().skip(uc_member_skip) {
             out.push_str(&format!(
                 "<text x=\"{tx}\" y=\"{my}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{mc}\">{m}</text>",
                 escape_text(font_family),
@@ -1933,7 +1985,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let pkg_tab = 28i32; // height of the package label tab at top
     let canvas_margin = 40i32;
     let pkg_gap = 32i32; // gap between packages on the canvas
-    // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
+                         // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
     let _outer_cols = 2i32;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2163,7 +2215,12 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                         (max_y - min_y) + pad * 2 + pkg_tab,
                     )
                 } else {
-                    (canvas_margin, canvas_margin + header_h, 200, 80 + pkg_tab + pkg_pad * 2)
+                    (
+                        canvas_margin,
+                        canvas_margin + header_h,
+                        200,
+                        80 + pkg_tab + pkg_pad * 2,
+                    )
                 }
             });
 
@@ -2253,14 +2310,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let gl_canvas_bottom = gl_result.canvas_height as i32;
 
     let projection_extra_height = family_projection_extra_height(&doc.json_projections);
-    let svg_width = all_pkg_right
-        .max(gl_canvas_right)
-        .max(canvas_margin)
-        + canvas_margin;
+    let svg_width = all_pkg_right.max(gl_canvas_right).max(canvas_margin) + canvas_margin;
     let svg_width = svg_width.max(400);
-    let svg_height = all_pkg_bottom
-        .max(ungrouped_bottom)
-        .max(gl_canvas_bottom)
+    let svg_height = all_pkg_bottom.max(ungrouped_bottom).max(gl_canvas_bottom)
         + canvas_margin
         + projection_extra_height;
 
@@ -2626,7 +2678,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                             && b != (tx, ty, tw, th)
                             && l_pts.windows(2).any(|seg| {
                                 segment_intersects_rect(
-                                    seg[0].0, seg[0].1, seg[1].0, seg[1].1, (b.0, b.1, b.2, b.3),
+                                    seg[0].0,
+                                    seg[0].1,
+                                    seg[1].0,
+                                    seg[1].1,
+                                    (b.0, b.1, b.2, b.3),
                                 )
                             })
                     })

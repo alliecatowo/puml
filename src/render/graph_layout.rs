@@ -148,8 +148,14 @@ fn assign_ranks(
         adj_rev.entry(n.id.as_str()).or_default();
     }
     for e in edges {
-        adj_fwd.entry(e.from.as_str()).or_default().push(e.to.as_str());
-        adj_rev.entry(e.to.as_str()).or_default().push(e.from.as_str());
+        adj_fwd
+            .entry(e.from.as_str())
+            .or_default()
+            .push(e.to.as_str());
+        adj_rev
+            .entry(e.to.as_str())
+            .or_default()
+            .push(e.from.as_str());
     }
 
     // Cycle detection + breaking via DFS (reverse one back-edge per cycle).
@@ -216,10 +222,7 @@ fn assign_ranks(
 }
 
 /// DFS-based back-edge detection. Returns list of (u, v) back edges.
-fn find_back_edges<'a>(
-    nodes: &[&'a str],
-    edges: &[(&'a str, &'a str)],
-) -> Vec<(&'a str, &'a str)> {
+fn find_back_edges<'a>(nodes: &[&'a str], edges: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
     let mut adj: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for &n in nodes {
         adj.entry(n).or_default();
@@ -272,7 +275,7 @@ fn topo_sort(nodes: &[NodeSize], dag_fwd: &BTreeMap<&str, BTreeSet<&str>>) -> Ve
     for n in nodes {
         in_degree.entry(n.id.as_str()).or_insert(0);
     }
-    for (_, succs) in dag_fwd {
+    for succs in dag_fwd.values() {
         for &v in succs {
             *in_degree.entry(v).or_insert(0) += 1;
         }
@@ -449,8 +452,7 @@ fn assign_coordinates(
     rank_order: &BTreeMap<usize, Vec<String>>,
     options: &LayoutOptions,
 ) -> (BTreeMap<String, (f64, f64)>, f64, f64) {
-    let node_by_id: BTreeMap<&str, &NodeSize> =
-        nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     let max_rank = ranks.values().copied().max().unwrap_or(0);
 
@@ -458,8 +460,8 @@ fn assign_coordinates(
     let mut rank_y: Vec<f64> = vec![0.0; max_rank + 1];
     {
         let mut y = options.canvas_margin;
-        for r in 0..=max_rank {
-            rank_y[r] = y;
+        for (r, ry) in rank_y.iter_mut().enumerate().take(max_rank + 1) {
+            *ry = y;
             let max_h = rank_order
                 .get(&r)
                 .map(|ids| {
@@ -557,8 +559,7 @@ fn compute_group_bounds(
         }
     }
 
-    let node_by_id: BTreeMap<&str, &NodeSize> =
-        nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     let pad = options.group_padding;
     let label_reserve = 28.0; // space for the group label tab
@@ -621,8 +622,7 @@ fn route_edges(
     reversed_edges: &BTreeSet<String>,
 ) -> BTreeMap<String, Vec<(f64, f64)>> {
     // Build node lookup map.
-    let node_by_id: BTreeMap<&str, &NodeSize> =
-        nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     // Compute node ranks from positions (y is consistent per rank in our layout).
     // Map unique y values → rank index (sorted ascending).
@@ -686,7 +686,10 @@ fn route_edges(
     // and rank `upper_rank + 1`. Centered in the gap between the two ranks.
     let channel_y = |upper_rank: usize| -> f64 {
         let bot = rank_bottom_y.get(&upper_rank).copied().unwrap_or(0.0);
-        let next_top = rank_top_y.get(&(upper_rank + 1)).copied().unwrap_or(bot + 40.0);
+        let next_top = rank_top_y
+            .get(&(upper_rank + 1))
+            .copied()
+            .unwrap_or(bot + 40.0);
         let gap = (next_top - bot).max(CHANNEL_HEIGHT);
         bot + (gap - CHANNEL_HEIGHT) / 2.0
     };
@@ -731,7 +734,11 @@ fn route_edges(
     edge_infos.sort_by(|a, b| {
         a.src_rank
             .cmp(&b.src_rank)
-            .then_with(|| a.src_x.partial_cmp(&b.src_x).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| {
+                a.src_x
+                    .partial_cmp(&b.src_x)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .then_with(|| a.edge_id.cmp(&b.edge_id))
     });
 
@@ -845,13 +852,8 @@ fn route_edges(
             if max_r - min_r == 1 {
                 // Single channel hop: straight L-shape
                 let ch_y = channel_y(min_r) + track_offset;
-                if goes_down {
-                    pts.push((src_port_x, ch_y));
-                    pts.push((tgt_port_x, ch_y));
-                } else {
-                    pts.push((src_port_x, ch_y));
-                    pts.push((tgt_port_x, ch_y));
-                }
+                pts.push((src_port_x, ch_y));
+                pts.push((tgt_port_x, ch_y));
             } else {
                 // Multi-rank: zigzag x toward target across each channel.
                 let n_hops = (max_r - min_r) as f64;
@@ -901,8 +903,7 @@ pub fn layout_to_i32_positions(
     layout: &GraphLayout,
     nodes: &[NodeSize],
 ) -> BTreeMap<String, (i32, i32, i32, i32)> {
-    let node_by_id: BTreeMap<&str, &NodeSize> =
-        nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
     let mut out: BTreeMap<String, (i32, i32, i32, i32)> = BTreeMap::new();
     for (id, &(x, y)) in &layout.node_positions {
         let (w, h) = node_by_id
@@ -958,7 +959,11 @@ mod tests {
     #[test]
     fn linear_chain_assigns_increasing_ranks() {
         // A → B → C should get ranks 0, 1, 2
-        let nodes = vec![make_node("A", None), make_node("B", None), make_node("C", None)];
+        let nodes = vec![
+            make_node("A", None),
+            make_node("B", None),
+            make_node("C", None),
+        ];
         let edges = vec![make_edge("e1", "A", "B"), make_edge("e2", "B", "C")];
         let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
         let ra = layout.node_ranks["A"];
@@ -981,10 +986,7 @@ mod tests {
 
     #[test]
     fn group_bounds_are_computed() {
-        let nodes = vec![
-            make_node("A", Some("G1")),
-            make_node("B", Some("G1")),
-        ];
+        let nodes = vec![make_node("A", Some("G1")), make_node("B", Some("G1"))];
         let layout = layout_hierarchical(&nodes, &[], &LayoutOptions::default());
         assert!(layout.group_bounds.contains_key("G1"));
         let (_, _, w, h) = layout.group_bounds["G1"];
@@ -1000,7 +1002,10 @@ mod tests {
         let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
         let ya = layout.node_positions["A"].1;
         let yb = layout.node_positions["B"].1;
-        assert!(ya < yb, "A (y={ya}) should be above B (y={yb}) in TopDown layout");
+        assert!(
+            ya < yb,
+            "A (y={ya}) should be above B (y={yb}) in TopDown layout"
+        );
     }
 
     #[test]
@@ -1076,10 +1081,16 @@ mod tests {
         // Renderer should have higher rank than Parser
         let r_parser = layout.node_ranks["Parser"];
         let r_renderer = layout.node_ranks["Renderer"];
-        assert!(r_parser < r_renderer, "Parser rank {r_parser} < Renderer rank {r_renderer}");
+        assert!(
+            r_parser < r_renderer,
+            "Parser rank {r_parser} < Renderer rank {r_renderer}"
+        );
         // SVG should be below Renderer
         let r_svg = layout.node_ranks["SVG"];
-        assert!(r_renderer < r_svg, "Renderer rank {r_renderer} < SVG rank {r_svg}");
+        assert!(
+            r_renderer < r_svg,
+            "Renderer rank {r_renderer} < SVG rank {r_svg}"
+        );
     }
 
     // ── Stage 3 orthogonal routing tests ──────────────────────────────────────
@@ -1091,7 +1102,10 @@ mod tests {
         let nodes = vec![make_node("A", None), make_node("B", None)];
         let edges = vec![make_edge("e1", "A", "B")];
         let layout = layout_hierarchical(&nodes, &edges, &LayoutOptions::default());
-        let path = layout.edge_paths.get("e1").expect("edge e1 should have a path");
+        let path = layout
+            .edge_paths
+            .get("e1")
+            .expect("edge e1 should have a path");
         assert!(
             path.len() >= 4,
             "Orthogonal cross-rank path should have ≥4 points, got {} points: {:?}",
@@ -1136,7 +1150,11 @@ mod tests {
     fn same_rank_edge_uses_u_shape() {
         // Two nodes with no edges between ranks: same-rank edge → U-shape (4 points).
         // Force same-rank by making A and B siblings with no ordering edge.
-        let nodes = vec![make_node("A", None), make_node("B", None), make_node("C", None)];
+        let nodes = vec![
+            make_node("A", None),
+            make_node("B", None),
+            make_node("C", None),
+        ];
         // A→C and B→C put A and B in rank 0, C in rank 1.
         // A→B is a same-rank edge.
         let edges = vec![
@@ -1206,7 +1224,11 @@ mod tests {
     fn multi_rank_edge_has_intermediate_waypoints() {
         // A → C skipping rank B: A→B→C chain, then direct A→C edge.
         // The direct A→C should route through both channels.
-        let nodes = vec![make_node("A", None), make_node("B", None), make_node("C", None)];
+        let nodes = vec![
+            make_node("A", None),
+            make_node("B", None),
+            make_node("C", None),
+        ];
         let edges = vec![
             make_edge("e1", "A", "B"),
             make_edge("e2", "B", "C"),
