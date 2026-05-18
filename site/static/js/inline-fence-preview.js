@@ -1,4 +1,5 @@
 import { siteBaseUrl } from './manifest.js';
+import { highlightPumlToHtml, PUML_HIGHLIGHT_LANGS } from './puml-tokens.js';
 import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 
 const SUPPORTED_LANGS = new Set(['puml', 'pumlx', 'plantuml', 'uml', 'puml-sequence', 'uml-sequence', 'picouml', 'mermaid']);
@@ -26,6 +27,7 @@ function hydrateFence(pre) {
   const code = pre.querySelector('code');
   const lang = fenceLanguage(pre, code);
   if (!SUPPORTED_LANGS.has(lang)) return;
+  applySyntaxHighlighting(code, lang);
 
   const source = code ? code.textContent : pre.textContent;
   const panelId = `puml-fence-render-${nextPreviewId++}`;
@@ -121,6 +123,11 @@ function hydrateFence(pre) {
       }
     }
   });
+}
+
+function applySyntaxHighlighting(code, lang) {
+  if (!code || !PUML_HIGHLIGHT_LANGS.has(lang) || code.children.length > 0) return;
+  code.innerHTML = highlightPumlToHtml(code.textContent || '');
 }
 
 function setButtonLabel(button, label) {
