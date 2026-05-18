@@ -2433,19 +2433,20 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
             ));
         }
         FamilyNodeKind::Artifact | FamilyNodeKind::File => {
-            // folded-corner rectangle
+            // Main body with top-right dog-ear cut (fix #517)
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"#fff7ed\" stroke=\"#9a3412\" stroke-width=\"1.5\"/>",
-                x,
-                y,
+                "<path d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"#fff7ed\" stroke=\"#9a3412\" stroke-width=\"1.5\"/>",
                 x + w - 18,
-                y,
                 x + w,
                 y + 18,
-                x + w,
                 y + h,
-                x,
-                y + h
+            ));
+            // Dog-ear fold triangle
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#f1f5f9\" stroke=\"#9a3412\" stroke-width=\"1\"/>",
+                x + w - 18, y,
+                x + w - 18, y + 18,
+                x + w, y + 18,
             ));
         }
         FamilyNodeKind::Folder | FamilyNodeKind::Package => {
@@ -2878,6 +2879,7 @@ fn render_family_node_shape_styled(
                     ));
                 }
                 FamilyNodeKind::Artifact | FamilyNodeKind::File => {
+                    // Main body with top-right dog-ear cut (fix #517)
                     out.push_str(&format!(
                         "<path class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                         kind_label,
@@ -2886,6 +2888,15 @@ fn render_family_node_shape_styled(
                         y + 18,
                         y + h,
                         escape_text(fill),
+                        comp_style.border_color
+                    ));
+                    // Dog-ear fold triangle (the folded-back corner)
+                    out.push_str(&format!(
+                        "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x + w - 18, y,        // top-left of dog-ear
+                        x + w - 18, y + 18,   // bottom-left of dog-ear
+                        x + w, y + 18,         // bottom-right of dog-ear
+                        comp_style.background_color,
                         comp_style.border_color
                     ));
                 }
