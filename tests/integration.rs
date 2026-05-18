@@ -4485,40 +4485,32 @@ fn dump_capabilities_outputs_manifest_shape() {
         .stdout
         .clone();
 
+    // Output is now the real LSP protocol-level capabilities object (same as
+    // what the server returns in its initialize response).
     let json: Value = serde_json::from_slice(&out).unwrap();
-    assert_eq!(json["server"], "puml-lsp");
-    assert_eq!(json["protocol"], "3.17");
-    assert!(json.get("languageFeatures").is_none());
-    assert_eq!(
-        json["current"]["diagnostics"]["status"],
-        Value::String("shipped".to_string())
-    );
-    let requests = json["current"]["requests"]
+    assert!(json["completionProvider"]["resolveProvider"].as_bool().unwrap_or(false));
+    assert!(json["hoverProvider"].as_bool().unwrap_or(false));
+    assert!(json["definitionProvider"].as_bool().unwrap_or(false));
+    assert!(json["referencesProvider"].as_bool().unwrap_or(false));
+    assert!(json["documentFormattingProvider"].as_bool().unwrap_or(false));
+    assert!(json["documentRangeFormattingProvider"].as_bool().unwrap_or(false));
+    assert!(json["codeActionProvider"].as_bool().unwrap_or(false));
+    assert!(json["colorProvider"].as_bool().unwrap_or(false));
+    assert!(json["foldingRangeProvider"].as_bool().unwrap_or(false));
+    assert!(json["selectionRangeProvider"].as_bool().unwrap_or(false));
+    assert!(json["documentSymbolProvider"].as_bool().unwrap_or(false));
+    assert!(json["workspaceSymbolProvider"].as_bool().unwrap_or(false));
+    let commands = json["executeCommandProvider"]["commands"]
         .as_array()
-        .expect("current request capabilities");
-    assert!(requests.iter().any(|request| {
-        request["method"] == "textDocument/completion"
-            && request["status"] == "shipped-limited"
-            && request["scope"]
-                .as_str()
-                .expect("completion scope")
-                .contains("not yet context-aware")
-    }));
-    assert!(requests.iter().any(|request| {
-        request["method"] == "textDocument/rename"
-            && request["scope"]
-                .as_str()
-                .expect("rename scope")
-                .contains("no semantic alias/display-name safety yet")
-    }));
-    assert_eq!(json["roadmap"]["trackingIssue"], "#190");
-    let roadmap = json["roadmap"]["features"]
+        .expect("executeCommandProvider.commands must be an array");
+    assert!(commands.iter().any(|c| c == "puml.applyFormat"));
+    assert!(commands.iter().any(|c| c == "puml.renderSvg"));
+    let token_types = json["semanticTokensProvider"]["legend"]["tokenTypes"]
         .as_array()
-        .expect("roadmap features");
-    assert!(roadmap
-        .iter()
-        .any(|feature| feature["area"] == "semanticTokens"));
-    assert!(json["customRequests"].is_array());
+        .expect("semanticTokensProvider.legend.tokenTypes must be an array");
+    assert!(token_types.iter().any(|t| t == "keyword"));
+    assert!(json["semanticTokensProvider"]["full"].as_bool().unwrap_or(false));
+    assert!(json["workspace"]["workspaceFolders"]["supported"].as_bool().unwrap_or(false));
 }
 
 #[test]

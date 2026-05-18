@@ -380,26 +380,7 @@ fn main() {
 }
 
 fn caps() -> Value {
-    json!({
-        "textDocumentSync":{"openClose":true,"change":2,"save":{"includeText":true}},
-        "completionProvider":{"resolveProvider":true},
-        "hoverProvider":true,
-        "definitionProvider":true,
-        "referencesProvider":true,
-        "renameProvider":{"prepareProvider":true},
-        "documentSymbolProvider":true,
-        "workspaceSymbolProvider":true,
-        "semanticTokensProvider":{"legend":{"tokenTypes":["keyword","operator","string","comment","number","type","class","function","variable","parameter","property","namespace","label","decorator","modifier"],"tokenModifiers":[]},"full":true},
-        "documentFormattingProvider":true,
-        "documentRangeFormattingProvider":true,
-        "foldingRangeProvider":true,
-        "selectionRangeProvider":true,
-        "documentLinkProvider":{},
-        "colorProvider":true,
-        "codeActionProvider":true,
-        "executeCommandProvider":{"commands":["puml.applyFormat","puml.renderSvg"]},
-        "workspace":{"workspaceFolders":{"supported":true,"changeNotifications":true}}
-    })
+    puml::lsp_capabilities()
 }
 fn completions() -> Vec<Value> {
     let list = completion_items();
