@@ -450,6 +450,79 @@ mod tests {
     }
 
     #[test]
+    fn include_many_glob_expands_files_in_deterministic_order() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("b.puml"), "A -> B : b\n").unwrap();
+        fs::write(dir.path().join("a.puml"), "A -> B : a\n").unwrap();
+        fs::write(dir.path().join("ignore.txt"), "A -> B : txt\n").unwrap();
+        fs::create_dir_all(dir.path().join("nested")).unwrap();
+        fs::write(
+            dir.path().join("nested").join("skip.puml"),
+            "A -> B : nested\n",
+        )
+        .unwrap();
+
+        let doc = parse_with_options(
+            "!include_many *.puml\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(doc.statements.len(), 2);
+        match &doc.statements[0].kind {
+            StatementKind::Message(msg) => assert_eq!(msg.label.as_deref(), Some("a")),
+            other => panic!("unexpected first statement: {other:?}"),
+        }
+        match &doc.statements[1].kind {
+            StatementKind::Message(msg) => assert_eq!(msg.label.as_deref(), Some("b")),
+            other => panic!("unexpected second statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn include_many_glob_from_stdin_requires_root() {
+        let err = parse_with_options("!include_many *.puml\n", &ParseOptions::default()).unwrap_err();
+        assert!(err.message.contains("E_INCLUDE_ROOT_REQUIRED"));
+    }
+
+    #[test]
+    fn include_many_glob_missing_parent_reports_read_error() {
+        let dir = tempdir().unwrap();
+        let err = parse_with_options(
+            "!include_many missing/*.puml\n",
+            &ParseOptions {
+                include_root: Some(dir.path().to_path_buf()),
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.message.contains("E_INCLUDE_READ"));
+        assert!(err.message.contains("include glob parent"));
+    }
+
+    #[test]
+    fn include_many_glob_rejects_parent_escape() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("root");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(dir.path().join("outside.puml"), "A -> B : outside\n").unwrap();
+
+        let err = parse_with_options(
+            "!include_many ../*.puml\n",
+            &ParseOptions {
+                include_root: Some(root),
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("E_INCLUDE_ESCAPE"));
+    }
+
+    #[test]
     fn include_once_deduplicates_canonical_path_aliases() {
         let dir = tempdir().unwrap();
         fs::create_dir_all(dir.path().join("nested")).unwrap();

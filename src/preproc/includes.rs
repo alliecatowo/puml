@@ -20,6 +20,8 @@ use super::macros::{
     expand_preprocessor_text, parse_named_call, parse_scoped_variable_assignment,
     parse_variable_assignment,
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::preproc::control::preprocess_text;
 
 /// On `wasm32` there is no filesystem available, so the entire `!include` /
 /// `!includesub` / `!include_many` / `!import` family returns a friendly error
