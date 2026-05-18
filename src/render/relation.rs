@@ -134,29 +134,33 @@ pub(crate) fn render_relation_marker_defs_with_prefix(
     arrow_stroke: &str,
     prefix: &str,
 ) {
+    // markerUnits="userSpaceOnUse" pins marker sizes in SVG user units so they
+    // are NOT scaled by the parent element's stroke-width (fix #471 collision).
+    // fill="#ffffff" instead of fill="white" avoids resvg color-keyword inheritance
+    // rendering open markers as filled in PNG output (fix #467).
     out.push_str("<defs>");
     out.push_str(&format!(
         "<marker id=\"{prefix}arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
-         markerWidth=\"10\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         markerWidth=\"10\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
          <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
          </marker>",
     ));
     out.push_str(&format!(
         "<marker id=\"{prefix}arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
-         markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
-         <polygon points=\"0,0 12,6 0,12\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" fill-rule=\"nonzero\"/>\
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <polygon points=\"0,0 12,6 0,12\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" fill-rule=\"nonzero\"/>\
          </marker>",
     ));
     out.push_str(&format!(
         "<marker id=\"{prefix}arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
-         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         markerWidth=\"14\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
     out.push_str(&format!(
         "<marker id=\"{prefix}arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
-         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
+         markerWidth=\"14\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
     out.push_str("</defs>");

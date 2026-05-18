@@ -1,36 +1,68 @@
 use super::*;
 
+// Layout constants
 const STATE_NODE_W: i32 = 140;
 const STATE_NODE_H: i32 = 40;
 const STATE_NODE_GAP_X: i32 = 60;
-const STATE_NODE_GAP_Y: i32 = 70;
+const STATE_NODE_GAP_Y: i32 = 60;
 const STATE_MARGIN: i32 = 30;
-const _STATE_ARROW_LEN: i32 = 40;
+const COMPOSITE_PAD_X: i32 = 16;
+const COMPOSITE_PAD_Y: i32 = 36; // extra space for composite header label
+const COMPOSITE_PAD_BOT: i32 = 12;
+const REGION_DIVIDER_GAP: i32 = 10; // gap between concurrent regions (horizontal divider)
+
+/// A placed node entry in the flat coord map.
+/// Stores the node's top-left (x, y) and its full rendered size (w, h).
+#[derive(Clone)]
+struct PlacedNode {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+}
 
 pub fn render_state_svg(document: &StateDocument) -> String {
-    // Simple left-to-right column layout: all top-level nodes in one or two columns,
-    // then draw transitions as arrows.
     let nodes = &document.nodes;
     let transitions = &document.transitions;
     let state_style = &document.state_style;
 
-    // Assign coordinates to each node
-    let mut node_coords: std::collections::BTreeMap<String, (i32, i32)> =
+    // ── Phase 1: compute recursive layout ───────────────────────────────────
+    // We use a two-column top-level layout for the outer nodes, then compute
+    // each composite's size bottom-up from its children.
+
+    // First pass: compute sizes of all nodes recursively.
+    // We build a flat map: name → PlacedNode (x, y computed in second pass).
+    let mut node_sizes: std::collections::BTreeMap<String, (i32, i32)> =
         std::collections::BTreeMap::new();
-    let cols = 2i32;
-    for (idx, node) in nodes.iter().enumerate() {
-        let col = (idx as i32) % cols;
-        let row = (idx as i32) / cols;
-        let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X);
-        let y = STATE_MARGIN + row * (STATE_NODE_H + STATE_NODE_GAP_Y) + 50;
-        node_coords.insert(node.name.clone(), (x, y));
+    for node in nodes {
+        compute_node_size(node, &mut node_sizes);
     }
 
-    let node_count = nodes.len() as i32;
-    let rows = (node_count + cols - 1) / cols;
-    let width = STATE_MARGIN * 2 + cols * (STATE_NODE_W + STATE_NODE_GAP_X);
-    let height = STATE_MARGIN * 2 + rows * (STATE_NODE_H + STATE_NODE_GAP_Y) + 80;
+    // Second pass: assign positions to top-level nodes (2-column layout),
+    // then recurse to assign child positions relative to their parent.
+    let mut placed: std::collections::BTreeMap<String, PlacedNode> =
+        std::collections::BTreeMap::new();
 
+    let cols = 2i32;
+    // We need to compute each top-level node's (w, h) before positioning, then
+    // stack them column by column tracking actual row heights.
+    let mut col_y = [STATE_MARGIN + 50, STATE_MARGIN + 50];
+    for (idx, node) in nodes.iter().enumerate() {
+        let col = (idx as i32) % cols;
+        let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
+        let y = col_y[col as usize];
+        let (w, h) = *node_sizes.get(&node.name).unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
+        place_node(node, x, y, w, h, &node_sizes, &mut placed);
+        col_y[col as usize] = y + h + STATE_NODE_GAP_Y;
+    }
+
+    // Compute total canvas size from placed nodes
+    let max_x = placed.values().map(|p| p.x + p.w).max().unwrap_or(300);
+    let max_y = placed.values().map(|p| p.y + p.h).max().unwrap_or(200);
+    let width = max_x + STATE_MARGIN;
+    let height = max_y + STATE_MARGIN;
+
+    // ── Phase 2: emit SVG ────────────────────────────────────────────────────
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
@@ -54,9 +86,9 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         ));
         y_header += 20;
     }
-    // Do NOT emit a visible "state diagram" canvas text — it leaks as unwanted label
-    let _ = y_header; // suppress unused variable warning
+    let _ = y_header;
 
+    // Compute incoming/outgoing counts for all placed nodes (for StartEnd rendering variant)
     let mut incoming: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
     let mut outgoing: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
     for t in transitions {
@@ -64,48 +96,39 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         *outgoing.entry(t.from.as_str()).or_insert(0) += 1;
     }
 
-    // Draw transitions (arrows) first so nodes appear on top
+    // Draw transitions first (arrows behind nodes)
     for t in transitions {
-        let from_coord = node_coords.get(&t.from);
-        let to_coord = node_coords.get(&t.to);
-        let from_node = nodes.iter().find(|n| n.name == t.from);
-        let to_node = nodes.iter().find(|n| n.name == t.to);
-        if let (Some(&(fx, fy)), Some(&(tx, ty)), Some(from_node), Some(to_node)) =
-            (from_coord, to_coord, from_node, to_node)
-        {
-            // Compute start/end points at node boundaries
-            let (x1, y1, x2, y2) = transition_endpoints(from_node, fx, fy, to_node, tx, ty);
+        let from_p = placed.get(&t.from);
+        let to_p = placed.get(&t.to);
+        if let (Some(fp), Some(tp)) = (from_p, to_p) {
+            let (x1, y1, x2, y2) = edge_anchors(fp, tp);
+            let stroke = escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color));
+            let sw = t.thickness.unwrap_or(2).clamp(1, 8);
+            let dash = state_dash_attr(t.dashed);
+            let hidden = state_hidden_attr(t.hidden);
+            let dir = state_direction_attr(t.direction.as_deref());
+
             if t.from == t.to {
+                // Self-loop
                 let loop_rx = 18;
                 let loop_ry = 14;
                 let cpx = x1 + loop_rx;
                 let cpy = y1 - loop_ry;
                 out.push_str(&format!(
                     "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
-                    escape_text(&t.from),
-                    escape_text(&t.to),
-                    escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color)),
-                    t.thickness.unwrap_or(2).clamp(1, 8),
-                    state_dash_attr(t.dashed),
-                    state_hidden_attr(t.hidden),
-                    state_direction_attr(t.direction.as_deref())
+                    escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                 ));
             } else {
                 out.push_str(&format!(
                     "<line class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
-                    escape_text(&t.from),
-                    escape_text(&t.to),
+                    escape_text(&t.from), escape_text(&t.to),
                     x1, y1, x2, y2,
-                    escape_text(t.line_color.as_deref().unwrap_or(&state_style.arrow_color)),
-                    t.thickness.unwrap_or(2).clamp(1, 8),
-                    state_dash_attr(t.dashed),
-                    state_hidden_attr(t.hidden),
-                    state_direction_attr(t.direction.as_deref())
+                    stroke, sw, dash, hidden, dir
                 ));
             }
+
             if let Some(label) = &t.label {
                 let mx = (x1 + x2) / 2;
-                // Keep at least 12px clearance from the arrow shaft (fix #483)
                 let my = (y1 + y2) / 2 - 12;
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
@@ -115,17 +138,24 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
-    // Draw nodes — pass state_style for coloring
+    // Draw nodes (composites drawn recursively, children inside parent box)
     for node in nodes {
-        if let Some(&(x, y)) = node_coords.get(&node.name) {
-            render_state_node_svg_styled(
+        if let Some(p) = placed.get(&node.name) {
+            let inc = *incoming.get(node.name.as_str()).unwrap_or(&0);
+            let out_c = *outgoing.get(node.name.as_str()).unwrap_or(&0);
+            render_node(
                 &mut out,
                 node,
-                x,
-                y,
+                p.x,
+                p.y,
+                p.w,
+                p.h,
                 state_style,
-                *incoming.get(node.name.as_str()).unwrap_or(&0),
-                *outgoing.get(node.name.as_str()).unwrap_or(&0),
+                inc,
+                out_c,
+                &placed,
+                &incoming,
+                &outgoing,
             );
         }
     }
@@ -134,16 +164,154 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     out
 }
 
-fn state_node_bbox(node: &StateNode) -> (i32, i32) {
-    match node.kind {
+/// Compute the rendered (w, h) of a node, recursively for composites.
+/// Stores results in `sizes` map (keyed by node name).
+fn compute_node_size(
+    node: &StateNode,
+    sizes: &mut std::collections::BTreeMap<String, (i32, i32)>,
+) -> (i32, i32) {
+    let result = match node.kind {
         StateNodeKind::Fork | StateNodeKind::Join => (STATE_NODE_W, 8),
-        StateNodeKind::Choice => (60, 40),
-        StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (40, 40),
-        StateNodeKind::StartEnd | StateNodeKind::End => (40, 40),
+        StateNodeKind::Choice => (44, 44),
+        StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (34, 34),
+        StateNodeKind::StartEnd | StateNodeKind::End => (26, 26),
         StateNodeKind::Normal => {
-            let actions_h = (node.internal_actions.len() as i32) * 14;
-            (STATE_NODE_W, STATE_NODE_H + actions_h)
+            let has_children = node
+                .regions
+                .iter()
+                .any(|r| !r.is_empty());
+
+            if !has_children {
+                // Simple state box
+                let actions_h = (node.internal_actions.len() as i32) * 14;
+                (STATE_NODE_W, STATE_NODE_H + actions_h)
+            } else {
+                // Composite state: size from children
+                let n_regions = node.regions.len().max(1) as i32;
+                // For concurrent states (multi-region), stack regions vertically
+                // with a dashed divider line between them.
+                let mut total_w = STATE_NODE_W;
+                let mut total_h = 0i32;
+                for region in &node.regions {
+                    let (rw, rh) = compute_region_size(region, sizes);
+                    total_w = total_w.max(rw + COMPOSITE_PAD_X * 2);
+                    total_h += rh;
+                }
+                // Add region divider gaps
+                if n_regions > 1 {
+                    total_h += (n_regions - 1) * REGION_DIVIDER_GAP;
+                }
+                let w = total_w;
+                let h = total_h + COMPOSITE_PAD_Y + COMPOSITE_PAD_BOT;
+                (w.max(STATE_NODE_W), h.max(STATE_NODE_H + 20))
+            }
         }
+    };
+    sizes.insert(node.name.clone(), result);
+    result
+}
+
+/// Compute the (w, h) needed to lay out all nodes in a region (vertical stack).
+fn compute_region_size(
+    region: &[StateNode],
+    sizes: &mut std::collections::BTreeMap<String, (i32, i32)>,
+) -> (i32, i32) {
+    let mut max_w = 0i32;
+    let mut total_h = 0i32;
+    for (i, child) in region.iter().enumerate() {
+        let (cw, ch) = compute_node_size(child, sizes);
+        max_w = max_w.max(cw);
+        total_h += ch;
+        if i + 1 < region.len() {
+            total_h += STATE_NODE_GAP_Y;
+        }
+    }
+    (max_w, total_h)
+}
+
+/// Place a node and all its children into the `placed` map.
+fn place_node(
+    node: &StateNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    sizes: &std::collections::BTreeMap<String, (i32, i32)>,
+    placed: &mut std::collections::BTreeMap<String, PlacedNode>,
+) {
+    placed.insert(
+        node.name.clone(),
+        PlacedNode { x, y, w, h },
+    );
+    // For metadata emission
+    let _ = state_node_kind_name(&node.kind);
+
+    let has_children = node.regions.iter().any(|r| !r.is_empty());
+    if node.kind == StateNodeKind::Normal && has_children {
+        // Place children within the composite box.
+        // Children start after the composite header label area.
+        let mut child_y = y + COMPOSITE_PAD_Y;
+        for (ri, region) in node.regions.iter().enumerate() {
+            // Place each child in this region as a vertical stack
+            // centered horizontally within the composite.
+            let region_x = x + COMPOSITE_PAD_X;
+            let avail_w = w - COMPOSITE_PAD_X * 2;
+            let _ = avail_w;
+
+            for (ci, child) in region.iter().enumerate() {
+                let (cw, ch) = sizes
+                    .get(&child.name)
+                    .copied()
+                    .unwrap_or((STATE_NODE_W, STATE_NODE_H));
+                // Center child horizontally within parent
+                let cx = x + COMPOSITE_PAD_X + (avail_w - cw) / 2;
+                let cx = cx.max(region_x); // don't go left of padding
+                place_node(child, cx, child_y, cw, ch, sizes, placed);
+                child_y += ch;
+                // Gap between children within a region (not after last)
+                if ci + 1 < region.len() {
+                    child_y += STATE_NODE_GAP_Y;
+                }
+            }
+            // After each region (except last), leave room for the dashed divider
+            if ri + 1 < node.regions.len() {
+                child_y += REGION_DIVIDER_GAP;
+            }
+        }
+    }
+}
+
+/// Compute the edge anchor points between two placed nodes.
+fn edge_anchors(from: &PlacedNode, to: &PlacedNode) -> (i32, i32, i32, i32) {
+    let fcx = from.x + from.w / 2;
+    let fcy = from.y + from.h / 2;
+    let tcx = to.x + to.w / 2;
+    let tcy = to.y + to.h / 2;
+
+    let dx = tcx - fcx;
+    let dy = tcy - fcy;
+
+    // Use half-sizes for boundary computation
+    let fhw = from.w / 2;
+    let fhh = from.h / 2;
+    let thw = to.w / 2;
+    let thh = to.h / 2;
+
+    if dx == 0 && dy == 0 {
+        return (fcx, fcy, tcx, tcy);
+    }
+
+    // Determine exit/entry side based on dominant direction
+    if dx.abs() >= dy.abs() {
+        if dx >= 0 {
+            (fcx + fhw, fcy, tcx - thw, tcy)
+        } else {
+            (fcx - fhw, fcy, tcx + thw, tcy)
+        }
+    } else if dy >= 0 {
+        (fcx, fcy + fhh, tcx, tcy - thh)
+    } else {
+        (fcx, fcy - fhh, tcx, tcy + thh)
     }
 }
 
@@ -178,99 +346,76 @@ fn state_hidden_attr(hidden: bool) -> &'static str {
 
 fn state_direction_attr(direction: Option<&str>) -> String {
     direction
-        .map(|direction| format!(" data-state-direction=\"{}\"", escape_text(direction)))
+        .map(|d| format!(" data-state-direction=\"{}\"", escape_text(d)))
         .unwrap_or_default()
 }
 
-fn transition_endpoints(
-    from_node: &StateNode,
-    fx: i32,
-    fy: i32,
-    to_node: &StateNode,
-    tx: i32,
-    ty: i32,
-) -> (i32, i32, i32, i32) {
-    let (fw_full, fh_full) = state_node_bbox(from_node);
-    let (tw_full, th_full) = state_node_bbox(to_node);
-    let fh = fh_full / 2;
-    let fw = fw_full / 2;
-    let th = th_full / 2;
-    let tw = tw_full / 2;
-
-    // Center of each node
-    let fcx = fx + fw;
-    let fcy = fy + fh;
-    let tcx = tx + tw;
-    let tcy = ty + th;
-
-    // Simple: exit from right/left/bottom/top depending on relative position
-    let dx = tcx - fcx;
-    let dy = tcy - fcy;
-
-    if dx.abs() >= dy.abs() {
-        // Horizontal
-        if dx >= 0 {
-            (fcx + fw, fcy, tcx - tw, tcy)
-        } else {
-            (fcx - fw, fcy, tcx + tw, tcy)
-        }
-    } else {
-        // Vertical
-        if dy >= 0 {
-            (fcx, fcy + fh, tcx, tcy - th)
-        } else {
-            (fcx, fcy - fh, tcx, tcy + th)
-        }
-    }
-}
-
-/// Render a single state node at (x, y) — delegates to the styled version with defaults.
-fn render_state_node_svg_styled(
+/// Render a single state node (and its children recursively).
+#[allow(clippy::too_many_arguments)]
+fn render_node(
     out: &mut String,
     node: &StateNode,
     x: i32,
     y: i32,
+    w: i32,
+    h: i32,
     state_style: &crate::theme::StateStyle,
     incoming_count: usize,
     outgoing_count: usize,
+    placed: &std::collections::BTreeMap<String, PlacedNode>,
+    incoming: &std::collections::BTreeMap<&str, usize>,
+    outgoing: &std::collections::BTreeMap<&str, usize>,
 ) {
-    let w = STATE_NODE_W;
-    let base_h = STATE_NODE_H;
-    let action_rows = node.internal_actions.len() as i32;
-    let h = base_h + action_rows * 14;
     out.push_str(&format!(
         "<metadata data-state-node=\"{}\" data-state-kind=\"{}\"{} />",
         escape_text(&node.name),
         state_node_kind_name(&node.kind),
         node.stereotype
             .as_deref()
-            .map(|stereotype| format!(" data-state-stereotype=\"{}\"", escape_text(stereotype)))
+            .map(|s| format!(" data-state-stereotype=\"{}\"", escape_text(s)))
             .unwrap_or_default()
     ));
 
     match node.kind {
         StateNodeKind::StartEnd => {
             let cx = x + w / 2;
-            let cy = y + base_h / 2;
+            let cy = y + h / 2;
+            let r = 12i32;
             if incoming_count > 0 && outgoing_count == 0 {
+                // End variant: outer ring + inner dot
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
-                    cx, cy, state_style.background_color, state_style.border_color
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    cx, cy, r, state_style.background_color, state_style.border_color
                 ));
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"8\" fill=\"{}\"/>",
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"7\" fill=\"{}\"/>",
                     cx, cy, state_style.start_color
                 ));
             } else {
+                // Start variant: filled circle
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\"/>",
-                    cx, cy, state_style.start_color
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\"/>",
+                    cx, cy, r, state_style.start_color
                 ));
             }
         }
+
+        StateNodeKind::End => {
+            let cx = x + w / 2;
+            let cy = y + h / 2;
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                cx, cy, state_style.background_color, state_style.border_color
+            ));
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"8\" fill=\"{}\"/>",
+                cx, cy, state_style.start_color
+            ));
+        }
+
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => {
             let cx = x + w / 2;
-            let cy = y + base_h / 2;
+            let cy = y + h / 2;
             let label = node.display.as_deref().unwrap_or("H");
             out.push_str(&format!(
                 "<circle cx=\"{}\" cy=\"{}\" r=\"16\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
@@ -281,28 +426,25 @@ fn render_state_node_svg_styled(
                 cx, cy, state_style.font_color, escape_text(label)
             ));
         }
+
         StateNodeKind::Fork | StateNodeKind::Join => {
+            // UML spec: thick horizontal bar; no text label
+            let bar_h = 8i32;
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"8\" fill=\"{}\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"/>",
                 x,
-                y + base_h / 2 - 4,
+                y + h / 2 - bar_h / 2,
                 w,
+                bar_h,
                 state_style.start_color
             ));
-            let label = if node.kind == StateNodeKind::Fork {
-                "fork"
-            } else {
-                "join"
-            };
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
-                x + w / 2, y + base_h / 2 + 18, state_style.font_color, escape_text(label)
-            ));
+            // No "fork"/"join" text — UML spec shows only the bar
         }
+
         StateNodeKind::Choice => {
             let cx = x + w / 2;
-            let cy = y + base_h / 2;
-            let r = 18i32;
+            let cy = y + h / 2;
+            let r = (w / 2).min(h / 2) - 2;
             out.push_str(&format!(
                 "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
                 cx, cy - r,
@@ -312,58 +454,67 @@ fn render_state_node_svg_styled(
                 state_style.background_color, state_style.border_color
             ));
         }
-        StateNodeKind::End => {
-            let cx = x + w / 2;
-            let cy = y + base_h / 2;
-            out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"14\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
-                cx, cy, state_style.background_color, state_style.border_color
-            ));
-            out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"9\" fill=\"{}\"/>",
-                cx, cy, state_style.start_color
-            ));
-        }
+
         StateNodeKind::Normal => {
-            let has_regions = node.regions.len() > 1
-                || node.regions.first().map(|r| !r.is_empty()).unwrap_or(false);
+            let has_children = node.regions.iter().any(|r| !r.is_empty());
             let display = node.display.as_deref().unwrap_or(&node.name);
 
-            if has_regions && node.regions.len() > 1 {
-                let total_w = w + (node.regions.len() as i32 - 1) * (STATE_NODE_W / 2 + 10);
+            if has_children {
+                // ── Composite state ──────────────────────────────────────────
+                // Draw the enclosing rounded-rect box
                 out.push_str(&format!(
                     "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                    x, y, total_w, h + 16, state_style.background_color, state_style.border_color
+                    x, y, w, h, state_style.background_color, state_style.border_color
                 ));
+                // Composite name label at top-center
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"12\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    x + total_w / 2, y + 16, state_style.font_color, escape_text(display)
+                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    x + w / 2, y + 20, state_style.font_color, escape_text(display)
                 ));
-                let region_w = total_w / node.regions.len() as i32;
-                for ri in 1..node.regions.len() {
-                    let div_x = x + ri as i32 * region_w;
-                    out.push_str(&format!(
-                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
-                        div_x, y + 24, div_x, y + h + 16, state_style.border_color
-                    ));
+
+                // Draw concurrent region dividers (dashed horizontal lines)
+                // We need to find where each region ends to place the divider.
+                // We use the placed coords of the last child in each non-final region.
+                if node.regions.len() > 1 {
+                    for ri in 0..node.regions.len() - 1 {
+                        // Find the bottom of the last child in region ri
+                        if let Some(last_child) = node.regions[ri].last() {
+                            if let Some(lp) = placed.get(&last_child.name) {
+                                let div_y = lp.y + lp.h + REGION_DIVIDER_GAP / 2;
+                                out.push_str(&format!(
+                                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"5 3\"/>",
+                                    x + 4, div_y, x + w - 4, div_y, state_style.border_color
+                                ));
+                            }
+                        }
+                    }
                 }
-                for (ri, region) in node.regions.iter().enumerate() {
-                    let region_x = x + ri as i32 * region_w + 4;
-                    let mut child_y = y + 28;
+
+                // Draw children recursively
+                for region in &node.regions {
                     for child in region {
-                        render_state_node_svg_styled(
-                            out,
-                            child,
-                            region_x,
-                            child_y,
-                            state_style,
-                            0,
-                            0,
-                        );
-                        child_y += STATE_NODE_H + 12;
+                        if let Some(cp) = placed.get(&child.name) {
+                            let c_inc = *incoming.get(child.name.as_str()).unwrap_or(&0);
+                            let c_out = *outgoing.get(child.name.as_str()).unwrap_or(&0);
+                            render_node(
+                                out,
+                                child,
+                                cp.x,
+                                cp.y,
+                                cp.w,
+                                cp.h,
+                                state_style,
+                                c_inc,
+                                c_out,
+                                placed,
+                                incoming,
+                                outgoing,
+                            );
+                        }
                     }
                 }
             } else {
+                // ── Simple state box ─────────────────────────────────────────
                 out.push_str(&format!(
                     "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                     x, y, w, h, state_style.background_color, state_style.border_color
@@ -372,13 +523,14 @@ fn render_state_node_svg_styled(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
                     x + w / 2, y + 24, state_style.font_color, escape_text(display)
                 ));
+                // Internal actions
                 if !node.internal_actions.is_empty() {
                     out.push_str(&format!(
                         "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x, y + base_h - 4, x + w, y + base_h - 4, state_style.border_color
+                        x, y + STATE_NODE_H - 4, x + w, y + STATE_NODE_H - 4, state_style.border_color
                     ));
                     for (ai, action) in node.internal_actions.iter().enumerate() {
-                        let ay = y + base_h + ai as i32 * 14;
+                        let ay = y + STATE_NODE_H + ai as i32 * 14;
                         let text = if action.action.is_empty() {
                             action.kind.clone()
                         } else {
@@ -388,23 +540,6 @@ fn render_state_node_svg_styled(
                             "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
                             x + 6, ay + 10, state_style.font_color, escape_text(&text)
                         ));
-                    }
-                }
-                if let Some(region) = node.regions.first() {
-                    if !region.is_empty() {
-                        let mut child_y = y + h + 4;
-                        for child in region {
-                            render_state_node_svg_styled(
-                                out,
-                                child,
-                                x + 8,
-                                child_y,
-                                state_style,
-                                0,
-                                0,
-                            );
-                            child_y += STATE_NODE_H + 8;
-                        }
                     }
                 }
             }

@@ -167,6 +167,30 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
             ))),
         }
     }
+    // #545: Auto-generate a title when none is supplied in the source.
+    let title = title.or_else(|| {
+        Some(match subtype {
+            ChartSubtype::Bar => "Bar Chart".to_string(),
+            ChartSubtype::Line => "Line Chart".to_string(),
+            ChartSubtype::Area => "Area Chart".to_string(),
+            ChartSubtype::Pie => "Pie Chart".to_string(),
+            ChartSubtype::Scatter => "Scatter Chart".to_string(),
+        })
+    });
+    // #545: Auto-populate default axis labels when no h-axis / v-axis were
+    // specified, so every chart has visible axis captions out of the box.
+    if h_axis.is_none() && subtype != ChartSubtype::Pie {
+        h_axis = Some(ChartAxis {
+            label: Some("Category".to_string()),
+            ..ChartAxis::default()
+        });
+    }
+    if v_axis.is_none() && subtype != ChartSubtype::Pie {
+        v_axis = Some(ChartAxis {
+            label: Some("Value".to_string()),
+            ..ChartAxis::default()
+        });
+    }
     Ok(ChartDocument {
         title,
         caption,

@@ -56,7 +56,15 @@ fn parse_state_statement(
         ("join", "join"),
         ("end", "end"),
     ] {
-        if let Some(rest) = line.strip_prefix(keyword).map(str::trim) {
+        // Only match if followed by whitespace (word boundary), not e.g. "fork1"
+        let rest_opt = line.strip_prefix(keyword).and_then(|r| {
+            if r.is_empty() || r.starts_with(char::is_whitespace) {
+                Some(r.trim())
+            } else {
+                None
+            }
+        });
+        if let Some(rest) = rest_opt {
             if rest.is_empty() {
                 continue;
             }
@@ -184,8 +192,8 @@ fn parse_state_block(
             }
         }
 
-        // `||` region divider
-        if inner == "||" && depth == 1 {
+        // `||` or `--` region divider (both are PlantUML concurrent-region separators)
+        if (inner == "||" || inner == "--") && depth == 1 {
             region_dividers.push(children.len());
             j += 1;
             continue;

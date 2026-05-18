@@ -30,33 +30,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let margin_x: i32 = 32;
     let margin_top: i32 = 32;
     let col_count: i32 = 3;
-    // Base node width — may grow per-node based on longest member text (fix #473)
-    let node_width_base: i32 = 160;
-    let node_width_max: i32 = 300;
-    // Monospace char width estimate at font-size 11 (member text), 13 (title)
-    let member_char_w: i32 = 7;
-    let title_char_w: i32 = 8;
-    let node_padding_x: i32 = 20; // left+right padding inside box
-    // Compute per-node widths; all nodes in a column share the max width
-    let compute_node_min_width = |node: &crate::model::FamilyNode| -> i32 {
-        let name_w = (node.name.chars().count() as i32) * title_char_w + node_padding_x * 2;
-        let member_w = node
-            .members
-            .iter()
-            .map(|m| (m.text.trim().chars().count() as i32) * member_char_w + node_padding_x)
-            .max()
-            .unwrap_or(0);
-        name_w.max(member_w).clamp(node_width_base, node_width_max)
-    };
-    // Per-column max width
-    let mut col_widths: Vec<i32> = vec![node_width_base; col_count as usize];
-    for (idx, node) in document.nodes.iter().enumerate() {
-        let col = (idx as i32) % col_count;
-        let nw = compute_node_min_width(node);
-        col_widths[col as usize] = col_widths[col as usize].max(nw);
-    }
-    // For simplicity, use the global maximum so all nodes have the same width
-    let node_width: i32 = col_widths.iter().copied().max().unwrap_or(node_width_base);
+    let node_width: i32 = 200;
     let col_gap: i32 = 48;
     let row_gap: i32 = 64;
     let header_height: i32 = 30;
@@ -251,29 +225,33 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
     // Arrowhead/diamond marker defs — use class_style.arrow_color for stroke
     let arrow_stroke = &class_style.arrow_color;
+    // markerUnits="userSpaceOnUse" pins marker sizes in SVG user units so they
+    // are NOT scaled by the parent element's stroke-width (fix #471 collision).
+    // fill="#ffffff" instead of fill="white" avoids resvg keyword-inheritance
+    // rendering the triangle filled in PNG output (fix #467).
     out.push_str("<defs>");
     out.push_str(&format!(
         "<marker id=\"arrow-open\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" \
-         markerWidth=\"10\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         markerWidth=\"10\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
          <path d=\"M0,0 L10,5 L0,10\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
          </marker>",
     ));
     out.push_str(&format!(
         "<marker id=\"arrow-triangle\" viewBox=\"0 0 12 12\" refX=\"11\" refY=\"6\" \
-         markerWidth=\"12\" markerHeight=\"12\" orient=\"auto-start-reverse\">\
-         <polygon points=\"0,0 12,6 0,12\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" fill-rule=\"nonzero\"/>\
+         markerWidth=\"12\" markerHeight=\"12\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <polygon points=\"0,0 12,6 0,12\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\" fill-rule=\"nonzero\"/>\
          </marker>",
     ));
     out.push_str(&format!(
         "<marker id=\"arrow-diamond-filled\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
-         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
+         markerWidth=\"14\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"{arrow_stroke}\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
     out.push_str(&format!(
         "<marker id=\"arrow-diamond-open\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" \
-         markerWidth=\"14\" markerHeight=\"10\" orient=\"auto-start-reverse\">\
-         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"white\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
+         markerWidth=\"14\" markerHeight=\"10\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
     out.push_str("</defs>");
@@ -403,9 +381,18 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
         let rendered_label = usecase_dependency.or(relation.label.as_deref());
         if let Some(label) = rendered_label {
-            let lx = (x1 + x2) / 2;
-            // Keep at least 12px clearance from the arrow shaft (fix #462)
-            let ly = (y1 + y2) / 2 - 12;
+            // For mostly-horizontal lines, place the label above the midpoint.
+            // For mostly-vertical lines, offset right to avoid overlapping the shaft.
+            // Clearance increased to 16px to reduce overlap with box headers (fix #469).
+            let dx_abs = (x2 - x1).abs();
+            let dy_abs = (y2 - y1).abs();
+            let (lx, ly) = if dy_abs > dx_abs {
+                // Mostly vertical: shift label right of midpoint
+                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 8)
+            } else {
+                // Mostly horizontal: place label above midpoint
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 16)
+            };
             out.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
                 member_color = class_style.member_color,
@@ -446,21 +433,14 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
 
         let group_label = group.display_label();
 
-        // Frame rectangle — rectangle groups (system boundaries in usecase) get a solid border
-        // while other groups get a dashed border (fix #479)
-        let (frame_stroke, frame_dash) = if group.kind == "rectangle" {
-            ("#374151", "")  // solid dark border for system boundary
-        } else {
-            ("#6366f1", " stroke-dasharray=\"5 3\"")  // dashed purple for package/namespace
-        };
+        // Frame rectangle
         out.push_str(&format!(
-            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"4\" ry=\"4\" fill=\"none\" stroke=\"{frame_stroke}\" stroke-width=\"1.5\"{frame_dash}/>",
+            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
             escape_text(&group.scope)
         ));
         // Group label text
-        let label_color = if group.kind == "rectangle" { "#374151" } else { "#4338ca" };
         out.push_str(&format!(
-            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{label_color}\">{label}</text>",
+            "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
             tx = fx + 8,
             ty = fy + 14,
             label = escape_text(&group_label)
@@ -1946,21 +1926,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         render_family_node_shape_styled(&mut out, node, x, y, cell_w, cell_h, &comp_style);
         let id_name = node.name.clone();
         let id_alias = node.alias.clone();
-        // For Interface/Port nodes, use the actual circle/square dimensions for anchor
-        // computation so arrows connect properly to the rendered shape (fix #504).
-        let (eff_x, eff_y, eff_w, eff_h) = match node.kind {
-            FamilyNodeKind::Interface => {
-                let r = 18i32;
-                (x + cell_w / 2 - r, y + cell_h / 2 - r, r * 2, r * 2)
-            },
-            FamilyNodeKind::Port => {
-                (x + cell_w / 2 - 12, y + cell_h / 2 - 12, 24, 24)
-            },
-            _ => (x, y, cell_w, cell_h),
-        };
-        positions.insert(id_name, (eff_x, eff_y, eff_w, eff_h));
+        positions.insert(id_name, (x, y, cell_w, cell_h));
         if let Some(alias) = id_alias {
-            positions.insert(alias, (eff_x, eff_y, eff_w, eff_h));
+            positions.insert(alias, (x, y, cell_w, cell_h));
         }
     }
 
@@ -2117,9 +2085,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         }
         if let Some(label) = &rel.label {
             let label = usecase_dependency_label(Some(label)).unwrap_or(label);
-            let mx = (x1 + x2) / 2;
-            // Keep at least 12px clearance from the arrow shaft (fix #462)
-            let my = (y1 + y2) / 2 - 12;
+            // For mostly-horizontal lines, place the label above the midpoint.
+            // For mostly-vertical lines, offset right to avoid overlapping the shaft.
+            // Clearance increased to 16px to reduce overlap with box headers (fix #469).
+            let dx_abs = (x2 - x1).abs();
+            let dy_abs = (y2 - y1).abs();
+            let (mx, my) = if dy_abs > dx_abs {
+                ((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 8)
+            } else {
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 16)
+            };
             out.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">{}</text>",
                 mx,
@@ -2433,20 +2408,19 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
             ));
         }
         FamilyNodeKind::Artifact | FamilyNodeKind::File => {
-            // Main body with top-right dog-ear cut (fix #517)
+            // folded-corner rectangle
             out.push_str(&format!(
-                "<path d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"#fff7ed\" stroke=\"#9a3412\" stroke-width=\"1.5\"/>",
+                "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"#fff7ed\" stroke=\"#9a3412\" stroke-width=\"1.5\"/>",
+                x,
+                y,
                 x + w - 18,
+                y,
                 x + w,
                 y + 18,
+                x + w,
                 y + h,
-            ));
-            // Dog-ear fold triangle
-            out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{}\" fill=\"#f1f5f9\" stroke=\"#9a3412\" stroke-width=\"1\"/>",
-                x + w - 18, y,
-                x + w - 18, y + 18,
-                x + w, y + 18,
+                x,
+                y + h
             ));
         }
         FamilyNodeKind::Folder | FamilyNodeKind::Package => {
@@ -2879,7 +2853,6 @@ fn render_family_node_shape_styled(
                     ));
                 }
                 FamilyNodeKind::Artifact | FamilyNodeKind::File => {
-                    // Main body with top-right dog-ear cut (fix #517)
                     out.push_str(&format!(
                         "<path class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                         kind_label,
@@ -2888,15 +2861,6 @@ fn render_family_node_shape_styled(
                         y + 18,
                         y + h,
                         escape_text(fill),
-                        comp_style.border_color
-                    ));
-                    // Dog-ear fold triangle (the folded-back corner)
-                    out.push_str(&format!(
-                        "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                        x + w - 18, y,        // top-left of dog-ear
-                        x + w - 18, y + 18,   // bottom-left of dog-ear
-                        x + w, y + 18,         // bottom-right of dog-ear
-                        comp_style.background_color,
                         comp_style.border_color
                     ));
                 }

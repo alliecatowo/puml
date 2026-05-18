@@ -42,11 +42,10 @@ pub fn render_json_svg(document: &JsonDocument) -> String {
             .map(|(i, _)| y + (i as i32) * 22)
             .collect();
 
+        // Pass 1: draw connectors first so they render behind node boxes (#528).
         for (index, node) in document.nodes.iter().enumerate() {
             let x = 24 + (node.depth as i32) * 18;
             let ny = node_ys[index];
-
-            // Draw connector line from parent to this node (#528).
             if node.depth > 0 {
                 // Find the nearest ancestor (depth = node.depth - 1) above this node.
                 let parent_y = (0..index)
@@ -66,7 +65,12 @@ pub fn render_json_svg(document: &JsonDocument) -> String {
                     connector_x, ny - 3, x, ny - 3
                 ));
             }
+        }
 
+        // Pass 2: draw node boxes on top of connectors.
+        for (index, node) in document.nodes.iter().enumerate() {
+            let x = 24 + (node.depth as i32) * 18;
+            let ny = node_ys[index];
             out.push_str(&format!(
                 "<g class=\"data-tree-node json-node json-depth-{}\" data-projection=\"json\" data-json-index=\"{}\" data-json-depth=\"{}\" data-json-label=\"{}\">",
                 node.depth,
@@ -137,11 +141,10 @@ pub fn render_yaml_svg(document: &YamlDocument) -> String {
             .map(|(i, _)| y + (i as i32) * 22)
             .collect();
 
+        // Pass 1: draw connectors first so they render behind node boxes (#528).
         for (index, node) in document.nodes.iter().enumerate() {
             let x = 24 + (node.depth as i32) * 18;
             let ny = node_ys[index];
-
-            // Draw connector line from parent to this node (#528).
             if node.depth > 0 {
                 let parent_y = (0..index)
                     .rev()
@@ -158,7 +161,12 @@ pub fn render_yaml_svg(document: &YamlDocument) -> String {
                     connector_x, ny - 3, x, ny - 3
                 ));
             }
+        }
 
+        // Pass 2: draw node boxes on top of connectors.
+        for (index, node) in document.nodes.iter().enumerate() {
+            let x = 24 + (node.depth as i32) * 18;
+            let ny = node_ys[index];
             out.push_str(&format!(
                 "<g class=\"data-tree-node yaml-node yaml-depth-{}\" data-projection=\"yaml\" data-yaml-index=\"{}\" data-yaml-depth=\"{}\" data-yaml-label=\"{}\">",
                 node.depth,

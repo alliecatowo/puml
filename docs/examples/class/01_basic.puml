@@ -1,5 +1,12 @@
 @startuml
-class Animal
-class Dog
-Animal --> Dog : parent of
+class Animal {
+  +name: String
+  +age: Int
+  +speak()
+}
+class Dog {
+  +breed: String
+  +fetch()
+}
+Animal --> Dog : owns
 @enduml

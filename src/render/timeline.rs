@@ -280,6 +280,10 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             y1 = chart_top - header_h,
             y2 = chart_top + chart_h
         ));
+        // Clamp label start so it never extends past the canvas right edge (#485).
+        // A "YYYY-MM-DD" label is ~70 px wide; shift left if the tick is near the right.
+        let label_w = 70_i32;
+        let tx = (x + 6).min(width - label_w);
         out.push_str(&format!(
             "<text class=\"gantt-scale-tick\" data-gantt-tick-day=\"{day}\" x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\">{label}</text>",
             day = escape_text(&format_gantt_axis_label(
@@ -287,7 +291,6 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 min_day,
                 true
             )),
-            tx = x + 6,
             ty = chart_top - 10,
             label = escape_text(&format_gantt_scale_axis_label(
                 min_day.saturating_add(day_offset),
@@ -764,7 +767,13 @@ fn gantt_tick_offsets_for_width(total_days: u32, scale: Option<&str>, chart_w: i
         offsets.push(offset);
         offset = offset.saturating_add(step);
     }
-    if offsets.last().copied() != Some(total_days) {
+    // Only append the terminal end-of-range tick if it is far enough from the
+    // previous tick that its date label won't overlap.  We require at least
+    // ¾ of a step gap; this matches approximately one LABEL_PX width in pixels
+    // for typical chart widths (#485).
+    let min_gap = (step * 3 / 4).max(1);
+    let last = offsets.last().copied().unwrap_or(0);
+    if total_days.saturating_sub(last) >= min_gap {
         offsets.push(total_days);
     }
     offsets

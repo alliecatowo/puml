@@ -20,7 +20,9 @@ pub fn render_ebnf_svg(document: &EbnfDocument) -> String {
         .unwrap_or(0);
     let width = min_width.max(max_token_row_px + 48);
     let row_height = 90;
-    let height = 80 + (document.rules.len().max(1) as i32) * row_height;
+    // Extra bottom pad so the last-row terminal circles/ovals aren't clipped (#510).
+    let bottom_pad = 32;
+    let height = 80 + (document.rules.len().max(1) as i32) * row_height + bottom_pad;
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",

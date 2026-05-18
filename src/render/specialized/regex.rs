@@ -3,11 +3,17 @@ use super::*;
 pub fn render_regex_svg(document: &RegexDocument) -> String {
     // Auto-expand canvas width to prevent title / token row truncation (#514).
     let min_width = 760_i32;
+    // Include the document title width in the canvas width calculation.
+    let title_px = document
+        .title
+        .as_deref()
+        .map(|t| (t.len() as i32) * 9 + 64)
+        .unwrap_or(0);
     let max_row_px: i32 = document
         .patterns
         .iter()
         .map(|pat| {
-            // Title row: source regex string width
+            // Source regex string row width (shown as /source/)
             let source_px = (pat.source.len() as i32) * 7 + 64;
             // Token row: sum of token label widths
             let tokens_px: i32 = regex_tokens_to_labels(&pat.tokens)
@@ -19,7 +25,7 @@ pub fn render_regex_svg(document: &RegexDocument) -> String {
         })
         .max()
         .unwrap_or(0);
-    let width = min_width.max(max_row_px);
+    let width = min_width.max(title_px).max(max_row_px);
     let row_height = 80;
     let height = 80 + (document.patterns.len().max(1) as i32) * row_height;
     let mut out = String::new();

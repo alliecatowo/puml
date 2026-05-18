@@ -15,6 +15,8 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         match &stmt.kind {
             StatementKind::StateDecl(decl) => {
                 let node = state_decl_to_node(decl);
+                // Collect all transitions nested inside this composite state declaration
+                collect_decl_transitions(decl, &mut transitions);
                 upsert_state_node(&mut nodes, node);
             }
             StatementKind::StateTransition(t) => {
@@ -157,6 +159,36 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         state_style,
         warnings,
     })
+}
+
+/// Recursively collect all `StateTransition` statements nested inside a composite state
+/// declaration's children (and their children). These are added to the global transition list
+/// so the renderer can route them even though they live inside composite nodes.
+fn collect_decl_transitions(
+    decl: &crate::ast::StateDecl,
+    transitions: &mut Vec<ModelStateTransition>,
+) {
+    for child_stmt in &decl.children {
+        match &child_stmt.kind {
+            StatementKind::StateTransition(t) => {
+                transitions.push(ModelStateTransition {
+                    from: t.from.clone(),
+                    to: t.to.clone(),
+                    label: t.label.clone(),
+                    line_color: t.line_color.clone(),
+                    dashed: t.dashed,
+                    hidden: t.hidden,
+                    thickness: t.thickness,
+                    direction: t.direction.clone(),
+                });
+            }
+            StatementKind::StateDecl(child_decl) => {
+                // Recurse into nested composite states
+                collect_decl_transitions(child_decl, transitions);
+            }
+            _ => {}
+        }
+    }
 }
 
 fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {

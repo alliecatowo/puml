@@ -597,7 +597,10 @@ A --> E
     let svg = puml::render_source_to_svg(src).expect("state render");
     assert!(svg.contains("class=\"state-transition\""));
     assert!(svg.contains("data-state-from=\"A\" data-state-to=\"A\""));
-    assert!(svg.contains("r=\"14\""));
+    // Pseudo-state radius shifted in Wave 4-B refactor (was 14, now 12 outer
+    // with inner 8 for the <<end>> marker). Assert on presence of distinct radii.
+    assert!(svg.contains("r=\"12\""));
+    assert!(svg.contains("r=\"8\""));
 }
 
 #[test]

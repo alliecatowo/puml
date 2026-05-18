@@ -252,7 +252,7 @@ fn render_chart_line(
                     chart_label_mode_name(document.label_mode),
                     format_chart_value(value),
                     tx = px + 14, // shift right to avoid tick label below
-                    ty = py - 10  // raise by an extra 3px
+                    ty = py - 16  // raise by 16 px to clear axis tick labels
                 ));
             }
             if series_idx == 0 {
