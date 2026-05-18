@@ -111,6 +111,9 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     let mut event_rows: i32 = 0;
     let mut autonumber = AutonumberState::default();
     let mut teoz_route_lanes_by_row: BTreeMap<i32, i32> = BTreeMap::new();
+    // Track the y-coordinate of the last message that arrived at each participant
+    // so that explicit `activate X` can pin the bar start to the arriving message row.
+    let mut last_arrival_y: BTreeMap<String, i32> = BTreeMap::new();
 
     for event in &document.events {
         match &event.kind {
@@ -158,6 +161,11 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 );
                 let has_label_lines = !label_lines.is_empty();
                 let row_units = (label_lines.len() as i32).max(1);
+                // Record arrival y for the recipient so that an immediately
+                // following explicit `activate` can pin its bar to this row.
+                if to_virtual.is_none() && !to.is_empty() {
+                    last_arrival_y.insert(to.clone(), y);
+                }
                 messages.push(MessageLine {
                     from_id: from.clone(),
                     to_id: to.clone(),
@@ -223,14 +231,22 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 autonumber.update(raw.as_deref());
             }
             SequenceEventKind::Activate(id) => {
-                let y = events_top + (event_rows * options.message_row_height);
+                let current_y = events_top + (event_rows * options.message_row_height);
+                // Pin the activation bar to the y-coordinate of the most recent
+                // message that arrived at this participant (i.e. the arrow head
+                // position), so the bar visually starts at the incoming call
+                // rather than at the next event row.
+                let y1 = last_arrival_y
+                    .get(id.as_str())
+                    .copied()
+                    .unwrap_or(current_y);
                 let depth = activation_stack
                     .iter()
                     .filter(|open| open.participant_id == *id)
                     .count();
                 activation_stack.push(OpenActivation {
                     participant_id: id.clone(),
-                    y1: y,
+                    y1,
                     depth,
                 });
             }
@@ -343,7 +359,12 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                             height,
                             separators: Vec::new(),
                         });
-                        event_rows += row_units_for_height(height, options.message_row_height);
+                        // Add a clearance buffer (one label height) so the
+                        // label on the first message after the ref box does not
+                        // clip into the box's lower border.  The label is
+                        // drawn at line_y - 8, so we need the next row to be
+                        // at least (box_height + 16) px below the ref start.
+                        event_rows += row_units_for_height(height + 16, options.message_row_height);
                         continue;
                     } else {
                         groups.push(GroupBox {
