@@ -608,8 +608,6 @@ fn compute_group_bounds(
 //      horizontal, then back up.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Height of each inter-rank routing channel (px).
-const CHANNEL_HEIGHT: f64 = 24.0;
 /// Vertical spacing between tracks within a channel (px).
 const TRACK_SPACING: f64 = 8.0;
 /// Number of tracks available per channel before we wrap (soft cap).
@@ -682,16 +680,18 @@ fn route_edges(
         m
     };
 
-    // channel_y(upper_rank): top of the routing channel between rank `upper_rank`
-    // and rank `upper_rank + 1`. Centered in the gap between the two ranks.
-    let channel_y = |upper_rank: usize| -> f64 {
+    // channel_y(upper_rank): midpoint of the inter-rank gap between rank
+    // `upper_rank` and rank `upper_rank + 1`.  With the default rank_separation
+    // of 80px the midpoint is 40px below the bottom of the upper rank and 40px
+    // above the top of the lower rank — enough headroom for visible orthogonal
+    // bends even after symmetric track fanning.
+    let channel_mid_y = |upper_rank: usize| -> f64 {
         let bot = rank_bottom_y.get(&upper_rank).copied().unwrap_or(0.0);
         let next_top = rank_top_y
             .get(&(upper_rank + 1))
             .copied()
-            .unwrap_or(bot + 40.0);
-        let gap = (next_top - bot).max(CHANNEL_HEIGHT);
-        bot + (gap - CHANNEL_HEIGHT) / 2.0
+            .unwrap_or(bot + 80.0);
+        (bot + next_top) / 2.0
     };
 
     // ── Track assignment ───────────────────────────────────────────────────────
@@ -778,19 +778,81 @@ fn route_edges(
         }
     }
 
+    // ── Per-channel track count (for symmetric fanning) ──────────────────────
+    //
+    // After track assignment, count the maximum track index used in each channel
+    // so that path generation can fan track offsets symmetrically around the
+    // channel midpoint:  offset(i) = (i - n_tracks/2) * TRACK_SPACING.
+    //
+    // This ensures that with rank_separation≈80px and a midpoint 40px from each
+    // adjacent rank, even track 0 sits squarely in the middle of the gap and
+    // the horizontal bend segment is clearly visible (≥10px from each port).
+
+    // channel_max_track[ch] = highest track index allocated in that channel
+    let channel_max_track: BTreeMap<usize, usize> = {
+        let mut m: BTreeMap<usize, usize> = BTreeMap::new();
+        for ei in &edge_infos {
+            let track = *edge_track.get(&ei.edge_id).unwrap_or(&0);
+            if ei.src_rank == ei.tgt_rank {
+                let e = m.entry(ei.src_rank).or_insert(0);
+                if track > *e {
+                    *e = track;
+                }
+            } else {
+                let (min_r, max_r) = if ei.src_rank < ei.tgt_rank {
+                    (ei.src_rank, ei.tgt_rank)
+                } else {
+                    (ei.tgt_rank, ei.src_rank)
+                };
+                for ch in min_r..max_r {
+                    let e = m.entry(ch).or_insert(0);
+                    if track > *e {
+                        *e = track;
+                    }
+                }
+            }
+        }
+        m
+    };
+
+    // Symmetric track offset for a given channel and track index.
+    // With n_tracks tracks in channel `ch`, track i is at:
+    //   offset = (i as f64 - n_tracks as f64 / 2.0) * TRACK_SPACING
+    // so the band is centered on the channel midpoint.
+    //
+    // The band half-width is capped at (inter_rank_gap - 16) / 2 so that even
+    // many tracks never collide with the adjacent node rows.  If the gap is
+    // genuinely < 16px (degenerate), no clamping is applied here; the soft
+    // boundary below handles that case.
+    let symmetric_offset = |ch: usize, track: usize| -> f64 {
+        let n_tracks = *channel_max_track.get(&ch).unwrap_or(&0) as f64;
+        let raw = (track as f64 - n_tracks / 2.0) * TRACK_SPACING;
+        // Compute the inter-rank gap for this channel to bound the fan width.
+        let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
+        let next_top = rank_top_y
+            .get(&(ch + 1))
+            .copied()
+            .unwrap_or(bot + 80.0);
+        let gap = next_top - bot;
+        if gap >= 16.0 {
+            let max_half = (gap - 8.0) / 2.0;
+            raw.clamp(-max_half, max_half)
+        } else {
+            raw
+        }
+    };
+
     // ── Path generation ────────────────────────────────────────────────────────
     //
-    // Every cross-rank edge MUST route through the inter-rank channel, producing
-    // a path of the form:
+    // Every cross-rank edge routes through the inter-rank channel midpoint plus
+    // a symmetric track offset, producing a path:
     //   [src_port, (src_x, ch_y), (tgt_x, ch_y), tgt_port]
-    // for a single-hop downward edge.  When src_x == tgt_x the two middle points
-    // coincide and the path is purely vertical, but it still passes through the
-    // channel waypoint so the renderer never emits a featureless straight line.
+    // for a single-hop downward edge.  The ch_y is the channel midpoint ± offset,
+    // which sits ~40px from each node row with the default rank_separation of 80px,
+    // making the orthogonal bend clearly visible regardless of horizontal alignment.
     //
-    // The ch_y value (base channel y + track offset) is clamped to remain
-    // strictly between src_port_y and tgt_port_y so that high track numbers
-    // caused by multi-rank spanning edges consuming intermediate channel slots
-    // cannot push ch_y to or past the target node boundary.
+    // The near-port clamp (±2px) from Wave 14 is replaced by a softer boundary:
+    // only clamp when the inter-rank gap is genuinely < 16px (degenerate layout).
     //
     // After building each path, adjacent duplicate points are removed so the
     // final polyline always has ≥3 distinct waypoints for cross-rank edges.
@@ -818,7 +880,6 @@ fn route_edges(
             .unwrap_or((200.0, 80.0));
 
         let track = *edge_track.get(&ei.edge_id).unwrap_or(&0);
-        let track_offset = track as f64 * TRACK_SPACING;
 
         let path = if ei.src_rank == ei.tgt_rank {
             // Same-rank U-shape: exit bottom of source, route through channel
@@ -827,7 +888,7 @@ fn route_edges(
             let src_bottom_y = sy + sh;
             let tgt_bottom_x = tx + tw / 2.0;
             let tgt_bottom_y = ty + th;
-            let ch_y = channel_y(ei.src_rank) + track_offset;
+            let ch_y = channel_mid_y(ei.src_rank) + symmetric_offset(ei.src_rank, track);
             vec![
                 (src_bottom_x, src_bottom_y),
                 (src_bottom_x, ch_y),
@@ -858,44 +919,48 @@ fn route_edges(
                 (ei.tgt_rank, ei.src_rank)
             };
 
-            // Clamp a raw channel y so it stays strictly between the two port y
-            // values (leaving at least 2px clearance on each side).  This prevents
-            // high track numbers from pushing ch_y past the target node boundary,
-            // which would collapse the intermediate waypoints into the endpoint.
-            let clamp_ch_y = |raw: f64| -> f64 {
-                let (lo, hi) = if goes_down {
-                    (src_port_y + 2.0, tgt_port_y - 2.0)
+            // Soft clamp: only needed for degenerate layouts where the inter-rank
+            // gap is < 16px and the symmetric offset could overshoot the node
+            // boundary.  Normal layouts (rank_separation ≥ 80px) are unaffected.
+            let soft_clamp_ch_y = |ch: usize, raw: f64| -> f64 {
+                let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
+                let next_top = rank_top_y
+                    .get(&(ch + 1))
+                    .copied()
+                    .unwrap_or(bot + 80.0);
+                let gap = next_top - bot;
+                if gap < 16.0 {
+                    // Degenerate gap: clamp to exact midpoint.
+                    (bot + next_top) / 2.0
                 } else {
-                    (tgt_port_y + 2.0, src_port_y - 2.0)
-                };
-                if lo <= hi {
-                    raw.clamp(lo, hi)
-                } else {
-                    // Degenerate gap (src and tgt are extremely close): use midpoint.
-                    (src_port_y + tgt_port_y) / 2.0
+                    // Normal gap: allow any value strictly within the gap.
+                    raw.clamp(bot + 4.0, next_top - 4.0)
                 }
             };
 
             // Build polyline segment by segment through each channel.
             // For a downward edge from rank R0 to rank R1 (R0 < R1):
-            //   start at src_port → vertical to channel(R0) → horizontal → vertical to channel(R0+1) ... → tgt_port
+            //   start at src_port → vertical to channel(R0) midpoint → horizontal →
+            //   vertical to channel(R0+1) midpoint ... → tgt_port
             let mut pts: Vec<(f64, f64)> = Vec::new();
             pts.push((src_port_x, src_port_y));
 
             if max_r - min_r == 1 {
-                // Single channel hop.  Always route through the inter-rank channel
-                // so that every cross-rank edge has perpendicular exit and entry,
-                // even when src_x == tgt_x (in that case the horizontal segment
-                // has zero width but the path still passes through the channel).
-                let ch_y = clamp_ch_y(channel_y(min_r) + track_offset);
+                // Single channel hop.  Route through the inter-rank channel midpoint
+                // (± symmetric track offset) so the horizontal bend segment is always
+                // clearly visible even when src_x == tgt_x (collinear nodes).
+                let raw_ch_y = channel_mid_y(min_r) + symmetric_offset(min_r, track);
+                let ch_y = soft_clamp_ch_y(min_r, raw_ch_y);
                 pts.push((src_port_x, ch_y));
                 pts.push((tgt_port_x, ch_y));
             } else {
-                // Multi-rank: zigzag x toward target across each channel.
+                // Multi-rank: staircase through each intermediate channel midpoint.
+                // X interpolates toward the target across hops.
                 let n_hops = (max_r - min_r) as f64;
                 for hop in 0..(max_r - min_r) {
                     let ch = min_r + hop;
-                    let ch_y_val = clamp_ch_y(channel_y(ch) + track_offset);
+                    let raw_ch_y = channel_mid_y(ch) + symmetric_offset(ch, track);
+                    let ch_y_val = soft_clamp_ch_y(ch, raw_ch_y);
                     // Interpolate x toward target across hops for a staircase effect.
                     let t = (hop as f64 + 1.0) / n_hops;
                     let mid_x = if goes_down {
