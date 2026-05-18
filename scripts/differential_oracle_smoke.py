@@ -66,6 +66,22 @@ FIXTURES: List[Dict[str, Any]] = [
         "expect_tokens": ["note"],
     },
     {
+        "fixture": "arrows/valid_teoz_response_below_arrow.puml",
+        "category": "sequence-advanced",
+        "support_status": "implemented",
+        "expected_oracle_category": "match",
+        "drift_area": "sequence teoz response labels",
+        "drift_reason": "teoz parallel arrows, styled crossing arrows, note across, and response labels below dashed arrows should stay close to the PlantUML reference",
+        "next_ticket": "Keep as the issue #350 advanced sequence sentinel; expand only with focused oracle evidence.",
+        "plantuml_reference": "https://plantuml.com/sequence-diagram",
+        "expect_tokens": [
+            "schedule work",
+            "styled crossing",
+            "shared routing context",
+            "crossing result",
+        ],
+    },
+    {
         "fixture": "styling/valid_skinparam_unsupported.puml",
         "category": "styling-partial",
         "support_status": "partial",

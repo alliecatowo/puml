@@ -397,6 +397,58 @@ fn render_sequence_teoz_overlapping_parallel_routes_get_distinct_lanes() {
 }
 
 #[test]
+fn render_sequence_teoz_response_below_arrow_keeps_reply_label_under_dashed_route() {
+    let src = fixture("arrows/valid_teoz_response_below_arrow.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    assert!(doc.teoz);
+    assert!(doc.style.response_message_below_arrow);
+    assert_eq!(doc.style.message_align, puml::theme::MessageAlign::Center);
+
+    let scene = layout::layout(&doc, LayoutOptions::default());
+    assert_eq!(scene.messages.len(), 4);
+    assert_eq!(
+        scene.messages[0].y, scene.messages[1].y,
+        "teoz `&` message should share the initiating row"
+    );
+    assert_eq!(
+        scene.messages[1].y, scene.messages[2].y,
+        "multiple teoz `&` messages should stay on the initiating row"
+    );
+    assert!(
+        scene.messages[3].arrow.contains("--"),
+        "final message should remain a dashed response arrow"
+    );
+
+    let note = scene
+        .notes
+        .iter()
+        .find(|note| note.text.contains("shared routing context"))
+        .expect("note across should reach layout");
+    let first = scene.participants.first().expect("first participant");
+    let last = scene.participants.last().expect("last participant");
+    assert_eq!(note.x, first.x);
+    assert!(
+        note.width >= (last.x + last.width) - first.x,
+        "note across should span the participant range"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("stroke=\"#ff0000\""));
+    assert!(svg.contains("stroke-dasharray=\"6 4\""));
+    assert!(svg.contains("shared routing context"));
+    let texts = parse_svg_texts(&svg);
+    let reply_label = texts
+        .iter()
+        .find(|text| text.text == "crossing result")
+        .expect("response label should render");
+    assert!(
+        reply_label.y > scene.messages[3].route_y,
+        "ResponseMessageBelowArrow should put dashed response labels below the arrow"
+    );
+}
+
+#[test]
 fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
     let src = fixture("e2e/sequence_parity_vertical_slice.puml");
     let ast = puml::parse(&src).expect("parse");
