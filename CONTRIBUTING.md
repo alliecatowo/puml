@@ -1,156 +1,161 @@
-# Contributing to puml
+# Contributing to PUML
 
-## Setup
+Welcome! PUML is an experiment in AI-driven development: most of the code lands via Claude Code agents working in parallel, with a human (allisonemilycoleman@gmail.com) orchestrating from above. Human contributions are very welcome too — both forms are first-class here, and the docs below treat them equally.
 
-### One-time developer setup
+If you're here because you saw something broken, missing, or interesting and want to help — thank you. Read on.
+
+---
+
+## How contribution actually works
+
+There are three ways to contribute, in roughly increasing weight:
+
+### 1. File an issue
+
+The lowest-friction contribution. Use the templates:
+- **🐛 Bug report** — something PUML does wrong. Include a minimal `.puml` snippet, the command you ran, and what you expected vs. got. Render-bug reports with an attached PNG are gold.
+- **✨ Feature request** — a PlantUML construct we don't yet cover, a CLI flag you wish existed, a quality-of-life improvement for the LSP or VS Code extension.
+- **💬 [Discussions](https://github.com/alliecatowo/puml/discussions)** — open-ended ideas, show-and-tell, "how would I…" questions.
+
+Don't filter yourself. We currently have 100+ open issues and welcome more — surfacing problems is the whole point.
+
+### 2. Open a pull request
+
+Real code changes, big or small. The PR template walks you through what we need:
+- What the change does and why
+- Type (bug fix / feature / breaking / visual / refactor / infra / docs)
+- Linked issues (`Closes #N`)
+- **Visual evidence for renderer changes** — even a path to the regenerated PNG works; you don't have to drag-drop an image
+- Test plan (cargo test, clippy, fmt, parity harness, baseline blessing if applicable)
+- Self-review checklist
+
+We don't gatekeep on style or sophistication. Land the smallest change that fixes the thing, and we'll iterate from there.
+
+### 3. Run an agent
+
+This is what makes PUML different. If you're using Claude Code (or another agent harness) you can:
+- Spawn a worker against an open issue: "fix issue #NNN" → the agent reads the linked context, drafts a fix, runs tests, opens a PR
+- Run the multimodal visual audit loop: render the PNG corpus, ingest the images, file issues for visual flaws, dispatch fix waves
+- Use the `agent-ready` label as a filter — those issues are written with self-contained context that an agent can act on
+
+Agentic contributions follow the same PR template + CI gates as human PRs. The Claude Code agent already knows how to:
+- Render PNGs and embed paths in the PR description
+- Bless visual baselines after intentional changes
+- Update the issue with progress comments
+- Close the issue on merge
+
+If you want to contribute agentically and don't know where to start, see [`docs/internal/agents/codex-workflow.md`](docs/internal/agents/codex-workflow.md) and [`docs/internal/agents/autonomous-workflow-cookbook.md`](docs/internal/agents/autonomous-workflow-cookbook.md).
+
+---
+
+## Quick start (for humans)
 
 ```bash
-# Clone + enter
-git clone <your-fork-or-repo-url>
+git clone https://github.com/alliecatowo/puml
 cd puml
+./scripts/setup.sh              # rustfmt, clippy, llvm-cov, etc.
+./scripts/install-hooks.sh      # opt-in lefthook git hooks
+cargo build --release
 
-# Install Rust toolchain dependencies (rustfmt, clippy, llvm-cov, etc.)
-./scripts/setup.sh
-
-# Install lefthook git hooks (optional but strongly recommended)
-./scripts/install-hooks.sh
+# render your first thing
+echo '@startuml
+Alice -> Bob: Hi
+@enduml' | ./target/release/puml --format png - -o /tmp/hi.png
 ```
 
-`lefthook` is a fast, language-agnostic git hook runner. Once installed, it
-enforces two guards automatically:
-
-| Event        | Command                                          | Purpose                          |
-|--------------|--------------------------------------------------|----------------------------------|
-| `pre-commit` | `cargo fmt --check`                              | Reject unformatted commits       |
-| `pre-push`   | `cargo clippy --all-targets -- -D warnings`      | Reject clippy violations         |
-| `pre-push`   | `cargo test --lib --quiet`                       | Reject broken unit tests         |
-
-Hooks are **opt-in** — CI runners and automated agents do not need to install
-them. Hooks are skipped automatically during rebase and merge commits.
-
-To **uninstall** the hooks:
-
-```bash
-./scripts/install-hooks.sh --uninstall
-```
-
-### Installing lefthook
-
-If `./scripts/install-hooks.sh` reports that lefthook is not installed, pick
-any of the following:
-
-```bash
-# via cargo (works anywhere a Rust toolchain is present):
-cargo install lefthook
-
-# via the official install script (Linux/macOS):
-curl -sSfL https://raw.githubusercontent.com/evilmartians/lefthook/master/install.sh | sh
-
-# via brew:
-brew install lefthook
-
-# via snap (Ubuntu):
-snap install lefthook
-```
-
-Then re-run `./scripts/install-hooks.sh`.
-
----
-
-## Development workflow
-
-```bash
-# Fast local loop (fmt + clippy + test)
-./scripts/dev.sh
-
-# Full quality gate (fmt + clippy + test + coverage + release build + bench gates)
-./scripts/check-all.sh
-
-# Quick quality gate (skips coverage + release build)
-./scripts/check-all.sh --quick
-```
-
----
-
-## Issues and discussions
-
-Use [GitHub Discussions](https://github.com/alliecatowo/puml/discussions) for
-questions, early ideas, show-and-tell posts, parity reports that still need
-clarification, and AI-swarm workflow notes.
-
-Open an issue when the work is actionable: a reproducible bug, scoped
-compatibility gap, failing test, docs task, CLI/site/LSP/WASM task, or
-release-blocking defect. When a discussion produces concrete follow-up work,
-open an issue and link back to the discussion.
-
-See [GitHub Discussions](https://github.com/alliecatowo/puml/discussions) for community routing.
-
----
-
-## CI
-
-GitHub Actions is the **source of truth** for all quality gates. The PR gate
-runs:
-
-1. `cargo fmt --check`
-2. `cargo clippy --all-targets --all-features -- -D warnings`
-3. `cargo test`
-4. Coverage gate (≥ 90 % line coverage)
-5. `./scripts/check-all.sh --quick --skip-bench`
-6. Docs examples drift gate
-
-Passing CI is required before merge. Local hooks are a convenience layer, not
-a substitute.
-
----
-
-## For agents working on this repo
-
-**Before opening a PR, always run the full pre-push check:**
+Before opening a PR:
 
 ```bash
 cargo fmt
-cargo clippy --all-targets -- -D warnings
-cargo test --quiet
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --release
+python3 scripts/parity_harness.py --fail-on-doc-drift
 ```
 
-Checklist before `gh pr create`:
+If your change affects the renderer, also:
 
-- [ ] `cargo fmt` — no formatting violations (CI will reject unformatted code)
-- [ ] `cargo clippy --all-targets -- -D warnings` — zero clippy warnings
-- [ ] `cargo test --quiet` — all tests pass
-- [ ] No changes to `src/` outside the stated task scope
-- [ ] No changes to `.github/workflows/` unless the task explicitly requires it
-- [ ] PR title follows the `type: description` convention
-- [ ] PR body references the relevant issue (e.g., `Closes #NNN`)
+```bash
+# regenerate the docs/examples SVG corpus
+find docs/examples -name "*.puml" | while read f; do
+  ./target/release/puml "$f" -o "${f%.puml}.svg"
+done
 
-Agents that install lefthook via `./scripts/install-hooks.sh` get the
-`cargo fmt --check` guard on `git commit` and the clippy + lib-test guard on
-`git push` automatically. Agents that do not install hooks must run the above
-checklist manually.
+# re-bless visual baselines for intentional visual changes
+cargo test --release --test visual_regression bless_baselines -- --ignored
+```
+
+The PR gate runs all of the above automatically, so don't sweat it if you forget — the bot will tell you.
 
 ---
 
-## Code style
+## What to work on
 
-- All Rust code must be formatted with `rustfmt` (`cargo fmt`).
-- Zero clippy warnings (`cargo clippy --all-targets -- -D warnings`).
-- No `unwrap()` in production paths — use proper `Result`/`Option` handling.
-- Keep `src/` deterministic: no `HashMap` iteration order dependencies,
-  no floating-point output that varies by platform.
+| Where to look | Why |
+|---|---|
+| **[Open issues with `agent-ready`](https://github.com/alliecatowo/puml/issues?q=is%3Aopen+label%3Aagent-ready)** | Triaged with enough context to act on |
+| **[P0 issues](https://github.com/alliecatowo/puml/issues?q=is%3Aopen+label%3AP0)** | Critical correctness or visual bugs |
+| **[The visual audit notes](docs/internal/visual-audit-2026-05-18.md)** | Per-PNG findings from the last multimodal sweep |
+| **[Layout engine epic #590](https://github.com/alliecatowo/puml/issues/590)** | The biggest architectural lift — stages 1-4 are filed as children |
+| **[`docs/internal/parity/`](docs/internal/parity/)** | PlantUML parity tracking — find a gap, fill it |
+
+The biggest currently-open work areas:
+1. **Visual perfection** — driving every diagram family to look as good as or better than Mermaid/PlantUML reference output
+2. **Layout engine refactor** — replacing the per-family grid layouts with a real hierarchical / orthogonal-routing layout module
+3. **PlantUML parity** — adding diagram families and syntax we don't yet support (Chen ER, Board, swimlanes, etc.)
+4. **Polish** — error messages, CLI ergonomics, LSP completions
 
 ---
 
-## Commit messages
+## Project conventions
 
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) style:
+A few things the agents (and humans) try to follow:
 
-```
-type: short imperative description
+- **No PRs without tests** — if you change behavior, add a test. If you fix a bug, the test should reproduce the original bug.
+- **Determinism** — same input must produce byte-identical output. Avoid `HashMap` iteration without sorting; sort all collections before serialization.
+- **One logical change per commit** — easier to review, easier to revert.
+- **Reference issues in commits** — `Fix #NNN: <one-liner>` for fixes; `Refs #NNN` for partial progress.
+- **No `unwrap()` / `panic!()` on user input** — surface a `Diagnostic` instead.
+- **Visual evidence for visual changes** — even just paths in the PR description.
 
-Optional longer body.
+Code style is enforced by `cargo fmt` and `cargo clippy --all-targets --all-features -- -D warnings`. The PR gate fails if either complains.
 
-Closes #NNN
-```
+---
 
-Common types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`.
+## Agent-specific guidance
+
+If you're running an agent against PUML:
+
+- **Always render to PNG, not SVG** when doing multimodal visual verification. The Read tool triggers vision on raster formats; SVG is parsed as XML text and you'll miss visual flaws entirely.
+- **Use `scripts/render_corpus.py --force`** to regenerate the whole PNG corpus into `target/audit_corpus/png/`.
+- **Slice work by file locality** to minimize merge conflicts when running parallel workers. `src/render/family.rs` is contended; coordinate.
+- **Skip the Codex sandbox** — agents that route through `codex` / `codex-rescue` / `apply_patch` have hit read-only filesystem errors. Use Claude Code's built-in Edit/Write/Bash tools directly.
+- **Update issue status as you go** — `gh issue edit <N> --add-label in-progress` when you start, `gh issue close <N> --comment "<evidence>"` when you finish. The board drifts otherwise.
+
+For the full agent runbook, see [`docs/internal/agents/`](docs/internal/agents/).
+
+---
+
+## Releases
+
+PUML is pre-1.0. We tag a release when a notable change lands; security fixes always land on `main` and ship in the next tagged release.
+
+- See [`docs/release-checklist.md`](docs/release-checklist.md) for the release process.
+- Funding: [GitHub Sponsors / Ko-fi](.github/FUNDING.yml).
+
+---
+
+## Code of conduct
+
+By participating in this project you agree to abide by the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+
+## License
+
+PUML is MIT-licensed. By submitting a PR you agree your contribution is licensed under the same terms.
+
+---
+
+## Thanks
+
+Whether you're a human, an agent, or both at once — thanks for being here.
