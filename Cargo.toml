@@ -64,7 +64,7 @@ assert_cmd = "2"
 insta = { version = "1.43", features = ["json"] }
 predicates = "3"
 tempfile = "3"
-httpmock = "0.7"
+httpmock = "0.8"
 roxmltree = "0.21"
 # PNG baseline diffing for visual_regression tests.  These are the same
 # versions already locked as optional `cli`-feature dependencies, so no
