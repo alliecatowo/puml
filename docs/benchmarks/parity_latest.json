@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-19T15:31:06Z",
+  "generated_at_utc": "2026-05-19T21:58:50Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml",
+    "cwd": "/home/Allie/develop/puml/.claude/worktrees/agent-a0a097fae71c4fc3e",
     "quick_mode": false
   },
   "oracle": {
@@ -36,7 +36,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 1640,
+          "svg_bytes": 1724,
           "viewbox": null
         }
       },
@@ -60,7 +60,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 2451,
+          "svg_bytes": 2523,
           "viewbox": null
         }
       },
@@ -84,7 +84,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 3781,
+          "svg_bytes": 3943,
           "viewbox": null
         }
       },
@@ -108,7 +108,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 2886,
+          "svg_bytes": 3042,
           "viewbox": null
         }
       },
@@ -132,7 +132,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 2783,
+          "svg_bytes": 2975,
           "viewbox": null
         }
       },
@@ -156,7 +156,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 2318,
+          "svg_bytes": 2402,
           "viewbox": null
         }
       },
@@ -180,7 +180,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 3170,
+          "svg_bytes": 3308,
           "viewbox": null
         }
       },
@@ -204,7 +204,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 2385,
+          "svg_bytes": 2511,
           "viewbox": null
         }
       },
@@ -289,10 +289,10 @@
   ],
   "doc_examples": {
     "summary": {
-      "total": 257,
-      "passed": 254,
+      "total": 286,
+      "passed": 275,
       "excluded": 3,
-      "failed": 0
+      "failed": 8
     },
     "entries": [
       {
@@ -482,6 +482,45 @@
         "source_kind": "source_file",
         "source_ref": "docs/examples/activity/15_report_generation.puml",
         "artifact_svg": "docs/examples/activity/15_report_generation.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/activity/16_nested_swimlanes_parallel_forks.puml",
+        "artifact_svg": "docs/examples/activity/16_nested_swimlanes_parallel_forks.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/activity/17_switch_case_with_detach.puml",
+        "artifact_svg": "docs/examples/activity/17_switch_case_with_detach.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/activity/18_repeat_while_nested_partition.puml",
+        "artifact_svg": "docs/examples/activity/18_repeat_while_nested_partition.svg",
         "artifact_exists": true,
         "artifact_matches_render": true,
         "artifact_up_to_date": true,
@@ -805,6 +844,32 @@
       {
         "source_markdown": "",
         "source_kind": "source_file",
+        "source_ref": "docs/examples/c4/11_system_landscape.puml",
+        "artifact_svg": "docs/examples/c4/11_system_landscape.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/c4/12_container_with_databases.puml",
+        "artifact_svg": "docs/examples/c4/12_container_with_databases.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
         "source_ref": "docs/examples/chart/01_bar.puml",
         "artifact_svg": "docs/examples/chart/01_bar.svg",
         "artifact_exists": true,
@@ -846,6 +911,32 @@
         "source_kind": "source_file",
         "source_ref": "docs/examples/chart/04_multi_series.puml",
         "artifact_svg": "docs/examples/chart/04_multi_series.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/chart/05_stacked_bar.puml",
+        "artifact_svg": "docs/examples/chart/05_stacked_bar.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/chart/06_multi_series_line.puml",
+        "artifact_svg": "docs/examples/chart/06_multi_series_line.svg",
         "artifact_exists": true,
         "artifact_matches_render": true,
         "artifact_up_to_date": true,
@@ -1286,6 +1377,32 @@
       {
         "source_markdown": "",
         "source_kind": "source_file",
+        "source_ref": "docs/examples/class/31_generic_types_container.puml",
+        "artifact_svg": "docs/examples/class/31_generic_types_container.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/class/32_association_class_deep_packages.puml",
+        "artifact_svg": "docs/examples/class/32_association_class_deep_packages.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
         "source_ref": "docs/examples/component/01_basic.puml",
         "artifact_svg": "docs/examples/component/01_basic.svg",
         "artifact_exists": true,
@@ -1362,6 +1479,38 @@
         "exclusion_reason": null,
         "status": "pass",
         "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/component/07_ports_lollipop_interfaces.puml",
+        "artifact_svg": "docs/examples/component/07_ports_lollipop_interfaces.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/component/08_cloud_db_queue_stereotypes.puml",
+        "artifact_svg": "docs/examples/component/08_cloud_db_queue_stereotypes.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1466,6 +1615,35 @@
         "exclusion_reason": null,
         "status": "pass",
         "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/deployment/05_three_tier_cloud_onprem.puml",
+        "artifact_svg": "docs/examples/deployment/05_three_tier_cloud_onprem.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/deployment/06_kubernetes_pods_containers.puml",
+        "artifact_svg": "docs/examples/deployment/06_kubernetes_pods_containers.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -1613,6 +1791,32 @@
       {
         "source_markdown": "",
         "source_kind": "source_file",
+        "source_ref": "docs/examples/gantt/07_dependencies_with_lag_holidays.puml",
+        "artifact_svg": "docs/examples/gantt/07_dependencies_with_lag_holidays.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/gantt/08_milestones_critical_path.puml",
+        "artifact_svg": "docs/examples/gantt/08_milestones_critical_path.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
         "source_ref": "docs/examples/groups_notes.puml",
         "artifact_svg": "docs/examples/groups_notes.svg",
         "artifact_exists": true,
@@ -1654,6 +1858,19 @@
         "source_kind": "source_file",
         "source_ref": "docs/examples/json/03_nested.puml",
         "artifact_svg": "docs/examples/json/03_nested.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/json/04_deep_nesting_arrays_of_objects.puml",
+        "artifact_svg": "docs/examples/json/04_deep_nesting_arrays_of_objects.svg",
         "artifact_exists": true,
         "artifact_matches_render": true,
         "artifact_up_to_date": true,
@@ -1745,6 +1962,32 @@
         "source_kind": "source_file",
         "source_ref": "docs/examples/mindmap/04_learning_map.puml",
         "artifact_svg": "docs/examples/mindmap/04_learning_map.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/mindmap/05_four_levels_asymmetric.puml",
+        "artifact_svg": "docs/examples/mindmap/05_four_levels_asymmetric.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/mindmap/06_multiline_node_labels.puml",
+        "artifact_svg": "docs/examples/mindmap/06_multiline_node_labels.svg",
         "artifact_exists": true,
         "artifact_matches_render": true,
         "artifact_up_to_date": true,
@@ -2629,6 +2872,45 @@
       {
         "source_markdown": "",
         "source_kind": "source_file",
+        "source_ref": "docs/examples/sequence/46_nested_alt_with_par.puml",
+        "artifact_svg": "docs/examples/sequence/46_nested_alt_with_par.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/sequence/47_create_participant_midflow.puml",
+        "artifact_svg": "docs/examples/sequence/47_create_participant_midflow.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/sequence/48_complex_ref_over_multibox.puml",
+        "artifact_svg": "docs/examples/sequence/48_complex_ref_over_multibox.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
         "source_ref": "docs/examples/skinparams/01_arrow_color.puml",
         "artifact_svg": "docs/examples/skinparams/01_arrow_color.svg",
         "artifact_exists": true,
@@ -2967,6 +3249,45 @@
       {
         "source_markdown": "",
         "source_kind": "source_file",
+        "source_ref": "docs/examples/state/09_three_level_composite.puml",
+        "artifact_svg": "docs/examples/state/09_three_level_composite.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/state/10_parallel_regions_shared_events.puml",
+        "artifact_svg": "docs/examples/state/10_parallel_regions_shared_events.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/state/11_entry_exit_actions_history.puml",
+        "artifact_svg": "docs/examples/state/11_entry_exit_actions_history.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
         "source_ref": "docs/examples/supported_primitives_lifecycle_structure.puml",
         "artifact_svg": "docs/examples/supported_primitives_lifecycle_structure.svg",
         "artifact_exists": true,
@@ -3074,12 +3395,15 @@
         "source_ref": "docs/examples/themes/06_spacelab_state.puml",
         "artifact_svg": "docs/examples/themes/06_spacelab_state.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -3349,12 +3673,15 @@
         "source_ref": "docs/examples/themes/theme_sketchy_outline.puml",
         "artifact_svg": "docs/examples/themes/theme_sketchy_outline.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "",
@@ -3463,6 +3790,32 @@
       {
         "source_markdown": "",
         "source_kind": "source_file",
+        "source_ref": "docs/examples/timing/05_concurrent_timelines_message_arrows.puml",
+        "artifact_svg": "docs/examples/timing/05_concurrent_timelines_message_arrows.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/timing/06_robust_states_value_annotations.puml",
+        "artifact_svg": "docs/examples/timing/06_robust_states_value_annotations.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
         "source_ref": "docs/examples/usecase/01_basic.puml",
         "artifact_svg": "docs/examples/usecase/01_basic.svg",
         "artifact_exists": true,
@@ -3504,6 +3857,32 @@
         "source_kind": "source_file",
         "source_ref": "docs/examples/usecase/04_with_packages.puml",
         "artifact_svg": "docs/examples/usecase/04_with_packages.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/usecase/05_actor_generalization_system_boundary.puml",
+        "artifact_svg": "docs/examples/usecase/05_actor_generalization_system_boundary.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
+        "source_ref": "docs/examples/usecase/06_multi_system_boundary.puml",
+        "artifact_svg": "docs/examples/usecase/06_multi_system_boundary.svg",
         "artifact_exists": true,
         "artifact_matches_render": true,
         "artifact_up_to_date": true,
@@ -3567,6 +3946,19 @@
       {
         "source_markdown": "",
         "source_kind": "source_file",
+        "source_ref": "docs/examples/wbs/05_four_levels_deep.puml",
+        "artifact_svg": "docs/examples/wbs/05_four_levels_deep.svg",
+        "artifact_exists": true,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
+        "excluded": false,
+        "exclusion_reason": null,
+        "status": "pass",
+        "notes": []
+      },
+      {
+        "source_markdown": "",
+        "source_kind": "source_file",
         "source_ref": "docs/examples/yaml/01_mapping.puml",
         "artifact_svg": "docs/examples/yaml/01_mapping.svg",
         "artifact_exists": true,
@@ -3609,12 +4001,15 @@
         "source_ref": "docs/examples/sequence/README.md#snippet-1",
         "artifact_svg": "docs/examples/sequence/README_snippet_1.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "docs/examples/sequence/README.md",
@@ -3622,12 +4017,15 @@
         "source_ref": "docs/examples/sequence/README.md#snippet-2",
         "artifact_svg": "docs/examples/sequence/README_snippet_2.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       },
       {
         "source_markdown": "docs/examples/sequence/README.md",
@@ -3635,12 +4033,15 @@
         "source_ref": "docs/examples/sequence/README.md#snippet-3",
         "artifact_svg": "docs/examples/sequence/README_snippet_3.svg",
         "artifact_exists": true,
-        "artifact_matches_render": true,
-        "artifact_up_to_date": true,
+        "artifact_matches_render": false,
+        "artifact_up_to_date": false,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "pass",
-        "notes": []
+        "status": "fail",
+        "notes": [
+          "artifact content does not match current renderer output",
+          "artifact content is stale vs current renderer output"
+        ]
       }
     ]
   }
