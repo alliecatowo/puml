@@ -696,6 +696,7 @@ pub struct FamilyRelation {
 #[derive(Debug, Clone)]
 pub struct SequenceDocument {
     pub participants: Vec<Participant>,
+    pub participant_groups: Vec<SequenceParticipantGroup>,
     pub events: Vec<SequenceEvent>,
     pub teoz: bool,
     pub title: Option<String>,
@@ -720,6 +721,7 @@ impl Default for SequenceDocument {
     fn default() -> Self {
         Self {
             participants: Vec::new(),
+            participant_groups: Vec::new(),
             events: Vec::new(),
             teoz: false,
             title: None,
@@ -743,6 +745,7 @@ impl Default for SequenceDocument {
 #[derive(Debug, Clone)]
 pub struct SequencePage {
     pub participants: Vec<Participant>,
+    pub participant_groups: Vec<SequenceParticipantGroup>,
     pub events: Vec<SequenceEvent>,
     pub teoz: bool,
     pub title: Option<String>,
@@ -769,6 +772,13 @@ pub struct Participant {
     pub display: String,
     pub role: ParticipantRole,
     pub explicit: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SequenceParticipantGroup {
+    pub label: Option<String>,
+    pub color: Option<String>,
+    pub participant_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

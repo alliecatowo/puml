@@ -1,4 +1,5 @@
 use super::*;
+use crate::model::SequenceParticipantGroup;
 
 pub(super) fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {
     let mut pages = Vec::new();
@@ -26,6 +27,7 @@ fn page_from(
 ) -> SequencePage {
     SequencePage {
         participants: document.participants.clone(),
+        participant_groups: document.participant_groups.clone(),
         events: events.to_vec(),
         teoz: document.teoz,
         title,
@@ -95,6 +97,8 @@ pub(super) fn normalize_with_options(
     let mut alive_by_id: BTreeMap<String, bool> = BTreeMap::new();
     let mut activation_stack: Vec<ActivationFrame> = Vec::new();
     let mut group_stack: Vec<GroupFrame> = Vec::new();
+    let mut participant_group_stack: Vec<SequenceParticipantGroup> = Vec::new();
+    let mut participant_groups = Vec::new();
     let mut last_message: Option<(String, String)> = None;
     let mut ignore_newpage = false;
     let mut hide_unlinked = false;
@@ -114,12 +118,17 @@ pub(super) fn normalize_with_options(
                 upsert_participant(
                     &mut participants,
                     &mut participant_ix,
-                    id,
+                    id.clone(),
                     display,
                     map_role(p.role),
                     true,
                 )
                 .map_err(|e| Diagnostic::error(e).with_span(stmt.span))?;
+                for group in &mut participant_group_stack {
+                    if !group.participant_ids.iter().any(|member| member == &id) {
+                        group.participant_ids.push(id.clone());
+                    }
+                }
             }
             StatementKind::Message(m) => {
                 mark_group_content(&mut group_stack);
@@ -208,7 +217,28 @@ pub(super) fn normalize_with_options(
                 });
             }
             StatementKind::Group(g) => {
+                if g.kind.eq_ignore_ascii_case("box") {
+                    let (label, color) = parse_participant_group_label(g.label.as_deref());
+                    participant_group_stack.push(SequenceParticipantGroup {
+                        label,
+                        color,
+                        participant_ids: Vec::new(),
+                    });
+                    continue;
+                }
                 if g.kind == "end" {
+                    if g.label.as_deref() == Some("box") {
+                        let Some(group) = participant_group_stack.pop() else {
+                            return Err(Diagnostic::error(
+                                "[E_BOX_END_UNMATCHED] `end box` without an open box block",
+                            )
+                            .with_span(stmt.span));
+                        };
+                        if !group.participant_ids.is_empty() {
+                            participant_groups.push(group);
+                        }
+                        continue;
+                    }
                     let Some(open) = group_stack.pop() else {
                         return Err(Diagnostic::error(
                             "[E_GROUP_END_UNMATCHED] `end` without an open group block",
@@ -776,6 +806,21 @@ pub(super) fn normalize_with_options(
                 participant_ix.insert(p.id.clone(), idx);
             }
         }
+        if !participant_groups.is_empty() {
+            participant_groups = participant_groups
+                .into_iter()
+                .filter_map(|mut group| {
+                    group.participant_ids.retain(|id| !hidden_participants.contains(id));
+                    (!group.participant_ids.is_empty()).then_some(group)
+                })
+                .collect();
+        }
+    }
+
+    while let Some(group) = participant_group_stack.pop() {
+        if !group.participant_ids.is_empty() {
+            participant_groups.push(group);
+        }
     }
 
     if !participant_order.is_empty() {
@@ -809,6 +854,7 @@ pub(super) fn normalize_with_options(
 
     Ok(SequenceDocument {
         participants,
+        participant_groups,
         events,
         teoz,
         title,
@@ -826,6 +872,30 @@ pub(super) fn normalize_with_options(
         hide_unlinked,
         hidden_participants,
     })
+}
+
+fn parse_participant_group_label(raw: Option<&str>) -> (Option<String>, Option<String>) {
+    let Some(raw) = raw.map(str::trim).filter(|raw| !raw.is_empty()) else {
+        return (None, None);
+    };
+
+    let mut label = raw;
+    let mut color = None;
+    if let Some(last) = raw.split_whitespace().last() {
+        if last.starts_with('#') && last.len() > 1 {
+            color = Some(last.to_string());
+            label = raw[..raw.len() - last.len()].trim_end();
+        }
+    }
+
+    let label = label
+        .trim()
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(label)
+        .trim();
+
+    ((!label.is_empty()).then_some(label.to_string()), color)
 }
 
 /// Strip the LEGEND_POS prefix from a packed legend value, returning just the text.
