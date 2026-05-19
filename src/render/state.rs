@@ -168,9 +168,63 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
+    // Build edge/kind lookup tables needed for both the canvas pre-pass and Phase 2.
+    // Build a set of all (from, to) pairs to detect bidirectional edges
+    let edge_set: std::collections::BTreeSet<(&str, &str)> = transitions
+        .iter()
+        .map(|t| (t.from.as_str(), t.to.as_str()))
+        .collect();
+    let node_kinds: std::collections::BTreeMap<&str, &StateNodeKind> = nodes
+        .iter()
+        .map(|node| (node.name.as_str(), &node.kind))
+        .collect();
+
     // Compute total canvas size from placed nodes
-    let max_x = placed.values().map(|p| p.x + p.w).max().unwrap_or(300);
-    let max_y = placed.values().map(|p| p.y + p.h).max().unwrap_or(200);
+    let mut max_x = placed.values().map(|p| p.x + p.w).max().unwrap_or(300);
+    let mut max_y = placed.values().map(|p| p.y + p.h).max().unwrap_or(200);
+
+    // Pre-pass: expand canvas to include transition label extents.
+    // Labels are placed in Phase 2 but the canvas must account for their
+    // right/bottom edges *before* the SVG viewBox is fixed. Without this
+    // pre-pass, labels whose centers fall near the right edge are clipped
+    // because only node bounding boxes contribute to max_x/max_y (#745).
+    {
+        let mut prelim_occupied: Vec<LabelBounds> = Vec::new();
+        for t in transitions {
+            let Some(label) = &t.label else { continue };
+            let from_p = placed.get(&t.from);
+            let to_p = placed.get(&t.to);
+            if let (Some(fp), Some(tp)) = (from_p, to_p) {
+                let has_reverse =
+                    t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+                let (x1, y1, x2, y2) = edge_anchors_for_kinds(
+                    node_kinds.get(t.from.as_str()).copied(),
+                    fp,
+                    node_kinds.get(t.to.as_str()).copied(),
+                    tp,
+                );
+                let (lx1, ly1, lx2, ly2) = if has_reverse {
+                    offset_parallel_edge(x1, y1, x2, y2, 10)
+                } else {
+                    (x1, y1, x2, y2)
+                };
+                let layout = place_state_transition_label(
+                    label,
+                    lx1,
+                    ly1,
+                    lx2,
+                    ly2,
+                    &placed,
+                    &prelim_occupied,
+                );
+                let b = layout.bounds;
+                max_x = max_x.max(b.x + b.w);
+                max_y = max_y.max(b.y + b.h);
+                prelim_occupied.push(b);
+            }
+        }
+    }
+
     let width = max_x + STATE_MARGIN;
     let height = max_y + STATE_MARGIN + 12;
 
@@ -208,15 +262,6 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         *outgoing.entry(t.from.as_str()).or_insert(0) += 1;
     }
 
-    // Build a set of all (from, to) pairs to detect bidirectional edges
-    let edge_set: std::collections::BTreeSet<(&str, &str)> = transitions
-        .iter()
-        .map(|t| (t.from.as_str(), t.to.as_str()))
-        .collect();
-    let node_kinds: std::collections::BTreeMap<&str, &StateNodeKind> = nodes
-        .iter()
-        .map(|node| (node.name.as_str(), &node.kind))
-        .collect();
     let mut occupied_label_bounds: Vec<LabelBounds> = Vec::new();
 
     // Draw transitions first (arrows behind nodes).
