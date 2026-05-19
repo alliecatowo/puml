@@ -1084,6 +1084,52 @@ fn bbox_blocks_horiz(bbox: &NodeBbox, x_min: i32, x_max: i32, y: i32) -> bool {
     y > bbox.top + margin && y < bbox.bottom - margin
 }
 
+/// Return true when a vertical line at `x` would pass through `bbox` in the
+/// y corridor `[y_min, y_max]`.
+fn bbox_blocks_vert(bbox: &NodeBbox, x: i32, y_min: i32, y_max: i32) -> bool {
+    let margin = 3;
+    // x must be inside the bbox horizontally (with margin)
+    if x <= bbox.left + margin || x >= bbox.right - margin {
+        return false;
+    }
+    // The vertical segment's y-range must overlap the bbox's interior
+    let seg_lo = y_min.min(y_max);
+    let seg_hi = y_min.max(y_max);
+    seg_hi > bbox.top + margin && seg_lo < bbox.bottom - margin
+}
+
+/// For a vertical arrow at x=`x` from `y1` to `y2`, find an x-offset that
+/// avoids all blocking bboxes.  Returns `None` when the arrow is already clear.
+/// The side x is placed to the right of all obstacles, with a small gap.
+/// Check if any node bbox blocks a vertical segment at `x` between `y1` and
+/// `y2`, excluding bboxes that the arrow STARTS from (i.e., y1 is inside the
+/// bbox — that is the legitimate exit point of the source node).
+fn choose_vert_bypass_x(x: i32, y1: i32, y2: i32, bboxes: &[NodeBbox]) -> Option<i32> {
+    let y_lo = y1.min(y2);
+    let y_hi = y1.max(y2);
+    let blocking: Vec<&NodeBbox> = bboxes
+        .iter()
+        .filter(|b| {
+            if !bbox_blocks_vert(b, x, y_lo, y_hi) {
+                return false;
+            }
+            // Exclude the source node: if y1 is inside this bbox, the arrow
+            // legitimately exits from it — not an obstacle.
+            let y_start_inside = y1 >= b.top && y1 <= b.bottom;
+            // Exclude the destination node: if y2 is inside this bbox, the
+            // arrow legitimately arrives at it.
+            let y_end_inside = y2 >= b.top && y2 <= b.bottom;
+            !y_start_inside && !y_end_inside
+        })
+        .collect();
+    if blocking.is_empty() {
+        return None;
+    }
+    // Route to the right of all blocking bboxes.
+    let side_x = blocking.iter().map(|b| b.right).max().unwrap() + 12;
+    Some(side_x)
+}
+
 /// Choose an obstacle-free `mid_y` for the horizontal segment of an L-bend
 /// arrow from (x1,y1) to (x2,y2).
 ///
@@ -1156,11 +1202,30 @@ fn emit_activity_arrow(
     bboxes: &[NodeBbox],
 ) {
     if x1 == x2 {
-        // Straight vertical arrow -- no routing needed.
-        out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-            x1, y1, x2, y2, color
-        ));
+        // Vertical arrow.  Check whether it passes through any node bbox;
+        // if so, route as a 5-segment bypass: out → up/down → back (#734).
+        if let Some(side_x) = choose_vert_bypass_x(x1, y1, y2, bboxes) {
+            // 5-segment path: (x1,y1) → (side_x,y1) → (side_x,y2) → (x2,y2)
+            // implemented as 3 line segments with the arrowhead at (x2,y2).
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x1, y1, side_x, y1, color
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                side_x, y1, side_x, y2, color
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                side_x, y2, x2, y2, color
+            ));
+        } else {
+            // Straight vertical arrow -- no routing needed.
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x1, y1, x2, y2, color
+            ));
+        }
         // Arrowhead pointing downward (or upward for back-edges).
         let uy = if y2 >= y1 { 1.0f64 } else { -1.0f64 };
         let base_y = y2 as f64 - uy * 8.0;
@@ -1178,21 +1243,47 @@ fn emit_activity_arrow(
         // L-shaped orthogonal routing: down -> across -> down.
         // mid_y is chosen to avoid obstacle node bboxes in the x corridor.
         let mid_y = choose_mid_y(x1, y1, x2, y2, bboxes);
-        // Segment 1: x1, y1 -> x1, mid_y
-        out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-            x1, y1, x1, mid_y, color
-        ));
-        // Segment 2: x1, mid_y -> x2, mid_y
-        out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-            x1, mid_y, x2, mid_y, color
-        ));
-        // Segment 3: x2, mid_y -> x2, y2
-        out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-            x2, mid_y, x2, y2, color
-        ));
+
+        // Check if the first vertical segment (x1, y1 → x1, mid_y) passes
+        // through any node body.  If so, reroute as a 5-segment "bypass"
+        // path: go right past all obstacles at y1, then vertical, then back
+        // left to x1, then continue with the horizontal and final leg.
+        if let Some(bypass_x) = choose_vert_bypass_x(x1, y1, mid_y, bboxes) {
+            // 5-segment: (x1,y1)→(bypass,y1)→(bypass,mid_y)→(x2,mid_y)→(x2,y2)
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x1, y1, bypass_x, y1, color
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                bypass_x, y1, bypass_x, mid_y, color
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                bypass_x, mid_y, x2, mid_y, color
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x2, mid_y, x2, y2, color
+            ));
+        } else {
+            // Normal 3-segment L-bend.
+            // Segment 1: x1, y1 -> x1, mid_y
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x1, y1, x1, mid_y, color
+            ));
+            // Segment 2: x1, mid_y -> x2, mid_y
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x1, mid_y, x2, mid_y, color
+            ));
+            // Segment 3: x2, mid_y -> x2, y2
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                x2, mid_y, x2, y2, color
+            ));
+        }
         // Arrowhead at (x2, y2) pointing vertically (downward or upward).
         let dy = y2 - mid_y;
         let uy = if dy >= 0 { 1.0f64 } else { -1.0f64 };
