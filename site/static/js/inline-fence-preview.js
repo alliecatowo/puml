@@ -131,9 +131,10 @@ function applySyntaxHighlighting(code, lang) {
     typeof PUML_HIGHLIGHT_LANGS === 'undefined' ||
     typeof highlightPumlToHtml !== 'function' ||
     !PUML_HIGHLIGHT_LANGS.has(lang) ||
-    code.children.length > 0
+    code.dataset.pumlHighlighted === 'true'
   ) return;
   code.innerHTML = highlightPumlToHtml(code.textContent || '');
+  code.dataset.pumlHighlighted = 'true';
 }
 
 function setButtonLabel(button, label) {
