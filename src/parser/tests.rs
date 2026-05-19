@@ -405,6 +405,7 @@ mod tests {
             &ParseOptions {
                 include_root: Some(dir.path().to_path_buf()),
                 allow_url_includes: false,
+                ..ParseOptions::default()
             },
         )
         .unwrap_err();
