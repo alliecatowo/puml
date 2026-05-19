@@ -1,16 +1,16 @@
 @startuml
-object Server {
+object server : Server {
   host = api.example.com
   port = 443
 }
-object Database {
+object database : Database {
   host = db.internal
   port = 5432
 }
-object Cache {
+object cache : Cache {
   host = redis.internal
   port = 6379
 }
-Server --> Database : connects
-Server --> Cache : uses
+server --> database : connects
+server --> cache : uses
 @enduml

@@ -1,5 +1,5 @@
 @startuml
-object Alice
-object Bob
-Alice --> Bob : knows
+object alice : Person
+object bob : Person
+alice --> bob : knows
 @enduml

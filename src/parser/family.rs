@@ -67,14 +67,38 @@ fn parse_family_declaration(
             continue;
         };
         let FamilyDeclParts {
-            name,
-            alias,
+            name: raw_name,
+            alias: raw_alias,
             has_block,
             stereotypes,
             fill_color,
         } = decl;
+        // For `object` declarations, support `object instanceName : TypeName` syntax
+        // (fix #486 — UML 2.5 §9.8 instance notation).  When no explicit `as` alias
+        // was provided, split on " : " so that:
+        //   name  = "instanceName : TypeName"  (shown underlined in header)
+        //   alias = "instanceName"             (used for relation lookups)
+        // The `map` keyword is excluded: its " : " is a value separator, not UML type.
+        let (name, alias) = if keyword == "object" && raw_alias.is_none() {
+            if let Some((instance, _type_part)) = raw_name.split_once(" : ") {
+                let instance = instance.trim().to_string();
+                if !instance.is_empty() && instance != raw_name {
+                    (raw_name, Some(instance))
+                } else {
+                    (raw_name, raw_alias)
+                }
+            } else {
+                (raw_name, raw_alias)
+            }
+        } else {
+            (raw_name, raw_alias)
+        };
+        // When a type alias was extracted, use the short instance name for member
+        // lookup so that block bodies like `object alice : Person { ... }` can
+        // reference members using the short name.
+        let member_lookup = alias.as_deref().unwrap_or(&name).to_string();
         let mut members = if has_block {
-            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            let mut members = parse_family_decl_members(lines, start, keyword, &member_lookup)?;
             if let Some(marker) = marker {
                 members.insert(
                     0,

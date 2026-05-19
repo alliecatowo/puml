@@ -603,17 +603,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 match longest_horiz {
                     Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
                     None => {
-                        let longest_seg = pts.windows(2).max_by_key(|seg| {
-                            let (ax, ay) = seg[0];
-                            let (bx, by_) = seg[1];
-                            (bx - ax).pow(2) + (by_ - ay).pow(2)
-                        });
-                        match longest_seg {
-                            Some(seg) => {
-                                ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
-                            }
-                            None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-                        }
+                        // Use overall first→last midpoint (fix #484) so equal-length
+                        // vertical segments don't bias the label toward the arrowhead end.
+                        let (fptx, fpty) = pts.first().copied().unwrap_or((x1, y1));
+                        let (lptx, lpty) = pts.last().copied().unwrap_or((x2, y2));
+                        ((fptx + lptx) / 2, (fpty + lpty) / 2 - 12)
                     }
                 }
             } else {
@@ -979,15 +973,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let (lmx, lmy) = match longest_horiz {
                 Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
                 None => {
-                    let longest_seg = pts.windows(2).max_by_key(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    });
-                    match longest_seg {
-                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-                    }
+                    // Use overall first→last midpoint (fix #484) so equal-length
+                    // vertical segments don't bias the label toward the arrowhead.
+                    let (fptx, fpty) = pts.first().copied().unwrap_or((x1, y1));
+                    let (lptx, lpty) = pts.last().copied().unwrap_or((x2, y2));
+                    ((fptx + lptx) / 2, (fpty + lpty) / 2 - 12)
                 }
             };
             label_mx = lmx;
@@ -3663,7 +3653,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             // the overall endpoint midpoint when no horizontal segment exists.
             // Using the overall endpoint midpoint avoids the equal-length segment
             // ambiguity (max_by_key picks last when tied) that places labels near
-            // the arrowhead on straight vertical paths (fix #428).
+            // the arrowhead on straight vertical paths (fix #428, #484).
             let longest_horiz = orth_pts
                 .windows(2)
                 .filter(|seg| seg[0].1 == seg[1].1)
