@@ -18,6 +18,10 @@ export type RenderSvgResult = {
 export class PumlLspClient {
   private client: LanguageClient | undefined;
 
+  isRunning(): boolean {
+    return this.client !== undefined;
+  }
+
   async start(context: vscode.ExtensionContext): Promise<void> {
     if (this.client) {
       return;
