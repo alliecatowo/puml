@@ -197,6 +197,8 @@ pub enum OutputFormat {
     Png,
     Jpg,
     Webp,
+    /// PDF output via SVG-to-PDF vector conversion.
+    Pdf,
     Txt,
     Atxt,
     Utxt,
@@ -369,5 +371,12 @@ mod tests {
         let err = Cli::try_parse_from(["puml", "--check-fixture", "fixture.puml", "stdin.puml"])
             .expect_err("check fixture should conflict with positional input");
         assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn pdf_format_parses() {
+        let cli =
+            Cli::try_parse_from(["puml", "--format", "pdf"]).expect("--format pdf should parse");
+        assert_eq!(cli.format, OutputFormat::Pdf);
     }
 }

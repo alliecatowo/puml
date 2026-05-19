@@ -250,7 +250,11 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         y,
                         route_y: y + return_multi_line_offset,
                         x2,
-                        arrow: "-->".to_string(),
+                        // `return` shorthand is a dashed reply with an open
+                        // thin arrowhead — equivalent to PlantUML's `A -->> B`
+                        // (or `A <-- B` written left-to-right).  Using "-->"
+                        // produces a filled solid head which is wrong.
+                        arrow: "-->>".to_string(),
                         label,
                         label_lines,
                         style: Default::default(),
@@ -1743,7 +1747,7 @@ mod tests {
         };
         let scene = layout(&doc, LayoutOptions::default());
         assert_eq!(scene.messages.len(), 1);
-        assert_eq!(scene.messages[0].arrow, "-->");
+        assert_eq!(scene.messages[0].arrow, "-->>");
     }
 
     #[test]
