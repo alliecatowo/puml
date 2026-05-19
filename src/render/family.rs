@@ -2791,6 +2791,15 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             }
         }
     }
+    let mut interface_nodes: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for node in &doc.nodes {
+        if matches!(node.kind, FamilyNodeKind::Interface) {
+            interface_nodes.insert(node.name.clone());
+            if let Some(alias) = &node.alias {
+                interface_nodes.insert(alias.clone());
+            }
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 1b (compat): Build PackageLayout list from group_bounds
@@ -3203,6 +3212,25 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         to_name: String,
     }
     let mut pending_labels: Vec<PendingLabel> = Vec::new();
+    let adjust_interface_anchor =
+        |node_box: (i32, i32, i32, i32), other_box: (i32, i32, i32, i32)| {
+            const INTERFACE_RADIUS: i32 = 18;
+
+            let (nx, ny, nw, nh) = node_box;
+            let (ox, oy, ow, oh) = other_box;
+            let cx = nx + nw / 2;
+            let cy = ny + nh / 2;
+            let other_cx = ox + ow / 2;
+            let other_cy = oy + oh / 2;
+            let dx = other_cx - cx;
+            let dy = other_cy - cy;
+
+            if dx.abs() >= dy.abs() {
+                (cx + if dx >= 0 { INTERFACE_RADIUS } else { -INTERFACE_RADIUS }, cy)
+            } else {
+                (cx, cy + if dy >= 0 { INTERFACE_RADIUS } else { -INTERFACE_RADIUS })
+            }
+        };
 
     for (rel_idx, rel) in doc.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
@@ -3217,7 +3245,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         // Port-based anchoring: attach to mid-point of the nearest box edge
         // (left/right for horizontal-dominant, top/bottom for vertical-dominant).
         // Part of the layout engine refactor (#591, #590 epic).
-        let (x1, y1, x2, y2) = if rel.direction.is_some() {
+        let (mut x1, mut y1, mut x2, mut y2) = if rel.direction.is_some() {
             compute_edge_anchors_for_direction(
                 (fx, fy, fw, fh),
                 (tx, ty, tw, th),
@@ -3226,6 +3254,14 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         } else {
             pick_port((fx, fy, fw, fh), (tx, ty, tw, th))
         };
+        if family == "component" {
+            if interface_nodes.contains(&from_name) {
+                (x1, y1) = adjust_interface_anchor((fx, fy, fw, fh), (tx, ty, tw, th));
+            }
+            if interface_nodes.contains(&to_name) {
+                (x2, y2) = adjust_interface_anchor((tx, ty, tw, th), (fx, fy, fw, fh));
+            }
+        }
 
         let style = arrow_style(&normalized_arrow);
         let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
@@ -3309,7 +3345,13 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             None
         };
 
-        if let Some(orth_pts) = ortho_path_f64 {
+        if let Some(mut orth_pts) = ortho_path_f64 {
+            if let Some(first) = orth_pts.first_mut() {
+                *first = (x1, y1);
+            }
+            if let Some(last) = orth_pts.last_mut() {
+                *last = (x2, y2);
+            }
             // ── Orthogonal polyline from layout engine ────────────────────────
             let pts_str: String = orth_pts
                 .iter()
