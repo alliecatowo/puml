@@ -5555,6 +5555,40 @@ fn component_family_canvas_keeps_rightmost_nodes_inside_viewbox() {
 }
 
 #[test]
+fn component_arrow_labels_fan_apart_and_stay_inside_viewbox() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("component/06_with_arrows.puml")).unwrap(),
+    )
+    .expect("component arrow example should render");
+    let calls = svg_text_positions(&svg, "calls")
+        .into_iter()
+        .next()
+        .expect("calls label position");
+    let uses = svg_text_positions(&svg, "uses")
+        .into_iter()
+        .next()
+        .expect("uses label position");
+    let composed = svg_text_positions(&svg, "composed")
+        .into_iter()
+        .next()
+        .expect("composed label position");
+    let svg_width = extract_svg_width_attr(&svg).expect("svg width");
+
+    assert!(
+        (uses.0 - composed.0).abs() >= 24 || (uses.1 - composed.1).abs() >= 12,
+        "uses and composed labels should not overlap in the shared routing lane"
+    );
+    assert!(
+        (calls.0 - uses.0).abs() >= 24 || (calls.1 - uses.1).abs() >= 12,
+        "calls and uses labels should remain visually distinct"
+    );
+    assert!(
+        svg_width >= composed.0 + 48,
+        "rightmost component label should keep a readable margin inside the viewbox"
+    );
+}
+
+#[test]
 fn usecase_relation_labels_clear_arrowheads_and_each_other() {
     let overlap_svg = render_source_to_svg(
         &fs::read_to_string(example("usecase/03_extends_includes.puml")).unwrap(),

@@ -3520,15 +3520,13 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 3: De-collide edge labels
     // ─────────────────────────────────────────────────────────────────────────
-    // Strategy: cluster labels by their destination node name.  When ≥2 labels
-    // target the same node, fan them HORIZONTALLY above the target's top edge.
-    // This correctly handles "source text ×3" (all targeting Parser) and
-    // "NormalizedDocument / style tokens / annotations" (all targeting Renderer)
-    // regardless of how far apart their raw label positions are.
-    //
-    // For labels not sharing a target (solo labels or labels that already have
-    // unique target nodes), fall back to emitting them at their raw position.
+    // Strategy:
+    // 1. Cluster labels by destination node name. When >= 2 labels target the
+    //    same node, fan them horizontally above that node's top edge.
+    // 2. For any remaining labels that still share a horizontal lane, fan them
+    //    horizontally around their mean x so parallel channels stay readable.
     const LABEL_FAN_H_GAP: i32 = 85; // horizontal gap between adjacent fanned labels
+    const LABEL_CLUSTER_BAND: i32 = 18; // px y-range to detect shared label lanes
 
     // Build target → list of pending_label indices
     let mut by_target_ph3: std::collections::BTreeMap<String, Vec<usize>> =
@@ -3538,8 +3536,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     let n = pending_labels.len();
-    let mut adjusted_labels: Vec<(i32, i32, String, String)> =
-        vec![(0, 0, String::new(), String::new()); n];
+    let mut adjusted_labels: Vec<Option<(i32, i32, String, String)>> = vec![None; n];
 
     for (to_name, indices) in &by_target_ph3 {
         let count = indices.len() as i32;
@@ -3560,22 +3557,53 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             sorted_idx.sort_by_key(|&i| pending_labels[i].x);
             for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
                 let offset = (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
-                adjusted_labels[raw_idx] = (
+                adjusted_labels[raw_idx] = Some((
                     anchor_cx + offset,
                     anchor_y,
                     pending_labels[raw_idx].text.clone(),
                     pending_labels[raw_idx].color.clone(),
-                );
+                ));
             }
-        } else {
-            // Solo label: emit at raw position.
-            let &raw_idx = indices.first().unwrap();
-            adjusted_labels[raw_idx] = (
+        }
+    }
+
+    let mut y_clusters: Vec<Vec<usize>> = Vec::new();
+    for (i, label) in pending_labels.iter().enumerate() {
+        if adjusted_labels[i].is_some() {
+            continue;
+        }
+        let found = y_clusters.iter().position(|cluster| {
+            let rep = pending_labels[*cluster.first().expect("cluster member")].y;
+            (label.y - rep).abs() <= LABEL_CLUSTER_BAND
+        });
+        match found {
+            Some(ci) => y_clusters[ci].push(i),
+            None => y_clusters.push(vec![i]),
+        }
+    }
+
+    for cluster in y_clusters {
+        if cluster.len() >= 2 {
+            let count = cluster.len() as i32;
+            let mut sorted_idx = cluster;
+            sorted_idx.sort_by_key(|&i| pending_labels[i].x);
+            let mean_x = sorted_idx.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
+            for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
+                let offset = (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
+                adjusted_labels[raw_idx] = Some((
+                    mean_x + offset,
+                    pending_labels[raw_idx].y,
+                    pending_labels[raw_idx].text.clone(),
+                    pending_labels[raw_idx].color.clone(),
+                ));
+            }
+        } else if let Some(&raw_idx) = cluster.first() {
+            adjusted_labels[raw_idx] = Some((
                 pending_labels[raw_idx].x,
                 pending_labels[raw_idx].y,
                 pending_labels[raw_idx].text.clone(),
                 pending_labels[raw_idx].color.clone(),
-            );
+            ));
         }
     }
 
@@ -3639,13 +3667,21 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     }
 
     // Emit the final labels
-    for (lx, ly, text, color) in &adjusted_labels {
-        if text.is_empty() {
-            continue;
+    for (idx, entry) in adjusted_labels.iter_mut().enumerate() {
+        if entry.is_none() {
+            *entry = Some((
+                pending_labels[idx].x,
+                pending_labels[idx].y,
+                pending_labels[idx].text.clone(),
+                pending_labels[idx].color.clone(),
+            ));
         }
+    }
+    for entry in adjusted_labels.into_iter().flatten() {
+        let (lx, ly, text, color) = entry;
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-            lx, ly, escape_text(color), escape_text(text)
+            lx, ly, escape_text(&color), escape_text(&text)
         ));
     }
 
