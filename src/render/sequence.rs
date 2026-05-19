@@ -6,6 +6,7 @@ use crate::theme::{css3_color_to_hex, MessageAlign};
 use std::collections::BTreeMap;
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
+const REF_HEADER_HEIGHT: i32 = 22;
 
 pub fn render_svg(scene: &Scene) -> String {
     let mut out = String::new();
@@ -149,19 +150,18 @@ pub fn render_svg(scene: &Scene) -> String {
                 _ => "",
             };
             if is_ref {
-                // ref box: "ref" appears alone in a small pentagon notch at the
-                // top-left; the participant list and body text go in the body.
-                let notch_w = 32_i32;
-                let notch_h = 20_i32;
-                let cut = 6_i32;
+                let header_bottom = g.y + REF_HEADER_HEIGHT;
                 out.push_str(&format!(
-                    "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                    g.x, g.y,
-                    g.x + notch_w, g.y,
-                    g.x + notch_w, g.y + notch_h - cut,
-                    g.x + notch_w - cut, g.y + notch_h,
-                    g.x, g.y + notch_h,
-                    group_fill, group_border
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#ffffff\" fill-opacity=\"0.45\" stroke=\"none\"/>",
+                    g.x, g.y, g.width, REF_HEADER_HEIGHT
+                ));
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    g.x,
+                    header_bottom,
+                    g.x + g.width,
+                    header_bottom,
+                    group_border
                 ));
                 out.push_str(&creole_text(
                     g.x + 6,
@@ -170,10 +170,19 @@ pub fn render_svg(scene: &Scene) -> String {
                     "ref",
                     header_font_color,
                 ));
-                // Body: all label lines starting from the first one.
+                // Layout keeps the first line as `over Alice, Bob` so the ref box
+                // can span the right participants, but PlantUML does not render
+                // that participant list as body text.
                 if let Some(label) = &g.label {
-                    let mut y = g.y + 32;
-                    for line in label.lines() {
+                    let mut lines = label.lines();
+                    let first_line = lines.next().unwrap_or_default();
+                    let body_text = if first_line.trim_start().starts_with("over ") {
+                        lines.collect::<Vec<_>>().join("\n")
+                    } else {
+                        label.clone()
+                    };
+                    let mut y = header_bottom + 16;
+                    for line in body_text.lines() {
                         out.push_str(&creole_text(
                             g.x + 8,
                             y,
