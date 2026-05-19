@@ -319,7 +319,9 @@ fn render_document_for_family(
         | DiagramFamily::Object
         | DiagramFamily::UseCase => match normalize::normalize_family(document)? {
             model::NormalizedDocument::Family(family_doc) => {
-                Ok(vec![render::render_class_svg(&family_doc)])
+                let mut svg = render::render_class_svg(&family_doc);
+                let _ = render::validate::run(&mut svg, render::validate::AutoCorrect::Apply);
+                Ok(vec![svg])
             }
             model::NormalizedDocument::Sequence(_)
             | model::NormalizedDocument::Timeline(_)
@@ -490,7 +492,7 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
 }
 
 pub fn render_family_document_svg(family: &FamilyDocument) -> String {
-    match family.kind {
+    let mut svg = match family.kind {
         ast::DiagramKind::Salt => render::render_salt_svg(family),
         ast::DiagramKind::Component => render::render_component_svg(family),
         ast::DiagramKind::Deployment => render::render_deployment_svg(family),
@@ -499,7 +501,14 @@ pub fn render_family_document_svg(family: &FamilyDocument) -> String {
         ast::DiagramKind::MindMap => render::render_mindmap_svg(family),
         ast::DiagramKind::Wbs => render::render_wbs_svg(family),
         _ => render::render_family_stub_svg(family),
-    }
+    };
+    // Render-time invariants pass: enforce structural correctness.
+    // Auto-corrections (viewBox expansion, label background rects) are applied
+    // in-place.  Diagnostic-only violations are silently recorded — they do not
+    // block rendering because the layout engine is the authoritative fix site
+    // for routing violations.
+    let _ = render::validate::run(&mut svg, render::validate::AutoCorrect::Apply);
+    svg
 }
 
 fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
