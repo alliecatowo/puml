@@ -114,6 +114,7 @@ pub struct NoteBox {
 pub struct GroupBox {
     pub kind: String,
     pub label: Option<String>,
+    pub color: Option<String>,
     pub x: i32,
     pub y: i32,
     pub width: i32,

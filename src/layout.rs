@@ -368,6 +368,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         groups.push(GroupBox {
                             kind: kind.clone(),
                             label: label.clone(),
+                            color: None,
                             x,
                             y,
                             width,
@@ -385,6 +386,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         groups.push(GroupBox {
                             kind: kind.clone(),
                             label: label.clone(),
+                            color: None,
                             x,
                             y,
                             width,
@@ -525,6 +527,50 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             y2: lifeline_end,
         })
         .collect::<Vec<_>>();
+
+    let participant_group_padding = document.style.box_padding.unwrap_or(12).max(0);
+    let participant_group_bottom = if footboxes.is_empty() {
+        lifeline_end + participant_group_padding
+    } else {
+        footboxes
+            .iter()
+            .map(|footbox| footbox.y + footbox.height + participant_group_padding)
+            .max()
+            .unwrap_or(lifeline_end + participant_group_padding)
+    };
+    for participant_group in &document.participant_groups {
+        let member_bounds = participant_group
+            .participant_ids
+            .iter()
+            .filter_map(|id| bounds_by_id.get(id))
+            .copied()
+            .collect::<Vec<_>>();
+        if member_bounds.is_empty() {
+            continue;
+        }
+        let min_left = member_bounds
+            .iter()
+            .map(|(left, _)| *left)
+            .min()
+            .unwrap_or(options.margin);
+        let max_right = member_bounds
+            .iter()
+            .map(|(_, right)| *right)
+            .max()
+            .unwrap_or(options.margin + options.participant_width);
+        let header_band = if participant_group.label.is_some() { 22 } else { 10 };
+        let y = participant_top - header_band;
+        groups.push(GroupBox {
+            kind: "box".to_string(),
+            label: participant_group.label.clone(),
+            color: participant_group.color.clone(),
+            x: min_left - participant_group_padding,
+            y,
+            width: (max_right - min_left) + (participant_group_padding * 2),
+            height: (participant_group_bottom - y).max(participant_height + header_band),
+            separators: Vec::new(),
+        });
+    }
 
     let leftmost_geometry_x = scene_leftmost_geometry_x(SceneGeometryRefs {
         participants: &participants,
@@ -1109,6 +1155,12 @@ fn multiline_metrics(text: &str) -> (i32, i32) {
 }
 
 fn group_content_min_size(kind: &str, label: Option<&str>) -> (i32, i32) {
+    if kind.eq_ignore_ascii_case("box") {
+        let min_width = label
+            .map(|label| estimate_text_px_width(label) + (GROUP_TEXT_INSET_X * 2))
+            .unwrap_or(0);
+        return (min_width, 0);
+    }
     let Some(label) = label else {
         return (0, 0);
     };

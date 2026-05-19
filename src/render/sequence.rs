@@ -74,6 +74,12 @@ pub fn render_svg(scene: &Scene) -> String {
         }
     }
 
+    for g in &scene.groups {
+        if g.kind.eq_ignore_ascii_case("box") {
+            render_participant_group_box(&mut out, g, scene);
+        }
+    }
+
     for p in &scene.participants {
         render_participant_box(&mut out, p, scene);
     }
@@ -102,6 +108,9 @@ pub fn render_svg(scene: &Scene) -> String {
     }
 
     for g in &scene.groups {
+        if g.kind.eq_ignore_ascii_case("box") {
+            continue;
+        }
         let grx = (scene.style.round_corner / 2).max(2);
         let is_ref = g.kind.eq_ignore_ascii_case("ref");
         let group_fill = if is_ref {
@@ -562,6 +571,32 @@ pub fn render_svg(scene: &Scene) -> String {
 
     out.push_str("</svg>");
     out
+}
+
+fn render_participant_group_box(out: &mut String, group: &crate::scene::GroupBox, scene: &Scene) {
+    let fill = group
+        .color
+        .as_deref()
+        .and_then(normalize_message_color)
+        .unwrap_or(scene.style.group_background_color.as_str());
+    out.push_str(&format!(
+        "<rect class=\"sequence-participant-group\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        group.x,
+        group.y,
+        group.width,
+        group.height,
+        fill,
+        scene.style.group_border_color
+    ));
+    if let Some(label) = &group.label {
+        out.push_str(&creole_text(
+            group.x + 8,
+            group.y + 16,
+            "font-family=\"monospace\" font-size=\"12\" font-weight=\"600\"",
+            label,
+            "#333",
+        ));
+    }
 }
 
 fn render_sequence_metadata_label(

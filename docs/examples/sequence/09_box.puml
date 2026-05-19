@@ -1,8 +1,12 @@
 @startuml
+box "Frontend" #e0f2fe
 participant Browser
 participant ReactApp
+end box
+box "Backend" #fde68a
 participant API
 participant DB
+end box
 Browser -> ReactApp: click
 ReactApp -> API: fetch /data
 API -> DB: SELECT

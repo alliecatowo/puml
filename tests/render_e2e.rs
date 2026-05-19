@@ -622,6 +622,59 @@ fn render_sequence_ref_fragment_uses_header_row_without_participant_text() {
 }
 
 #[test]
+fn render_sequence_box_groups_wrap_declared_participants() {
+    let src = docs_example("sequence/09_box.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let frontend = scene
+        .groups
+        .iter()
+        .find(|group| group.kind == "box" && group.label.as_deref() == Some("Frontend"))
+        .expect("frontend group");
+    let backend = scene
+        .groups
+        .iter()
+        .find(|group| group.kind == "box" && group.label.as_deref() == Some("Backend"))
+        .expect("backend group");
+    let browser = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "Browser")
+        .expect("Browser");
+    let react_app = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "ReactApp")
+        .expect("ReactApp");
+    let api = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "API")
+        .expect("API");
+    let db = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "DB")
+        .expect("DB");
+
+    assert!(frontend.x <= browser.x);
+    assert!(frontend.x + frontend.width >= react_app.x + react_app.width);
+    assert!(backend.x <= api.x);
+    assert!(backend.x + backend.width >= db.x + db.width);
+    assert_eq!(frontend.color.as_deref(), Some("#e0f2fe"));
+    assert_eq!(backend.color.as_deref(), Some("#fde68a"));
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains("class=\"sequence-participant-group\""));
+    assert!(svg.contains("fill=\"#e0f2fe\""));
+    assert!(svg.contains("fill=\"#fde68a\""));
+    assert!(svg.contains(">Frontend</text>"));
+    assert!(svg.contains(">Backend</text>"));
+}
+
+#[test]
 fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
     let src = fixture("e2e/sequence_parity_vertical_slice.puml");
     let ast = puml::parse(&src).expect("parse");
