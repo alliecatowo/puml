@@ -139,7 +139,8 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 && line.starts_with("actor ")
                 && (line.contains("<<")
                     || line.contains('"')
-                    || later_lines_contain_usecase_family_declaration(&lines, i));
+                    || later_lines_contain_usecase_family_declaration(&lines, i)
+                    || later_lines_contain_sequence_family_keywords(&lines, i));
             let ambiguous_class_scope = detected_kind.is_none()
                 && (line.starts_with("package ") || line.starts_with("namespace "))
                 && line.trim_end().ends_with('{')

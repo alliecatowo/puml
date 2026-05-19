@@ -1796,4 +1796,78 @@ mod tests {
             other => panic!("unexpected statement: {other:?}"),
         }
     }
+
+    /// Regression: `actor` + `alt` combination must not trigger component family
+    /// misdetection (issue #776).  `actor` is a valid sequence participant role and
+    /// should not cause the diagram to be classified as a component diagram when
+    /// sequence-specific keywords (`alt`, `activate`, sequence arrows) appear.
+    #[test]
+    fn actor_alt_combination_is_sequence_not_component() {
+        let src = "\
+@startuml
+actor User
+participant Browser
+participant Server
+User -> Browser: click
+Browser -> Server: request
+activate Server
+alt success
+  Server --> Browser: 200 OK
+else failure
+  Server --> Browser: 500
+end
+deactivate Server
+@enduml
+";
+        let doc = parse_with_options(src, &ParseOptions::default()).unwrap();
+        assert_eq!(
+            doc.kind,
+            DiagramKind::Sequence,
+            "actor+alt diagram must be detected as sequence, not component"
+        );
+        // Verify the actor participant is present
+        assert!(
+            doc.statements.iter().any(|s| matches!(
+                &s.kind,
+                StatementKind::Participant(p) if p.name == "User"
+            )),
+            "actor participant 'User' must be parsed"
+        );
+    }
+
+    /// Regression: `par..also..end` must not trigger component family misdetection
+    /// and `also` must be recognized as a valid parallel-branch continuation keyword
+    /// for `par` groups (issue #780).
+    #[test]
+    fn par_also_end_is_valid_sequence_group() {
+        let src = "\
+@startuml
+participant A
+participant B
+participant C
+A -> B: start
+par branch 1
+  B -> C: query
+  C --> B: result
+also branch 2
+  B -> C: notify
+  C --> B: ack
+end
+@enduml
+";
+        let doc = parse_with_options(src, &ParseOptions::default()).unwrap();
+        assert_eq!(
+            doc.kind,
+            DiagramKind::Sequence,
+            "par..also..end diagram must be detected as sequence"
+        );
+        // Verify `also` parsed as a Group statement
+        let also_stmt = doc.statements.iter().find(|s| {
+            matches!(&s.kind, StatementKind::Group(g) if g.kind == "also")
+        });
+        assert!(
+            also_stmt.is_some(),
+            "`also` keyword must produce a Group statement"
+        );
+    }
 }
