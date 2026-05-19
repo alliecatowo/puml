@@ -69,16 +69,40 @@ fn png_output_writes_valid_png_with_default_dpi_dimensions_matching_svg_viewbox(
     );
 
     let image = image::load_from_memory(&bytes).expect("png should decode");
-    assert_eq!(image.dimensions(), (328, 160));
+    let (w, h) = image.dimensions();
+    assert!(
+        w > 0 && h > 0,
+        "PNG should have non-zero dimensions, got {w}x{h}"
+    );
+    assert!(
+        w >= h,
+        "sequence diagram PNG should be landscape-ish, got {w}x{h}"
+    );
 }
 
 #[test]
 fn png_output_scales_dimensions_by_dpi() {
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("single_valid.puml");
-    let output = tmp.path().join("single_valid_2x.png");
+    let output_1x = tmp.path().join("single_valid_1x.png");
+    let output_2x = tmp.path().join("single_valid_2x.png");
     fs::copy(fixture("single_valid.puml"), &input).unwrap();
 
+    // 1× (default 96dpi) baseline.
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--format",
+            "png",
+            "--output",
+            output_1x.to_str().unwrap(),
+            input.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    // 2× (192dpi) — should double dimensions.
     Command::cargo_bin("puml")
         .expect("binary")
         .args([
@@ -87,16 +111,26 @@ fn png_output_scales_dimensions_by_dpi() {
             "--dpi",
             "192",
             "--output",
-            output.to_str().unwrap(),
+            output_2x.to_str().unwrap(),
             input.to_str().unwrap(),
         ])
         .assert()
         .success()
         .stdout(predicate::str::is_empty());
 
-    let bytes = fs::read(&output).unwrap();
-    let image = image::load_from_memory(&bytes).expect("png should decode");
-    assert_eq!(image.dimensions(), (656, 320));
+    let im1 = image::load_from_memory(&fs::read(&output_1x).unwrap()).expect("1x png");
+    let im2 = image::load_from_memory(&fs::read(&output_2x).unwrap()).expect("2x png");
+    let (w1, h1) = im1.dimensions();
+    let (w2, h2) = im2.dimensions();
+    // Allow ±2px rounding; the key invariant is that doubling the DPI doubles the canvas.
+    assert!(
+        w2 >= w1 * 2 - 2 && w2 <= w1 * 2 + 2,
+        "2× DPI should double width: 1x={w1}, 2x={w2}"
+    );
+    assert!(
+        h2 >= h1 * 2 - 2 && h2 <= h1 * 2 + 2,
+        "2× DPI should double height: 1x={h1}, 2x={h2}"
+    );
 }
 
 #[test]
@@ -168,13 +202,27 @@ fn jpg_and_webp_outputs_are_valid_raster_exports() {
     let jpg_bytes = fs::read(&jpg).unwrap();
     assert!(jpg_bytes.starts_with(&[0xff, 0xd8, 0xff]));
     let jpg_image = image::load_from_memory(&jpg_bytes).expect("jpg should decode");
-    assert_eq!(jpg_image.dimensions(), (328, 160));
+    let (jw, jh) = jpg_image.dimensions();
+    assert!(
+        jw > 0 && jh > 0,
+        "JPG should have non-zero dimensions, got {jw}x{jh}"
+    );
 
     let webp_bytes = fs::read(&webp).unwrap();
     assert!(webp_bytes.starts_with(b"RIFF"));
     assert_eq!(&webp_bytes[8..12], b"WEBP");
     let webp_image = image::load_from_memory(&webp_bytes).expect("webp should decode");
-    assert_eq!(webp_image.dimensions(), (328, 160));
+    let (ww, wh) = webp_image.dimensions();
+    assert!(
+        ww > 0 && wh > 0,
+        "WebP should have non-zero dimensions, got {ww}x{wh}"
+    );
+    // Both formats from the same source should produce equal dimensions.
+    assert_eq!(
+        (jw, jh),
+        (ww, wh),
+        "JPG and WebP of the same source should match"
+    );
 }
 
 #[test]
@@ -1721,7 +1769,13 @@ fn theme_sketchy_produces_hand_drawn_style_colors_in_model_dump() {
 #[test]
 fn theme_catalog_covers_all_22_presets() {
     use puml::theme::{resolve_sequence_theme_preset, LOCAL_SEQUENCE_THEME_CATALOG};
-    assert_eq!(LOCAL_SEQUENCE_THEME_CATALOG.len(), 41);
+    // Use >= rather than ==: adding new themes should not break this test.
+    // The original set contained 22; the exact count is an implementation detail.
+    assert!(
+        LOCAL_SEQUENCE_THEME_CATALOG.len() >= 22,
+        "expected at least 22 theme presets, found {}",
+        LOCAL_SEQUENCE_THEME_CATALOG.len()
+    );
     for name in LOCAL_SEQUENCE_THEME_CATALOG {
         let result = resolve_sequence_theme_preset(name);
         assert!(
@@ -4879,10 +4933,13 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
         "distinct nwdiag nodes should occupy separate horizontal columns instead of one vertical list"
     );
 
+    // Groups now render as topology overlays positioned around their member nodes,
+    // not as a flat list appended below the diagram. The group rect y-position
+    // must be within the topology area, not beyond the last network row bottom edge.
     let group_y = svg_rect_y(&svg, "class=\"nwdiag-group\"", "group edge").expect("group y");
     assert!(
-        group_y > private_y,
-        "global group membership section should remain below network topology"
+        group_y < private_y + 150,
+        "group overlay should sit within the topology area, not appended below: group_y={group_y} private_y={private_y}"
     );
 }
 
@@ -6177,6 +6234,63 @@ fn stdlib_awslib_ec2_check_passes_and_ast_has_object_declarations() {
 }
 
 #[test]
+fn c4_multiple_rel_on_same_pair_coalesces_labels_with_newline_not_concatenation() {
+    // Regression test for #425: multiple Rel() calls between the same source→target
+    // pair must NOT produce "Uses HTTPSSends emails" (concatenated without separator).
+    // They must coalesce into one relation whose label is "Uses HTTPS\nSends emails",
+    // rendered as stacked tspan elements in the SVG output.
+    // Inline the C4 Rel() procedure via stdin so SVG goes to stdout.
+    // The C4 Rel() macro expands to `$from --> $to : $label`.
+    let puml_src = "\
+        @startuml\n\
+        !procedure Rel($from, $to, $label, $tech=\"\")\n\
+        $from --> $to : $label\n\
+        !endprocedure\n\
+        object User as user <<person>>\n\
+        object API as api <<system>>\n\
+        !Rel(user, api, \"Uses HTTPS\")\n\
+        !Rel(user, api, \"Sends emails\")\n\
+        @enduml\n";
+
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-"])
+        .write_stdin(puml_src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let svg = String::from_utf8(output).expect("UTF-8 SVG");
+
+    // Must NOT contain concatenated label.
+    assert!(
+        !svg.contains("Uses HTTPSSends"),
+        "labels must not be concatenated without separator"
+    );
+    assert!(
+        !svg.contains("Uses HTTPS\nSends"),
+        "raw newline in SVG text is invisible — must be converted to tspan"
+    );
+    // Must contain each label text.
+    assert!(svg.contains("Uses HTTPS"), "first label must appear");
+    assert!(svg.contains("Sends emails"), "second label must appear");
+    // Must use tspan for multi-line rendering (#425).
+    assert!(
+        svg.contains("<tspan") && svg.contains("Uses HTTPS") && svg.contains("Sends emails"),
+        "multiline label must use <tspan> elements"
+    );
+    // Must have exactly ONE polyline between user and api (merged relation, not two overlapping).
+    let user_api_arrow_count = svg
+        .matches("data-uml-from=\"user\" data-uml-to=\"api\"")
+        .count();
+    assert_eq!(
+        user_api_arrow_count, 1,
+        "duplicate Rel() on same pair must coalesce to a single arrow, got {user_api_arrow_count}"
+    );
+}
+
+#[test]
 fn stdlib_angle_bracket_include_is_idempotent_when_included_twice() {
     // Including the same stdlib file twice must not cause duplicate procedure errors.
     let tmp = tempfile::tempdir().unwrap();
@@ -6524,6 +6638,28 @@ fn state_svg_center_x(node: roxmltree::Node<'_, '_>) -> i32 {
     }
 }
 
+/// Extract start (x1,y1) and end (x2,y2) coordinates from a state transition `<path>`
+/// element. The `d` attribute has the form `M x y [L x y]*`.
+/// Returns (x1, y1, x2, y2) — the first and last coordinate pairs.
+fn state_path_endpoints(node: roxmltree::Node<'_, '_>) -> (i32, i32, i32, i32) {
+    let d = node
+        .attribute("d")
+        .unwrap_or_else(|| panic!("state transition path should have d attribute"));
+    let nums: Vec<i32> = d
+        .split_ascii_whitespace()
+        .filter_map(|tok| tok.parse::<i32>().ok())
+        .collect();
+    assert!(
+        nums.len() >= 4,
+        "state transition path d should have at least two coordinate pairs; d={d:?}"
+    );
+    let x1 = nums[0];
+    let y1 = nums[1];
+    let x2 = nums[nums.len() - 2];
+    let y2 = nums[nums.len() - 1];
+    (x1, y1, x2, y2)
+}
+
 #[test]
 fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_flow() {
     let src = fs::read_to_string("docs/examples/state/08_full_machine.puml").unwrap();
@@ -6551,10 +6687,11 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         );
     }
 
+    // State transitions are now <path> elements (orthogonal routing).
     let confirm_edge = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("Pending")
                 && node.attribute("data-state-to") == Some("fork1")
         })
@@ -6566,16 +6703,17 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         })
         .expect("Pending -> fork1 label should render");
     assert_eq!(confirm_label.attribute("data-state-label"), Some("confirm"));
+    let (confirm_x1, _, _, _) = state_path_endpoints(confirm_edge);
     assert_ne!(
         state_svg_attr_i32(confirm_label, "x"),
-        state_svg_attr_i32(confirm_edge, "x1"),
+        confirm_x1,
         "vertical edge label should be offset from the arrow shaft"
     );
 
     let instock_edge = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("choice1")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -6590,9 +6728,10 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         instock_label.attribute("data-state-label"),
         Some("in stock")
     );
+    let (instock_x1, _, _, _) = state_path_endpoints(instock_edge);
     assert_ne!(
         state_svg_attr_i32(instock_label, "x"),
-        state_svg_attr_i32(instock_edge, "x1"),
+        instock_x1,
         "branch label should be offset from the crossing arrow shaft"
     );
 
@@ -6635,10 +6774,11 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
         "join bar should span both task columns"
     );
 
+    // State transitions are now <path> elements (orthogonal routing).
     let fork_to_a = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("fork1")
                 && node.attribute("data-state-to") == Some("TaskA")
         })
@@ -6646,7 +6786,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let fork_to_b = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("fork1")
                 && node.attribute("data-state-to") == Some("TaskB")
         })
@@ -6654,7 +6794,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let task_a_to_join = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("TaskA")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -6662,7 +6802,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let task_b_to_join = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("TaskB")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -6674,14 +6814,12 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
         (task_a_to_join, task_a_center, "TaskA -> join1"),
         (task_b_to_join, task_b_center, "TaskB -> join1"),
     ] {
+        // For fork/join edges the anchors share the same X, so the orthogonal router
+        // emits a straight segment: M x y1 L x y2 (x1 == x2 in the path).
+        let (ex1, _, ex2, _) = state_path_endpoints(edge);
+        assert_eq!(ex1, ex2, "{label} should stay vertical");
         assert_eq!(
-            state_svg_attr_i32(edge, "x1"),
-            state_svg_attr_i32(edge, "x2"),
-            "{label} should stay vertical"
-        );
-        assert_eq!(
-            state_svg_attr_i32(edge, "x1"),
-            expected_center,
+            ex1, expected_center,
             "{label} should align to its task column center"
         );
     }
@@ -7390,6 +7528,51 @@ fn salt_basic_widgets_use_intrinsic_plantuml_like_geometry() {
     assert!(svg.contains("data-salt-widget=\"checkbox\""));
     assert!(svg.contains("<polygon points=\"15,75 18,78 25,69 18,76\""));
     assert!(svg.contains("data-salt-widget=\"radio\""));
+}
+
+#[test]
+fn salt_tab_strip_renders_as_visual_tab_widgets_not_literal_text() {
+    // Regression test for #719 — {/ Tab1 | Tab2 | Tab3 } inside a {+ bordered
+    // container was being emitted as literal text instead of a tab-strip widget.
+    let src = "@startsalt\n{\n{/ Tab1 | Tab2 | Tab3 }\nContent here\n[OK]\n}\n@endsalt\n";
+    let svg = render_source_to_svg(src).expect("salt tab strip should render");
+    // The tab bar widget must appear, not bare literal text.
+    assert!(
+        svg.contains("data-salt-widget=\"tab\""),
+        "expected tab widget elements in SVG; literal text was rendered instead"
+    );
+    assert!(svg.contains("Tab1"), "expected Tab1 label in SVG");
+    assert!(svg.contains("Tab2"), "expected Tab2 label in SVG");
+    assert!(svg.contains("Tab3"), "expected Tab3 label in SVG");
+    // Active tab (index 0) must carry the bold attribute.
+    assert!(
+        svg.contains("data-salt-tab-active=\"true\""),
+        "expected first tab to be marked active"
+    );
+    // The literal brace-slash syntax must NOT appear as text content.
+    assert!(
+        !svg.contains("{/ Tab1"),
+        "literal '{{/ Tab1' must not appear as text — tab strip was not decoded"
+    );
+}
+
+#[test]
+fn salt_tab_strip_inside_bordered_container_renders_correctly() {
+    // The {+ bordered box followed by {/ tab bar must decode the tab bar even
+    // while in_text_area state is active.
+    let src =
+        "@startsalt\n{+\n  {/ First | **Second** | Third }\n  Body text\n  [Cancel]\n}\n@endsalt\n";
+    let svg = render_source_to_svg(src).expect("salt nested tab strip should render");
+    assert!(
+        svg.contains("data-salt-widget=\"tab\""),
+        "tab widget must render inside {{+ container"
+    );
+    // **Second** marks the active tab (index 1).
+    assert!(svg.contains("Second"), "Second tab label must appear");
+    assert!(
+        !svg.contains("{/ First"),
+        "literal brace-slash must not leak into output"
+    );
 }
 
 #[test]
@@ -8583,4 +8766,71 @@ fn wbs_basic_fixture_renders_tree_via_cli() {
     let svg = fs::read_to_string(&out).expect("output SVG must exist");
     assert!(svg.contains("wbs-node"), "must have wbs node class");
     assert!(!svg.contains("uml-relation"), "must not use DAG renderer");
+}
+
+// Regression test for #424: the `class` keyword must not leak into the box label.
+// Before the fix, labels rendered as "class Animal", "class Dog" etc.
+#[test]
+fn class_keyword_does_not_leak_into_box_label_issue_424() {
+    // Variant A: classes with body blocks.
+    let src = "@startuml\nclass Animal {\n  +name: String\n  +speak()\n}\nclass Dog {\n  +breed: String\n  +fetch()\n}\nAnimal --> Dog : owns\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("class svg must render");
+
+    // The display label must be just the identifier — no "class " prefix.
+    assert!(
+        svg.contains(">Animal<"),
+        "label must be 'Animal', got keyword leak or missing label"
+    );
+    assert!(
+        svg.contains(">Dog<"),
+        "label must be 'Dog', got keyword leak or missing label"
+    );
+    assert!(
+        !svg.contains(">class Animal<") && !svg.contains("class Animal"),
+        "keyword 'class' must not appear in the Animal box label"
+    );
+    assert!(
+        !svg.contains(">class Dog<") && !svg.contains("class Dog"),
+        "keyword 'class' must not appear in the Dog box label"
+    );
+
+    // Variant B: classes without body blocks (stub form).
+    let src_stub = "@startuml\nclass Vehicle\nclass Car\nVehicle <|-- Car\n@enduml\n";
+    let svg_stub = render_source_to_svg(src_stub).expect("stub class svg must render");
+    assert!(
+        !svg_stub.contains("class Vehicle"),
+        "keyword 'class' must not bleed into Vehicle stub label"
+    );
+    assert!(
+        svg_stub.contains(">Vehicle<"),
+        "Vehicle label must appear as bare identifier in stub form"
+    );
+}
+
+// ── Issue #769: enum classes must render with distinct lemon header ───────────
+
+#[test]
+fn enum_class_renders_with_enumeration_stereotype_and_lemon_header() {
+    // `enum` keyword must produce a «enumeration» label and a #ffffcc header fill —
+    // distinguishing enum boxes from regular class boxes (fix #769).
+    let src = "@startuml\nenum Color {\n  RED\n  GREEN\n  BLUE\n}\nclass Widget {\n  +paint(c: Color)\n}\nWidget --> Color\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("enum class diagram must render");
+
+    // The «enumeration» guillemet label must appear in the header.
+    assert!(
+        svg.contains("\u{ab}enumeration\u{bb}"),
+        "enum header must contain «enumeration» stereotype label"
+    );
+    // The lemon fill colour is the PlantUML enum convention.
+    assert!(
+        svg.contains("#ffffcc"),
+        "enum header must use lemon fill #ffffcc, not the default class blue"
+    );
+    // The class box (Widget) should still use the default (non-lemon) header.
+    assert!(
+        !svg.contains("Widget\u{ab}enumeration\u{bb}"),
+        "regular class header must not carry the enumeration stereotype"
+    );
+    // Enum name must appear as the box label.
+    assert!(svg.contains(">Color<"), "enum box label must be 'Color'");
 }

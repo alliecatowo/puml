@@ -89,7 +89,7 @@ jobs:
           fi
 
       - name: docs examples drift gate
-        run: python3 ./scripts/parity_harness.py --quiet --fail-on-doc-drift
+        run: python3 ./scripts/render_check.py --quiet --fail-on-doc-drift
 
       - name: Upload benchmark artifacts
         if: always()
@@ -104,18 +104,18 @@ jobs:
             docs/benchmarks/latest.json
             docs/benchmarks/latest_trend.md
             docs/benchmarks/latest_trend.json
-            docs/benchmarks/parity_latest.json
+            docs/benchmarks/render_check_latest.json
             docs/benchmarks/baseline_full.json
             docs/benchmarks/baseline_quick.json
 
-      - name: Upload parity report (persistent)
+      - name: Upload render check report (persistent)
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: parity-report-${{ github.sha }}
+          name: render-check-report-${{ github.sha }}
           if-no-files-found: warn
           retention-days: 90
           path: |
-            docs/benchmarks/parity_latest.json
+            docs/benchmarks/render_check_latest.json
             docs/benchmarks/latest_trend.json
             docs/benchmarks/latest_trend.md

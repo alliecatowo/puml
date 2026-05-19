@@ -3,8 +3,9 @@
 // every .puml source with its rendered .svg artifact.
 //
 // Output:
-//   site/examples/<family>/<name>.{puml,svg}     copies of the corpus
-//   site/assets/examples-index.json               manifest consumed by app.js
+//   site/static/examples/<family>/<name>.{puml,svg}  copies of the corpus
+//   site/static/stdlib/<lib>/<file>.puml              C4 + other stdlib files
+//   site/static/examples-index.json                   manifest consumed by app.js
 //
 // Run:
 //   node scripts/build-site.mjs
@@ -19,6 +20,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const examplesSrc = path.join(repoRoot, 'docs', 'examples');
 const examplesDst = path.join(repoRoot, 'site', 'static', 'examples');
 const manifestPath = path.join(repoRoot, 'site', 'static', 'examples-index.json');
+const stdlibSrc = path.join(repoRoot, 'stdlib');
+const stdlibDst = path.join(repoRoot, 'site', 'static', 'stdlib');
 
 const PRETTY_FAMILY = {
   activity: 'Activity',
@@ -147,6 +150,31 @@ async function copyExamples(items) {
   }
 }
 
+/**
+ * Recursively copy a directory tree.  Used to publish stdlib/ as a static
+ * web asset so the JS-side !include resolver can fetch <C4/...> and other
+ * stdlib angle-bracket includes without hitting 404s.
+ */
+async function copyDirRecursive(src, dst) {
+  await fs.mkdir(dst, { recursive: true });
+  const entries = await fs.readdir(src, { withFileTypes: true });
+  for (const e of entries) {
+    const srcPath = path.join(src, e.name);
+    const dstPath = path.join(dst, e.name);
+    if (e.isDirectory()) {
+      await copyDirRecursive(srcPath, dstPath);
+    } else {
+      await fs.copyFile(srcPath, dstPath);
+    }
+  }
+}
+
+async function copyStdlib() {
+  await fs.mkdir(stdlibDst, { recursive: true });
+  await rimrafContents(stdlibDst);
+  await copyDirRecursive(stdlibSrc, stdlibDst);
+}
+
 async function main() {
   const families = (await fs.readdir(examplesSrc, { withFileTypes: true }))
     .filter((d) => d.isDirectory())
@@ -167,6 +195,8 @@ async function main() {
   }
 
   await copyExamples(all);
+  await copyStdlib();
+  console.log(`Copied stdlib → site/static/stdlib/`);
 
   const manifest = {
     generatedAt: new Date().toISOString(),

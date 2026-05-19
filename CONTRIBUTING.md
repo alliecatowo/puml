@@ -26,7 +26,7 @@ Real code changes, big or small. The PR template walks you through what we need:
 - Type (bug fix / feature / breaking / visual / refactor / infra / docs)
 - Linked issues (`Closes #N`)
 - **Visual evidence for renderer changes** — even a path to the regenerated PNG works; you don't have to drag-drop an image
-- Test plan (cargo test, clippy, fmt, parity harness, baseline blessing if applicable)
+- Test plan (cargo test, clippy, fmt, render check, baseline blessing if applicable)
 - Self-review checklist
 
 We don't gatekeep on style or sophistication. Land the smallest change that fixes the thing, and we'll iterate from there.
@@ -69,7 +69,7 @@ Before opening a PR:
 cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --release
-python3 scripts/parity_harness.py --fail-on-doc-drift
+python3 scripts/render_check.py --fail-on-doc-drift
 ```
 
 If your change affects the renderer, also:
@@ -141,6 +141,34 @@ PUML is pre-1.0. We tag a release when a notable change lands; security fixes al
 
 - See [`docs/release-checklist.md`](docs/release-checklist.md) for the release process.
 - Funding: [GitHub Sponsors / Ko-fi](.github/FUNDING.yml).
+
+---
+
+## Branch protection policy
+
+The `main` branch enforces the following required status checks (issues #90, #452):
+
+- `fmt-clippy-test-coverage-quick` — the PR gate composite result
+- `differential-svg-oracle` — the PlantUML JAR conformance oracle
+
+Both checks must be green before a PR can merge. The policy is codified in
+`scripts/branch-protection.sh` and can be applied with:
+
+```bash
+./scripts/branch-protection.sh apply
+```
+
+or verified (read-only, no admin privileges required) with:
+
+```bash
+./scripts/branch-protection.sh verify
+```
+
+The `differential-svg-oracle` check is produced by the `Oracle — Differential
+Conformance vs Java PlantUML` workflow (`oracle.yml`). Oracle exit 2 (< 50%
+match) and exit 3 (promoted fixture regression) are hard CI failures. Oracle
+exit 1 (50–79% match) is an advisory warning — it does not block merge but
+should be investigated before the next release.
 
 ---
 

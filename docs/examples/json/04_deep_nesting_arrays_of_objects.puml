@@ -1,0 +1,49 @@
+@startjson
+{
+  "api_response": {
+    "status": "success",
+    "pagination": {
+      "page": 1,
+      "per_page": 25,
+      "total": 312,
+      "links": {
+        "next": "/api/orders?page=2",
+        "prev": null
+      }
+    },
+    "data": [
+      {
+        "id": "ord-001",
+        "status": "shipped",
+        "customer": {
+          "id": "usr-42",
+          "name": "Alice",
+          "email": "alice@example.com"
+        },
+        "items": [
+          {"sku": "A100", "qty": 2, "price": 29.99},
+          {"sku": "B200", "qty": 1, "price": 49.99}
+        ],
+        "shipping": {
+          "carrier": "FedEx",
+          "tracking": "123456789",
+          "estimated": "2026-05-22"
+        }
+      },
+      {
+        "id": "ord-002",
+        "status": "pending",
+        "customer": {
+          "id": "usr-17",
+          "name": "Bob",
+          "email": "bob@example.com"
+        },
+        "items": [
+          {"sku": "C300", "qty": 3, "price": 15.00}
+        ],
+        "shipping": null
+      }
+    ]
+  }
+}
+@endjson

@@ -45,9 +45,9 @@
 - Quick enforced result: gates pass (`abs<=350ms`, `regression<=20%` with `delta>50ms`, `binary<=12,000,000B`)
 - Quick profile scenario means (ms): `cold_start_help=98.078`, `parser_check=98.075`, `parser_dump_scene=95.044`, `render_file=96.439`, `render_stdin=94.263`, `render_stdin_multi=98.062`
 - Release binary size: `10,035,664` bytes (`target/release/puml`)
-- No-Java oracle status: retained as `todo` placeholders in `docs/benchmarks/latest_trend.json` and `docs/benchmarks/parity_latest.json`
-- Parity harness timestamp: `2026-05-15T20:05:00Z` (`python3 scripts/parity_harness.py --quiet --output docs/benchmarks/parity_latest.json`)
-- Parity harness summary: fixtures `11` (`check_passed=8`, `render_passed=8`), docs examples `10/10` pass (`failed=0`)
+- No-Java oracle status: retained as `todo` placeholders in `docs/benchmarks/latest_trend.json`
+- Render check timestamp: `2026-05-19T05:18:54Z` (`python3 scripts/render_check.py --quiet --output docs/benchmarks/render_check_latest.json`)
+- Render check summary: docs examples `254/257` pass, `3` excluded (`failed=0`)
 
 ## Contract and Docs
 

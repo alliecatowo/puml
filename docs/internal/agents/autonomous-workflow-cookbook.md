@@ -18,11 +18,11 @@ git status --short
 ## Fast Iteration Loop
 
 ```console
-# quick harness loop (agent-pack + mcp smoke + parity)
+# quick harness loop (agent-pack + mcp smoke + render check)
 ./scripts/harness-check.sh --quick
 
 # docs examples drift-only gate
-python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
+python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
 ```
 
 ## Refresh Docs Example Artifacts
@@ -37,7 +37,7 @@ cargo run -- --from-markdown docs/examples/README.md --output docs/examples/READ
 cargo run -- --from-markdown --multi docs/examples/sequence/README.md
 
 # strict drift check
-python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
+python3 ./scripts/render_check.py --fail-on-doc-drift --quiet
 ```
 
 ## Pre-PR Chain

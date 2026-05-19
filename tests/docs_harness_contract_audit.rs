@@ -68,7 +68,7 @@ fn referenced_harness_scripts_exist() {
     for script in [
         "scripts/harness-check.sh",
         "scripts/autonomy-check.sh",
-        "scripts/parity_harness.py",
+        "scripts/render_check.py",
     ] {
         assert!(
             repo_path(script).exists(),

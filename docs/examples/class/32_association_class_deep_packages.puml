@@ -1,0 +1,58 @@
+@startuml
+title Association class + 3-level deep package nesting
+
+package "com" {
+  package "acme" {
+    package "hr" {
+      class Employee {
+        +id: UUID
+        +name: String
+        +email: String
+      }
+      class Department {
+        +id: UUID
+        +name: String
+        +budget: Decimal
+      }
+      class Membership {
+        +startDate: Date
+        +role: String
+        +fte: float
+      }
+      Employee "1..*" -- "1" Department
+      (Employee, Department) .. Membership
+    }
+    package "payroll" {
+      class PaySlip {
+        +period: YearMonth
+        +gross: Decimal
+        +net: Decimal
+      }
+      class Deduction {
+        +type: String
+        +amount: Decimal
+      }
+      PaySlip "1" *-- "0..*" Deduction
+    }
+    package "reporting" {
+      class Report {
+        +title: String
+        +generatedAt: Instant
+      }
+      class DataSource {
+        +query: String
+        +connection: String
+      }
+      class ReportBinding {
+        +refreshInterval: Duration
+        +format: String
+      }
+      Report "0..*" -- "1..*" DataSource
+      (Report, DataSource) .. ReportBinding
+    }
+  }
+}
+
+Employee --> PaySlip : has
+Department --> Report : publishes
+@enduml

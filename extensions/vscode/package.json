@@ -1,8 +1,8 @@
 {
   "name": "puml-vscode",
   "displayName": "puml — Instant PlantUML Sequence Diagrams",
-  "description": "VS Code extension scaffolding for native puml sequence diagrams with LSP-backed preview.",
-  "version": "0.0.1",
+  "description": "VS Code extension for native puml sequence diagrams: live preview, export, diagnostics, and LSP-backed language features.",
+  "version": "0.1.0",
   "publisher": "puml",
   "license": "MIT",
   "engines": {
@@ -15,6 +15,9 @@
   "activationEvents": [
     "onLanguage:puml",
     "onCommand:puml.preview.open",
+    "onCommand:puml.export.svg",
+    "onCommand:puml.export.png",
+    "onCommand:puml.check",
     "onCommand:puml.lsp.restart"
   ],
   "main": "./dist/extension.js",
@@ -43,13 +46,60 @@
     "commands": [
       {
         "command": "puml.preview.open",
-        "title": "PUML: Open Preview"
+        "title": "PUML: Open Live Preview",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "puml.export.svg",
+        "title": "PUML: Export as SVG",
+        "icon": "$(export)"
+      },
+      {
+        "command": "puml.export.png",
+        "title": "PUML: Export as PNG",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "puml.check",
+        "title": "PUML: Check / Run Diagnostics",
+        "icon": "$(pass)"
       },
       {
         "command": "puml.lsp.restart",
         "title": "PUML: Restart Language Server"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "puml.preview.open",
+          "when": "resourceLangId == puml",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "puml.preview.open",
+          "when": "resourceLangId == puml",
+          "group": "puml@1"
+        },
+        {
+          "command": "puml.export.svg",
+          "when": "resourceLangId == puml",
+          "group": "puml@2"
+        },
+        {
+          "command": "puml.export.png",
+          "when": "resourceLangId == puml",
+          "group": "puml@3"
+        },
+        {
+          "command": "puml.check",
+          "when": "resourceLangId == puml",
+          "group": "puml@4"
+        }
+      ]
+    },
     "configuration": {
       "title": "PUML",
       "properties": {
@@ -68,14 +118,28 @@
           "enum": ["off", "messages", "verbose"],
           "default": "off",
           "description": "Trace level for puml-lsp language client logs."
+        },
+        "puml.cli.path": {
+          "type": "string",
+          "default": "",
+          "description": "Optional absolute path to the puml CLI binary used for export and CLI-fallback rendering. Defaults to 'puml' (or 'puml.exe') on PATH."
+        },
+        "puml.preview.debounceMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 100,
+          "maximum": 5000,
+          "description": "Debounce delay in milliseconds before the live preview refreshes after a keystroke."
         }
       }
     }
   },
   "scripts": {
     "build": "tsc -p ./",
+    "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
-    "smoke": "npm run build && node ./scripts/smoke.js"
+    "smoke": "npm run build && node ./scripts/smoke.js",
+    "test": "node ./tests/runTests.js"
   },
   "devDependencies": {
     "@types/node": "^25.9.0",

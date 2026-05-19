@@ -791,6 +791,10 @@ fn timeline_entity_x(
 /// smallest stride from `[1, 2, 3, 7, 14, 30, 90, 180, 365]` that keeps
 /// the number of ticks ≤ `chart_w / label_px`, then fall back to the
 /// explicit `scale` override.
+///
+/// The final tick (last day) is only appended when it is at least
+/// `LABEL_PX` pixels away from the preceding tick; otherwise the two labels
+/// smear together into an unreadable blob (#426).
 fn gantt_tick_offsets_for_width(total_days: u32, scale: Option<&str>, chart_w: i32) -> Vec<u32> {
     // Approximate pixel width of a single date label (YYYY-MM-DD + small gap)
     const LABEL_PX: i32 = 72;
@@ -818,7 +822,16 @@ fn gantt_tick_offsets_for_width(total_days: u32, scale: Option<&str>, chart_w: i
     }
     let last_day_offset = total_days.saturating_sub(1);
     if offsets.last().copied() != Some(last_day_offset) {
-        offsets.push(last_day_offset);
+        // Only append the last-day tick when it won't collide with the
+        // preceding tick.  Collision threshold = one full label width in
+        // pixels, converted back to days (#426).
+        let min_gap_days = (LABEL_PX as u32)
+            .saturating_mul(total_days)
+            .div_ceil(chart_w.max(1) as u32);
+        let prev = offsets.last().copied().unwrap_or(0);
+        if last_day_offset.saturating_sub(prev) >= min_gap_days {
+            offsets.push(last_day_offset);
+        }
     }
     offsets
 }

@@ -16,8 +16,8 @@ for deterministic local workflows but is not measured parity evidence.
 
 Closure update (Epic #30, 2026-05-15):
 - Final closure pass for the staged sequence-parity epic was green across `./scripts/check-all.sh`, `./scripts/check-all.sh --quick`, and `./scripts/harness-check.sh` at the time of that audit.
-- Docs-example drift checks are enforced in `tests/svg_bounds_audit.rs` (`doc_examples.summary.failed == 0`).
-- `scripts/parity_harness.py` canonicalizes trailing SVG newlines to prevent false doc parity failures between stdin-rendered SVG and checked-in artifacts.
+- Docs-example drift checks are enforced in `tests/svg_bounds_audit.rs` (`summary.failed == 0`).
+- `scripts/render_check.py` canonicalizes trailing SVG newlines to prevent false doc drift failures between stdin-rendered SVG and checked-in artifacts.
 
 This roadmap tracks high-impact parity work relative to PlantUML behavior and defines execution order, measurable done criteria, and fixture-first delivery.
 
@@ -299,11 +299,11 @@ Slice integration:
 ## Benchmark Parity Tracking (No-Java Environment)
 
 - Current baseline (available now): benchmark `puml` only for cold-start, parser, and render paths via `./scripts/bench.sh`.
-- First executable parity harness baseline: `python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json`.
-- Docs/examples canonical layer is enforced by the harness:
+- First executable render check baseline: `python3 scripts/render_check.py --output docs/benchmarks/render_check_latest.json`.
+- Docs/examples canonical layer is enforced by the render check:
   1. Add or update a markdown example in `docs/examples/*.md`.
   2. Ensure it links a `.puml` source and commit the matching `.svg` artifact (or add fenced `puml` and commit `<md-stem>_snippet_<n>.svg`).
-  3. Run parity harness; report must show `doc_examples.summary.failed = 0`.
+  3. Run render check; report must show `summary.failed = 0`.
 - Environment constraint: Java is not required for baseline runs in this repo.
 - PlantUML comparison rows in the generic benchmark trend remain `TODO` for
   no-Java runs. Differential oracle evidence is tracked separately through
@@ -394,7 +394,7 @@ of truth until additional fixture and oracle evidence supports promotion.
   - Sequence parity fixtures/tests in active contract suites are green:
     - `cargo test --test integration --test render_e2e --test virtual_endpoint_fidelity`
     - `cargo test --test svg_bounds_audit`
-  - Parity harness report is current and docs example parity is green:
-    - `python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json`
-    - Expected state: `doc_examples.summary.failed = 0`
+  - Render check report is current and docs examples are green:
+    - `python3 scripts/render_check.py --output docs/benchmarks/render_check_latest.json`
+    - Expected state: `summary.failed = 0`
   - No known unexpected failing fixtures/tests remain in sequence parity areas.

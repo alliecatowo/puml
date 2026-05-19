@@ -56,11 +56,12 @@ jobs:
       CARGO_INCREMENTAL: 0
       RUST_BACKTRACE: 1
       # Pinned PlantUML version — bump intentionally, never use "latest".
-      PLANTUML_VERSION: "1.2024.7"
-      PLANTUML_JAR: plantuml-1.2024.7.jar
-      # SHA-256 of the official plantuml-1.2024.7.jar from GitHub Releases.
+      PLANTUML_VERSION: "1.2026.3"
+      PLANTUML_JAR: plantuml-1.2026.3.jar
+      # SHA-256 of the official plantuml-1.2026.3.jar from GitHub Releases.
       # Recompute with: curl -fsSL <jar-url> | sha256sum
-      PLANTUML_JAR_SHA256: "e34c12bbe9944f1f338ca3d88c9b116b86300cc8e90b35c4086b825b5ae96d24"
+      # Verified 2026-05-19: sha256sum plantuml-1.2026.3.jar = 53af6760d96bb2737e5e4386e832b46339fc29dec74f412d7c12db7c30db8ec4
+      PLANTUML_JAR_SHA256: "53af6760d96bb2737e5e4386e832b46339fc29dec74f412d7c12db7c30db8ec4"
 
     steps:
       - name: Checkout
@@ -74,54 +75,40 @@ jobs:
 
           CHANGED_FILES="${RUNNER_TEMP}/changed-files.txt"
 
+          # Determine the diff base: for PRs, compare against base SHA; for push
+          # events, compare against the previous commit; for workflow_dispatch or
+          # first-push (before = 0000...), include all tracked files.
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
             git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "${CHANGED_FILES}"
-            run_oracle=false
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
             git fetch --no-tags --depth=1 origin "${{ github.event.before }}"
             git diff --name-only "${{ github.event.before }}" HEAD > "${CHANGED_FILES}"
-            run_oracle=true
           else
             git ls-files > "${CHANGED_FILES}"
-            run_oracle=true
           fi
-          run_oracle_smoke=false
 
+          # Use the canonical classify script so oracle path rules stay in sync
+          # with pr-gate and differential-oracle-smoke (issue #455).
+          python3 scripts/ci-classify-changes.py \
+            --changed-files "${CHANGED_FILES}" \
+            --github-output "${GITHUB_OUTPUT}" | tee "${RUNNER_TEMP}/ci-classification.txt"
+
+          # For push events and workflow_dispatch, oracle always runs (regardless
+          # of path filter) so that main is always conformance-checked.  Override
+          # the script output for those event types.
+          if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "run_oracle=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+          # workflow_dispatch forces oracle_smoke on too.
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            run_oracle_smoke=true
+            echo "run_oracle_smoke=true" >> "${GITHUB_OUTPUT}"
           fi
-
-          while IFS= read -r file; do
-            [[ -n "${file}" ]] || continue
-
-            case "${file}" in
-              Cargo.toml|Cargo.lock|src/*|crates/*|tests/fixtures/*|tests/oracle_smoke.rs|docs/examples/*|stdlib/*|scripts/oracle.sh|scripts/oracle_report_summary.py|.github/workflows/oracle.yml)
-                run_oracle=true
-                ;;
-            esac
-
-            case "${file}" in
-              tests/oracle_smoke.rs|scripts/oracle.sh|scripts/oracle_report_summary.py|.github/workflows/oracle.yml)
-                run_oracle_smoke=true
-                ;;
-            esac
-          done < "${CHANGED_FILES}"
-
-          if [[ ! -s "${CHANGED_FILES}" ]]; then
-            run_oracle=true
-            run_oracle_smoke=true
-          fi
-
-          {
-            echo "run_oracle=${run_oracle}"
-            echo "run_oracle_smoke=${run_oracle_smoke}"
-          } >> "${GITHUB_OUTPUT}"
 
           echo "Changed files:"
           sed 's/^/  - /' "${CHANGED_FILES}"
-          echo "run_oracle=${run_oracle}"
-          echo "run_oracle_smoke=${run_oracle_smoke}"
+          cat "${RUNNER_TEMP}/ci-classification.txt"
 
       - name: Fast path for oracle-irrelevant changes
         if: steps.changes.outputs.run_oracle != 'true'
@@ -145,6 +132,15 @@ jobs:
         with:
           path: ${{ env.PLANTUML_JAR }}
           key: plantuml-jar-${{ env.PLANTUML_VERSION }}
+
+      # Install Graphviz — required for PlantUML to render non-sequence diagrams
+      # and to avoid a spurious exit-code 16 from `java -jar plantuml.jar -version`.
+      - name: Install Graphviz
+        if: steps.changes.outputs.run_oracle == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends graphviz
+          dot -V
 
       # Download from the official GitHub Releases mirror (deterministic URL).
       - name: Download PlantUML JAR

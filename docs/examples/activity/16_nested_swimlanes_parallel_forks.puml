@@ -1,0 +1,35 @@
+@startuml
+title Nested swimlanes with parallel forks
+|Customer|
+start
+:Submit order;
+|Warehouse|
+:Receive order notification;
+fork
+  |Warehouse|
+  :Pick items;
+  :Pack items;
+fork again
+  |Finance|
+  :Charge payment;
+  if (payment ok?) then (yes)
+    :Issue receipt;
+  else (no)
+    :Notify customer;
+    detach
+  endif
+end fork
+|Logistics|
+:Assign courier;
+:Print label;
+fork
+  |Logistics|
+  :Hand off to courier;
+fork again
+  |Warehouse|
+  :Update inventory;
+end fork
+|Customer|
+:Receive delivery notification;
+stop
+@enduml

@@ -2,10 +2,12 @@
 state Processing {
   state "Parsing" as Parse
   state "Validating" as Validate
+  Parse --> Validate : parsed
   ||
   state "Logging" as Log
   state "Auditing" as Audit
+  Log --> Audit : logged
 }
-[*] --> Processing
-Processing --> [*]
+[*] --> Processing : start
+Processing --> [*] : done
 @enduml

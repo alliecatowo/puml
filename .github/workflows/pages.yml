@@ -3,6 +3,7 @@
 # Output goes to https://alliecatowo.github.io/puml/ under the project page.
 # The site is regenerated from:
 #   - docs/examples/  (the rendered diagram corpus, mirrored into site/static/examples/)
+#   - stdlib/         (published as site/static/stdlib/ so browser can fetch !includes)
 #   - docs/specs/     (mirrored into site/content/developer/specs/)
 #   - site/           (Zola config, templates, content, sass, static assets)
 
@@ -17,6 +18,7 @@ on:
       - 'scripts/mirror-specs.mjs'
       - 'docs/examples/**'
       - 'docs/specs/**'
+      - 'stdlib/**'
       - 'src/**'
       - 'crates/**'
       - 'Cargo.toml'

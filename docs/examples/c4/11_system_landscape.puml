@@ -1,0 +1,27 @@
+@startuml
+title C4 System Landscape — 5+ systems
+!include <C4/C4_Context>
+
+Person(customer, "Customer", "End user purchasing products")
+Person(analyst, "Business Analyst", "Reviews KPIs and dashboards")
+Person(ops, "Operations Team", "Manages infrastructure and incidents")
+
+System(ecommerce, "E-Commerce Platform", "Web storefront and order management")
+System(crm, "CRM System", "Customer relationship and support tickets")
+System(erp, "ERP System", "Finance, inventory, and logistics")
+System(analytics, "Analytics Platform", "Data warehouse and BI dashboards")
+System(notification, "Notification Service", "Email, SMS, push notifications")
+System_Ext(payment, "Payment Gateway", "Stripe — external payment processing")
+System_Ext(shipping, "Shipping Partner API", "FedEx/UPS — external logistics")
+
+Rel(customer, ecommerce, "Shops, orders", "HTTPS")
+Rel(ecommerce, crm, "Creates support cases", "REST/API")
+Rel(ecommerce, erp, "Sends orders", "EDI/API")
+Rel(ecommerce, notification, "Triggers emails/SMS", "AMQP")
+Rel(ecommerce, payment, "Processes payments", "HTTPS/REST")
+Rel(erp, shipping, "Books shipments", "HTTPS")
+Rel(erp, analytics, "Publishes financial data", "ETL")
+Rel(crm, analytics, "Publishes support metrics", "ETL")
+Rel(analyst, analytics, "Views dashboards", "HTTPS")
+Rel(ops, ecommerce, "Monitors health", "SSH/API")
+@enduml

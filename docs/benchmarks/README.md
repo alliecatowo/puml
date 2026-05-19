@@ -20,8 +20,8 @@
 ./scripts/bench.sh --update-baseline
 ./scripts/bench.sh --quick --update-baseline
 
-# corpus parity baseline report (oracle placeholders kept intentionally)
-python3 scripts/parity_harness.py --output docs/benchmarks/parity_latest.json
+# docs examples render check (drift detection)
+python3 scripts/render_check.py --output docs/benchmarks/render_check_latest.json
 
 # deterministic Java-free differential oracle metadata report
 python3 scripts/differential_oracle_smoke.py --dry-run --quiet --output docs/benchmarks/oracle_smoke_latest.json
@@ -46,7 +46,7 @@ python3 scripts/oracle_report_summary.py \
 - `docs/benchmarks/latest_trend.json`
 - `docs/benchmarks/baseline_full.json`
 - `docs/benchmarks/baseline_quick.json`
-- `docs/benchmarks/parity_latest.json`
+- `docs/benchmarks/render_check_latest.json`
 - `docs/benchmarks/oracle_report.json`
 - `docs/benchmarks/oracle_report.md` (generated in CI from live JAR evidence)
 - `docs/benchmarks/oracle_report_summary.json` (generated in CI from live JAR evidence)
@@ -89,7 +89,7 @@ or optimization plan instead of blocking all main merges on the pre-URL-include 
 ## No-Java Baseline
 
 - PlantUML oracle comparison is opt-in and remains skip-sentinel based unless `PUML_ORACLE_JAR` is set.
-- `parity_latest.json`, `latest_trend.json`, and `oracle_report.json` may include explicit oracle placeholder or skip metadata.
+- `render_check_latest.json`, `latest_trend.json`, and `oracle_report.json` may include explicit oracle placeholder or skip metadata.
 - CI-generated `oracle_report.md` and `oracle_report_summary.json` are derived from the live JAR-backed `oracle_report.json`; they are uploaded as artifacts and, on `main`, as a named Pages artifact directory.
 - Oracle artifacts are comparison evidence only. They are not runtime inputs and do not imply that Java/PlantUML is used by the `puml` CLI or library.
 - Do not remove placeholders until Java/oracle execution is intentionally enabled for the relevant workflow.
