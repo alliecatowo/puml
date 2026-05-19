@@ -106,8 +106,10 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         time_vals = vec![0, 10];
     }
 
-    let t_min = *time_vals.first().unwrap();
-    let t_max = *time_vals.last().unwrap();
+    // SAFETY: time_vals is guaranteed non-empty by the guard above; use
+    // explicit copy-out to avoid holding a reference across the borrow.
+    let t_min = time_vals[0];
+    let t_max = time_vals[time_vals.len() - 1];
     let t_span = (t_max - t_min).max(1);
 
     // ── Layout constants ──────────────────────────────────────────────────────
@@ -116,14 +118,23 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                              // Waveform segments extend to t_max + 5 % of t_span, so we add the same pixel
                              // budget (5 % of chart_w) plus a fixed label margin so labels are never clipped.
     let tail_extra: i32 = 80;
+    // max_label_half_w: half the width of the widest axis tick label (e.g. "@10" at
+    // monospace 11 px ≈ 4 chars × ~7 px/char ÷ 2 ≈ 14 px). Add a conservative 20 px
+    // so that the rightmost "@N" label is never clipped regardless of digit count.
+    let max_label_half_w: i32 = 20;
+    // right_gutter: minimum blank space to the right of the last tick's label.
+    let right_gutter: i32 = 20;
     let row_h: i32 = 64;
     let wave_top_pad: i32 = 10; // space above wave line inside row
     let wave_bot_pad: i32 = 10; // space below wave line inside row
     let wave_h: i32 = row_h - wave_top_pad - wave_bot_pad; // usable wave height
     let axis_h: i32 = 48;
     let chart_w: i32 = 760;
-    // right_pad covers the 5 % overshoot of the waveform past t_max plus a label margin.
-    let right_pad: i32 = (chart_w as f64 * 0.05) as i32 + tail_extra;
+    // right_pad covers the 5 % overshoot of the waveform past t_max plus a label margin
+    // PLUS the half-width of the rightmost axis label and the minimum right gutter, so
+    // that the last "@N" tick label is never clipped at the canvas right edge.
+    let right_pad: i32 =
+        (chart_w as f64 * 0.05) as i32 + tail_extra + max_label_half_w + right_gutter;
     let width: i32 = left_pad + chart_w + right_pad;
 
     // 22px title lines + 14px subtitle + 10px padding
@@ -423,12 +434,15 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                         matches!(l.as_str(), "high" | "1" | "on" | "true")
                     })
                     .unwrap_or(true);
-                let x0 = time_to_x(cur_t);
+                // Clock waveform is clamped to the canvas right edge so that extra
+                // half-periods never bleed outside the viewBox.
+                let x_max = width;
+                let x0 = time_to_x(cur_t).min(x_max);
                 let y0 = if cur_hi { wave_y_hi } else { wave_y_lo };
                 path_pts.push_str(&format!("{x0},{y0}"));
                 while cur_t < t_end {
                     let next_t = cur_t + half;
-                    let x1 = time_to_x(next_t);
+                    let x1 = time_to_x(next_t).min(x_max);
                     // Horizontal segment
                     let cur_y = if cur_hi { wave_y_hi } else { wave_y_lo };
                     path_pts.push_str(&format!(" {x1},{cur_y}"));
@@ -437,6 +451,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     let next_y = if cur_hi { wave_y_hi } else { wave_y_lo };
                     path_pts.push_str(&format!(" {x1},{next_y}"));
                     cur_t = next_t;
+                    if x1 >= x_max {
+                        break;
+                    }
                 }
                 out.push_str(&format!(
                     "<polyline data-timing-period=\"{period}\" data-timing-pulse=\"{half}\" data-timing-offset=\"{controlled_offset}\" points=\"{path_pts}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"/>",

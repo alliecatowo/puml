@@ -1,0 +1,51 @@
+@startuml
+title Robust timing diagram — state transitions with value annotations
+robust "HTTP Server" as SRV
+robust "Worker Pool" as WP
+robust "Rate Limiter" as RL
+concise "Queue Depth" as QD
+
+@0
+SRV is Idle
+WP is Empty
+RL is Open
+QD is "0"
+
+@100
+SRV is Handling
+WP is "1 active"
+QD is "0"
+
+@200
+SRV is Handling
+WP is "4 active"
+RL is Throttling
+QD is "12"
+
+@300
+SRV is Overloaded
+WP is "8 active"
+RL is Blocking
+QD is "47"
+
+@400
+SRV is Handling
+WP is "4 active"
+RL is Throttling
+QD is "20"
+
+@500
+SRV is Idle
+WP is Empty
+RL is Open
+QD is "0"
+
+@600
+SRV is Draining
+WP is "2 active"
+QD is "0"
+
+@700
+SRV is Idle
+WP is Empty
+@enduml

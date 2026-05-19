@@ -1,0 +1,46 @@
+@startuml
+title Three-tier: cloud front-end + hybrid mid-tier + on-prem data
+node "Internet" <<cloud>> {
+  node "CDN" as CDN
+  node "WAF / DDoS Protection" as WAF
+}
+node "Cloud Region (us-east-1)" <<cloud>> {
+  node "Load Balancer" as LB
+  node "App Cluster" {
+    node "Web Server 1" as WS1
+    node "Web Server 2" as WS2
+    node "Web Server 3" as WS3
+  }
+  node "Cache Cluster" {
+    node "Redis Primary" as RP
+    node "Redis Replica" as RR
+  }
+  node "Message Queue" <<queue>> {
+    node "SQS" as SQS
+  }
+}
+node "Corporate Data Center" {
+  node "VPN Gateway" as VPN
+  node "Database Cluster" {
+    node "PostgreSQL Primary" as PG1
+    node "PostgreSQL Standby" as PG2
+  }
+  node "File Server" as FS
+  node "Active Directory" as AD
+}
+
+CDN --> WAF
+WAF --> LB
+LB --> WS1
+LB --> WS2
+LB --> WS3
+WS1 --> RP : cache lookups
+WS2 --> RP
+WS3 --> RP
+RP --> RR : replication
+WS1 --> SQS : enqueue jobs
+WS1 --> VPN : data queries
+VPN --> PG1 : read/write
+PG1 --> PG2 : replication
+WS1 --> AD : LDAP auth
+@enduml

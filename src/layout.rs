@@ -19,6 +19,9 @@ const NOTE_TEXT_WIDTH_GUARD_PX: i32 = 8;
 const METADATA_LINE_HEIGHT: i32 = 16;
 const METADATA_BLOCK_PADDING: i32 = 8;
 const TEOZ_ROUTE_LANE_HEIGHT: i32 = 14;
+/// Height of the rendered self-loop U-shape below the message's `y` coordinate.
+/// Must match `loop_h` in `render/sequence.rs`.
+const SELF_LOOP_DROP: i32 = 32;
 
 pub fn layout(document: &SequenceDocument, options: LayoutOptions) -> Scene {
     let mut pages = layout_pages(document, options);
@@ -161,7 +164,21 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     &options,
                 );
                 let has_label_lines = !label_lines.is_empty();
-                let row_units = (label_lines.len() as i32).max(1);
+                let is_self_loop = from == to && from_virtual.is_none() && to_virtual.is_none();
+                // Self-loop messages render a U-shape that drops SELF_LOOP_DROP px below
+                // the message's `y` coordinate.  Allocate at least 2 rows so the loop
+                // bottom does not overlap the label of the immediately following message.
+                let row_units = {
+                    let base = (label_lines.len() as i32).max(1);
+                    if is_self_loop {
+                        base.max(row_units_for_height(
+                            SELF_LOOP_DROP + options.message_row_height / 2,
+                            options.message_row_height,
+                        ))
+                    } else {
+                        base
+                    }
+                };
                 // Record arrival y for the recipient so that an immediately
                 // following explicit `activate` can pin its bar to this row.
                 if to_virtual.is_none() && !to.is_empty() {
@@ -488,8 +505,20 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         0
     };
 
+    // Self-loop messages extend SELF_LOOP_DROP px below their `y` coordinate in the
+    // SVG renderer.  The standard `events_height` formula only tracks row *starts*, so
+    // a self-loop that is the last (or near-last) event can overflow the computed
+    // content boundary and cause footboxes to overlap it.  Clamp the content end to
+    // include the full rendered drop of any self-loop message.
+    let self_loop_max_bottom = messages
+        .iter()
+        .filter(|m| m.from_id == m.to_id && m.from_virtual.is_none() && m.to_virtual.is_none())
+        .map(|m| m.y + SELF_LOOP_DROP)
+        .max()
+        .unwrap_or(0);
+
     let lifeline_start = participant_top + participant_height;
-    let row_based_content_end = events_top + events_height;
+    let row_based_content_end = (events_top + events_height).max(self_loop_max_bottom);
     let max_box_bottom = groups
         .iter()
         .map(|g| g.y + g.height)

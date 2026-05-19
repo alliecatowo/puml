@@ -26,7 +26,7 @@ use puml::{
 };
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
@@ -273,6 +273,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         format: cli.diagnostics,
         color_enabled: should_color_human_diagnostics(cli.color),
     };
+    // Collect -D KEY=VALUE pairs into a BTreeMap for deterministic ordering per CLAUDE.md sec 6.
+    let inject_vars: BTreeMap<String, String> = cli.defines.iter().cloned().collect();
+
     if !cli.charset.eq_ignore_ascii_case("utf-8") {
         return Err((
             EXIT_VALIDATION,
@@ -309,6 +312,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.determinism,
             frontend_hint_for_path(Some(path.as_path())),
             cli.allow_url_includes,
+            inject_vars.clone(),
         )
         .map_err(|d| diag_err_with_source(&src, d, diagnostics_output))?;
         let model =
@@ -371,6 +375,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                     cli.determinism,
                     source.frontend_hint,
                     cli.allow_url_includes,
+                    inject_vars.clone(),
                 )
                 .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
                 let ast = doc.clone();
@@ -415,6 +420,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.determinism,
                 source.frontend_hint,
                 cli.allow_url_includes,
+                inject_vars.clone(),
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
             let model = normalize_family(doc)
@@ -450,6 +456,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.determinism,
                         source.frontend_hint,
                         cli.allow_url_includes,
+                        inject_vars.clone(),
                     )
                     .map_err(|d| {
                         diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
@@ -465,6 +472,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.determinism,
                         source.frontend_hint,
                         cli.allow_url_includes,
+                        inject_vars.clone(),
                     )
                     .map_err(|d| {
                         diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
@@ -484,6 +492,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                         cli.determinism,
                         source.frontend_hint,
                         cli.allow_url_includes,
+                        inject_vars.clone(),
                     )
                     .map_err(|d| {
                         diag_err_mapped(&raw, source.source_span, d, diagnostics_output)
@@ -530,6 +539,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.determinism,
                 source.frontend_hint,
                 cli.allow_url_includes,
+                inject_vars.clone(),
             )
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
             let result = specialized::try_render_specialized(&preprocessed).ok_or_else(|| {
@@ -559,6 +569,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             cli.determinism,
             source.frontend_hint,
             cli.allow_url_includes,
+            inject_vars.clone(),
         )
         .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
         let model = normalize_family(doc)
@@ -785,6 +796,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
         color_enabled: should_color_human_diagnostics(cli.color),
     };
 
+    let inject_vars: BTreeMap<String, String> = cli.defines.iter().cloned().collect();
     let lint_paths = collect_lint_inputs(&cli.lint_input, &cli.lint_glob)?;
     if lint_paths.is_empty() {
         return Err((
@@ -885,6 +897,7 @@ fn run_lint_mode(cli: &Cli) -> Result<(), (u8, String)> {
                 cli.determinism,
                 source.frontend_hint,
                 cli.allow_url_includes,
+                inject_vars.clone(),
             ) {
                 Ok(doc) => doc,
                 Err(d) => {
@@ -1226,6 +1239,9 @@ fn svg_to_html_document(svg: &str) -> String {
     )
 }
 
+// All CLI pipeline parameters are required at call sites; grouping them into a
+// struct would not reduce complexity here — the lint is a false positive.
+#[allow(clippy::too_many_arguments)]
 fn parse_for_cli(
     source: &str,
     include_root: Option<PathBuf>,
@@ -1234,6 +1250,7 @@ fn parse_for_cli(
     cli_determinism: CliDeterminismMode,
     frontend_hint: Option<FrontendSelection>,
     allow_url_includes: bool,
+    inject_vars: BTreeMap<String, String>,
 ) -> Result<Document, Diagnostic> {
     let include_root = include_root.or_else(|| match cli_compat {
         CliCompatMode::Strict => None,
@@ -1245,10 +1262,13 @@ fn parse_for_cli(
         determinism: map_determinism(cli_determinism),
         include_root,
         allow_url_includes,
+        inject_vars,
     };
     puml::parse_with_pipeline_options(source, &options)
 }
 
+// Same rationale as parse_for_cli above — all args are required.
+#[allow(clippy::too_many_arguments)]
 fn preprocess_for_cli(
     source: &str,
     include_root: Option<PathBuf>,
@@ -1257,6 +1277,7 @@ fn preprocess_for_cli(
     cli_determinism: CliDeterminismMode,
     frontend_hint: Option<FrontendSelection>,
     allow_url_includes: bool,
+    inject_vars: BTreeMap<String, String>,
 ) -> Result<String, Diagnostic> {
     let include_root = include_root.or_else(|| match cli_compat {
         CliCompatMode::Strict => None,
@@ -1268,6 +1289,7 @@ fn preprocess_for_cli(
         determinism: map_determinism(cli_determinism),
         include_root,
         allow_url_includes,
+        inject_vars,
     };
     preprocess_with_pipeline_options(source, &options)
 }

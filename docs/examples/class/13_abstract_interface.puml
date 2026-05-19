@@ -1,13 +1,13 @@
 @startuml
 title Abstract and Interface Pattern
-class Shape {
-  +area(): double
-  +perimeter(): double
+abstract class Shape {
+  {abstract} +area(): double
+  {abstract} +perimeter(): double
 }
-class Drawable {
+interface Drawable {
   +draw(): void
 }
-class Resizable {
+interface Resizable {
   +resize(f: double): void
 }
 class Circle {
@@ -16,6 +16,6 @@ class Circle {
   +perimeter(): double
 }
 Shape <|-- Circle
-Drawable <|-- Circle
-Resizable <|-- Circle
+Drawable <|.. Circle
+Resizable <|.. Circle
 @enduml

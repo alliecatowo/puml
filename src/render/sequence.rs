@@ -28,13 +28,30 @@ pub fn render_svg(scene: &Scene) -> String {
         svg_width, svg_height, viewbox
     ));
 
-    // Embed drop-shadow filter when shadowing is enabled.
-    if scene.style.shadowing {
-        out.push_str(
-            "<defs><filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\
-             <feDropShadow dx=\"3\" dy=\"3\" stdDeviation=\"2\" flood-color=\"#00000040\"/>\
-             </filter></defs>",
-        );
+    // Embed SVG filter definitions.
+    let need_defs = scene.style.shadowing || scene.style.hand_drawn;
+    if need_defs {
+        out.push_str("<defs>");
+        if scene.style.shadowing {
+            out.push_str(
+                "<filter id=\"shadow\" x=\"-10%\" y=\"-10%\" width=\"130%\" height=\"130%\">\
+                 <feDropShadow dx=\"3\" dy=\"3\" stdDeviation=\"2\" flood-color=\"#00000040\"/>\
+                 </filter>",
+            );
+        }
+        if scene.style.hand_drawn {
+            // feTurbulence generates organic noise; feDisplacementMap uses it to
+            // wobble the geometry so straight lines appear hand-drawn.  The scale
+            // value (2.5) is intentionally subtle — enough to read as "sketchy"
+            // at normal sizes without making arrowheads unreadable.
+            out.push_str(
+                "<filter id=\"sketch\" x=\"-5%\" y=\"-5%\" width=\"110%\" height=\"110%\">\
+                 <feTurbulence type=\"fractalNoise\" baseFrequency=\"0.04\" numOctaves=\"3\" seed=\"2\" result=\"noise\"/>\
+                 <feDisplacementMap in=\"SourceGraphic\" in2=\"noise\" scale=\"2.5\" xChannelSelector=\"R\" yChannelSelector=\"G\"/>\
+                 </filter>",
+            );
+        }
+        out.push_str("</defs>");
     }
 
     let bg_fill = scene.style.background_color.as_deref().unwrap_or("white");
@@ -70,7 +87,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 title.y + (idx as i32 * 24),
                 "font-family=\"monospace\" font-size=\"18\" font-weight=\"600\"",
                 line,
-                "black",
+                &scene.style.arrow_color,
             ));
         }
     }
@@ -85,12 +102,19 @@ pub fn render_svg(scene: &Scene) -> String {
         render_participant_box(&mut out, p, scene);
     }
 
+    // Wrap lifelines in the sketch filter group when hand-drawn theme is active.
+    if scene.style.hand_drawn {
+        out.push_str("<g filter=\"url(#sketch)\">");
+    }
     let lifeline_stroke_width = scene.style.lifeline_thickness.unwrap_or(1);
     for l in &scene.lifelines {
         out.push_str(&format!(
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"6 4\"/>",
             l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color, lifeline_stroke_width
         ));
+    }
+    if scene.style.hand_drawn {
+        out.push_str("</g>");
     }
 
     for a in &scene.activations {
@@ -149,7 +173,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 .style
                 .group_header_font_color
                 .as_deref()
-                .unwrap_or("black");
+                .unwrap_or(scene.style.arrow_color.as_str());
             use crate::theme::GroupHeaderFontStyle;
             let header_font_weight = match scene.style.group_header_font_style {
                 GroupHeaderFontStyle::Bold => "font-weight=\"bold\"",
@@ -186,7 +210,7 @@ pub fn render_svg(scene: &Scene) -> String {
                             y,
                             "font-family=\"monospace\" font-size=\"12\"",
                             line,
-                            "black",
+                            &scene.style.arrow_color,
                         ));
                         y += 16;
                     }
@@ -266,6 +290,14 @@ pub fn render_svg(scene: &Scene) -> String {
         }
     }
 
+    // When the hand-drawn theme is active, apply the sketch displacement filter
+    // to arrow shafts and heads (but not to label text).
+    let sketch_attr = if scene.style.hand_drawn {
+        " filter=\"url(#sketch)\""
+    } else {
+        ""
+    };
+
     let message_line_color = scene
         .style
         .message_line_color
@@ -309,6 +341,10 @@ pub fn render_svg(scene: &Scene) -> String {
         // layout gives the loop a non-zero width).
         let is_self_loop =
             m.from_id == m.to_id && m.from_virtual.is_none() && m.to_virtual.is_none();
+        // Open sketch group around shaft + arrowheads (not labels) when hand-drawn.
+        if !sketch_attr.is_empty() {
+            out.push_str(&format!("<g{}>", sketch_attr));
+        }
         if is_self_loop {
             // Use m.x2 as the right extent set by the layout.
             let loop_x2 = m.x2;
@@ -377,6 +413,10 @@ pub fn render_svg(scene: &Scene) -> String {
                 hidden,
             );
         }
+        // Close sketch group (shaft + arrowheads only; labels are outside).
+        if !sketch_attr.is_empty() {
+            out.push_str("</g>");
+        }
 
         if let Some(virtual_ep) = m.from_virtual {
             render_virtual_endpoint_marker(&mut out, m.x1, line_y, virtual_ep.kind);
@@ -408,7 +448,7 @@ pub fn render_svg(scene: &Scene) -> String {
                     start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
                     &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                     line,
-                    "black",
+                    &scene.style.arrow_color,
                 ));
             }
         } else if let Some(label) = &m.label {
@@ -425,7 +465,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 ty,
                 &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                 label,
-                "black",
+                &scene.style.arrow_color,
             ));
         }
     }
@@ -440,7 +480,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 text_y,
                 "font-family=\"monospace\" font-size=\"12\"",
                 line,
-                "black",
+                &scene.style.arrow_color,
             ));
             text_y += 16;
         }
@@ -1170,29 +1210,38 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
             ));
         }
         ParticipantRole::Queue => {
+            // Render queue as a horizontal cylinder (pipe) icon with neutral blue palette,
+            // consistent with other shaped participants (Database, Boundary, etc.).
+            // The horizontal stripes suggest a FIFO queue visually.
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#fff0f0\" stroke=\"#8a3030\" stroke-width=\"1\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#e9f5ff\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
                 x, y, width, height
             ));
-            for i in [8, 14, 20] {
-                out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a3030\" stroke-width=\"1\"/>",
-                    x + 8,
-                    y + i,
-                    x + width - 8,
-                    y + i
-                ));
-            }
+            // Left ellipse cap — suggests pipe/cylinder opening
+            out.push_str(&format!(
+                "<ellipse cx=\"{}\" cy=\"{}\" rx=\"6\" ry=\"{}\" fill=\"#d0eaff\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
+                x + 10,
+                y + height / 2,
+                (height / 2) - 4
+            ));
+            // Right ellipse cap — other end of cylinder
+            out.push_str(&format!(
+                "<ellipse cx=\"{}\" cy=\"{}\" rx=\"6\" ry=\"{}\" fill=\"#d0eaff\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
+                x + width - 10,
+                y + height / 2,
+                (height / 2) - 4
+            ));
         }
     }
 
+    let participant_font_color = scene.style.participant_font_color_resolved();
     for (idx, line) in display_lines.iter().enumerate() {
         out.push_str(&creole_text(
             cx,
             y + 21 + (idx as i32 * 16),
             "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\"",
             line,
-            "black",
+            participant_font_color,
         ));
     }
 }

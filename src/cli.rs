@@ -1,6 +1,27 @@
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+/// Parse a single `-DKEY=VALUE` or `-D KEY=VALUE` argument into `(key, value)`.
+/// A bare key with no `=` is accepted and yields an empty value.
+pub fn parse_define(raw: &str) -> Result<(String, String), String> {
+    match raw.split_once('=') {
+        Some((key, val)) => {
+            let key = key.trim().to_string();
+            if key.is_empty() {
+                return Err(format!("variable name cannot be empty in '-D{raw}'"));
+            }
+            Ok((key, val.to_string()))
+        }
+        None => {
+            let key = raw.trim().to_string();
+            if key.is_empty() {
+                return Err("variable name cannot be empty in '-D' flag".to_string());
+            }
+            Ok((key, String::new()))
+        }
+    }
+}
+
 #[derive(Debug, Clone, Parser)]
 #[command(
     name = "puml",
@@ -94,6 +115,18 @@ pub struct Cli {
     /// Root directory used to resolve !include when reading from stdin.
     #[arg(long, value_name = "DIR")]
     pub include_root: Option<PathBuf>,
+
+    /// Inject a preprocessor variable. Format: KEY=VALUE or KEY (empty value).
+    /// Repeatable. Variables are accessible as `$KEY` in diagram source.
+    /// Mirrors PlantUML `-DKEY=VALUE` convention.
+    #[arg(
+        short = 'D',
+        value_name = "KEY=VALUE",
+        action = ArgAction::Append,
+        value_parser = parse_define,
+        allow_hyphen_values = true
+    )]
+    pub defines: Vec<(String, String)>,
 
     /// No-op compatibility flag (outputs are always overwritten in place).
     #[arg(long, action = ArgAction::SetTrue)]

@@ -1,0 +1,42 @@
+@startuml
+title Kubernetes pod and container groupings
+node "Kubernetes Cluster" {
+  node "Namespace: frontend" {
+    node "Pod: nginx-proxy" {
+      node "nginx" as NGX <<container>>
+      node "sidecar-logger" as SL <<container>>
+    }
+    node "Pod: react-app" {
+      node "react-build" as RB <<container>>
+    }
+  }
+  node "Namespace: backend" {
+    node "Pod: api-server" {
+      node "api-service" as API <<container>>
+      node "envoy-proxy" as ENV <<container>>
+    }
+    node "Pod: worker" {
+      node "queue-consumer" as QC <<container>>
+    }
+  }
+  node "Namespace: data" {
+    node "StatefulSet: postgres" {
+      node "postgres-0" as PG0 <<container>>
+      node "postgres-1" as PG1 <<container>>
+    }
+    node "Pod: redis" {
+      node "redis-server" as RS <<container>>
+    }
+  }
+  node "Ingress Controller" as IC
+}
+
+IC --> NGX
+NGX --> API : HTTP
+NGX --> RB
+API --> PG0 : psql
+API --> RS : redis
+QC --> PG0
+SL --> IC : log forward
+ENV --> API : mTLS
+@enduml

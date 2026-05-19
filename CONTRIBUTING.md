@@ -144,6 +144,34 @@ PUML is pre-1.0. We tag a release when a notable change lands; security fixes al
 
 ---
 
+## Branch protection policy
+
+The `main` branch enforces the following required status checks (issues #90, #452):
+
+- `fmt-clippy-test-coverage-quick` — the PR gate composite result
+- `differential-svg-oracle` — the PlantUML JAR conformance oracle
+
+Both checks must be green before a PR can merge. The policy is codified in
+`scripts/branch-protection.sh` and can be applied with:
+
+```bash
+./scripts/branch-protection.sh apply
+```
+
+or verified (read-only, no admin privileges required) with:
+
+```bash
+./scripts/branch-protection.sh verify
+```
+
+The `differential-svg-oracle` check is produced by the `Oracle — Differential
+Conformance vs Java PlantUML` workflow (`oracle.yml`). Oracle exit 2 (< 50%
+match) and exit 3 (promoted fixture regression) are hard CI failures. Oracle
+exit 1 (50–79% match) is an advisory warning — it does not block merge but
+should be investigated before the next release.
+
+---
+
 ## Code of conduct
 
 By participating in this project you agree to abide by the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).

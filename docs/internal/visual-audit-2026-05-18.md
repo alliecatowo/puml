@@ -467,3 +467,135 @@ The trajectory is positive. The P0 backlog (missing actors, missing dividers, mi
 3. **Class box width = max(member text widths)** — Gateway box in class/21 clips member text. Auto-size box width to accommodate widest attribute/method string.
 4. **State diagram exit-transition routing** — Ensure final/shutdown transitions originate from the state node boundary, not the start-dot region.
 5. **Deployment 3D cube node shape** (#571) — Low complexity, high parity value. UML deployment nodes must render as 3D cubes.
+
+---
+
+### Wave 24 audit pass
+
+Audited 2026-05-19. 72 PNGs across sequence, class, activity (old+new), state, component, usecase, deployment, gantt, mindmap, wbs, c4, json, yaml, chart, timing, nwdiag, ditaa, salt, archimate, ebnf, regex, chronology, sdl, themes, skinparams, math, creole, preprocessor, object families.
+
+* sequence/01_basic — B — basic hello renders correctly; lifeline spacing and arrowheads good
+* sequence/05_alt_opt_loop — C — group frame right edge extends to canvas margin past Bob's lifeline (filed #728)
+* sequence/11_activation — B — activation bars render correctly on sub-call; good
+* sequence/13_arrows — B — arrow variant showcase mostly correct; bidirectional arrow renders cleanly
+* sequence/15_large_diagram — B — large 7-participant diagram renders well; Email Queue participant has unusual dashed/pink border styling (filed #748)
+* sequence/17_all_groups — C — self-message in break block renders as disconnected rectangle stub with no arrowhead (filed #731)
+* sequence/16_arrow_variants — B — all arrow types correctly distinct; reverse sync arrow looks identical to synchronous (possible existing #493 scope)
+* sequence/18_activation_stack — B — stacked activation bars render correctly; self-call loop present
+* sequence/19_lifecycle — B — create/destroy lifecycle with green dot and red X renders correctly
+* sequence/22_ref_over — A — ref-over-multiple frame renders correctly spanning 3 participants
+* sequence/24_skinparam_roundcorner — A — rounded corners applied correctly per skinparam
+* sequence/25_skinparam_shadow — A — shadow skinparam applied correctly
+* sequence/09_box — A — box grouping with colored backgrounds correct
+* sequence/12_create_destroy — B — create (green circle) and destroy (red X) markers present and correct
+* class/01_basic — B — single-relation class; "owns" label positioned in center of edge not near arrowhead (existing #469)
+* class/02_inheritance — B — hollow triangle on Vehicle←{Car,Truck} renders correctly
+* class/08_packages — F — package containers not rendered at all, only flat class layout (filed #744)
+* class/10_full_domain — C — layout quality good overall; self-reference loop on Order renders as rectangular stub
+* class/12_all_relations — C — aggregation label clipped at right edge (existing #521); double-headed arrow overlap (existing #471)
+* class/14_nested_packages — B — nested dashed package boxes render correctly
+* class/21_microservices — B — member text fits; clean tree layout (previous clipping bug may be fixed)
+* class/22_ddd — B — composition diamonds visible and correct; clean layout
+* class/27_chain_of_responsibility — B — hollow inheritance triangle correct; layout linear and readable
+* class/30_command_pattern — B — 4-node layout with correct relationship types; clean
+* activity/01_simple_flow — A — basic flow with correct start/end states; rounded boxes; good
+* activity/02_if_then_else — D — else-branch nodes overlap, crossing arrows in conditional (filed #735)
+* activity/04_fork_join — C — fork bars render but branch columns are not fully parallel (existing #487)
+* activity/07_partition — B — swimlane partitions with labels correct; cross-lane arrows render
+* activity/09_error_handling — D — edge from Complete to end-state routes through Log Error box (filed #734)
+* activity/15_report_generation — B — large complex diagram; fork/join bars present; layout mostly clean
+* activity_new/03_fork — C — single-column fork visible (existing #497)
+* activity_new/06_partition — B — 2-lane partition with clean cross-lane arrows
+* activity_old/02_swimlanes — B — 3-lane swimlane with correct lane headers
+* activity_old/04_mixed — C — detach keyword produces double end-state circle (filed #746)
+* state/01_basic — C — transitions render but no labels shown (existing #463)
+* state/03_concurrent — B — concurrent state with dashed divider and 4 sub-states visible
+* state/05_fork_join_choice — B — fork/join bars and choice diamond render correctly
+* state/06_entry_exit — B — entry/exit actions in compartment render correctly
+* state/07_nested — C — nested composite states correct; 'done' label clipped at canvas edge (filed #745)
+* state/08_full_machine — B — complex machine with nested states and choice diamond; layout clean
+* component/01_basic — B — component boxes with lollipop stubs; clean
+* component/04_deployment_style — B — 5-node component tree; clean routing
+* component/06_with_arrows — C — edge bundle at center point creates small dot artifact where 3 arrows meet (related to existing #500)
+* usecase/01_basic — C — excessive vertical spacing (filed #736)
+* usecase/03_extends_includes — B — <<extend>> / <<include>> dashed arrows render correctly
+* usecase/04_with_packages — C — package containers visible; edge routing forms stacked zigzag bundle on left side
+* deployment/01_nodes — A — 3-tier node stack with 3D boxes and correct labels
+* deployment/02_databases — A — mixed node/database shapes with correct cylinder rendering
+* deployment/04_mixed — C — 4-edge bipartite crossing X-pattern between web servers and backends (filed #750)
+* gantt/01_basic — B — bars and milestone diamond correct; last date header slightly overlapping (existing #426)
+* gantt/03_constraints — A — 5-task chart with dependencies; clean
+* gantt/05_multi_task — B — 5-task roadmap with dashed dependency arrows; clean
+* gantt/06_with_legend — B — 4-phase annual plan; milestone at right edge
+* mindmap/01_basic — A — 3-branch mindmap; correct colors
+* mindmap/04_learning_map — A — balanced 4-branch deep mindmap; all labels legible
+* wbs/01_basic — A — 3-leaf WBS; clean
+* wbs/04_multi_level — A — 3-level deep WBS; all 11 nodes visible
+* c4/01_context — C — edge label collision at port on Banking Application (filed #749)
+* c4/07_microservices — B — 3-column microservice layout; "Routes" labels stack near gateway
+* c4/10_security_zones — B — clean linear security-zone chain; unconnected Threat Actor correctly placed
+* json/01_object — B — flat JSON viewer correct
+* yaml/01_mapping — B — yellow YAML viewer correct
+* yaml/03_nested — B — nested YAML tree correct
+* chart/01_bar — B — bar chart clean; y-axis tick labels align
+* chart/03_pie — A — pie chart with legend and slice labels; correct proportions
+* chart/04_multi_series — A — grouped bar chart with legend; correct
+* timing/01_concise — A — concise timing diagram with state labels; clean
+* timing/04_binary — B — binary waveform; state labels (low/high) clipped slightly at left edge
+* nwdiag/01_single_net — B — single network with two nodes; correct
+* nwdiag/02_multiple_nets — B — two networks stacked; 'lb' node appears in both (multi-network membership correct)
+* nwdiag/03_with_groups — D — groups render as flat rows below network, not topology overlays (filed #737)
+* ditaa/01_simple_ascii — B — Client→Server→DB ASCII art boxes render correctly
+* ditaa/02_components — B — Auth/App/DB dashed-corner boxes render correctly
+* salt/01_basic_widgets — A — Name/Age fields + OK/Cancel buttons correct
+* salt/04_tabs — B — tab strip renders; second tab selected state not visually distinct
+* archimate/01_layered — C — Web App box icon partially overlaps the box title "Web App" (icon stub renders inside the label area)
+* archimate/03_with_junctions — B — service boxes with junction arrows in single layer; clean
+* ebnf/01_simple_grammar — A — railroad diagram with loop arc correct
+* ebnf/03_complex — B — 3-rule grammar; alternation box renders correctly
+* chronology/01_events — A — vertical timeline with date+event correct
+* chronology/03_release_history — A — 5-milestone timeline; all dates and labels correct
+* sdl/01_basic_process — D — response arrow direction reversed: Done→Processing instead of Processing→Done (filed #747)
+* sdl/02_with_transitions — B — 3-state SDL with retry loop; arrows correct
+* themes/01_plain — C — multi-word message label wraps and overlaps participant header (filed #742)
+* themes/02_spacelab — C — same wrap overlap as plain (filed #742)
+* themes/06_spacelab_state — A — state diagram with spacelab theme colors; correct
+* skinparams/01_arrow_color — A — orange arrows correct per skinparam
+* skinparams/07_maxmessagesize — C — wrapped message text overlaps participant header box (filed #741)
+* skinparams/11_text_alignment — B — left-aligned labels correct
+* skinparams/16_all_colors — A — dark theme with pink arrows renders correctly
+* object/01_basic — C — underline on object name absent (existing #486); layout correct
+* object/04_with_stereotypes — C — underline absent (existing #486); stereotype «User» label correct
+* math/01_simple — A — E=mc² formula renders correctly
+* math/02_complex — A — integral formula renders correctly
+* creole/01_bold_italic — C — bold/italic labels correct but label position overlaps participant box slightly
+* creole/03_multiline — B — multiline message; strikethrough on 'two' renders correctly (intentional)
+* preprocessor/01_define — A — define macro resolves correctly in output
+
+### New issues filed this pass
+
+| Issue | Family | Severity | Summary |
+|-------|---------|----------|---------|
+| #728 | sequence | P2 | Group frame right edge extends past rightmost lifeline |
+| #731 | sequence | P1 | Self-message in break/group renders as disconnected rectangle |
+| #734 | activity | P1 | Edge routing passes through action node boxes |
+| #735 | activity | P1 | if/else branch nodes 'Return 200'/'Return 401' overlap |
+| #736 | usecase | P2 | Excessive vertical spacing in simple use-case diagrams |
+| #737 | nwdiag | P1 | Groups render as flat rows below network, not topology overlays |
+| #741 | sequence | P2 | Wrapped message text overlaps participant header in maxmessagesize |
+| #742 | sequence | P1 | Multi-word message label wrap overlaps arrow in plain/spacelab themes |
+| #744 | class | P0 | Package containers not rendered — flat layout only |
+| #745 | state | P1 | Transition label clipped at right canvas edge in 07_nested |
+| #746 | activity_old | P1 | 'detach' keyword renders as double end-state circle |
+| #747 | sdl | P1 | Response arrow direction reversed (Done→Processing) |
+| #748 | sequence | P2 | 'Email Queue' participant has dashed/pink border unlike other participants |
+| #749 | c4 | P2 | Edge label collision at port on multi-Rel() source node |
+| #750 | deployment | P1 | 4-edge bipartite crossing X-pattern between web-server and backend tiers |
+
+### Recommended Wave 25 priorities
+
+1. **Class package containers** (#744, P0) — Package blocks produce no container rectangle; feature is completely absent for the plain `package` keyword. High impact across the class family.
+2. **Activity conditional branch layout** (#735, #734) — if/else branch nodes overlap and edges route through node bodies. These are fundamental layout correctness bugs in the most-used diagram type.
+3. **SDL arrow direction** (#747, P1) — Arrows terminating at end-state circles have reversed direction. Simple but visually confusing; affects all SDL diagrams with 3+ states.
+4. **nwdiag group overlays** (#737, P1) — Groups render completely wrong (flat list vs. topology overlay). Feature is present in the parser but the render layer drops the overlay entirely.
+5. **Sequence group frame clamping + self-message in groups** (#728, #731) — Group frame over-extension and broken self-message arrows are visible in nearly every sequence diagram with group blocks; combined fix is high leverage.

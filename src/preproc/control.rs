@@ -21,6 +21,9 @@ use super::{
 
 pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String, Diagnostic> {
     let mut state = PreprocState::default();
+    // Seed preprocessor variables from caller-supplied injections (e.g. CLI -D flags).
+    // Applied before any source line is processed so they are visible in !if/$VAR from line 1.
+    state.vars.extend(options.inject_vars.clone());
     let mut include_stack = Vec::new();
     let mut include_once_seen = BTreeSet::new();
     let mut expanded = String::new();
