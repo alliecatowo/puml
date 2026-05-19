@@ -5229,6 +5229,20 @@ fn component_and_deployment_edges_render_advanced_markers_and_dashes() {
 }
 
 #[test]
+fn deployment_database_edge_labels_stay_clear_of_terminal_database_segment() {
+    let src = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("docs/examples/deployment/02_databases.puml"),
+    )
+    .expect("deployment example should load");
+    let svg = render_source_to_svg(&src).expect("deployment example should render");
+    assert!(
+        svg.contains("<text x=\"264\" y=\"228\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">reads/writes</text>"),
+        "reads/writes label should stay on the upper shaft segment, clear of the PostgreSQL arrowhead"
+    );
+}
+
+#[test]
 fn object_diagram_renders_underlined_header_and_rects() {
     let src = fs::read_to_string(fixture("families/valid_object_members_block.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("object svg should render");
