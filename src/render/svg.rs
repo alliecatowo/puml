@@ -30,18 +30,28 @@ pub(crate) fn creole_text(
         || label.contains("<&");
 
     if !has_markup && lines.len() == 1 {
-        // Fast path — no markup, no multi-line: keep old behavior.
+        // Fast path — no markup, no multi-line.
+        let color_attr = if !base_color.is_empty()
+            && base_color != "black"
+            && base_color != "#000000"
+            && base_color != "#000"
+        {
+            format!(" fill=\"{}\"", base_color)
+        } else {
+            String::new()
+        };
+        let attrs = if extra_attrs.is_empty() {
+            color_attr
+        } else {
+            format!(" {}{}", extra_attrs, color_attr)
+        };
         return format!(
-            "<text x=\"{}\" y=\"{}\"{}>{}",
+            "<text x=\"{}\" y=\"{}\"{}>{}</text>",
             x,
             y,
-            if extra_attrs.is_empty() {
-                String::new()
-            } else {
-                format!(" {}", extra_attrs)
-            },
+            attrs,
             escape_text(label)
-        ) + "</text>";
+        );
     }
 
     let inner = render_creole_to_svg_tspans(&lines, x, base_color);

@@ -10,6 +10,10 @@ const REF_HEADER_HEIGHT: i32 = 20;
 const REF_BODY_BASELINE_Y: i32 = 32;
 
 pub fn render_svg(scene: &Scene) -> String {
+    eprintln!(
+        "DEBUG render_svg called bg={:?} participant_bg={:?}",
+        scene.style.background_color, scene.style.participant_background_color
+    );
     let mut out = String::new();
 
     // Compute output dimensions based on scale spec.
@@ -70,7 +74,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 title.y + (idx as i32 * 24),
                 "font-family=\"monospace\" font-size=\"18\" font-weight=\"600\"",
                 line,
-                "black",
+                &scene.style.arrow_color,
             ));
         }
     }
@@ -145,11 +149,11 @@ pub fn render_svg(scene: &Scene) -> String {
         ));
 
         {
-            let header_font_color = scene
+            let header_font_color: &str = scene
                 .style
                 .group_header_font_color
                 .as_deref()
-                .unwrap_or("black");
+                .unwrap_or(scene.style.arrow_color.as_str());
             use crate::theme::GroupHeaderFontStyle;
             let header_font_weight = match scene.style.group_header_font_style {
                 GroupHeaderFontStyle::Bold => "font-weight=\"bold\"",
@@ -186,7 +190,7 @@ pub fn render_svg(scene: &Scene) -> String {
                             y,
                             "font-family=\"monospace\" font-size=\"12\"",
                             line,
-                            "black",
+                            &scene.style.arrow_color,
                         ));
                         y += 16;
                     }
@@ -1009,6 +1013,10 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
     let height = participant.height;
     let display_lines = &participant.display_lines;
     let cx = x + (width / 2);
+    eprintln!(
+        "DEBUG render_participant_box id={:?} display_lines={:?}",
+        participant.id, display_lines
+    );
 
     match participant.role {
         ParticipantRole::Participant => {
@@ -1186,13 +1194,18 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
         }
     }
 
+    let participant_font_color = scene.style.participant_font_color_resolved();
+    eprintln!(
+        "DEBUG participant_font_color={:?} bg={:?}",
+        participant_font_color, scene.style.participant_background_color
+    );
     for (idx, line) in display_lines.iter().enumerate() {
         out.push_str(&creole_text(
             cx,
             y + 21 + (idx as i32 * 16),
             "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\"",
             line,
-            "black",
+            participant_font_color,
         ));
     }
 }
