@@ -111,6 +111,83 @@ fn architecture_state_transition_labels_clear_state_boxes() {
     );
 }
 
+#[test]
+fn concurrent_state_example_renders_vertical_divider_and_connected_outer_transitions() {
+    let src = include_str!("../docs/examples/state/03_concurrent.puml");
+    let svg = render_source_to_svg(src).expect("concurrent state example should render");
+    let doc = SvgDoc::parse(&svg);
+
+    let processing = rect_containing_text(&doc, "Processing");
+    let parsing = rect_containing_text(&doc, "Parsing");
+    let validating = rect_containing_text(&doc, "Validating");
+    let logging = rect_containing_text(&doc, "Logging");
+    let auditing = rect_containing_text(&doc, "Auditing");
+
+    assert!(
+        (parsing.x - validating.x).abs() <= 1.0,
+        "first concurrent region should stay in a single column"
+    );
+    assert!(
+        (logging.x - auditing.x).abs() <= 1.0,
+        "second concurrent region should stay in a single column"
+    );
+    assert!(
+        logging.x >= parsing.right() + 8.0,
+        "concurrent regions should render side by side"
+    );
+
+    let divider = doc
+        .elements("line")
+        .into_iter()
+        .find(|line| {
+            line.attribute("stroke-dasharray") == Some("5 3")
+                && f64_attr(*line, "x1") == f64_attr(*line, "x2")
+                && f64_attr(*line, "x1") > processing.x
+                && f64_attr(*line, "x1") < processing.right()
+                && f64_attr(*line, "y1") >= processing.y
+                && f64_attr(*line, "y2") <= processing.bottom() + 8.0
+        })
+        .expect("expected vertical dashed divider inside concurrent composite");
+    let divider_x = f64_attr(divider, "x1");
+    assert!(
+        divider_x > parsing.right() && divider_x < logging.x,
+        "divider should separate the two concurrent regions"
+    );
+
+    let start_transition = doc
+        .elements_with_attr("line", "data-state-from", "[*]")
+        .into_iter()
+        .find(|line| line.attribute("data-state-to") == Some("Processing"))
+        .expect("expected outer initial transition into Processing");
+    let end_transition = doc
+        .elements_with_attr("line", "data-state-from", "Processing")
+        .into_iter()
+        .find(|line| {
+            line.attribute("data-state-to")
+                .is_some_and(|target| target == "[*]" || target.starts_with("[*]__end"))
+        })
+        .expect("expected outer exit transition from Processing");
+
+    assert!(
+        f64_attr(start_transition, "x2") >= processing.x
+            && f64_attr(start_transition, "x2") <= processing.right(),
+        "initial transition should terminate on the composite boundary"
+    );
+    assert!(
+        f64_attr(start_transition, "y2") <= processing.y + 1.0,
+        "initial transition should connect to the top edge of the composite"
+    );
+    assert!(
+        f64_attr(end_transition, "x1") >= processing.x
+            && f64_attr(end_transition, "x1") <= processing.right(),
+        "exit transition should originate on the composite boundary"
+    );
+    assert!(
+        f64_attr(end_transition, "y1") >= processing.bottom() - 1.0,
+        "exit transition should leave from the bottom edge of the composite"
+    );
+}
+
 fn rect_containing_text(doc: &SvgDoc<'_>, label: &str) -> svg_test_helpers::Bounds {
     let text = doc
         .texts_containing(label)
@@ -123,13 +200,20 @@ fn rect_containing_text(doc: &SvgDoc<'_>, label: &str) -> svg_test_helpers::Boun
         .into_iter()
         .filter(|node| node.attribute("x").is_some() && node.attribute("y").is_some())
         .map(bounds)
-        .find(|rect| {
+        .filter(|rect| {
             rect.width > 0.0
                 && rect.height > 0.0
                 && x >= rect.x
                 && x <= rect.right()
                 && y >= rect.y
                 && y <= rect.bottom()
+        })
+        .min_by(|a, b| {
+            let area_a = a.width * a.height;
+            let area_b = b.width * b.height;
+            area_a
+                .partial_cmp(&area_b)
+                .expect("rect areas should be comparable")
         })
         .unwrap_or_else(|| panic!("expected rect containing node label {label:?}"))
 }
