@@ -7,6 +7,12 @@ const STATE_NODE_H: i32 = 40;
 const STATE_NODE_GAP_X: i32 = 60;
 const STATE_NODE_GAP_Y: i32 = 60;
 const STATE_MARGIN: i32 = 30;
+// Extra left gutter so that transition labels placed to the left of nodes
+// are not clipped by a viewBox origin of x=0.  After placement we do a
+// min-x pre-pass and shift everything right by at least this padding.
+const STATE_LEFT_GUTTER: i32 = 160;
+// X-offset of the right-side gutter column used for sink states.
+const STATE_SINK_GUTTER_GAP: i32 = 80;
 const COMPOSITE_PAD_X: i32 = 16;
 const COMPOSITE_PAD_Y: i32 = 36; // extra space for composite header label
 const COMPOSITE_PAD_BOT: i32 = 12;
@@ -113,6 +119,50 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         2
     };
 
+    // ── Sink-state heuristic ────────────────────────────────────────────────
+    // Top-level nodes that have ONLY incoming error transitions (no outgoing
+    // transitions that lead to non-terminal nodes) are "sink" states.  These
+    // should be placed in a right-side gutter column rather than in the main
+    // vertical flow, so they don't interrupt the happy path.
+    //
+    // A node is a sink if:
+    //   - it is NOT a StartEnd / End pseudo-state (those go at top/bottom)
+    //   - its out-degree is 0 OR all outgoing transitions go to [*]__end / [*]
+    //   - its in-degree > 0 (at least one incoming transition)
+    {
+        // (computed later; pre-compute inline for sink detection)
+    }
+    let top_level_out_degree: std::collections::BTreeMap<&str, usize> = {
+        let mut m: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+        for t in transitions {
+            // Count outgoing edges that go somewhere non-terminal
+            if !t.to.starts_with("[*]") {
+                *m.entry(t.from.as_str()).or_insert(0) += 1;
+            }
+        }
+        m
+    };
+    let top_level_in_degree: std::collections::BTreeMap<&str, usize> = {
+        let mut m: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+        for t in transitions {
+            *m.entry(t.to.as_str()).or_insert(0) += 1;
+        }
+        m
+    };
+    let sink_names: std::collections::BTreeSet<&str> = top_level_nodes
+        .iter()
+        .filter(|n| {
+            // Must be a normal state (not a pseudo-state)
+            matches!(n.kind, StateNodeKind::Normal)
+                // Must have incoming transitions from at least 2 different sources
+                // (single-predecessor terminals like "Output" are on the happy path)
+                && top_level_in_degree.get(n.name.as_str()).copied().unwrap_or(0) >= 2
+                // Must have NO outgoing transitions to non-terminal nodes
+                && top_level_out_degree.get(n.name.as_str()).copied().unwrap_or(0) == 0
+        })
+        .map(|n| n.name.as_str())
+        .collect();
+
     // Longest-path reachability sort of top-level nodes from initial states.
     // Using the maximum depth instead of the minimum keeps sinks/final states below
     // all of their incoming branches, which avoids clipped/crossing terminal arrows.
@@ -136,12 +186,24 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         )
     });
 
+    // Split into main flow and sink gutter
+    let main_layout_order: Vec<&StateNode> = layout_order
+        .iter()
+        .copied()
+        .filter(|n| !sink_names.contains(n.name.as_str()))
+        .collect();
+    let sink_layout_order: Vec<&StateNode> = layout_order
+        .iter()
+        .copied()
+        .filter(|n| sink_names.contains(n.name.as_str()))
+        .collect();
+
     let mut placed: std::collections::BTreeMap<String, PlacedNode> =
         std::collections::BTreeMap::new();
 
     if has_fork_join_choice {
         place_top_level_layered(
-            &layout_order,
+            &main_layout_order,
             &depth_map,
             &name_to_orig,
             transitions,
@@ -154,16 +216,66 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         #[allow(clippy::explicit_counter_loop)]
         {
             let mut col_idx = 0usize;
-            for node in &layout_order {
+            for node in &main_layout_order {
                 let col = (col_idx as i32) % cols;
                 col_idx += 1;
-                let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
+                let x =
+                    STATE_LEFT_GUTTER + STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
                 let y = col_y[col as usize];
                 let (w, h) = *node_sizes
                     .get(&node.name)
                     .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
                 place_node(node, x, y, w, h, &node_sizes, &mut placed);
                 col_y[col as usize] = y + h + STATE_NODE_GAP_Y;
+            }
+        }
+    }
+
+    // Place sink nodes in a right-side gutter column
+    if !sink_layout_order.is_empty() {
+        let main_max_x = placed
+            .values()
+            .map(|p| p.x + p.w)
+            .max()
+            .unwrap_or(STATE_LEFT_GUTTER + STATE_MARGIN + STATE_NODE_W);
+        let sink_x = main_max_x + STATE_SINK_GUTTER_GAP;
+        let mut sink_y = STATE_MARGIN + 50;
+        for node in &sink_layout_order {
+            let (w, h) = *node_sizes
+                .get(&node.name)
+                .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
+            place_node(node, sink_x, sink_y, w, h, &node_sizes, &mut placed);
+            sink_y += h + STATE_NODE_GAP_Y;
+        }
+    }
+
+    // ── Left-edge gutter pre-pass (Bug #2 fix) ──────────────────────────────
+    // Transition labels may be placed to the left of their source/target nodes.
+    // Do a dry-run of label placement to find the leftmost label x, then shift
+    // all placed nodes right so no label falls outside the viewBox.
+    {
+        let mut dry_occupied: Vec<LabelBounds> = Vec::new();
+        let mut min_label_x = placed.values().map(|p| p.x).min().unwrap_or(0);
+        for t in transitions {
+            if let (Some(fp), Some(tp)) = (placed.get(&t.from), placed.get(&t.to)) {
+                let (x1, y1, x2, y2) = edge_anchors(fp, tp);
+                if let Some(label) = &t.label {
+                    let layout =
+                        place_state_transition_label(label, x1, y1, x2, y2, &placed, &dry_occupied);
+                    min_label_x = min_label_x.min(layout.bounds.x);
+                    dry_occupied.push(layout.bounds);
+                }
+            }
+        }
+        // If anything extends left of STATE_MARGIN, shift the whole coordinate
+        // system right to compensate.
+        let required_shift = (STATE_MARGIN - min_label_x).max(0);
+        if required_shift > 0 {
+            let names: Vec<String> = placed.keys().cloned().collect();
+            for name in names {
+                if let Some(p) = placed.get_mut(&name) {
+                    p.x += required_shift;
+                }
             }
         }
     }

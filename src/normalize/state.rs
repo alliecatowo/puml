@@ -207,7 +207,15 @@ fn ensure_region_state_node(region: &mut Vec<StateNode>, name: &str) {
     if region.iter().any(|node| node.name == name) {
         return;
     }
-    region.push(placeholder_state_node(name));
+    let node = placeholder_state_node(name);
+    // Initial pseudo-states go at the top of the region (index 0) so they are
+    // placed above all child states in the layout.  Final pseudo-states go at
+    // the end (default push).
+    if name.starts_with("[*]__in__") {
+        region.insert(0, node);
+    } else {
+        region.push(node);
+    }
 }
 
 fn upsert_region_state_node(region: &mut Vec<StateNode>, node: StateNode) {
@@ -283,8 +291,15 @@ fn collect_decl_transitions(
             StatementKind::StateTransition(t) => {
                 let from = scope_pseudo_star(&t.from, parent_name, false);
                 let to = scope_pseudo_star(&t.to, parent_name, true);
-                ensure_state_node(nodes, &from);
-                ensure_state_node(nodes, &to);
+                // Do NOT add composite-scoped [*] pseudo-states to the flat top-level
+                // nodes list — they are placed inside the composite region by
+                // state_decl_to_node.  Only add genuinely top-level (non-scoped) nodes.
+                if !from.contains("__in__") && !from.contains("__end__") {
+                    ensure_state_node(nodes, &from);
+                }
+                if !to.contains("__in__") && !to.contains("__end__") {
+                    ensure_state_node(nodes, &to);
+                }
                 transitions.push(ModelStateTransition {
                     from,
                     to,
@@ -369,8 +384,16 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                 );
             }
             StatementKind::StateTransition(t) => {
-                for endpoint in [&t.from, &t.to] {
-                    if is_composite_region_endpoint(endpoint, decl.name.as_str()) {
+                // The parent name used for scoping pseudo-states matches the logic in
+                // collect_decl_transitions (alias takes precedence over name).
+                let parent_name = decl.alias.as_deref().unwrap_or(decl.name.as_str());
+                for (endpoint, is_target) in [(&t.from, false), (&t.to, true)] {
+                    if endpoint == "[*]" {
+                        // Add the composite-scoped [*] pseudo-node to the region so it
+                        // is rendered inside the composite box, not at the top level.
+                        let scoped = scope_pseudo_star(endpoint, parent_name, is_target);
+                        ensure_region_state_node(&mut current_region, &scoped);
+                    } else if is_composite_region_endpoint(endpoint, decl.name.as_str()) {
                         ensure_region_state_node(&mut current_region, endpoint);
                     }
                 }
