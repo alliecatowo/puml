@@ -4836,6 +4836,14 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
         svg.contains("width=\"240\""),
         "node width attribute should affect SVG geometry"
     );
+    assert!(
+        svg.contains("class=\"nwdiag-connector\""),
+        "nwdiag nodes should render as boxes connected back to the network bar"
+    );
+    assert!(
+        svg.contains("class=\"nwdiag-address\""),
+        "nwdiag connector annotations should render node addresses near the link"
+    );
 
     let public_y = svg_rect_y(
         &svg,
@@ -4864,6 +4872,12 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
     assert!(
         private_lb.y > public_lb.y,
         "shared node should appear in each network row"
+    );
+    let private_app =
+        svg_node_rect(&svg, "app01", "192.168.1.21").expect("private app rect");
+    assert!(
+        private_app.x > private_lb.x,
+        "distinct nwdiag nodes should occupy separate horizontal columns instead of one vertical list"
     );
 
     let group_y = svg_rect_y(&svg, "class=\"nwdiag-group\"", "group edge").expect("group y");

@@ -22,6 +22,8 @@ nwdiag {
     assert!(svg.contains("Web 01 [10.0.0.10]"));
     assert!(svg.contains("web02"));
     assert!(svg.contains("#e0f2fe"));
+    assert!(svg.contains("class=\"nwdiag-connector\""));
+    assert!(svg.contains("class=\"nwdiag-address\""));
 }
 
 #[test]
@@ -41,6 +43,7 @@ nwdiag {
     assert!(svg.contains("data-nwdiag-shape=\"roundedbox\""));
     assert!(svg.contains("data-nwdiag-style=\"dashed\""));
     assert!(svg.contains("stroke-dasharray=\"5 3\""));
+    assert!(svg.contains("class=\"nwdiag-connector\""));
 }
 
 #[test]
