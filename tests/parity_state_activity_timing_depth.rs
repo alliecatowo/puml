@@ -73,6 +73,57 @@ fn activity_partition_example_keeps_start_below_lane_header() {
 }
 
 #[test]
+fn activity_old_swimlane_example_uses_only_real_lanes_and_keeps_nodes_in_bounds() {
+    let src = include_str!("../docs/examples/activity_old/02_swimlanes.puml");
+    let svg = puml::render_source_to_svg(src).expect("activity old swimlane example should render");
+    let doc = SvgDoc::parse(&svg);
+
+    assert!(svg.contains(">Build<"));
+    assert!(svg.contains(">Test<"));
+    assert!(svg.contains(">Deploy<"));
+    assert!(
+        !svg.contains("data-activity-lane=\"default\""),
+        "old-style swimlanes should not synthesize a phantom default lane"
+    );
+
+    let lane_headers: Vec<_> = doc
+        .elements("rect")
+        .into_iter()
+        .filter(|rect| rect.attribute("y") == Some("40") && rect.attribute("height") == Some("24"))
+        .collect();
+    assert_eq!(lane_headers.len(), 3, "expected exactly three named swimlane headers");
+
+    let start = doc
+        .elements("circle")
+        .into_iter()
+        .next()
+        .expect("activity start node should render");
+    assert!(
+        f64_attr(start, "cy") - 12.0 >= 64.0,
+        "start node should stay below the old-style swimlane header row"
+    );
+
+    let run_tests = doc
+        .texts_containing("Run Tests")
+        .into_iter()
+        .next()
+        .expect("Run Tests label should render");
+    let deploy = doc
+        .texts_containing("Deploy")
+        .into_iter()
+        .find(|text| f64_attr(*text, "y") > 100.0)
+        .expect("Deploy activity label should render");
+    assert!(
+        f64_attr(run_tests, "x") > 170.0 && f64_attr(run_tests, "x") < 308.0,
+        "Run Tests should stay inside the Test swimlane bounds"
+    );
+    assert!(
+        f64_attr(deploy, "x") > 308.0 && f64_attr(deploy, "x") < 446.0,
+        "Deploy should stay inside the Deploy swimlane bounds"
+    );
+}
+
+#[test]
 fn state_internals_history_choice_depth_renders_expected_shapes_and_actions() {
     let src = r#"@startuml
 title State internals/history/choice depth
