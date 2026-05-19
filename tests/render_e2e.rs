@@ -207,6 +207,14 @@ fn render_activity_if_else_branches_use_distinct_columns() {
         "../docs/examples/activity/02_if_then_else.puml"
     ))
     .expect("activity if/else example should render");
+    assert!(
+        !svg.contains("(else) no"),
+        "else control-flow marker must not render as a literal text node"
+    );
+    assert!(
+        !svg.contains("(endif)"),
+        "endif control-flow marker must not render as a literal text node"
+    );
     let texts = parse_svg_texts(&svg);
     let text_x = |needle: &str| -> i32 {
         texts

@@ -41,6 +41,7 @@
       "path": "docs/examples/activity/02_if_then_else.puml",
       "family": "activity",
       "expected_text": ["If-Then-Else Decision", "Receive Request", "authenticated?", "Process", "Return 200", "Return 401"],
+      "unexpected_text": ["(else) no", "(endif)"],
       "min_text_elements": 7
     },
     {
