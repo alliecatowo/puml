@@ -2,9 +2,9 @@
   "baseline": {
     "available": true,
     "mode_match": true,
-    "timestamp_utc": "2026-05-18T00:13:12Z"
+    "timestamp_utc": "2026-05-18T00:17:52Z"
   },
-  "baseline_source": "/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/docs/benchmarks/.baseline.previous.json",
+  "baseline_source": "/home/Allie/develop/puml/.worktrees/main-green-consolidation/docs/benchmarks/.baseline.previous.json",
   "benchmark_policy": {
     "absolute_mean_ms_limit": 250.0,
     "binary_limit_bytes": 12000000,
@@ -15,8 +15,8 @@
   },
   "binary": {
     "limit_bytes": 12000000,
-    "path": "/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/target/release/puml",
-    "size_bytes": 10503720,
+    "path": "/home/Allie/develop/puml/.worktrees/main-green-consolidation/target/release/puml",
+    "size_bytes": 11477872,
     "within_limit": true
   },
   "environment": {
@@ -39,48 +39,48 @@
   },
   "scenarios": [
     {
-      "current_mean_ms": 99.737,
-      "delta_ms": 4.053,
-      "delta_pct": 4.236,
+      "current_mean_ms": 93.25,
+      "delta_ms": -6.487,
+      "delta_pct": -6.504,
       "name": "cold_start_help",
-      "previous_mean_ms": 95.684
+      "previous_mean_ms": 99.737
     },
     {
-      "current_mean_ms": 96.765,
-      "delta_ms": 3.465,
-      "delta_pct": 3.714,
+      "current_mean_ms": 95.38,
+      "delta_ms": -1.385,
+      "delta_pct": -1.431,
       "name": "parser_check",
-      "previous_mean_ms": 93.3
+      "previous_mean_ms": 96.765
     },
     {
-      "current_mean_ms": 94.806,
-      "delta_ms": -1.616,
-      "delta_pct": -1.676,
+      "current_mean_ms": 94.169,
+      "delta_ms": -0.637,
+      "delta_pct": -0.672,
       "name": "parser_dump_scene",
-      "previous_mean_ms": 96.422
+      "previous_mean_ms": 94.806
     },
     {
-      "current_mean_ms": 97.095,
-      "delta_ms": 2.027,
-      "delta_pct": 2.132,
+      "current_mean_ms": 94.937,
+      "delta_ms": -2.158,
+      "delta_pct": -2.223,
       "name": "render_file",
-      "previous_mean_ms": 95.068
+      "previous_mean_ms": 97.095
     },
     {
-      "current_mean_ms": 94.295,
-      "delta_ms": 0.616,
-      "delta_pct": 0.658,
+      "current_mean_ms": 95.788,
+      "delta_ms": 1.493,
+      "delta_pct": 1.583,
       "name": "render_stdin",
-      "previous_mean_ms": 93.679
+      "previous_mean_ms": 94.295
     },
     {
-      "current_mean_ms": 94.455,
-      "delta_ms": -0.906,
-      "delta_pct": -0.95,
+      "current_mean_ms": 93.463,
+      "delta_ms": -0.992,
+      "delta_pct": -1.05,
       "name": "render_stdin_multi",
-      "previous_mean_ms": 95.361
+      "previous_mean_ms": 94.455
     }
   ],
-  "source": "/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/docs/benchmarks/latest.json",
-  "timestamp_utc": "2026-05-18T00:17:52Z"
+  "source": "/home/Allie/develop/puml/.worktrees/main-green-consolidation/docs/benchmarks/latest.json",
+  "timestamp_utc": "2026-05-19T05:45:17Z"
 }

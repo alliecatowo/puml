@@ -1,6 +1,6 @@
 {
-  "timestamp_utc": "2026-05-18T00:17:52Z",
-  "binary": "/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/target/release/puml",
+  "timestamp_utc": "2026-05-19T05:45:17Z",
+  "binary": "/home/Allie/develop/puml/.worktrees/main-green-consolidation/target/release/puml",
   "mode": "full",
   "environment": {
     "host": "pink-allie-cat",
@@ -22,48 +22,48 @@
     {
       "name": "cold_start_help",
       "tool": "python-perf-counter",
-      "mean_ms": 99.737,
-      "stddev_ms": 2.606,
+      "mean_ms": 93.250,
+      "stddev_ms": 1.937,
       "runs": 12
     }
     ,
     {
       "name": "parser_check",
       "tool": "python-perf-counter",
-      "mean_ms": 96.765,
-      "stddev_ms": 2.345,
+      "mean_ms": 95.380,
+      "stddev_ms": 2.475,
       "runs": 12
     }
     ,
     {
       "name": "parser_dump_scene",
       "tool": "python-perf-counter",
-      "mean_ms": 94.806,
-      "stddev_ms": 2.608,
+      "mean_ms": 94.169,
+      "stddev_ms": 2.517,
       "runs": 12
     }
     ,
     {
       "name": "render_file",
       "tool": "python-perf-counter",
-      "mean_ms": 97.095,
-      "stddev_ms": 2.385,
+      "mean_ms": 94.937,
+      "stddev_ms": 2.533,
       "runs": 12
     }
     ,
     {
       "name": "render_stdin",
       "tool": "python-perf-counter",
-      "mean_ms": 94.295,
-      "stddev_ms": 1.978,
+      "mean_ms": 95.788,
+      "stddev_ms": 1.448,
       "runs": 12
     }
     ,
     {
       "name": "render_stdin_multi",
       "tool": "python-perf-counter",
-      "mean_ms": 94.455,
-      "stddev_ms": 2.455,
+      "mean_ms": 93.463,
+      "stddev_ms": 2.124,
       "runs": 12
     }
   ]

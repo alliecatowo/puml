@@ -1,9 +1,9 @@
 # Benchmark Results
 
-- Timestamp (UTC): `2026-05-18T00:17:52Z`
-- Binary: `/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/target/release/puml`
+- Timestamp (UTC): `2026-05-19T05:45:17Z`
+- Binary: `/home/Allie/develop/puml/.worktrees/main-green-consolidation/target/release/puml`
 - Mode: `full`
-- Baseline: `/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/docs/benchmarks/baseline_full.json`
+- Baseline: `/home/Allie/develop/puml/.worktrees/main-green-consolidation/docs/benchmarks/baseline_full.json`
 - Timing tool: `python-perf-counter`
 - Environment: `pink-allie-cat` / `Linux` `6.18.10-200.fc43.x86_64` / `x86_64` / `rustc 1.95.0 (59807616e 2026-04-14)`
 - Benchmark policy: `bench-gate-v2-2026-05-17`
@@ -12,12 +12,12 @@
 
 | Scenario | Mean (ms) | Stddev (ms) | Runs | Tool |
 |---|---:|---:|---:|---|
-| `cold_start_help` | 99.737 | 2.606 | 12 | `python-perf-counter` |
-| `parser_check` | 96.765 | 2.345 | 12 | `python-perf-counter` |
-| `parser_dump_scene` | 94.806 | 2.608 | 12 | `python-perf-counter` |
-| `render_file` | 97.095 | 2.385 | 12 | `python-perf-counter` |
-| `render_stdin` | 94.295 | 1.978 | 12 | `python-perf-counter` |
-| `render_stdin_multi` | 94.455 | 2.455 | 12 | `python-perf-counter` |
+| `cold_start_help` | 93.250 | 1.937 | 12 | `python-perf-counter` |
+| `parser_check` | 95.380 | 2.475 | 12 | `python-perf-counter` |
+| `parser_dump_scene` | 94.169 | 2.517 | 12 | `python-perf-counter` |
+| `render_file` | 94.937 | 2.533 | 12 | `python-perf-counter` |
+| `render_stdin` | 95.788 | 1.448 | 12 | `python-perf-counter` |
+| `render_stdin_multi` | 93.463 | 2.124 | 12 | `python-perf-counter` |
 
 ## PlantUML Comparison (TODO)
 Method when Java is available:

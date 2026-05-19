@@ -91,7 +91,11 @@ fn activity_old_swimlane_example_uses_only_real_lanes_and_keeps_nodes_in_bounds(
         .into_iter()
         .filter(|rect| rect.attribute("y") == Some("40") && rect.attribute("height") == Some("24"))
         .collect();
-    assert_eq!(lane_headers.len(), 3, "expected exactly three named swimlane headers");
+    assert_eq!(
+        lane_headers.len(),
+        3,
+        "expected exactly three named swimlane headers"
+    );
 
     let start = doc
         .elements("circle")
