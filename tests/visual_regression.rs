@@ -32,6 +32,8 @@ struct Fixture {
     path: String,
     family: String,
     expected_text: Vec<String>,
+    #[serde(default)]
+    unexpected_text: Vec<String>,
     min_text_elements: usize,
     #[serde(default)]
     structural_only_reason: Option<String>,
@@ -547,6 +549,14 @@ fn check_fixture_with_required_text(
             reasons.push(format!(
                 "focused sweep expected text {:?} not found in any <text> element",
                 expected
+            ));
+        }
+    }
+    for unexpected in &fixture.unexpected_text {
+        if joined.contains(unexpected) {
+            reasons.push(format!(
+                "unexpected text {:?} was found in rendered <text> elements",
+                unexpected
             ));
         }
     }
