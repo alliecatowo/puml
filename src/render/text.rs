@@ -1,8 +1,9 @@
 use crate::model::{
     ArchimateDocument, ChartDocument, ChenDocument, DitaaDocument, EbnfDocument, EbnfToken,
-    FamilyDocument, JsonDocument, MathDocument, NormalizedDocument, NwdiagDocument, ParticipantRole,
-    RegexDocument, RegexToken, RepeatKind, SdlDocument, SequenceEventKind, SequencePage,
-    StateDocument, StateNode, TimelineDocument, VirtualEndpointKind, WbsCheckbox, YamlDocument,
+    FamilyDocument, JsonDocument, MathDocument, NormalizedDocument, NwdiagDocument,
+    ParticipantRole, RegexDocument, RegexToken, RepeatKind, SdlDocument, SequenceEventKind,
+    SequencePage, StateDocument, StateNode, TimelineDocument, VirtualEndpointKind, WbsCheckbox,
+    YamlDocument,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,8 @@
 use crate::ast::{DiagramKind, Document, StatementKind};
 use crate::diagnostic::Diagnostic;
-use crate::model::{ChenAttr, ChenAttrKind, ChenDocument, ChenEntity, ChenRelParticipant, ChenRelationship};
+use crate::model::{
+    ChenAttr, ChenAttrKind, ChenDocument, ChenEntity, ChenRelParticipant, ChenRelationship,
+};
 
 /// Parse the raw-body lines of a `@startchen` ... `@endchen` block into a
 /// [`ChenDocument`].

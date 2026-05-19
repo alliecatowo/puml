@@ -30,7 +30,8 @@ const MARGIN: f64 = 120.0;
 const ATTR_ORBIT_R: f64 = 70.0; // radius of attribute orbit around owner center
 
 const FONT_ATTRS: &str = "font-family=\"Arial,Helvetica,sans-serif\" font-size=\"13\"";
-const FONT_TITLE: &str = "font-family=\"Arial,Helvetica,sans-serif\" font-size=\"16\" font-weight=\"bold\"";
+const FONT_TITLE: &str =
+    "font-family=\"Arial,Helvetica,sans-serif\" font-size=\"16\" font-weight=\"bold\"";
 
 // Entity fill/stroke
 const ENTITY_FILL: &str = "#dbeafe";
@@ -241,14 +242,28 @@ pub fn render_chen_svg(doc: &ChenDocument) -> String {
     // ── Entity attribute lines ───────────────────────────────────────────────
     for el in &entity_layouts {
         for (pt, ..) in &el.attr_positions {
-            out.push_str(&segment_line(el.cx, el.cy, pt.x, pt.y, ATTR_LINE_COLOR, 1.0));
+            out.push_str(&segment_line(
+                el.cx,
+                el.cy,
+                pt.x,
+                pt.y,
+                ATTR_LINE_COLOR,
+                1.0,
+            ));
         }
     }
 
     // ── Relationship attribute lines ─────────────────────────────────────────
     for rl in &rel_layouts {
         for (pt, ..) in &rl.attr_positions {
-            out.push_str(&segment_line(rl.cx, rl.cy, pt.x, pt.y, ATTR_LINE_COLOR, 1.0));
+            out.push_str(&segment_line(
+                rl.cx,
+                rl.cy,
+                pt.x,
+                pt.y,
+                ATTR_LINE_COLOR,
+                1.0,
+            ));
         }
     }
 

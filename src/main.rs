@@ -2122,7 +2122,9 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Sdl(doc) => json!({"kind": "Sdl", "warnings": doc.warnings.len()}),
         NormalizedDocument::Ditaa(doc) => json!({"kind": "Ditaa", "warnings": doc.warnings.len()}),
         NormalizedDocument::Chart(doc) => json!({"kind": "Chart", "warnings": doc.warnings.len()}),
-        NormalizedDocument::Chen(doc) => json!({"kind": "Chen", "entities": doc.entities.len(), "relationships": doc.relationships.len(), "warnings": doc.warnings.len()}),
+        NormalizedDocument::Chen(doc) => {
+            json!({"kind": "Chen", "entities": doc.entities.len(), "relationships": doc.relationships.len(), "warnings": doc.warnings.len()})
+        }
     }
 }
 
