@@ -147,6 +147,15 @@ jobs:
           path: ${{ env.PLANTUML_JAR }}
           key: plantuml-jar-${{ env.PLANTUML_VERSION }}
 
+      # Install Graphviz — required for PlantUML to render non-sequence diagrams
+      # and to avoid a spurious exit-code 16 from `java -jar plantuml.jar -version`.
+      - name: Install Graphviz
+        if: steps.changes.outputs.run_oracle == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends graphviz
+          dot -V
+
       # Download from the official GitHub Releases mirror (deterministic URL).
       - name: Download PlantUML JAR
         if: steps.changes.outputs.run_oracle == 'true' && steps.cache-jar.outputs.cache-hit != 'true'
