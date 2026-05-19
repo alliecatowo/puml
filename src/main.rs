@@ -1239,6 +1239,7 @@ fn svg_to_html_document(svg: &str) -> String {
     )
 }
 
+#[allow(clippy::too_many_arguments)] // all args are distinct CLI parameters; no good grouping exists
 fn parse_for_cli(
     source: &str,
     include_root: Option<PathBuf>,
@@ -1264,6 +1265,7 @@ fn parse_for_cli(
     puml::parse_with_pipeline_options(source, &options)
 }
 
+#[allow(clippy::too_many_arguments)] // all args are distinct CLI parameters; no good grouping exists
 fn preprocess_for_cli(
     source: &str,
     include_root: Option<PathBuf>,
