@@ -201,6 +201,7 @@ fn interpret_parser_contract(
     Ok(parser::ParseOptions {
         include_root,
         allow_url_includes: options.allow_url_includes,
+        inject_vars: options.inject_vars.clone(),
     })
 }
 
