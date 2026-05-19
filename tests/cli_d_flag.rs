@@ -54,8 +54,11 @@ $A -> $B : msg
 
 #[test]
 fn d_flag_variable_usable_in_if_condition() {
+    // Include a participant outside the conditional block so the sequence
+    // family is always detectable regardless of the -D value.
     let source = r#"
 @startuml
+participant Alice
 !if $SHOW == "yes"
 Alice -> Bob : visible
 !endif
