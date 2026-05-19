@@ -486,9 +486,16 @@ fn merge_duplicate_rel_labels(relations: Vec<ModelFamilyRelation>) -> Vec<ModelF
     // Use an ordered map keyed by (from, to, arrow, direction, line_color,
     // dashed, hidden) so determinism is preserved (BTreeMap, not HashMap).
     // Value: index into `out` for the already-inserted canonical relation.
-    type RelKey = (String, String, String, Option<String>, Option<String>, bool, bool);
-    let mut seen: std::collections::BTreeMap<RelKey, usize> =
-        std::collections::BTreeMap::new();
+    type RelKey = (
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        bool,
+        bool,
+    );
+    let mut seen: std::collections::BTreeMap<RelKey, usize> = std::collections::BTreeMap::new();
     let mut out: Vec<ModelFamilyRelation> = Vec::with_capacity(relations.len());
 
     for rel in relations {
