@@ -796,6 +796,14 @@ const MAX_TRACKS: usize = 12;
 /// a small safety margin.
 const PKG_HEADER_HEIGHT: f64 = 48.0;
 
+/// Clearance above the package frame top that the horizontal segment of an
+/// incoming cross-package edge must maintain (TOP-PASS rule).  When the
+/// computed channel y would land inside or below a package frame top, we
+/// force it to `pkg_top - PACKAGE_TOP_CLEARANCE` so the horizontal shaft
+/// sits clearly above the frame border, and only the final vertical drop
+/// enters the package body (crossing the header as a single thin line).
+const PACKAGE_TOP_CLEARANCE: f64 = 12.0;
+
 fn route_edges(
     nodes: &[NodeSize],
     edges: &[EdgeSpec],
@@ -1128,15 +1136,20 @@ fn route_edges(
                     // Normal gap: allow any value strictly within the gap.
                     raw.clamp(bot + 4.0, next_top - 4.0)
                 };
-                // Package-header avoidance: if the channel y lands inside any
-                // group's header band (top_y .. top_y + PKG_HEADER_HEIGHT), push
-                // it below the header so arrow shafts do not slice through the
-                // package label text.
+                // TOP-PASS rule: if the channel y lands at or below any package
+                // frame top, force it ABOVE the package frame
+                // (pkg_top − PACKAGE_TOP_CLEARANCE).  This keeps the horizontal
+                // routing segment in the inter-package gap so that only the final
+                // vertical drop enters the package body, crossing the header band
+                // as a single thin vertical line rather than a horizontal shaft
+                // that slices through the header label text.
                 let mut result = clamped;
                 for &(_, gy, _, _) in group_bounds.values() {
                     let header_bottom = gy + PKG_HEADER_HEIGHT;
-                    if result > gy && result < header_bottom {
-                        result = header_bottom + 4.0;
+                    if result >= gy - PACKAGE_TOP_CLEARANCE && result < header_bottom {
+                        // Snap the horizontal segment to sit above the package frame.
+                        let above = gy - PACKAGE_TOP_CLEARANCE;
+                        result = result.min(above);
                     }
                 }
                 result
@@ -1186,6 +1199,61 @@ fn route_edges(
             }
 
             pts.push((tgt_port_x, tgt_port_y));
+
+            // ── Package-header label bypass ───────────────────────────────────
+            // The horizontal bend sits above the package frame (soft_clamp_ch_y
+            // pushes ch_y out of the header band), but the final vertical shaft
+            // (tgt_port_x, ch_y) → (tgt_port_x, tgt_port_y) still passes
+            // through the header label tab because the drop starts ABOVE gy and
+            // ends BELOW gy + PKG_HEADER_HEIGHT.
+            //
+            // When the target node is a child of a package AND the channel bend
+            // is above the package top AND the target x falls inside the label
+            // tab, insert three bypass waypoints:
+            //   ... (tgt_x, ch_y) → (bypass_x, ch_y) → (bypass_x, entry_y)
+            //       → (tgt_x, entry_y) → (tgt_x, tgt_y)
+            // where:
+            //   bypass_x = gx + estimated_tab_w + 8  (just right of label text)
+            //   entry_y  = gy + PKG_HEADER_HEIGHT + 4 (just below header band)
+            //
+            // The rendering layer (family.rs) snaps orth_pts[n-2].x to x2 (the
+            // actual target pick-port x), so (tgt_x, entry_y) is automatically
+            // snapped to the correct column without any further adjustment here.
+            //
+            // NOTE: the "package " prefix (8 chars) is included when estimating
+            // tab_w because family.rs renders it as "package <label>" and sizes
+            // the tab accordingly: tab_w = ((prefix + label).len() * 8 + 16).
+            if goes_down && !column_aligned {
+                if let Some(tgt_parent_id) =
+                    node_by_id.get(tgt_id).and_then(|n| n.parent.as_deref())
+                {
+                    if let Some(&(gx, gy, gw, _)) = group_bounds.get(tgt_parent_id) {
+                        // Estimated label tab width matching family.rs formula
+                        // (adding 8 chars for the "package " prefix).
+                        let label_len = tgt_parent_id.len() + 8; // "package " prefix
+                        let tab_w = ((label_len as f64) * 8.0 + 16.0).max(60.0).min(gw);
+                        let label_right = gx + tab_w;
+
+                        // Channel y is the second-to-last point's y (before the final tgt_port push).
+                        if let Some(&(_, ch_y)) = pts.get(pts.len().wrapping_sub(2)) {
+                            // Bypass only when:
+                            //  • channel bend is above the package top
+                            //  • target x (center) is within the label tab area
+                            if ch_y < gy && tgt_port_x >= gx - 1.0 && tgt_port_x < label_right + 8.0
+                            {
+                                // bypass_x: just to the right of the label tab, inside the package
+                                let bypass_x = (label_right + 8.0).min(gx + gw - 8.0);
+                                let entry_y = gy + PKG_HEADER_HEIGHT + 4.0;
+                                // Insert before the final tgt_port point:
+                                let last = pts.len() - 1;
+                                pts.insert(last, (bypass_x, ch_y));
+                                pts.insert(last + 1, (bypass_x, entry_y));
+                                pts.insert(last + 2, (tgt_port_x, entry_y));
+                            }
+                        }
+                    }
+                }
+            }
 
             // Remove adjacent duplicate points so the final polyline is compact
             // (≥3 distinct waypoints for a single-hop cross-rank edge).
