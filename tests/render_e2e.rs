@@ -1379,7 +1379,9 @@ fn render_svg_sequence_all_group_types_fixture_uses_fragment_notches() {
         ),
         (
             "group custom label",
-            "<polygon points=\"24,1028 166,1028 166,1042 160,1048 24,1048\"",
+            // y shifted from 1028 to 1068 after #731 fix: self-loop in break now
+            // allocates 2 rows instead of 1 to prevent overlap with following messages.
+            "<polygon points=\"24,1068 166,1068 166,1082 160,1088 24,1088\"",
         ),
     ] {
         assert!(
@@ -2266,5 +2268,42 @@ fn lifelines_start_below_wrapped_participant_headers() {
         lifeline.y1,
         participant.y + participant.height,
         "lifeline should start at participant box bottom"
+    );
+}
+
+/// Regression test for #731: a self-loop inside a break/group block must not
+/// overlap the label of the immediately following message.  The self-loop
+/// U-shape extends SELF_LOOP_DROP (32 px) below its `y`; the next message's
+/// label is placed 8 px above its own `y`.  Adequate row allocation for the
+/// self-loop must ensure the following message label is strictly below the
+/// loop bottom.
+#[test]
+fn regression_731_self_loop_in_break_block_clears_following_message_label() {
+    let src = "@startuml\nAlice -> Bob: request\nbreak on error\n  Alice -> Alice: abort\n  Alice -> Bob: cleanup\nend\nBob -> Alice: response\n@enduml\n";
+    let doc = puml::parse(src).expect("parse");
+    let model = puml::normalize(doc).expect("normalize");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    let self_loop = scene
+        .messages
+        .iter()
+        .find(|m| m.from_id == m.to_id && m.label.as_deref() == Some("abort"))
+        .expect("abort self-loop must be in the scene");
+
+    let cleanup = scene
+        .messages
+        .iter()
+        .find(|m| m.label.as_deref() == Some("cleanup"))
+        .expect("cleanup message must follow the self-loop");
+
+    // SELF_LOOP_DROP = 32 px (must match constant in layout.rs / render/sequence.rs)
+    let self_loop_bottom = self_loop.route_y + 32;
+    // label of next message sits 8 px above its line
+    let cleanup_label_top = cleanup.route_y - 8;
+
+    assert!(
+        cleanup_label_top > self_loop_bottom,
+        "cleanup label top (y={cleanup_label_top}) must be strictly below self-loop bottom \
+        (y={self_loop_bottom}); self-loop overlapping following message label (issue #731)"
     );
 }

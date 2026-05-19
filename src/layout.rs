@@ -164,7 +164,21 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     &options,
                 );
                 let has_label_lines = !label_lines.is_empty();
-                let row_units = (label_lines.len() as i32).max(1);
+                let is_self_loop = from == to && from_virtual.is_none() && to_virtual.is_none();
+                // Self-loop messages render a U-shape that drops SELF_LOOP_DROP px below
+                // the message's `y` coordinate.  Allocate at least 2 rows so the loop
+                // bottom does not overlap the label of the immediately following message.
+                let row_units = {
+                    let base = (label_lines.len() as i32).max(1);
+                    if is_self_loop {
+                        base.max(row_units_for_height(
+                            SELF_LOOP_DROP + options.message_row_height / 2,
+                            options.message_row_height,
+                        ))
+                    } else {
+                        base
+                    }
+                };
                 // Record arrival y for the recipient so that an immediately
                 // following explicit `activate` can pin its bar to this row.
                 if to_virtual.is_none() && !to.is_empty() {
