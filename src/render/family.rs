@@ -1336,12 +1336,7 @@ fn collect_projection_yaml_rows(
                 depth
             };
             for (idx, value) in items.iter().enumerate() {
-                collect_projection_yaml_rows(
-                    Some(format!("[{idx}]")),
-                    value,
-                    child_depth,
-                    rows,
-                );
+                collect_projection_yaml_rows(Some(format!("[{idx}]")), value, child_depth, rows);
             }
         }
         scalar => rows.push(ProjectionTreeRow {
