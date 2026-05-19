@@ -4873,8 +4873,7 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
         private_lb.y > public_lb.y,
         "shared node should appear in each network row"
     );
-    let private_app =
-        svg_node_rect(&svg, "app01", "192.168.1.21").expect("private app rect");
+    let private_app = svg_node_rect(&svg, "app01", "192.168.1.21").expect("private app rect");
     assert!(
         private_app.x > private_lb.x,
         "distinct nwdiag nodes should occupy separate horizontal columns instead of one vertical list"
