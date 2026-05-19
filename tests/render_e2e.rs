@@ -505,6 +505,39 @@ fn render_sequence_self_call_keeps_visible_arrowhead_after_groups_and_dividers()
     }
 }
 
+/// Regression test for #765: divider mid-diagram must not cause footboxes to
+/// overlap the self-loop U-shape drawn below the cleanup self-message.
+/// The footbox y must be strictly greater than the bottom of the self-loop
+/// (self-loop y + 32 = the rendered loop drop).
+#[test]
+fn regression_765_divider_mid_sequence_footbox_clears_self_loop() {
+    let src = std::fs::read_to_string(format!(
+        "{}/docs/examples/sequence/23_dividers.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("fixture");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let self_loop = scene
+        .messages
+        .iter()
+        .find(|m| m.from_id == m.to_id)
+        .expect("23_dividers.puml must contain a self-loop (Alice -> Alice: cleanup)");
+    let self_loop_bottom = self_loop.y + 32; // must match SELF_LOOP_DROP in layout.rs
+
+    for footbox in &scene.footboxes {
+        assert!(
+            footbox.y > self_loop_bottom,
+            "footbox '{}' y={} must be strictly below self-loop bottom={} (issue #765: participant header duplicated by divider)",
+            footbox.id,
+            footbox.y,
+            self_loop_bottom,
+        );
+    }
+}
+
 #[test]
 fn render_sequence_theme_sunlust_else_separator_clears_self_loop_and_keeps_arrowheads() {
     let src = std::fs::read_to_string(format!(
