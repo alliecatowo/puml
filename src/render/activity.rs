@@ -226,13 +226,17 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     arrow_out_y,
                     next_slot_y,
                 });
+                // "then" branch is left of the diamond centre, "else" is right.
+                // Placing both symmetrically around the diamond prevents action
+                // boxes on adjacent branches from overlapping (#735).
+                let then_cx = cx - branch_x_offset;
                 let else_cx = cx + branch_x_offset;
                 if_stack.push(IfFrame {
                     diamond_cx: cx,
                     diamond_arrow_out: arrow_out_y,
                     diamond_next_slot: next_slot_y,
-                    then_cx: cx,
-                    then_rightmost_cx: cx,
+                    then_cx,
+                    then_rightmost_cx: then_cx,
                     then_end_next_slot: next_slot_y,
                     in_else: false,
                     else_cx,
@@ -240,7 +244,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 });
                 for frame in &mut if_stack {
                     if !frame.in_else {
-                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(then_cx);
                     }
                 }
                 current_slot_y = next_slot_y;
