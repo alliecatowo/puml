@@ -3165,16 +3165,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Phase 1f: Render nodes
-    // ─────────────────────────────────────────────────────────────────────────
-    for node in &doc.nodes {
-        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-        let Some(&(nx, ny, nw, nh)) = positions.get(&key) else {
-            continue;
-        };
-        render_family_node_shape_styled(&mut out, node, nx, ny, nw, nh, &comp_style);
-    }
+    // Phase 1f: Node rendering is deferred to after Phase 2 (relations) so that
+    // node box fills sit on top of arrow shaft endpoints — prevents the
+    // shaft-through-label visual bug (fix #499).  See "Render nodes" after Phase 2.
 
     // ─────────────────────────────────────────────────────────────────────────
     // Collect all obstacle boxes for collision detection.
@@ -3355,6 +3348,21 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
+            // The layout engine may have reversed an edge (back-edge in the DAG).
+            // When reversed, the stored path runs from (x2,y2)→(x1,y1) rather than
+            // (x1,y1)→(x2,y2).  Detect this: if the last stored point is closer to
+            // our source anchor (x1,y1) than the first point is, flip the path so
+            // that the endpoint overrides land on the correct ends (fix #500).
+            if orth_pts.len() >= 2 {
+                let (px0, py0) = orth_pts[0];
+                let last_idx = orth_pts.len() - 1;
+                let (pxn, pyn) = orth_pts[last_idx];
+                let dist_first = (px0 - x1).pow(2) + (py0 - y1).pow(2);
+                let dist_last = (pxn - x1).pow(2) + (pyn - y1).pow(2);
+                if dist_last < dist_first {
+                    orth_pts.reverse();
+                }
+            }
             if let Some(first) = orth_pts.first_mut() {
                 *first = (x1, y1);
             }
@@ -3674,6 +3682,18 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 x2 + 4, y2 + 12, escape_text(right_role)
             ));
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Render nodes (deferred from Phase 1f).  Drawing nodes after arrows ensures
+    // component box fills cover arrow shaft endpoint stubs (fix #499).
+    // ─────────────────────────────────────────────────────────────────────────
+    for node in &doc.nodes {
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        let Some(&(nx, ny, nw, nh)) = positions.get(&key) else {
+            continue;
+        };
+        render_family_node_shape_styled(&mut out, node, nx, ny, nw, nh, &comp_style);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -4730,22 +4750,23 @@ fn render_family_node_shape_styled(
         FamilyNodeKind::Interface | FamilyNodeKind::Port => label_y + 14,
         _ => y + 14,
     };
-    // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525).
-    // For Package and Rectangle container nodes, suppress the kind-tag entirely — these
+    // For Package/Rectangle/Folder container nodes, suppress the kind-tag entirely — these
     // shapes display their label in a tab/header already (fix #549).
-    let is_package_container = matches!(
+    // For Component/Interface nodes, also suppress: the UML component shape (rectangle
+    // with ▢▢ left-edge port markers) and the interface circle are self-identifying, so
+    // showing «component» or «interface» is redundant clutter (fix #525).
+    let suppress_kind_tag = matches!(
         node.kind,
-        FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
+        FamilyNodeKind::Package
+            | FamilyNodeKind::Rectangle
+            | FamilyNodeKind::Folder
+            | FamilyNodeKind::Component
+            | FamilyNodeKind::Interface
     );
-    if !is_package_container {
-        let kind_tag_text: std::borrow::Cow<str> = match node.kind {
-            FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
-            FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),
-            _ => std::borrow::Cow::Borrowed(kind_label),
-        };
+    if !suppress_kind_tag {
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
-            cx, kind_tag_y, escape_text(&comp_style.font_color), escape_text(&kind_tag_text)
+            cx, kind_tag_y, escape_text(&comp_style.font_color), escape_text(kind_label)
         ));
     }
     render_node_stereotype_rows(out, node, cx, kind_tag_y + 13);
