@@ -73,15 +73,20 @@ jobs:
       - name: Check for uncommitted diagram changes (post-regen)
         run: |
           set -euo pipefail
-          # If regen produced uncommitted changes, the committer forgot to regenerate
-          git diff --exit-code docs/examples docs/diagrams || {
-            echo "ERROR: Diagram artifacts are stale after regeneration." >&2
+          # SVG artifacts are deterministic and are the source-of-truth contract for
+          # docs drift. PNG bytes can vary across environments even when the SVG and
+          # rendered content are equivalent, so we do not block main on raster-only
+          # diffs here. Raster correctness is still covered by the visual regression
+          # suite in the Full gate step above.
+          stale_svg="$(git diff --name-only docs/examples docs/diagrams | rg '\.svg$' || true)"
+          if [ -n "${stale_svg}" ]; then
+            echo "ERROR: Diagram SVG artifacts are stale after regeneration." >&2
             echo "The committer must run diagram regeneration before pushing to main." >&2
             echo "" >&2
-            echo "Stale files:" >&2
-            git diff --name-only docs/examples docs/diagrams >&2
+            echo "Stale SVG files:" >&2
+            printf '%s\n' "${stale_svg}" >&2
             exit 1
-          }
+          fi
 
       - name: docs examples drift gate
         run: python3 ./scripts/parity_harness.py --quiet --fail-on-doc-drift
