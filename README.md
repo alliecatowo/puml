@@ -14,7 +14,20 @@ Give it a `.puml` file and get a pixel-perfect SVG, PNG, or PDF out — no Java,
 no network. It ships as a single static binary, a WebAssembly module for in-browser
 editing, and a Language Server (LSP) for editor integration across 25+ diagram families.
 
+<details>
+<summary><b>How it works</b> — pipeline architecture</summary>
+
+<br>
+
 ![Architecture overview](docs/diagrams/architecture-overview.svg)
+
+A request enters via one of three **transports** (CLI, LSP, WASM), passes through the
+**preprocessor + language service**, hits the **pipeline core** (parser → AST →
+normalizer → renderer), and exits as SVG / PNG / Text. The renderer is the only
+component that knows about each diagram family's visual conventions; everything
+upstream is family-agnostic AST.
+
+</details>
 
 ---
 
