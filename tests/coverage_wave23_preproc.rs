@@ -1,8 +1,8 @@
+use puml::parser::{parse_with_options, ParseOptions};
+use puml::{ast::StatementKind, parse};
 /// Coverage wave 23 — exercises preprocessor includes, macros, and
 /// expression-evaluation paths that were previously uncovered.
 use std::fs;
-use puml::parser::{parse_with_options, ParseOptions};
-use puml::{ast::StatementKind, parse};
 use tempfile::tempdir;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -132,7 +132,10 @@ A -> B : literal-false-else
 !endif
 @enduml";
     let labels = msg_labels(src);
-    assert_eq!(labels, vec!["str-eq", "str-neq", "literal-true", "literal-false-else"]);
+    assert_eq!(
+        labels,
+        vec!["str-eq", "str-neq", "literal-true", "literal-false-else"]
+    );
 }
 
 #[test]
@@ -242,7 +245,9 @@ fn include_missing_file_gives_error() {
     };
     let err = parse_with_options(src, &options).expect_err("missing file should error");
     assert!(
-        err.message.contains("E_INCLUDE") || err.message.contains("not found") || err.message.contains("No such"),
+        err.message.contains("E_INCLUDE")
+            || err.message.contains("not found")
+            || err.message.contains("No such"),
         "unexpected error: {}",
         err.message
     );

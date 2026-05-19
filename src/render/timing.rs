@@ -112,9 +112,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
     // ── Layout constants ──────────────────────────────────────────────────────
     let left_pad: i32 = 130; // signal name column width
-    // tail_extra: pixels allocated past the t_max tick for the final state label.
-    // Waveform segments extend to t_max + 5 % of t_span, so we add the same pixel
-    // budget (5 % of chart_w) plus a fixed label margin so labels are never clipped.
+                             // tail_extra: pixels allocated past the t_max tick for the final state label.
+                             // Waveform segments extend to t_max + 5 % of t_span, so we add the same pixel
+                             // budget (5 % of chart_w) plus a fixed label margin so labels are never clipped.
     let tail_extra: i32 = 80;
     let row_h: i32 = 64;
     let wave_top_pad: i32 = 10; // space above wave line inside row

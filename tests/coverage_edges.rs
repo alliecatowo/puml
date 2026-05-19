@@ -1471,7 +1471,7 @@ fn layout_expands_width_for_long_header_and_footer_metadata() {
 
 #[test]
 fn layout_expands_width_for_long_legend_lines() {
-    let src = "@startuml\nlegend right\nLEGEND_WITH_A_VERY_LONG_LINE_THAT_MUST_BE_VISIBLE_WITHOUT_CANVAS_CLIPPING_ABCDEFGHIJKLMNOPQRSTUVWXYZ\nendlegend\nA -> B : ping\n@enduml\n";
+    let src = "@startuml\nlegend right\nLEGEND_WITH_A_VERY_LONG_LINE_THAT_MUST_BE_VISIBLE_WITHOUT_CANVAS_CLIPPING_ABCDEFGHIJKLMNOPQRSTUVWXYZ\nend legend\nA -> B : ping\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
     let model = normalize::normalize(doc).expect("normalize should succeed");
     let scene = layout::layout(&model, LayoutOptions::default());

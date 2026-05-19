@@ -548,8 +548,14 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     });
     let lower_metadata_height = metadata_lines_block_height(caption_lines.as_ref())
         + metadata_lines_block_height(footer_lines.as_ref());
-    width = width.max(metadata_lines_right_edge(caption_lines.as_ref(), options.margin));
-    width = width.max(metadata_lines_right_edge(footer_lines.as_ref(), options.margin));
+    width = width.max(metadata_lines_right_edge(
+        caption_lines.as_ref(),
+        options.margin,
+    ));
+    width = width.max(metadata_lines_right_edge(
+        footer_lines.as_ref(),
+        options.margin,
+    ));
     if let Some(legend_text) = document.legend.as_deref() {
         let (legend_width, _) = legend_box_size(legend_text);
         width = width.max(legend_width + (options.margin * 2));
