@@ -25,6 +25,7 @@ mod svg;
 mod text;
 mod timeline;
 mod timing;
+pub mod validate;
 
 pub use activity::render_activity_svg;
 pub use data::{render_json_svg, render_yaml_svg};
