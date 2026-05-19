@@ -19,6 +19,14 @@ fn fixture(name: &str) -> String {
     .unwrap()
 }
 
+fn docs_example(path: &str) -> String {
+    std::fs::read_to_string(format!(
+        "{}/docs/examples/{path}",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+}
+
 #[test]
 fn render_svg_is_deterministic_for_same_input() {
     let src = fixture("e2e/deterministic_sequence.puml");
@@ -557,11 +565,7 @@ fn render_sequence_theme_sunlust_else_separator_clears_self_loop_and_keeps_arrow
 
 #[test]
 fn render_sequence_ref_over_keeps_followup_response_label_below_box() {
-    let src = std::fs::read_to_string(format!(
-        "{}/docs/examples/sequence/22_ref_over.puml",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .expect("fixture");
+    let src = docs_example("sequence/22_ref_over.puml");
     let ast = puml::parse(&src).expect("parse");
     let doc = puml::normalize(ast).expect("normalize");
     let scene = layout::layout(&doc, LayoutOptions::default());
@@ -586,6 +590,35 @@ fn render_sequence_ref_over_keeps_followup_response_label_below_box() {
     let svg = render::render_svg(&scene);
     assert!(svg.contains(">response</text>"));
     assert!(svg.contains(">ref</text>"));
+}
+
+#[test]
+fn render_sequence_ref_fragment_uses_header_row_without_participant_text() {
+    let src = docs_example("sequence/08_ref.puml");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let ref_box = scene
+        .groups
+        .iter()
+        .find(|group| group.kind.eq_ignore_ascii_case("ref"))
+        .expect("ref group");
+    let svg = render::render_svg(&scene);
+    let header_divider = format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"",
+        ref_box.x,
+        ref_box.y + 22,
+        ref_box.x + ref_box.width,
+        ref_box.y + 22
+    );
+
+    assert!(svg.contains(&header_divider));
+    assert!(svg.contains(">ref</text>"));
+    assert!(svg.contains(">Authentication Flow</text>"));
+    assert!(svg.contains(">See diagram AUTH-01</text>"));
+    assert!(!svg.contains(">over Alice, Bob</text>"));
+    assert!(!svg.contains(">Alice, Bob</text>"));
 }
 
 #[test]
