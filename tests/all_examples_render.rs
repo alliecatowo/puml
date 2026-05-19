@@ -21,7 +21,7 @@ fn collect_puml_files(root: &std::path::Path) -> Vec<PathBuf> {
         let path = entry.path();
         if path.is_dir() {
             result.extend(collect_puml_files(&path));
-        } else if path.extension().map_or(false, |e| e == "puml") {
+        } else if path.extension().is_some_and(|e| e == "puml") {
             result.push(path);
         }
     }
