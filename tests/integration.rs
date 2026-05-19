@@ -70,8 +70,14 @@ fn png_output_writes_valid_png_with_default_dpi_dimensions_matching_svg_viewbox(
 
     let image = image::load_from_memory(&bytes).expect("png should decode");
     let (w, h) = image.dimensions();
-    assert!(w > 0 && h > 0, "PNG should have non-zero dimensions, got {w}x{h}");
-    assert!(w >= h, "sequence diagram PNG should be landscape-ish, got {w}x{h}");
+    assert!(
+        w > 0 && h > 0,
+        "PNG should have non-zero dimensions, got {w}x{h}"
+    );
+    assert!(
+        w >= h,
+        "sequence diagram PNG should be landscape-ish, got {w}x{h}"
+    );
 }
 
 #[test]
@@ -197,16 +203,26 @@ fn jpg_and_webp_outputs_are_valid_raster_exports() {
     assert!(jpg_bytes.starts_with(&[0xff, 0xd8, 0xff]));
     let jpg_image = image::load_from_memory(&jpg_bytes).expect("jpg should decode");
     let (jw, jh) = jpg_image.dimensions();
-    assert!(jw > 0 && jh > 0, "JPG should have non-zero dimensions, got {jw}x{jh}");
+    assert!(
+        jw > 0 && jh > 0,
+        "JPG should have non-zero dimensions, got {jw}x{jh}"
+    );
 
     let webp_bytes = fs::read(&webp).unwrap();
     assert!(webp_bytes.starts_with(b"RIFF"));
     assert_eq!(&webp_bytes[8..12], b"WEBP");
     let webp_image = image::load_from_memory(&webp_bytes).expect("webp should decode");
     let (ww, wh) = webp_image.dimensions();
-    assert!(ww > 0 && wh > 0, "WebP should have non-zero dimensions, got {ww}x{wh}");
+    assert!(
+        ww > 0 && wh > 0,
+        "WebP should have non-zero dimensions, got {ww}x{wh}"
+    );
     // Both formats from the same source should produce equal dimensions.
-    assert_eq!((jw, jh), (ww, wh), "JPG and WebP of the same source should match");
+    assert_eq!(
+        (jw, jh),
+        (ww, wh),
+        "JPG and WebP of the same source should match"
+    );
 }
 
 #[test]

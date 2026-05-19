@@ -219,7 +219,10 @@ fn timing_advanced_semantics_render_expected_svg_geometry() {
         active.x + active.width,
         cooldown.x
     );
-    assert_eq!(cooldown.y, active.y, "range/highlight bands share axis origin");
+    assert_eq!(
+        cooldown.y, active.y,
+        "range/highlight bands share axis origin"
+    );
 
     // Proportional width: active spans 7 time units, cooldown 6 — active must be wider.
     assert!(
@@ -268,9 +271,11 @@ fn timing_advanced_semantics_render_expected_svg_geometry() {
     assert_eq!(svg_attr(clock, "data-timing-offset").as_deref(), Some("0"));
     // Waveform must alternate between at least 2 y-levels.
     let clock_points = parse_points(&svg_attr(clock, "points").expect("clock points"));
-    assert!(clock_points.len() >= 4, "clock needs ≥4 points for one period");
-    let clock_ys: std::collections::BTreeSet<i32> =
-        clock_points.iter().map(|(_, y)| *y).collect();
+    assert!(
+        clock_points.len() >= 4,
+        "clock needs ≥4 points for one period"
+    );
+    let clock_ys: std::collections::BTreeSet<i32> = clock_points.iter().map(|(_, y)| *y).collect();
     assert!(
         clock_ys.len() >= 2,
         "clock waveform must alternate high/low: {clock_ys:?}"
@@ -282,8 +287,7 @@ fn timing_advanced_semantics_render_expected_svg_geometry() {
         .find(|tag| svg_attr(tag, "data-timing-period").is_none())
         .expect("binary waveform should exist");
     let binary_points = parse_points(&svg_attr(binary, "points").expect("binary points"));
-    let mut x_to_ys: std::collections::BTreeMap<i32, Vec<i32>> =
-        std::collections::BTreeMap::new();
+    let mut x_to_ys: std::collections::BTreeMap<i32, Vec<i32>> = std::collections::BTreeMap::new();
     for (x, y) in &binary_points {
         x_to_ys.entry(*x).or_default().push(*y);
     }
