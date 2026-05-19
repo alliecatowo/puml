@@ -47,8 +47,8 @@
     {
       "path": "docs/examples/state/01_basic.puml",
       "family": "state",
-      "expected_text": ["Idle", "Running"],
-      "min_text_elements": 2
+      "expected_text": ["Idle", "Running", "start", "stop", "init"],
+      "min_text_elements": 5
     },
     {
       "path": "docs/examples/state/05_fork_join_choice.puml",
