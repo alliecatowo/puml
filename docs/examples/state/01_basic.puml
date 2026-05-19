@@ -1,5 +1,5 @@
 @startuml
-[*] --> Idle
-Idle --> Running
-Running --> [*]
+[*] --> Idle : init
+Idle --> Running : start
+Running --> [*] : stop
 @enduml

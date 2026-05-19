@@ -432,18 +432,25 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                             layout.cx = next_col_cx;
                         }
                     }
-                    // Arrow from branch end to join bar
+                    // Arrow from branch end straight down to the join bar at
+                    // the branch column's x position (not diagonal to center).
+                    // Target the top of the bar rect (slot_y + 24).
                     let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
-                    extra_arrows.push((col_cx, branch_arrow_out_y, fork_cx, slot_y));
+                    let join_bar_top_y = slot_y + 24;
+                    extra_arrows.push((col_cx, branch_arrow_out_y, col_cx, join_bar_top_y));
                 }
 
                 // Arrows from fork bar down into each branch column.
+                // Each arrow drops straight down from the fork bar bottom at
+                // the branch column's x position (not diagonally from center).
+                // fork bar: slot_y + 24 (top), slot_y + 32 (bottom, 8px height)
+                // branch_start_y = fork_slot_y + step_h
                 // Suppress the standard prev->cur arrow for the first node of
                 // each branch (otherwise it duplicates the fork->branch arrow).
-                let fork_bar_arrow_out_y = frame.fork_slot_y + ARROW_OUT;
+                let fork_bar_bottom_y = frame.fork_slot_y + 32; // bottom edge of 8px bar
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
                     let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
-                    extra_arrows.push((fork_cx, fork_bar_arrow_out_y, col_cx, branch_start_y));
+                    extra_arrows.push((col_cx, fork_bar_bottom_y, col_cx, branch_start_y));
                     // Suppress the standard prev->cur arrow for the branch's first node
                     suppress_prev_arrow.insert(branch.start_node_idx);
                 }
@@ -851,11 +858,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
                 FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                     if step_kind.contains("ForkAgain") {
-                        out.push_str(&format!(
-                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"3 2\"/>",
-                            cx - 16, y + 28, cx + 16, y + 28,
-                            escape_text(&act_style.fork_color)
-                        ));
+                        // ForkAgain nodes are layout-only bookmarks; nothing
+                        // is rendered — the fork bar already spans all columns.
                     } else {
                         let bar_half = fork_bar_half_widths.get(&i).copied().unwrap_or(box_w / 2);
                         let bar_w = (bar_half * 2).max(box_w);
