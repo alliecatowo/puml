@@ -553,6 +553,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             text: String,
             lx: i32,
             ly: i32,
+            /// True when lx/ly were derived from orthogonal routing points rather
+            /// than the straight-line midpoint.  Ortho-derived positions are
+            /// already edge-specific (each edge follows its own path), so the
+            /// source fan should use them as-is instead of recomputing via a
+            /// shared fractional formula that clusters labels at similar coords
+            /// (#712: <<extend>>/<<include>> overlap in usecase fan-out).
+            has_ortho_pos: bool,
             /// Endpoint coords for fractional label placement along edge
             x1: i32,
             y1: i32,
@@ -595,13 +602,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 } else {
                     None
                 };
-            let (lx, ly) = if let Some(ref pts) = ortho_pts {
+            let (lx, ly, has_ortho_pos) = if let Some(ref pts) = ortho_pts {
                 let longest_horiz = pts
                     .windows(2)
                     .filter(|seg| seg[0].1 == seg[1].1)
                     .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
                 match longest_horiz {
-                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12, true),
                     None => {
                         let longest_seg = pts.windows(2).max_by_key(|seg| {
                             let (ax, ay) = seg[0];
@@ -610,14 +617,24 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                         });
                         match longest_seg {
                             Some(seg) => {
-                                ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
+                                let seg_dx = (seg[1].0 - seg[0].0).abs();
+                                let seg_dy = (seg[1].1 - seg[0].1).abs();
+                                let mx = (seg[0].0 + seg[1].0) / 2;
+                                let my = (seg[0].1 + seg[1].1) / 2 - 12;
+                                // For vertical segments nudge label to the right so
+                                // it doesn't sit on the arrow shaft (#712).
+                                if seg_dy > seg_dx {
+                                    (mx + 14, my, true)
+                                } else {
+                                    (mx, my, true)
+                                }
                             }
-                            None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                            None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12, false),
                         }
                     }
                 }
             } else {
-                ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 12, false)
             };
             raw_labels.push(RawLabel {
                 rel_idx,
@@ -626,6 +643,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 text: label_text.unwrap_or_default().to_string(),
                 lx,
                 ly,
+                has_ortho_pos,
                 x1,
                 y1,
                 x2,
@@ -699,19 +717,31 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let count = sorted.len();
             for (slot, &raw_idx) in sorted.iter().enumerate() {
                 let rl = &raw_labels[raw_idx];
-                // Fractional position along the straight-line edge: 0.3 to 0.7
-                let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
-                let dx = rl.x2 - rl.x1;
-                let dy = rl.y2 - rl.y1;
-                let lx = rl.x1 + (dx as f64 * frac) as i32;
-                // Nudge vertically above the line
-                let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
-                // Side-nudge so label doesn't sit directly on the arrow shaft:
-                // for vertical-dominant edges push right, for horizontal push up.
-                let (lx, ly) = if dy.abs() > dx.abs() {
-                    (lx + 14, ly)
+                // When the edge has an orthogonal route the lx/ly stored in
+                // RawLabel was already derived from that route's geometry (longest
+                // horizontal segment or longest segment midpoint).  Each edge in a
+                // fan-out follows a distinct path, so these positions are already
+                // well-separated — using the straight-line fractional formula
+                // instead clusters them near the shared departure point (#712).
+                let (lx, ly) = if rl.has_ortho_pos {
+                    // Ortho-derived: use as-is; the geometry already spreads
+                    // labels along each edge's own path.
+                    (rl.lx, rl.ly)
                 } else {
-                    (lx, ly - 2)
+                    // Fallback: straight-line fractional placement (0.3→0.7).
+                    let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
+                    let dx = rl.x2 - rl.x1;
+                    let dy = rl.y2 - rl.y1;
+                    let lx = rl.x1 + (dx as f64 * frac) as i32;
+                    // Nudge vertically above the line
+                    let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
+                    // Side-nudge so label doesn't sit directly on the arrow shaft:
+                    // for vertical-dominant edges push right, for horizontal push up.
+                    if dy.abs() > dx.abs() {
+                        (lx + 14, ly)
+                    } else {
+                        (lx, ly - 2)
+                    }
                 };
                 let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
                 let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
@@ -878,20 +908,33 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         // Edge IDs are "r{rel_idx}" matching gl_edges_class construction above.
         // Fall back to a straight <line> when no pre-computed path is available
         // (explicit direction override, hidden, or layout produced no path).
-        let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
-        {
-            gl_result_class
-                .edge_paths
-                .get(&format!("r{rel_idx}"))
-                .filter(|p| p.len() >= 2)
-                .map(|p| {
-                    p.iter()
-                        .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
-                        .collect()
-                })
-        } else {
-            None
-        };
+        //
+        // UseCase diagrams: Actor↔UseCase edges use straight diagonal lines.
+        // Orthogonal L-bend routing creates a visible horizontal crossbar when
+        // multiple actors connect to the same use-case fan through the same
+        // channel (issues #772, #711).  Straight lines are the conventional
+        // PlantUML style for actor-to-use-case associations.
+        let edge_involves_actor = document.nodes.iter().any(|n| {
+            matches!(n.kind, FamilyNodeKind::Actor)
+                && (n.name == from_name
+                    || n.alias.as_deref() == Some(from_name.as_str())
+                    || n.name == to_name
+                    || n.alias.as_deref() == Some(to_name.as_str()))
+        });
+        let ortho_pts: Option<Vec<(i32, i32)>> =
+            if relation.direction.is_none() && !relation.hidden && !edge_involves_actor {
+                gl_result_class
+                    .edge_paths
+                    .get(&format!("r{rel_idx}"))
+                    .filter(|p| p.len() >= 2)
+                    .map(|p| {
+                        p.iter()
+                            .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
+                            .collect()
+                    })
+            } else {
+                None
+            };
 
         // Label midpoint — computed in each branch below.
         let (label_mx, label_my);
@@ -3475,6 +3518,35 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             }
         };
 
+    // Build a lateral-offset map for parallel edges (same unordered node pair)
+    // so that sibling edges between A↔C don't render on top of each other or
+    // cross (#714).  Mirrors the identical logic in the class/sequence renderer.
+    const COMP_PARALLEL_EDGE_GAP: i32 = 12;
+    let mut comp_parallel_groups: std::collections::BTreeMap<(String, String), Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, rel) in doc.relations.iter().enumerate() {
+        let (fn_, tn_, _) = normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+        let key = if fn_ <= tn_ {
+            (fn_.clone(), tn_.clone())
+        } else {
+            (tn_.clone(), fn_.clone())
+        };
+        comp_parallel_groups.entry(key).or_default().push(i);
+    }
+    // rel_idx → signed lateral offset (px). Lane 0 → 0, lane 1 → +GAP, lane 2 → −GAP, …
+    let mut comp_parallel_offset: std::collections::BTreeMap<usize, i32> =
+        std::collections::BTreeMap::new();
+    for group in comp_parallel_groups.values() {
+        if group.len() < 2 {
+            continue;
+        }
+        let n = group.len() as i32;
+        for (slot, &idx) in group.iter().enumerate() {
+            let lane = slot as i32 - n / 2;
+            comp_parallel_offset.insert(idx, lane * COMP_PARALLEL_EDGE_GAP);
+        }
+    }
+
     for (rel_idx, rel) in doc.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
             normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
@@ -3504,6 +3576,24 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             if interface_nodes.contains(&to_name) {
                 (x2, y2) = adjust_interface_anchor((tx, ty, tw, th), (fx, fy, fw, fh));
             }
+        }
+
+        // Apply lateral offset to fan sibling edges apart (#714).
+        let lat_offset = comp_parallel_offset.get(&rel_idx).copied().unwrap_or(0);
+        if lat_offset != 0 {
+            let edge_dx = x2 - x1;
+            let edge_dy = y2 - y1;
+            let (off_x, off_y) = if edge_dx.abs() >= edge_dy.abs() {
+                // Mostly horizontal → offset vertically
+                (0, lat_offset)
+            } else {
+                // Mostly vertical → offset horizontally
+                (lat_offset, 0)
+            };
+            x1 += off_x;
+            y1 += off_y;
+            x2 += off_x;
+            y2 += off_y;
         }
 
         let style = arrow_style(&normalized_arrow);
@@ -3589,6 +3679,21 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
+            // Apply lateral offset to all interior waypoints so sibling edges
+            // remain separated along their full path (#714).
+            if lat_offset != 0 {
+                let edge_dx = x2 - x1;
+                let edge_dy = y2 - y1;
+                let (off_x, off_y) = if edge_dx.abs() >= edge_dy.abs() {
+                    (0, lat_offset)
+                } else {
+                    (lat_offset, 0)
+                };
+                for pt in orth_pts.iter_mut() {
+                    pt.0 += off_x;
+                    pt.1 += off_y;
+                }
+            }
             if let Some(first) = orth_pts.first_mut() {
                 *first = (x1, y1);
             }

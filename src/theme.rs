@@ -2176,3 +2176,121 @@ fn parse_color_value(value: &str) -> Option<String> {
     }
     None
 }
+
+/// Map a `<style>` CSS-like selector + property name to a canonical skinparam key.
+///
+/// Returns `None` when the (selector, property) combination is not recognised.
+///
+/// # Supported selectors
+/// `arrow`, `participant`, `actor`, `boundary`, `control`, `entity`, `database`,
+/// `note`, `title`, `header`, `footer`, `package`, `class`, `interface`, `enum`,
+/// `sequence`, `lifeline`, `group`, `box`.
+///
+/// # Supported properties
+/// `BackgroundColor`, `FontColor`, `FontSize`, `LineColor`, `LineThickness`,
+/// `RoundCorner`.
+pub fn style_selector_to_skinparam_key(selector: &str, property: &str) -> Option<String> {
+    let sel = selector.trim().to_ascii_lowercase();
+    let prop = property.trim().to_ascii_lowercase();
+
+    // Strip surrounding `<<` and `>>` for stereotype selectors – not yet mapped
+    // to a single skinparam, so just return None for now.
+    if sel.starts_with("<<") {
+        return None;
+    }
+
+    match (sel.as_str(), prop.as_str()) {
+        // ── arrow / sequence message arrows ──────────────────────────────────
+        ("arrow" | "sequencearrow" | "messagearrow", "linecolor" | "fontcolor" | "color") => {
+            Some("ArrowColor".to_string())
+        }
+        ("arrow" | "sequencearrow" | "messagearrow", "linethickness" | "thickness") => {
+            Some("ArrowThickness".to_string())
+        }
+        ("arrow" | "sequencearrow" | "messagearrow", "fontsize") => {
+            Some("DefaultFontSize".to_string())
+        }
+        ("arrow" | "sequencearrow" | "messagearrow", "roundcorner") => {
+            Some("RoundCorner".to_string())
+        }
+
+        // ── participant ───────────────────────────────────────────────────────
+        (
+            "participant" | "actor" | "boundary" | "control" | "entity" | "database"
+            | "collections" | "queue",
+            "backgroundcolor",
+        ) => Some("ParticipantBackgroundColor".to_string()),
+        (
+            "participant" | "actor" | "boundary" | "control" | "entity" | "database"
+            | "collections" | "queue",
+            "fontcolor",
+        ) => Some("ParticipantFontColor".to_string()),
+        (
+            "participant" | "actor" | "boundary" | "control" | "entity" | "database"
+            | "collections" | "queue",
+            "linecolor" | "bordercolor",
+        ) => Some("ParticipantBorderColor".to_string()),
+        (
+            "participant" | "actor" | "boundary" | "control" | "entity" | "database"
+            | "collections" | "queue",
+            "fontsize",
+        ) => Some("ParticipantFontSize".to_string()),
+        (
+            "participant" | "actor" | "boundary" | "control" | "entity" | "database"
+            | "collections" | "queue",
+            "roundcorner",
+        ) => Some("RoundCorner".to_string()),
+
+        // ── note ─────────────────────────────────────────────────────────────
+        ("note", "backgroundcolor") => Some("NoteBackgroundColor".to_string()),
+        ("note", "fontcolor") => Some("NoteFontColor".to_string()),
+        ("note", "linecolor" | "bordercolor") => Some("NoteBorderColor".to_string()),
+        ("note", "fontsize") => Some("NoteFontSize".to_string()),
+
+        // ── group / box ───────────────────────────────────────────────────────
+        ("group" | "box", "backgroundcolor") => Some("GroupBackgroundColor".to_string()),
+        ("group" | "box", "linecolor" | "bordercolor") => Some("GroupBorderColor".to_string()),
+        ("group" | "box", "fontcolor") => Some("GroupHeaderFontColor".to_string()),
+
+        // ── lifeline ──────────────────────────────────────────────────────────
+        ("lifeline", "linecolor" | "bordercolor") => Some("LifelineBorderColor".to_string()),
+        ("lifeline", "linethickness" | "thickness") => Some("LifelineThickness".to_string()),
+
+        // ── title / header / footer ───────────────────────────────────────────
+        ("title" | "header" | "footer", "backgroundcolor") => Some("BackgroundColor".to_string()),
+        ("title" | "header" | "footer", "fontcolor") => Some("DefaultFontColor".to_string()),
+        ("title" | "header" | "footer", "fontsize") => Some("DefaultFontSize".to_string()),
+
+        // ── class / interface / enum / package (family diagrams) ─────────────
+        ("class" | "interface" | "enum" | "abstract", "backgroundcolor") => {
+            Some("ClassBackgroundColor".to_string())
+        }
+        ("class" | "interface" | "enum" | "abstract", "linecolor" | "bordercolor") => {
+            Some("ClassBorderColor".to_string())
+        }
+        ("class" | "interface" | "enum" | "abstract", "fontcolor") => {
+            Some("ClassFontColor".to_string())
+        }
+        ("class" | "interface" | "enum" | "abstract", "fontsize") => {
+            Some("ClassFontSize".to_string())
+        }
+        ("class" | "interface" | "enum" | "abstract", "headerfontcolor") => {
+            Some("ClassHeaderBackgroundColor".to_string())
+        }
+        ("package" | "namespace", "backgroundcolor") => Some("PackageBackgroundColor".to_string()),
+        ("package" | "namespace", "linecolor" | "bordercolor") => {
+            Some("PackageBorderColor".to_string())
+        }
+        ("package" | "namespace", "fontcolor") => Some("PackageFontColor".to_string()),
+
+        // ── sequence-level / document background ──────────────────────────────
+        ("sequence" | "diagram" | "document", "backgroundcolor") => {
+            Some("BackgroundColor".to_string())
+        }
+        ("sequence" | "diagram" | "document", "roundcorner") => Some("RoundCorner".to_string()),
+        ("sequence" | "diagram" | "document", "fontsize") => Some("DefaultFontSize".to_string()),
+        ("sequence" | "diagram" | "document", "fontcolor") => Some("DefaultFontColor".to_string()),
+
+        _ => None,
+    }
+}

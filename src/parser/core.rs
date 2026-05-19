@@ -102,6 +102,19 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        // `<style>...</style>` CSS-like skin block: consume all lines up to `</style>`.
+        if line.to_ascii_lowercase().starts_with("<style") {
+            if let Some((kind, end_idx)) = parse_style_block(&lines, i, line) {
+                let block_span = Span::new(span.start, lines[end_idx].1.end);
+                statements.push(Statement {
+                    span: block_span,
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+        }
+
         if let Some(kind) = parse_keyword(line) {
             let multiline_note_head =
                 matches!(&kind, StatementKind::Note(_)) && note_block_continues(&lines, i, line);

@@ -724,6 +724,49 @@ pub(super) fn normalize_with_options(
             }
             // Class-family-only options: silently ignored in sequence context
             StatementKind::SetOption { .. } | StatementKind::HideOption(_) => {}
+            // `<style>...</style>` CSS-like block: convert selector/property rules to skinparams.
+            StatementKind::StyleBlock { rules } => {
+                for rule in rules {
+                    for (prop, val) in &rule.properties {
+                        if let Some(key) = style_selector_to_skinparam_key(&rule.selector, prop) {
+                            skinparams.push((key.clone(), val.clone()));
+                            match classify_sequence_skinparam(&key, val) {
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::ArrowColor(color),
+                                ) => style.arrow_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::ParticipantBackgroundColor(color),
+                                ) => style.participant_background_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::ParticipantBorderColor(color),
+                                ) => style.participant_border_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::NoteBackgroundColor(color),
+                                ) => style.note_background_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::NoteBorderColor(color),
+                                ) => style.note_border_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::GroupBackgroundColor(color),
+                                ) => style.group_background_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::GroupBorderColor(color),
+                                ) => style.group_border_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::LifelineBorderColor(color),
+                                ) => style.lifeline_border_color = color,
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::BackgroundColor(color),
+                                ) => style.background_color = Some(color),
+                                SequenceSkinParamSupport::SupportedWithValue(
+                                    SequenceSkinParamValue::RoundCorner(n),
+                                ) => style.round_corner = n,
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
             StatementKind::Unknown(line) => {
                 if line.trim() == "---" {
                     continue;

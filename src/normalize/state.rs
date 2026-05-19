@@ -138,6 +138,8 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                 ))
                 .with_span(stmt.span));
             }
+            // `<style>...</style>` blocks: silently accepted for compatibility.
+            StatementKind::StyleBlock { .. } => {}
             _ => {
                 return Err(Diagnostic::error(
                     "[E_STATE_MIXED] mixed diagram families are not supported in one document",

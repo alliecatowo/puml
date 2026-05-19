@@ -190,7 +190,9 @@ pub(super) fn normalize_timeline_baseline(
             | StatementKind::Pragma(_)
             | StatementKind::LegendPos(_)
             | StatementKind::SetOption { .. }
-            | StatementKind::HideOption(_) => {}
+            | StatementKind::HideOption(_)
+            // `<style>...</style>` blocks: silently accepted for compatibility.
+            | StatementKind::StyleBlock { .. } => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }

@@ -2,8 +2,8 @@ use crate::ast::{
     ActivityStep, ActivityStepKind, ClassDecl, ClassMember, ComponentNodeKind, DiagramKind,
     Document, FamilyRelation, Group, MemberModifier, Message, MessageStyle, Note, ObjectDecl,
     ParticipantDecl, ParticipantRole, SaltCell, StateDecl, StateInternalAction, StateTransition,
-    Statement, StatementKind, TimingDeclKind, UseCaseDecl, VirtualEndpoint, VirtualEndpointKind,
-    VirtualEndpointSide,
+    Statement, StatementKind, StyleRule, TimingDeclKind, UseCaseDecl, VirtualEndpoint,
+    VirtualEndpointKind, VirtualEndpointSide,
 };
 use crate::diagnostic::Diagnostic;
 use crate::preproc::preprocess;

@@ -154,7 +154,6 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 } else {
                     0
                 };
-                let route_y = y + (route_lane * TEOZ_ROUTE_LANE_HEIGHT);
                 let label = autonumber.apply(label.clone());
                 let label_lines = message_label_lines(
                     label.as_deref(),
@@ -179,6 +178,18 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         base
                     }
                 };
+                // For non-TEOZ, non-parallel messages with multiple label lines the
+                // arrow must be pushed down so the wrapped label block sits fully
+                // above the arrow shaft without overlapping the participant box or
+                // the previous message row.  Extra rows are already allocated via
+                // `row_units`; we shift `route_y` into the last of those rows so
+                // every label line has room above it.
+                let multi_line_offset = if !document.teoz && !is_parallel && !is_self_loop {
+                    ((label_lines.len() as i32) - 1).max(0) * TEXT_LINE_HEIGHT
+                } else {
+                    0
+                };
+                let route_y = y + (route_lane * TEOZ_ROUTE_LANE_HEIGHT) + multi_line_offset;
                 // Record arrival y for the recipient so that an immediately
                 // following explicit `activate` can pin its bar to this row.
                 if to_virtual.is_none() && !to.is_empty() {
@@ -228,12 +239,16 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         &options,
                     );
                     let row_units = (label_lines.len() as i32).max(1);
+                    // Push the arrow down for multi-line labels so the text
+                    // block sits above the shaft without overlapping.
+                    let return_multi_line_offset =
+                        ((label_lines.len() as i32) - 1).max(0) * TEXT_LINE_HEIGHT;
                     messages.push(MessageLine {
                         from_id: from_id.clone(),
                         to_id: to_id.clone(),
                         x1,
                         y,
-                        route_y: y,
+                        route_y: y + return_multi_line_offset,
                         x2,
                         arrow: "-->".to_string(),
                         label,
@@ -423,7 +438,10 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                         group_content_min_size(&groups[ix].kind, groups[ix].label.as_deref());
                     groups[ix].height = groups[ix].height.max(min_height);
                 }
-                event_rows += 1;
+                // Advance one row for the `end` keyword line, then one more row
+                // of clearance so any subsequent message arrow starts below the
+                // group frame's bottom border instead of crossing it.
+                event_rows += 2;
             }
             SequenceEventKind::Delay(label) => {
                 let y = events_top + (event_rows * options.message_row_height);

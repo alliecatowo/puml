@@ -150,6 +150,162 @@
         "SVG / PNG / Text"
       ],
       "min_text_elements": 20
+    },
+    {
+      "path": "docs/examples/component/02_interfaces.puml",
+      "family": "component",
+      "expected_text": ["API", "REST", "GraphQL", "provides", "uses"],
+      "min_text_elements": 5
+    },
+    {
+      "path": "docs/examples/component/03_packages.puml",
+      "family": "component",
+      "expected_text": ["Frontend", "Backend", "WebApp", "AuthService", "OrderService", "NotificationService"],
+      "min_text_elements": 6
+    },
+    {
+      "path": "docs/examples/component/04_deployment_style.puml",
+      "family": "component",
+      "expected_text": ["Load Balancer", "App Server 1", "App Server 2", "Primary DB", "Replica DB", "routes", "replicates"],
+      "min_text_elements": 7
+    },
+    {
+      "path": "docs/examples/component/05_with_notes.puml",
+      "family": "component",
+      "expected_text": ["Gateway", "UserService", "ProductService"],
+      "min_text_elements": 3
+    },
+    {
+      "path": "docs/examples/component/06_with_arrows.puml",
+      "family": "component",
+      "expected_text": ["calls", "uses", "extends"],
+      "min_text_elements": 4
+    },
+    {
+      "path": "docs/examples/deployment/02_databases.puml",
+      "family": "deployment",
+      "expected_text": ["AppServer", "PostgreSQL", "Redis", "BackupServer", "reads/writes", "caches", "backup"],
+      "min_text_elements": 7
+    },
+    {
+      "path": "docs/examples/deployment/04_mixed.puml",
+      "family": "deployment",
+      "expected_text": ["CDN", "Load Balancer", "Web Server 1", "Primary DB", "Replica DB"],
+      "min_text_elements": 7
+    },
+    {
+      "path": "docs/examples/c4/02_person_system.puml",
+      "family": "c4",
+      "expected_text": ["Multi-System Context", "Developer", "Operator", "Vendor", "Platform", "CI/CD", "Cloud Provider"],
+      "min_text_elements": 7
+    },
+    {
+      "path": "docs/examples/c4/03_containers.puml",
+      "family": "c4",
+      "expected_text": ["Container Diagram - Web App", "User", "SPA", "API", "Worker"],
+      "min_text_elements": 5
+    },
+    {
+      "path": "docs/examples/c4/04_components.puml",
+      "family": "c4",
+      "expected_text": ["Component Diagram - API Service", "OrderController", "OrderService", "OrderRepository", "CacheLayer"],
+      "min_text_elements": 5
+    },
+    {
+      "path": "docs/examples/c4/05_persons_only.puml",
+      "family": "c4",
+      "expected_text": ["Actors in the System", "Administrator", "Content Editor", "Viewer", "API Consumer", "CMS Platform"],
+      "min_text_elements": 6
+    },
+    {
+      "path": "docs/examples/c4/06_external_systems.puml",
+      "family": "c4",
+      "expected_text": ["External System Integrations", "Core System", "Auth Provider", "Payment Gateway", "Analytics"],
+      "min_text_elements": 5
+    },
+    {
+      "path": "docs/examples/c4/07_microservices.puml",
+      "family": "c4",
+      "expected_text": ["Microservices Architecture", "Client", "API Gateway", "User Service", "Order Service", "Product Service"],
+      "min_text_elements": 6
+    },
+    {
+      "path": "docs/examples/c4/08_simple_saas.puml",
+      "family": "c4",
+      "expected_text": ["SaaS Product Context", "Customer", "Admin", "SaaS Platform", "Stripe", "SendGrid"],
+      "min_text_elements": 6
+    },
+    {
+      "path": "docs/examples/c4/09_data_platform.puml",
+      "family": "c4",
+      "expected_text": ["Data Platform Containers", "Data Analyst", "Ingestion", "Transform", "Warehouse", "Dashboard"],
+      "min_text_elements": 6
+    },
+    {
+      "path": "docs/examples/c4/10_security_zones.puml",
+      "family": "c4",
+      "expected_text": ["Security Zones", "Internet User", "Threat Actor", "DMZ", "App Tier", "External API"],
+      "min_text_elements": 6
+    },
+    {
+      "path": "docs/examples/c4/11_system_landscape.puml",
+      "family": "c4",
+      "expected_text": ["C4 System Landscape", "Customer", "E-Commerce Platform", "CRM System", "ERP System", "Analytics Platform", "Notification Service"],
+      "min_text_elements": 10
+    },
+    {
+      "path": "docs/examples/c4/12_container_with_databases.puml",
+      "family": "c4",
+      "expected_text": ["C4 Container Diagram with databases and message bus", "User", "Admin", "API Server", "PostgreSQL", "Redis", "Message Bus"],
+      "min_text_elements": 8
+    },
+    {
+      "path": "docs/examples/usecase/02_with_actors.puml",
+      "family": "usecase",
+      "expected_text": ["Customer", "Admin", "BrowseProducts", "PlaceOrder", "ManageInventory", "leads to", "triggers"],
+      "min_text_elements": 7
+    },
+    {
+      "path": "docs/examples/usecase/03_extends_includes.puml",
+      "family": "usecase",
+      "expected_text": ["Checkout", "ApplyCoupon", "ProcessPayment", "SendConfirmation"],
+      "min_text_elements": 4
+    },
+    {
+      "path": "docs/examples/usecase/04_with_packages.puml",
+      "family": "usecase",
+      "expected_text": ["Customer", "Manager", "Browse", "AddToCart", "Checkout", "ManageProducts", "ManageOrders"],
+      "min_text_elements": 7
+    },
+    {
+      "path": "docs/examples/usecase/05_actor_generalization_system_boundary.puml",
+      "family": "usecase",
+      "expected_text": ["User", "Administrator", "Browse Catalog", "Checkout", "Apply Promo Code"],
+      "min_text_elements": 8
+    },
+    {
+      "path": "docs/examples/usecase/06_multi_system_boundary.puml",
+      "family": "usecase",
+      "expected_text": ["Customer", "Support Agent", "Login", "View Orders", "View Queue", "Respond to Ticket"],
+      "min_text_elements": 8
+    },
+    {
+      "path": "docs/examples/object/02_with_attributes.puml",
+      "family": "object",
+      "expected_text": ["Order", "Customer", "id = 1001", "status = pending", "total = 99.99", "id = 42", "placedBy"],
+      "min_text_elements": 7
+    },
+    {
+      "path": "docs/examples/object/03_with_links.puml",
+      "family": "object",
+      "expected_text": ["Server", "Database", "Cache", "connects", "uses"],
+      "min_text_elements": 5
+    },
+    {
+      "path": "docs/examples/object/04_with_stereotypes.puml",
+      "family": "object",
+      "expected_text": ["myUser", "mySession", "hasSession", "token = abc123"],
+      "min_text_elements": 4
     }
   ]
 }
