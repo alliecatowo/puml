@@ -237,7 +237,7 @@ fn assign_ranks(
             }
         }
 
-        for (_group, members) in &group_members {
+        for members in group_members.values() {
             if members.len() < 2 {
                 continue;
             }

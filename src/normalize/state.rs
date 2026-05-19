@@ -201,6 +201,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
 /// `[*]` references inside a composite are scoped to the parent composite name:
 /// - `[*]` as source becomes `[*]__in__{parent}` (initial pseudo-state inside the composite)
 /// - `[*]` as target becomes `[*]__end__{parent}` (local final state inside the composite)
+///
 /// This prevents internal flow from hijacking the outer diagram's global pseudo-state.
 fn ensure_region_state_node(region: &mut Vec<StateNode>, name: &str) {
     if region.iter().any(|node| node.name == name) {
