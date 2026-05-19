@@ -17,8 +17,11 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
         h = height
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
+    // refX="9" places the arrowhead *tip* (at marker x=9) exactly at the line
+    // endpoint, so the arrowhead base sits outside the target node and the
+    // triangle points unambiguously toward its target.
     out.push_str(
-        "<defs><marker id=\"sdl-arrow\" markerWidth=\"10\" markerHeight=\"10\" refX=\"8\" refY=\"3\" orient=\"auto\"><path d=\"M0,0 L0,6 L9,3 z\" fill=\"#334155\"/></marker></defs>",
+        "<defs><marker id=\"sdl-arrow\" markerWidth=\"10\" markerHeight=\"10\" refX=\"9\" refY=\"3\" orient=\"auto\"><path d=\"M0,0 L0,6 L9,3 z\" fill=\"#334155\"/></marker></defs>",
     );
     let mut y = 28;
     if let Some(title) = &document.title {
@@ -74,6 +77,7 @@ struct SdlNodeBox {
     y: i32,
     w: i32,
     h: i32,
+    kind: SdlStateKind,
 }
 
 fn sdl_node_box(x: i32, y: i32, kind: SdlStateKind) -> SdlNodeBox {
@@ -83,18 +87,21 @@ fn sdl_node_box(x: i32, y: i32, kind: SdlStateKind) -> SdlNodeBox {
             y,
             w: 80,
             h: 56,
+            kind,
         },
         SdlStateKind::Decision => SdlNodeBox {
             x: x + 12,
             y: y - 8,
             w: 144,
             h: 72,
+            kind,
         },
         SdlStateKind::Input | SdlStateKind::Output | SdlStateKind::State => SdlNodeBox {
             x,
             y,
             w: SDL_NODE_W,
             h: SDL_NODE_H,
+            kind,
         },
     }
 }
@@ -157,24 +164,89 @@ fn render_sdl_transition(
     }
 }
 
+/// For circular nodes (Start/Stop) the rendered circle's centre within the
+/// bounding box is at y=node.y+18 and radius 13 (Start) / 15 (Stop).  The
+/// bounding box is 80 wide and 56 tall, placing significant whitespace below
+/// the circle that would push a bounding-box-edge endpoint far from the actual
+/// circle.  Return the actual circle centre and radius for accurate endpoint
+/// computation.
+fn sdl_circle_params(node: SdlNodeBox) -> (i32, i32, i32) {
+    let cx = node.x + node.w / 2;
+    let cy = node.y + 18;
+    let r = if node.kind == SdlStateKind::Start {
+        13
+    } else {
+        15
+    };
+    (cx, cy, r)
+}
+
 fn sdl_transition_endpoints(from: SdlNodeBox, to: SdlNodeBox) -> (i32, i32, i32, i32) {
+    // Centre points (used for direction computation).
+    // For circular nodes (Start/Stop) use the actual circle centre (y + 18);
+    // for rectangular nodes use the bounding-box centre.
     let fcx = from.x + from.w / 2;
-    let fcy = from.y + from.h / 2;
+    let fcy = if matches!(from.kind, SdlStateKind::Start | SdlStateKind::Stop) {
+        from.y + 18
+    } else {
+        from.y + from.h / 2
+    };
     let tcx = to.x + to.w / 2;
-    let tcy = to.y + to.h / 2;
+    let tcy = if matches!(to.kind, SdlStateKind::Start | SdlStateKind::Stop) {
+        to.y + 18
+    } else {
+        to.y + to.h / 2
+    };
     let dx = tcx - fcx;
     let dy = tcy - fcy;
-    if dx.abs() >= dy.abs() {
+
+    // Target endpoint: for circular nodes snap to the circle surface so the
+    // arrowhead tip (placed exactly at the endpoint via refX=9) lands on the
+    // node border.  For rectangular nodes use the axis-aligned bounding-box
+    // edge aligned with the dominant direction.
+    let (x2, y2) = if matches!(to.kind, SdlStateKind::Start | SdlStateKind::Stop) {
+        let (cx, cy, r) = sdl_circle_params(to);
+        let ddx = (cx - fcx) as f64;
+        let ddy = (cy - fcy) as f64;
+        let len = (ddx * ddx + ddy * ddy).sqrt().max(1.0);
+        // Place endpoint on the circle surface (inward direction from centre).
+        let ex = cx - (ddx / len * r as f64).round() as i32;
+        let ey = cy - (ddy / len * r as f64).round() as i32;
+        (ex, ey)
+    } else if dx.abs() >= dy.abs() {
         if dx >= 0 {
-            (from.x + from.w, fcy, to.x, tcy)
+            (to.x, tcy)
         } else {
-            (from.x, fcy, to.x + to.w, tcy)
+            (to.x + to.w, tcy)
         }
     } else if dy >= 0 {
-        (fcx, from.y + from.h, tcx, to.y)
+        (tcx, to.y)
     } else {
-        (fcx, from.y, tcx, to.y + to.h)
-    }
+        (tcx, to.y + to.h)
+    };
+
+    // Source endpoint: exit the from-node from its border, or the circle edge.
+    let (x1, y1) = if matches!(from.kind, SdlStateKind::Start | SdlStateKind::Stop) {
+        let (cx, cy, r) = sdl_circle_params(from);
+        let ddx = (tcx - cx) as f64;
+        let ddy = (tcy - cy) as f64;
+        let len = (ddx * ddx + ddy * ddy).sqrt().max(1.0);
+        let ex = cx + (ddx / len * r as f64).round() as i32;
+        let ey = cy + (ddy / len * r as f64).round() as i32;
+        (ex, ey)
+    } else if dx.abs() >= dy.abs() {
+        if dx >= 0 {
+            (from.x + from.w, fcy)
+        } else {
+            (from.x, fcy)
+        }
+    } else if dy >= 0 {
+        (fcx, from.y + from.h)
+    } else {
+        (fcx, from.y)
+    };
+
+    (x1, y1, x2, y2)
 }
 
 fn render_sdl_node(out: &mut String, state: &crate::model::SdlState, node: SdlNodeBox) {
