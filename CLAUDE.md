@@ -220,7 +220,12 @@ cargo test --release
 # Regenerate full PNG audit corpus
 python3 scripts/render_corpus.py --force
 
-# Regenerate docs/examples SVG artifacts
+# Regenerate committed diagram artifacts (docs/diagrams + docs/examples SVGs)
+# Run after any renderer change that lands on main; the main-gate CI will catch stale artifacts.
+scripts/regen-artifacts.sh --force
+# Then commit: git add docs/diagrams/ docs/examples/ && git commit
+
+# Regenerate docs/examples SVG artifacts (manual, targeted)
 find docs/examples -name "*.puml" | while read f; do
   ./target/release/puml "$f" -o "${f%.puml}.svg"
 done

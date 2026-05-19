@@ -469,7 +469,110 @@ fn minimise_crossings(
         }
     }
 
+    // ── Adjacent-transposition pass (bipartite crossing refinement) ───────────
+    // After barycenter sweeps, nodes that share identical barycenters (e.g. two
+    // web servers both connected to the same pair of backends — a K_{2,2}
+    // bipartite subgraph) converge to a stable but crossing-containing order
+    // because all barycenters tie.  A pass of adjacent transpositions resolves
+    // this: for every pair of adjacent nodes in a rank, try swapping them and
+    // keep the swap only when it strictly reduces the number of edge crossings
+    // with the neighbouring ranks.  Repeat until stable (typically 1–3 passes).
+    let max_rank = rank_order.keys().copied().max().unwrap_or(0);
+    let mut improved = true;
+    while improved {
+        improved = false;
+        for r in 0..=max_rank {
+            let order_len = rank_order.get(&r).map(|v| v.len()).unwrap_or(0);
+            for i in 0..order_len.saturating_sub(1) {
+                let before = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if let Some(cur) = rank_order.get_mut(&r) {
+                    cur.swap(i, i + 1);
+                }
+                let after = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if after < before {
+                    improved = true;
+                } else {
+                    // Revert — same or worse.
+                    if let Some(cur) = rank_order.get_mut(&r) {
+                        cur.swap(i, i + 1);
+                    }
+                }
+            }
+        }
+    }
+
     rank_order
+}
+
+/// Count edge crossings touching rank `r`: bilayer(r-1, r) + bilayer(r, r+1).
+///
+/// Used by the adjacent-transposition pass to decide whether a swap improves
+/// the overall crossing count.
+fn crossings_for_rank(
+    rank_order: &BTreeMap<usize, Vec<String>>,
+    below_neighbors: &BTreeMap<&str, Vec<&str>>,
+    r: usize,
+) -> usize {
+    let mut total = 0usize;
+    if r > 0 {
+        if let (Some(top), Some(bot)) = (rank_order.get(&(r - 1)), rank_order.get(&r)) {
+            total += bilayer_crossings(top, bot, below_neighbors);
+        }
+    }
+    if let (Some(top), Some(bot)) = (rank_order.get(&r), rank_order.get(&(r + 1))) {
+        total += bilayer_crossings(top, bot, below_neighbors);
+    }
+    total
+}
+
+/// Count edge crossings between two adjacent rank layers via inversion count.
+///
+/// `top_order` is the upper rank; `bot_order` the lower rank.
+/// `edges_down` maps upper-rank node → list of lower-rank neighbours.
+fn bilayer_crossings(
+    top_order: &[String],
+    bot_order: &[String],
+    edges_down: &BTreeMap<&str, Vec<&str>>,
+) -> usize {
+    let bot_pos: BTreeMap<&str, usize> = bot_order
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
+    let mut edge_targets: Vec<usize> = Vec::new();
+    for top_id in top_order {
+        if let Some(neighbors) = edges_down.get(top_id.as_str()) {
+            let mut positions: Vec<usize> = neighbors
+                .iter()
+                .filter_map(|nb| bot_pos.get(*nb))
+                .copied()
+                .collect();
+            positions.sort_unstable();
+            edge_targets.extend(positions);
+        }
+    }
+    count_inversions(&edge_targets)
+}
+
+/// Count inversions in a slice using merge-sort (O(n log n)).
+fn count_inversions(seq: &[usize]) -> usize {
+    if seq.len() <= 1 {
+        return 0;
+    }
+    let mid = seq.len() / 2;
+    let left = seq[..mid].to_vec();
+    let right = seq[mid..].to_vec();
+    let mut inversions = count_inversions(&left) + count_inversions(&right);
+    let (mut i, mut j) = (0, 0);
+    while i < left.len() && j < right.len() {
+        if left[i] <= right[j] {
+            i += 1;
+        } else {
+            inversions += left.len() - i;
+            j += 1;
+        }
+    }
+    inversions
 }
 
 /// Barycenter using borrowed-str position map (for route_edges path)
@@ -633,7 +736,11 @@ fn compute_group_bounds(
     let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     let pad = options.group_padding;
-    let label_reserve = 28.0; // space for the group label tab
+    // label_reserve must match the pkg_tab height used by the component renderer
+    // (family.rs: `pkg_tab = 40`).  Using 40 here ensures that group_bounds.gy
+    // accurately reflects the rendered frame top so that the package-header
+    // avoidance check in soft_clamp_ch_y fires at the correct y coordinate.
+    let label_reserve = 40.0; // space for the group label tab (matches pkg_tab=40 in family.rs)
 
     let mut bounds: BTreeMap<String, (f64, f64, f64, f64)> = BTreeMap::new();
     for (group_id, children) in &children_by_group {
@@ -894,26 +1001,40 @@ fn route_edges(
 
     // Symmetric track offset for a given channel and track index.
     // With n_tracks tracks in channel `ch`, track i is at:
-    //   offset = (i as f64 - n_tracks as f64 / 2.0) * TRACK_SPACING
+    //   offset = (i as f64 - n_tracks as f64 / 2.0) * effective_spacing
     // so the band is centered on the channel midpoint.
     //
-    // The band half-width is capped at (inter_rank_gap - 16) / 2 so that even
-    // many tracks never collide with the adjacent node rows.  If the gap is
-    // genuinely < 16px (degenerate), no clamping is applied here; the soft
-    // boundary below handles that case.
+    // For channels with ≤ 2 tracks (≤ 2 edges crossing the gap), TRACK_SPACING
+    // (8 px) is used as before — narrow fans are visually fine.  For channels
+    // with ≥ 3 tracks (e.g. the four bipartite edges in a deployment web-server →
+    // db/cache tier), the fan is spread adaptively to fill ~2/3 of the available
+    // channel half-height so that crossing horizontal segments are clearly
+    // separated rather than overlapping in a visually tangled X.
+    //
+    // The band half-width is capped at (inter_rank_gap − 8) / 2 in all cases so
+    // that tracks never collide with the adjacent node rows.
     let symmetric_offset = |ch: usize, track: usize| -> f64 {
-        let n_tracks = *channel_max_track.get(&ch).unwrap_or(&0) as f64;
-        let raw = (track as f64 - n_tracks / 2.0) * TRACK_SPACING;
+        let n_tracks_idx = *channel_max_track.get(&ch).unwrap_or(&0); // max track index used
+        let n_tracks = n_tracks_idx as f64;
         // Compute the inter-rank gap for this channel to bound the fan width.
         let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
         let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
         let gap = next_top - bot;
-        if gap >= 16.0 {
-            let max_half = (gap - 8.0) / 2.0;
-            raw.clamp(-max_half, max_half)
+        let max_half = if gap >= 16.0 {
+            (gap - 8.0) / 2.0
         } else {
-            raw
-        }
+            gap / 2.0
+        };
+        // Adaptive spacing: only for channels with ≥ 3 tracks (max index ≥ 2).
+        let effective_spacing = if n_tracks_idx >= 2 {
+            // Spread the fan so adjacent tracks are ~gap/(n+2) apart, capped at
+            // max_half and floored at TRACK_SPACING.
+            (max_half * 2.0 / (n_tracks + 1.0)).max(TRACK_SPACING)
+        } else {
+            TRACK_SPACING
+        };
+        let raw = (track as f64 - n_tracks / 2.0) * effective_spacing;
+        raw.clamp(-max_half, max_half)
     };
 
     // ── Path generation ────────────────────────────────────────────────────────
@@ -1010,12 +1131,18 @@ fn route_edges(
                 // Package-header avoidance: if the channel y lands inside any
                 // group's header band (top_y .. top_y + PKG_HEADER_HEIGHT), push
                 // it below the header so arrow shafts do not slice through the
-                // package label text.
+                // package label text.  The guard is `result >= gy - 4` (4 px
+                // safety above the frame top) because the vertical entry shaft
+                // crosses the header band even when the channel y sits just at
+                // or slightly above the frame top.
                 let mut result = clamped;
                 for &(_, gy, _, _) in group_bounds.values() {
                     let header_bottom = gy + PKG_HEADER_HEIGHT;
-                    if result > gy && result < header_bottom {
-                        result = header_bottom + 4.0;
+                    if result >= gy - 4.0 && result < header_bottom {
+                        // Push below the header band; re-clamp to the inter-rank
+                        // gap so we don't overshoot the target row.
+                        let pushed = (header_bottom + 4.0).min(next_top - 4.0);
+                        result = result.max(pushed);
                     }
                 }
                 result
