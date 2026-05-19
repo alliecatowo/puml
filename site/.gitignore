@@ -1,5 +1,6 @@
 public/
 static/examples/
 static/examples-index.json
+static/stdlib/
 static/syntax-dark.css
 static/syntax-light.css
