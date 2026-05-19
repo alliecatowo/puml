@@ -3439,6 +3439,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         color: String,
         from_name: String,
         to_name: String,
+        /// Edge endpoint coords used for fractional label placement (source fan-out)
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
     }
     let mut pending_labels: Vec<PendingLabel> = Vec::new();
     let adjust_interface_anchor =
@@ -3906,6 +3911,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 color: label_color.to_string(),
                 from_name: from_name.clone(),
                 to_name: to_name.clone(),
+                x1,
+                y1,
+                x2,
+                y2,
             });
         }
         if let Some(left) = &rel.left_cardinality {
@@ -3983,6 +3992,49 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                     pending_labels[raw_idx].text.clone(),
                     pending_labels[raw_idx].color.clone(),
                 ));
+            }
+        }
+    }
+
+    // Source-based fan-out: when ≥ 2 labelled edges leave the same source node
+    // (e.g. OrderService → CacheLayer + OrderRepository) their labels cluster near
+    // the source port.  Mirror the fix applied to render_class_svg (#706/#707):
+    // place each label at a staggered fraction along its own edge so the labels
+    // spread out along the respective arrows rather than stacking at one point.
+    // Fraction for slot i of count n: f = 0.3 + (i/n)*0.4 → range 30%–70%.
+    {
+        let mut by_source_ph3: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, pl) in pending_labels.iter().enumerate() {
+            // Only stagger edges not already handled by the target-fan pass.
+            if !adjusted_labels[i].is_some() {
+                by_source_ph3
+                    .entry(pl.from_name.clone())
+                    .or_default()
+                    .push(i);
+            }
+        }
+        for (_from_name, group) in &by_source_ph3 {
+            if group.len() < 2 {
+                continue;
+            }
+            let mut sorted = group.clone();
+            sorted.sort_unstable();
+            let count = sorted.len();
+            for (slot, &raw_idx) in sorted.iter().enumerate() {
+                let pl = &pending_labels[raw_idx];
+                let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
+                let dx = pl.x2 - pl.x1;
+                let dy = pl.y2 - pl.y1;
+                let lx = pl.x1 + (dx as f64 * frac) as i32;
+                let ly = pl.y1 + (dy as f64 * frac) as i32 - 12;
+                // Side-nudge away from the arrow shaft
+                let (lx, ly) = if dy.abs() > dx.abs() {
+                    (lx + 14, ly)
+                } else {
+                    (lx, ly - 2)
+                };
+                adjusted_labels[raw_idx] = Some((lx, ly, pl.text.clone(), pl.color.clone()));
             }
         }
     }
