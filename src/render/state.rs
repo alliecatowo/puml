@@ -7,10 +7,9 @@ const STATE_NODE_H: i32 = 40;
 const STATE_NODE_GAP_X: i32 = 60;
 const STATE_NODE_GAP_Y: i32 = 60;
 const STATE_MARGIN: i32 = 30;
-// Extra left gutter so that transition labels placed to the left of nodes
-// are not clipped by a viewBox origin of x=0.  After placement we do a
-// min-x pre-pass and shift everything right by at least this padding.
-const STATE_LEFT_GUTTER: i32 = 160;
+// Removed STATE_LEFT_GUTTER: initial node placement no longer adds a fixed
+// left offset. The left-edge gutter pre-pass (below) conditionally shifts all
+// nodes right only when a transition label would actually clip the left edge.
 // X-offset of the right-side gutter column used for sink states.
 const STATE_SINK_GUTTER_GAP: i32 = 80;
 const COMPOSITE_PAD_X: i32 = 16;
@@ -219,8 +218,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             for node in &main_layout_order {
                 let col = (col_idx as i32) % cols;
                 col_idx += 1;
-                let x =
-                    STATE_LEFT_GUTTER + STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
+                let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
                 let y = col_y[col as usize];
                 let (w, h) = *node_sizes
                     .get(&node.name)
@@ -237,7 +235,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             .values()
             .map(|p| p.x + p.w)
             .max()
-            .unwrap_or(STATE_LEFT_GUTTER + STATE_MARGIN + STATE_NODE_W);
+            .unwrap_or(STATE_MARGIN + STATE_NODE_W);
         let sink_x = main_max_x + STATE_SINK_GUTTER_GAP;
         let mut sink_y = STATE_MARGIN + 50;
         for node in &sink_layout_order {
@@ -249,19 +247,57 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
-    // ── Left-edge gutter pre-pass (Bug #2 fix) ──────────────────────────────
+    // Build edge/kind lookup tables needed for both the gutter pre-pass and Phase 2.
+    // Build a set of all (from, to) pairs to detect bidirectional edges
+    let edge_set: std::collections::BTreeSet<(&str, &str)> = transitions
+        .iter()
+        .map(|t| (t.from.as_str(), t.to.as_str()))
+        .collect();
+    let node_kinds: std::collections::BTreeMap<&str, &StateNodeKind> = nodes
+        .iter()
+        .map(|node| (node.name.as_str(), &node.kind))
+        .collect();
+
+    // ── Left-edge gutter pre-pass ────────────────────────────────────────────
     // Transition labels may be placed to the left of their source/target nodes.
     // Do a dry-run of label placement to find the leftmost label x, then shift
     // all placed nodes right so no label falls outside the viewBox.
+    // Only considers top-level transitions (both endpoints in `placed`); skips
+    // intra-composite child→child edges which are not in the top-level placed map.
+    // Uses the same anchor/offset geometry as the actual render pass so the
+    // estimate of min_label_x is accurate for bidirectional and kind-specific edges.
     {
         let mut dry_occupied: Vec<LabelBounds> = Vec::new();
         let mut min_label_x = placed.values().map(|p| p.x).min().unwrap_or(0);
         for t in transitions {
+            // Skip transitions where either endpoint is not a top-level placed node
+            // (intra-composite child→child edges handled inside composite rendering).
             if let (Some(fp), Some(tp)) = (placed.get(&t.from), placed.get(&t.to)) {
-                let (x1, y1, x2, y2) = edge_anchors(fp, tp);
                 if let Some(label) = &t.label {
-                    let layout =
-                        place_state_transition_label(label, x1, y1, x2, y2, &placed, &dry_occupied);
+                    // Match render-pass geometry: use kind-aware anchors and offset
+                    // bidirectional edges, so min_label_x is not underestimated.
+                    let (x1, y1, x2, y2) = edge_anchors_for_kinds(
+                        node_kinds.get(t.from.as_str()).copied(),
+                        fp,
+                        node_kinds.get(t.to.as_str()).copied(),
+                        tp,
+                    );
+                    let has_reverse =
+                        t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+                    let (lx1, ly1, lx2, ly2) = if has_reverse {
+                        offset_parallel_edge(x1, y1, x2, y2, 10)
+                    } else {
+                        (x1, y1, x2, y2)
+                    };
+                    let layout = place_state_transition_label(
+                        label,
+                        lx1,
+                        ly1,
+                        lx2,
+                        ly2,
+                        &placed,
+                        &dry_occupied,
+                    );
                     min_label_x = min_label_x.min(layout.bounds.x);
                     dry_occupied.push(layout.bounds);
                 }
@@ -279,17 +315,6 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             }
         }
     }
-
-    // Build edge/kind lookup tables needed for both the canvas pre-pass and Phase 2.
-    // Build a set of all (from, to) pairs to detect bidirectional edges
-    let edge_set: std::collections::BTreeSet<(&str, &str)> = transitions
-        .iter()
-        .map(|t| (t.from.as_str(), t.to.as_str()))
-        .collect();
-    let node_kinds: std::collections::BTreeMap<&str, &StateNodeKind> = nodes
-        .iter()
-        .map(|node| (node.name.as_str(), &node.kind))
-        .collect();
 
     // Compute total canvas size from placed nodes
     let mut max_x = placed.values().map(|p| p.x + p.w).max().unwrap_or(300);
