@@ -13,10 +13,10 @@ usage() {
 Usage: ./scripts/autonomy-check.sh [--quick] [--dry]
 
 Runs full autonomous chain:
-  fmt check -> clippy -> tests -> bench -> parity harness -> agent-pack smoke/contract checks
+  fmt check -> clippy -> tests -> bench -> render check -> agent-pack smoke/contract checks
 
 Options:
-  --quick  run reduced benchmark/parity loops
+  --quick  run reduced benchmark/render loops
   --dry    run dry-capable steps and skip heavy compile/lint/test execution
 USAGE
 }

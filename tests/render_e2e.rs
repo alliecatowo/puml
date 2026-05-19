@@ -505,6 +505,39 @@ fn render_sequence_self_call_keeps_visible_arrowhead_after_groups_and_dividers()
     }
 }
 
+/// Regression test for #765: divider mid-diagram must not cause footboxes to
+/// overlap the self-loop U-shape drawn below the cleanup self-message.
+/// The footbox y must be strictly greater than the bottom of the self-loop
+/// (self-loop y + 32 = the rendered loop drop).
+#[test]
+fn regression_765_divider_mid_sequence_footbox_clears_self_loop() {
+    let src = std::fs::read_to_string(format!(
+        "{}/docs/examples/sequence/23_dividers.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("fixture");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let self_loop = scene
+        .messages
+        .iter()
+        .find(|m| m.from_id == m.to_id)
+        .expect("23_dividers.puml must contain a self-loop (Alice -> Alice: cleanup)");
+    let self_loop_bottom = self_loop.y + 32; // must match SELF_LOOP_DROP in layout.rs
+
+    for footbox in &scene.footboxes {
+        assert!(
+            footbox.y > self_loop_bottom,
+            "footbox '{}' y={} must be strictly below self-loop bottom={} (issue #765: participant header duplicated by divider)",
+            footbox.id,
+            footbox.y,
+            self_loop_bottom,
+        );
+    }
+}
+
 #[test]
 fn render_sequence_theme_sunlust_else_separator_clears_self_loop_and_keeps_arrowheads() {
     let src = std::fs::read_to_string(format!(
@@ -1346,7 +1379,9 @@ fn render_svg_sequence_all_group_types_fixture_uses_fragment_notches() {
         ),
         (
             "group custom label",
-            "<polygon points=\"24,1028 166,1028 166,1042 160,1048 24,1048\"",
+            // y shifted from 1028 to 1068 after #731 fix: self-loop in break now
+            // allocates 2 rows instead of 1 to prevent overlap with following messages.
+            "<polygon points=\"24,1068 166,1068 166,1082 160,1088 24,1088\"",
         ),
     ] {
         assert!(
@@ -1482,20 +1517,17 @@ fn render_svg_renders_distinct_participant_kinds() {
     };
 
     // Each role appears twice (header + footbox), so signatures should appear twice.
+    // Queue now renders as a horizontal cylinder with neutral blue palette (no pink/red).
     assert_count(
-        "fill=\"#fff0f0\" stroke=\"#8a3030\" stroke-width=\"1\"",
-        2,
-        "queue",
+        "fill=\"#e9f5ff\" stroke=\"#1b5e8a\" stroke-width=\"1\"",
+        8, // 6 database cylinder parts + 2 queue main rects
+        "database and queue blue rects",
     );
+    // Queue ellipse end-caps (2 per participant × 2 positions = 4 total)
     assert_count(
-        "x1=\"1152\" y1=\"32\" x2=\"1256\" y2=\"32\"",
-        1,
-        "queue top stripe",
-    );
-    assert_count(
-        "x1=\"1152\" y1=\"352\" x2=\"1256\" y2=\"352\"",
-        1,
-        "queue footbox stripe",
+        "fill=\"#d0eaff\" stroke=\"#1b5e8a\" stroke-width=\"1\"",
+        4,
+        "queue ellipse caps",
     );
     assert_count(
         "x=\"992\" y=\"24\" width=\"24\" height=\"8\"",
@@ -1506,11 +1538,6 @@ fn render_svg_renders_distinct_participant_kinds() {
         "x=\"998\" y=\"26\" width=\"24\" height=\"8\"",
         1,
         "collections stacked tab",
-    );
-    assert_count(
-        "fill=\"#e9f5ff\" stroke=\"#1b5e8a\" stroke-width=\"1\"",
-        6,
-        "database cylinder parts",
     );
     assert_count(
         "fill=\"#edf7ed\" stroke=\"#2d6a2d\" stroke-width=\"1\"",
@@ -2233,5 +2260,42 @@ fn lifelines_start_below_wrapped_participant_headers() {
         lifeline.y1,
         participant.y + participant.height,
         "lifeline should start at participant box bottom"
+    );
+}
+
+/// Regression test for #731: a self-loop inside a break/group block must not
+/// overlap the label of the immediately following message.  The self-loop
+/// U-shape extends SELF_LOOP_DROP (32 px) below its `y`; the next message's
+/// label is placed 8 px above its own `y`.  Adequate row allocation for the
+/// self-loop must ensure the following message label is strictly below the
+/// loop bottom.
+#[test]
+fn regression_731_self_loop_in_break_block_clears_following_message_label() {
+    let src = "@startuml\nAlice -> Bob: request\nbreak on error\n  Alice -> Alice: abort\n  Alice -> Bob: cleanup\nend\nBob -> Alice: response\n@enduml\n";
+    let doc = puml::parse(src).expect("parse");
+    let model = puml::normalize(doc).expect("normalize");
+    let scene = layout::layout(&model, LayoutOptions::default());
+
+    let self_loop = scene
+        .messages
+        .iter()
+        .find(|m| m.from_id == m.to_id && m.label.as_deref() == Some("abort"))
+        .expect("abort self-loop must be in the scene");
+
+    let cleanup = scene
+        .messages
+        .iter()
+        .find(|m| m.label.as_deref() == Some("cleanup"))
+        .expect("cleanup message must follow the self-loop");
+
+    // SELF_LOOP_DROP = 32 px (must match constant in layout.rs / render/sequence.rs)
+    let self_loop_bottom = self_loop.route_y + 32;
+    // label of next message sits 8 px above its line
+    let cleanup_label_top = cleanup.route_y - 8;
+
+    assert!(
+        cleanup_label_top > self_loop_bottom,
+        "cleanup label top (y={cleanup_label_top}) must be strictly below self-loop bottom \
+        (y={self_loop_bottom}); self-loop overlapping following message label (issue #731)"
     );
 }

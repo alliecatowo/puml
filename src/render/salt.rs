@@ -610,6 +610,18 @@ fn transform_salt_row(
         return Some(vec![SaltCellRender::GroupBox(label)]);
     }
 
+    // Structural block widgets ({/ tabs, {* menu) must be recognised even when
+    // in_text_area is active — they can appear inside a bordered {+ container.
+    if let Some((tabs, active)) = parse_salt_tab_bar(trimmed) {
+        state.in_text_area = false;
+        return Some(vec![SaltCellRender::TabBar { tabs, active }]);
+    }
+
+    if let Some(items) = parse_salt_items(trimmed, &["{*", "menu"]) {
+        state.in_text_area = false;
+        return Some(vec![SaltCellRender::MenuBar(items)]);
+    }
+
     if state.in_text_area {
         let text = if trimmed == "." { "" } else { trimmed };
         return Some(vec![SaltCellRender::TextAreaLine {
@@ -628,12 +640,14 @@ fn transform_salt_row(
         return Some(vec![SaltCellRender::TreeItem { depth, label }]);
     }
 
-    if let Some(items) = parse_salt_items(trimmed, &["{*", "menu"]) {
-        return Some(vec![SaltCellRender::MenuBar(items)]);
-    }
-
-    if let Some(tabs) = parse_salt_items(trimmed, &["{/", "tab", "tabs"]) {
-        return Some(vec![SaltCellRender::TabBar { tabs, active: 0 }]);
+    // Bare `tab`/`tabs` keyword tab-bar (outside text areas).
+    if let Some(items) = parse_salt_items(trimmed, &["tab", "tabs"]) {
+        if items.len() > 1 || trimmed.contains('|') {
+            return Some(vec![SaltCellRender::TabBar {
+                tabs: items,
+                active: 0,
+            }]);
+        }
     }
 
     if let Some(scroll) = parse_salt_scroll_container(trimmed) {
@@ -773,6 +787,50 @@ fn parse_salt_items(line: &str, prefixes: &[&str]) -> Option<Vec<String>> {
         None
     } else {
         Some(items)
+    }
+}
+
+/// Parse a `{/ Tab1 | **Tab2** | Tab3 }` tab-bar declaration.
+/// Returns `(labels, active_index)` where active tab is detected from `**...**` markup.
+/// Falls back to index 0 when no tab is marked.
+fn parse_salt_tab_bar(line: &str) -> Option<(Vec<String>, usize)> {
+    let lower = line.to_ascii_lowercase();
+    // Must start with `{/` (PlantUML tab syntax).
+    // Bare `tab`/`tabs` keywords are handled by `parse_salt_items` elsewhere;
+    // we deliberately do not match them here to avoid false-positives on lines
+    // like "Tab content here" which begin with the word "tab".
+    let rest = if lower.starts_with("{/") {
+        line[2..].trim()
+    } else {
+        return None;
+    };
+    // Strip surrounding braces left over after the prefix
+    let rest = rest.trim_start_matches('{').trim_end_matches('}').trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let mut active = 0usize;
+    let tabs: Vec<String> = rest
+        .split('|')
+        .enumerate()
+        .filter_map(|(idx, raw)| {
+            let t = raw.trim();
+            if t.is_empty() {
+                return None;
+            }
+            // `**label**` → active tab; strip markup and record index.
+            if t.starts_with("**") && t.ends_with("**") && t.len() > 4 {
+                active = idx;
+                Some(t[2..t.len() - 2].trim().to_string())
+            } else {
+                Some(t.trim_matches('"').to_string())
+            }
+        })
+        .collect();
+    if tabs.is_empty() {
+        None
+    } else {
+        Some((tabs, active))
     }
 }
 
@@ -1368,46 +1426,81 @@ fn render_salt_cell_svg(
             }
         }
         SaltCellRender::TabBar { tabs, active } => {
+            // Draw the full-width underline first so active tab can overdraw it.
+            let strip_y = y + h - 2;
+            out.push_str(&format!(
+                "<line data-salt-widget=\"tab-strip\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                x + pad,
+                strip_y,
+                x + w - pad,
+                strip_y,
+                style.border_color
+            ));
             let mut tab_x = x + pad;
+            // First pass: collect tab widths for the active-tab gap overdraw.
+            let tab_widths: Vec<i32> = tabs.iter().map(|t| estimate_text_width(t) + 24).collect();
             for (idx, tab) in tabs.iter().enumerate() {
-                let tab_w = estimate_text_width(tab) + 24;
+                let tab_w = tab_widths[idx];
                 let active_tab = idx == *active;
+                let tab_top = y + 3;
+                // Active tab is taller (reaches the strip) and filled white;
+                // inactive tabs are shorter and filled with tab_fill colour.
+                let tab_h = if active_tab { h - 3 } else { h - 6 };
                 let fill = if active_tab {
-                    style.panel_fill.as_str()
+                    &style.panel_fill
                 } else {
-                    style.tab_fill.as_str()
+                    &style.tab_fill
                 };
-                let stroke = style.border_color.as_str();
+                let stroke = &style.border_color;
+                // Rounded-top tab rectangle.
                 out.push_str(&format!(
-                    "<rect data-salt-widget=\"tab\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"5\" ry=\"5\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    "<rect data-salt-widget=\"tab\" data-salt-tab-active=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    active_tab,
                     tab_x,
-                    y + 4,
+                    tab_top,
                     tab_w,
-                    h - 5,
+                    tab_h,
                     fill,
                     stroke
                 ));
+                // Overdraw the bottom border of the active tab with its fill
+                // colour so the tab appears "connected" to the content below.
+                if active_tab {
+                    out.push_str(&format!(
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"3\"/>",
+                        tab_x + 1,
+                        strip_y,
+                        tab_x + tab_w - 1,
+                        strip_y,
+                        fill
+                    ));
+                }
+                let label_color = if active_tab {
+                    &style.text_color
+                } else {
+                    &style.muted_text_color
+                };
                 salt_text(
                     out,
                     tab_x + 12,
-                    text_y,
+                    tab_top + tab_h / 2 + 4,
                     &format!(
-                        "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
-                        style.font_family, style.text_color
+                        "font-family=\"{}\" font-size=\"12\"{}fill=\"{}\"",
+                        style.font_family,
+                        if active_tab {
+                            " font-weight=\"bold\" "
+                        } else {
+                            " "
+                        },
+                        label_color
                     ),
                     tab,
-                    &style.text_color,
+                    label_color,
                 );
                 tab_x += tab_w - 1;
             }
-            out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x + pad,
-                y + h - 1,
-                x + w - pad,
-                y + h - 1,
-                style.border_color
-            ));
+            // Invisible anchor preserving the trailing baseline geometry.
+            let _ = (x + pad, y + h - 1, x + w - pad);
         }
         SaltCellRender::ScrollBar { vertical, percent } => {
             let track_x = if *vertical { x + w - pad - 12 } else { x + pad };

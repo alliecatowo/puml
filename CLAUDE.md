@@ -109,7 +109,7 @@ When you receive an issue number, execute these steps in order:
 7. Run the full test + lint chain (see section 9).
 8. Bless visual baselines only after visual confirmation:
    `cargo test --release --test visual_regression bless_baselines -- --ignored`
-9. Regenerate affected `docs/examples/*.svg` artifacts and run parity drift check.
+9. Regenerate affected `docs/examples/*.svg` artifacts and run docs render check.
 10. Commit with a conventional message including `Closes #NNN`.
 11. Report back: commit SHA, file paths changed, Read-tool description of the PNG diff.
 
@@ -208,7 +208,7 @@ cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --release
 
-# Quick harness loop (agent-pack + MCP smoke + parity)
+# Quick harness loop (agent-pack + MCP smoke + render check)
 ./scripts/harness-check.sh --quick
 
 # Full autonomy chain (lint + test + bench + harness)
@@ -225,8 +225,8 @@ find docs/examples -name "*.puml" | while read f; do
   ./target/release/puml "$f" -o "${f%.puml}.svg"
 done
 
-# Parity drift check (fail-fast)
-python3 scripts/parity_harness.py --fail-on-doc-drift --quiet
+# Docs render check (fail-fast on drift)
+python3 scripts/render_check.py --fail-on-doc-drift --quiet
 
 # Bless visual baselines (after visual confirmation only)
 cargo test --release --test visual_regression bless_baselines -- --ignored
@@ -246,7 +246,7 @@ Required green markers before any merge to main:
 
 - `[harness] complete`
 - `[autonomy] complete`
-- `doc_examples.summary.failed = 0` in `docs/benchmarks/parity_latest.json`
+- `summary.failed = 0` in `docs/benchmarks/render_check_latest.json`
 
 ---
 
@@ -396,7 +396,7 @@ Notes:
 - `differential-svg-oracle` is currently **NOT** a required check; will become required
   once oracle JAR pinning is verified — do not treat a red oracle as a merge blocker yet
 - Coverage gate is `--fail-under-lines 85` in `scripts/check-all.sh`; bump it in Flow F
-- Docs drift check runs `python3 scripts/parity_harness.py --fail-on-doc-drift`
+- Docs drift check runs `python3 scripts/render_check.py --fail-on-doc-drift`
 
 ---
 

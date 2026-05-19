@@ -235,8 +235,22 @@ fn pie_outside_labels_render_outside_the_slice_radius_with_callouts() {
         .into_iter()
         .filter(|line| line.class_contains("chart-pie-callout"))
         .collect::<Vec<_>>();
-    assert_eq!(labels.len(), 3);
-    assert_eq!(callouts.len(), 3);
+    // Count slices from SVG so this is robust to fixture changes.
+    let slice_count = paths(&svg)
+        .into_iter()
+        .filter(|p| p.class_contains("chart-pie-slice"))
+        .count();
+    assert!(slice_count > 0, "pie should render at least one slice");
+    assert_eq!(
+        labels.len(),
+        slice_count,
+        "each pie slice should produce one outside label"
+    );
+    assert_eq!(
+        callouts.len(),
+        slice_count,
+        "each pie slice should produce one callout line"
+    );
 
     for label in labels {
         let dx = label.attr_f64("x") - cx;

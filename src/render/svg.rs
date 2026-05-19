@@ -30,32 +30,54 @@ pub(crate) fn creole_text(
         || label.contains("<&");
 
     if !has_markup && lines.len() == 1 {
-        // Fast path — no markup, no multi-line: keep old behavior.
+        // Fast path — no markup, single line: emit fill when the color is non-default
+        // and extra_attrs does not already carry a fill (avoids duplicate attributes).
+        let color_attr = if !base_color.is_empty()
+            && base_color != "black"
+            && base_color != "#000000"
+            && base_color != "#000"
+            && !extra_attrs.contains("fill=")
+        {
+            format!(" fill=\"{}\"", base_color)
+        } else {
+            String::new()
+        };
+        let attrs = if extra_attrs.is_empty() {
+            color_attr
+        } else {
+            format!(" {}{}", extra_attrs, color_attr)
+        };
         return format!(
-            "<text x=\"{}\" y=\"{}\"{}>{}",
+            "<text x=\"{}\" y=\"{}\"{}>{}</text>",
             x,
             y,
-            if extra_attrs.is_empty() {
-                String::new()
-            } else {
-                format!(" {}", extra_attrs)
-            },
+            attrs,
             escape_text(label)
-        ) + "</text>";
+        );
     }
 
     let inner = render_creole_to_svg_tspans(&lines, x, base_color);
+    let color_attr = if !base_color.is_empty()
+        && base_color != "black"
+        && base_color != "#000000"
+        && base_color != "#000"
+        && !extra_attrs.contains("fill=")
+    {
+        format!(" fill=\"{}\"", base_color)
+    } else {
+        String::new()
+    };
     format!(
-        "<text x=\"{}\" y=\"{}\"{}>{}",
+        "<text x=\"{}\" y=\"{}\"{}>{}</text>",
         x,
         y,
         if extra_attrs.is_empty() {
-            String::new()
+            color_attr
         } else {
-            format!(" {}", extra_attrs)
+            format!(" {}{}", extra_attrs, color_attr)
         },
         inner
-    ) + "</text>"
+    )
 }
 
 pub(crate) fn escape_text(input: &str) -> String {

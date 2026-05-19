@@ -248,11 +248,20 @@ JoinNode --> [H]
         "history circles must be at distinct positions"
     );
 
-    let ready_to_choice = doc.first_with_attr("line", "data-state-from", "Ready");
+    // State transitions are now emitted as <path> elements (orthogonal routing).
+    let ready_to_choice = doc.first_with_attr("path", "data-state-from", "Ready");
     assert_eq!(attr(ready_to_choice, "data-state-to"), "ChoiceNode");
-    let transition_bounds = bounds(ready_to_choice);
+    // Parse the path d attribute to get the bounding extents.
+    let d = attr(ready_to_choice, "d");
+    let path_nums: Vec<f64> = d
+        .split_ascii_whitespace()
+        .filter_map(|tok| tok.parse::<f64>().ok())
+        .collect();
+    assert!(path_nums.len() >= 4, "path d should have coordinates");
+    let span_x = (path_nums[path_nums.len() - 2] - path_nums[0]).abs();
+    let span_y = (path_nums[path_nums.len() - 1] - path_nums[1]).abs();
     assert!(
-        transition_bounds.width > 0.0 || transition_bounds.height > 0.0,
+        span_x > 0.0 || span_y > 0.0,
         "state transition should span at least one axis"
     );
 }

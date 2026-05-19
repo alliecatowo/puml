@@ -187,6 +187,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
     // Extra arrows: (x1,y1, x2,y2) drawn in addition to prev->cur arrows
     let mut extra_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
+    // Direct arrows: rendered unconditionally after the node loop.
+    // Used for fork-bar→branch and branch→join-bar arrows that target bar
+    // pixel positions rather than node layout slot positions.
+    let mut direct_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
     // Indices of nodes for which we suppress the standard prev->cur arrow
     let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
 
@@ -222,13 +226,17 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     arrow_out_y,
                     next_slot_y,
                 });
+                // "then" branch is left of the diamond centre, "else" is right.
+                // Placing both symmetrically around the diamond prevents action
+                // boxes on adjacent branches from overlapping (#735).
+                let then_cx = cx - branch_x_offset;
                 let else_cx = cx + branch_x_offset;
                 if_stack.push(IfFrame {
                     diamond_cx: cx,
                     diamond_arrow_out: arrow_out_y,
                     diamond_next_slot: next_slot_y,
-                    then_cx: cx,
-                    then_rightmost_cx: cx,
+                    then_cx,
+                    then_rightmost_cx: then_cx,
                     then_end_next_slot: next_slot_y,
                     in_else: false,
                     else_cx,
@@ -236,7 +244,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 });
                 for frame in &mut if_stack {
                     if !frame.in_else {
-                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(then_cx);
                     }
                 }
                 current_slot_y = next_slot_y;
@@ -432,18 +440,21 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                             layout.cx = next_col_cx;
                         }
                     }
-                    // Arrow from branch end to join bar
+                    // Straight-down arrow from branch last node to the join
+                    // bar top at the same column x. Targeting slot_y+24 (bar
+                    // top) avoids diagonal crossing lines between columns.
                     let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
-                    extra_arrows.push((col_cx, branch_arrow_out_y, fork_cx, slot_y));
+                    let join_bar_top_y = slot_y + 24;
+                    direct_arrows.push((col_cx, branch_arrow_out_y, col_cx, join_bar_top_y));
                 }
 
-                // Arrows from fork bar down into each branch column.
-                // Suppress the standard prev->cur arrow for the first node of
-                // each branch (otherwise it duplicates the fork->branch arrow).
-                let fork_bar_arrow_out_y = frame.fork_slot_y + ARROW_OUT;
+                // Straight-down arrows from the fork bar bottom to each
+                // branch column's first action.
+                // Fork bar rect: fork_slot_y+24 (top) .. fork_slot_y+32 (bottom).
+                let fork_bar_bottom_y = frame.fork_slot_y + 32;
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
                     let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
-                    extra_arrows.push((fork_cx, fork_bar_arrow_out_y, col_cx, branch_start_y));
+                    direct_arrows.push((col_cx, fork_bar_bottom_y, col_cx, branch_start_y));
                     // Suppress the standard prev->cur arrow for the branch's first node
                     suppress_prev_arrow.insert(branch.start_node_idx);
                 }
@@ -851,11 +862,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
                 FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                     if step_kind.contains("ForkAgain") {
-                        out.push_str(&format!(
-                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"3 2\"/>",
-                            cx - 16, y + 28, cx + 16, y + 28,
-                            escape_text(&act_style.fork_color)
-                        ));
+                        // ForkAgain nodes are layout bookmarks only; the fork
+                        // bar already spans all branch columns.  Render nothing.
                     } else {
                         let bar_half = fork_bar_half_widths.get(&i).copied().unwrap_or(box_w / 2);
                         let bar_w = (bar_half * 2).max(box_w);
@@ -946,6 +954,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         }
     }
 
+    // Direct arrows: fork-bar→branch and branch→join-bar arrows that target
+    // bar pixel positions rather than node layout slot positions.
+    for (x1, y1, x2, y2) in &direct_arrows {
+        emit_activity_arrow(&mut out, *x1, *y1, *x2, *y2, &act_style.arrow_color);
+    }
+
     out.push_str("</svg>");
     out
 }
@@ -966,31 +980,71 @@ fn fork_branch_cx(fork_cx: i32, branch_idx: usize, n_branches: usize, col_w: i32
     leftmost + branch_idx as i32 * col_w
 }
 
-/// Emit a straight arrow from (x1,y1) to (x2,y2) with an arrowhead at (x2,y2).
+/// Emit an orthogonal (L-shaped / elbow) arrow from (x1,y1) to (x2,y2).
+///
+/// When the source and destination share the same X coordinate the arrow is a
+/// straight vertical line (the common case for sequential nodes).  When they
+/// differ the path is routed as an L-bend:
+///
+///   1. Straight down from (x1, y1) to (x1, mid_y)    — vertical segment
+///   2. Straight across from (x1, mid_y) to (x2, mid_y) — horizontal segment
+///   3. Straight down from (x2, mid_y) to (x2, y2)    — vertical segment
+///
+/// `mid_y` is placed half-way between y1 and y2, giving a symmetric elbow.
+/// This eliminates the diagonal arrows that would otherwise cross through
+/// node bodies on multi-branch flows (#778).
 fn emit_activity_arrow(out: &mut String, x1: i32, y1: i32, x2: i32, y2: i32, color: &str) {
-    out.push_str(&format!(
-        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-        x1, y1, x2, y2, color
-    ));
-    // Arrowhead: small triangle pointing in the direction of travel
-    let dx = x2 - x1;
-    let dy = y2 - y1;
-    let len = ((dx * dx + dy * dy) as f64).sqrt().max(1.0);
-    let ux = dx as f64 / len;
-    let uy = dy as f64 / len;
-    // Perpendicular
-    let px = -uy;
-    let py = ux;
-    let tip_x = x2 as f64;
-    let tip_y = y2 as f64;
-    let base_x = tip_x - ux * 8.0;
-    let base_y = tip_y - uy * 8.0;
-    let l_x = (base_x + px * 4.0).round() as i32;
-    let l_y = (base_y + py * 4.0).round() as i32;
-    let r_x = (base_x - px * 4.0).round() as i32;
-    let r_y = (base_y - py * 4.0).round() as i32;
-    out.push_str(&format!(
-        "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-        x2, y2, l_x, l_y, r_x, r_y, color
-    ));
+    if x1 == x2 {
+        // Straight vertical arrow — no routing needed.
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x1, y1, x2, y2, color
+        ));
+        // Arrowhead pointing downward (or upward for back-edges).
+        let uy = if y2 >= y1 { 1.0f64 } else { -1.0f64 };
+        let base_y = y2 as f64 - uy * 8.0;
+        out.push_str(&format!(
+            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+            x2,
+            y2,
+            x2 - 4,
+            base_y.round() as i32,
+            x2 + 4,
+            base_y.round() as i32,
+            color
+        ));
+    } else {
+        // L-shaped orthogonal routing: down → across → down.
+        // mid_y is half-way between y1 and y2 on both sides.
+        let mid_y = y1 + (y2 - y1) / 2;
+        // Segment 1: x1, y1 → x1, mid_y
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x1, y1, x1, mid_y, color
+        ));
+        // Segment 2: x1, mid_y → x2, mid_y
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x1, mid_y, x2, mid_y, color
+        ));
+        // Segment 3: x2, mid_y → x2, y2
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x2, mid_y, x2, y2, color
+        ));
+        // Arrowhead at (x2, y2) pointing vertically (downward or upward).
+        let dy = y2 - mid_y;
+        let uy = if dy >= 0 { 1.0f64 } else { -1.0f64 };
+        let base_y = y2 as f64 - uy * 8.0;
+        out.push_str(&format!(
+            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+            x2,
+            y2,
+            x2 - 4,
+            base_y.round() as i32,
+            x2 + 4,
+            base_y.round() as i32,
+            color
+        ));
+    }
 }

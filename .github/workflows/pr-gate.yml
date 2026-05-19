@@ -225,7 +225,7 @@ jobs:
           cache-on-failure: true
 
       - name: docs examples drift gate
-        run: python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
+        run: python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
 
   site_smoke:
     name: site graph toggle smoke

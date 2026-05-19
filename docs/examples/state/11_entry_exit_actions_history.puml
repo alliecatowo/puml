@@ -1,0 +1,32 @@
+@startuml
+state "Connection Manager" as CM {
+  state Disconnected {
+    Disconnected : entry / clearCredentials()
+    Disconnected : exit / initSocket()
+  }
+  state Connecting {
+    Connecting : entry / startTimer(30s)
+    Connecting : do / sendHandshake()
+    Connecting : exit / stopTimer()
+  }
+  state Connected {
+    [H] --> Authenticated : resume
+    state Authenticated {
+      Authenticated : entry / subscribeChannels()
+      Authenticated : do / heartbeat()
+      Authenticated : exit / unsubscribeChannels()
+    }
+    state Degraded {
+      Degraded : entry / alertOps()
+      Degraded : do / attemptRecovery()
+    }
+    Authenticated --> Degraded : networkError
+    Degraded --> Authenticated : recoveryOk
+  }
+  Disconnected --> Connecting : connect()
+  Connecting --> Connected : handshakeOk
+  Connecting --> Disconnected : timeout
+  Connected --> Disconnected : disconnect()
+}
+[*] --> CM
+@enduml

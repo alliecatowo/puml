@@ -10,6 +10,45 @@ use crate::model::{
 };
 use crate::theme::{ClassStyle, ComponentStyle};
 
+/// Emit a centered SVG `<text>` element for a relation label.
+///
+/// Labels may contain `\n` after normalization merges multiple Rel() calls on
+/// the same source→target pair into a single coalesced label (#425).  Each
+/// logical line is emitted as a `<tspan>` so they stack visually instead of
+/// being run together as a single string of whitespace.
+fn relation_label_svg(x: i32, y: i32, label: &str, font_size: i32, fill: &str) -> String {
+    let lines: Vec<&str> = label.split('\n').collect();
+    if lines.len() <= 1 {
+        // Fast path – no newline, emit plain text element.
+        return format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">{}</text>",
+            x, y, font_size, escape_text(fill), escape_text(label)
+        );
+    }
+    // Multiline: emit one <tspan> per logical line, each shifted down by
+    // (font_size + 2) pixels so lines are clearly separated.
+    let line_h = font_size + 2;
+    let total_h = (lines.len() as i32 - 1) * line_h;
+    // Start above the anchor so the block is centred on y.
+    let start_y = y - total_h / 2;
+    let mut buf = format!(
+        "<text text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">",
+        font_size,
+        escape_text(fill)
+    );
+    for (i, line) in lines.iter().enumerate() {
+        let ty = start_y + (i as i32) * line_h;
+        buf.push_str(&format!(
+            "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
+            x,
+            ty,
+            escape_text(line)
+        ));
+    }
+    buf.push_str("</text>");
+    buf
+}
+
 /// Backwards-compatible alias for the family stub renderer. Now delegates to
 /// the real renderer.
 pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
@@ -389,9 +428,24 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     // Use the layout engine's canvas size as a floor for both dimensions.
     let gl_canvas_right = gl_result_class.canvas_width as i32;
     let gl_canvas_bottom = gl_result_class.canvas_height as i32;
+    // Extra right-margin to ensure edge labels placed to the right of the rightmost
+    // node are not clipped at the canvas boundary (#521). Use the longest label
+    // half-width as an additional right pad.
+    let max_label_half_w = document
+        .relations
+        .iter()
+        .map(|rel| {
+            rel.label
+                .as_ref()
+                .map(|l| ((l.chars().count() as i32) * 6 / 2).max(18))
+                .unwrap_or(0)
+        })
+        .max()
+        .unwrap_or(0);
+    let label_right_pad = max_label_half_w + margin_x;
     let svg_width = (margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap)
         .max(gl_canvas_right + margin_x)
-        .max(nodes_right + margin_x)
+        .max(nodes_right + label_right_pad)
         .max(groups_right + margin_x);
     let svg_height =
         (nodes_bottom.max(groups_bottom) + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
@@ -494,10 +548,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     {
         struct RawLabel {
             rel_idx: usize,
+            from_name: String,
             to_name: String,
             text: String,
             lx: i32,
             ly: i32,
+            /// Endpoint coords for fractional label placement along edge
+            x1: i32,
+            y1: i32,
+            x2: i32,
+            y2: i32,
         }
         let mut raw_labels: Vec<RawLabel> = Vec::new();
 
@@ -561,10 +621,15 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             };
             raw_labels.push(RawLabel {
                 rel_idx,
+                from_name,
                 to_name,
                 text: label_text.unwrap_or_default().to_string(),
                 lx,
                 ly,
+                x1,
+                y1,
+                x2,
+                y2,
             });
         }
 
@@ -609,6 +674,51 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             }
         }
 
+        // Source-based fan: when ≥ 2 labelled edges share the same source node
+        // (fan-out pattern such as API Gateway → 3 services) their labels pile up
+        // near the source port even though the targets differ (#706, #749).
+        // Place each label at a staggered fraction along its own edge so labels
+        // spread out along the respective arrows rather than stacking at one point.
+        // Fraction for edge i (0-indexed) of count n: f = 0.3 + (i / n) * 0.4
+        // giving a spread from 30% to 70% of the edge length.
+        let mut by_source: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, rl) in raw_labels.iter().enumerate() {
+            // Only consider edges not already handled by the target-based fan.
+            if !label_override.contains_key(&rl.rel_idx) {
+                by_source.entry(rl.from_name.clone()).or_default().push(i);
+            }
+        }
+        for group in by_source.values() {
+            if group.len() < 2 {
+                continue;
+            }
+            // Sort by raw_label index for determinism.
+            let mut sorted = group.clone();
+            sorted.sort_unstable();
+            let count = sorted.len();
+            for (slot, &raw_idx) in sorted.iter().enumerate() {
+                let rl = &raw_labels[raw_idx];
+                // Fractional position along the straight-line edge: 0.3 to 0.7
+                let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
+                let dx = rl.x2 - rl.x1;
+                let dy = rl.y2 - rl.y1;
+                let lx = rl.x1 + (dx as f64 * frac) as i32;
+                // Nudge vertically above the line
+                let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
+                // Side-nudge so label doesn't sit directly on the arrow shaft:
+                // for vertical-dominant edges push right, for horizontal push up.
+                let (lx, ly) = if dy.abs() > dx.abs() {
+                    (lx + 14, ly)
+                } else {
+                    (lx, ly - 2)
+                };
+                let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
+                let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
+                label_override.insert(rl.rel_idx, (lx, ly));
+            }
+        }
+
         // Additionally, cluster any remaining labels that are within
         // LABEL_CLUSTER_BAND px in y (same horizontal channel) and not yet
         // covered by the target-based fan.
@@ -620,7 +730,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             }
             let ly_i = raw_labels[i].ly;
             let found = y_clusters.iter().position(|cluster| {
-                let rep = raw_labels[*cluster.first().unwrap()].ly;
+                // cluster is always non-empty: it is seeded as vec![i] below.
+                let rep = cluster
+                    .first()
+                    .map(|&idx| raw_labels[idx].ly)
+                    .unwrap_or(ly_i);
                 (ly_i - rep).abs() <= LABEL_CLUSTER_BAND
             });
             match found {
@@ -658,6 +772,35 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             }
         }
     }
+
+    // Build a lateral-offset map for parallel edges (same unordered node pair).
+    // When multiple relations share the same from/to nodes, offset each by
+    // PARALLEL_EDGE_GAP * lane_index px perpendicular to the edge direction so
+    // they don't render on top of each other (#464, #471).
+    const PARALLEL_EDGE_GAP: i32 = 12;
+    // Map (canonical_from, canonical_to) → list of rel_idx in declaration order
+    let mut parallel_groups: std::collections::BTreeMap<(String, String), Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, rel) in document.relations.iter().enumerate() {
+        let (fn_, tn_, _) = normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+        let key = if fn_ <= tn_ { (fn_, tn_) } else { (tn_, fn_) };
+        parallel_groups.entry(key).or_default().push(i);
+    }
+    // rel_idx → signed lateral offset (px). Lane 0 gets 0, lane 1 gets +GAP, lane 2 gets −GAP, …
+    let mut parallel_offset: std::collections::BTreeMap<usize, i32> =
+        std::collections::BTreeMap::new();
+    for group in parallel_groups.values() {
+        if group.len() < 2 {
+            continue;
+        }
+        let n = group.len() as i32;
+        for (slot, &idx) in group.iter().enumerate() {
+            // Centre the fan: offsets are -floor(n/2)*GAP … +floor(n/2)*GAP
+            let lane = slot as i32 - n / 2;
+            parallel_offset.insert(idx, lane * PARALLEL_EDGE_GAP);
+        }
+    }
+
     // Render relations first so node rectangles cover endpoints
     for (rel_idx, relation) in document.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
@@ -688,6 +831,21 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             // Part of the layout engine refactor (#591, #590 epic).
             pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
+
+        // Lateral offset for parallel edges (#464, #471): shift perpendicular to
+        // the primary edge direction so overlapping edges fan apart visually.
+        let lat_offset = parallel_offset.get(&rel_idx).copied().unwrap_or(0);
+        // For a mostly-vertical edge the perpendicular direction is horizontal.
+        let edge_dx_raw = x2 - x1;
+        let edge_dy_raw = y2 - y1;
+        let (off_x, off_y) = if edge_dx_raw.abs() >= edge_dy_raw.abs() {
+            // Mostly horizontal → offset vertically
+            (0, lat_offset)
+        } else {
+            // Mostly vertical → offset horizontally
+            (lat_offset, 0)
+        };
+        let (x1, y1, x2, y2) = (x1 + off_x, y1 + off_y, x2 + off_x, y2 + off_y);
         let relation_color = relation
             .line_color
             .as_deref()
@@ -726,7 +884,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 .edge_paths
                 .get(&format!("r{rel_idx}"))
                 .filter(|p| p.len() >= 2)
-                .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+                .map(|p| {
+                    p.iter()
+                        .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
+                        .collect()
+                })
         } else {
             None
         };
@@ -751,7 +913,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 stroke_dash, visibility, direction_attr, markers
             ));
             // Label at midpoint of longest horizontal segment; fall back to
-            // overall polyline midpoint when no horizontal segment exists.
+            // the longest segment overall when no horizontal segment exists.
+            // The longest-segment midpoint is used for dependency labels
+            // (<<extend>>/<<include>>) so their de-collision spacing is preserved.
+            // For regular edge labels we use the overall endpoint midpoint to avoid
+            // the equal-length segment ambiguity (max_by_key picks last when tied)
+            // that placed labels near the arrowhead on straight vertical paths (fix #428).
             let longest_horiz = pts
                 .windows(2)
                 .filter(|seg| seg[0].1 == seg[1].1)
@@ -865,7 +1032,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
                 (ox, oy)
             } else if ortho_pts.is_some() {
-                (label_mx, label_my)
+                // Same perpendicular nudge as for regular edge labels so dependency
+                // labels (<<extend>>, <<include>>) don't sit on the arrow shaft.
+                if edge_dy.abs() > edge_dx.abs() {
+                    (label_mx + 14, label_my)
+                } else {
+                    (label_mx, label_my - 14)
+                }
             } else {
                 let dx = x2 - x1;
                 let dy = y2 - y1;
@@ -909,17 +1082,34 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             );
             let ly = (ly + pair_label_lane).max(margin_top + 10);
             let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
-            out.push_str(&format!(
-                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
-                member_color = class_style.member_color,
-                txt = escape_text(label)
+            out.push_str(&relation_label_svg(
+                lx,
+                ly,
+                label,
+                11,
+                &class_style.member_color,
             ));
         } else if let Some(label) = relation.label.as_deref() {
             // Use de-collided position from the pre-pass when available.
             let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
                 (ox, oy)
-            } else if ortho_pts.is_some() {
-                (label_mx, label_my)
+            } else if let Some(ref pts) = ortho_pts {
+                // For collinear paths (no horizontal segment, e.g. a straight vertical
+                // edge with a layout-engine waypoint), use the overall endpoint midpoint
+                // without any perpendicular nudge — the label belongs centered on the
+                // shaft, not offset to the side (fix #428).
+                // For true L/Z-shaped paths with a horizontal segment, nudge the label
+                // off the arrow shaft: vertical-dominant shifts right 14px, horizontal-
+                // dominant shifts up 14px.
+                let has_horiz = pts.windows(2).any(|seg| seg[0].1 == seg[1].1);
+                if !has_horiz {
+                    // Collinear (straight-through) path: center on shaft.
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                } else if edge_dy.abs() > edge_dx.abs() {
+                    (label_mx + 14, label_my)
+                } else {
+                    (label_mx, label_my - 14)
+                }
             } else {
                 let dx = x2 - x1;
                 let dy = y2 - y1;
@@ -963,10 +1153,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             );
             let ly = (ly + pair_label_lane).max(margin_top + 10);
             let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
-            out.push_str(&format!(
-                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
-                member_color = class_style.member_color,
-                txt = escape_text(label)
+            out.push_str(&relation_label_svg(
+                lx,
+                ly,
+                label,
+                11,
+                &class_style.member_color,
             ));
         }
     }
@@ -1669,6 +1861,13 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
         // Render members with visibility markers + modifier styling
         let show_members = !hide_empty_members || !node.members.is_empty();
         if show_members {
+            // Detect abstract/interface nodes so members can be rendered italic (fix #767)
+            let node_is_abstract = node
+                .members
+                .first()
+                .and_then(|m| builtin_type_stereotype_label(&m.text))
+                .map(|lbl| lbl == "\u{ab}abstract\u{bb}" || lbl == "\u{ab}interface\u{bb}")
+                .unwrap_or(false);
             let member_y_base =
                 layout.y + NODE_PADDING_Y + (layout.label_lines.len() as i32 * 18) + 4;
             for (midx, member) in node.members.iter().enumerate() {
@@ -1696,7 +1895,12 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
                             extra_style.push_str(" text-decoration=\"underline\"");
                         }
                     }
-                    Some(MemberModifier::Method) | None => {}
+                    Some(MemberModifier::Method) | None => {
+                        // Interface members are implicitly abstract — render in italic (fix #767)
+                        if node_is_abstract && !extra_style.contains("font-style") {
+                            extra_style.push_str(" font-style=\"italic\"");
+                        }
+                    }
                 }
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\"{}>{}</text>",
@@ -1993,8 +2197,21 @@ fn render_class_node(
     let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
     let title_font_size = class_style.font_size.unwrap_or(13);
     let member_font_size = title_font_size.saturating_sub(2).max(9);
+    // Determine the header fill colour.  For classes we also inspect the
+    // leading type-marker member so that enum / annotation / interface / abstract
+    // classes each get a visually distinct header (fix #769).
+    let builtin_type_marker = node
+        .members
+        .first()
+        .and_then(|m| builtin_type_stereotype_label(&m.text));
     let header_fill = match node.kind {
-        FamilyNodeKind::Class => class_style.header_color.as_str(),
+        FamilyNodeKind::Class => match builtin_type_marker {
+            Some("\u{ab}enumeration\u{bb}") => "#ffffcc", // lemon — PlantUML enum convention
+            Some("\u{ab}annotation\u{bb}") => "#fff0cc",  // warm amber for @annotation
+            Some("\u{ab}interface\u{bb}") => "#dae8fc",   // light blue for interface
+            Some("\u{ab}abstract\u{bb}") => "#f0e6ff",    // light lavender for abstract
+            _ => class_style.header_color.as_str(),
+        },
         FamilyNodeKind::Object => "#fef3c7",
         FamilyNodeKind::UseCase => "#dcfce7",
         _ => "#f1f5f9",
@@ -2185,15 +2402,26 @@ fn render_class_node(
     } else {
         ""
     };
+    // Italic name for abstract classes and interfaces (fix #767 — PlantUML UML convention)
+    let is_abstract_node = matches!(
+        builtin_type_marker,
+        Some("\u{ab}abstract\u{bb}") | Some("\u{ab}interface\u{bb}")
+    );
+    let name_font_style = if is_abstract_node {
+        " font-style=\"italic\""
+    } else {
+        ""
+    };
     let name_ty = y + effective_header_h - 9;
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}>{txt}</text>",
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
         ff = escape_text(font_family),
         fs = title_font_size,
         fc = escape_text(&class_style.font_color),
         tx = x + w / 2,
         ty = name_ty,
         td = text_decoration,
+        fi = name_font_style,
         txt = escape_text(&header_text)
     ));
 
@@ -2276,7 +2504,12 @@ fn render_class_node(
                     style_attrs.push_str(" text-decoration=\"underline\"");
                 }
             }
-            Some(MemberModifier::Method) | None => {}
+            Some(MemberModifier::Method) | None => {
+                // Interface members are implicitly abstract — render in italic (fix #767)
+                if is_abstract_node && !style_attrs.contains("font-style") {
+                    style_attrs.push_str(" font-style=\"italic\"");
+                }
+            }
         }
         // If no explicit visibility color, fall back to member_color from style
         let effective_color = if vis_sym.is_some() {
@@ -3204,6 +3437,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         y: i32,
         text: String,
         color: String,
+        from_name: String,
         to_name: String,
     }
     let mut pending_labels: Vec<PendingLabel> = Vec::new();
@@ -3355,13 +3589,27 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
-            if let Some(first) = orth_pts.first_mut() {
-                *first = (x1, y1);
-            }
-            if let Some(last) = orth_pts.last_mut() {
-                *last = (x2, y2);
-            }
             // ── Orthogonal polyline from layout engine ────────────────────────
+            // The layout engine (route_edges) computes precise port positions
+            // (bottom-center for downward edges, top-center for upward, etc.)
+            // that are correct for rectangular component nodes.
+            // Only override the first/last points for INTERFACE nodes (circles),
+            // whose circular port requires adjust_interface_anchor and differs
+            // from the layout engine's rectangular-box bottom/top-center.
+            // For regular rectangular nodes, pick_port's horizontal-dominant bias
+            // can disagree with the layout engine's top-to-bottom port assignment,
+            // producing a backward leftward segment that creates X-crossings
+            // between packages (issue #771).
+            if interface_nodes.contains(&from_name) {
+                if let Some(first) = orth_pts.first_mut() {
+                    *first = (x1, y1);
+                }
+            }
+            if interface_nodes.contains(&to_name) {
+                if let Some(last) = orth_pts.last_mut() {
+                    *last = (x2, y2);
+                }
+            }
             let pts_str: String = orth_pts
                 .iter()
                 .map(|(px, py)| format!("{px},{py}"))
@@ -3379,25 +3627,20 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             ));
 
             // Label at midpoint of the longest horizontal segment; fall back to
-            // the overall polyline midpoint when no horizontal segment exists.
+            // the overall endpoint midpoint when no horizontal segment exists.
+            // Using the overall endpoint midpoint avoids the equal-length segment
+            // ambiguity (max_by_key picks last when tied) that places labels near
+            // the arrowhead on straight vertical paths (fix #428).
             let longest_horiz = orth_pts
                 .windows(2)
                 .filter(|seg| seg[0].1 == seg[1].1)
                 .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
             let (lmx, lmy) = match longest_horiz {
                 Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                None => {
-                    // Fall back to midpoint of longest segment overall
-                    let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    });
-                    match longest_seg {
-                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-                    }
-                }
+                // No horizontal segment: use overall endpoint midpoint so that
+                // purely-vertical (or collinear multi-segment) paths keep their
+                // label centered on the shaft, not biased toward one segment.
+                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
             };
             label_mx = lmx;
             label_my = lmy;
@@ -3612,14 +3855,42 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 if target_is_deployment_data_store && label_segments.len() > 1 {
                     label_segments.pop();
                 }
-                let longest_seg = label_segments.into_iter().max_by_key(|seg| {
-                    let (ax, ay) = seg[0];
-                    let (bx, by_) = seg[1];
-                    (bx - ax).pow(2) + (by_ - ay).pow(2)
-                });
-                let (lmx, lmy) = match longest_seg {
-                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                    None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                // Compute longest segment (first occurrence, so equal-length ties
+                // pick the first/top segment rather than the last/terminal one).
+                // When all segments are equal length (collinear path through
+                // intermediate waypoints), use the overall endpoint midpoint to
+                // keep the label centered on the shaft (fix #428).
+                let max_sq_len = label_segments
+                    .iter()
+                    .map(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2)
+                    })
+                    .max()
+                    .unwrap_or(0);
+                let uniquely_longest = label_segments
+                    .iter()
+                    .filter(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
+                    })
+                    .count()
+                    == 1;
+                let (lmx, lmy) = if uniquely_longest {
+                    let seg = label_segments
+                        .into_iter()
+                        .find(|seg| {
+                            let (ax, ay) = seg[0];
+                            let (bx, by_) = seg[1];
+                            (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
+                        })
+                        .unwrap();
+                    ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
+                } else {
+                    // All segments equal or no segments: overall endpoint midpoint
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
                 };
                 label_mx = lmx;
                 label_my = lmy;
@@ -3647,6 +3918,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 y: label_my,
                 text: label_text.to_string(),
                 color: label_color.to_string(),
+                from_name: from_name.clone(),
                 to_name: to_name.clone(),
             });
         }
@@ -3792,6 +4064,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Final obstacle-clearance pass for relation labels. This catches solo
     // labels like usecase/02_with_actors where the routed midpoint can still
     // land inside a nearby node even after target-based fan-out.
+    // Note: we skip the edge's own source and target boxes — labels on an edge
+    // shaft naturally sit inside the bounding envelope of the endpoints and
+    // should not be pushed away from them (fix #428).
     const LABEL_CLEARANCE_X: i32 = 10;
     const LABEL_CLEARANCE_Y: i32 = 10;
     const LABEL_TEXT_HALF_HEIGHT: i32 = 8;
@@ -3804,23 +4079,36 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 && ly + 4 + LABEL_CLEARANCE_Y >= by
                 && ly - LABEL_TEXT_HALF_HEIGHT - LABEL_CLEARANCE_Y <= by + bh
         };
-    let label_overlaps_any = |lx: i32, ly: i32, text: &str| {
-        obstacle_boxes
-            .iter()
-            .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
-    };
-    for (lx, ly, text, _) in adjusted_labels.iter_mut().flatten() {
+    for (label_idx, entry) in adjusted_labels.iter_mut().enumerate() {
+        let (lx, ly, text, _) = match entry.as_mut() {
+            Some(e) => e,
+            None => continue,
+        };
         if text.is_empty() {
             continue;
         }
-        let max_passes = obstacle_boxes.len().max(1);
+        // Build the obstacle list for this label, excluding the edge's own
+        // source and target node boxes so the label stays on the shaft.
+        let from_box = positions.get(&pending_labels[label_idx].from_name).copied();
+        let to_box = positions.get(&pending_labels[label_idx].to_name).copied();
+        let edge_obstacles: Vec<(i32, i32, i32, i32)> = obstacle_boxes
+            .iter()
+            .copied()
+            .filter(|&b| Some(b) != from_box && Some(b) != to_box)
+            .collect();
+        let label_overlaps_any_edge = |lx: i32, ly: i32, text: &str| {
+            edge_obstacles
+                .iter()
+                .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
+        };
+        let max_passes = edge_obstacles.len().max(1);
         for _ in 0..max_passes {
-            if !label_overlaps_any(*lx, *ly, text) {
+            if !label_overlaps_any_edge(*lx, *ly, text) {
                 break;
             }
             let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
             let mut moved = false;
-            for &(bx, by, bw, bh) in &obstacle_boxes {
+            for &(bx, by, bw, bh) in &edge_obstacles {
                 if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) {
                     continue;
                 }
@@ -3832,7 +4120,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 ];
                 if let Some((next_x, next_y)) = candidates
                     .into_iter()
-                    .find(|&(cx, cy)| !label_overlaps_any(cx, cy, text))
+                    .find(|&(cx, cy)| !label_overlaps_any_edge(cx, cy, text))
                 {
                     *lx = next_x;
                     *ly = next_y;

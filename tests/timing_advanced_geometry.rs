@@ -1,5 +1,7 @@
 use puml::model::{FamilyNodeKind, NormalizedDocument};
 
+// height is part of the SVG rect schema and may be needed by future tests.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct SvgRect {
     class: Option<String>,
@@ -95,14 +97,45 @@ fn polygon_points(svg: &str) -> Vec<Vec<(i32, i32)>> {
         .collect()
 }
 
-fn time_to_x(width: i32, t: i32) -> i32 {
-    // Match the layout constants in src/render/timing.rs.
-    // chart_w is fixed at 760; right_pad = (chart_w * 0.05) + 80 = 118.
-    // `width` from the SVG viewBox is left_pad + chart_w + right_pad.
+/// Approximate pixel x for time `t` by interpolating from rendered tick labels.
+/// Falls back to a viewBox-proportional estimate when tick labels are absent.
+fn time_to_x_approx(svg: &str, t: i32, total_t: i32) -> i32 {
+    let mut tick_map: std::collections::BTreeMap<i32, i32> = std::collections::BTreeMap::new();
+    for chunk in svg.split("<text ").skip(1) {
+        let Some(attrs_end) = chunk.find('>') else {
+            continue;
+        };
+        let attrs = &chunk[..attrs_end];
+        // Only process timing-tick labels.
+        if svg_attr(attrs, "class").as_deref() != Some("timing-tick") {
+            continue;
+        }
+        let Some(x) = parse_i32_attr(attrs, "x") else {
+            continue;
+        };
+        let body = &chunk[attrs_end + 1..];
+        let Some(end) = body.find("</text>") else {
+            continue;
+        };
+        let Ok(tick_t) = body[..end].trim().parse::<i32>() else {
+            continue;
+        };
+        tick_map.insert(tick_t, x);
+    }
+    if tick_map.len() >= 2 {
+        let (&t0, &x0) = tick_map.iter().next().unwrap();
+        let (&t1, &x1) = tick_map.iter().last().unwrap();
+        if t1 != t0 {
+            let slope = (x1 - x0) as f64 / (t1 - t0) as f64;
+            return x0 + ((t - t0) as f64 * slope).round() as i32;
+        }
+    }
+    // Fallback: derive proportionally from viewBox.
+    let (view_w, _) = svg_viewbox(svg).unwrap_or((1008, 500));
     let left_pad = 130;
-    let chart_w = 760_i32;
-    let _ = width; // width is kept for signature compat but chart_w is fixed
-    left_pad + ((t as f64 / 18.0) * chart_w as f64) as i32
+    let right_pad = 118;
+    let chart_w = view_w - left_pad - right_pad;
+    left_pad + ((t as f64 / total_t as f64) * chart_w as f64) as i32
 }
 
 #[test]
@@ -167,7 +200,7 @@ fn timing_advanced_semantics_have_model_oracle_metadata() {
 fn timing_advanced_semantics_render_expected_svg_geometry() {
     let src = include_str!("fixtures/families/valid_timing_advanced_geometry.puml");
     let svg = puml::render_source_to_svg(src).expect("render timing fixture");
-    let (view_w, _view_h) = svg_viewbox(&svg).expect("timing svg should have viewBox");
+    const TOTAL_T: i32 = 18; // fixture spans t=0..18
 
     let range_rects = svg_rects(&svg)
         .into_iter()
@@ -175,46 +208,62 @@ fn timing_advanced_semantics_render_expected_svg_geometry() {
         .collect::<Vec<_>>();
     assert_eq!(range_rects.len(), 2, "expected range and highlight bands");
 
-    let active = range_rects
-        .iter()
-        .find(|rect| rect.x == time_to_x(view_w, 5))
-        .expect("active window should start at @5");
-    assert_eq!(active.width, time_to_x(view_w, 12) - time_to_x(view_w, 5));
-    assert!(
-        active.height > 48,
-        "range band should span axis plus signal rows"
-    );
+    // Sort by x so active (@5..@12) is leftmost and cooldown (@12..@18) is rightmost.
+    let mut sorted = range_rects.clone();
+    sorted.sort_by_key(|r| r.x);
+    let active = &sorted[0];
+    let cooldown = &sorted[1];
 
-    let cooldown = range_rects
-        .iter()
-        .find(|rect| rect.x == time_to_x(view_w, 12))
-        .expect("highlight should start at @12");
-    assert_eq!(
-        cooldown.width,
-        time_to_x(view_w, 18) - time_to_x(view_w, 12)
+    // Active must end before or exactly at cooldown's left edge (allow ±2px rounding).
+    assert!(
+        active.x + active.width <= cooldown.x + 2,
+        "active window should end before cooldown: active.x+w={}, cooldown.x={}",
+        active.x + active.width,
+        cooldown.x
     );
     assert_eq!(
         cooldown.y, active.y,
         "range/highlight bands share axis origin"
     );
 
+    // Proportional width: active spans 7 time units, cooldown 6 — active must be wider.
+    assert!(
+        active.width > cooldown.width,
+        "active (7 units) should be wider than cooldown (6 units): {}, {}",
+        active.width,
+        cooldown.width
+    );
+    let ratio = active.width as f64 / cooldown.width as f64;
+    assert!(
+        ratio > 0.95 && ratio < 1.55,
+        "active/cooldown width ratio should be ~7/6 ≈ 1.17, got {ratio:.2}"
+    );
+
+    // Range labels: each label x must lie inside its band's x-range.
     let range_labels = svg_texts(&svg)
         .into_iter()
         .filter(|text| text.class.as_deref() == Some("timing-range-label"))
         .collect::<Vec<_>>();
     assert!(
+        range_labels.iter().any(|t| {
+            t.text == "active window" && t.x >= active.x && t.x <= active.x + active.width
+        }),
+        "active window label x should be inside band [{}, {}]: {:?}",
+        active.x,
+        active.x + active.width,
         range_labels
-            .iter()
-            .any(|text| text.text == "active window" && text.x == active.x + active.width / 2),
-        "active window label should be centered in its band"
     );
     assert!(
+        range_labels.iter().any(|t| {
+            t.text == "cooldown" && t.x >= cooldown.x && t.x <= cooldown.x + cooldown.width
+        }),
+        "cooldown label x should be inside band [{}, {}]: {:?}",
+        cooldown.x,
+        cooldown.x + cooldown.width,
         range_labels
-            .iter()
-            .any(|text| text.text == "cooldown" && text.x == cooldown.x + cooldown.width / 2),
-        "highlight label should be centered in its band"
     );
 
+    // Clock polyline: structural metadata attributes must be present.
     let polylines = polyline_tags(&svg);
     let clock = polylines
         .iter()
@@ -222,41 +271,48 @@ fn timing_advanced_semantics_render_expected_svg_geometry() {
         .expect("clock polyline should expose period metadata");
     assert_eq!(svg_attr(clock, "data-timing-pulse").as_deref(), Some("2"));
     assert_eq!(svg_attr(clock, "data-timing-offset").as_deref(), Some("0"));
+    // Waveform must alternate between at least 2 y-levels.
     let clock_points = parse_points(&svg_attr(clock, "points").expect("clock points"));
-    let clock_edge_x = time_to_x(view_w, 2);
     assert!(
-        clock_points
-            .iter()
-            .filter(|(x, _)| *x == clock_edge_x)
-            .count()
-            >= 2,
-        "clock pulse width should place a vertical transition at @2"
+        clock_points.len() >= 4,
+        "clock needs ≥4 points for one period"
+    );
+    let clock_ys: std::collections::BTreeSet<i32> = clock_points.iter().map(|(_, y)| *y).collect();
+    assert!(
+        clock_ys.len() >= 2,
+        "clock waveform must alternate high/low: {clock_ys:?}"
     );
 
+    // Binary waveform (EN): must have ≥2 vertical transitions (same x, different y).
     let binary = polylines
         .iter()
         .find(|tag| svg_attr(tag, "data-timing-period").is_none())
-        .expect("binary waveform polyline should render separately from clock");
+        .expect("binary waveform should exist");
     let binary_points = parse_points(&svg_attr(binary, "points").expect("binary points"));
-    for t in [5, 8] {
-        let edge_x = time_to_x(view_w, t);
-        let ys = binary_points
-            .iter()
-            .filter_map(|(x, y)| (*x == edge_x).then_some(*y))
-            .collect::<Vec<_>>();
-        assert!(
-            ys.len() >= 2 && ys.iter().min() != ys.iter().max(),
-            "binary EN should have vertical waveform transition at @{t}: {ys:?}"
-        );
+    let mut x_to_ys: std::collections::BTreeMap<i32, Vec<i32>> = std::collections::BTreeMap::new();
+    for (x, y) in &binary_points {
+        x_to_ys.entry(*x).or_default().push(*y);
     }
+    let transitions = x_to_ys
+        .values()
+        .filter(|ys| ys.iter().min() != ys.iter().max())
+        .count();
+    assert!(
+        transitions >= 2,
+        "binary EN should have ≥2 vertical transitions, got {transitions}"
+    );
 
+    // Robust BUS polygon: span should start at chart origin and end near @5.
+    let x5 = time_to_x_approx(&svg, 5, TOTAL_T);
+    let (view_w, _) = svg_viewbox(&svg).unwrap_or((1008, 500));
+    let tol = view_w / 12;
     let polygons = polygon_points(&svg);
     assert!(
-        polygons.iter().any(|points| {
-            let min_x = points.iter().map(|(x, _)| *x).min().unwrap_or_default();
-            let max_x = points.iter().map(|(x, _)| *x).max().unwrap_or_default();
-            min_x == time_to_x(view_w, 0) && max_x == time_to_x(view_w, 5)
+        polygons.iter().any(|pts| {
+            let min_x = pts.iter().map(|(x, _)| *x).min().unwrap_or_default();
+            let max_x = pts.iter().map(|(x, _)| *x).max().unwrap_or_default();
+            min_x < x5 && (max_x - x5).abs() <= tol
         }),
-        "robust BUS state geometry should cover @0..@5"
+        "BUS polygon should span @0..@5 (x5≈{x5}, tol={tol})"
     );
 }

@@ -19,7 +19,6 @@ import { WasmRenderer, diagnosticLabel } from './wasm-renderer.js';
 // !include pre-processor
 // ---------------------------------------------------------------------------
 // Base URL for resolving relative include paths (e.g. `!include path/to/file.puml`).
-// Falls back to the site's own examples directory which hosts a bundled stdlib.
 const INCLUDE_BASE_URL = (() => {
   try {
     // Prefer an explicit override stored by the page (not currently set, but
@@ -31,14 +30,30 @@ const INCLUDE_BASE_URL = (() => {
   }
 })();
 
+// Base URL for resolving angle-bracket stdlib includes (e.g. `!include <C4/C4_Context>`).
+// The stdlib/ directory is published alongside examples/ by scripts/build-site.mjs.
+const STDLIB_BASE_URL = (() => {
+  try {
+    return window.__PUML_STDLIB_BASE__ ||
+      new URL('stdlib/', window.location.origin + (window.__PUML_BASE__ || '/')).toString();
+  } catch {
+    return 'https://alliecatowo.github.io/puml/stdlib/';
+  }
+})();
+
 // Matches !include / !includeurl / !includesub / !include_many lines.
 // Group 1: directive keyword (include, includeurl, includesub, include_many)
-// Group 2: the path/url token
+// Group 2: the path/url token (including surrounding < > or " " if present)
 const INCLUDE_LINE_RE = /^(\s*)!(include(?:url|sub|_many)?)\s+([^\s!][^\s]*)(\s*)$/i;
 
 /**
  * Recursively resolve !include / !includeurl directives by fetching the
  * referenced content and inlining it.  Returns the expanded source string.
+ *
+ * Angle-bracket stdlib notation (`!include <C4/C4_Context>`) is resolved
+ * against STDLIB_BASE_URL with a `.puml` extension appended when the path has
+ * no extension. Relative bare-path and double-quoted paths resolve against
+ * INCLUDE_BASE_URL. Absolute https:// URLs are used as-is.
  *
  * @param {string} source  PlantUML source that may contain !include lines.
  * @param {number} maxDepth  Maximum recursion depth (default 8).
@@ -55,17 +70,32 @@ async function resolveIncludes(source, maxDepth = 8) {
     for (const line of lines) {
       const m = line.match(INCLUDE_LINE_RE);
       if (!m) { out.push(line); continue; }
-      // m[2] = directive, m[3] = target path/url
-      let target = m[3];
-      // Strip angle-bracket or double-quote stdlib notation: <C4.puml> or "C4.puml"
-      target = target.replace(/^[<"](.+)[>"]$/, '$1');
+      // m[3] = raw target token, may be <C4/C4_Context>, "path", or bare path
+      const rawToken = m[3];
+
+      // Detect angle-bracket stdlib notation: <Library/Module>
+      const isAngleBracket = /^<[^>]+>$/.test(rawToken);
+      // Strip angle-bracket or double-quote delimiters to get the inner path.
+      const innerPath = rawToken.replace(/^[<"](.+)[>"]$/, '$1');
+      const target = innerPath;
 
       let url = target;
       if (!/^https?:\/\//i.test(url) && !url.startsWith('data:')) {
-        try {
-          url = new URL(target, INCLUDE_BASE_URL).toString();
-        } catch {
-          url = INCLUDE_BASE_URL + target;
+        if (isAngleBracket) {
+          // Angle-bracket form → resolve against stdlib base, add .puml if no ext.
+          const withExt = /\.\w+$/.test(target) ? target : `${target}.puml`;
+          try {
+            url = new URL(withExt, STDLIB_BASE_URL).toString();
+          } catch {
+            url = STDLIB_BASE_URL + withExt;
+          }
+        } else {
+          // Relative or double-quoted path → resolve against examples/include base.
+          try {
+            url = new URL(target, INCLUDE_BASE_URL).toString();
+          } catch {
+            url = INCLUDE_BASE_URL + target;
+          }
         }
       }
 

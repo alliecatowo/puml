@@ -29,6 +29,7 @@ pub use render::TextOutputMode;
 
 pub use scene::{LayoutOptions, Scene};
 use source::Span;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -131,6 +132,10 @@ pub struct ParsePipelineOptions {
     /// Default: false, so parsing never performs network IO or URL-addressed
     /// local file reads unless the caller opts in.
     pub allow_url_includes: bool,
+    /// Variables pre-injected before preprocessing begins (e.g. from CLI `-D`
+    /// flags). Keys are variable names; values are the string value. Variables
+    /// are available as `$KEY` in diagram source.
+    pub inject_vars: BTreeMap<String, String>,
 }
 
 impl Default for ParsePipelineOptions {
@@ -141,6 +146,7 @@ impl Default for ParsePipelineOptions {
             determinism: DeterminismMode::Strict,
             include_root: None,
             allow_url_includes: false,
+            inject_vars: BTreeMap::new(),
         }
     }
 }
@@ -203,6 +209,7 @@ fn interpret_parser_contract(
     Ok(parser::ParseOptions {
         include_root,
         allow_url_includes: options.allow_url_includes,
+        inject_vars: options.inject_vars.clone(),
     })
 }
 

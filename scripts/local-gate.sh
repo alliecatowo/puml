@@ -45,10 +45,10 @@ echo "[local-gate] changed-file coverage gate"
 ./scripts/coverage-changed.sh
 
 if command -v python3 >/dev/null 2>&1; then
-  echo "[local-gate] parity harness quick doc-drift check"
-  python3 ./scripts/parity_harness.py --quick --quiet --fail-on-doc-drift
+  echo "[local-gate] render check quick doc-drift check"
+  python3 ./scripts/render_check.py --quick --quiet --fail-on-doc-drift
 else
-  echo "[local-gate] python3 not found; skipping parity harness quick check"
+  echo "[local-gate] python3 not found; skipping render check"
 fi
 
 echo "[local-gate] strict gate complete"

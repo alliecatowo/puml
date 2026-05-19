@@ -1,13 +1,13 @@
 @startuml
 title Collection Hierarchy
-class Iterable {
+interface Iterable {
   +iterator()
 }
-class Collection {
+interface Collection {
   +add(e): boolean
   +size(): int
 }
-class List {
+interface List {
   +get(i: int)
 }
 class ArrayList {
@@ -15,7 +15,7 @@ class ArrayList {
   +get(i: int)
   +size(): int
 }
-Collection <|-- Iterable
-List <|-- Collection
-ArrayList <|-- List
+Iterable <|.. Collection
+Collection <|.. List
+List <|.. ArrayList
 @enduml

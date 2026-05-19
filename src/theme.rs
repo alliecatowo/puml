@@ -181,6 +181,9 @@ pub struct SequenceStyle {
     pub lifeline_border_color: String,
     pub participant_background_color: String,
     pub participant_border_color: String,
+    /// Explicit font color for participant header text. `None` means auto-detect
+    /// from the participant background (dark bg -> white, light bg -> black).
+    pub participant_font_color: Option<String>,
     pub note_background_color: String,
     pub note_border_color: String,
     pub group_background_color: String,
@@ -214,6 +217,11 @@ pub struct SequenceStyle {
     pub group_header_font_style: GroupHeaderFontStyle,
     /// Allow long message labels to span beyond the sender/receiver gap in teoz-style layouts.
     pub sequence_message_span: bool,
+    /// When `true`, arrows and lifelines are rendered with an SVG hand-drawn
+    /// (sketchy) filter so they appear wobbly/irregular instead of perfectly
+    /// straight. Set automatically for the `sketchy` and `sketchy-outline`
+    /// themes.
+    pub hand_drawn: bool,
 }
 
 /// Alignment of sequence message labels.
@@ -259,6 +267,7 @@ impl Default for SequenceStyle {
             lifeline_border_color: "#555".to_string(),
             participant_background_color: "#f6f6f6".to_string(),
             participant_border_color: "#111".to_string(),
+            participant_font_color: None,
             note_background_color: "#fff8c4".to_string(),
             note_border_color: "#111".to_string(),
             group_background_color: "#fafafa".to_string(),
@@ -280,8 +289,58 @@ impl Default for SequenceStyle {
             group_header_font_color: None,
             group_header_font_style: GroupHeaderFontStyle::Normal,
             sequence_message_span: false,
+            hand_drawn: false,
         }
     }
+}
+
+impl SequenceStyle {
+    /// Return the font color for participant header text.
+    /// Uses explicit `participant_font_color` if set; otherwise auto-detects from background luminance.
+    pub fn participant_font_color_resolved(&self) -> &str {
+        if let Some(ref c) = self.participant_font_color {
+            return c.as_str();
+        }
+        if hex_color_is_dark(&self.participant_background_color) {
+            "#ffffff"
+        } else {
+            "#111111"
+        }
+    }
+}
+
+/// Returns `true` when the hex color string represents a dark color (WCAG luminance < 0.179).
+pub fn hex_color_is_dark(hex: &str) -> bool {
+    let hex = hex.trim_start_matches('#');
+    let (r, g, b) = match hex.len() {
+        3 => {
+            let digits: Vec<u8> = hex
+                .chars()
+                .filter_map(|c| u8::from_str_radix(&c.to_string().repeat(2), 16).ok())
+                .collect();
+            if digits.len() != 3 {
+                return false;
+            }
+            (digits[0], digits[1], digits[2])
+        }
+        6 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(128);
+            let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(128);
+            let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(128);
+            (r, g, b)
+        }
+        _ => return false,
+    };
+    fn linearise(c: u8) -> f64 {
+        let s = c as f64 / 255.0;
+        if s <= 0.04045 {
+            s / 12.92
+        } else {
+            ((s + 0.055) / 1.055_f64).powf(2.4)
+        }
+    }
+    let lum = 0.2126 * linearise(r) + 0.7152 * linearise(g) + 0.0722 * linearise(b);
+    lum < 0.179
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -671,6 +730,7 @@ pub fn resolve_sequence_theme_preset(spec: &str) -> Result<SequenceThemePreset, 
                 note_border_color: "#555555".to_string(),
                 group_background_color: "#fafafa".to_string(),
                 group_border_color: "#777777".to_string(),
+                hand_drawn: true,
                 ..SequenceStyle::default()
             },
         }),
@@ -685,6 +745,7 @@ pub fn resolve_sequence_theme_preset(spec: &str) -> Result<SequenceThemePreset, 
                 note_border_color: "#555555".to_string(),
                 group_background_color: "#ffffff".to_string(),
                 group_border_color: "#777777".to_string(),
+                hand_drawn: true,
                 ..SequenceStyle::default()
             },
         }),

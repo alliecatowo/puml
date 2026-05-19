@@ -365,6 +365,15 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         }
     }
 
+    // `also` is the parallel-branch continuation keyword for `par` blocks,
+    // analogous to `else` in `alt` blocks (PlantUML parity — fixes #780).
+    if lower == "also" || lower.starts_with("also ") {
+        return Some(StatementKind::Group(Group {
+            kind: "also".to_string(),
+            label: Some(line[4..].trim().to_string()).filter(|s| !s.is_empty()),
+        }));
+    }
+
     if lower == "else" || lower.starts_with("else ") {
         return Some(StatementKind::Group(Group {
             kind: "else".to_string(),
