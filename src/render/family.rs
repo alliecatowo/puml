@@ -3698,9 +3698,22 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // above the top-rank nodes stays on canvas (the group bounds computation
     // subtracts group_padding + label_reserve above the minimum node y).
     let group_top_overhead = (pkg_pad + pkg_tab) as f64; // 24 + 40 = 64px (pkg_tab bumped)
+    // rank_separation: gap between the bottom of nodes in rank R and the top of
+    // nodes in rank R+1.  Package frames extend pkg_pad below/above their nodes
+    // and add label_reserve (40px) above the first node.  To keep visible
+    // whitespace between consecutive package frames we need:
+    //   rank_separation > 2 * pkg_pad + label_reserve  (= 88px)
+    // Use cell_h + inner_gap + 2*pkg_pad + label_reserve as a reasonable default
+    // so that adjacent package frames have at least inner_gap (40px) of breathing
+    // room between them.
+    let rank_sep = (cell_h + inner_gap) as f64 + 2.0 * pkg_pad as f64 + 40.0; // ~188px
+    // node_separation: horizontal gap between NODES in the same rank.  Package
+    // frames extend pkg_pad (24px) on each side, so a node_separation of 2*pkg_pad
+    // gives frames that just touch.  Add a visible inter-frame gutter on top.
+    let node_sep = 2 * pkg_pad + inner_gap; // 48 + 40 = 88px → ~40px gap between frames
     let gl_options = GlOptions {
-        rank_separation: (cell_h + inner_gap) as f64,
-        node_separation: inner_gap as f64,
+        rank_separation: rank_sep,
+        node_separation: node_sep as f64,
         group_padding: pkg_pad as f64,
         direction: crate::render::graph_layout::Direction::TopDown,
         canvas_margin: canvas_margin as f64 + header_h as f64 + group_top_overhead,
@@ -4009,34 +4022,35 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let fx = pkg.abs_x;
         let fy = pkg.abs_y;
 
-        // Tab rectangle (label background) — use scope for data-uml-group
-        let tab_w = ((pkg.label.len() as i32) * 8 + 16).max(60).min(fw);
+        // Draw the outer frame first (light fill, dark border, rounded corners)
         out.push_str(&format!(
             "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"#f8faff\" stroke=\"{}\" stroke-width=\"1.5\"/>",
             escape_text(&pkg.scope),
             comp_style.border_color
         ));
-        // Tab label background (small header rectangle at top-left)
+        // Full-width header band inset into the frame top.  The band uses
+        // rounded corners at the top-left and top-right (matching the outer
+        // frame), then flat square corners at the bottom via a cover rect.
+        // This makes the dark band look like an inset header, not a floating tab.
         out.push_str(&format!(
-            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            "<rect x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"none\"/>",
             pkg_tab,
             comp_style.border_color,
-            comp_style.border_color
         ));
-        // Flatten bottom corners of tab (cover the rounded bottom)
+        // Flatten only the bottom 8px of the header band (square the bottom corners)
         out.push_str(&format!(
-            "<rect x=\"{fx}\" y=\"{}\" width=\"{tab_w}\" height=\"8\" fill=\"{}\" stroke=\"none\"/>",
+            "<rect x=\"{fx}\" y=\"{}\" width=\"{fw}\" height=\"8\" fill=\"{}\" stroke=\"none\"/>",
             fy + pkg_tab - 8,
             comp_style.border_color
         ));
-        // Package label text in the tab (display label includes kind prefix)
+        // Package label text in the header band (left-aligned, vertically centred)
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#ffffff\">{}</text>",
             fx + 8,
             fy + pkg_tab - 8,
             escape_text(&pkg.label)
         ));
-        // Horizontal separator line between tab and content area
+        // Horizontal separator line between header band and content area
         out.push_str(&format!(
             "<line x1=\"{fx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
             fy + pkg_tab,
