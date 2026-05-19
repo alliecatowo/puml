@@ -351,12 +351,22 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 }
                 continue;
             } else {
-                out.push_str(&format!(
-                    "<line class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
-                    escape_text(&t.from), escape_text(&t.to),
-                    x1, y1, x2, y2,
-                    stroke, sw, dash, hidden, dir
-                ));
+                emit_state_orthogonal_path(
+                    &mut out,
+                    &t.from,
+                    &t.to,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    &StateEdgeStyle {
+                        stroke: &stroke,
+                        sw: sw as u32,
+                        dash,
+                        hidden,
+                        dir: &dir,
+                    },
+                );
             }
 
             if let Some(label) = &t.label {
@@ -800,6 +810,59 @@ fn adjust_fork_join_bar_widths<'a>(
             bar.x = center - width / 2;
         }
     }
+}
+
+/// SVG style attributes bundled together for the orthogonal-path emitter.
+struct StateEdgeStyle<'a> {
+    stroke: &'a str,
+    sw: u32,
+    dash: &'a str,
+    hidden: &'a str,
+    dir: &'a str,
+}
+
+/// Emit an SVG `<path>` element that routes a state transition orthogonally
+/// (L-shaped / Z-shaped elbow) rather than as a straight diagonal.
+///
+/// Routing rules (same logic as the activity renderer):
+/// - Same X or same Y: emit a straight line segment.
+/// - Otherwise: route via a symmetric mid-point bend
+///   `(x1,y1) → (x1,mid_y) → (x2,mid_y) → (x2,y2)`.
+///
+/// The path carries the same SVG attributes (stroke, stroke-width, dash, hidden,
+/// direction, data-* labels, marker-end) as the old `<line>` element.
+// Style attrs are already grouped into `StateEdgeStyle`; the remaining args are
+// the mandatory out-buffer, two name strings, and four coordinate scalars — there
+// is no meaningful grouping that would reduce the count further without obfuscating
+// the call sites.
+#[allow(clippy::too_many_arguments)]
+fn emit_state_orthogonal_path(
+    out: &mut String,
+    from_name: &str,
+    to_name: &str,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    style: &StateEdgeStyle<'_>,
+) {
+    let d = if x1 == x2 || y1 == y2 {
+        format!("M {x1} {y1} L {x2} {y2}")
+    } else {
+        let mid_y = y1 + (y2 - y1) / 2;
+        format!("M {x1} {y1} L {x1} {mid_y} L {x2} {mid_y} L {x2} {y2}")
+    };
+    out.push_str(&format!(
+        "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+        escape_text(from_name),
+        escape_text(to_name),
+        d,
+        style.stroke,
+        style.sw,
+        style.dash,
+        style.hidden,
+        style.dir
+    ));
 }
 
 /// Offset a line segment by `d` pixels perpendicular to its direction (to the right).
@@ -1394,12 +1457,22 @@ fn render_node<'a>(
                             }
                             continue;
                         } else {
-                            out.push_str(&format!(
-                                "<line class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
-                                escape_text(&t.from), escape_text(&t.to),
-                                x1, y1, x2, y2,
-                                stroke, sw, dash, hidden, dir
-                            ));
+                            emit_state_orthogonal_path(
+                                out,
+                                &t.from,
+                                &t.to,
+                                x1,
+                                y1,
+                                x2,
+                                y2,
+                                &StateEdgeStyle {
+                                    stroke: &stroke,
+                                    sw: sw as u32,
+                                    dash,
+                                    hidden,
+                                    dir: &dir,
+                                },
+                            );
                         }
                         if let Some(label) = &t.label {
                             let layout = place_state_transition_label(

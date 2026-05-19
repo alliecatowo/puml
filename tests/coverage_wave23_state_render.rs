@@ -154,36 +154,62 @@ fn concurrent_state_example_renders_vertical_divider_and_connected_outer_transit
         "divider should separate the two concurrent regions"
     );
 
+    // State transitions are now emitted as <path> elements (orthogonal routing).
+    // We look up the path by its data-state-from/to attributes and extract the
+    // start (x1,y1) and end (x2,y2) coordinates by parsing the first and last
+    // coordinate pairs in the SVG path `d` attribute.
+    fn path_coords(d: &str) -> (f64, f64, f64, f64) {
+        // Collect all numeric tokens (may be "M x y L x y ..." or "M x y L x1 y1 L x2 y2 L x3 y3")
+        let nums: Vec<f64> = d
+            .split_ascii_whitespace()
+            .filter_map(|tok| tok.parse::<f64>().ok())
+            .collect();
+        assert!(
+            nums.len() >= 4,
+            "expected at least two coordinate pairs in path d={d:?}"
+        );
+        let (x1, y1) = (nums[0], nums[1]);
+        let (x2, y2) = (nums[nums.len() - 2], nums[nums.len() - 1]);
+        (x1, y1, x2, y2)
+    }
+
     let start_transition = doc
-        .elements_with_attr("line", "data-state-from", "[*]")
+        .elements_with_attr("path", "data-state-from", "[*]")
         .into_iter()
-        .find(|line| line.attribute("data-state-to") == Some("Processing"))
+        .find(|p| p.attribute("data-state-to") == Some("Processing"))
         .expect("expected outer initial transition into Processing");
     let end_transition = doc
-        .elements_with_attr("line", "data-state-from", "Processing")
+        .elements_with_attr("path", "data-state-from", "Processing")
         .into_iter()
-        .find(|line| {
-            line.attribute("data-state-to")
+        .find(|p| {
+            p.attribute("data-state-to")
                 .is_some_and(|target| target == "[*]" || target.starts_with("[*]__end"))
         })
         .expect("expected outer exit transition from Processing");
 
+    let start_d = start_transition
+        .attribute("d")
+        .expect("start transition path should have d attribute");
+    let end_d = end_transition
+        .attribute("d")
+        .expect("end transition path should have d attribute");
+    let (_, _, st_x2, st_y2) = path_coords(start_d);
+    let (et_x1, et_y1, _, _) = path_coords(end_d);
+
     assert!(
-        f64_attr(start_transition, "x2") >= processing.x
-            && f64_attr(start_transition, "x2") <= processing.right(),
+        st_x2 >= processing.x && st_x2 <= processing.right(),
         "initial transition should terminate on the composite boundary"
     );
     assert!(
-        f64_attr(start_transition, "y2") <= processing.y + 1.0,
+        st_y2 <= processing.y + 1.0,
         "initial transition should connect to the top edge of the composite"
     );
     assert!(
-        f64_attr(end_transition, "x1") >= processing.x
-            && f64_attr(end_transition, "x1") <= processing.right(),
+        et_x1 >= processing.x && et_x1 <= processing.right(),
         "exit transition should originate on the composite boundary"
     );
     assert!(
-        f64_attr(end_transition, "y1") >= processing.bottom() - 1.0,
+        et_y1 >= processing.bottom() - 1.0,
         "exit transition should leave from the bottom edge of the composite"
     );
 }

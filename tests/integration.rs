@@ -6638,6 +6638,28 @@ fn state_svg_center_x(node: roxmltree::Node<'_, '_>) -> i32 {
     }
 }
 
+/// Extract start (x1,y1) and end (x2,y2) coordinates from a state transition `<path>`
+/// element. The `d` attribute has the form `M x y [L x y]*`.
+/// Returns (x1, y1, x2, y2) — the first and last coordinate pairs.
+fn state_path_endpoints(node: roxmltree::Node<'_, '_>) -> (i32, i32, i32, i32) {
+    let d = node
+        .attribute("d")
+        .unwrap_or_else(|| panic!("state transition path should have d attribute"));
+    let nums: Vec<i32> = d
+        .split_ascii_whitespace()
+        .filter_map(|tok| tok.parse::<i32>().ok())
+        .collect();
+    assert!(
+        nums.len() >= 4,
+        "state transition path d should have at least two coordinate pairs; d={d:?}"
+    );
+    let x1 = nums[0];
+    let y1 = nums[1];
+    let x2 = nums[nums.len() - 2];
+    let y2 = nums[nums.len() - 1];
+    (x1, y1, x2, y2)
+}
+
 #[test]
 fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_flow() {
     let src = fs::read_to_string("docs/examples/state/08_full_machine.puml").unwrap();
@@ -6665,10 +6687,11 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         );
     }
 
+    // State transitions are now <path> elements (orthogonal routing).
     let confirm_edge = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("Pending")
                 && node.attribute("data-state-to") == Some("fork1")
         })
@@ -6680,16 +6703,17 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         })
         .expect("Pending -> fork1 label should render");
     assert_eq!(confirm_label.attribute("data-state-label"), Some("confirm"));
+    let (confirm_x1, _, _, _) = state_path_endpoints(confirm_edge);
     assert_ne!(
         state_svg_attr_i32(confirm_label, "x"),
-        state_svg_attr_i32(confirm_edge, "x1"),
+        confirm_x1,
         "vertical edge label should be offset from the arrow shaft"
     );
 
     let instock_edge = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("choice1")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -6704,9 +6728,10 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         instock_label.attribute("data-state-label"),
         Some("in stock")
     );
+    let (instock_x1, _, _, _) = state_path_endpoints(instock_edge);
     assert_ne!(
         state_svg_attr_i32(instock_label, "x"),
-        state_svg_attr_i32(instock_edge, "x1"),
+        instock_x1,
         "branch label should be offset from the crossing arrow shaft"
     );
 
@@ -6749,10 +6774,11 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
         "join bar should span both task columns"
     );
 
+    // State transitions are now <path> elements (orthogonal routing).
     let fork_to_a = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("fork1")
                 && node.attribute("data-state-to") == Some("TaskA")
         })
@@ -6760,7 +6786,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let fork_to_b = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("fork1")
                 && node.attribute("data-state-to") == Some("TaskB")
         })
@@ -6768,7 +6794,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let task_a_to_join = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("TaskA")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -6776,7 +6802,7 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
     let task_b_to_join = doc
         .descendants()
         .find(|node| {
-            node.has_tag_name("line")
+            node.has_tag_name("path")
                 && node.attribute("data-state-from") == Some("TaskB")
                 && node.attribute("data-state-to") == Some("join1")
         })
@@ -6788,14 +6814,12 @@ fn state_fork_join_choice_example_keeps_parallel_branches_aligned() {
         (task_a_to_join, task_a_center, "TaskA -> join1"),
         (task_b_to_join, task_b_center, "TaskB -> join1"),
     ] {
+        // For fork/join edges the anchors share the same X, so the orthogonal router
+        // emits a straight segment: M x y1 L x y2 (x1 == x2 in the path).
+        let (ex1, _, ex2, _) = state_path_endpoints(edge);
+        assert_eq!(ex1, ex2, "{label} should stay vertical");
         assert_eq!(
-            state_svg_attr_i32(edge, "x1"),
-            state_svg_attr_i32(edge, "x2"),
-            "{label} should stay vertical"
-        );
-        assert_eq!(
-            state_svg_attr_i32(edge, "x1"),
-            expected_center,
+            ex1, expected_center,
             "{label} should align to its task column center"
         );
     }
