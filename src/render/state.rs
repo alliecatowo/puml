@@ -219,8 +219,15 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         .collect();
     let mut occupied_label_bounds: Vec<LabelBounds> = Vec::new();
 
-    // Draw transitions first (arrows behind nodes)
+    // Draw transitions first (arrows behind nodes).
+    // Intra-composite transitions (both endpoints inside the same composite) are
+    // deferred to render_node so they appear above the composite background rect.
     for t in transitions {
+        // Skip transitions where both endpoints are children inside composites —
+        // they will be drawn by render_node after the composite background is laid.
+        if child_node_names.contains(t.from.as_str()) && child_node_names.contains(t.to.as_str()) {
+            continue;
+        }
         let from_p = placed.get(&t.from);
         let to_p = placed.get(&t.to);
         if let (Some(fp), Some(tp)) = (from_p, to_p) {
@@ -346,6 +353,10 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 &placed,
                 &incoming,
                 &outgoing,
+                transitions,
+                &edge_set,
+                &node_kinds,
+                &mut occupied_label_bounds,
             );
         }
     }
@@ -1112,9 +1123,9 @@ fn state_direction_attr(direction: Option<&str>) -> String {
 
 /// Render a single state node (and its children recursively).
 #[allow(clippy::too_many_arguments)]
-fn render_node(
+fn render_node<'a>(
     out: &mut String,
-    node: &StateNode,
+    node: &'a StateNode,
     x: i32,
     y: i32,
     w: i32,
@@ -1125,6 +1136,10 @@ fn render_node(
     placed: &std::collections::BTreeMap<String, PlacedNode>,
     incoming: &std::collections::BTreeMap<&str, usize>,
     outgoing: &std::collections::BTreeMap<&str, usize>,
+    all_transitions: &'a [StateTransition],
+    edge_set: &std::collections::BTreeSet<(&'a str, &'a str)>,
+    node_kinds: &std::collections::BTreeMap<&'a str, &'a StateNodeKind>,
+    occupied_label_bounds: &mut Vec<LabelBounds>,
 ) {
     out.push_str(&format!(
         "<metadata data-state-node=\"{}\" data-state-kind=\"{}\"{} />",
@@ -1259,6 +1274,109 @@ fn render_node(
                     }
                 }
 
+                // Collect names of all direct children across all regions of this
+                // composite, so we can draw intra-composite transitions above the
+                // background rect but below child node boxes.
+                let child_names: std::collections::BTreeSet<&str> = node
+                    .regions
+                    .iter()
+                    .flat_map(|r| r.iter())
+                    .map(|c| c.name.as_str())
+                    .collect();
+
+                // Draw intra-composite transitions (both endpoints are direct children).
+                // These were skipped in the outer transition loop so they appear above
+                // the composite background rect rather than hidden behind it.
+                for t in all_transitions {
+                    if !child_names.contains(t.from.as_str())
+                        || !child_names.contains(t.to.as_str())
+                    {
+                        continue;
+                    }
+                    let from_p = placed.get(&t.from);
+                    let to_p = placed.get(&t.to);
+                    if let (Some(fp), Some(tp)) = (from_p, to_p) {
+                        let has_reverse =
+                            t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+                        let (x1, y1, x2, y2) = edge_anchors_for_kinds(
+                            node_kinds.get(t.from.as_str()).copied(),
+                            fp,
+                            node_kinds.get(t.to.as_str()).copied(),
+                            tp,
+                        );
+                        let stroke = escape_text(
+                            t.line_color.as_deref().unwrap_or(&state_style.arrow_color),
+                        );
+                        let sw = t.thickness.unwrap_or(2).clamp(1, 8);
+                        let dash = state_dash_attr(t.dashed);
+                        let hidden = state_hidden_attr(t.hidden);
+                        let dir = state_direction_attr(t.direction.as_deref());
+
+                        if t.from == t.to {
+                            let cpx = x1 + 18;
+                            let cpy = y1 - 14;
+                            out.push_str(&format!(
+                                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
+                            ));
+                        } else if has_reverse {
+                            let (ox1, oy1, ox2, oy2) = offset_parallel_edge(x1, y1, x2, y2, 10);
+                            let cpx = (ox1 + ox2) / 2;
+                            let cpy = (oy1 + oy2) / 2;
+                            out.push_str(&format!(
+                                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {} {} Q {} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                escape_text(&t.from), escape_text(&t.to),
+                                ox1, oy1, cpx, cpy, ox2, oy2,
+                                stroke, sw, dash, hidden, dir
+                            ));
+                            if let Some(label) = &t.label {
+                                let layout = place_state_transition_label(
+                                    label,
+                                    ox1,
+                                    oy1,
+                                    ox2,
+                                    oy2,
+                                    placed,
+                                    occupied_label_bounds,
+                                );
+                                render_state_transition_label(
+                                    out,
+                                    &layout,
+                                    label,
+                                    &state_style.font_color,
+                                );
+                                occupied_label_bounds.push(layout.bounds);
+                            }
+                            continue;
+                        } else {
+                            out.push_str(&format!(
+                                "<line class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                escape_text(&t.from), escape_text(&t.to),
+                                x1, y1, x2, y2,
+                                stroke, sw, dash, hidden, dir
+                            ));
+                        }
+                        if let Some(label) = &t.label {
+                            let layout = place_state_transition_label(
+                                label,
+                                x1,
+                                y1,
+                                x2,
+                                y2,
+                                placed,
+                                occupied_label_bounds,
+                            );
+                            render_state_transition_label(
+                                out,
+                                &layout,
+                                label,
+                                &state_style.font_color,
+                            );
+                            occupied_label_bounds.push(layout.bounds);
+                        }
+                    }
+                }
+
                 // Draw children recursively
                 for region in &node.regions {
                     for child in region {
@@ -1278,6 +1396,10 @@ fn render_node(
                                 placed,
                                 incoming,
                                 outgoing,
+                                all_transitions,
+                                edge_set,
+                                node_kinds,
+                                occupied_label_bounds,
                             );
                         }
                     }
