@@ -1,7 +1,6 @@
 use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 use super::relation::{
-    arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
-    render_relation_marker_defs, render_relation_marker_defs_with_prefix, usecase_dependency_label,
+    normalize_relation_endpoints, render_relation_marker_defs, usecase_dependency_label,
 };
 use super::svg::{escape_text, render_actor_stick_figure};
 use crate::ast::MemberModifier;
@@ -222,7 +221,10 @@ fn class_run_layout(
     title_block_height: i32,
     group_top_reserve: i32,
     header_height: i32,
-) -> (crate::render::graph_layout::GraphLayout, std::collections::BTreeMap<String, ClassNodeBox>) {
+) -> (
+    crate::render::graph_layout::GraphLayout,
+    std::collections::BTreeMap<String, ClassNodeBox>,
+) {
     use crate::render::graph_layout::{
         layout_hierarchical, EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions,
         NodeSize as GlNodeSize,
@@ -263,20 +265,31 @@ fn class_run_layout(
     let mut gl_name_to_id: std::collections::BTreeMap<String, String> =
         std::collections::BTreeMap::new();
     for n in &gl_nodes {
-        gl_name_to_id.entry(n.id.clone()).or_insert_with(|| n.id.clone());
+        gl_name_to_id
+            .entry(n.id.clone())
+            .or_insert_with(|| n.id.clone());
         if let Some(tail) = n.id.rsplit("::").next() {
-            gl_name_to_id.entry(tail.to_string()).or_insert_with(|| n.id.clone());
+            gl_name_to_id
+                .entry(tail.to_string())
+                .or_insert_with(|| n.id.clone());
         }
     }
     for node in &document.nodes {
         if let Some(alias) = &node.alias {
             let scoped = node.alias.clone().unwrap_or_else(|| node.name.clone());
-            gl_name_to_id.entry(alias.clone()).or_insert_with(|| scoped.clone());
-            gl_name_to_id.entry(node.name.clone()).or_insert_with(|| scoped);
+            gl_name_to_id
+                .entry(alias.clone())
+                .or_insert_with(|| scoped.clone());
+            gl_name_to_id
+                .entry(node.name.clone())
+                .or_insert_with(|| scoped);
         }
     }
     let resolve_gl = |name: &str| -> String {
-        gl_name_to_id.get(name).cloned().unwrap_or_else(|| name.to_string())
+        gl_name_to_id
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
     };
 
     let gl_edges: Vec<GlEdgeSpec> = document
@@ -370,6 +383,7 @@ struct ClassCanvasMetrics {
 /// Derives the canvas width/height from the bounding boxes of laid-out nodes,
 /// group frames, and the layout engine floor values.  Also computes the total
 /// projection extra height so the SVG is tall enough to include them.
+#[allow(clippy::too_many_arguments)] // All 13 args are distinct canvas metrics; a struct would add churn without clarity
 fn class_compute_canvas(
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
     group_frames: &[RenderGroupFrame],
@@ -452,7 +466,11 @@ fn class_compute_canvas(
     let svg_height =
         (nodes_bottom.max(groups_bottom) + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
 
-    ClassCanvasMetrics { svg_width, svg_height, nodes_bottom }
+    ClassCanvasMetrics {
+        svg_width,
+        svg_height,
+        nodes_bottom,
+    }
 }
 
 /// Context passed to `render_class_relations` — groups the many read-only
@@ -478,11 +496,11 @@ struct ClassRelationCtx<'a> {
 /// dependency, regular, cardinality, and role labels for each relation.
 /// Nodes are rendered after this call so they visually cover edge endpoints.
 fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
+    use super::geometry::{compute_edge_anchors_for_direction, pick_port};
     use super::relation::{
         arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
         usecase_dependency_label,
     };
-    use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 
     for (rel_idx, relation) in ctx.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
@@ -520,10 +538,7 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
             (lat_offset, 0)
         };
         let (x1, y1, x2, y2) = (x1 + off_x, y1 + off_y, x2 + off_x, y2 + off_y);
-        let relation_color = relation
-            .line_color
-            .as_deref()
-            .unwrap_or(ctx.arrow_stroke);
+        let relation_color = relation.line_color.as_deref().unwrap_or(ctx.arrow_stroke);
         let stroke_width = relation.thickness.unwrap_or(2).clamp(1, 8);
         let stroke_dash = if style.dashed || relation.dashed {
             " stroke-dasharray=\"5 3\""
@@ -677,8 +692,7 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                     .get(&rel_idx)
                     .copied()
                     .unwrap_or((label_mx, label_my));
-                let sy =
-                    base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
+                let sy = base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
                 out.push_str(&format!(
                     "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
                     member_color = ctx.class_style.member_color,
@@ -938,7 +952,12 @@ fn class_build_label_overrides(
         for &raw_idx in &sorted {
             let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
             let center_offset = cursor + label_half_w;
-            let anchor = class_nudge_label_y(anchor_cx + center_offset, anchor_y, label_half_w, node_boxes);
+            let anchor = class_nudge_label_y(
+                anchor_cx + center_offset,
+                anchor_y,
+                label_half_w,
+                node_boxes,
+            );
             label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
             cursor += label_half_w * 2 + LABEL_FAN_GAP;
         }
@@ -966,7 +985,11 @@ fn class_build_label_overrides(
             let dy = rl.y2 - rl.y1;
             let lx = rl.x1 + (dx as f64 * frac) as i32;
             let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
-            let (lx, ly) = if dy.abs() > dx.abs() { (lx + 14, ly) } else { (lx, ly - 2) };
+            let (lx, ly) = if dy.abs() > dx.abs() {
+                (lx + 14, ly)
+            } else {
+                (lx, ly - 2)
+            };
             let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, node_boxes);
             label_override.insert(rl.rel_idx, (lx, ly));
@@ -996,8 +1019,7 @@ fn class_build_label_overrides(
         if cluster.len() < 2 {
             continue;
         }
-        let mean_x =
-            cluster.iter().map(|&i| raw_labels[i].lx).sum::<i32>() / cluster.len() as i32;
+        let mean_x = cluster.iter().map(|&i| raw_labels[i].lx).sum::<i32>() / cluster.len() as i32;
         let mut sorted = cluster.clone();
         sorted.sort_by_key(|&i| raw_labels[i].lx);
         let n = sorted.len() as i32;
@@ -2882,6 +2904,7 @@ struct BoxGridPendingLabel {
 /// falling back to an L/Z-shape collision-avoidance router.  Labels are
 /// gathered into a pending list and de-collided before emission.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)] // pkg_frame_boxes pairs a rect tuple with its member names; a named struct would be overkill for an internal helper
 fn render_box_grid_relations_and_labels(
     out: &mut String,
     doc: &FamilyDocument,
@@ -2893,11 +2916,11 @@ fn render_box_grid_relations_and_labels(
     edge_paths: &std::collections::BTreeMap<String, Vec<(f64, f64)>>,
     comp_style: &ComponentStyle,
 ) {
+    use super::geometry::{compute_edge_anchors_for_direction, pick_port};
     use super::relation::{
         arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
         render_relation_marker_defs_with_prefix, usecase_dependency_label,
     };
-    use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 
     let mut pending_labels: Vec<BoxGridPendingLabel> = Vec::new();
 
@@ -2914,9 +2937,23 @@ fn render_box_grid_relations_and_labels(
             let dx = other_cx - cx;
             let dy = other_cy - cy;
             if dx.abs() >= dy.abs() {
-                (cx + if dx >= 0 { INTERFACE_RADIUS } else { -INTERFACE_RADIUS }, cy)
+                (
+                    cx + if dx >= 0 {
+                        INTERFACE_RADIUS
+                    } else {
+                        -INTERFACE_RADIUS
+                    },
+                    cy,
+                )
             } else {
-                (cx, cy + if dy >= 0 { INTERFACE_RADIUS } else { -INTERFACE_RADIUS })
+                (
+                    cx,
+                    cy + if dy >= 0 {
+                        INTERFACE_RADIUS
+                    } else {
+                        -INTERFACE_RADIUS
+                    },
+                )
             }
         };
 
@@ -2958,8 +2995,16 @@ fn render_box_grid_relations_and_labels(
             String::new()
         };
         let stroke_width = rel.thickness.unwrap_or(2).clamp(1, 8);
-        let dash_attr = if style.dashed || rel.dashed { " stroke-dasharray=\"5 3\"" } else { "" };
-        let visibility_attr = if rel.hidden { " visibility=\"hidden\"" } else { "" };
+        let dash_attr = if style.dashed || rel.dashed {
+            " stroke-dasharray=\"5 3\""
+        } else {
+            ""
+        };
+        let visibility_attr = if rel.hidden {
+            " visibility=\"hidden\""
+        } else {
+            ""
+        };
         let mut markers = String::new();
         if let Some(end) = style.end_marker {
             markers.push_str(&format!(" marker-end=\"url(#{marker_prefix}{end})\""));
@@ -3010,13 +3055,34 @@ fn render_box_grid_relations_and_labels(
         };
 
         if let Some(mut orth_pts) = ortho_path {
-            // Only override port for interface circle nodes; rectangular nodes
-            // trust the layout engine's computed ports to avoid X-crossings (#771).
-            if interface_nodes.contains(&from_name) {
-                if let Some(first) = orth_pts.first_mut() { *first = (x1, y1); }
+            // Snap the path endpoints to the actual pick_port anchors.
+            // This ensures arrows attach to the correct box edge.
+            // Also snap the adjacent intermediate waypoints' x-coordinate so
+            // the first and last path segments remain vertical (orthogonal),
+            // preventing diagonal segments when the anchor x differs from
+            // the graph_layout-computed port x.
+            //
+            // For a downward path with n≥3 points:
+            //   [0] → snap to (x1, y1); [1].x → x1 (vertical exit from src)
+            //   [n-1] → snap to (x2, y2); [n-2].x → x2 (vertical entry to tgt)
+            if let Some(first) = orth_pts.first_mut() {
+                *first = (x1, y1);
             }
-            if interface_nodes.contains(&to_name) {
-                if let Some(last) = orth_pts.last_mut() { *last = (x2, y2); }
+            if let Some(last) = orth_pts.last_mut() {
+                *last = (x2, y2);
+            }
+            let n = orth_pts.len();
+            if n >= 3 {
+                // Snap the second point's x to x1 so the exit segment from
+                // the source is vertical (orthogonal from the snapped endpoint).
+                orth_pts[1].0 = x1;
+                // Snap the penultimate point's x to x2 so the entry segment
+                // into the target is also vertical.  For 3-point paths this is
+                // the same element as index 1, so only update when n > 3 to
+                // avoid overwriting the x1-snap above.
+                if n > 3 {
+                    orth_pts[n - 2].0 = x2;
+                }
             }
             let pts_str: String = orth_pts
                 .iter()
@@ -3056,8 +3122,7 @@ fn render_box_grid_relations_and_labels(
                 false
             } else {
                 all_boxes.iter().any(|&(bx, by, bw, bh)| {
-                    if (bx, by, bw, bh) == (fx, fy, fw, fh)
-                        || (bx, by, bw, bh) == (tx, ty, tw, th)
+                    if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th)
                     {
                         return false;
                     }
@@ -3098,9 +3163,17 @@ fn render_box_grid_relations_and_labels(
                     (tx, ty, tw, th),
                 );
                 let (l_pts, l_col) = if dx_abs >= dy_abs {
-                    if vh_col <= hv_col { (&vh_pts[..], vh_col) } else { (&hv_pts[..], hv_col) }
+                    if vh_col <= hv_col {
+                        (&vh_pts[..], vh_col)
+                    } else {
+                        (&hv_pts[..], hv_col)
+                    }
                 } else {
-                    if hv_col <= vh_col { (&hv_pts[..], hv_col) } else { (&vh_pts[..], vh_col) }
+                    if hv_col <= vh_col {
+                        (&hv_pts[..], hv_col)
+                    } else {
+                        (&vh_pts[..], vh_col)
+                    }
                 };
                 let blocking: Vec<(i32, i32, i32, i32)> = if l_col > 0 {
                     rel_obstacles
@@ -3144,7 +3217,9 @@ fn render_box_grid_relations_and_labels(
                         let z4: Vec<(i32, i32)> =
                             vec![(x1, y1), (x1, wy), (wx, wy), (wx, y2), (x2, y2)];
                         for cand in [&z1, &z2, &z3, &z4] {
-                            if cand.len() > 5 { continue; }
+                            if cand.len() > 5 {
+                                continue;
+                            }
                             let c = count_polyline_collisions(
                                 cand,
                                 &rel_obstacles,
@@ -3154,7 +3229,9 @@ fn render_box_grid_relations_and_labels(
                             if c < best_col {
                                 best_col = c;
                                 best = Some(cand.clone());
-                                if c == 0 { break 'waypoint_loop; }
+                                if c == 0 {
+                                    break 'waypoint_loop;
+                                }
                             }
                         }
                     }
@@ -3291,7 +3368,9 @@ fn render_box_grid_relations_and_labels(
     // Fan labels that target the same node horizontally above that node.
     for (to_name, indices) in &by_target {
         let count = indices.len() as i32;
-        if count < 2 { continue; }
+        if count < 2 {
+            continue;
+        }
         let (anchor_cx, anchor_y) = match positions.get(to_name.as_str()) {
             Some(&(tx, ty, tw, _)) => (tx + tw / 2, ty - 28),
             None => {
@@ -3316,7 +3395,9 @@ fn render_box_grid_relations_and_labels(
     // Fan remaining labels in the same y-band horizontally.
     let mut y_clusters: Vec<Vec<usize>> = Vec::new();
     for (i, label) in pending_labels.iter().enumerate() {
-        if adjusted_labels[i].is_some() { continue; }
+        if adjusted_labels[i].is_some() {
+            continue;
+        }
         let found = y_clusters.iter().position(|cluster| {
             let rep = pending_labels[*cluster.first().expect("non-empty cluster")].y;
             (label.y - rep).abs() <= LABEL_CLUSTER_BAND
@@ -3336,11 +3417,11 @@ fn render_box_grid_relations_and_labels(
                 let right = &pending_labels[pair[1]];
                 let left_half_w = ((left.text.chars().count() as i32) * 7 + 2) / 2;
                 let right_half_w = ((right.text.chars().count() as i32) * 7 + 2) / 2;
-                left.x + left_half_w + LABEL_CLEARANCE_X >= right.x - right_half_w - LABEL_CLEARANCE_X
+                left.x + left_half_w + LABEL_CLEARANCE_X
+                    >= right.x - right_half_w - LABEL_CLEARANCE_X
             });
             if labels_overlap {
-                let mean_x =
-                    sorted_idx.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
+                let mean_x = sorted_idx.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
                 for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
                     let offset =
                         (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
@@ -3386,7 +3467,9 @@ fn render_box_grid_relations_and_labels(
             Some(e) => e,
             None => continue,
         };
-        if text.is_empty() { continue; }
+        if text.is_empty() {
+            continue;
+        }
         let from_box = positions.get(&pending_labels[label_idx].from_name).copied();
         let to_box = positions.get(&pending_labels[label_idx].to_name).copied();
         let edge_obstacles: Vec<(i32, i32, i32, i32)> = obstacle_boxes
@@ -3395,22 +3478,29 @@ fn render_box_grid_relations_and_labels(
             .filter(|&b| Some(b) != from_box && Some(b) != to_box)
             .collect();
         let label_overlaps_any = |lx: i32, ly: i32, text: &str| {
-            edge_obstacles.iter().any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
+            edge_obstacles
+                .iter()
+                .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
         };
         for _ in 0..edge_obstacles.len().max(1) {
-            if !label_overlaps_any(*lx, *ly, text) { break; }
+            if !label_overlaps_any(*lx, *ly, text) {
+                break;
+            }
             let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
             let mut moved = false;
             for &(bx, by, bw, bh) in &edge_obstacles {
-                if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) { continue; }
+                if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) {
+                    continue;
+                }
                 let candidates = [
                     (*lx, by - 14),
                     (*lx, by + bh + 18),
                     (bx - half_w - 12, *ly),
                     (bx + bw + half_w + 12, *ly),
                 ];
-                if let Some((next_x, next_y)) =
-                    candidates.into_iter().find(|&(cx, cy)| !label_overlaps_any(cx, cy, text))
+                if let Some((next_x, next_y)) = candidates
+                    .into_iter()
+                    .find(|&(cx, cy)| !label_overlaps_any(cx, cy, text))
                 {
                     *lx = next_x;
                     *ly = next_y;
@@ -3420,7 +3510,9 @@ fn render_box_grid_relations_and_labels(
                 moved = true;
                 break;
             }
-            if !moved { break; }
+            if !moved {
+                break;
+            }
         }
     }
 
