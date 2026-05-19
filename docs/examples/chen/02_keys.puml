@@ -1,0 +1,19 @@
+@startchen
+title Employee Department Model
+
+entity Employee {
+  key EmployeeID
+  Name
+  derived Age
+  multivalued Skills
+}
+
+entity Department {
+  key DeptID
+  DeptName
+}
+
+relationship WorksIn {
+  Employee -> Department [N:1]
+}
+@endchen

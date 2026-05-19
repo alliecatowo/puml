@@ -32,6 +32,7 @@ pub enum DiagramKind {
     Sdl,
     Ditaa,
     Chart,
+    Chen,
     Unknown,
 }
 
@@ -174,6 +175,10 @@ pub enum StatementKind {
     SaltGridRow {
         cells: Vec<SaltCell>,
     },
+    /// Chen/EER entity declaration: `entity Name { ... }`
+    ChenEntityDecl(ChenEntityDecl),
+    /// Chen/EER relationship declaration: `relationship Name { e1 -> e2 [cardinality] }`
+    ChenRelationshipDecl(ChenRelationshipDecl),
     Unknown(String),
 }
 
@@ -424,4 +429,54 @@ pub enum NoteKind {
 pub struct Group {
     pub kind: String,
     pub label: Option<String>,
+}
+
+// ─── Chen/EER diagram AST ────────────────────────────────────────────────────
+
+/// A single attribute on a Chen entity.
+#[derive(Debug, Clone)]
+pub struct ChenAttribute {
+    /// Attribute name.
+    pub name: String,
+    /// True when this attribute is a primary key (underlined in the diagram).
+    pub is_key: bool,
+    /// True when this is a multivalued attribute (double oval in standard Chen).
+    pub is_multivalued: bool,
+    /// True when this is a derived attribute (dashed oval in standard Chen).
+    pub is_derived: bool,
+}
+
+/// A Chen/EER entity: `entity Name { ... }` with optional attribute block.
+#[derive(Debug, Clone)]
+pub struct ChenEntityDecl {
+    pub name: String,
+    /// True for weak entities (rendered with double rectangle).
+    pub is_weak: bool,
+    pub attributes: Vec<ChenAttribute>,
+}
+
+/// A participation constraint on one side of a relationship.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChenCardinality {
+    One,
+    Many,
+    ZeroOrOne,
+    ZeroOrMany,
+}
+
+/// One participant entry inside a relationship block.
+#[derive(Debug, Clone)]
+pub struct ChenParticipant {
+    pub entity: String,
+    pub cardinality: Option<ChenCardinality>,
+}
+
+/// A Chen/EER relationship: `relationship Name { e1 -> e2 [1:N] }`
+#[derive(Debug, Clone)]
+pub struct ChenRelationshipDecl {
+    pub name: String,
+    /// True for identifying relationships (double diamond).
+    pub is_identifying: bool,
+    pub participants: Vec<ChenParticipant>,
+    pub attributes: Vec<ChenAttribute>,
 }

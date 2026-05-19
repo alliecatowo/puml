@@ -716,7 +716,9 @@ pub(super) fn normalize_with_options(
             | StatementKind::ClassGroup { .. }
             | StatementKind::JsonProjection { .. }
             | StatementKind::YamlProjection { .. }
-            | StatementKind::SaltGridRow { .. } => {
+            | StatementKind::SaltGridRow { .. }
+            | StatementKind::ChenEntityDecl(_)
+            | StatementKind::ChenRelationshipDecl(_) => {
                 return Err(Diagnostic::error(
                     "[E_FAMILY_MIXED] mixed diagram families are not supported in one document",
                 )

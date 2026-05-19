@@ -1,0 +1,28 @@
+@startchen
+title Library Management
+
+entity Book {
+  key ISBN
+  Title
+  Year
+}
+
+entity Author {
+  key AuthorID
+  Name
+}
+
+entity Member {
+  key MemberID
+  Name
+  Email
+}
+
+relationship Wrote {
+  Author -> Book [1:N]
+}
+
+relationship Borrows {
+  Member -> Book [N:M]
+}
+@endchen

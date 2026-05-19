@@ -8,8 +8,8 @@ use crate::diagnostic::Diagnostic;
 use crate::model::FamilyStyle;
 use crate::model::{
     ArchimateDocument, ArchimateElement, ArchimateRelation, ChartAnnotation, ChartAxis,
-    ChartDocument, ChartLegend, ChartPoint, ChartSeries, ChartSubtype, DitaaDocument, EbnfDocument,
-    EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind,
+    ChartDocument, ChartLegend, ChartPoint, ChartSeries, ChartSubtype, ChenDocument, DitaaDocument,
+    EbnfDocument, EbnfRule, EbnfToken, FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind,
     FamilyOrientation, FamilyRelation as ModelFamilyRelation, JsonDocument, JsonTreeNode,
     LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NormalizedDocument, NwdiagDocument,
     NwdiagGroup, NwdiagNetwork, NwdiagNode, Participant, ParticipantRole, RegexDocument,
@@ -36,6 +36,7 @@ use crate::theme::{
 
 mod archimate;
 mod chart;
+mod chen;
 mod ebnf;
 mod family;
 mod nwdiag;
@@ -96,6 +97,7 @@ pub fn normalize_family_with_options(
         | DiagramKind::Deployment
         | DiagramKind::Activity
         | DiagramKind::Timing => family::normalize_extended_family(document).map(NormalizedDocument::Family),
+        DiagramKind::Chen => chen::normalize_chen(document).map(NormalizedDocument::Chen),
         DiagramKind::Unknown => Err(Diagnostic::error(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
         )),

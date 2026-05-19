@@ -1200,6 +1200,7 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Sdl(doc) => &doc.warnings,
         NormalizedDocument::Ditaa(doc) => &doc.warnings,
         NormalizedDocument::Chart(doc) => &doc.warnings,
+        NormalizedDocument::Chen(doc) => &doc.warnings,
     }
 }
 
@@ -1896,6 +1897,7 @@ fn ast_to_json(doc: &Document) -> Value {
             DiagramKind::Sdl => "Sdl",
             DiagramKind::Ditaa => "Ditaa",
             DiagramKind::Chart => "Chart",
+            DiagramKind::Chen => "Chen",
             DiagramKind::Unknown => "Unknown",
         },
         "statements": doc.statements.iter().map(statement_to_json).collect::<Vec<_>>()
@@ -2098,6 +2100,7 @@ fn normalized_model_to_json(model: &NormalizedDocument) -> Value {
         NormalizedDocument::Sdl(doc) => json!({"kind": "Sdl", "warnings": doc.warnings.len()}),
         NormalizedDocument::Ditaa(doc) => json!({"kind": "Ditaa", "warnings": doc.warnings.len()}),
         NormalizedDocument::Chart(doc) => json!({"kind": "Chart", "warnings": doc.warnings.len()}),
+        NormalizedDocument::Chen(doc) => json!({"kind": "Chen", "entities": doc.entities.len(), "relationships": doc.relationships.len(), "warnings": doc.warnings.len()}),
     }
 }
 
