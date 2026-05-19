@@ -330,6 +330,20 @@ fn render_sequence_slanted_arrow_heads_are_distinct() {
 }
 
 #[test]
+#[test]
+fn render_sequence_bidirectional_arrows_stay_single_row_with_double_heads() {
+    let src = "@startuml\nparticipant A\nparticipant B\nA <-> B : sync bidi\nA <--> B : dashed bidi\n@enduml\n";
+    let svg = puml::render_source_to_svg(src).expect("bidirectional sequence arrows render");
+
+    assert_eq!(svg.matches(">sync bidi</text>").count(), 1);
+    assert_eq!(svg.matches(">dashed bidi</text>").count(), 1);
+    assert_eq!(svg.matches("<polygon points=\"").count(), 4);
+    assert!(
+        svg.contains("stroke-dasharray=\"6 4\""),
+        "dashed bidirectional arrow should preserve its dashed stroke"
+    );
+}
+
 fn render_sequence_dotted_parallel_edges_share_teoz_row_deterministically() {
     let src = fixture("arrows/valid_dotted_parallel_sequence_edges.puml");
     let ast = puml::parse(&src).expect("parse");

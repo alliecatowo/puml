@@ -821,17 +821,21 @@ fn normalize_ignores_horizontal_rule_unknown_syntax_passthrough() {
 
 #[test]
 fn normalize_emits_single_bidirectional_message_event() {
-    // Wave 3-B (#531): bidirectional `<->` now emits a single message event
-    // with arrowheads on both ends rather than two separate one-way events.
-    let src = "@startuml\nA <-> B : ping\n@enduml\n";
+    // Wave 3-B (#531): bidirectional arrows stay as single message events,
+    // preserving solid and dashed variants for render parity coverage.
+    let src = "@startuml\nA <-> B : ping\nA <--> B : pong\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
     let model = normalize::normalize(doc).expect("normalize should succeed");
 
-    let messages = model
+    let bidirectional_arrows = model
         .events
         .iter()
-        .filter(|e| matches!(e.kind, SequenceEventKind::Message { .. }))
-        .count();
+        .filter_map(|event| match &event.kind {
+            SequenceEventKind::Message { arrow, .. } => Some(arrow.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(bidirectional_arrows, vec!["<->", "<-->"]);
     assert_eq!(messages, 1);
 }
 
