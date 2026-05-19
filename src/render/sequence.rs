@@ -1,4 +1,4 @@
-use super::svg::{creole_text, escape_text};
+use super::svg::{creole_text, escape_text, render_actor_stick_figure};
 use crate::ast::NoteKind;
 use crate::model::{LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, VirtualEndpointKind};
 use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
