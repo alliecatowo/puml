@@ -338,7 +338,6 @@ fn render_sequence_slanted_arrow_heads_are_distinct() {
 }
 
 #[test]
-#[test]
 fn render_sequence_bidirectional_arrows_stay_single_row_with_double_heads() {
     let src = "@startuml\nparticipant A\nparticipant B\nA <-> B : sync bidi\nA <--> B : dashed bidi\n@enduml\n";
     let svg = puml::render_source_to_svg(src).expect("bidirectional sequence arrows render");
@@ -352,6 +351,7 @@ fn render_sequence_bidirectional_arrows_stay_single_row_with_double_heads() {
     );
 }
 
+#[test]
 fn render_sequence_dotted_parallel_edges_share_teoz_row_deterministically() {
     let src = fixture("arrows/valid_dotted_parallel_sequence_edges.puml");
     let ast = puml::parse(&src).expect("parse");
