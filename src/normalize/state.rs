@@ -202,6 +202,70 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
 /// - `[*]` as source becomes `[*]__in__{parent}` (initial pseudo-state inside the composite)
 /// - `[*]` as target becomes `[*]__end__{parent}` (local final state inside the composite)
 /// This prevents internal flow from hijacking the outer diagram's global pseudo-state.
+fn ensure_region_state_node(region: &mut Vec<StateNode>, name: &str) {
+    if region.iter().any(|node| node.name == name) {
+        return;
+    }
+    region.push(placeholder_state_node(name));
+}
+
+fn upsert_region_state_node(region: &mut Vec<StateNode>, node: StateNode) {
+    if let Some(existing) = region.iter_mut().find(|existing| existing.name == node.name) {
+        merge_state_node(existing, node);
+    } else {
+        region.push(node);
+    }
+}
+
+fn merge_state_node(existing: &mut StateNode, node: StateNode) {
+    if existing.kind == StateNodeKind::Normal && node.kind != StateNodeKind::Normal {
+        existing.kind = node.kind;
+    }
+    if node.regions.iter().any(|region| !region.is_empty()) {
+        existing.regions = node.regions;
+    }
+    existing.internal_actions.extend(node.internal_actions);
+    if node.stereotype.is_some() && existing.stereotype.is_none() {
+        existing.stereotype = node.stereotype;
+    }
+    if node.display.is_some() && existing.display.is_none() {
+        existing.display = node.display;
+    }
+}
+
+fn placeholder_state_node(name: &str) -> StateNode {
+    let kind = if name == "[*]" {
+        StateNodeKind::StartEnd
+    } else if name == "[H]" {
+        StateNodeKind::HistoryShallow
+    } else if name == "[H*]" {
+        StateNodeKind::HistoryDeep
+    } else if name.starts_with("[*]__in__") {
+        StateNodeKind::StartEnd
+    } else if name.starts_with("[*]__end__") {
+        StateNodeKind::End
+    } else {
+        StateNodeKind::Normal
+    };
+    let display = match name {
+        "[H]" => Some("H".to_string()),
+        "[H*]" => Some("H*".to_string()),
+        _ => None,
+    };
+    StateNode {
+        name: name.to_string(),
+        display,
+        kind,
+        stereotype: None,
+        internal_actions: Vec::new(),
+        regions: Vec::new(),
+    }
+}
+
+fn is_composite_region_endpoint(name: &str, parent_name: &str) -> bool {
+    !matches!(name, "[*]" | "[H]" | "[H*]") && name != parent_name
+}
+
 fn collect_decl_transitions(
     decl: &crate::ast::StateDecl,
     nodes: &mut Vec<StateNode>,
@@ -273,10 +337,10 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
         }
         match &child_stmt.kind {
             StatementKind::StateDecl(child_decl) => {
-                current_region.push(state_decl_to_node(child_decl));
+                upsert_region_state_node(&mut current_region, state_decl_to_node(child_decl));
             }
             StatementKind::StateHistory { deep } => {
-                current_region.push(StateNode {
+                upsert_region_state_node(&mut current_region, StateNode {
                     name: if *deep {
                         "[H*]".to_string()
                     } else {
@@ -296,6 +360,13 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                     internal_actions: Vec::new(),
                     regions: Vec::new(),
                 });
+            }
+            StatementKind::StateTransition(t) => {
+                for endpoint in [&t.from, &t.to] {
+                    if is_composite_region_endpoint(endpoint, decl.name.as_str()) {
+                        ensure_region_state_node(&mut current_region, endpoint);
+                    }
+                }
             }
             StatementKind::StateInternalAction(a) => {
                 // Apply to parent node's internal actions (will be collected below)
@@ -335,51 +406,13 @@ fn ensure_state_node(nodes: &mut Vec<StateNode>, name: &str) {
     if nodes.iter().any(|n| n.name == name) {
         return;
     }
-    let kind = if name == "[*]" {
-        StateNodeKind::StartEnd
-    } else if name == "[H]" {
-        StateNodeKind::HistoryShallow
-    } else if name == "[H*]" {
-        StateNodeKind::HistoryDeep
-    } else if name.starts_with("[*]__in__") {
-        StateNodeKind::StartEnd
-    } else if name.starts_with("[*]__end__") {
-        StateNodeKind::End
-    } else {
-        StateNodeKind::Normal
-    };
-    let display = match name {
-        "[H]" => Some("H".to_string()),
-        "[H*]" => Some("H*".to_string()),
-        _ => None,
-    };
-    nodes.push(StateNode {
-        name: name.to_string(),
-        display,
-        kind,
-        stereotype: None,
-        internal_actions: Vec::new(),
-        regions: Vec::new(),
-    });
+    nodes.push(placeholder_state_node(name));
 }
 
 /// Upsert a state node: if one with the same name already exists, update it; otherwise push.
 fn upsert_state_node(nodes: &mut Vec<StateNode>, node: StateNode) {
     if let Some(existing) = nodes.iter_mut().find(|n| n.name == node.name) {
-        // Merge: preserve richer kind, regions, internal_actions
-        if existing.kind == StateNodeKind::Normal && node.kind != StateNodeKind::Normal {
-            existing.kind = node.kind;
-        }
-        if !node.regions.is_empty() {
-            existing.regions = node.regions;
-        }
-        existing.internal_actions.extend(node.internal_actions);
-        if node.stereotype.is_some() && existing.stereotype.is_none() {
-            existing.stereotype = node.stereotype;
-        }
-        if node.display.is_some() && existing.display.is_none() {
-            existing.display = node.display;
-        }
+        merge_state_node(existing, node);
     } else {
         nodes.push(node);
     }
