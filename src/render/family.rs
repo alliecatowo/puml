@@ -3560,14 +3560,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             None
         };
 
-        if let Some(mut orth_pts) = ortho_path_f64 {
-            if let Some(first) = orth_pts.first_mut() {
-                *first = (x1, y1);
-            }
-            if let Some(last) = orth_pts.last_mut() {
-                *last = (x2, y2);
-            }
+        if let Some(orth_pts) = ortho_path_f64 {
             // ── Orthogonal polyline from layout engine ────────────────────────
+            // The layout engine (route_edges) computes precise port positions
+            // (bottom-center for downward edges, top-center for upward, etc.).
+            // Do NOT override the first/last points with pick_port anchors:
+            // pick_port uses center-distance heuristics to pick horizontal vs
+            // vertical exit sides, which can disagree with the layout engine's
+            // top-to-bottom port assignment.  Overriding snaps a bottom-exit
+            // port to a right-exit port, producing a backward leftward segment
+            // that creates X-crossings between packages (issue #771).
             let pts_str: String = orth_pts
                 .iter()
                 .map(|(px, py)| format!("{px},{py}"))
