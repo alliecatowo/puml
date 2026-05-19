@@ -30,30 +30,36 @@ fn parse_attr(tag: &str, attr: &str) -> i32 {
 }
 
 #[test]
-fn architecture_overview_edge_labels_are_fanned_apart_in_svg_output() {
+fn architecture_overview_preserves_simplified_pipeline_hierarchy() {
     let src = include_str!("../docs/diagrams/architecture-overview.puml");
     let svg = render_source_to_svg(src).expect("architecture overview should render");
-    let (expanded_source_x, expanded_source_y) = find_text_position(&svg, "expanded source");
-    let (parse_with_options_x, parse_with_options_y) =
-        find_text_position(&svg, "parse_with_options");
-    assert_eq!(expanded_source_y, parse_with_options_y);
-    assert!(
-        (parse_with_options_x - expanded_source_x).abs() >= 80,
-        "parser-lane labels should be clearly fanned apart"
-    );
 
-    let (normalized_document_x, normalized_document_y) =
-        find_text_position(&svg, "NormalizedDocument");
-    let (annotations_x, annotations_y) = find_text_position(&svg, "annotations");
-    let (style_tokens_x, style_tokens_y) = find_text_position(&svg, "style tokens");
-    assert_eq!(normalized_document_y, annotations_y);
-    assert_eq!(annotations_y, style_tokens_y);
-    assert!(
-        (annotations_x - normalized_document_x).abs() >= 80,
-        "renderer inbound labels should be fanned apart on the left"
-    );
-    assert!(
-        (style_tokens_x - annotations_x).abs() >= 80,
-        "renderer inbound labels should be fanned apart on the right"
-    );
+    let (cli_x, cli_y) = find_text_position(&svg, "CLI");
+    let (lsp_x, lsp_y) = find_text_position(&svg, "LSP");
+    let (wasm_x, wasm_y) = find_text_position(&svg, "WASM");
+    assert_eq!(cli_y, lsp_y, "transport nodes should share a row");
+    assert_eq!(lsp_y, wasm_y, "transport nodes should share a row");
+    assert!(cli_x < lsp_x && lsp_x < wasm_x, "transport nodes should fan left-to-right");
+
+    let (_, adapters_y) = find_text_position(&svg, "Adapters");
+    let (_, preprocessor_y) = find_text_position(&svg, "Preprocessor");
+    let (_, language_service_y) = find_text_position(&svg, "Language Service");
+    assert_eq!(adapters_y, preprocessor_y, "frontend and preprocess lanes should align");
+    assert_eq!(preprocessor_y, language_service_y, "service entrypoints should align");
+    assert!(adapters_y > cli_y, "frontend/service row should sit below transports");
+
+    let (parser_x, parser_y) = find_text_position(&svg, "Parser");
+    let (support_x, support_y) = find_text_position(&svg, "Diagnostics + Theme");
+    let (_, ast_y) = find_text_position(&svg, "AST");
+    let (_, normalizer_y) = find_text_position(&svg, "Normalizer");
+    let (_, renderer_y) = find_text_position(&svg, "Renderer");
+    let (_, outputs_y) = find_text_position(&svg, "SVG / PNG / Text");
+
+    assert!(parser_y > adapters_y, "pipeline core should start below entry rows");
+    assert_eq!(parser_y, support_y, "support component should stay level with the parser lane");
+    assert!(support_x > parser_x, "support component should remain to the right of parser");
+    assert!(ast_y > parser_y, "AST should sit below parser");
+    assert!(normalizer_y > ast_y, "normalizer should sit below AST");
+    assert!(renderer_y > normalizer_y, "renderer should sit below normalizer");
+    assert!(outputs_y > renderer_y, "outputs should sit below renderer");
 }
