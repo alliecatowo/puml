@@ -3642,11 +3642,34 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
+            // Snap the path endpoints to the actual pick_port anchors.
+            // This ensures arrows attach to the correct box edge.
+            // Also snap the adjacent intermediate waypoints' x-coordinate so
+            // the first and last path segments remain vertical (orthogonal),
+            // preventing diagonal segments when the anchor x differs from
+            // the graph_layout-computed port x.
+            //
+            // For a downward path with n≥3 points:
+            //   [0] → snap to (x1, y1); [1].x → x1 (vertical exit from src)
+            //   [n-1] → snap to (x2, y2); [n-2].x → x2 (vertical entry to tgt)
             if let Some(first) = orth_pts.first_mut() {
                 *first = (x1, y1);
             }
             if let Some(last) = orth_pts.last_mut() {
                 *last = (x2, y2);
+            }
+            let n = orth_pts.len();
+            if n >= 3 {
+                // Snap the second point's x to x1 so the exit segment from
+                // the source is vertical (orthogonal from the snapped endpoint).
+                orth_pts[1].0 = x1;
+                // Snap the penultimate point's x to x2 so the entry segment
+                // into the target is also vertical.  For 3-point paths this is
+                // the same element as index 1, so only update when n > 3 to
+                // avoid overwriting the x1-snap above.
+                if n > 3 {
+                    orth_pts[n - 2].0 = x2;
+                }
             }
             // ── Orthogonal polyline from layout engine ────────────────────────
             let pts_str: String = orth_pts
