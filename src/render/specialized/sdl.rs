@@ -128,8 +128,28 @@ fn render_sdl_transition(
         ));
     }
     if let Some(label) = &tr.signal {
-        let lx = (x1 + x2) / 2;
+        // Midpoint of the transition line.
+        let mut lx = (x1 + x2) / 2;
         let ly = (y1 + y2) / 2 - 8;
+        // When the transition is vertical (x1 == x2) the label would sit
+        // directly on the arrow shaft and the stroke bisects the word
+        // mid-character (visible as "re\nry" for "retry").  Shift the
+        // label left of the line so it is legible without a background.
+        if x1 == x2 {
+            lx -= 18;
+        }
+        // Approximate half-width of the label text so we can draw a white
+        // background rect that prevents any arrow from bleeding through.
+        let approx_half_w = (label.len() as i32 * 7) / 2 + 3;
+        let font_h: i32 = 11;
+        let pad: i32 = 2;
+        labels_out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"white\"/>",
+            lx - approx_half_w,
+            ly - font_h - pad,
+            approx_half_w * 2,
+            font_h + pad * 2,
+        ));
         labels_out.push_str(&format!(
             "<text class=\"sdl-transition-label\" x=\"{lx}\" y=\"{ly}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" fill=\"#475569\">{}</text>",
             escape_text(label)
