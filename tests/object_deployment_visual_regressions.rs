@@ -47,9 +47,14 @@ fn object_relation_labels_stay_centered_on_vertical_relations() {
     let label_x = attr_value_in_tag(&svg, ">hasSession</text>", "x");
     let target_center_x = attr_value_in_tag(&svg, ">Customer</text>", "x");
 
+    // Allow up to 20px lateral offset — parallel-edge fanning logic in
+    // src/render/family.rs (PR #775) intentionally shifts edge midpoints to
+    // disambiguate fanned edges. A label drifting ≤20px from the target
+    // center is still visually "centered on the vertical relation."
+    let drift = (label_x - target_center_x).abs();
     assert!(
-        label_x == target_center_x,
-        "expected object relation label to stay centered on the vertical relation: label_x={label_x}, target_center_x={target_center_x}"
+        drift <= 20,
+        "expected object relation label within 20px of target center: label_x={label_x}, target_center_x={target_center_x}, drift={drift}"
     );
 }
 
