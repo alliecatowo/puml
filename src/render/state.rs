@@ -825,8 +825,10 @@ fn place_state_transition_label(
 
     let mut best = label_bounds_from_center(mx.round() as i32, (my - 18.0).round() as i32, w, h);
     let t_positions = [0.3, 0.4, 0.5, 0.6, 0.7];
-    let along_offsets = [0.0, -18.0, 18.0, -36.0, 36.0, -56.0, 56.0];
-    let normal_offsets = [18.0, 30.0, 42.0, 56.0, 72.0, 92.0];
+    let along_offsets = [
+        0.0, -18.0, 18.0, -36.0, 36.0, -56.0, 56.0, -76.0, 76.0, -96.0, 96.0, -120.0, 120.0,
+    ];
+    let normal_offsets = [18.0, 30.0, 42.0, 56.0, 72.0, 92.0, 116.0, 140.0, 168.0];
 
     for t in t_positions {
         let base_x = x1 as f64 + dx * t;
@@ -904,7 +906,7 @@ fn state_label_candidate_score(
         .iter()
         .filter(|other| bounds_overlap(label, **other, STATE_LABEL_LABEL_CLEARANCE))
         .count() as i32;
-    -(node_hits * 100 + label_hits * 25)
+    -(node_hits * 100 + label_hits * 150)
 }
 
 fn node_bounds(node: &PlacedNode) -> LabelBounds {

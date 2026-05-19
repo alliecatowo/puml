@@ -451,14 +451,14 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
     FocusedTextFixture {
         path: "docs/diagrams/architecture-overview.puml",
         required_text: &[
-            "expanded source",
-            "token tree",
-            "raw nodes",
-            "NormalizedDocument",
-            "style tokens",
-            "annotations",
-            "parse_with_options",
-            "browser call",
+            "CLI",
+            "LSP",
+            "WASM",
+            "Preprocessor",
+            "Language Service",
+            "Parser",
+            "Renderer",
+            "SVG / PNG / Text",
         ],
     },
     FocusedTextFixture {

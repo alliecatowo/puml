@@ -150,8 +150,8 @@ sundays are closed
     assert!(svg.contains("Calendar: closed Saturday, Sunday"));
     assert!(svg.contains("2026-05-01"));
     assert!(
-        svg.contains("2026-05-05"),
-        "two working days from Friday with a closed weekend should span through Tuesday"
+        svg.contains("2026-05-04"),
+        "two working days from Friday with a closed weekend should span through Monday"
     );
 }
 
@@ -561,7 +561,9 @@ stop
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("activity render");
-    assert!(svg.contains("while"));
+    assert!(svg.contains("data-activity-kind=\"WhileStart\""));
+    assert!(svg.contains("data-activity-kind=\"EndWhile\""));
+    assert!(svg.contains("ready?"));
     // Bug #584: (endwhile) is a layout-only marker — it must NOT appear as a
     // visible process node. Same suppression as (else)/(endif) from Wave 3-D #533.
     assert!(

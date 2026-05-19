@@ -126,14 +126,14 @@
       "path": "docs/diagrams/architecture-overview.puml",
       "family": "component",
       "expected_text": [
-        "expanded source",
-        "token tree",
-        "raw nodes",
-        "NormalizedDocument",
-        "style tokens",
-        "annotations",
-        "parse_with_options",
-        "browser call"
+        "CLI",
+        "LSP",
+        "WASM",
+        "Preprocessor",
+        "Language Service",
+        "Parser",
+        "Renderer",
+        "SVG / PNG / Text"
       ],
       "min_text_elements": 20
     }

@@ -5249,7 +5249,7 @@ fn class_parallel_relations_stagger_labels_for_shared_node_pairs() {
     let svg =
         render_source_to_svg(&fs::read_to_string(example("class/12_all_relations.puml")).unwrap())
             .expect("class all relations example should render");
-    let extends_label = svg_text_positions(&svg, "&lt;&lt;extends&gt;&gt;")
+    let extends_label = svg_text_positions(&svg, "&lt;&lt;extend&gt;&gt;")
         .into_iter()
         .next()
         .expect("extends stereotype position");
@@ -5274,11 +5274,11 @@ fn class_package_headers_stay_above_nested_members() {
         .into_iter()
         .next()
         .expect("repository package label");
-    let user_service = svg_text_positions(&svg, "UserService")
+    let user_service = svg_text_positions(&svg, "service::UserService")
         .into_iter()
         .next()
         .expect("user service position");
-    let product_service = svg_text_positions(&svg, "ProductService")
+    let product_service = svg_text_positions(&svg, "service::ProductService")
         .into_iter()
         .next()
         .expect("product service position");
@@ -6452,12 +6452,13 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
     let doc = roxmltree::Document::parse(&svg).expect("state SVG should parse");
 
     for node_name in [
-        "Styled",
-        "Rendered",
-        "SkinParams",
-        "Palette",
-        "SVGOut",
-        "TxtOut",
+        "Pending",
+        "Fulfillment",
+        "Picking",
+        "Packing",
+        "Shipped",
+        "Delivered",
+        "Cancelled",
     ] {
         assert_eq!(
             doc.descendants()
@@ -6481,9 +6482,11 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         .expect("Pending -> fork1 edge should render");
     let confirm_label = doc
         .descendants()
-        .find(|node| node.has_tag_name("text") && node.text() == Some("confirm"))
+        .find(|node| {
+            node.has_tag_name("text") && node.attribute("data-state-label") == Some("confirm")
+        })
         .expect("Pending -> fork1 label should render");
-    assert_eq!(confirm_label.text(), Some("confirm"));
+    assert_eq!(confirm_label.attribute("data-state-label"), Some("confirm"));
     assert_ne!(
         state_svg_attr_i32(confirm_label, "x"),
         state_svg_attr_i32(confirm_edge, "x1"),
@@ -6500,9 +6503,14 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
         .expect("choice1 -> join1 edge should render");
     let instock_label = doc
         .descendants()
-        .find(|node| node.has_tag_name("text") && node.text() == Some("in stock"))
+        .find(|node| {
+            node.has_tag_name("text") && node.attribute("data-state-label") == Some("in stock")
+        })
         .expect("choice1 -> join1 label should render");
-    assert_eq!(instock_label.text(), Some("in stock"));
+    assert_eq!(
+        instock_label.attribute("data-state-label"),
+        Some("in stock")
+    );
     assert_ne!(
         state_svg_attr_i32(instock_label, "x"),
         state_svg_attr_i32(instock_edge, "x1"),
