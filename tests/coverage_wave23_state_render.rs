@@ -188,6 +188,103 @@ fn concurrent_state_example_renders_vertical_divider_and_connected_outer_transit
     );
 }
 
+/// Regression guard for #476: fork/join/choice diagram must render
+/// all nodes and labeled transitions without crossings or orphaned shapes.
+#[test]
+fn fork_join_choice_renders_all_nodes_and_labels() {
+    let src = r#"@startuml
+state fork1 <<fork>>
+state join1 <<join>>
+state choice1 <<choice>>
+[*] --> fork1
+fork1 --> TaskA
+fork1 --> TaskB
+TaskA --> join1
+TaskB --> join1
+join1 --> choice1
+choice1 --> Success : ok
+choice1 --> Failure : error
+@enduml"#;
+
+    let svg = render_source_to_svg(src).expect("fork/join/choice svg should render");
+    let doc = SvgDoc::parse(&svg);
+
+    // All state nodes must be present
+    for label in ["TaskA", "TaskB", "Success", "Failure"] {
+        assert!(
+            !doc.texts_containing(label).is_empty(),
+            "expected state label {label:?} in SVG"
+        );
+    }
+
+    // Transition labels must be present
+    for label in ["ok", "error"] {
+        assert!(
+            svg.contains(label),
+            "expected transition label {label:?} in SVG"
+        );
+    }
+
+    // Fork and join bars must be rendered (data-state-kind attributes)
+    assert!(
+        svg.contains("data-state-kind=\"fork\""),
+        "fork node must appear in SVG"
+    );
+    assert!(
+        svg.contains("data-state-kind=\"join\""),
+        "join node must appear in SVG"
+    );
+    assert!(
+        svg.contains("data-state-kind=\"choice\""),
+        "choice node must appear in SVG"
+    );
+}
+
+/// Regression guard for #472: intra-composite transitions (within concurrent
+/// regions) must appear above the composite background rect.
+#[test]
+fn concurrent_state_intra_region_transitions_are_visible() {
+    let src = r#"@startuml
+state Processing {
+  state "Parsing" as Parse
+  state "Validating" as Validate
+  Parse --> Validate : parsed
+  ||
+  state "Logging" as Log
+  state "Auditing" as Audit
+  Log --> Audit : logged
+}
+[*] --> Processing : start
+Processing --> [*] : done
+@enduml"#;
+
+    let svg = render_source_to_svg(src).expect("concurrent state svg should render");
+
+    // Intra-region transitions must be emitted in the SVG
+    assert!(
+        svg.contains("data-state-from=\"Parse\" data-state-to=\"Validate\""),
+        "Parse→Validate transition must appear in SVG above composite background"
+    );
+    assert!(
+        svg.contains("data-state-from=\"Log\" data-state-to=\"Audit\""),
+        "Log→Audit transition must appear in SVG above composite background"
+    );
+
+    // Dashed divider must separate the concurrent regions
+    assert!(
+        svg.contains("stroke-dasharray"),
+        "dashed concurrent-region divider must appear in SVG"
+    );
+
+    // Outer transition labels must be present
+    for label in ["start", "done"] {
+        assert!(
+            svg.contains(label),
+            "expected outer transition label {label:?} in SVG"
+        );
+    }
+}
+
 fn rect_containing_text(doc: &SvgDoc<'_>, label: &str) -> svg_test_helpers::Bounds {
     let text = doc
         .texts_containing(label)
