@@ -106,8 +106,10 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         time_vals = vec![0, 10];
     }
 
-    let t_min = *time_vals.first().unwrap();
-    let t_max = *time_vals.last().unwrap();
+    // SAFETY: time_vals is guaranteed non-empty by the guard above; use
+    // explicit copy-out to avoid holding a reference across the borrow.
+    let t_min = time_vals[0];
+    let t_max = time_vals[time_vals.len() - 1];
     let t_span = (t_max - t_min).max(1);
 
     // ── Layout constants ──────────────────────────────────────────────────────

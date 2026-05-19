@@ -674,7 +674,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             }
             let ly_i = raw_labels[i].ly;
             let found = y_clusters.iter().position(|cluster| {
-                let rep = raw_labels[*cluster.first().unwrap()].ly;
+                // cluster is always non-empty: it is seeded as vec![i] below.
+                let rep = cluster
+                    .first()
+                    .map(|&idx| raw_labels[idx].ly)
+                    .unwrap_or(ly_i);
                 (ly_i - rep).abs() <= LABEL_CLUSTER_BAND
             });
             match found {
@@ -967,7 +971,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
                 (ox, oy)
             } else if ortho_pts.is_some() {
-                (label_mx, label_my)
+                // Same perpendicular nudge as for regular edge labels so dependency
+                // labels (<<extend>>, <<include>>) don't sit on the arrow shaft.
+                if edge_dy.abs() > edge_dx.abs() {
+                    (label_mx + 14, label_my)
+                } else {
+                    (label_mx, label_my - 14)
+                }
             } else {
                 let dx = x2 - x1;
                 let dy = y2 - y1;
@@ -1023,7 +1033,15 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
                 (ox, oy)
             } else if ortho_pts.is_some() {
-                (label_mx, label_my)
+                // For orthogonal paths, nudge the label off the arrow shaft so it
+                // doesn't overlap the arrowhead.  Vertical dominant edges shift right
+                // by 14px; horizontal dominant edges shift up by 14px (matching the
+                // nudge logic used for straight-line fallback below).
+                if edge_dy.abs() > edge_dx.abs() {
+                    (label_mx + 14, label_my)
+                } else {
+                    (label_mx, label_my - 14)
+                }
             } else {
                 let dx = x2 - x1;
                 let dy = y2 - y1;
