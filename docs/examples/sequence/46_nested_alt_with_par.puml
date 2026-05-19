@@ -1,0 +1,25 @@
+@startuml
+participant User
+participant "Browser" as B
+participant "Auth Service" as A
+participant "Session DB" as DB
+
+User -> B: submit credentials
+B -> A: POST /login
+activate A
+alt credentials valid
+  A -> DB: create session
+  activate DB
+  DB --> A: sessionId
+  deactivate DB
+  A --> B: 200 OK {token}
+  B --> User: redirect to dashboard
+else invalid password
+  A --> B: 401 Unauthorized
+  B --> User: Invalid credentials
+else account locked
+  A --> B: 403 Forbidden
+  B --> User: Account locked
+end
+deactivate A
+@enduml

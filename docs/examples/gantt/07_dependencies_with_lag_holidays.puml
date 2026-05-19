@@ -1,0 +1,21 @@
+@startgantt
+title Q2 Release Plan with lag and closed weekends
+Project starts 2026-06-01
+saturday are closed
+sunday are closed
+
+[Requirements] lasts 5 days
+[Design] lasts 8 days
+[Design] starts 2 days after [Requirements]'s end
+[Backend Dev] lasts 15 days
+[Backend Dev] starts 1 day after [Design]'s end
+[Frontend Dev] lasts 12 days
+[Frontend Dev] starts 3 days after [Design]'s end
+[QA Testing] lasts 7 days
+[QA Testing] starts 1 day after [Backend Dev]'s end
+[QA Testing] starts 1 day after [Frontend Dev]'s end
+[Security Review] lasts 3 days
+[Security Review] starts 0 days after [QA Testing]'s end
+[Release] lasts 1 day
+[Release] starts 0 days after [Security Review]'s end
+@endgantt
