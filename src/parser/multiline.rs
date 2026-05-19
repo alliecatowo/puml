@@ -1,3 +1,108 @@
+/// Parse a `<style>...</style>` block starting at line `start`.
+/// Returns `(StatementKind::StyleBlock { rules }, end_line_idx)` on success.
+/// The `line` parameter is the opening `<style>` line itself.
+/// Supports CSS-like blocks:
+/// ```text
+/// <style>
+/// arrow {
+///   LineColor: red;
+///   LineThickness: 2;
+/// }
+/// participant {
+///   BackgroundColor: #aabbcc;
+///   FontColor: black;
+/// }
+/// </style>
+/// ```
+fn parse_style_block(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Option<(StatementKind, usize)> {
+    let lower = line.trim().to_ascii_lowercase();
+    // Accept `<style>` (standalone) or `<style ...>` with attributes (ignored).
+    if !lower.starts_with("<style") {
+        return None;
+    }
+
+    let mut rules: Vec<StyleRule> = Vec::new();
+    let mut current_selector: Option<String> = None;
+    let mut current_props: Vec<(String, String)> = Vec::new();
+
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
+        let trimmed = raw.trim();
+        let lower_t = trimmed.to_ascii_lowercase();
+
+        if lower_t.starts_with("</style") {
+            // Close any open selector block.
+            if let Some(sel) = current_selector.take() {
+                rules.push(StyleRule {
+                    selector: sel,
+                    properties: std::mem::take(&mut current_props),
+                });
+            }
+            return Some((StatementKind::StyleBlock { rules }, idx));
+        }
+
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // A line ending with `{` opens a new selector scope.
+        if trimmed.ends_with('{') {
+            // Close previous selector if open.
+            if let Some(sel) = current_selector.take() {
+                rules.push(StyleRule {
+                    selector: sel,
+                    properties: std::mem::take(&mut current_props),
+                });
+            }
+            let selector = trimmed.trim_end_matches('{').trim().to_string();
+            if !selector.is_empty() {
+                current_selector = Some(selector);
+            }
+            continue;
+        }
+
+        // A `}` closes the current selector scope.
+        if trimmed == "}" {
+            if let Some(sel) = current_selector.take() {
+                rules.push(StyleRule {
+                    selector: sel,
+                    properties: std::mem::take(&mut current_props),
+                });
+            }
+            continue;
+        }
+
+        // A `property: value;` or `property value` pair inside a selector block.
+        if current_selector.is_some() {
+            // Strip trailing semicolon.
+            let stripped = trimmed.trim_end_matches(';').trim();
+            if let Some((key, val)) = stripped.split_once(':') {
+                current_props.push((key.trim().to_string(), val.trim().to_string()));
+            } else if let Some((key, val)) = stripped.split_once(char::is_whitespace) {
+                current_props.push((key.trim().to_string(), val.trim().to_string()));
+            }
+        }
+        // Lines outside a selector block are ignored (comments, etc.).
+    }
+
+    // Unterminated style block: return what we collected, consuming remaining lines.
+    if !rules.is_empty() || current_selector.is_some() {
+        if let Some(sel) = current_selector.take() {
+            rules.push(StyleRule {
+                selector: sel,
+                properties: std::mem::take(&mut current_props),
+            });
+        }
+        let end_idx = lines.len().saturating_sub(1);
+        return Some((StatementKind::StyleBlock { rules }, end_idx));
+    }
+
+    None
+}
+
 fn parse_bracket_subject(line: &str) -> Option<(String, &str)> {
     let trimmed = line.trim();
     let stripped = trimmed.strip_prefix('[')?;

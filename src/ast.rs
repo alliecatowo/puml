@@ -174,7 +174,24 @@ pub enum StatementKind {
     SaltGridRow {
         cells: Vec<SaltCell>,
     },
+    /// A `<style>...</style>` CSS-like skin block with selector-scoped property rules.
+    /// Each rule maps a selector (e.g. `"arrow"`, `"participant"`, `"note"`) to a list of
+    /// `(property, value)` pairs (e.g. `("BackgroundColor", "#ff0000")`).
+    StyleBlock {
+        rules: Vec<StyleRule>,
+    },
     Unknown(String),
+}
+
+/// A single CSS-like rule inside a `<style>` block.
+/// Example: `participant { BackgroundColor: #aabbcc; FontColor: black; }`
+#[derive(Debug, Clone)]
+pub struct StyleRule {
+    /// The selector string, e.g. `"arrow"`, `"participant"`, `"note"`, `"title"`,
+    /// `"header"`, `"footer"`, `"package"`, or a stereotype like `"<<stereo>>"`.
+    pub selector: String,
+    /// Property/value pairs, e.g. `[("BackgroundColor", "#aabbcc"), ("FontColor", "black")]`.
+    pub properties: Vec<(String, String)>,
 }
 
 /// A single cell in a `@startsalt` wireframe grid row.

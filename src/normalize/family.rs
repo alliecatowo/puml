@@ -107,6 +107,49 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     }
                 }
             }
+            // `<style>...</style>` CSS-like block: convert rules to class style overrides.
+            StatementKind::StyleBlock { rules } => {
+                for rule in rules {
+                    for (prop, val) in &rule.properties {
+                        if let Some(key) = style_selector_to_skinparam_key(&rule.selector, prop) {
+                            match classify_class_skinparam(&key, val) {
+                                SkinParamSupport::SupportedWithValue(v) => {
+                                    use crate::theme::ClassSkinParamValue;
+                                    match v {
+                                        ClassSkinParamValue::BackgroundColor(c) => {
+                                            class_style.background_color = c;
+                                        }
+                                        ClassSkinParamValue::BorderColor(c) => {
+                                            class_style.border_color = c;
+                                        }
+                                        ClassSkinParamValue::HeaderBackgroundColor(c) => {
+                                            class_style.header_color = c;
+                                        }
+                                        ClassSkinParamValue::MemberFontColor(c) => {
+                                            class_style.member_color = c;
+                                        }
+                                        ClassSkinParamValue::FontColor(c) => {
+                                            class_style.font_color = c;
+                                        }
+                                        ClassSkinParamValue::ArrowColor(c) => {
+                                            class_style.arrow_color = c;
+                                        }
+                                        ClassSkinParamValue::FontSize(n) => {
+                                            class_style.font_size = Some(n);
+                                        }
+                                        ClassSkinParamValue::FontName(n) => {
+                                            class_style.font_name = Some(n);
+                                        }
+                                    }
+                                }
+                                SkinParamSupport::SupportedNoop
+                                | SkinParamSupport::UnsupportedKey
+                                | SkinParamSupport::UnsupportedValue => {}
+                            }
+                        }
+                    }
+                }
+            }
             StatementKind::JsonProjection { alias, body } => {
                 json_projections.push(crate::model::JsonProjection {
                     alias,
@@ -831,6 +874,9 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                 ))
                 .with_span(stmt.span));
             }
+            // `<style>...</style>` blocks in MindMap/WBS: silently accepted
+            // (basic support; full style application for tree families is a follow-up).
+            StatementKind::StyleBlock { .. } => {}
             _ => {
                 return Err(Diagnostic::error(format!(
                     "[E_FAMILY_STUB_UNSUPPORTED] unsupported {} syntax in bootstrap slice",
@@ -1542,6 +1588,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             | StatementKind::Undef(_)
             | StatementKind::Scale(_)
             | StatementKind::LegendPos(_) => {}
+            // `<style>...</style>` blocks: silently accepted for compatibility;
+            // full application to Activity/Timing/Component styles is a follow-up.
+            StatementKind::StyleBlock { .. } => {}
             StatementKind::Unknown(line) => {
                 if family_kind == DiagramKind::Activity {
                     let trimmed = line.trim();

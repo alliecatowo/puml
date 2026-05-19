@@ -1,0 +1,472 @@
+use super::arrows::fork_branch_cx;
+use crate::model::{FamilyDocument, FamilyNodeKind};
+
+// ---------------------------------------------------------------------------
+// Node metadata (Pass 0)
+// ---------------------------------------------------------------------------
+
+pub(super) struct NodeMeta {
+    pub step_kind: String,
+    pub lane_name: String,
+    pub fork_branch: usize,
+}
+
+pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
+    doc.nodes
+        .iter()
+        .map(|node| {
+            let mut step_kind = String::new();
+            let mut lane_name = "default".to_string();
+            let mut fork_branch = 0usize;
+            if let Some(alias) = &node.alias {
+                if let Some(meta) = alias.strip_prefix("activity::") {
+                    for (pi, part) in meta.split('|').enumerate() {
+                        if pi == 0 {
+                            step_kind = part.to_string();
+                            continue;
+                        }
+                        if let Some(v) = part.strip_prefix("lane=") {
+                            lane_name = v.to_string();
+                        } else if let Some(v) = part.strip_prefix("fork_branch=") {
+                            fork_branch = v.parse::<usize>().unwrap_or(0);
+                        }
+                    }
+                }
+            }
+            NodeMeta {
+                step_kind,
+                lane_name,
+                fork_branch,
+            }
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// Per-node layout output
+// ---------------------------------------------------------------------------
+
+pub(super) struct NodeLayout {
+    pub cx: i32,
+    pub slot_y: i32,
+    pub arrow_out_y: i32,
+    pub next_slot_y: i32,
+}
+
+// ---------------------------------------------------------------------------
+// Layout pass 1 output bundle
+// ---------------------------------------------------------------------------
+
+pub(super) struct LayoutResult {
+    pub node_layouts: Vec<NodeLayout>,
+    pub fork_bar_half_widths: std::collections::HashMap<usize, i32>,
+    /// Extra arrows: (x1, y1, x2, y2) — if-branch merge arrows
+    pub extra_arrows: Vec<(i32, i32, i32, i32)>,
+    /// Direct arrows: fork-bar→branch, branch→join-bar
+    pub direct_arrows: Vec<(i32, i32, i32, i32)>,
+    /// Node indices for which the standard prev→cur arrow is suppressed
+    pub suppress_prev_arrow: std::collections::HashSet<usize>,
+}
+
+// ---------------------------------------------------------------------------
+// Internal stack frames
+// ---------------------------------------------------------------------------
+
+struct IfFrame {
+    diamond_cx: i32,
+    diamond_arrow_out: i32,
+    diamond_next_slot: i32,
+    then_cx: i32,
+    then_rightmost_cx: i32,
+    then_end_next_slot: i32,
+    in_else: bool,
+    else_cx: i32,
+    else_start_slot: i32,
+}
+
+struct ForkFrame {
+    fork_node_idx: usize,
+    fork_cx: i32,
+    fork_slot_y: i32,
+    branch_start_y: i32,
+    branches: Vec<ForkBranch>,
+    current_branch: usize,
+    fork_again_indices: Vec<usize>,
+}
+
+struct ForkBranch {
+    start_node_idx: usize,
+    end_next_slot: i32,
+}
+
+struct RepeatFrame {
+    body_start_idx: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Layout geometry parameters bundle
+// ---------------------------------------------------------------------------
+
+pub(super) struct LayoutParams<'a> {
+    pub header_h: i32,
+    pub lane_header_h: i32,
+    pub step_h: i32,
+    pub branch_x_offset: i32,
+    pub fork_col_w: i32,
+    pub lane_w: i32,
+    pub lane_center_x: &'a dyn Fn(&str) -> i32,
+}
+
+// ---------------------------------------------------------------------------
+// Pass 1: compute layout positions for every node
+// ---------------------------------------------------------------------------
+
+pub(super) fn compute_layout(
+    doc: &FamilyDocument,
+    metas: &[NodeMeta],
+    params: &LayoutParams<'_>,
+) -> LayoutResult {
+    let LayoutParams {
+        header_h,
+        lane_header_h,
+        step_h,
+        branch_x_offset,
+        fork_col_w,
+        lane_w,
+        lane_center_x,
+    } = params;
+    let (header_h, lane_header_h, step_h, branch_x_offset, fork_col_w, lane_w) = (
+        *header_h,
+        *lane_header_h,
+        *step_h,
+        *branch_x_offset,
+        *fork_col_w,
+        *lane_w,
+    );
+    const ARROW_OUT: i32 = 42;
+
+    let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
+    let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
+    let mut extra_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
+    let mut direct_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
+    let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
+
+    let mut current_slot_y = header_h + lane_header_h;
+    let mut if_stack: Vec<IfFrame> = Vec::new();
+    let mut fork_stack: Vec<ForkFrame> = Vec::new();
+    let mut repeat_stack: Vec<RepeatFrame> = Vec::new();
+
+    for (i, meta) in metas.iter().enumerate() {
+        let base_cx = lane_center_x(&meta.lane_name);
+        let cx = if_stack
+            .last()
+            .map(|f| if f.in_else { f.else_cx } else { f.then_cx })
+            .unwrap_or(base_cx);
+
+        // Inside a fork: use branch column cx.
+        let cx = if let Some(frame) = fork_stack.last() {
+            let n_branches = frame.branches.len();
+            let branch_idx = frame.current_branch;
+            fork_branch_cx(frame.fork_cx, branch_idx, n_branches, fork_col_w)
+        } else {
+            cx
+        };
+
+        match meta.step_kind.as_str() {
+            "IfStart" => {
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                let then_cx = cx - branch_x_offset;
+                let else_cx = cx + branch_x_offset;
+                if_stack.push(IfFrame {
+                    diamond_cx: cx,
+                    diamond_arrow_out: arrow_out_y,
+                    diamond_next_slot: next_slot_y,
+                    then_cx,
+                    then_rightmost_cx: then_cx,
+                    then_end_next_slot: next_slot_y,
+                    in_else: false,
+                    else_cx,
+                    else_start_slot: next_slot_y,
+                });
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(then_cx);
+                    }
+                }
+                current_slot_y = next_slot_y;
+            }
+            "Else" => {
+                let then_end_next_slot = current_slot_y;
+                let frame = if_stack.last_mut().expect("else without if");
+                frame.then_cx = cx;
+                frame.then_end_next_slot = then_end_next_slot;
+                let else_cx = (frame.diamond_cx + branch_x_offset)
+                    .max(frame.then_rightmost_cx + branch_x_offset);
+                frame.else_cx = else_cx;
+                let diamond_cx = frame.diamond_cx;
+                let diamond_arrow_out = frame.diamond_arrow_out;
+                let slot_y = frame.diamond_next_slot;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                frame.else_start_slot = slot_y;
+                frame.in_else = true;
+                for frame in &mut if_stack {
+                    if !frame.in_else {
+                        frame.then_rightmost_cx = frame.then_rightmost_cx.max(else_cx);
+                    }
+                }
+                suppress_prev_arrow.insert(i);
+                extra_arrows.push((diamond_cx, diamond_arrow_out, else_cx, slot_y));
+                node_layouts.push(NodeLayout {
+                    cx: else_cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                current_slot_y = next_slot_y;
+            }
+            "EndIf" => {
+                let frame = if_stack.pop().expect("endif without if");
+                let then_arrow_out_y = frame.then_end_next_slot - step_h + ARROW_OUT;
+                let then_cx = frame.then_cx;
+                let else_arrow_out_y = current_slot_y - step_h + ARROW_OUT;
+                let else_cx = frame.else_cx;
+                let slot_y = frame.then_end_next_slot.max(current_slot_y);
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                suppress_prev_arrow.insert(i);
+                extra_arrows.push((then_cx, then_arrow_out_y, frame.diamond_cx, slot_y));
+                extra_arrows.push((else_cx, else_arrow_out_y, frame.diamond_cx, slot_y));
+                node_layouts.push(NodeLayout {
+                    cx: frame.diamond_cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                for parent in &mut if_stack {
+                    if !parent.in_else {
+                        parent.then_rightmost_cx =
+                            parent.then_rightmost_cx.max(frame.then_rightmost_cx);
+                    }
+                }
+                current_slot_y = next_slot_y;
+            }
+            "Fork" => {
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                fork_stack.push(ForkFrame {
+                    fork_node_idx: i,
+                    fork_cx: cx,
+                    fork_slot_y: slot_y,
+                    branch_start_y: next_slot_y,
+                    branches: vec![ForkBranch {
+                        start_node_idx: i + 1,
+                        end_next_slot: next_slot_y,
+                    }],
+                    current_branch: 0,
+                    fork_again_indices: Vec::new(),
+                });
+                current_slot_y = next_slot_y;
+            }
+            "ForkAgain" => {
+                let frame = fork_stack.last_mut().expect("fork again without fork");
+                let branch_idx = frame.current_branch;
+                frame.branches[branch_idx].end_next_slot = current_slot_y;
+                frame.fork_again_indices.push(i);
+                frame.branches.push(ForkBranch {
+                    start_node_idx: i + 1,
+                    end_next_slot: frame.branch_start_y,
+                });
+                frame.current_branch += 1;
+                let n_branches = frame.branches.len();
+                let new_branch_idx = frame.current_branch;
+                let fork_cx = frame.fork_cx;
+                suppress_prev_arrow.insert(i);
+                let slot_y = frame.fork_slot_y;
+                let branch_col_cx = fork_branch_cx(fork_cx, new_branch_idx, n_branches, fork_col_w);
+                node_layouts.push(NodeLayout {
+                    cx: branch_col_cx,
+                    slot_y,
+                    arrow_out_y: slot_y + ARROW_OUT,
+                    next_slot_y: slot_y + step_h,
+                });
+                current_slot_y = frame.branch_start_y;
+            }
+            "RepeatStart" => {
+                let slot_y = current_slot_y;
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y: slot_y,
+                    next_slot_y: slot_y,
+                });
+                suppress_prev_arrow.insert(i);
+                repeat_stack.push(RepeatFrame {
+                    body_start_idx: i + 1,
+                });
+            }
+            "RepeatWhile" => {
+                let slot_y = current_slot_y;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+                node_layouts.push(NodeLayout {
+                    cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+                if let Some(repeat_frame) = repeat_stack.pop() {
+                    if let Some(body_layout) = node_layouts.get(repeat_frame.body_start_idx) {
+                        extra_arrows.push((cx, arrow_out_y, body_layout.cx, body_layout.slot_y));
+                    }
+                }
+                current_slot_y = next_slot_y;
+            }
+            "EndFork" => {
+                let mut frame = fork_stack.pop().expect("endfork without fork");
+                let last_branch = frame.current_branch;
+                frame.branches[last_branch].end_next_slot = current_slot_y;
+
+                let n_branches = frame.branches.len();
+                let fork_cx = frame.fork_cx;
+                let branch_start_y = frame.branch_start_y;
+
+                let max_end = frame
+                    .branches
+                    .iter()
+                    .map(|b| b.end_next_slot)
+                    .max()
+                    .unwrap_or(current_slot_y);
+                let slot_y = max_end;
+                let arrow_out_y = slot_y + ARROW_OUT;
+                let next_slot_y = slot_y + step_h;
+
+                suppress_prev_arrow.insert(i);
+                node_layouts.push(NodeLayout {
+                    cx: fork_cx,
+                    slot_y,
+                    arrow_out_y,
+                    next_slot_y,
+                });
+
+                let effective_col_w = (lane_w / n_branches as i32).max(120).min(fork_col_w);
+
+                // Fix up cx positions for all nodes inside branches
+                for (branch_idx, branch) in frame.branches.iter().enumerate() {
+                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
+                    let branch_end_idx = if branch_idx + 1 < n_branches {
+                        frame.fork_again_indices[branch_idx]
+                    } else {
+                        i
+                    };
+                    for node_idx in branch.start_node_idx..branch_end_idx {
+                        if let Some(layout) = node_layouts.get_mut(node_idx) {
+                            layout.cx = col_cx;
+                        }
+                    }
+                    if branch_idx + 1 < n_branches {
+                        let fa_idx = frame.fork_again_indices[branch_idx];
+                        if let Some(layout) = node_layouts.get_mut(fa_idx) {
+                            let next_col_cx = fork_branch_cx(
+                                fork_cx,
+                                branch_idx + 1,
+                                n_branches,
+                                effective_col_w,
+                            );
+                            layout.cx = next_col_cx;
+                        }
+                    }
+                    // Straight-down arrow from branch last node to the join bar
+                    let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
+                    let join_bar_top_y = slot_y + 24;
+                    direct_arrows.push((col_cx, branch_arrow_out_y, col_cx, join_bar_top_y));
+                }
+
+                // Straight-down arrows from the fork bar bottom to each branch column
+                let fork_bar_bottom_y = frame.fork_slot_y + 32;
+                for (branch_idx, branch) in frame.branches.iter().enumerate() {
+                    let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
+                    direct_arrows.push((col_cx, fork_bar_bottom_y, col_cx, branch_start_y));
+                    suppress_prev_arrow.insert(branch.start_node_idx);
+                }
+
+                // Compute bar half-width spanning all branch columns
+                let bar_span_half = if n_branches > 1 {
+                    let leftmost = fork_branch_cx(fork_cx, 0, n_branches, effective_col_w)
+                        - effective_col_w / 2;
+                    let rightmost =
+                        fork_branch_cx(fork_cx, n_branches - 1, n_branches, effective_col_w)
+                            + effective_col_w / 2;
+                    (rightmost - leftmost) / 2
+                } else {
+                    (lane_w - 24).clamp(60, 110)
+                };
+                fork_bar_half_widths.insert(frame.fork_node_idx, bar_span_half);
+                fork_bar_half_widths.insert(i, bar_span_half);
+
+                current_slot_y = next_slot_y;
+            }
+            _ => {
+                // Partition/swimlane markers: zero-height layout nodes
+                let is_partition_marker = meta.step_kind == "PartitionStart"
+                    || meta.step_kind == "PartitionEnd"
+                    || meta.step_kind == "OldStyle";
+                if is_partition_marker
+                    && matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityPartition)
+                {
+                    let slot_y = current_slot_y;
+                    node_layouts.push(NodeLayout {
+                        cx,
+                        slot_y,
+                        arrow_out_y: slot_y,
+                        next_slot_y: slot_y,
+                    });
+                    suppress_prev_arrow.insert(i);
+                } else {
+                    let slot_y = current_slot_y;
+                    let arrow_out_y = slot_y + ARROW_OUT;
+                    let next_slot_y = slot_y + step_h;
+                    node_layouts.push(NodeLayout {
+                        cx,
+                        slot_y,
+                        arrow_out_y,
+                        next_slot_y,
+                    });
+                    for frame in &mut if_stack {
+                        if !frame.in_else {
+                            frame.then_rightmost_cx = frame.then_rightmost_cx.max(cx);
+                        }
+                    }
+                    if let Some(fork_frame) = fork_stack.last_mut() {
+                        let bi = fork_frame.current_branch;
+                        fork_frame.branches[bi].end_next_slot = next_slot_y;
+                    }
+                    current_slot_y = next_slot_y;
+                }
+            }
+        }
+    }
+
+    LayoutResult {
+        node_layouts,
+        fork_bar_half_widths,
+        extra_arrows,
+        direct_arrows,
+        suppress_prev_arrow,
+    }
+}

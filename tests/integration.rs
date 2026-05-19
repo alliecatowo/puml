@@ -5671,6 +5671,33 @@ fn component_arrow_labels_fan_apart_and_stay_inside_viewbox() {
     );
 }
 
+// Regression test for #525: the literal word "component" must never appear as a
+// plain unlabelled sub-label above the component name.  Only the guillemet form
+// «component» (U+AB / U+BB) is permitted as the type indicator.
+#[test]
+fn component_keyword_does_not_leak_as_plain_sublabel_issue_525() {
+    let src = r#"
+@startuml
+component Frontend
+component Backend
+Frontend --> Backend : calls
+@enduml
+"#;
+    let svg = render_source_to_svg(src).expect("component diagram should render");
+    // «component» in guillemets is correct and expected.
+    assert!(
+        svg.contains("\u{ab}component\u{bb}"),
+        "«component» stereotype in guillemets should be present"
+    );
+    // The SVG text elements must NOT contain a bare ">component<" text node
+    // (i.e. the raw keyword without guillemets).  We check by looking for
+    // ">component<" which is what a plain <text>component</text> emits in SVG.
+    assert!(
+        !svg.contains(">component<"),
+        "raw 'component' keyword must not appear as a plain SVG text label (issue #525)"
+    );
+}
+
 #[test]
 fn usecase_relation_labels_clear_arrowheads_and_each_other() {
     let overlap_svg = render_source_to_svg(
