@@ -316,6 +316,10 @@ fn activity_beta_loop_branch_labels_render_is_and_not_clauses() {
     );
     assert!(svg.contains("#008080"));
     assert!(
+        !svg.contains(">while<"),
+        "while should drive control flow without rendering as a visible label"
+    );
+    assert!(
         !svg.contains(">repeat while<"),
         "repeat while should drive control flow without rendering as a visible label"
     );
@@ -324,5 +328,33 @@ fn activity_beta_loop_branch_labels_render_is_and_not_clauses() {
             .into_iter()
             .any(|line| f64_attr(line, "y2") < f64_attr(line, "y1")),
         "repeat and while loops should emit at least one upward back-edge"
+    );
+}
+
+#[test]
+fn activity_repeat_until_example_consumes_loop_keywords() {
+    let src = include_str!("../docs/examples/activity/06_repeat_until.puml");
+    let svg = puml::render_source_to_svg(src).expect("repeat-until example should render");
+    let doc = SvgDoc::parse(&svg);
+
+    assert!(svg.contains("Connect"));
+    assert!(svg.contains("Send Heartbeat"));
+    assert!(svg.contains("Wait 30s"));
+    assert!(svg.contains("server alive?"));
+    assert!(svg.contains("yes"));
+    assert!(svg.contains("Reconnect"));
+    assert!(
+        !svg.contains("(repeat)"),
+        "repeat opener should be consumed as loop control"
+    );
+    assert!(
+        !svg.contains(">repeat while<"),
+        "repeat while should be consumed as loop control"
+    );
+    assert!(
+        doc.elements("line")
+            .into_iter()
+            .any(|line| f64_attr(line, "y2") < f64_attr(line, "y1")),
+        "repeat-until example should include an upward loop-back edge"
     );
 }
