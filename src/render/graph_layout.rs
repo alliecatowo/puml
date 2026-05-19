@@ -1013,31 +1013,17 @@ fn route_edges(
                 pts.push((src_port_x, ch_y));
                 pts.push((tgt_port_x, ch_y));
             } else {
-                // Multi-rank: staircase through each intermediate channel midpoint.
-                // X interpolates toward the target across hops.
-                let n_hops = (max_r - min_r) as f64;
-                for hop in 0..(max_r - min_r) {
-                    let ch = min_r + hop;
-                    let raw_ch_y = channel_mid_y(ch) + symmetric_offset(ch, track);
-                    let ch_y_val = soft_clamp_ch_y(ch, raw_ch_y);
-                    // Interpolate x toward target across hops for a staircase effect.
-                    let t = (hop as f64 + 1.0) / n_hops;
-                    let mid_x = if goes_down {
-                        src_port_x + (tgt_port_x - src_port_x) * t
-                    } else {
-                        tgt_port_x + (src_port_x - tgt_port_x) * (1.0 - t)
-                    };
-                    // Last hop should land exactly on tgt_port_x.
-                    let horiz_x = if hop + 1 == max_r - min_r {
-                        tgt_port_x
-                    } else {
-                        mid_x
-                    };
-                    // Previous horizontal x or src_port_x for first hop.
-                    let prev_x = pts.last().map(|&(x, _)| x).unwrap_or(src_port_x);
-                    pts.push((prev_x, ch_y_val));
-                    pts.push((horiz_x, ch_y_val));
-                }
+                // Multi-rank: use a single L-bend through the first inter-rank
+                // channel (just below the source rank for downward edges).  This
+                // avoids the staircase zigzag that the old per-hop interpolation
+                // produced for edges spanning 2+ ranks (e.g. actor → far use-case).
+                // The symmetric track offset is applied to the first channel so that
+                // parallel multi-rank edges fan out and don't overlap.
+                let ch = min_r;
+                let raw_ch_y = channel_mid_y(ch) + symmetric_offset(ch, track);
+                let ch_y = soft_clamp_ch_y(ch, raw_ch_y);
+                pts.push((src_port_x, ch_y));
+                pts.push((tgt_port_x, ch_y));
             }
 
             pts.push((tgt_port_x, tgt_port_y));
