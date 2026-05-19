@@ -633,7 +633,11 @@ fn compute_group_bounds(
     let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     let pad = options.group_padding;
-    let label_reserve = 28.0; // space for the group label tab
+    // label_reserve must match the pkg_tab height used by the component renderer
+    // (family.rs: `pkg_tab = 40`).  Using 40 here ensures that group_bounds.gy
+    // accurately reflects the rendered frame top so that the package-header
+    // avoidance check in soft_clamp_ch_y fires at the correct y coordinate.
+    let label_reserve = 40.0; // space for the group label tab (matches pkg_tab=40 in family.rs)
 
     let mut bounds: BTreeMap<String, (f64, f64, f64, f64)> = BTreeMap::new();
     for (group_id, children) in &children_by_group {
@@ -1007,15 +1011,25 @@ fn route_edges(
                     // Normal gap: allow any value strictly within the gap.
                     raw.clamp(bot + 4.0, next_top - 4.0)
                 };
-                // Package-header avoidance: if the channel y lands inside any
-                // group's header band (top_y .. top_y + PKG_HEADER_HEIGHT), push
-                // it below the header so arrow shafts do not slice through the
-                // package label text.
+                // Package-header avoidance: push the channel y below any package
+                // header band whose frame top (gy) lies within this inter-rank
+                // channel [bot, next_top].  When gy is inside the channel, the
+                // vertical entry shaft from ch_y to the first node inside the
+                // package crosses [gy, gy + PKG_HEADER_HEIGHT], so we must
+                // ensure ch_y >= gy + PKG_HEADER_HEIGHT + 4 to keep arrow shafts
+                // out of the package label text.
                 let mut result = clamped;
                 for &(_, gy, _, _) in group_bounds.values() {
+                    // Only act on packages whose frame top falls in this channel.
+                    if gy < bot || gy > next_top {
+                        continue;
+                    }
                     let header_bottom = gy + PKG_HEADER_HEIGHT;
-                    if result > gy && result < header_bottom {
-                        result = header_bottom + 4.0;
+                    if result < header_bottom {
+                        // Push below the header band; re-clamp to the inter-rank
+                        // gap ceiling so we don't overshoot the target row.
+                        let pushed = (header_bottom + 4.0).min(next_top - 4.0);
+                        result = result.max(pushed);
                     }
                 }
                 result
