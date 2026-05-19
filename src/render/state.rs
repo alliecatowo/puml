@@ -7,6 +7,11 @@ const STATE_NODE_H: i32 = 40;
 const STATE_NODE_GAP_X: i32 = 60;
 const STATE_NODE_GAP_Y: i32 = 60;
 const STATE_MARGIN: i32 = 30;
+// Removed STATE_LEFT_GUTTER: initial node placement no longer adds a fixed
+// left offset. The left-edge gutter pre-pass (below) conditionally shifts all
+// nodes right only when a transition label would actually clip the left edge.
+// X-offset of the right-side gutter column used for sink states.
+const STATE_SINK_GUTTER_GAP: i32 = 80;
 const COMPOSITE_PAD_X: i32 = 16;
 const COMPOSITE_PAD_Y: i32 = 36; // extra space for composite header label
 const COMPOSITE_PAD_BOT: i32 = 12;
@@ -113,6 +118,63 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         2
     };
 
+    // ── Sink-state heuristic ────────────────────────────────────────────────
+    // Top-level nodes that have ONLY incoming error transitions (no outgoing
+    // transitions that lead to non-terminal nodes) are "sink" states.  These
+    // should be placed in a right-side gutter column rather than in the main
+    // vertical flow, so they don't interrupt the happy path.
+    //
+    // A node is a sink if:
+    //   - it is NOT a StartEnd / End pseudo-state (those go at top/bottom)
+    //   - its out-degree is 0 OR all outgoing transitions go to [*]__end / [*]
+    //   - its in-degree > 0 (at least one incoming transition)
+    {
+        // (computed later; pre-compute inline for sink detection)
+    }
+    // Build a set of explicit End-stereotype node names so the out-degree
+    // computation can treat them as terminal (same as [*] pseudo-states).
+    // Without this, a node whose only outgoing edge targets a `<<end>>` state
+    // would be counted as having non-terminal outflow and would not be
+    // classified as a sink, contradicting the heuristic's intent.
+    let end_node_names: std::collections::BTreeSet<&str> = nodes
+        .iter()
+        .filter(|n| matches!(n.kind, StateNodeKind::End))
+        .map(|n| n.name.as_str())
+        .collect();
+    let top_level_out_degree: std::collections::BTreeMap<&str, usize> = {
+        let mut m: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+        for t in transitions {
+            // Count outgoing edges that go somewhere non-terminal.
+            // Both [*] pseudo-states and explicit <<end>> stereotype nodes are
+            // terminal — transitions to them do not disqualify a node from being
+            // a sink.
+            if !t.to.starts_with("[*]") && !end_node_names.contains(t.to.as_str()) {
+                *m.entry(t.from.as_str()).or_insert(0) += 1;
+            }
+        }
+        m
+    };
+    let top_level_in_degree: std::collections::BTreeMap<&str, usize> = {
+        let mut m: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+        for t in transitions {
+            *m.entry(t.to.as_str()).or_insert(0) += 1;
+        }
+        m
+    };
+    let sink_names: std::collections::BTreeSet<&str> = top_level_nodes
+        .iter()
+        .filter(|n| {
+            // Must be a normal state (not a pseudo-state)
+            matches!(n.kind, StateNodeKind::Normal)
+                // Must have incoming transitions from at least 2 different sources
+                // (single-predecessor terminals like "Output" are on the happy path)
+                && top_level_in_degree.get(n.name.as_str()).copied().unwrap_or(0) >= 2
+                // Must have NO outgoing transitions to non-terminal nodes
+                && top_level_out_degree.get(n.name.as_str()).copied().unwrap_or(0) == 0
+        })
+        .map(|n| n.name.as_str())
+        .collect();
+
     // Longest-path reachability sort of top-level nodes from initial states.
     // Using the maximum depth instead of the minimum keeps sinks/final states below
     // all of their incoming branches, which avoids clipped/crossing terminal arrows.
@@ -136,12 +198,24 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         )
     });
 
+    // Split into main flow and sink gutter
+    let main_layout_order: Vec<&StateNode> = layout_order
+        .iter()
+        .copied()
+        .filter(|n| !sink_names.contains(n.name.as_str()))
+        .collect();
+    let sink_layout_order: Vec<&StateNode> = layout_order
+        .iter()
+        .copied()
+        .filter(|n| sink_names.contains(n.name.as_str()))
+        .collect();
+
     let mut placed: std::collections::BTreeMap<String, PlacedNode> =
         std::collections::BTreeMap::new();
 
     if has_fork_join_choice {
         place_top_level_layered(
-            &layout_order,
+            &main_layout_order,
             &depth_map,
             &name_to_orig,
             transitions,
@@ -154,7 +228,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         #[allow(clippy::explicit_counter_loop)]
         {
             let mut col_idx = 0usize;
-            for node in &layout_order {
+            for node in &main_layout_order {
                 let col = (col_idx as i32) % cols;
                 col_idx += 1;
                 let x = STATE_MARGIN + col * (STATE_NODE_W + STATE_NODE_GAP_X + 80);
@@ -168,7 +242,50 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
-    // Build edge/kind lookup tables needed for both the canvas pre-pass and Phase 2.
+    // Place sink nodes in a right-side gutter column.
+    // Each sink's Y origin is anchored to its predecessor depth so that
+    // arrows from lower main-flow states don't point upward into the sink
+    // gutter (which caused crossing/clipping before this fix).  We compute
+    // a per-sink Y from the bottom edge of the placed predecessors that feed
+    // into it; if none are placed yet we fall back to STATE_MARGIN + 50.
+    if !sink_layout_order.is_empty() {
+        let main_max_x = placed
+            .values()
+            .map(|p| p.x + p.w)
+            .max()
+            .unwrap_or(STATE_MARGIN + STATE_NODE_W);
+        let sink_x = main_max_x + STATE_SINK_GUTTER_GAP;
+        let mut sink_y = STATE_MARGIN + 50;
+        for node in &sink_layout_order {
+            // Find the maximum bottom-Y among all placed predecessors of this sink.
+            let pred_max_bottom: Option<i32> = transitions
+                .iter()
+                .filter(|t| t.to == node.name)
+                .filter_map(|t| placed.get(&t.from))
+                .map(|p| p.y + p.h)
+                .max();
+            // Anchor this sink's top to the deepest predecessor's bottom (+ gap),
+            // but never above the current watermark (sink_y) so sequential sinks
+            // don't overlap each other.
+            if let Some(pred_bottom) = pred_max_bottom {
+                sink_y = sink_y.max(pred_bottom + STATE_NODE_GAP_Y);
+            }
+            let (w, h) = *node_sizes
+                .get(&node.name)
+                .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
+            place_node(node, sink_x, sink_y, w, h, &node_sizes, &mut placed);
+            sink_y += h + STATE_NODE_GAP_Y;
+        }
+        // Re-run fork/join bar-width adjustment now that sink nodes are in `placed`.
+        // The earlier call inside place_top_level_layered ran before sink nodes were
+        // placed, so fork/join bars whose branches include sink targets were sized
+        // from an incomplete set of branch centers and could end up too narrow.
+        if has_fork_join_choice {
+            adjust_fork_join_bar_widths(&main_layout_order, transitions, &mut placed);
+        }
+    }
+
+    // Build edge/kind lookup tables needed for both the gutter pre-pass and Phase 2.
     // Build a set of all (from, to) pairs to detect bidirectional edges
     let edge_set: std::collections::BTreeSet<(&str, &str)> = transitions
         .iter()
@@ -178,6 +295,64 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         .iter()
         .map(|node| (node.name.as_str(), &node.kind))
         .collect();
+
+    // ── Left-edge gutter pre-pass ────────────────────────────────────────────
+    // Transition labels may be placed to the left of their source/target nodes.
+    // Do a dry-run of label placement to find the leftmost label x, then shift
+    // all placed nodes right so no label falls outside the viewBox.
+    // Only considers top-level transitions (both endpoints in `placed`); skips
+    // intra-composite child→child edges which are not in the top-level placed map.
+    // Uses the same anchor/offset geometry as the actual render pass so the
+    // estimate of min_label_x is accurate for bidirectional and kind-specific edges.
+    {
+        let mut dry_occupied: Vec<LabelBounds> = Vec::new();
+        let mut min_label_x = placed.values().map(|p| p.x).min().unwrap_or(0);
+        for t in transitions {
+            // Skip transitions where either endpoint is not a top-level placed node
+            // (intra-composite child→child edges handled inside composite rendering).
+            if let (Some(fp), Some(tp)) = (placed.get(&t.from), placed.get(&t.to)) {
+                if let Some(label) = &t.label {
+                    // Match render-pass geometry: use kind-aware anchors and offset
+                    // bidirectional edges, so min_label_x is not underestimated.
+                    let (x1, y1, x2, y2) = edge_anchors_for_kinds(
+                        node_kinds.get(t.from.as_str()).copied(),
+                        fp,
+                        node_kinds.get(t.to.as_str()).copied(),
+                        tp,
+                    );
+                    let has_reverse =
+                        t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+                    let (lx1, ly1, lx2, ly2) = if has_reverse {
+                        offset_parallel_edge(x1, y1, x2, y2, 10)
+                    } else {
+                        (x1, y1, x2, y2)
+                    };
+                    let layout = place_state_transition_label(
+                        label,
+                        lx1,
+                        ly1,
+                        lx2,
+                        ly2,
+                        &placed,
+                        &dry_occupied,
+                    );
+                    min_label_x = min_label_x.min(layout.bounds.x);
+                    dry_occupied.push(layout.bounds);
+                }
+            }
+        }
+        // If anything extends left of STATE_MARGIN, shift the whole coordinate
+        // system right to compensate.
+        let required_shift = (STATE_MARGIN - min_label_x).max(0);
+        if required_shift > 0 {
+            let names: Vec<String> = placed.keys().cloned().collect();
+            for name in names {
+                if let Some(p) = placed.get_mut(&name) {
+                    p.x += required_shift;
+                }
+            }
+        }
+    }
 
     // Compute total canvas size from placed nodes
     let mut max_x = placed.values().map(|p| p.x + p.w).max().unwrap_or(300);
