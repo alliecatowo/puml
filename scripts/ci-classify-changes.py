@@ -68,6 +68,45 @@ DOCS_EXAMPLES_DRIFT_PREFIXES = (
     "stdlib/",
 )
 
+# Paths that trigger the full oracle conformance run (oracle.yml).
+ORACLE_EXACT = {
+    "Cargo.toml",
+    "Cargo.lock",
+    "tests/oracle_promoted_fixtures.json",
+    "scripts/oracle.sh",
+    "scripts/oracle_report_summary.py",
+    "scripts/oracle_promoted_gate.py",
+    "scripts/ci-classify-changes.py",
+    ".github/workflows/oracle.yml",
+}
+
+ORACLE_PREFIXES = (
+    "src/",
+    "crates/",
+    "tests/fixtures/",
+    "tests/oracle_smoke.rs",
+    "docs/examples/",
+    "stdlib/",
+)
+
+# Paths that additionally trigger the oracle_smoke sentinel test run.
+ORACLE_SMOKE_EXACT = {
+    "tests/oracle_smoke.rs",
+    "scripts/oracle.sh",
+    "scripts/oracle_report_summary.py",
+    "scripts/ci-classify-changes.py",
+    ".github/workflows/oracle.yml",
+    ".github/workflows/differential-oracle-smoke.yml",
+    "scripts/differential_oracle_smoke.py",
+}
+
+# Paths that trigger the differential-oracle-smoke workflow specifically.
+DIFF_ORACLE_SMOKE_EXACT = {
+    "scripts/differential_oracle_smoke.py",
+    "scripts/ci-classify-changes.py",
+    ".github/workflows/differential-oracle-smoke.yml",
+}
+
 
 def is_markdown(path: str) -> bool:
     return path.endswith(".md")
@@ -84,6 +123,9 @@ def classify(paths: list[str]) -> dict[str, bool]:
     run_wasm_check = False
     run_site_smoke = False
     run_wasm_site_smoke = False
+    run_oracle = False
+    run_oracle_smoke = False
+    run_diff_oracle_smoke = False
 
     for path in paths:
         if not path:
@@ -94,6 +136,15 @@ def classify(paths: list[str]) -> dict[str, bool]:
 
         if path in DOCS_EXAMPLES_DRIFT_EXACT or path.startswith(DOCS_EXAMPLES_DRIFT_PREFIXES):
             run_docs_examples_drift = True
+
+        if path in ORACLE_EXACT or path.startswith(ORACLE_PREFIXES):
+            run_oracle = True
+
+        if path in ORACLE_SMOKE_EXACT:
+            run_oracle_smoke = True
+
+        if path in DIFF_ORACLE_SMOKE_EXACT:
+            run_diff_oracle_smoke = True
 
         if path.startswith("docs/examples/"):
             run_full_gate = True
@@ -131,6 +182,9 @@ def classify(paths: list[str]) -> dict[str, bool]:
         run_docs_examples_drift = True
         run_wasm_check = True
         run_site_smoke = True
+        run_oracle = True
+        run_oracle_smoke = True
+        run_diff_oracle_smoke = True
 
     return {
         "run_full_gate": run_full_gate,
@@ -139,6 +193,9 @@ def classify(paths: list[str]) -> dict[str, bool]:
         "run_wasm_check": run_wasm_check,
         "run_site_smoke": run_site_smoke,
         "run_wasm_site_smoke": run_wasm_site_smoke,
+        "run_oracle": run_oracle,
+        "run_oracle_smoke": run_oracle_smoke,
+        "run_diff_oracle_smoke": run_diff_oracle_smoke,
     }
 
 
