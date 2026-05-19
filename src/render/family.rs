@@ -3749,11 +3749,31 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let count = cluster.len() as i32;
             let mut sorted_idx = cluster;
             sorted_idx.sort_by_key(|&i| pending_labels[i].x);
-            let mean_x = sorted_idx.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
-            for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
-                let offset = (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
+            let labels_overlap = sorted_idx.windows(2).any(|pair| {
+                let left = &pending_labels[pair[0]];
+                let right = &pending_labels[pair[1]];
+                let left_half_w = ((left.text.chars().count() as i32) * 7 + 2) / 2;
+                let right_half_w = ((right.text.chars().count() as i32) * 7 + 2) / 2;
+                left.x + left_half_w + LABEL_CLEARANCE_X
+                    >= right.x - right_half_w - LABEL_CLEARANCE_X
+            });
+            if labels_overlap {
+                let mean_x = sorted_idx.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
+                for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
+                    let offset =
+                        (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
+                    adjusted_labels[raw_idx] = Some((
+                        mean_x + offset,
+                        pending_labels[raw_idx].y,
+                        pending_labels[raw_idx].text.clone(),
+                        pending_labels[raw_idx].color.clone(),
+                    ));
+                }
+                continue;
+            }
+            for &raw_idx in &sorted_idx {
                 adjusted_labels[raw_idx] = Some((
-                    mean_x + offset,
+                    pending_labels[raw_idx].x,
                     pending_labels[raw_idx].y,
                     pending_labels[raw_idx].text.clone(),
                     pending_labels[raw_idx].color.clone(),
