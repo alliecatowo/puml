@@ -10,7 +10,7 @@ const STATE_MARGIN: i32 = 30;
 const COMPOSITE_PAD_X: i32 = 16;
 const COMPOSITE_PAD_Y: i32 = 36; // extra space for composite header label
 const COMPOSITE_PAD_BOT: i32 = 12;
-const REGION_DIVIDER_GAP: i32 = 10; // gap between concurrent regions (horizontal divider)
+const REGION_DIVIDER_GAP: i32 = 24; // gap between concurrent regions / divider clearance
 const STATE_LABEL_LINE_H: i32 = 14;
 const STATE_LABEL_CHAR_W: i32 = 7;
 const STATE_LABEL_NODE_CLEARANCE: i32 = 12;
@@ -375,22 +375,24 @@ fn compute_node_size(
             } else {
                 // Composite state: size from children
                 let n_regions = node.regions.len().max(1) as i32;
-                // For concurrent states (multi-region), stack regions vertically
-                // with a dashed divider line between them.
-                let mut total_w = STATE_NODE_W;
-                let mut total_h = 0i32;
-                for region in &node.regions {
-                    let (rw, rh) = compute_region_size(region, sizes);
-                    total_w = total_w.max(rw + COMPOSITE_PAD_X * 2);
-                    total_h += rh;
-                }
-                // Add region divider gaps
                 if n_regions > 1 {
-                    total_h += (n_regions - 1) * REGION_DIVIDER_GAP;
+                    let (column_w, content_h) = concurrent_region_metrics(&node.regions, sizes);
+                    let content_w = column_w * n_regions + REGION_DIVIDER_GAP * (n_regions - 1);
+                    let w = content_w + COMPOSITE_PAD_X * 2;
+                    let h = content_h + COMPOSITE_PAD_Y + COMPOSITE_PAD_BOT;
+                    (w.max(STATE_NODE_W), h.max(STATE_NODE_H + 20))
+                } else {
+                    let mut total_w = STATE_NODE_W;
+                    let mut total_h = 0i32;
+                    for region in &node.regions {
+                        let (rw, rh) = compute_region_size(region, sizes);
+                        total_w = total_w.max(rw + COMPOSITE_PAD_X * 2);
+                        total_h += rh;
+                    }
+                    let w = total_w;
+                    let h = total_h + COMPOSITE_PAD_Y + COMPOSITE_PAD_BOT;
+                    (w.max(STATE_NODE_W), h.max(STATE_NODE_H + 20))
                 }
-                let w = total_w;
-                let h = total_h + COMPOSITE_PAD_Y + COMPOSITE_PAD_BOT;
-                (w.max(STATE_NODE_W), h.max(STATE_NODE_H + 20))
             }
         }
     };
@@ -416,6 +418,41 @@ fn compute_region_size(
     (max_w, total_h)
 }
 
+fn concurrent_region_metrics(
+    regions: &[Vec<StateNode>],
+    sizes: &std::collections::BTreeMap<String, (i32, i32)>,
+) -> (i32, i32) {
+    let column_w = regions
+        .iter()
+        .flat_map(|region| region.iter())
+        .filter_map(|child| sizes.get(&child.name).copied())
+        .map(|(w, _)| w)
+        .max()
+        .unwrap_or(STATE_NODE_W);
+    let content_h = regions
+        .iter()
+        .map(|region| {
+            region
+                .iter()
+                .enumerate()
+                .map(|(idx, child)| {
+                    let (_, ch) = sizes
+                        .get(&child.name)
+                        .copied()
+                        .unwrap_or((STATE_NODE_W, STATE_NODE_H));
+                    if idx + 1 < region.len() {
+                        ch + STATE_NODE_GAP_Y
+                    } else {
+                        ch
+                    }
+                })
+                .sum::<i32>()
+        })
+        .max()
+        .unwrap_or(STATE_NODE_H);
+    (column_w, content_h)
+}
+
 /// Place a node and all its children into the `placed` map.
 fn place_node(
     node: &StateNode,
@@ -434,32 +471,44 @@ fn place_node(
     if node.kind == StateNodeKind::Normal && has_children {
         // Place children within the composite box.
         // Children start after the composite header label area.
-        let mut child_y = y + COMPOSITE_PAD_Y;
-        for (ri, region) in node.regions.iter().enumerate() {
-            // Place each child in this region as a vertical stack
-            // centered horizontally within the composite.
-            let region_x = x + COMPOSITE_PAD_X;
-            let avail_w = w - COMPOSITE_PAD_X * 2;
-            let _ = avail_w;
-
-            for (ci, child) in region.iter().enumerate() {
-                let (cw, ch) = sizes
-                    .get(&child.name)
-                    .copied()
-                    .unwrap_or((STATE_NODE_W, STATE_NODE_H));
-                // Center child horizontally within parent
-                let cx = x + COMPOSITE_PAD_X + (avail_w - cw) / 2;
-                let cx = cx.max(region_x); // don't go left of padding
-                place_node(child, cx, child_y, cw, ch, sizes, placed);
-                child_y += ch;
-                // Gap between children within a region (not after last)
-                if ci + 1 < region.len() {
-                    child_y += STATE_NODE_GAP_Y;
+        if node.regions.len() > 1 {
+            let (column_w, _) = concurrent_region_metrics(&node.regions, sizes);
+            let mut region_x = x + COMPOSITE_PAD_X;
+            let content_top = y + COMPOSITE_PAD_Y;
+            for region in &node.regions {
+                let mut child_y = content_top;
+                for (ci, child) in region.iter().enumerate() {
+                    let (cw, ch) = sizes
+                        .get(&child.name)
+                        .copied()
+                        .unwrap_or((STATE_NODE_W, STATE_NODE_H));
+                    let cx = region_x + (column_w - cw) / 2;
+                    place_node(child, cx, child_y, cw, ch, sizes, placed);
+                    child_y += ch;
+                    if ci + 1 < region.len() {
+                        child_y += STATE_NODE_GAP_Y;
+                    }
                 }
+                region_x += column_w + REGION_DIVIDER_GAP;
             }
-            // After each region (except last), leave room for the dashed divider
-            if ri + 1 < node.regions.len() {
-                child_y += REGION_DIVIDER_GAP;
+        } else {
+            let mut child_y = y + COMPOSITE_PAD_Y;
+            for region in &node.regions {
+                let region_x = x + COMPOSITE_PAD_X;
+                let avail_w = w - COMPOSITE_PAD_X * 2;
+                for (ci, child) in region.iter().enumerate() {
+                    let (cw, ch) = sizes
+                        .get(&child.name)
+                        .copied()
+                        .unwrap_or((STATE_NODE_W, STATE_NODE_H));
+                    let cx = x + COMPOSITE_PAD_X + (avail_w - cw) / 2;
+                    let cx = cx.max(region_x);
+                    place_node(child, cx, child_y, cw, ch, sizes, placed);
+                    child_y += ch;
+                    if ci + 1 < region.len() {
+                        child_y += STATE_NODE_GAP_Y;
+                    }
+                }
             }
         }
     }
@@ -1183,18 +1232,27 @@ fn render_node(
                     x + w / 2, y + 20, state_style.font_color, escape_text(display)
                 ));
 
-                // Draw concurrent region dividers (dashed horizontal lines)
-                // We need to find where each region ends to place the divider.
-                // We use the placed coords of the last child in each non-final region.
+                // Draw concurrent region dividers (dashed vertical lines)
                 if node.regions.len() > 1 {
                     for ri in 0..node.regions.len() - 1 {
-                        // Find the bottom of the last child in region ri
-                        if let Some(last_child) = node.regions[ri].last() {
-                            if let Some(lp) = placed.get(&last_child.name) {
-                                let div_y = lp.y + lp.h + REGION_DIVIDER_GAP / 2;
+                        let prev_right = node.regions[ri]
+                            .iter()
+                            .filter_map(|child| placed.get(&child.name))
+                            .map(|child| child.x + child.w)
+                            .max();
+                        let next_left = node.regions[ri + 1]
+                            .iter()
+                            .filter_map(|child| placed.get(&child.name))
+                            .map(|child| child.x)
+                            .min();
+                        if let (Some(prev_right), Some(next_left)) = (prev_right, next_left) {
+                            let div_x = (prev_right + next_left) / 2;
+                            let div_top = y + COMPOSITE_PAD_Y - 8;
+                            let div_bot = y + h - COMPOSITE_PAD_BOT + 4;
+                            if div_top < div_bot {
                                 out.push_str(&format!(
                                     "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"5 3\"/>",
-                                    x + 4, div_y, x + w - 4, div_y, state_style.border_color
+                                    div_x, div_top, div_x, div_bot, state_style.border_color
                                 ));
                             }
                         }
