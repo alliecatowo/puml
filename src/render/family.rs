@@ -1861,6 +1861,13 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
         // Render members with visibility markers + modifier styling
         let show_members = !hide_empty_members || !node.members.is_empty();
         if show_members {
+            // Detect abstract/interface nodes so members can be rendered italic (fix #767)
+            let node_is_abstract = node
+                .members
+                .first()
+                .and_then(|m| builtin_type_stereotype_label(&m.text))
+                .map(|lbl| lbl == "\u{ab}abstract\u{bb}" || lbl == "\u{ab}interface\u{bb}")
+                .unwrap_or(false);
             let member_y_base =
                 layout.y + NODE_PADDING_Y + (layout.label_lines.len() as i32 * 18) + 4;
             for (midx, member) in node.members.iter().enumerate() {
@@ -1888,7 +1895,12 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
                             extra_style.push_str(" text-decoration=\"underline\"");
                         }
                     }
-                    Some(MemberModifier::Method) | None => {}
+                    Some(MemberModifier::Method) | None => {
+                        // Interface members are implicitly abstract — render in italic (fix #767)
+                        if node_is_abstract && !extra_style.contains("font-style") {
+                            extra_style.push_str(" font-style=\"italic\"");
+                        }
+                    }
                 }
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\"{}>{}</text>",
@@ -2390,15 +2402,26 @@ fn render_class_node(
     } else {
         ""
     };
+    // Italic name for abstract classes and interfaces (fix #767 — PlantUML UML convention)
+    let is_abstract_node = matches!(
+        builtin_type_marker,
+        Some("\u{ab}abstract\u{bb}") | Some("\u{ab}interface\u{bb}")
+    );
+    let name_font_style = if is_abstract_node {
+        " font-style=\"italic\""
+    } else {
+        ""
+    };
     let name_ty = y + effective_header_h - 9;
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}>{txt}</text>",
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
         ff = escape_text(font_family),
         fs = title_font_size,
         fc = escape_text(&class_style.font_color),
         tx = x + w / 2,
         ty = name_ty,
         td = text_decoration,
+        fi = name_font_style,
         txt = escape_text(&header_text)
     ));
 
@@ -2481,7 +2504,12 @@ fn render_class_node(
                     style_attrs.push_str(" text-decoration=\"underline\"");
                 }
             }
-            Some(MemberModifier::Method) | None => {}
+            Some(MemberModifier::Method) | None => {
+                // Interface members are implicitly abstract — render in italic (fix #767)
+                if is_abstract_node && !style_attrs.contains("font-style") {
+                    style_attrs.push_str(" font-style=\"italic\"");
+                }
+            }
         }
         // If no explicit visibility color, fall back to member_color from style
         let effective_color = if vis_sym.is_some() {
