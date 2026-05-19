@@ -526,29 +526,31 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         })
         .collect::<Vec<_>>();
 
-    let leftmost_geometry_x = scene_leftmost_geometry_x(
-        &participants,
-        &footboxes,
-        &lifelines,
-        &messages,
-        &activations,
-        &lifecycle_markers,
-        &notes,
-        &groups,
-        &structures,
-    );
+    let leftmost_geometry_x = scene_leftmost_geometry_x(SceneGeometryRefs {
+        participants: &participants,
+        footboxes: &footboxes,
+        lifelines: &lifelines,
+        messages: &messages,
+        activations: &activations,
+        lifecycle_markers: &lifecycle_markers,
+        notes: &notes,
+        groups: &groups,
+        structures: &structures,
+    });
     if leftmost_geometry_x < options.margin {
         shift_scene_geometry_x(
             options.margin - leftmost_geometry_x,
-            &mut participants,
-            &mut footboxes,
-            &mut lifelines,
-            &mut messages,
-            &mut activations,
-            &mut lifecycle_markers,
-            &mut notes,
-            &mut groups,
-            &mut structures,
+            SceneGeometryMut {
+                participants: &mut participants,
+                footboxes: &mut footboxes,
+                lifelines: &mut lifelines,
+                messages: &mut messages,
+                activations: &mut activations,
+                lifecycle_markers: &mut lifecycle_markers,
+                notes: &mut notes,
+                groups: &mut groups,
+                structures: &mut structures,
+            },
         );
     }
 
@@ -956,29 +958,57 @@ fn note_vertical_position_y(position: &str, row_y: i32, height: i32, events_top:
     row_y
 }
 
-fn scene_leftmost_geometry_x(
-    participants: &[ParticipantBox],
-    footboxes: &[ParticipantBox],
-    lifelines: &[Lifeline],
-    messages: &[MessageLine],
-    activations: &[ActivationBox],
-    lifecycle_markers: &[LifecycleMarker],
-    notes: &[NoteBox],
-    groups: &[GroupBox],
-    structures: &[StructureLine],
-) -> i32 {
-    let participant_min = participants.iter().map(|participant| participant.x).min();
-    let footbox_min = footboxes.iter().map(|footbox| footbox.x).min();
-    let lifeline_min = lifelines.iter().map(|lifeline| lifeline.x).min();
-    let message_min = messages
+struct SceneGeometryRefs<'a> {
+    participants: &'a [ParticipantBox],
+    footboxes: &'a [ParticipantBox],
+    lifelines: &'a [Lifeline],
+    messages: &'a [MessageLine],
+    activations: &'a [ActivationBox],
+    lifecycle_markers: &'a [LifecycleMarker],
+    notes: &'a [NoteBox],
+    groups: &'a [GroupBox],
+    structures: &'a [StructureLine],
+}
+
+struct SceneGeometryMut<'a> {
+    participants: &'a mut [ParticipantBox],
+    footboxes: &'a mut [ParticipantBox],
+    lifelines: &'a mut [Lifeline],
+    messages: &'a mut [MessageLine],
+    activations: &'a mut [ActivationBox],
+    lifecycle_markers: &'a mut [LifecycleMarker],
+    notes: &'a mut [NoteBox],
+    groups: &'a mut [GroupBox],
+    structures: &'a mut [StructureLine],
+}
+
+fn scene_leftmost_geometry_x(geometry: SceneGeometryRefs<'_>) -> i32 {
+    let participant_min = geometry
+        .participants
+        .iter()
+        .map(|participant| participant.x)
+        .min();
+    let footbox_min = geometry.footboxes.iter().map(|footbox| footbox.x).min();
+    let lifeline_min = geometry.lifelines.iter().map(|lifeline| lifeline.x).min();
+    let message_min = geometry
+        .messages
         .iter()
         .map(|message| message.x1.min(message.x2) - 8)
         .min();
-    let activation_min = activations.iter().map(|activation| activation.x - 5).min();
-    let lifecycle_min = lifecycle_markers.iter().map(|marker| marker.x - 6).min();
-    let note_min = notes.iter().map(|note| note.x).min();
-    let group_min = groups.iter().map(|group| group.x).min();
-    let structure_min = structures
+    let activation_min = geometry
+        .activations
+        .iter()
+        .map(|activation| activation.x - 5)
+        .min();
+    let lifecycle_min = geometry
+        .lifecycle_markers
+        .iter()
+        .map(|marker| marker.x - 6)
+        .min();
+    let note_min = geometry.notes.iter().map(|note| note.x).min();
+    let group_min = geometry.groups.iter().map(|group| group.x).min();
+    let structure_min = geometry
+        .structures
         .iter()
         .map(|structure| structure.x1.min(structure.x2))
         .min();
@@ -997,48 +1027,37 @@ fn scene_leftmost_geometry_x(
         .unwrap_or(0)
 }
 
-fn shift_scene_geometry_x(
-    delta: i32,
-    participants: &mut [ParticipantBox],
-    footboxes: &mut [ParticipantBox],
-    lifelines: &mut [Lifeline],
-    messages: &mut [MessageLine],
-    activations: &mut [ActivationBox],
-    lifecycle_markers: &mut [LifecycleMarker],
-    notes: &mut [NoteBox],
-    groups: &mut [GroupBox],
-    structures: &mut [StructureLine],
-) {
+fn shift_scene_geometry_x(delta: i32, geometry: SceneGeometryMut<'_>) {
     if delta <= 0 {
         return;
     }
 
-    for participant in participants {
+    for participant in geometry.participants {
         participant.x += delta;
     }
-    for footbox in footboxes {
+    for footbox in geometry.footboxes {
         footbox.x += delta;
     }
-    for lifeline in lifelines {
+    for lifeline in geometry.lifelines {
         lifeline.x += delta;
     }
-    for message in messages {
+    for message in geometry.messages {
         message.x1 += delta;
         message.x2 += delta;
     }
-    for activation in activations {
+    for activation in geometry.activations {
         activation.x += delta;
     }
-    for marker in lifecycle_markers {
+    for marker in geometry.lifecycle_markers {
         marker.x += delta;
     }
-    for note in notes {
+    for note in geometry.notes {
         note.x += delta;
     }
-    for group in groups {
+    for group in geometry.groups {
         group.x += delta;
     }
-    for structure in structures {
+    for structure in geometry.structures {
         structure.x1 += delta;
         structure.x2 += delta;
     }
