@@ -81,6 +81,20 @@
       "min_text_elements": 8
     },
     {
+      "path": "docs/examples/deployment/03_cloud.puml",
+      "family": "deployment",
+      "expected_text": [
+        "EC2 Instance",
+        "RDS Instance",
+        "S3 Bucket",
+        "Lambda Function",
+        "queries",
+        "stores",
+        "reads"
+      ],
+      "min_text_elements": 7
+    },
+    {
       "path": "docs/examples/gantt/01_basic.puml",
       "family": "gantt",
       "expected_text": ["Project Timeline", "Design", "Build", "Test", "Kickoff"],

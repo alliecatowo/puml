@@ -449,6 +449,18 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
         required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
     },
     FocusedTextFixture {
+        path: "docs/examples/deployment/03_cloud.puml",
+        required_text: &[
+            "EC2 Instance",
+            "RDS Instance",
+            "S3 Bucket",
+            "Lambda Function",
+            "queries",
+            "stores",
+            "reads",
+        ],
+    },
+    FocusedTextFixture {
         path: "docs/diagrams/architecture-overview.puml",
         required_text: &[
             "CLI",
@@ -475,6 +487,7 @@ const FAST_VISUAL_SMOKE_FIXTURES: &[&str] = &[
     "docs/examples/state/01_basic.puml",
     "docs/examples/component/01_basic.puml",
     "docs/examples/deployment/01_nodes.puml",
+    "docs/examples/deployment/03_cloud.puml",
     "docs/examples/gantt/01_basic.puml",
     "docs/examples/mindmap/01_basic.puml",
     "docs/examples/wbs/01_basic.puml",
