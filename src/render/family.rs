@@ -949,7 +949,23 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             .iter()
             .find(|node| node.name == to_name)
             .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
-        let prefer_side_clearance = pair_label_lane != 0 || (from_is_class && to_is_class);
+        // For orthogonal vertical edges in usecase diagrams, push the label off
+        // the arrow shaft so it doesn't bisect the arrowhead (#428).  This is
+        // restricted to UseCase/Actor nodes to avoid disturbing the centred-label
+        // expectation of object/class diagrams (see
+        // `object_relation_labels_stay_centered_on_vertical_relations`).
+        let either_is_usecase_family = document
+            .nodes
+            .iter()
+            .any(|n| n.name == from_name || n.name == to_name)
+            && document.nodes.iter().any(|n| {
+                (n.name == from_name || n.name == to_name)
+                    && matches!(n.kind, FamilyNodeKind::UseCase | FamilyNodeKind::Actor)
+            });
+        let ortho_is_vertical = ortho_pts.is_some() && edge_dy.abs() > edge_dx.abs();
+        let prefer_side_clearance = pair_label_lane != 0
+            || (from_is_class && to_is_class)
+            || (ortho_is_vertical && either_is_usecase_family);
         if let Some(stereotype) = &relation.stereotype {
             if usecase_dependency.is_none() {
                 let (sx, base_sy) = label_override
@@ -971,10 +987,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
                 (ox, oy)
             } else if ortho_pts.is_some() {
-                // Same perpendicular nudge as for regular edge labels so dependency
-                // labels (<<extend>>, <<include>>) don't sit on the arrow shaft.
+                // Vertical ortho usecase edges rely on prefer_side_clearance (see below).
+                // Horizontal ortho edges get an upward nudge to clear the shaft.
                 if edge_dy.abs() > edge_dx.abs() {
-                    (label_mx + 14, label_my)
+                    (label_mx, label_my)
                 } else {
                     (label_mx, label_my - 14)
                 }
@@ -1033,12 +1049,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
                 (ox, oy)
             } else if ortho_pts.is_some() {
-                // For orthogonal paths, nudge the label off the arrow shaft so it
-                // doesn't overlap the arrowhead.  Vertical dominant edges shift right
-                // by 14px; horizontal dominant edges shift up by 14px (matching the
-                // nudge logic used for straight-line fallback below).
+                // For vertical ortho edges in usecase diagrams, prefer_side_clearance
+                // (corridor_right + 8 + label_half_w) handles the displacement — just
+                // keep the raw midpoint here.  For non-usecase (object, class) we keep
+                // the label centred on the shaft as expected by existing tests.
+                // For horizontal ortho edges apply an upward nudge to clear the shaft.
                 if edge_dy.abs() > edge_dx.abs() {
-                    (label_mx + 14, label_my)
+                    (label_mx, label_my)
                 } else {
                     (label_mx, label_my - 14)
                 }
