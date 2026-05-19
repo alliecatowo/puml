@@ -56,11 +56,12 @@ jobs:
       CARGO_INCREMENTAL: 0
       RUST_BACKTRACE: 1
       # Pinned PlantUML version — bump intentionally, never use "latest".
-      PLANTUML_VERSION: "1.2024.7"
-      PLANTUML_JAR: plantuml-1.2024.7.jar
-      # SHA-256 of the official plantuml-1.2024.7.jar from GitHub Releases.
+      PLANTUML_VERSION: "1.2026.3"
+      PLANTUML_JAR: plantuml-1.2026.3.jar
+      # SHA-256 of the official plantuml-1.2026.3.jar from GitHub Releases.
       # Recompute with: curl -fsSL <jar-url> | sha256sum
-      PLANTUML_JAR_SHA256: "e34c12bbe9944f1f338ca3d88c9b116b86300cc8e90b35c4086b825b5ae96d24"
+      # Verified 2026-05-19: sha256sum plantuml-1.2026.3.jar = 53af6760d96bb2737e5e4386e832b46339fc29dec74f412d7c12db7c30db8ec4
+      PLANTUML_JAR_SHA256: "53af6760d96bb2737e5e4386e832b46339fc29dec74f412d7c12db7c30db8ec4"
 
     steps:
       - name: Checkout
