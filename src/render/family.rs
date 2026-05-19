@@ -3010,8 +3010,14 @@ fn render_box_grid_relations_and_labels(
         };
 
         if let Some(mut orth_pts) = ortho_path {
-            if let Some(first) = orth_pts.first_mut() { *first = (x1, y1); }
-            if let Some(last) = orth_pts.last_mut() { *last = (x2, y2); }
+            // Only override port for interface circle nodes; rectangular nodes
+            // trust the layout engine's computed ports to avoid X-crossings (#771).
+            if interface_nodes.contains(&from_name) {
+                if let Some(first) = orth_pts.first_mut() { *first = (x1, y1); }
+            }
+            if interface_nodes.contains(&to_name) {
+                if let Some(last) = orth_pts.last_mut() { *last = (x2, y2); }
+            }
             let pts_str: String = orth_pts
                 .iter()
                 .map(|(px, py)| format!("{px},{py}"))
