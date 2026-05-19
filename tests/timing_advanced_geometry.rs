@@ -1,5 +1,7 @@
 use puml::model::{FamilyNodeKind, NormalizedDocument};
 
+// height is part of the SVG rect schema and may be needed by future tests.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct SvgRect {
     class: Option<String>,
