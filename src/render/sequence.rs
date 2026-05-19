@@ -1170,19 +1170,27 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
             ));
         }
         ParticipantRole::Queue => {
+            // Render queue as a horizontal cylinder (pipe) icon with neutral blue palette,
+            // consistent with other shaped participants (Database, Boundary, etc.).
+            // The horizontal stripes suggest a FIFO queue visually.
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#fff0f0\" stroke=\"#8a3030\" stroke-width=\"1\"/>",
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#e9f5ff\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
                 x, y, width, height
             ));
-            for i in [8, 14, 20] {
-                out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a3030\" stroke-width=\"1\"/>",
-                    x + 8,
-                    y + i,
-                    x + width - 8,
-                    y + i
-                ));
-            }
+            // Left ellipse cap — suggests pipe/cylinder opening
+            out.push_str(&format!(
+                "<ellipse cx=\"{}\" cy=\"{}\" rx=\"6\" ry=\"{}\" fill=\"#d0eaff\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
+                x + 10,
+                y + height / 2,
+                (height / 2) - 4
+            ));
+            // Right ellipse cap — other end of cylinder
+            out.push_str(&format!(
+                "<ellipse cx=\"{}\" cy=\"{}\" rx=\"6\" ry=\"{}\" fill=\"#d0eaff\" stroke=\"#1b5e8a\" stroke-width=\"1\"/>",
+                x + width - 10,
+                y + height / 2,
+                (height / 2) - 4
+            ));
         }
     }
 

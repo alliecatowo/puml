@@ -1517,20 +1517,17 @@ fn render_svg_renders_distinct_participant_kinds() {
     };
 
     // Each role appears twice (header + footbox), so signatures should appear twice.
+    // Queue now renders as a horizontal cylinder with neutral blue palette (no pink/red).
     assert_count(
-        "fill=\"#fff0f0\" stroke=\"#8a3030\" stroke-width=\"1\"",
-        2,
-        "queue",
+        "fill=\"#e9f5ff\" stroke=\"#1b5e8a\" stroke-width=\"1\"",
+        8, // 6 database cylinder parts + 2 queue main rects
+        "database and queue blue rects",
     );
+    // Queue ellipse end-caps (2 per participant × 2 positions = 4 total)
     assert_count(
-        "x1=\"1152\" y1=\"32\" x2=\"1256\" y2=\"32\"",
-        1,
-        "queue top stripe",
-    );
-    assert_count(
-        "x1=\"1152\" y1=\"352\" x2=\"1256\" y2=\"352\"",
-        1,
-        "queue footbox stripe",
+        "fill=\"#d0eaff\" stroke=\"#1b5e8a\" stroke-width=\"1\"",
+        4,
+        "queue ellipse caps",
     );
     assert_count(
         "x=\"992\" y=\"24\" width=\"24\" height=\"8\"",
@@ -1541,11 +1538,6 @@ fn render_svg_renders_distinct_participant_kinds() {
         "x=\"998\" y=\"26\" width=\"24\" height=\"8\"",
         1,
         "collections stacked tab",
-    );
-    assert_count(
-        "fill=\"#e9f5ff\" stroke=\"#1b5e8a\" stroke-width=\"1\"",
-        6,
-        "database cylinder parts",
     );
     assert_count(
         "fill=\"#edf7ed\" stroke=\"#2d6a2d\" stroke-width=\"1\"",
