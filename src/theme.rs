@@ -217,6 +217,11 @@ pub struct SequenceStyle {
     pub group_header_font_style: GroupHeaderFontStyle,
     /// Allow long message labels to span beyond the sender/receiver gap in teoz-style layouts.
     pub sequence_message_span: bool,
+    /// When `true`, arrows and lifelines are rendered with an SVG hand-drawn
+    /// (sketchy) filter so they appear wobbly/irregular instead of perfectly
+    /// straight. Set automatically for the `sketchy` and `sketchy-outline`
+    /// themes.
+    pub hand_drawn: bool,
 }
 
 /// Alignment of sequence message labels.
@@ -284,6 +289,7 @@ impl Default for SequenceStyle {
             group_header_font_color: None,
             group_header_font_style: GroupHeaderFontStyle::Normal,
             sequence_message_span: false,
+            hand_drawn: false,
         }
     }
 }
@@ -724,6 +730,7 @@ pub fn resolve_sequence_theme_preset(spec: &str) -> Result<SequenceThemePreset, 
                 note_border_color: "#555555".to_string(),
                 group_background_color: "#fafafa".to_string(),
                 group_border_color: "#777777".to_string(),
+                hand_drawn: true,
                 ..SequenceStyle::default()
             },
         }),
@@ -738,6 +745,7 @@ pub fn resolve_sequence_theme_preset(spec: &str) -> Result<SequenceThemePreset, 
                 note_border_color: "#555555".to_string(),
                 group_background_color: "#ffffff".to_string(),
                 group_border_color: "#777777".to_string(),
+                hand_drawn: true,
                 ..SequenceStyle::default()
             },
         }),

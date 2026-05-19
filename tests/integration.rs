@@ -7558,6 +7558,51 @@ fn salt_basic_widgets_use_intrinsic_plantuml_like_geometry() {
 }
 
 #[test]
+fn salt_tab_strip_renders_as_visual_tab_widgets_not_literal_text() {
+    // Regression test for #719 — {/ Tab1 | Tab2 | Tab3 } inside a {+ bordered
+    // container was being emitted as literal text instead of a tab-strip widget.
+    let src = "@startsalt\n{\n{/ Tab1 | Tab2 | Tab3 }\nContent here\n[OK]\n}\n@endsalt\n";
+    let svg = render_source_to_svg(src).expect("salt tab strip should render");
+    // The tab bar widget must appear, not bare literal text.
+    assert!(
+        svg.contains("data-salt-widget=\"tab\""),
+        "expected tab widget elements in SVG; literal text was rendered instead"
+    );
+    assert!(svg.contains("Tab1"), "expected Tab1 label in SVG");
+    assert!(svg.contains("Tab2"), "expected Tab2 label in SVG");
+    assert!(svg.contains("Tab3"), "expected Tab3 label in SVG");
+    // Active tab (index 0) must carry the bold attribute.
+    assert!(
+        svg.contains("data-salt-tab-active=\"true\""),
+        "expected first tab to be marked active"
+    );
+    // The literal brace-slash syntax must NOT appear as text content.
+    assert!(
+        !svg.contains("{/ Tab1"),
+        "literal '{{/ Tab1' must not appear as text — tab strip was not decoded"
+    );
+}
+
+#[test]
+fn salt_tab_strip_inside_bordered_container_renders_correctly() {
+    // The {+ bordered box followed by {/ tab bar must decode the tab bar even
+    // while in_text_area state is active.
+    let src =
+        "@startsalt\n{+\n  {/ First | **Second** | Third }\n  Body text\n  [Cancel]\n}\n@endsalt\n";
+    let svg = render_source_to_svg(src).expect("salt nested tab strip should render");
+    assert!(
+        svg.contains("data-salt-widget=\"tab\""),
+        "tab widget must render inside {{+ container"
+    );
+    // **Second** marks the active tab (index 1).
+    assert!(svg.contains("Second"), "Second tab label must appear");
+    assert!(
+        !svg.contains("{/ First"),
+        "literal brace-slash must not leak into output"
+    );
+}
+
+#[test]
 fn chart_area_and_scatter_render_paths_are_supported() {
     let area = "@startchart area\ntitle Area\nA: 4\nB: 7\nC: 3\n@endchart\n";
     let area_svg = render_source_to_svg(area).expect("area chart should render");

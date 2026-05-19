@@ -265,24 +265,27 @@ pub(super) fn normalize_with_options(
                         span: stmt.span,
                         kind: SequenceEventKind::GroupEnd,
                     });
-                } else if g.kind == "else" {
+                } else if g.kind == "else" || g.kind == "also" {
+                    // `also` is the parallel-branch continuation keyword for `par`
+                    // blocks; it behaves like `else` inside `alt` (fixes #780).
                     let Some(top) = group_stack.last_mut() else {
-                        return Err(Diagnostic::error(
-                            "[E_GROUP_ELSE_UNMATCHED] `else` without an open group block",
-                        )
+                        let keyword = &g.kind;
+                        return Err(Diagnostic::error(format!(
+                            "[E_GROUP_ELSE_UNMATCHED] `{keyword}` without an open group block",
+                        ))
                         .with_span(stmt.span));
                     };
-                    if !allows_else(top.kind.as_str()) {
+                    if !allows_branch_separator(top.kind.as_str(), g.kind.as_str()) {
                         return Err(Diagnostic::error(format!(
-                            "[E_GROUP_ELSE_KIND] `else` is not valid inside `{}`",
-                            top.kind
+                            "[E_GROUP_ELSE_KIND] `{}` is not valid inside `{}`",
+                            g.kind, top.kind
                         ))
                         .with_span(stmt.span));
                     }
                     if rejects_empty_group(top.kind.as_str()) && !top.branch_has_content {
                         return Err(Diagnostic::error(format!(
-                            "[E_GROUP_EMPTY_BRANCH] `{}` block contains an empty branch before `else`",
-                            top.kind
+                            "[E_GROUP_EMPTY_BRANCH] `{}` block contains an empty branch before `{}`",
+                            top.kind, g.kind
                         ))
                         .with_span(stmt.span));
                     }
@@ -1031,6 +1034,17 @@ fn mark_group_content(group_stack: &mut [GroupFrame]) {
 
 fn allows_else(kind: &str) -> bool {
     matches!(kind, "alt" | "par" | "critical")
+}
+
+/// Returns `true` if `separator` is a valid branch-separator keyword inside a
+/// group of type `group_kind`.  `else` works in `alt`, `par`, and `critical`.
+/// `also` is the `par`-specific parallel-branch continuation (PlantUML parity,
+/// fixes #780).
+fn allows_branch_separator(group_kind: &str, separator: &str) -> bool {
+    match separator {
+        "also" => matches!(group_kind, "par"),
+        _ => allows_else(group_kind),
+    }
 }
 
 fn rejects_empty_group(kind: &str) -> bool {

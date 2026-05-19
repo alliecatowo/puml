@@ -3679,28 +3679,27 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
-            // Apply lateral offset to all interior waypoints so sibling edges
-            // remain separated along their full path (#714).
-            if lat_offset != 0 {
-                let edge_dx = x2 - x1;
-                let edge_dy = y2 - y1;
-                let (off_x, off_y) = if edge_dx.abs() >= edge_dy.abs() {
-                    (0, lat_offset)
-                } else {
-                    (lat_offset, 0)
-                };
-                for pt in orth_pts.iter_mut() {
-                    pt.0 += off_x;
-                    pt.1 += off_y;
+            // ── Orthogonal polyline from layout engine ────────────────────────
+            // The layout engine (route_edges) computes precise port positions
+            // (bottom-center for downward edges, top-center for upward, etc.)
+            // that are correct for rectangular component nodes.
+            // Only override the first/last points for INTERFACE nodes (circles),
+            // whose circular port requires adjust_interface_anchor and differs
+            // from the layout engine's rectangular-box bottom/top-center.
+            // For regular rectangular nodes, pick_port's horizontal-dominant bias
+            // can disagree with the layout engine's top-to-bottom port assignment,
+            // producing a backward leftward segment that creates X-crossings
+            // between packages (issue #771).
+            if interface_nodes.contains(&from_name) {
+                if let Some(first) = orth_pts.first_mut() {
+                    *first = (x1, y1);
                 }
             }
-            if let Some(first) = orth_pts.first_mut() {
-                *first = (x1, y1);
+            if interface_nodes.contains(&to_name) {
+                if let Some(last) = orth_pts.last_mut() {
+                    *last = (x2, y2);
+                }
             }
-            if let Some(last) = orth_pts.last_mut() {
-                *last = (x2, y2);
-            }
-            // ── Orthogonal polyline from layout engine ────────────────────────
             let pts_str: String = orth_pts
                 .iter()
                 .map(|(px, py)| format!("{px},{py}"))
