@@ -1,0 +1,27 @@
+@startuml
+title C4 Container Diagram with databases and message bus
+!include <C4/C4_Context>
+
+Person(user, "User", "Browser-based access")
+Person(admin, "Admin", "Back-office operations")
+
+System(spa, "Single Page App", "React customer UI")
+System(api, "API Server", "Rust REST endpoints")
+System(worker, "Background Worker", "Async job processor")
+System(pgdb, "PostgreSQL", "Relational database")
+System(redis, "Redis", "Session cache")
+System(bus, "Message Bus", "RabbitMQ async events")
+System_Ext(email, "SendGrid", "Email delivery")
+System_Ext(stripe, "Stripe API", "Payment processing")
+
+Rel(user, spa, "Uses", "HTTPS")
+Rel(admin, api, "Administers", "HTTPS")
+Rel(spa, api, "API calls", "REST")
+Rel(api, pgdb, "Reads/Writes", "SQL")
+Rel(api, redis, "Cache lookup", "Redis")
+Rel(api, bus, "Publishes events", "AMQP")
+Rel(worker, bus, "Consumes events", "AMQP")
+Rel(worker, pgdb, "Updates records", "SQL")
+Rel(worker, email, "Sends email", "HTTPS")
+Rel(api, stripe, "Processes payments", "HTTPS")
+@enduml

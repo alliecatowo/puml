@@ -1,0 +1,28 @@
+@startuml
+title Create participant mid-flow: dynamic object lifecycle
+participant Client
+participant Factory
+participant Logger
+
+Client -> Factory: createWorker("heavy-job")
+create participant Worker
+Factory -> Worker: new Worker("heavy-job")
+activate Worker
+Factory --> Client: worker handle
+
+Client -> Worker: start()
+Worker -> Logger: log("started")
+Logger --> Worker: ok
+
+loop until done
+  Client -> Worker: poll()
+  Worker --> Client: progress %
+end
+
+Client -> Worker: shutdown()
+Worker -> Logger: log("finished")
+Logger --> Worker: ok
+Worker --> Client: done
+deactivate Worker
+destroy Worker
+@enduml

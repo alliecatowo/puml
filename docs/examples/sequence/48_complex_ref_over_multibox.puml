@@ -1,0 +1,40 @@
+@startuml
+box "Client Tier" #LightBlue
+  actor User
+  participant Browser
+end box
+box "API Tier" #LightGreen
+  participant Gateway
+  participant AuthSvc
+end box
+box "Data Tier" #LightYellow
+  participant DB
+  participant Cache
+end box
+
+autonumber "[00]"
+User -> Browser: navigate to /dashboard
+Browser -> Gateway: GET /api/dashboard
+
+group Authentication
+  ref over Browser, Gateway, AuthSvc
+    OAuth2 PKCE handshake
+  end ref
+end
+
+autonumber stop
+note over Gateway: Token validated
+autonumber resume
+
+Gateway -> Cache: GET user:profile:{uid}
+alt cache hit
+  Cache --> Gateway: profile JSON
+else cache miss
+  Gateway -> DB: SELECT * FROM profiles WHERE uid=?
+  DB --> Gateway: row
+  Gateway -> Cache: SET user:profile:{uid} TTL 300
+end
+
+Gateway --> Browser: 200 {dashboard payload}
+Browser --> User: render dashboard
+@enduml

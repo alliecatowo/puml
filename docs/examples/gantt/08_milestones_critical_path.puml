@@ -1,0 +1,27 @@
+@startgantt
+title Product Roadmap with Milestones and Critical Path
+Project starts 2026-07-01
+saturday are closed
+sunday are closed
+
+[Alpha Release] happens at 2026-07-31
+[Beta Release] happens at 2026-08-28
+[GA Release] happens at 2026-09-30
+
+[Architecture] lasts 10 days
+[Core Engine] lasts 20 days
+[Core Engine] starts at [Architecture]'s end
+[API Layer] lasts 15 days
+[API Layer] starts 5 days after [Core Engine]'s start
+[UI Shell] lasts 18 days
+[UI Shell] starts at [Architecture]'s end
+[Integration Tests] lasts 8 days
+[Integration Tests] starts at [Core Engine]'s end
+[Integration Tests] starts at [API Layer]'s end
+[Docs] lasts 10 days
+[Docs] starts 5 days before [Beta Release]'s start
+
+[Alpha Release] happens at [UI Shell]'s end
+[Beta Release] happens at [Integration Tests]'s end
+
+@endgantt

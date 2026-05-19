@@ -1,0 +1,41 @@
+@startuml
+title Multiple system boundaries with actor inheritance
+actor "Customer" as C
+actor "Support Agent" as SA
+actor "System" as SYS
+
+rectangle "Customer Portal" {
+  usecase "Login" as UC1
+  usecase "View Orders" as UC2
+  usecase "Open Ticket" as UC3
+  usecase "Chat with Agent" as UC4
+}
+
+rectangle "Support Console" {
+  usecase "View Queue" as UC5
+  usecase "Respond to Ticket" as UC6
+  usecase "Escalate Issue" as UC7
+  usecase "Close Ticket" as UC8
+}
+
+rectangle "Automation Engine" {
+  usecase "Auto-tag Ticket" as UC9
+  usecase "Send SLA Alert" as UC10
+  usecase "Route to Agent" as UC11
+}
+
+C --> UC1
+C --> UC2
+C --> UC3
+C --> UC4
+SA --> UC5
+SA --> UC6
+SA --> UC7
+SA --> UC8
+SYS --> UC9
+SYS --> UC10
+SYS --> UC11
+UC3 ..> UC9 : triggers
+UC9 ..> UC11 : triggers
+UC10 .> UC7 : extends
+@enduml

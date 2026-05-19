@@ -1,0 +1,31 @@
+@startuml
+title Parallel regions with shared events
+state MediaPlayer {
+  state Playing
+  state Paused
+  state Stopped
+  Playing --> Paused : pause
+  Paused --> Playing : resume
+  Playing --> Stopped : stop
+  Paused --> Stopped : stop
+  Stopped --> Playing : play
+}
+state VolumeControl {
+  state Normal
+  state Muted
+  Normal --> Muted : mute
+  Muted --> Normal : unmute
+}
+state EqualizerControl {
+  [*] --> EQOff
+  EQOff --> EQOn : enableEQ
+  EQOn --> EQOff : disableEQ
+  EQOn : do / applyBands
+}
+[*] --> MediaPlayer
+[*] --> VolumeControl
+[*] --> EqualizerControl
+MediaPlayer --> [*] : powerOff
+VolumeControl --> [*] : powerOff
+EqualizerControl --> [*] : powerOff
+@enduml

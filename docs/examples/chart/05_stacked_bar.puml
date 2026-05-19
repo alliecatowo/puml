@@ -1,0 +1,14 @@
+@startchart
+title Monthly Revenue by Product Line (Stacked Bar)
+bar
+  "Jan" : 120 : 80 : 45
+  "Feb" : 130 : 90 : 50
+  "Mar" : 110 : 70 : 60
+  "Apr" : 150 : 100 : 55
+  "May" : 175 : 120 : 70
+  "Jun" : 200 : 140 : 85
+legend
+  "Hardware" : "SteelBlue"
+  "Software" : "DarkGreen"
+  "Services" : "DarkOrange"
+@endchart

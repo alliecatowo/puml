@@ -1,0 +1,22 @@
+@startmindmap
+* Project\nKickoff
+** Discovery\nPhase
+*** Stakeholder\nInterviews
+*** Requirements\nGathering
+**** Functional\nRequirements
+**** Non-Functional\nRequirements
+*** Risk\nAssessment
+** Design\nPhase
+*** Architecture\nDecision Records
+*** UI/UX\nWireframes
+*** Data\nModel Design
+** Delivery\nPhase
+*** Sprint 1\nCore Engine
+*** Sprint 2\nAPI Layer
+*** Sprint 3\nUI Integration
+*** Sprint 4\nTesting &\nHardening
+** Release\nPhase
+*** Staging\nDeploy
+*** Beta\nRollout
+*** GA\nLaunch
+@endmindmap

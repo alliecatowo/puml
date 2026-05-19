@@ -1,0 +1,38 @@
+@startuml
+title Actor generalization, system boundary, extend with conditions
+actor "User" as U
+actor "Registered User" as RU
+actor "Premium User" as PU
+actor "Administrator" as Admin
+
+U <|-- RU
+RU <|-- PU
+U <|-- Admin
+
+rectangle "E-Commerce Platform" {
+  usecase "Browse Catalog" as UC1
+  usecase "Search Products" as UC2
+  usecase "View Product Detail" as UC3
+  usecase "Add to Cart" as UC4
+  usecase "Checkout" as UC5
+  usecase "Apply Promo Code" as UC6
+  usecase "Track Order" as UC7
+  usecase "Write Review" as UC8
+  usecase "Access Priority Support" as UC9
+  usecase "Manage Users" as UC10
+  usecase "View Analytics" as UC11
+}
+
+U --> UC1
+U --> UC2
+U --> UC3
+RU --> UC4
+RU --> UC5
+RU --> UC7
+RU --> UC8
+PU --> UC9
+Admin --> UC10
+Admin --> UC11
+UC6 .> UC5 : extends
+UC5 ..> UC4 : includes
+@enduml

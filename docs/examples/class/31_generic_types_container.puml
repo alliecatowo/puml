@@ -1,0 +1,60 @@
+@startuml
+title Generic types, bounded wildcards, and template method pattern
+abstract class "Collection<T>" as Col {
+  {abstract} +add(item: T): void
+  {abstract} +get(index: int): T
+  {abstract} +size(): int
+  +isEmpty(): bool
+  +forEach(action: Consumer<T>): void
+}
+
+class "ArrayList<T>" as AL extends Col {
+  -data: T[]
+  -capacity: int
+  +add(item: T): void
+  +get(index: int): T
+  +size(): int
+  +ensureCapacity(min: int): void
+}
+
+class "LinkedList<T>" as LL extends Col {
+  -head: Node<T>
+  -tail: Node<T>
+  +add(item: T): void
+  +get(index: int): T
+  +size(): int
+  +addFirst(item: T): void
+  +addLast(item: T): void
+}
+
+class "Node<T>" as Node {
+  +value: T
+  +next: Node<T>
+}
+
+class "Map<K, V>" as MapKV {
+  +put(key: K, value: V): V
+  +get(key: K): V
+  +containsKey(key: K): bool
+  +keySet(): Set<K>
+  +values(): Collection<V>
+}
+
+class "HashMap<K, V>" as HM extends MapKV {
+  -buckets: ArrayList<Entry<K,V>>[]
+  -loadFactor: float
+}
+
+class "Optional<T>" as Opt {
+  -value: T
+  +of(value: T): Optional<T>
+  +empty(): Optional<T>
+  +isPresent(): bool
+  +get(): T
+  +orElse(default: T): T
+  +map(fn: Function<T,R>): Optional<R>
+}
+
+LL --> Node : contains
+AL ..> Opt : returns (nullable)
+@enduml
