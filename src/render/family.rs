@@ -3583,8 +3583,22 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                     dash_attr, visibility_attr, direction_attr, markers
                 ));
 
-                // Label at longest segment midpoint
-                let longest_seg = pts.windows(2).max_by_key(|seg| {
+                // Label at longest segment midpoint. For deployment database/storage
+                // targets, avoid the terminal segment into the cylinder because that
+                // can collide with the arrowhead and node text (#507).
+                let target_is_deployment_data_store = family == "deployment"
+                    && doc.nodes.iter().any(|node| {
+                        node.name == to_name
+                            && matches!(
+                                node.kind,
+                                FamilyNodeKind::Database | FamilyNodeKind::Storage
+                            )
+                    });
+                let mut label_segments: Vec<&[(i32, i32)]> = pts.windows(2).collect();
+                if target_is_deployment_data_store && label_segments.len() > 1 {
+                    label_segments.pop();
+                }
+                let longest_seg = label_segments.into_iter().max_by_key(|seg| {
                     let (ax, ay) = seg[0];
                     let (bx, by_) = seg[1];
                     (bx - ax).pow(2) + (by_ - ay).pow(2)
