@@ -335,3 +335,97 @@ bar \"Revenue\" [12,18,20]
     assert!(width > 780.0, "long title should expand chart width");
     assert!(svg.contains("deliberately long chart title"));
 }
+
+// Regression test for #488: chart type token ("bar"/"line"/"pie") must NOT
+// appear as a visible <text> element in the SVG. The type is stored in the
+// data-chart-type root attribute and a <metadata> element only.
+#[test]
+fn chart_type_name_does_not_leak_as_visible_text_label_488() {
+    for (src, type_token) in &[
+        (
+            "@startchart\nbar chart\nQ1 : 10\nQ2 : 20\n@endchart\n",
+            "bar",
+        ),
+        (
+            "@startchart\nline chart\nJan : 10\nFeb : 20\n@endchart\n",
+            "line",
+        ),
+        (
+            "@startchart\npie chart\nAlpha : 40\nBeta : 60\n@endchart\n",
+            "pie",
+        ),
+    ] {
+        let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+            .unwrap_or_else(|_| panic!("chart type '{type_token}' should render"));
+        let doc = SvgDoc::parse(&svg);
+        // The type token must be present in the root data- attribute.
+        assert_eq!(
+            doc.root_attr("data-chart-type"),
+            Some(*type_token),
+            "data-chart-type attribute should contain the type token"
+        );
+        // It must NOT appear as a bare visible <text> node.
+        // texts_containing only searches <text> elements, so any hit is a leak.
+        let visible_type_texts = doc.texts_containing(type_token);
+        assert!(
+            visible_type_texts.is_empty(),
+            "chart type token '{type_token}' leaked as a visible <text> element ({} hit(s))",
+            visible_type_texts.len()
+        );
+    }
+}
+
+// Regression test for #491: line chart data labels must be offset from the
+// x-axis tick label. The data label tx must exceed px (the data-point x)
+// so it nudges away from the tick below it and avoids pixel-level collision.
+#[test]
+fn chart_line_data_label_origin_does_not_overlap_tick_491() {
+    let src = "@startchart
+line chart
+Jan : 10
+Feb : 15
+Mar : 12
+Apr : 20
+@endchart
+";
+    let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
+        .expect("line chart with data labels should render");
+    let doc = SvgDoc::parse(&svg);
+
+    // Collect value-label elements.
+    let value_labels = doc.elements_with_class("text", "chart-value-label");
+    assert!(
+        !value_labels.is_empty(),
+        "line chart should emit chart-value-label elements"
+    );
+
+    // Find the Jan tick label x position.
+    let jan_ticks: Vec<_> = doc.texts_containing("Jan");
+    assert!(!jan_ticks.is_empty(), "Jan tick label should be present");
+    let jan_x: f64 = jan_ticks
+        .first()
+        .and_then(|n| n.attribute("x"))
+        .and_then(|v| v.parse().ok())
+        .expect("Jan tick should have numeric x attribute");
+
+    // The leftmost value label ("10") should be shifted right relative to the
+    // Jan tick's x, ensuring no horizontal overlap at the origin.
+    let leftmost_label = value_labels
+        .iter()
+        .min_by_key(|n| {
+            n.attribute("x")
+                .and_then(|v| v.parse::<f64>().ok())
+                .map(|v| (v * 1000.0) as i64)
+                .unwrap_or(i64::MAX)
+        })
+        .expect("at least one value label");
+    let label_x: f64 = leftmost_label
+        .attribute("x")
+        .and_then(|v| v.parse().ok())
+        .expect("value label should have numeric x attribute");
+
+    assert!(
+        label_x > jan_x,
+        "data label x ({label_x}) should be right of Jan tick x ({jan_x}) to avoid overlap"
+    );
+}

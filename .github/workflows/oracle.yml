@@ -75,54 +75,40 @@ jobs:
 
           CHANGED_FILES="${RUNNER_TEMP}/changed-files.txt"
 
+          # Determine the diff base: for PRs, compare against base SHA; for push
+          # events, compare against the previous commit; for workflow_dispatch or
+          # first-push (before = 0000...), include all tracked files.
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
             git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > "${CHANGED_FILES}"
-            run_oracle=false
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
             git fetch --no-tags --depth=1 origin "${{ github.event.before }}"
             git diff --name-only "${{ github.event.before }}" HEAD > "${CHANGED_FILES}"
-            run_oracle=true
           else
             git ls-files > "${CHANGED_FILES}"
-            run_oracle=true
           fi
-          run_oracle_smoke=false
 
+          # Use the canonical classify script so oracle path rules stay in sync
+          # with pr-gate and differential-oracle-smoke (issue #455).
+          python3 scripts/ci-classify-changes.py \
+            --changed-files "${CHANGED_FILES}" \
+            --github-output "${GITHUB_OUTPUT}" | tee "${RUNNER_TEMP}/ci-classification.txt"
+
+          # For push events and workflow_dispatch, oracle always runs (regardless
+          # of path filter) so that main is always conformance-checked.  Override
+          # the script output for those event types.
+          if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "run_oracle=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+          # workflow_dispatch forces oracle_smoke on too.
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            run_oracle_smoke=true
+            echo "run_oracle_smoke=true" >> "${GITHUB_OUTPUT}"
           fi
-
-          while IFS= read -r file; do
-            [[ -n "${file}" ]] || continue
-
-            case "${file}" in
-              Cargo.toml|Cargo.lock|src/*|crates/*|tests/fixtures/*|tests/oracle_smoke.rs|docs/examples/*|stdlib/*|scripts/oracle.sh|scripts/oracle_report_summary.py|.github/workflows/oracle.yml)
-                run_oracle=true
-                ;;
-            esac
-
-            case "${file}" in
-              tests/oracle_smoke.rs|scripts/oracle.sh|scripts/oracle_report_summary.py|.github/workflows/oracle.yml)
-                run_oracle_smoke=true
-                ;;
-            esac
-          done < "${CHANGED_FILES}"
-
-          if [[ ! -s "${CHANGED_FILES}" ]]; then
-            run_oracle=true
-            run_oracle_smoke=true
-          fi
-
-          {
-            echo "run_oracle=${run_oracle}"
-            echo "run_oracle_smoke=${run_oracle_smoke}"
-          } >> "${GITHUB_OUTPUT}"
 
           echo "Changed files:"
           sed 's/^/  - /' "${CHANGED_FILES}"
-          echo "run_oracle=${run_oracle}"
-          echo "run_oracle_smoke=${run_oracle_smoke}"
+          cat "${RUNNER_TEMP}/ci-classification.txt"
 
       - name: Fast path for oracle-irrelevant changes
         if: steps.changes.outputs.run_oracle != 'true'
