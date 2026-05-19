@@ -347,7 +347,7 @@ fn parity_status_mindmap_nodes_stay_inside_svg_bounds_with_padding() {
 *** utxt / atxt\n[partial]
 *** HTML\n[partial]
 @endmindmap"#;
-    let svg = render_source_to_svg(&src).expect("parity status mindmap should render");
+    let svg = render_source_to_svg(src).expect("parity status mindmap should render");
     let svg_width = svg_attr(&svg, "width")
         .parse::<i32>()
         .expect("svg width should be numeric");

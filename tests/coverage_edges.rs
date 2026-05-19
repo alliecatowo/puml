@@ -835,8 +835,13 @@ fn normalize_emits_single_bidirectional_message_event() {
             _ => None,
         })
         .collect::<Vec<_>>();
+    let messages = model
+        .events
+        .iter()
+        .filter(|event| matches!(event.kind, SequenceEventKind::Message { .. }))
+        .count();
     assert_eq!(bidirectional_arrows, vec!["<->", "<-->"]);
-    assert_eq!(messages, 1);
+    assert_eq!(messages, 2);
 }
 
 #[test]
