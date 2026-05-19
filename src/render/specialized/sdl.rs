@@ -135,19 +135,35 @@ fn render_sdl_transition(
         ));
     }
     if let Some(label) = &tr.signal {
-        // Midpoint of the transition line.
-        let mut lx = (x1 + x2) / 2;
-        let ly = (y1 + y2) / 2 - 8;
-        // When the transition is vertical (x1 == x2) the label would sit
-        // directly on the arrow shaft and the stroke bisects the word
-        // mid-character (visible as "re\nry" for "retry").  Shift the
-        // label left of the line so it is legible without a background.
-        if x1 == x2 {
-            lx -= 18;
-        }
+        // Compute label position at the path midpoint with a perpendicular
+        // offset so the text sits clearly beside the shaft rather than on it.
+        let (lx, ly) = if from.x == to.x && from.y == to.y {
+            // Self-loop: cubic bezier bulges to the right (+x).  Place the
+            // label at the loop apex — cx+46 at cy, offset slightly right so
+            // it clears the loop arc.
+            let cx = from.x + from.w;
+            let cy = from.y + from.h / 2;
+            (cx + 52, cy + 5)
+        } else {
+            // Straight line: midpoint + perpendicular offset of 10 px.
+            // The perpendicular (left of the direction of travel) is:
+            //   perp = (-dy, dx) / ||(dx,dy)||
+            // We always offset to the "left" side (counter-clockwise from the
+            // travel direction) which gives a consistent visual placement.
+            let dx = (x2 - x1) as f64;
+            let dy = (y2 - y1) as f64;
+            let len = (dx * dx + dy * dy).sqrt().max(1.0);
+            // Left-perpendicular unit vector: (-dy/len, dx/len).
+            let perp_x = -dy / len;
+            let perp_y = dx / len;
+            let offset = 10.0_f64;
+            let mx = (x1 + x2) as f64 / 2.0 + perp_x * offset;
+            let my = (y1 + y2) as f64 / 2.0 + perp_y * offset;
+            (mx.round() as i32, my.round() as i32)
+        };
         // Approximate half-width of the label text so we can draw a white
         // background rect that prevents any arrow from bleeding through.
-        let approx_half_w = (label.len() as i32 * 7) / 2 + 3;
+        let approx_half_w = (label.len() as i32 * 7) / 2 + 4;
         let font_h: i32 = 11;
         let pad: i32 = 2;
         labels_out.push_str(&format!(
