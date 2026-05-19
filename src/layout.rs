@@ -558,7 +558,11 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             .map(|(_, right)| *right)
             .max()
             .unwrap_or(options.margin + options.participant_width);
-        let header_band = if participant_group.label.is_some() { 22 } else { 10 };
+        let header_band = if participant_group.label.is_some() {
+            22
+        } else {
+            10
+        };
         let y = participant_top - header_band;
         groups.push(GroupBox {
             kind: "box".to_string(),

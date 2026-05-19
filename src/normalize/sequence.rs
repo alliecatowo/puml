@@ -810,7 +810,9 @@ pub(super) fn normalize_with_options(
             participant_groups = participant_groups
                 .into_iter()
                 .filter_map(|mut group| {
-                    group.participant_ids.retain(|id| !hidden_participants.contains(id));
+                    group
+                        .participant_ids
+                        .retain(|id| !hidden_participants.contains(id));
                     (!group.participant_ids.is_empty()).then_some(group)
                 })
                 .collect();

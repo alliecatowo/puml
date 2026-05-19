@@ -3221,9 +3221,23 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let dy = other_cy - cy;
 
             if dx.abs() >= dy.abs() {
-                (cx + if dx >= 0 { INTERFACE_RADIUS } else { -INTERFACE_RADIUS }, cy)
+                (
+                    cx + if dx >= 0 {
+                        INTERFACE_RADIUS
+                    } else {
+                        -INTERFACE_RADIUS
+                    },
+                    cy,
+                )
             } else {
-                (cx, cy + if dy >= 0 { INTERFACE_RADIUS } else { -INTERFACE_RADIUS })
+                (
+                    cx,
+                    cy + if dy >= 0 {
+                        INTERFACE_RADIUS
+                    } else {
+                        -INTERFACE_RADIUS
+                    },
+                )
             }
         };
 
