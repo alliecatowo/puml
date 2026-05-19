@@ -55,6 +55,24 @@ fn milestone_center_x(tag: &str) -> i32 {
         .expect("milestone first point should expose center x")
 }
 
+fn milestone_x_bounds(tag: &str) -> (i32, i32) {
+    let points = svg_attr(tag, "points").expect("milestone polygon should have points");
+    let xs = points
+        .split_whitespace()
+        .filter_map(|pair| pair.split_once(','))
+        .filter_map(|(x, _)| x.parse::<i32>().ok())
+        .collect::<Vec<_>>();
+    let min_x = *xs
+        .iter()
+        .min()
+        .expect("milestone should include x coordinates");
+    let max_x = *xs
+        .iter()
+        .max()
+        .expect("milestone should include x coordinates");
+    (min_x, max_x)
+}
+
 #[test]
 fn gantt_places_milestone_using_constraint_day_or_task_reference() {
     let src = r#"@startgantt
@@ -217,6 +235,42 @@ Project starts 2026-05-01
     assert!(svg.contains("class=\"gantt-resource-pill\""));
     assert!(svg.contains("class=\"gantt-resource\""));
     assert!(svg.contains("Bob:50%"));
+}
+
+#[test]
+fn gantt_example_keeps_right_edge_task_spans_and_milestone_inside_grid() {
+    let src = fs::read_to_string(format!(
+        "{}/docs/examples/gantt/06_with_legend.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read gantt legend example");
+    let svg = puml::render_source_to_svg(&src).expect("gantt render");
+    let grid_tag = svg
+        .split("<rect x=\"")
+        .find(|chunk| chunk.contains("fill=\"#f1f5f9\"") && chunk.contains("stroke=\"#cbd5e1\""))
+        .expect("expected gantt grid header rect");
+    let grid_x = svg_first_number_attr(grid_tag, "x");
+    let grid_w = svg_first_number_attr(grid_tag, "width");
+    let grid_right = grid_x + grid_w;
+
+    for task in svg_chunks_by_prefix(&svg, "<rect class=\"gantt-task") {
+        let x = svg_first_number_attr(task, "x");
+        let w = svg_first_number_attr(task, "width");
+        assert!(
+            x + w <= grid_right,
+            "task bar should stay inside the gantt grid: x={x} width={w} grid_right={grid_right}"
+        );
+    }
+
+    let milestone = svg_chunks_by_prefix(&svg, "<polygon class=\"gantt-milestone")
+        .into_iter()
+        .next()
+        .expect("expected milestone polygon");
+    let (_min_x, max_x) = milestone_x_bounds(milestone);
+    assert!(
+        max_x <= grid_right,
+        "milestone should stay inside the gantt grid: max_x={max_x} grid_right={grid_right}"
+    );
 }
 
 #[test]

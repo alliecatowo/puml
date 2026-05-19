@@ -328,6 +328,11 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         ));
     }
 
+    let clamp_span_to_chart = |x: i32, width: i32| -> (i32, i32) {
+        let clamped_width = width.max(1).min(chart_w.max(1));
+        let max_x = chart_right - clamped_width;
+        (x.clamp(chart_left, max_x), clamped_width)
+    };
     let bar_geom = |task: &TimelineTask| -> (i32, i32) {
         let (start_day, end_day) = visual_task_bounds
             .get(task.name.as_str())
@@ -340,7 +345,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let bx = chart_left + ((chart_w as u32 * start_offset) / total_days) as i32;
         let span_days = end_day.saturating_sub(start_day).max(1);
         let bw = (((chart_w as u32) * span_days) / total_days).max(8) as i32;
-        (bx, bw)
+        clamp_span_to_chart(bx, bw)
     };
     let day_to_x = |day: u32| -> i32 {
         let start_offset = day.saturating_sub(min_day);
@@ -461,6 +466,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             let base_offset = base_start.saturating_sub(min_day);
             let base_x = chart_left + ((chart_w as u32 * base_offset) / total_days) as i32;
             let base_w = (((chart_w as u32) * base_duration.max(1)) / total_days).max(8) as i32;
+            let (base_x, base_w) = clamp_span_to_chart(base_x, base_w);
             out.push_str(&format!(
                 "<rect class=\"gantt-baseline\" data-gantt-baseline-start=\"{}\" data-gantt-baseline-duration=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"4\" rx=\"2\" ry=\"2\" fill=\"#64748b\" opacity=\"0.88\"/>",
                 escape_text(&format_gantt_axis_label(base_start, min_day, true)),
@@ -538,6 +544,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             .map(|d| day_to_x(*d))
             .unwrap_or(chart_left + chart_w / 2);
         let r = (bar_height / 2) - 2;
+        let cx = cx.clamp(chart_left + r, chart_right - r);
         out.push_str(&format!(
             "<polygon class=\"gantt-milestone{}\" points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
             if milestone.is_critical { " gantt-critical" } else { "" },
