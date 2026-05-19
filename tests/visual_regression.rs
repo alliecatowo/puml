@@ -461,7 +461,7 @@ const FOCUSED_TEXT_SWEEP_FIXTURES: &[FocusedTextFixture] = &[
     },
     FocusedTextFixture {
         path: "docs/examples/sdl/02_with_transitions.puml",
-        required_text: NO_FOCUSED_TEXT_REQUIREMENTS,
+        required_text: &["retry", "complete", "Idle", "Waiting", "Done"],
     },
 ];
 

@@ -44,6 +44,7 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
         positions.insert(&state.name, node);
     }
 
+    let mut transition_labels = String::new();
     for tr in &document.transitions {
         let Some(from) = positions.get(tr.from.as_str()) else {
             continue;
@@ -51,7 +52,7 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
         let Some(to) = positions.get(tr.to.as_str()) else {
             continue;
         };
-        render_sdl_transition(&mut out, tr, *from, *to);
+        render_sdl_transition(&mut out, &mut transition_labels, tr, *from, *to);
     }
 
     for state in &document.states {
@@ -59,6 +60,7 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
             render_sdl_node(&mut out, state, *node);
         }
     }
+    out.push_str(&transition_labels);
     out.push_str("</svg>");
     out
 }
@@ -99,6 +101,7 @@ fn sdl_node_box(x: i32, y: i32, kind: SdlStateKind) -> SdlNodeBox {
 
 fn render_sdl_transition(
     out: &mut String,
+    labels_out: &mut String,
     tr: &crate::model::SdlTransition,
     from: SdlNodeBox,
     to: SdlNodeBox,
@@ -127,7 +130,7 @@ fn render_sdl_transition(
     if let Some(label) = &tr.signal {
         let lx = (x1 + x2) / 2;
         let ly = (y1 + y2) / 2 - 8;
-        out.push_str(&format!(
+        labels_out.push_str(&format!(
             "<text class=\"sdl-transition-label\" x=\"{lx}\" y=\"{ly}\" font-family=\"monospace\" font-size=\"11\" text-anchor=\"middle\" fill=\"#475569\">{}</text>",
             escape_text(label)
         ));

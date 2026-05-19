@@ -88,8 +88,17 @@ Waiting -> Done : complete
     assert!(svg.contains("marker-end=\"url(#sdl-arrow)\""));
     assert!(svg.contains("data-sdl-from=\"Waiting\" data-sdl-to=\"Done\""));
     assert!(svg.contains(">request</text>"));
+    assert!(svg.contains(">retry</text>"));
     assert!(svg.contains(">Idle</text>"));
     assert!(svg.contains(">Done</text>"));
+    let retry_idx = svg.find(">retry</text>").expect("retry transition label");
+    let idle_idx = svg
+        .find("data-sdl-name=\"Idle\"")
+        .expect("Idle SDL node group");
+    assert!(
+        retry_idx > idle_idx,
+        "SDL transition labels should render after SDL nodes to avoid clipping"
+    );
     assert!(
         !svg.contains("<ellipse"),
         "SDL should not collapse to an empty ellipse placeholder"
