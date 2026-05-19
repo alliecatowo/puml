@@ -74,14 +74,32 @@ Admin --> UC3
     .expect("usecase with aliases should render");
 
     // Display names must be present
-    assert!(svg.contains(">BrowseProducts<"), "BrowseProducts should appear as display text");
-    assert!(svg.contains(">PlaceOrder<"), "PlaceOrder should appear as display text");
-    assert!(svg.contains(">ManageInventory<"), "ManageInventory should appear as display text");
+    assert!(
+        svg.contains(">BrowseProducts<"),
+        "BrowseProducts should appear as display text"
+    );
+    assert!(
+        svg.contains(">PlaceOrder<"),
+        "PlaceOrder should appear as display text"
+    );
+    assert!(
+        svg.contains(">ManageInventory<"),
+        "ManageInventory should appear as display text"
+    );
 
     // Alias identifiers must NOT appear as rendered text (they are internal routing ids)
-    assert!(!svg.contains(">UC1<"), "alias UC1 must not render as visible text (#478)");
-    assert!(!svg.contains(">UC2<"), "alias UC2 must not render as visible text (#478)");
-    assert!(!svg.contains(">UC3<"), "alias UC3 must not render as visible text (#478)");
+    assert!(
+        !svg.contains(">UC1<"),
+        "alias UC1 must not render as visible text (#478)"
+    );
+    assert!(
+        !svg.contains(">UC2<"),
+        "alias UC2 must not render as visible text (#478)"
+    );
+    assert!(
+        !svg.contains(">UC3<"),
+        "alias UC3 must not render as visible text (#478)"
+    );
 
     // 04_with_packages pattern: aliases MP/MO inside rectangles must be invisible
     let svg2 = puml::render_source_to_svg(
@@ -99,10 +117,22 @@ MP --> MO : depends
     )
     .expect("usecase with package aliases should render");
 
-    assert!(svg2.contains(">ManageProducts<"), "ManageProducts should appear as display text");
-    assert!(svg2.contains(">ManageOrders<"), "ManageOrders should appear as display text");
-    assert!(!svg2.contains(">MP<"), "alias MP must not render as visible text (#478)");
-    assert!(!svg2.contains(">MO<"), "alias MO must not render as visible text (#478)");
+    assert!(
+        svg2.contains(">ManageProducts<"),
+        "ManageProducts should appear as display text"
+    );
+    assert!(
+        svg2.contains(">ManageOrders<"),
+        "ManageOrders should appear as display text"
+    );
+    assert!(
+        !svg2.contains(">MP<"),
+        "alias MP must not render as visible text (#478)"
+    );
+    assert!(
+        !svg2.contains(">MO<"),
+        "alias MO must not render as visible text (#478)"
+    );
 }
 
 /// Regression test for #477: C4 Rel() edge labels must not be clipped or truncated.
@@ -127,10 +157,22 @@ fn c4_rel_labels_are_fully_rendered_without_truncation() {
     .expect("C4 container diagram should render");
 
     // All Rel() labels must appear in full — none truncated mid-word (#477)
-    assert!(svg.contains(">Uses<"), "Rel label 'Uses' must render in full (#477)");
-    assert!(svg.contains(">Calls<"), "Rel label 'Calls' must render in full (#477)");
-    assert!(svg.contains(">Enqueues<"), "Rel label 'Enqueues' must render in full (#477)");
-    assert!(svg.contains(">Sends via<"), "Rel label 'Sends via' must render in full (#477)");
+    assert!(
+        svg.contains(">Uses<"),
+        "Rel label 'Uses' must render in full (#477)"
+    );
+    assert!(
+        svg.contains(">Calls<"),
+        "Rel label 'Calls' must render in full (#477)"
+    );
+    assert!(
+        svg.contains(">Enqueues<"),
+        "Rel label 'Enqueues' must render in full (#477)"
+    );
+    assert!(
+        svg.contains(">Sends via<"),
+        "Rel label 'Sends via' must render in full (#477)"
+    );
 
     // Microservices pattern: multi-word and slash labels
     let svg2 = puml::render_source_to_svg(
@@ -148,9 +190,18 @@ fn c4_rel_labels_are_fully_rendered_without_truncation() {
     )
     .expect("C4 microservices diagram should render");
 
-    assert!(svg2.contains(">API calls<"), "Rel label 'API calls' must render in full (#477)");
-    assert!(svg2.contains(">Routes<"), "Rel label 'Routes' must render in full (#477)");
-    assert!(svg2.contains(">Reads/writes<"), "Rel label 'Reads/writes' must render in full (#477)");
+    assert!(
+        svg2.contains(">API calls<"),
+        "Rel label 'API calls' must render in full (#477)"
+    );
+    assert!(
+        svg2.contains(">Routes<"),
+        "Rel label 'Routes' must render in full (#477)"
+    );
+    assert!(
+        svg2.contains(">Reads/writes<"),
+        "Rel label 'Reads/writes' must render in full (#477)"
+    );
 }
 
 #[test]

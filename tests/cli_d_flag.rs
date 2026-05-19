@@ -81,11 +81,7 @@ fn d_flag_repeated_flag_syntax_dkey_value() {
     // Tests the compact PlantUML-style: `-DCOLOR=blue` as a single arg.
     let tmp = tempdir().unwrap();
     let input = tmp.path().join("compact.puml");
-    fs::write(
-        &input,
-        "@startuml\nparticipant $COLOR\n@enduml\n",
-    )
-    .unwrap();
+    fs::write(&input, "@startuml\nparticipant $COLOR\n@enduml\n").unwrap();
     let output = tmp.path().join("compact.svg");
 
     Command::cargo_bin("puml")
@@ -98,7 +94,10 @@ fn d_flag_repeated_flag_syntax_dkey_value() {
         .success();
 
     let svg = fs::read_to_string(&output).expect("output SVG");
-    assert!(svg.contains("blue"), "SVG should contain 'blue' with -DCOLOR=blue");
+    assert!(
+        svg.contains("blue"),
+        "SVG should contain 'blue' with -DCOLOR=blue"
+    );
 }
 
 #[test]
