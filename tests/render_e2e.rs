@@ -1210,6 +1210,63 @@ fn render_svg_sequence_alt_opt_loop_fixture_labels_alt_and_else() {
         svg.contains(">else invalid<"),
         "else branch separator should include the group keyword and label"
     );
+    assert!(
+        svg.contains("<polygon points=\"24,120 187,120 187,134 181,140 24,140\""),
+        "alt branch header should render as a pentagon notch instead of a plain rectangle label"
+    );
+    assert!(
+        svg.contains("<polygon points=\"24,320 145,320 145,334 139,340 24,340\""),
+        "opt branch header should render as a pentagon notch instead of a plain rectangle label"
+    );
+    assert!(
+        svg.contains("<polygon points=\"24,440 124,440 124,454 118,460 24,460\""),
+        "loop branch header should render as a pentagon notch instead of a plain rectangle label"
+    );
+}
+
+#[test]
+fn render_svg_sequence_all_group_types_fixture_uses_fragment_notches() {
+    let src = std::fs::read_to_string(format!(
+        "{}/docs/examples/sequence/17_all_groups.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("sequence all-groups fixture should exist");
+    let svg =
+        puml::render_source_to_svg(&src).expect("sequence all-groups fixture should render");
+
+    for (header_text, polygon_prefix) in [
+        ("alt success", "<polygon points=\"24,148 117,148 117,162 111,168 24,168\""),
+        (
+            "opt optional step",
+            "<polygon points=\"24,348 159,348 159,362 153,368 24,368\"",
+        ),
+        (
+            "loop retry 3 times",
+            "<polygon points=\"24,468 166,468 166,482 160,488 24,488\"",
+        ),
+        ("par parallel", "<polygon points=\"24,588 124,588 124,602 118,608 24,608\""),
+        (
+            "critical critical section",
+            "<polygon points=\"24,788 215,788 215,802 209,808 24,808\"",
+        ),
+        (
+            "break on error",
+            "<polygon points=\"24,908 138,908 138,922 132,928 24,928\"",
+        ),
+        (
+            "group custom label",
+            "<polygon points=\"24,1028 166,1028 166,1042 160,1048 24,1048\"",
+        ),
+    ] {
+        assert!(
+            svg.contains(header_text),
+            "combined fragment header should keep its label text for {header_text}"
+        );
+        assert!(
+            svg.contains(polygon_prefix),
+            "combined fragment header should render a pentagon notch for {header_text}"
+        );
+    }
 }
 
 #[test]
