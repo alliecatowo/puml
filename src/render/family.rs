@@ -878,6 +878,19 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         // Edge IDs are "r{rel_idx}" matching gl_edges_class construction above.
         // Fall back to a straight <line> when no pre-computed path is available
         // (explicit direction override, hidden, or layout produced no path).
+        //
+        // Endpoint snapping: graph_layout computes port positions from its own
+        // node positions (which may differ slightly from the SVG node_boxes due
+        // to integer rounding, width/height mismatch, or the lateral parallel
+        // offset applied to pick_port anchors).  To guarantee clean attachment
+        // to the actual rendered node edges, we REPLACE the first and last
+        // waypoint of the graph_layout path with the actual bottom-center /
+        // top-center ports derived from node_boxes.  The intermediate waypoints
+        // (channel y values) from graph_layout determine the routing shape.
+        //
+        // Direction: graph_layout routes downward edges from bottom-center of
+        // source to top-center of target (goes_down = src_rank < tgt_rank).
+        // We use the graph_layout path's y-coordinates to determine direction.
         let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
         {
             gl_result_class
@@ -885,9 +898,49 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 .get(&format!("r{rel_idx}"))
                 .filter(|p| p.len() >= 2)
                 .map(|p| {
-                    p.iter()
-                        .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
-                        .collect()
+                    let mut pts: Vec<(i32, i32)> =
+                        p.iter().map(|&(px, py)| (px as i32, py as i32)).collect();
+                    // Snap the first waypoint to the actual from-box port.
+                    // Determine direction from graph_layout path: if first y <
+                    // last y, the edge goes downward (from bottom to top port).
+                    if pts.len() >= 2 {
+                        let goes_down = pts.first().map(|p| p.1).unwrap_or(0)
+                            < pts.last().map(|p| p.1).unwrap_or(0);
+                        // Snap endpoints to actual node_box port centers.
+                        let src_port = if goes_down {
+                            // bottom-center of from_box
+                            (from.x + from.w / 2, from.y + from.h)
+                        } else {
+                            // top-center of from_box
+                            (from.x + from.w / 2, from.y)
+                        };
+                        let tgt_port = if goes_down {
+                            // top-center of to_box
+                            (to.x + to.w / 2, to.y)
+                        } else {
+                            // bottom-center of to_box
+                            (to.x + to.w / 2, to.y + to.h)
+                        };
+                        // Replace first and last waypoints.
+                        if let Some(first) = pts.first_mut() {
+                            *first = src_port;
+                        }
+                        if let Some(last) = pts.last_mut() {
+                            *last = tgt_port;
+                        }
+                        // Fix up the adjacent intermediate waypoints so the path
+                        // remains orthogonal after endpoint snapping:
+                        // - point[1].x should equal point[0].x (same vertical)
+                        // - point[n-2].x should equal point[n-1].x (same vertical)
+                        if pts.len() >= 3 {
+                            let src_x = pts[0].0;
+                            pts[1].0 = src_x;
+                            let tgt_x = pts[pts.len() - 1].0;
+                            let n = pts.len();
+                            pts[n - 2].0 = tgt_x;
+                        }
+                    }
+                    pts
                 })
         } else {
             None

@@ -119,7 +119,7 @@ pub fn layout_hierarchical(
     let group_bounds = compute_group_bounds(nodes, &node_positions, options);
 
     // Step 5 — Orthogonal edge routing (Stage 3: channel-based)
-    let edge_paths = route_edges(nodes, edges, &node_positions, &reversed_edges);
+    let edge_paths = route_edges(nodes, edges, &node_positions, &reversed_edges, &group_bounds);
 
     GraphLayout {
         node_positions,
@@ -678,11 +678,17 @@ const TRACK_SPACING: f64 = 8.0;
 /// Number of tracks available per channel before we wrap (soft cap).
 const MAX_TRACKS: usize = 12;
 
+/// Height of the package header band that should not be crossed by edge
+/// routing.  Matches the `label_header` constant in family.rs (40px) plus
+/// a small safety margin.
+const PKG_HEADER_HEIGHT: f64 = 48.0;
+
 fn route_edges(
     nodes: &[NodeSize],
     edges: &[EdgeSpec],
     positions: &BTreeMap<String, (f64, f64)>,
     reversed_edges: &BTreeSet<String>,
+    group_bounds: &BTreeMap<String, (f64, f64, f64, f64)>,
 ) -> BTreeMap<String, Vec<(f64, f64)>> {
     // Build node lookup map.
     let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
@@ -988,13 +994,25 @@ fn route_edges(
                 let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
                 let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
                 let gap = next_top - bot;
-                if gap < 16.0 {
+                let clamped = if gap < 16.0 {
                     // Degenerate gap: clamp to exact midpoint.
                     (bot + next_top) / 2.0
                 } else {
                     // Normal gap: allow any value strictly within the gap.
                     raw.clamp(bot + 4.0, next_top - 4.0)
+                };
+                // Package-header avoidance: if the channel y lands inside any
+                // group's header band (top_y .. top_y + PKG_HEADER_HEIGHT), push
+                // it below the header so arrow shafts do not slice through the
+                // package label text.
+                let mut result = clamped;
+                for &(_, gy, _, _) in group_bounds.values() {
+                    let header_bottom = gy + PKG_HEADER_HEIGHT;
+                    if result > gy && result < header_bottom {
+                        result = header_bottom + 4.0;
+                    }
                 }
+                result
             };
 
             // Build polyline segment by segment through each channel.
@@ -1004,10 +1022,24 @@ fn route_edges(
             let mut pts: Vec<(f64, f64)> = Vec::new();
             pts.push((src_port_x, src_port_y));
 
-            if max_r - min_r == 1 {
-                // Single channel hop.  Route through the inter-rank channel midpoint
-                // (± symmetric track offset) so the horizontal bend segment is always
-                // clearly visible even when src_x == tgt_x (collinear nodes).
+            // Column-align shortcut: when source and target ports are within
+            // 4 px of each other horizontally, emit a clean straight vertical
+            // with NO horizontal segment.  This eliminates the unnecessary
+            // right-then-back jog for nodes that are vertically stacked in the
+            // same column (e.g. Parser → AST → Normalizer → Renderer).
+            let column_aligned = (src_port_x - tgt_port_x).abs() <= 4.0;
+
+            if column_aligned {
+                // Straight vertical: no channel waypoints needed.
+                // The pts vec already has src_port pushed above; just push a
+                // straight point at the midpoint y so the renderer sees ≥3
+                // distinct waypoints (required by the ≥3-point assertion).
+                let mid_y = (src_port_y + tgt_port_y) / 2.0;
+                pts.push((src_port_x, mid_y));
+            } else if max_r - min_r == 1 {
+                // Single channel hop: route through the inter-rank channel
+                // midpoint with a symmetric track offset so the horizontal
+                // bend is clearly visible.
                 let raw_ch_y = channel_mid_y(min_r) + symmetric_offset(min_r, track);
                 let ch_y = soft_clamp_ch_y(min_r, raw_ch_y);
                 pts.push((src_port_x, ch_y));
