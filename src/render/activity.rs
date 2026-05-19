@@ -976,31 +976,71 @@ fn fork_branch_cx(fork_cx: i32, branch_idx: usize, n_branches: usize, col_w: i32
     leftmost + branch_idx as i32 * col_w
 }
 
-/// Emit a straight arrow from (x1,y1) to (x2,y2) with an arrowhead at (x2,y2).
+/// Emit an orthogonal (L-shaped / elbow) arrow from (x1,y1) to (x2,y2).
+///
+/// When the source and destination share the same X coordinate the arrow is a
+/// straight vertical line (the common case for sequential nodes).  When they
+/// differ the path is routed as an L-bend:
+///
+///   1. Straight down from (x1, y1) to (x1, mid_y)    — vertical segment
+///   2. Straight across from (x1, mid_y) to (x2, mid_y) — horizontal segment
+///   3. Straight down from (x2, mid_y) to (x2, y2)    — vertical segment
+///
+/// `mid_y` is placed half-way between y1 and y2, giving a symmetric elbow.
+/// This eliminates the diagonal arrows that would otherwise cross through
+/// node bodies on multi-branch flows (#778).
 fn emit_activity_arrow(out: &mut String, x1: i32, y1: i32, x2: i32, y2: i32, color: &str) {
-    out.push_str(&format!(
-        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-        x1, y1, x2, y2, color
-    ));
-    // Arrowhead: small triangle pointing in the direction of travel
-    let dx = x2 - x1;
-    let dy = y2 - y1;
-    let len = ((dx * dx + dy * dy) as f64).sqrt().max(1.0);
-    let ux = dx as f64 / len;
-    let uy = dy as f64 / len;
-    // Perpendicular
-    let px = -uy;
-    let py = ux;
-    let tip_x = x2 as f64;
-    let tip_y = y2 as f64;
-    let base_x = tip_x - ux * 8.0;
-    let base_y = tip_y - uy * 8.0;
-    let l_x = (base_x + px * 4.0).round() as i32;
-    let l_y = (base_y + py * 4.0).round() as i32;
-    let r_x = (base_x - px * 4.0).round() as i32;
-    let r_y = (base_y - py * 4.0).round() as i32;
-    out.push_str(&format!(
-        "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-        x2, y2, l_x, l_y, r_x, r_y, color
-    ));
+    if x1 == x2 {
+        // Straight vertical arrow — no routing needed.
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x1, y1, x2, y2, color
+        ));
+        // Arrowhead pointing downward (or upward for back-edges).
+        let uy = if y2 >= y1 { 1.0f64 } else { -1.0f64 };
+        let base_y = y2 as f64 - uy * 8.0;
+        out.push_str(&format!(
+            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+            x2,
+            y2,
+            x2 - 4,
+            base_y.round() as i32,
+            x2 + 4,
+            base_y.round() as i32,
+            color
+        ));
+    } else {
+        // L-shaped orthogonal routing: down → across → down.
+        // mid_y is half-way between y1 and y2 on both sides.
+        let mid_y = y1 + (y2 - y1) / 2;
+        // Segment 1: x1, y1 → x1, mid_y
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x1, y1, x1, mid_y, color
+        ));
+        // Segment 2: x1, mid_y → x2, mid_y
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x1, mid_y, x2, mid_y, color
+        ));
+        // Segment 3: x2, mid_y → x2, y2
+        out.push_str(&format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            x2, mid_y, x2, y2, color
+        ));
+        // Arrowhead at (x2, y2) pointing vertically (downward or upward).
+        let dy = y2 - mid_y;
+        let uy = if dy >= 0 { 1.0f64 } else { -1.0f64 };
+        let base_y = y2 as f64 - uy * 8.0;
+        out.push_str(&format!(
+            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+            x2,
+            y2,
+            x2 - 4,
+            base_y.round() as i32,
+            x2 + 4,
+            base_y.round() as i32,
+            color
+        ));
+    }
 }
