@@ -3698,18 +3698,18 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // above the top-rank nodes stays on canvas (the group bounds computation
     // subtracts group_padding + label_reserve above the minimum node y).
     let group_top_overhead = (pkg_pad + pkg_tab) as f64; // 24 + 40 = 64px (pkg_tab bumped)
-    // rank_separation: gap between the bottom of nodes in rank R and the top of
-    // nodes in rank R+1.  Package frames extend pkg_pad below/above their nodes
-    // and add label_reserve (40px) above the first node.  To keep visible
-    // whitespace between consecutive package frames we need:
-    //   rank_separation > 2 * pkg_pad + label_reserve  (= 88px)
-    // Use cell_h + inner_gap + 2*pkg_pad + label_reserve as a reasonable default
-    // so that adjacent package frames have at least inner_gap (40px) of breathing
-    // room between them.
+                                                         // rank_separation: gap between the bottom of nodes in rank R and the top of
+                                                         // nodes in rank R+1.  Package frames extend pkg_pad below/above their nodes
+                                                         // and add label_reserve (40px) above the first node.  To keep visible
+                                                         // whitespace between consecutive package frames we need:
+                                                         //   rank_separation > 2 * pkg_pad + label_reserve  (= 88px)
+                                                         // Use cell_h + inner_gap + 2*pkg_pad + label_reserve as a reasonable default
+                                                         // so that adjacent package frames have at least inner_gap (40px) of breathing
+                                                         // room between them.
     let rank_sep = (cell_h + inner_gap) as f64 + 2.0 * pkg_pad as f64 + 40.0; // ~188px
-    // node_separation: horizontal gap between NODES in the same rank.  Package
-    // frames extend pkg_pad (24px) on each side, so a node_separation of 2*pkg_pad
-    // gives frames that just touch.  Add a visible inter-frame gutter on top.
+                                                                              // node_separation: horizontal gap between NODES in the same rank.  Package
+                                                                              // frames extend pkg_pad (24px) on each side, so a node_separation of 2*pkg_pad
+                                                                              // gives frames that just touch.  Add a visible inter-frame gutter on top.
     let node_sep = 2 * pkg_pad + inner_gap; // 48 + 40 = 88px → ~40px gap between frames
     let gl_options = GlOptions {
         rank_separation: rank_sep,
