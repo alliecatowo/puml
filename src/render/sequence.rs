@@ -6,7 +6,8 @@ use crate::theme::{css3_color_to_hex, MessageAlign};
 use std::collections::BTreeMap;
 
 const MESSAGE_LABEL_LINE_GAP: i32 = 16;
-const REF_HEADER_HEIGHT: i32 = 22;
+const REF_HEADER_HEIGHT: i32 = 20;
+const REF_BODY_BASELINE_Y: i32 = 32;
 
 pub fn render_svg(scene: &Scene) -> String {
     let mut out = String::new();
@@ -150,18 +151,16 @@ pub fn render_svg(scene: &Scene) -> String {
                 _ => "",
             };
             if is_ref {
-                let header_bottom = g.y + REF_HEADER_HEIGHT;
+                let notch_w = 32_i32.min(g.width.saturating_sub(4)).max(24);
+                let cut = 6_i32.min(REF_HEADER_HEIGHT.saturating_sub(2));
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"#ffffff\" fill-opacity=\"0.45\" stroke=\"none\"/>",
-                    g.x, g.y, g.width, REF_HEADER_HEIGHT
-                ));
-                out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                    g.x,
-                    header_bottom,
-                    g.x + g.width,
-                    header_bottom,
-                    group_border
+                    "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    g.x, g.y,
+                    g.x + notch_w, g.y,
+                    g.x + notch_w, g.y + REF_HEADER_HEIGHT - cut,
+                    g.x + notch_w - cut, g.y + REF_HEADER_HEIGHT,
+                    g.x, g.y + REF_HEADER_HEIGHT,
+                    group_fill, group_border
                 ));
                 out.push_str(&creole_text(
                     g.x + 6,
@@ -170,19 +169,9 @@ pub fn render_svg(scene: &Scene) -> String {
                     "ref",
                     header_font_color,
                 ));
-                // Layout keeps the first line as `over Alice, Bob` so the ref box
-                // can span the right participants, but PlantUML does not render
-                // that participant list as body text.
                 if let Some(label) = &g.label {
-                    let mut lines = label.lines();
-                    let first_line = lines.next().unwrap_or_default();
-                    let body_text = if first_line.trim_start().starts_with("over ") {
-                        lines.collect::<Vec<_>>().join("\n")
-                    } else {
-                        label.clone()
-                    };
-                    let mut y = header_bottom + 16;
-                    for line in body_text.lines() {
+                    let mut y = g.y + REF_BODY_BASELINE_Y;
+                    for line in label.lines() {
                         out.push_str(&creole_text(
                             g.x + 8,
                             y,
