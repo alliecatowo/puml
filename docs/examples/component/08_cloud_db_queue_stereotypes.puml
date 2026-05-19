@@ -1,0 +1,36 @@
+@startuml
+title Cloud, database, queue, and actor stereotypes
+actor "End User" as EU
+package "CDN" <<cloud>> {
+  component "Edge Cache" as EC
+}
+package "API Cluster" {
+  component "Load Balancer" as LB
+  component "Service A" as SA
+  component "Service B" as SB
+}
+package "Storage Layer" {
+  database "Primary DB" as DB1
+  database "Read Replica" as DB2
+  storage "Object Store" as S3
+}
+package "Event Bus" <<queue>> {
+  component "Kafka" as KF
+}
+package "Analytics" <<cloud>> {
+  component "Stream Processor" as SP
+  database "Data Warehouse" as DW
+}
+
+EU --> EC : HTTPS
+EC --> LB : origin pull
+LB --> SA : route /api/v1
+LB --> SB : route /api/v2
+SA --> DB1 : read/write
+SA --> DB2 : read-only
+SB --> S3 : upload artifacts
+SA --> KF : publish events
+SB --> KF : publish events
+KF --> SP : consume
+SP --> DW : aggregate
+@enduml

@@ -1,0 +1,34 @@
+@startuml
+title Repeat-while inside partition — batch ETL job
+start
+partition "Extract" {
+  :Open data source;
+  repeat
+    :Fetch batch (1000 rows);
+    :Validate schema;
+  repeat while (more rows?) is (yes) not (no)
+  :Close source connection;
+}
+partition "Transform" {
+  :Normalize timestamps;
+  :Deduplicate records;
+  while (records in queue?) is (yes)
+    :Apply transformation rules;
+    :Emit to output queue;
+  endwhile (no)
+}
+partition "Load" {
+  :Open destination;
+  fork
+    :Write primary table;
+  fork again
+    :Update search index;
+  fork again
+    :Publish CDC events;
+  end fork
+  :Commit transaction;
+  :Close destination;
+}
+:Log job metrics;
+stop
+@enduml

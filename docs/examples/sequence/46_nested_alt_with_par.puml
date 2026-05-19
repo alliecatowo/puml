@@ -1,0 +1,47 @@
+@startuml
+title Nested alt+par: Payment authorization flow
+actor User
+participant "Browser" as B
+participant "Auth Service" as A
+participant "Payment GW" as P
+participant "Fraud Engine" as F
+participant "Ledger" as L
+
+User -> B: submit payment
+B -> A: POST /checkout
+activate A
+alt session valid
+  A -> P: authorize(amount, card)
+  activate P
+  par fraud check and ledger reserve
+    P -> F: checkFraud(txn)
+    activate F
+    F --> P: riskScore
+    deactivate F
+  also
+    P -> L: reserveFunds(amount)
+    activate L
+    L --> P: reservationId
+    deactivate L
+  end
+  alt riskScore < 0.3 and reservationId set
+    P --> A: authorized(txnId)
+    A --> B: 200 OK {txnId}
+    B --> User: Payment confirmed
+  else riskScore >= 0.3
+    P -> L: releaseFunds(reservationId)
+    P --> A: declined(FRAUD_RISK)
+    A --> B: 402 Payment Required
+    B --> User: Payment declined — fraud risk
+  else reservation failed
+    P --> A: declined(INSUFFICIENT_FUNDS)
+    A --> B: 402 Payment Required
+    B --> User: Insufficient funds
+  end
+  deactivate P
+else session expired
+  A --> B: 401 Unauthorized
+  B --> User: Please log in again
+end
+deactivate A
+@enduml
