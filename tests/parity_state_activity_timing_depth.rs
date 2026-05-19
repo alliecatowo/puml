@@ -128,6 +128,72 @@ fn activity_old_swimlane_example_uses_only_real_lanes_and_keeps_nodes_in_bounds(
 }
 
 #[test]
+fn activity_old_style_swimlanes_place_headers_with_their_lane_content() {
+    let src = r#"@startuml
+|Build|
+(*) --> "Init"
+:Compile;
+|Test|
+--> "Run Tests"
+|Deploy|
+--> "Deploy"
+"Deploy" --> (*)
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("activity render should succeed");
+    let doc = SvgDoc::parse(&svg);
+
+    let build_header_y = f64_attr(
+        *doc.texts_containing("Build")
+            .first()
+            .expect("Build header should render"),
+        "y",
+    );
+    let test_header_y = f64_attr(
+        *doc.texts_containing("Test")
+            .first()
+            .expect("Test header should render"),
+        "y",
+    );
+    let compile_y = f64_attr(
+        *doc.texts_containing("Compile")
+            .first()
+            .expect("Compile action should render"),
+        "y",
+    );
+    let run_tests_y = f64_attr(
+        *doc.texts_containing("Run Tests")
+            .first()
+            .expect("Run Tests action should render"),
+        "y",
+    );
+    let deploy_texts = doc.texts_containing("Deploy");
+    assert_eq!(
+        deploy_texts.len(),
+        2,
+        "expected both header and action labels"
+    );
+    let mut deploy_ys = deploy_texts
+        .into_iter()
+        .map(|node| f64_attr(node, "y"))
+        .collect::<Vec<_>>();
+    deploy_ys.sort_by(|a, b| a.partial_cmp(b).expect("finite text positions"));
+    let deploy_header_y = deploy_ys[0];
+    let deploy_action_y = deploy_ys[1];
+
+    assert!(build_header_y < test_header_y);
+    assert!(test_header_y < deploy_header_y);
+    assert!(
+        test_header_y > compile_y && test_header_y < run_tests_y,
+        "Test header should sit between the Build and Test content"
+    );
+    assert!(
+        deploy_header_y > run_tests_y && deploy_header_y < deploy_action_y,
+        "Deploy header should sit directly above the Deploy lane content"
+    );
+}
+
+#[test]
 fn state_internals_history_choice_depth_renders_expected_shapes_and_actions() {
     let src = r#"@startuml
 title State internals/history/choice depth

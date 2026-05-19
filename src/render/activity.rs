@@ -121,6 +121,9 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     };
     let has_named_lanes = lanes.iter().any(|l| l != "default");
     let lane_header_h = if has_named_lanes { 24i32 } else { 0i32 };
+    let sequential_partition_lanes = has_named_lanes
+        && metas.iter().any(|meta| meta.step_kind == "PartitionStart")
+        && !metas.iter().any(|meta| meta.step_kind == "PartitionEnd");
 
     // Width reserved for each fork branch column
     let fork_col_w = (lane_w / 2).max(160i32);
@@ -615,6 +618,32 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         .max()
         .unwrap_or(header_h + step_h)
         + 60;
+    let mut lane_spans: Vec<Option<(i32, i32)>> = vec![None; lanes.len()];
+    if sequential_partition_lanes {
+        for ((node, meta), layout) in doc.nodes.iter().zip(metas.iter()).zip(node_layouts.iter()) {
+            let is_invisible_merge = matches!(node.kind, FamilyNodeKind::ActivityMerge)
+                && (meta.step_kind.contains("Else")
+                    || meta.step_kind.contains("EndIf")
+                    || meta.step_kind.contains("EndWhile")
+                    || meta.step_kind.contains("RepeatStart"));
+            let is_layout_only = matches!(node.kind, FamilyNodeKind::ActivityPartition)
+                || meta.step_kind == "RepeatStart"
+                || is_invisible_merge;
+            if is_layout_only || meta.lane_name == "default" {
+                continue;
+            }
+            let lane_idx = lane_index(&meta.lane_name) as usize;
+            let span_top = (layout.slot_y - lane_header_h).max(header_h);
+            let span_bottom = (layout.next_slot_y + 20).min(height - 20);
+            match &mut lane_spans[lane_idx] {
+                Some((top, bottom)) => {
+                    *top = (*top).min(span_top);
+                    *bottom = (*bottom).max(span_bottom);
+                }
+                None => lane_spans[lane_idx] = Some((span_top, span_bottom)),
+            }
+        }
+    }
 
     // ---------------------------------------------------------------------------
     // Emit SVG
@@ -656,6 +685,30 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         } else {
             "#f1f5f9"
         };
+        let header_fill = if idx % 2 == 0 { "#e2e8f0" } else { "#dde5ef" };
+        if sequential_partition_lanes {
+            let Some((span_top, span_bottom)) = lane_spans[idx] else {
+                continue;
+            };
+            let body_y = span_top + lane_header_h;
+            let body_h = (span_bottom - body_y).max(24);
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+                lx, body_y, lane_w, body_h, bg
+            ));
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+                lx, span_top, lane_w, lane_header_h, header_fill
+            ));
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                lx + lane_w / 2,
+                span_top + lane_header_h / 2 + 4,
+                escape_text(&act_style.font_color),
+                escape_text(lane)
+            ));
+            continue;
+        }
         // Lane body (below header)
         out.push_str(&format!(
             "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
@@ -673,7 +726,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 header_h,
                 lane_w,
                 lane_header_h,
-                if idx % 2 == 0 { "#e2e8f0" } else { "#dde5ef" }
+                header_fill
             ));
             // Lane name centered in the header box
             out.push_str(&format!(
