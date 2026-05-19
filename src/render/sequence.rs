@@ -70,7 +70,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 title.y + (idx as i32 * 24),
                 "font-family=\"monospace\" font-size=\"18\" font-weight=\"600\"",
                 line,
-                "black",
+                &scene.style.arrow_color,
             ));
         }
     }
@@ -149,7 +149,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 .style
                 .group_header_font_color
                 .as_deref()
-                .unwrap_or("black");
+                .unwrap_or(scene.style.arrow_color.as_str());
             use crate::theme::GroupHeaderFontStyle;
             let header_font_weight = match scene.style.group_header_font_style {
                 GroupHeaderFontStyle::Bold => "font-weight=\"bold\"",
@@ -186,7 +186,7 @@ pub fn render_svg(scene: &Scene) -> String {
                             y,
                             "font-family=\"monospace\" font-size=\"12\"",
                             line,
-                            "black",
+                            &scene.style.arrow_color,
                         ));
                         y += 16;
                     }
@@ -408,7 +408,7 @@ pub fn render_svg(scene: &Scene) -> String {
                     start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
                     &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                     line,
-                    "black",
+                    &scene.style.arrow_color,
                 ));
             }
         } else if let Some(label) = &m.label {
@@ -425,7 +425,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 ty,
                 &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
                 label,
-                "black",
+                &scene.style.arrow_color,
             ));
         }
     }
@@ -440,7 +440,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 text_y,
                 "font-family=\"monospace\" font-size=\"12\"",
                 line,
-                "black",
+                &scene.style.arrow_color,
             ));
             text_y += 16;
         }
@@ -1194,13 +1194,14 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
         }
     }
 
+    let participant_font_color = scene.style.participant_font_color_resolved();
     for (idx, line) in display_lines.iter().enumerate() {
         out.push_str(&creole_text(
             cx,
             y + 21 + (idx as i32 * 16),
             "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\"",
             line,
-            "black",
+            participant_font_color,
         ));
     }
 }
