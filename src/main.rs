@@ -1239,6 +1239,9 @@ fn svg_to_html_document(svg: &str) -> String {
     )
 }
 
+// All CLI pipeline parameters are required at call sites; grouping them into a
+// struct would not reduce complexity here — the lint is a false positive.
+#[allow(clippy::too_many_arguments)]
 fn parse_for_cli(
     source: &str,
     include_root: Option<PathBuf>,
@@ -1264,6 +1267,8 @@ fn parse_for_cli(
     puml::parse_with_pipeline_options(source, &options)
 }
 
+// Same rationale as parse_for_cli above — all args are required.
+#[allow(clippy::too_many_arguments)]
 fn preprocess_for_cli(
     source: &str,
     include_root: Option<PathBuf>,
