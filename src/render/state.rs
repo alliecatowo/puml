@@ -131,11 +131,24 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     {
         // (computed later; pre-compute inline for sink detection)
     }
+    // Build a set of explicit End-stereotype node names so the out-degree
+    // computation can treat them as terminal (same as [*] pseudo-states).
+    // Without this, a node whose only outgoing edge targets a `<<end>>` state
+    // would be counted as having non-terminal outflow and would not be
+    // classified as a sink, contradicting the heuristic's intent.
+    let end_node_names: std::collections::BTreeSet<&str> = nodes
+        .iter()
+        .filter(|n| matches!(n.kind, StateNodeKind::End))
+        .map(|n| n.name.as_str())
+        .collect();
     let top_level_out_degree: std::collections::BTreeMap<&str, usize> = {
         let mut m: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
         for t in transitions {
-            // Count outgoing edges that go somewhere non-terminal
-            if !t.to.starts_with("[*]") {
+            // Count outgoing edges that go somewhere non-terminal.
+            // Both [*] pseudo-states and explicit <<end>> stereotype nodes are
+            // terminal — transitions to them do not disqualify a node from being
+            // a sink.
+            if !t.to.starts_with("[*]") && !end_node_names.contains(t.to.as_str()) {
                 *m.entry(t.from.as_str()).or_insert(0) += 1;
             }
         }
@@ -229,7 +242,12 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
-    // Place sink nodes in a right-side gutter column
+    // Place sink nodes in a right-side gutter column.
+    // Each sink's Y origin is anchored to its predecessor depth so that
+    // arrows from lower main-flow states don't point upward into the sink
+    // gutter (which caused crossing/clipping before this fix).  We compute
+    // a per-sink Y from the bottom edge of the placed predecessors that feed
+    // into it; if none are placed yet we fall back to STATE_MARGIN + 50.
     if !sink_layout_order.is_empty() {
         let main_max_x = placed
             .values()
@@ -239,11 +257,31 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         let sink_x = main_max_x + STATE_SINK_GUTTER_GAP;
         let mut sink_y = STATE_MARGIN + 50;
         for node in &sink_layout_order {
+            // Find the maximum bottom-Y among all placed predecessors of this sink.
+            let pred_max_bottom: Option<i32> = transitions
+                .iter()
+                .filter(|t| t.to == node.name)
+                .filter_map(|t| placed.get(&t.from))
+                .map(|p| p.y + p.h)
+                .max();
+            // Anchor this sink's top to the deepest predecessor's bottom (+ gap),
+            // but never above the current watermark (sink_y) so sequential sinks
+            // don't overlap each other.
+            if let Some(pred_bottom) = pred_max_bottom {
+                sink_y = sink_y.max(pred_bottom + STATE_NODE_GAP_Y);
+            }
             let (w, h) = *node_sizes
                 .get(&node.name)
                 .unwrap_or(&(STATE_NODE_W, STATE_NODE_H));
             place_node(node, sink_x, sink_y, w, h, &node_sizes, &mut placed);
             sink_y += h + STATE_NODE_GAP_Y;
+        }
+        // Re-run fork/join bar-width adjustment now that sink nodes are in `placed`.
+        // The earlier call inside place_top_level_layered ran before sink nodes were
+        // placed, so fork/join bars whose branches include sink targets were sized
+        // from an incomplete set of branch centers and could end up too narrow.
+        if has_fork_join_choice {
+            adjust_fork_join_bar_widths(&main_layout_order, transitions, &mut placed);
         }
     }
 

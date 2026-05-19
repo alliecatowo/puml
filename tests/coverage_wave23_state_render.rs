@@ -15,13 +15,16 @@ state Parent {
 
     let svg = render_source_to_svg(src).expect("state svg should render");
 
+    // After the region-aware naming fix, pseudo-states include a region suffix
+    // (e.g. "__r0" for region 0) so that concurrent regions under the same parent
+    // produce distinct synthetic names and don't overwrite each other's anchors.
     assert!(
-        svg.contains("data-state-from=\"[*]__in__Parent\" data-state-to=\"Child\""),
-        "internal start pseudo-state should be scoped to composite"
+        svg.contains("data-state-from=\"[*]__in__Parent__r0\" data-state-to=\"Child\""),
+        "internal start pseudo-state should be scoped to composite with region suffix"
     );
     assert!(
-        svg.contains("data-state-from=\"Child\" data-state-to=\"[*]__end__Parent\""),
-        "internal end pseudo-state should be scoped to composite"
+        svg.contains("data-state-from=\"Child\" data-state-to=\"[*]__end__Parent__r0\""),
+        "internal end pseudo-state should be scoped to composite with region suffix"
     );
     assert!(
         svg.contains("data-state-from=\"[*]\" data-state-to=\"Parent\""),
