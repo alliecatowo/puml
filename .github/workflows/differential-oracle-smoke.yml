@@ -44,42 +44,34 @@ jobs:
             git ls-files > "${CHANGED_FILES}"
           fi
 
-          run_oracle_smoke=false
-          full_oracle_covers=false
+          # Use the canonical classify script so path rules stay in sync with
+          # oracle.yml and pr-gate.yml (issue #455).
+          python3 scripts/ci-classify-changes.py \
+            --changed-files "${CHANGED_FILES}" \
+            --github-output "${GITHUB_OUTPUT}" | tee "${RUNNER_TEMP}/ci-classification.txt"
 
+          # workflow_dispatch always runs the smoke.
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            run_oracle_smoke=true
+            echo "run_diff_oracle_smoke=true" >> "${GITHUB_OUTPUT}"
           fi
 
-          while IFS= read -r file; do
-            [[ -n "${file}" ]] || continue
-
-            case "${file}" in
-              Cargo.toml|Cargo.lock|src/*|crates/*|tests/fixtures/*|docs/examples/*|stdlib/*|scripts/oracle.sh|.github/workflows/oracle.yml)
-                full_oracle_covers=true
-                ;;
-              scripts/differential_oracle_smoke.py|.github/workflows/differential-oracle-smoke.yml)
-                run_oracle_smoke=true
-                ;;
-            esac
-          done < "${CHANGED_FILES}"
-
-          if [[ "${{ github.event_name }}" != "workflow_dispatch" && "${full_oracle_covers}" == "true" && "${run_oracle_smoke}" != "true" ]]; then
-            run_oracle_smoke=false
+          # Derive full_oracle_covers from the classification output: true when
+          # the full oracle (oracle.yml) would cover this change set but the
+          # diff-smoke-specific flag is not independently set.
+          SCRIPT_RUN_ORACLE="$(grep '^run_oracle=' "${RUNNER_TEMP}/ci-classification.txt" | cut -d= -f2 || echo false)"
+          SCRIPT_DIFF_SMOKE="$(grep '^run_diff_oracle_smoke=' "${RUNNER_TEMP}/ci-classification.txt" | cut -d= -f2 || echo false)"
+          if [[ "${SCRIPT_RUN_ORACLE}" == "true" && "${SCRIPT_DIFF_SMOKE}" != "true" ]]; then
+            echo "full_oracle_covers=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "full_oracle_covers=false" >> "${GITHUB_OUTPUT}"
           fi
-
-          {
-            echo "run_oracle_smoke=${run_oracle_smoke}"
-            echo "full_oracle_covers=${full_oracle_covers}"
-          } >> "${GITHUB_OUTPUT}"
 
           echo "Changed files:"
           sed 's/^/  - /' "${CHANGED_FILES}"
-          echo "run_oracle_smoke=${run_oracle_smoke}"
-          echo "full_oracle_covers=${full_oracle_covers}"
+          cat "${RUNNER_TEMP}/ci-classification.txt"
 
       - name: Skip duplicate oracle smoke
-        if: steps.changes.outputs.run_oracle_smoke != 'true'
+        if: steps.changes.outputs.run_diff_oracle_smoke != 'true'
         run: |
           if [[ "${{ steps.changes.outputs.full_oracle_covers }}" == "true" ]]; then
             echo "Skipping distro PlantUML smoke; differential-svg-oracle runs the pinned PlantUML JAR for this change set."
@@ -88,28 +80,28 @@ jobs:
           fi
 
       - name: Setup Rust toolchain
-        if: steps.changes.outputs.run_oracle_smoke == 'true'
+        if: steps.changes.outputs.run_diff_oracle_smoke == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust build artifacts
-        if: steps.changes.outputs.run_oracle_smoke == 'true'
+        if: steps.changes.outputs.run_diff_oracle_smoke == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: oracle-smoke-ubuntu-stable
           cache-on-failure: true
 
       - name: Install PlantUML oracle runtime
-        if: steps.changes.outputs.run_oracle_smoke == 'true'
+        if: steps.changes.outputs.run_diff_oracle_smoke == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y default-jre-headless graphviz plantuml
 
       - name: Differential oracle smoke gate
-        if: steps.changes.outputs.run_oracle_smoke == 'true'
+        if: steps.changes.outputs.run_diff_oracle_smoke == 'true'
         run: python3 ./scripts/differential_oracle_smoke.py --quick --strict --quiet
 
       - name: Upload oracle smoke artifact
-        if: always() && steps.changes.outputs.run_oracle_smoke == 'true'
+        if: always() && steps.changes.outputs.run_diff_oracle_smoke == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: oracle-smoke-${{ github.run_number }}
