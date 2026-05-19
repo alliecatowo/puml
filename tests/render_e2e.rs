@@ -1585,13 +1585,15 @@ fn render_svg_renders_distinct_participant_kinds() {
         2,
         "actor box",
     );
+    // Canonical actor head: r=6, stroke-width=1.5 (issue #715)
     assert_count(
-        "<circle cx=\"196\" cy=\"34\" r=\"4\" fill=\"none\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
+        "<circle cx=\"196\" cy=\"25\" r=\"6\" fill=\"none\" stroke=\"#8a5a00\" stroke-width=\"1.5\"/>",
         1,
         "actor head",
     );
+    // Canonical actor footbox right leg: hip at y=365, foot at y=381, cx±8 spread
     assert_count(
-        "x1=\"196\" y1=\"366\" x2=\"200\" y2=\"372\"",
+        "x1=\"196\" y1=\"365\" x2=\"204\" y2=\"381\"",
         1,
         "actor footbox leg",
     );

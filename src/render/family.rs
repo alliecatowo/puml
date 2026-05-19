@@ -3,7 +3,7 @@ use super::relation::{
     arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
     render_relation_marker_defs, render_relation_marker_defs_with_prefix, usecase_dependency_label,
 };
-use super::svg::escape_text;
+use super::svg::{escape_text, render_actor_stick_figure};
 use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
@@ -2218,52 +2218,23 @@ fn render_class_node(
     };
 
     if matches!(node.kind, FamilyNodeKind::Actor) {
-        // Stick-figure rendering for actors in usecase diagrams.
+        // Canonical stick-figure rendering for actors (issue #715).
+        // Proportions are shared with the sequence renderer via render_actor_stick_figure.
+        // The figure centre cy is placed at y + 21 so the head top sits at y + 0.
         let cx = x + w / 2;
-        let fig_top = y + 2;
-        // Head
+        let fig_cy = y + 21; // centre of figure; head top = fig_cy - 21
+        render_actor_stick_figure(out, cx, fig_cy, stroke);
+        // Name below the figure: feet end at fig_cy + 23, add 4 px gap.
+        let name_y = fig_cy + 27;
         out.push_str(&format!(
-            "<circle cx=\"{cx}\" cy=\"{head_cy}\" r=\"9\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-            head_cy = fig_top + 9
-        ));
-        // Body
-        out.push_str(&format!(
-            "<line x1=\"{cx}\" y1=\"{by}\" x2=\"{cx}\" y2=\"{ey}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-            by = fig_top + 18,
-            ey = fig_top + 32
-        ));
-        // Arms
-        out.push_str(&format!(
-            "<line x1=\"{ax1}\" y1=\"{ay}\" x2=\"{ax2}\" y2=\"{ay}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-            ax1 = cx - 12,
-            ay = fig_top + 24,
-            ax2 = cx + 12
-        ));
-        // Left leg
-        out.push_str(&format!(
-            "<line x1=\"{cx}\" y1=\"{ly}\" x2=\"{lx2}\" y2=\"{ley}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-            ly = fig_top + 32,
-            lx2 = cx - 10,
-            ley = fig_top + 44
-        ));
-        // Right leg
-        out.push_str(&format!(
-            "<line x1=\"{cx}\" y1=\"{ly}\" x2=\"{lx2}\" y2=\"{ley}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-            ly = fig_top + 32,
-            lx2 = cx + 10,
-            ley = fig_top + 44
-        ));
-        // Name below the figure
-        out.push_str(&format!(
-            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            "<text x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
             title_font_size,
             escape_text(&class_style.font_color),
-            ty = fig_top + 58,
             name = escape_text(&node.name)
         ));
         // Stereotype / extra members below name
-        let mut member_y = fig_top + 72;
+        let mut member_y = name_y + 14;
         for member in &node.members {
             let text = member.text.trim();
             if text.is_empty() {
