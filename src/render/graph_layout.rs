@@ -463,7 +463,110 @@ fn minimise_crossings(
         }
     }
 
+    // ── Adjacent-transposition pass (bipartite crossing refinement) ───────────
+    // After barycenter sweeps, nodes that share identical barycenters (e.g. two
+    // web servers both connected to the same pair of backends — a K_{2,2}
+    // bipartite subgraph) converge to a stable but crossing-containing order
+    // because all barycenters tie.  A pass of adjacent transpositions resolves
+    // this: for every pair of adjacent nodes in a rank, try swapping them and
+    // keep the swap only when it strictly reduces the number of edge crossings
+    // with the neighbouring ranks.  Repeat until stable (typically 1–3 passes).
+    let max_rank = rank_order.keys().copied().max().unwrap_or(0);
+    let mut improved = true;
+    while improved {
+        improved = false;
+        for r in 0..=max_rank {
+            let order_len = rank_order.get(&r).map(|v| v.len()).unwrap_or(0);
+            for i in 0..order_len.saturating_sub(1) {
+                let before = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if let Some(cur) = rank_order.get_mut(&r) {
+                    cur.swap(i, i + 1);
+                }
+                let after = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if after < before {
+                    improved = true;
+                } else {
+                    // Revert — same or worse.
+                    if let Some(cur) = rank_order.get_mut(&r) {
+                        cur.swap(i, i + 1);
+                    }
+                }
+            }
+        }
+    }
+
     rank_order
+}
+
+/// Count edge crossings touching rank `r`: bilayer(r-1, r) + bilayer(r, r+1).
+///
+/// Used by the adjacent-transposition pass to decide whether a swap improves
+/// the overall crossing count.
+fn crossings_for_rank(
+    rank_order: &BTreeMap<usize, Vec<String>>,
+    below_neighbors: &BTreeMap<&str, Vec<&str>>,
+    r: usize,
+) -> usize {
+    let mut total = 0usize;
+    if r > 0 {
+        if let (Some(top), Some(bot)) = (rank_order.get(&(r - 1)), rank_order.get(&r)) {
+            total += bilayer_crossings(top, bot, below_neighbors);
+        }
+    }
+    if let (Some(top), Some(bot)) = (rank_order.get(&r), rank_order.get(&(r + 1))) {
+        total += bilayer_crossings(top, bot, below_neighbors);
+    }
+    total
+}
+
+/// Count edge crossings between two adjacent rank layers via inversion count.
+///
+/// `top_order` is the upper rank; `bot_order` the lower rank.
+/// `edges_down` maps upper-rank node → list of lower-rank neighbours.
+fn bilayer_crossings(
+    top_order: &[String],
+    bot_order: &[String],
+    edges_down: &BTreeMap<&str, Vec<&str>>,
+) -> usize {
+    let bot_pos: BTreeMap<&str, usize> = bot_order
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
+    let mut edge_targets: Vec<usize> = Vec::new();
+    for top_id in top_order {
+        if let Some(neighbors) = edges_down.get(top_id.as_str()) {
+            let mut positions: Vec<usize> = neighbors
+                .iter()
+                .filter_map(|nb| bot_pos.get(*nb))
+                .copied()
+                .collect();
+            positions.sort_unstable();
+            edge_targets.extend(positions);
+        }
+    }
+    count_inversions(&edge_targets)
+}
+
+/// Count inversions in a slice using merge-sort (O(n log n)).
+fn count_inversions(seq: &[usize]) -> usize {
+    if seq.len() <= 1 {
+        return 0;
+    }
+    let mid = seq.len() / 2;
+    let left = seq[..mid].to_vec();
+    let right = seq[mid..].to_vec();
+    let mut inversions = count_inversions(&left) + count_inversions(&right);
+    let (mut i, mut j) = (0, 0);
+    while i < left.len() && j < right.len() {
+        if left[i] <= right[j] {
+            i += 1;
+        } else {
+            inversions += left.len() - i;
+            j += 1;
+        }
+    }
+    inversions
 }
 
 /// Barycenter using borrowed-str position map (for route_edges path)
@@ -882,26 +985,188 @@ fn route_edges(
 
     // Symmetric track offset for a given channel and track index.
     // With n_tracks tracks in channel `ch`, track i is at:
-    //   offset = (i as f64 - n_tracks as f64 / 2.0) * TRACK_SPACING
+    //   offset = (i as f64 - n_tracks as f64 / 2.0) * effective_spacing
     // so the band is centered on the channel midpoint.
     //
-    // The band half-width is capped at (inter_rank_gap - 16) / 2 so that even
-    // many tracks never collide with the adjacent node rows.  If the gap is
-    // genuinely < 16px (degenerate), no clamping is applied here; the soft
-    // boundary below handles that case.
+    // For channels with ≤ 2 tracks (≤ 2 edges crossing the gap), TRACK_SPACING
+    // (8 px) is used as before — narrow fans are visually fine.  For channels
+    // with ≥ 3 tracks (e.g. the four bipartite edges in a deployment web-server →
+    // db/cache tier), the fan is spread adaptively to fill ~2/3 of the available
+    // channel half-height so that crossing horizontal segments are clearly
+    // separated rather than overlapping in a visually tangled X.
+    //
+    // The band half-width is capped at (inter_rank_gap − 8) / 2 in all cases so
+    // that tracks never collide with the adjacent node rows.
     let symmetric_offset = |ch: usize, track: usize| -> f64 {
-        let n_tracks = *channel_max_track.get(&ch).unwrap_or(&0) as f64;
-        let raw = (track as f64 - n_tracks / 2.0) * TRACK_SPACING;
+        let n_tracks_idx = *channel_max_track.get(&ch).unwrap_or(&0); // max track index used
+        let n_tracks = n_tracks_idx as f64;
         // Compute the inter-rank gap for this channel to bound the fan width.
         let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
         let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
         let gap = next_top - bot;
-        if gap >= 16.0 {
-            let max_half = (gap - 8.0) / 2.0;
-            raw.clamp(-max_half, max_half)
+        let max_half = if gap >= 16.0 { (gap - 8.0) / 2.0 } else { gap / 2.0 };
+        // Adaptive spacing: only for channels with ≥ 3 tracks (max index ≥ 2).
+        let effective_spacing = if n_tracks_idx >= 2 {
+            // Spread the fan so adjacent tracks are ~gap/(n+2) apart, capped at
+            // max_half and floored at TRACK_SPACING.
+            (max_half * 2.0 / (n_tracks + 1.0)).max(TRACK_SPACING)
         } else {
-            raw
+            TRACK_SPACING
+        };
+        let raw = (track as f64 - n_tracks / 2.0) * effective_spacing;
+        raw.clamp(-max_half, max_half)
+    };
+
+    // ── Fan port assignment (fix #705) ───────────────────────────────────────
+    //
+    // When a node has multiple downward (or upward) edges they all exit from
+    // the same centre-bottom port, producing overlapping stubs that are
+    // visually indistinguishable before they diverge.  This is especially
+    // problematic in K_{2,2} bipartite sub-graphs (e.g. WS1/WS2 → PDB/Cache)
+    // where the shared stub makes two separate edges look like one thick line.
+    //
+    // Fix: for each node that has ≥2 cross-rank edges in the same direction,
+    // spread the departure/arrival port x positions uniformly across the node
+    // width, ordered by the target/source x position.  Edges that are
+    // collinear (target centre x is within 2 px of source centre x) keep the
+    // centre port so straight-vertical chains are unaffected.
+    //
+    // The fan width is capped at 80 % of the node width so ports never land
+    // on the very edge of the node silhouette.
+    //
+    // edge_fan_src_x[edge_id] and edge_fan_tgt_x[edge_id] hold the result.
+    let (edge_fan_src_x, edge_fan_tgt_x): (BTreeMap<String, f64>, BTreeMap<String, f64>) = {
+        // Group downward cross-rank edges by source node.
+        // Key = (src_id, src_rank, tgt_rank direction: 0=down 1=up)
+        // We only fan within a single direction per node.
+        let mut fan_src_x: BTreeMap<String, f64> = BTreeMap::new();
+        let mut fan_tgt_x: BTreeMap<String, f64> = BTreeMap::new();
+
+        // ── Source fan-out ──────────────────────────────────────────────────
+        // Group cross-rank edges by (src_id, direction).
+        let mut by_src: BTreeMap<(String, bool), Vec<&EdgeInfo>> = BTreeMap::new();
+        for ei in &edge_infos {
+            if ei.src_rank != ei.tgt_rank {
+                let goes_down = ei.src_rank < ei.tgt_rank;
+                by_src
+                    .entry((ei.src_id.clone(), goes_down))
+                    .or_default()
+                    .push(ei);
+            }
         }
+        for ((src_id, _goes_down), mut group) in by_src {
+            let Some(&(sx, _)) = positions.get(src_id.as_str()) else {
+                continue;
+            };
+            let sw = node_by_id
+                .get(src_id.as_str())
+                .map(|n| n.width)
+                .unwrap_or(200.0);
+            let src_cx = sx + sw / 2.0;
+            if group.len() == 1 {
+                // Single outgoing edge: use centre (no fanning needed).
+                fan_src_x.insert(group[0].edge_id.clone(), src_cx);
+                continue;
+            }
+            // Sort group by target centre x for deterministic port ordering.
+            group.sort_by(|a, b| {
+                let ax = positions
+                    .get(a.tgt_id.as_str())
+                    .map(|&(x, _)| {
+                        let tw = node_by_id
+                            .get(a.tgt_id.as_str())
+                            .map(|n| n.width)
+                            .unwrap_or(200.0);
+                        x + tw / 2.0
+                    })
+                    .unwrap_or(0.0);
+                let bx = positions
+                    .get(b.tgt_id.as_str())
+                    .map(|&(x, _)| {
+                        let tw = node_by_id
+                            .get(b.tgt_id.as_str())
+                            .map(|n| n.width)
+                            .unwrap_or(200.0);
+                        x + tw / 2.0
+                    })
+                    .unwrap_or(0.0);
+                ax.partial_cmp(&bx)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.edge_id.cmp(&b.edge_id))
+            });
+            let n = group.len() as f64;
+            // Fan width = min(80% of node width, full node width - 20px margin).
+            let fan_half = (sw * 0.4).min((sw - 20.0) / 2.0).max(0.0);
+            let fan_start = src_cx - fan_half;
+            let fan_step = if n > 1.0 { fan_half * 2.0 / (n - 1.0) } else { 0.0 };
+            for (i, ei) in group.iter().enumerate() {
+                let port_x = fan_start + i as f64 * fan_step;
+                fan_src_x.insert(ei.edge_id.clone(), port_x);
+            }
+        }
+
+        // ── Target fan-in ──────────────────────────────────────────────────
+        // Group cross-rank edges by (tgt_id, direction).
+        let mut by_tgt: BTreeMap<(String, bool), Vec<&EdgeInfo>> = BTreeMap::new();
+        for ei in &edge_infos {
+            if ei.src_rank != ei.tgt_rank {
+                let goes_down = ei.src_rank < ei.tgt_rank;
+                by_tgt
+                    .entry((ei.tgt_id.clone(), goes_down))
+                    .or_default()
+                    .push(ei);
+            }
+        }
+        for ((tgt_id, _goes_down), mut group) in by_tgt {
+            let Some(&(tx, _)) = positions.get(tgt_id.as_str()) else {
+                continue;
+            };
+            let tw = node_by_id
+                .get(tgt_id.as_str())
+                .map(|n| n.width)
+                .unwrap_or(200.0);
+            let tgt_cx = tx + tw / 2.0;
+            if group.len() == 1 {
+                fan_tgt_x.insert(group[0].edge_id.clone(), tgt_cx);
+                continue;
+            }
+            // Sort by source centre x for deterministic port ordering.
+            group.sort_by(|a, b| {
+                let ax = positions
+                    .get(a.src_id.as_str())
+                    .map(|&(x, _)| {
+                        let sw = node_by_id
+                            .get(a.src_id.as_str())
+                            .map(|n| n.width)
+                            .unwrap_or(200.0);
+                        x + sw / 2.0
+                    })
+                    .unwrap_or(0.0);
+                let bx = positions
+                    .get(b.src_id.as_str())
+                    .map(|&(x, _)| {
+                        let sw = node_by_id
+                            .get(b.src_id.as_str())
+                            .map(|n| n.width)
+                            .unwrap_or(200.0);
+                        x + sw / 2.0
+                    })
+                    .unwrap_or(0.0);
+                ax.partial_cmp(&bx)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.edge_id.cmp(&b.edge_id))
+            });
+            let n = group.len() as f64;
+            let fan_half = (tw * 0.4).min((tw - 20.0) / 2.0).max(0.0);
+            let fan_start = tgt_cx - fan_half;
+            let fan_step = if n > 1.0 { fan_half * 2.0 / (n - 1.0) } else { 0.0 };
+            for (i, ei) in group.iter().enumerate() {
+                let port_x = fan_start + i as f64 * fan_step;
+                fan_tgt_x.insert(ei.edge_id.clone(), port_x);
+            }
+        }
+
+        (fan_src_x, fan_tgt_x)
     };
 
     // ── Path generation ────────────────────────────────────────────────────────
@@ -962,17 +1227,26 @@ fn route_edges(
             // Determine direction: downward (src_rank < tgt_rank) or upward.
             let goes_down = ei.src_rank < ei.tgt_rank;
 
-            // Source port: bottom if going down, top if going up.
+            // Source port: use fan port x if assigned, else node centre.
+            let src_fan_x = edge_fan_src_x
+                .get(&ei.edge_id)
+                .copied()
+                .unwrap_or(sx + sw / 2.0);
+            // Target port: use fan port x if assigned, else node centre.
+            let tgt_fan_x = edge_fan_tgt_x
+                .get(&ei.edge_id)
+                .copied()
+                .unwrap_or(tx + tw / 2.0);
+
             let (src_port_x, src_port_y) = if goes_down {
-                (sx + sw / 2.0, sy + sh)
+                (src_fan_x, sy + sh)
             } else {
-                (sx + sw / 2.0, sy)
+                (src_fan_x, sy)
             };
-            // Target port: top if going down, bottom if going up.
             let (tgt_port_x, tgt_port_y) = if goes_down {
-                (tx + tw / 2.0, ty)
+                (tgt_fan_x, ty)
             } else {
-                (tx + tw / 2.0, ty + th)
+                (tgt_fan_x, ty + th)
             };
 
             let (min_r, max_r) = if goes_down {

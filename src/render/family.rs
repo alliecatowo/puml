@@ -553,6 +553,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             text: String,
             lx: i32,
             ly: i32,
+            /// True when lx/ly were derived from orthogonal routing points rather
+            /// than the straight-line midpoint.  Ortho-derived positions are
+            /// already edge-specific (each edge follows its own path), so the
+            /// source fan should use them as-is instead of recomputing via a
+            /// shared fractional formula that clusters labels at similar coords
+            /// (#712: <<extend>>/<<include>> overlap in usecase fan-out).
+            has_ortho_pos: bool,
             /// Endpoint coords for fractional label placement along edge
             x1: i32,
             y1: i32,
@@ -595,13 +602,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 } else {
                     None
                 };
-            let (lx, ly) = if let Some(ref pts) = ortho_pts {
+            let (lx, ly, has_ortho_pos) = if let Some(ref pts) = ortho_pts {
                 let longest_horiz = pts
                     .windows(2)
                     .filter(|seg| seg[0].1 == seg[1].1)
                     .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
                 match longest_horiz {
-                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12, true),
                     None => {
                         let longest_seg = pts.windows(2).max_by_key(|seg| {
                             let (ax, ay) = seg[0];
@@ -610,14 +617,18 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                         });
                         match longest_seg {
                             Some(seg) => {
-                                ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
+                                (
+                                    (seg[0].0 + seg[1].0) / 2,
+                                    (seg[0].1 + seg[1].1) / 2 - 12,
+                                    true,
+                                )
                             }
-                            None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                            None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12, false),
                         }
                     }
                 }
             } else {
-                ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                ((x1 + x2) / 2, (y1 + y2) / 2 - 12, false)
             };
             raw_labels.push(RawLabel {
                 rel_idx,
@@ -626,6 +637,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 text: label_text.unwrap_or_default().to_string(),
                 lx,
                 ly,
+                has_ortho_pos,
                 x1,
                 y1,
                 x2,
@@ -699,19 +711,30 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let count = sorted.len();
             for (slot, &raw_idx) in sorted.iter().enumerate() {
                 let rl = &raw_labels[raw_idx];
-                // Fractional position along the straight-line edge: 0.3 to 0.7
-                let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
-                let dx = rl.x2 - rl.x1;
-                let dy = rl.y2 - rl.y1;
-                let lx = rl.x1 + (dx as f64 * frac) as i32;
-                // Nudge vertically above the line
-                let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
-                // Side-nudge so label doesn't sit directly on the arrow shaft:
-                // for vertical-dominant edges push right, for horizontal push up.
-                let (lx, ly) = if dy.abs() > dx.abs() {
-                    (lx + 14, ly)
+                // When the edge has an orthogonal route the lx/ly stored in
+                // RawLabel was already derived from that route's geometry (longest
+                // horizontal segment or longest segment midpoint).  Each edge in a
+                // fan-out follows a distinct path, so these positions are already
+                // well-separated — using the straight-line fractional formula
+                // instead clusters them near the shared departure point (#712).
+                let (lx, ly) = if rl.has_ortho_pos {
+                    // Ortho-derived: use as-is; the side-nudge for vertical
+                    // segments was already applied during lx/ly computation.
+                    (rl.lx, rl.ly)
                 } else {
-                    (lx, ly - 2)
+                    // Fallback: straight-line fractional placement (0.3→0.7).
+                    let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
+                    let dx = rl.x2 - rl.x1;
+                    let dy = rl.y2 - rl.y1;
+                    let lx = rl.x1 + (dx as f64 * frac) as i32;
+                    let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
+                    // Side-nudge so label doesn't sit directly on the arrow shaft:
+                    // for vertical-dominant edges push right, for horizontal push up.
+                    if dy.abs() > dx.abs() {
+                        (lx + 14, ly)
+                    } else {
+                        (lx, ly - 2)
+                    }
                 };
                 let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
                 let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
@@ -3589,12 +3612,42 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
+            // Overwrite the endpoint anchors with pick_port values, then propagate
+            // the orthogonality constraint to the adjacent interior waypoints so
+            // that the first and last segments stay axis-aligned.
+            //
+            // Without this, pick_port may choose an anchor that differs in x from
+            // the layout-engine's src_center_x, producing a diagonal first segment
+            // that cuts back through the source node body (fix #713).
+            let orig_first = orth_pts.first().copied();
+            let orig_last = orth_pts.last().copied();
+
             if let Some(first) = orth_pts.first_mut() {
                 *first = (x1, y1);
             }
             if let Some(last) = orth_pts.last_mut() {
                 *last = (x2, y2);
             }
+
+            // Propagate: if the layout engine intended a vertical-first segment
+            // (points[0] and points[1] share the same x), update points[1].x to
+            // match the new x1 so the segment remains vertical.
+            if let (Some((ox0, _oy0)), Some(p1)) =
+                (orig_first, orth_pts.get_mut(1))
+            {
+                if p1.0 == ox0 {
+                    p1.0 = x1;
+                }
+            }
+            // Same for the last segment (vertical exit into target).
+            if let (Some((ox_last, _oy_last)), Some(p_penult)) =
+                (orig_last, orth_pts.iter_mut().rev().nth(1))
+            {
+                if p_penult.0 == ox_last {
+                    p_penult.0 = x2;
+                }
+            }
+
             // ── Orthogonal polyline from layout engine ────────────────────────
             let pts_str: String = orth_pts
                 .iter()
