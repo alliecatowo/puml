@@ -500,7 +500,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     } else {
         content_end
     };
-    let footboxes = if document.footbox_visible {
+    let mut footboxes = if document.footbox_visible {
         participants
             .iter()
             .map(|p| ParticipantBox {
@@ -516,7 +516,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     } else {
         Vec::new()
     };
-    let lifelines = participants
+    let mut lifelines = participants
         .iter()
         .map(|p| Lifeline {
             participant_id: p.id.clone(),
@@ -525,6 +525,32 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
             y2: lifeline_end,
         })
         .collect::<Vec<_>>();
+
+    let leftmost_geometry_x = scene_leftmost_geometry_x(
+        &participants,
+        &footboxes,
+        &lifelines,
+        &messages,
+        &activations,
+        &lifecycle_markers,
+        &notes,
+        &groups,
+        &structures,
+    );
+    if leftmost_geometry_x < options.margin {
+        shift_scene_geometry_x(
+            options.margin - leftmost_geometry_x,
+            &mut participants,
+            &mut footboxes,
+            &mut lifelines,
+            &mut messages,
+            &mut activations,
+            &mut lifecycle_markers,
+            &mut notes,
+            &mut groups,
+            &mut structures,
+        );
+    }
 
     let mut width = (max_participant_right + options.margin).max(options.margin * 2 + 200);
     for n in &notes {
@@ -911,7 +937,7 @@ fn note_horizontal_bounds(
         options.margin
     };
 
-    (x.max(options.margin), width)
+    (x, width)
 }
 
 fn note_vertical_position_y(position: &str, row_y: i32, height: i32, events_top: i32) -> i32 {
@@ -922,6 +948,98 @@ fn note_vertical_position_y(position: &str, row_y: i32, height: i32, events_top:
         return row_y + 8;
     }
     row_y
+}
+
+
+fn scene_leftmost_geometry_x(
+    participants: &[ParticipantBox],
+    footboxes: &[ParticipantBox],
+    lifelines: &[Lifeline],
+    messages: &[MessageLine],
+    activations: &[ActivationBox],
+    lifecycle_markers: &[LifecycleMarker],
+    notes: &[NoteBox],
+    groups: &[GroupBox],
+    structures: &[StructureLine],
+) -> i32 {
+    let participant_min = participants.iter().map(|participant| participant.x).min();
+    let footbox_min = footboxes.iter().map(|footbox| footbox.x).min();
+    let lifeline_min = lifelines.iter().map(|lifeline| lifeline.x).min();
+    let message_min = messages
+        .iter()
+        .map(|message| message.x1.min(message.x2) - 8)
+        .min();
+    let activation_min = activations.iter().map(|activation| activation.x - 5).min();
+    let lifecycle_min = lifecycle_markers
+        .iter()
+        .map(|marker| marker.x - 6)
+        .min();
+    let note_min = notes.iter().map(|note| note.x).min();
+    let group_min = groups.iter().map(|group| group.x).min();
+    let structure_min = structures
+        .iter()
+        .map(|structure| structure.x1.min(structure.x2))
+        .min();
+
+    participant_min
+        .into_iter()
+        .chain(footbox_min)
+        .chain(lifeline_min)
+        .chain(message_min)
+        .chain(activation_min)
+        .chain(lifecycle_min)
+        .chain(note_min)
+        .chain(group_min)
+        .chain(structure_min)
+        .min()
+        .unwrap_or(0)
+}
+
+fn shift_scene_geometry_x(
+    delta: i32,
+    participants: &mut [ParticipantBox],
+    footboxes: &mut [ParticipantBox],
+    lifelines: &mut [Lifeline],
+    messages: &mut [MessageLine],
+    activations: &mut [ActivationBox],
+    lifecycle_markers: &mut [LifecycleMarker],
+    notes: &mut [NoteBox],
+    groups: &mut [GroupBox],
+    structures: &mut [StructureLine],
+) {
+    if delta <= 0 {
+        return;
+    }
+
+    for participant in participants {
+        participant.x += delta;
+    }
+    for footbox in footboxes {
+        footbox.x += delta;
+    }
+    for lifeline in lifelines {
+        lifeline.x += delta;
+    }
+    for message in messages {
+        message.x1 += delta;
+        message.x2 += delta;
+    }
+    for activation in activations {
+        activation.x += delta;
+    }
+    for marker in lifecycle_markers {
+        marker.x += delta;
+    }
+    for note in notes {
+        note.x += delta;
+    }
+    for group in groups {
+        group.x += delta;
+    }
+    for structure in structures {
+        structure.x1 += delta;
+        structure.x2 += delta;
+    }
 }
 
 fn group_horizontal_bounds(

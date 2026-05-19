@@ -638,6 +638,41 @@ fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
 }
 
 #[test]
+fn render_sequence_notes_fixture_keeps_leftmost_over_note_centered_with_canvas_padding() {
+    let src = std::fs::read_to_string(fixture("docs/examples/sequence/07_notes.puml"))
+        .expect("fixture");
+    let ast = puml::parse(&src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let options = LayoutOptions::default();
+    let scene = layout::layout(&doc, options);
+
+    let alice = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "Alice")
+        .expect("participant Alice");
+    let note = scene
+        .notes
+        .iter()
+        .find(|note| note.text.contains("client received"))
+        .expect("leftmost over note");
+
+    assert_eq!(note.x, options.margin);
+    assert_eq!(
+        note.x + (note.width / 2),
+        alice.x + (alice.width / 2),
+        "note over Alice should stay centered on Alice after preserving left canvas padding"
+    );
+    assert!(
+        alice.x > options.margin,
+        "leftmost participant should shift right when needed to preserve note centering"
+    );
+
+    let svg = render::render_svg(&scene);
+    assert!(svg.contains(">client received</text>"));
+}
+
+#[test]
 fn render_sequence_advanced_wave_autonumber_spacing_and_rare_heads() {
     let src = fixture("e2e/sequence_advanced_wave_autonumber_spacing.puml");
     let ast = puml::parse(&src).expect("parse");

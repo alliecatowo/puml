@@ -1448,6 +1448,28 @@ fn layout_overflow_bounds_keep_multi_target_note_and_over_group_in_view() {
 }
 
 #[test]
+fn layout_left_of_first_participant_note_keeps_margin_and_lane_gap() {
+    let src = "@startuml\nA -> B : ping\nnote left of A: left guardrail\n@enduml\n";
+    let doc = parse(src).expect("parse should succeed");
+    let model = normalize::normalize(doc).expect("normalize should succeed");
+    let options = LayoutOptions::default();
+    let scene = layout::layout(&model, options);
+    let participant = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "A")
+        .expect("participant A");
+    let note = scene
+        .notes
+        .iter()
+        .find(|note| note.text.contains("left guardrail"))
+        .expect("left note");
+
+    assert_eq!(note.x, options.margin);
+    assert_eq!(note.x + note.width + 12, participant.x);
+}
+
+#[test]
 fn layout_expands_width_for_long_header_and_footer_metadata() {
     let src = "@startuml\nheader HEADER_WITH_A_VERY_LONG_METADATA_LINE_FOR_LAYOUT_GUARDRAIL_ABCDEFGHIJKLMNOPQRSTUVWXYZ\nfooter FOOTER_WITH_A_VERY_LONG_METADATA_LINE_FOR_LAYOUT_GUARDRAIL_ABCDEFGHIJKLMNOPQRSTUVWXYZ\nA -> B : ping\n@enduml\n";
     let doc = parse(src).expect("parse should succeed");
