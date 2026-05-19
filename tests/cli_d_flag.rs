@@ -56,6 +56,7 @@ $A -> $B : msg
 fn d_flag_variable_usable_in_if_condition() {
     let source = r#"
 @startuml
+Alice -> Bob : baseline
 !if $SHOW == "yes"
 Alice -> Bob : visible
 !endif
