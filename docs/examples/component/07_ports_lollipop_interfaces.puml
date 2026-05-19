@@ -1,0 +1,34 @@
+@startuml
+title Ports, lollipop interfaces, and required connectors
+package "Order Service" {
+  component "OrderController" as OC
+  component "OrderDomain" as OD
+  component "OrderRepository" as OR
+
+  interface IOrderService
+  interface IOrderRepository
+
+  OC -( IOrderService : provides
+  OD -- IOrderService : realizes
+  OD -( IOrderRepository : requires
+  OR -- IOrderRepository : realizes
+}
+
+package "Notification Service" {
+  component "NotificationSender" as NS
+  interface INotifier
+  NS -- INotifier : provides
+}
+
+package "Database" <<database>> {
+  component "PostgreSQL" as PG
+}
+
+package "Message Bus" <<queue>> {
+  component "RabbitMQ" as MQ
+}
+
+OD --> INotifier : uses
+OR --> PG : SQL
+OD --> MQ : publish events
+@enduml

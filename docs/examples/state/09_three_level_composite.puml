@@ -1,0 +1,33 @@
+@startuml
+title Three-level composite state hierarchy
+state Device {
+  state Off
+  state On {
+    state Initializing {
+      state LoadingFirmware
+      state SelfTest {
+        state RamCheck
+        state StorageCheck
+        RamCheck --> StorageCheck : ram ok
+      }
+      LoadingFirmware --> SelfTest : firmware loaded
+      SelfTest --> [*] : tests passed
+    }
+    state Running {
+      state Idle
+      state Busy
+      Idle --> Busy : task received
+      Busy --> Idle : task complete
+    }
+    state Sleeping
+    Initializing --> Running : init complete
+    Running --> Sleeping : idle timeout
+    Sleeping --> Running : wake event
+  }
+  Off --> On : power on
+  On --> Off : power off
+}
+[*] --> Device
+Device : entry / connect power
+Device : exit / flush state
+@enduml
