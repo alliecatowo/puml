@@ -976,7 +976,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         // Add padding around the member bounding box
         let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
         let pad = 20 + depth_outset;
-        let label_header = 52 + depth_outset; // keep package tab/header text above enclosed nodes in nested frames (#570)
+        let tab_h = 24;
+        let label_header = tab_h + 28 + depth_outset; // keep package tab/header text above enclosed nodes in nested frames (#570)
         let fx = gx_min - pad;
         let fy = gy_min - pad - label_header;
         let fw = (gx_max - gx_min) + pad * 2;
@@ -993,7 +994,6 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         ));
         if uses_tab_header {
             let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
-            let tab_h = 24;
             out.push_str(&format!(
                 "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{tab_h}\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#6366f1\" stroke-width=\"1.5\"/>"
             ));

@@ -5620,6 +5620,46 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
 }
 
 #[test]
+fn class_package_headers_clear_inner_class_labels() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("class/14_nested_packages.puml")).unwrap(),
+    )
+    .expect("nested class packages example should render");
+
+    for (group, members) in [
+        (
+            "repository",
+            &["repository::UserRepo", "repository::ProductRepo"][..],
+        ),
+        (
+            "service",
+            &["service::UserService", "service::ProductService"][..],
+        ),
+        (
+            "domain",
+            &["domain::User", "domain::Product", "domain::Order"][..],
+        ),
+    ] {
+        let frame = svg_elements_with_attr(&svg, "data-uml-group", group)
+            .into_iter()
+            .find(|element| element.contains("class=\"uml-group-frame\""))
+            .expect("package frame");
+        let frame_y = svg_attr_i32_required(frame, "y");
+        let min_member_y = members
+            .into_iter()
+            .flat_map(|member| svg_text_positions(&svg, member))
+            .map(|(_, y)| y)
+            .min()
+            .expect("inner class label position");
+
+        assert!(
+            min_member_y >= frame_y + 72,
+            "{group} package header should stay above enclosed class labels"
+        );
+    }
+}
+
+#[test]
 fn class_family_accepts_directional_and_dotted_relation_arrows() {
     let src = "@startuml\nclass Base\nclass Impl\nclass Service\nImpl -up-|> Base\nService ..> Impl : depends\n@enduml\n";
     let svg = render_source_to_svg(src).expect("class directional relation svg should render");
