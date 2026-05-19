@@ -444,6 +444,15 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         }
     }
 
+    // Merge duplicate Rel() pairs (same from→to→arrow) by joining their labels
+    // with a newline so they render as stacked lines on a single arrow rather than
+    // visually concatenated strings on overlapping arrows. This is the correct
+    // PlantUML behaviour for C4 diagrams where Rel() is a macro that emits a
+    // simple arrow — multiple calls with the same endpoints should coalesce.
+    // Only applies to the stub/C4 path; the class/component paths keep separate
+    // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
+    let relations = merge_duplicate_rel_labels(relations);
+
     Ok(FamilyDocument {
         kind: family_kind,
         nodes,
@@ -463,6 +472,57 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         warnings,
     })
+}
+
+/// Merge relations that share the same `(from, to, arrow)` triple by joining
+/// their labels with `\n`.  Duplicate Rel() macro calls in C4 diagrams produce
+/// overlapping arrows that visually concatenate their labels with no delimiter;
+/// coalescing them into one arrow with a newline-separated label is the correct
+/// PlantUML parity behaviour (#425).
+///
+/// Only relations that are otherwise identical (same direction, color, style)
+/// are merged; differing style attributes keep the relations separate.
+fn merge_duplicate_rel_labels(relations: Vec<ModelFamilyRelation>) -> Vec<ModelFamilyRelation> {
+    // Use an ordered map keyed by (from, to, arrow, direction, line_color,
+    // dashed, hidden) so determinism is preserved (BTreeMap, not HashMap).
+    // Value: index into `out` for the already-inserted canonical relation.
+    type RelKey = (String, String, String, Option<String>, Option<String>, bool, bool);
+    let mut seen: std::collections::BTreeMap<RelKey, usize> =
+        std::collections::BTreeMap::new();
+    let mut out: Vec<ModelFamilyRelation> = Vec::with_capacity(relations.len());
+
+    for rel in relations {
+        let key = (
+            rel.from.clone(),
+            rel.to.clone(),
+            rel.arrow.clone(),
+            rel.direction.clone(),
+            rel.line_color.clone(),
+            rel.dashed,
+            rel.hidden,
+        );
+        if let Some(&idx) = seen.get(&key) {
+            // Merge this relation's label into the existing one.
+            if let Some(new_label) = rel.label {
+                let existing = &mut out[idx].label;
+                *existing = Some(match existing.take() {
+                    Some(prev) => format!("{prev}\n{new_label}"),
+                    None => new_label,
+                });
+            }
+            // Merge stereotype similarly.
+            if let Some(new_st) = rel.stereotype {
+                let existing = &mut out[idx].stereotype;
+                if existing.is_none() {
+                    *existing = Some(new_st);
+                }
+            }
+        } else {
+            seen.insert(key, out.len());
+            out.push(rel);
+        }
+    }
+    out
 }
 
 fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {

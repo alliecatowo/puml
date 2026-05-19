@@ -6177,6 +6177,63 @@ fn stdlib_awslib_ec2_check_passes_and_ast_has_object_declarations() {
 }
 
 #[test]
+fn c4_multiple_rel_on_same_pair_coalesces_labels_with_newline_not_concatenation() {
+    // Regression test for #425: multiple Rel() calls between the same source→target
+    // pair must NOT produce "Uses HTTPSSends emails" (concatenated without separator).
+    // They must coalesce into one relation whose label is "Uses HTTPS\nSends emails",
+    // rendered as stacked tspan elements in the SVG output.
+    // Inline the C4 Rel() procedure via stdin so SVG goes to stdout.
+    // The C4 Rel() macro expands to `$from --> $to : $label`.
+    let puml_src = "\
+        @startuml\n\
+        !procedure Rel($from, $to, $label, $tech=\"\")\n\
+        $from --> $to : $label\n\
+        !endprocedure\n\
+        object User as user <<person>>\n\
+        object API as api <<system>>\n\
+        !Rel(user, api, \"Uses HTTPS\")\n\
+        !Rel(user, api, \"Sends emails\")\n\
+        @enduml\n";
+
+    let output = Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-"])
+        .write_stdin(puml_src)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let svg = String::from_utf8(output).expect("UTF-8 SVG");
+
+    // Must NOT contain concatenated label.
+    assert!(
+        !svg.contains("Uses HTTPSSends"),
+        "labels must not be concatenated without separator"
+    );
+    assert!(
+        !svg.contains("Uses HTTPS\nSends"),
+        "raw newline in SVG text is invisible — must be converted to tspan"
+    );
+    // Must contain each label text.
+    assert!(svg.contains("Uses HTTPS"), "first label must appear");
+    assert!(svg.contains("Sends emails"), "second label must appear");
+    // Must use tspan for multi-line rendering (#425).
+    assert!(
+        svg.contains("<tspan") && svg.contains("Uses HTTPS") && svg.contains("Sends emails"),
+        "multiline label must use <tspan> elements"
+    );
+    // Must have exactly ONE polyline between user and api (merged relation, not two overlapping).
+    let user_api_arrow_count = svg
+        .matches("data-uml-from=\"user\" data-uml-to=\"api\"")
+        .count();
+    assert_eq!(
+        user_api_arrow_count, 1,
+        "duplicate Rel() on same pair must coalesce to a single arrow, got {user_api_arrow_count}"
+    );
+}
+
+#[test]
 fn stdlib_angle_bracket_include_is_idempotent_when_included_twice() {
     // Including the same stdlib file twice must not cause duplicate procedure errors.
     let tmp = tempfile::tempdir().unwrap();

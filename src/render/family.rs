@@ -10,6 +10,45 @@ use crate::model::{
 };
 use crate::theme::{ClassStyle, ComponentStyle};
 
+/// Emit a centered SVG `<text>` element for a relation label.
+///
+/// Labels may contain `\n` after normalization merges multiple Rel() calls on
+/// the same source→target pair into a single coalesced label (#425).  Each
+/// logical line is emitted as a `<tspan>` so they stack visually instead of
+/// being run together as a single string of whitespace.
+fn relation_label_svg(x: i32, y: i32, label: &str, font_size: i32, fill: &str) -> String {
+    let lines: Vec<&str> = label.split('\n').collect();
+    if lines.len() <= 1 {
+        // Fast path – no newline, emit plain text element.
+        return format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">{}</text>",
+            x, y, font_size, escape_text(fill), escape_text(label)
+        );
+    }
+    // Multiline: emit one <tspan> per logical line, each shifted down by
+    // (font_size + 2) pixels so lines are clearly separated.
+    let line_h = font_size + 2;
+    let total_h = (lines.len() as i32 - 1) * line_h;
+    // Start above the anchor so the block is centred on y.
+    let start_y = y - total_h / 2;
+    let mut buf = format!(
+        "<text text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">",
+        font_size,
+        escape_text(fill)
+    );
+    for (i, line) in lines.iter().enumerate() {
+        let ty = start_y + (i as i32) * line_h;
+        buf.push_str(&format!(
+            "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
+            x,
+            ty,
+            escape_text(line)
+        ));
+    }
+    buf.push_str("</text>");
+    buf
+}
+
 /// Backwards-compatible alias for the family stub renderer. Now delegates to
 /// the real renderer.
 pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
@@ -909,10 +948,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             );
             let ly = (ly + pair_label_lane).max(margin_top + 10);
             let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
-            out.push_str(&format!(
-                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
-                member_color = class_style.member_color,
-                txt = escape_text(label)
+            out.push_str(&relation_label_svg(
+                lx,
+                ly,
+                label,
+                11,
+                &class_style.member_color,
             ));
         } else if let Some(label) = relation.label.as_deref() {
             // Use de-collided position from the pre-pass when available.
@@ -963,10 +1004,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             );
             let ly = (ly + pair_label_lane).max(margin_top + 10);
             let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
-            out.push_str(&format!(
-                "<text x=\"{lx}\" y=\"{ly}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{member_color}\">{txt}</text>",
-                member_color = class_style.member_color,
-                txt = escape_text(label)
+            out.push_str(&relation_label_svg(
+                lx,
+                ly,
+                label,
+                11,
+                &class_style.member_color,
             ));
         }
     }
