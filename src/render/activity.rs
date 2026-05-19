@@ -749,14 +749,6 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                             escape_text(guard)
                         ));
                     }
-                    if step_kind.contains("WhileStart") {
-                        out.push_str(&format!(
-                            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">while</text>",
-                            cx,
-                            y + 54,
-                            escape_text(&act_style.font_color)
-                        ));
-                    }
                 }
                 FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                     if step_kind.contains("ForkAgain") {
