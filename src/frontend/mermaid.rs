@@ -59,6 +59,7 @@ fn adapt_mermaid_sequence(source: &str) -> Result<String, Diagnostic> {
     let mut out = Vec::new();
     let mut saw_non_empty = false;
     let mut saw_sequence_header = false;
+    let mut block_stack: Vec<&'static str> = Vec::new();
     let mut offset = 0usize;
 
     for raw_line in source.lines() {
@@ -103,8 +104,22 @@ fn adapt_mermaid_sequence(source: &str) -> Result<String, Diagnostic> {
             continue;
         }
 
-        if let Some(converted) = adapt_mermaid_block(line) {
-            out.push(converted);
+        if let Some(block) = adapt_mermaid_block(line) {
+            match block {
+                MermaidSequenceBlock::Start { mermaid_kind, output } => {
+                    block_stack.push(mermaid_kind);
+                    out.push(output);
+                }
+                MermaidSequenceBlock::Else(output) => out.push(output),
+                MermaidSequenceBlock::End => {
+                    let output = if matches!(block_stack.pop(), Some("box")) {
+                        "end box".to_string()
+                    } else {
+                        "end".to_string()
+                    };
+                    out.push(output);
+                }
+            }
             continue;
         }
 
@@ -978,101 +993,134 @@ fn classify_unsupported_mermaid_construct(_line: &str) -> Option<&'static str> {
     None
 }
 
-fn adapt_mermaid_block(line: &str) -> Option<String> {
+enum MermaidSequenceBlock {
+    Start {
+        mermaid_kind: &'static str,
+        output: String,
+    },
+    Else(String),
+    End,
+}
+
+fn adapt_mermaid_block(line: &str) -> Option<MermaidSequenceBlock> {
     let first = line.split_ascii_whitespace().next()?.to_ascii_lowercase();
     match first.as_str() {
         "alt" => {
             let label = line["alt".len()..].trim();
-            Some(if label.is_empty() {
-                "alt".to_string()
-            } else {
-                format!("alt {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "alt",
+                output: if label.is_empty() {
+                    "alt".to_string()
+                } else {
+                    format!("alt {label}")
+                },
             })
         }
         "else" => {
             let label = line["else".len()..].trim();
-            Some(if label.is_empty() {
+            Some(MermaidSequenceBlock::Else(if label.is_empty() {
                 "else".to_string()
             } else {
                 format!("else {label}")
-            })
+            }))
         }
         "opt" => {
             let label = line["opt".len()..].trim();
-            Some(if label.is_empty() {
-                "opt".to_string()
-            } else {
-                format!("opt {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "opt",
+                output: if label.is_empty() {
+                    "opt".to_string()
+                } else {
+                    format!("opt {label}")
+                },
             })
         }
         "loop" => {
             let label = line["loop".len()..].trim();
-            Some(if label.is_empty() {
-                "loop".to_string()
-            } else {
-                format!("loop {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "loop",
+                output: if label.is_empty() {
+                    "loop".to_string()
+                } else {
+                    format!("loop {label}")
+                },
             })
         }
         "par" => {
             let label = line["par".len()..].trim();
-            Some(if label.is_empty() {
-                "par".to_string()
-            } else {
-                format!("par {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "par",
+                output: if label.is_empty() {
+                    "par".to_string()
+                } else {
+                    format!("par {label}")
+                },
             })
         }
         "and" => {
             // Mermaid's `and` inside a par maps to PlantUML's `else` branch.
             let label = line["and".len()..].trim();
-            Some(if label.is_empty() {
+            Some(MermaidSequenceBlock::Else(if label.is_empty() {
                 "else".to_string()
             } else {
                 format!("else {label}")
-            })
+            }))
         }
         "critical" => {
             let label = line["critical".len()..].trim();
-            Some(if label.is_empty() {
-                "critical".to_string()
-            } else {
-                format!("critical {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "critical",
+                output: if label.is_empty() {
+                    "critical".to_string()
+                } else {
+                    format!("critical {label}")
+                },
             })
         }
         "option" => {
             // Mermaid `option` inside `critical` maps to PlantUML's `else`.
             let label = line["option".len()..].trim();
-            Some(if label.is_empty() {
+            Some(MermaidSequenceBlock::Else(if label.is_empty() {
                 "else".to_string()
             } else {
                 format!("else {label}")
-            })
+            }))
         }
         "break" => {
             let label = line["break".len()..].trim();
-            Some(if label.is_empty() {
-                "break".to_string()
-            } else {
-                format!("break {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "break",
+                output: if label.is_empty() {
+                    "break".to_string()
+                } else {
+                    format!("break {label}")
+                },
             })
         }
         "rect" => {
             // `rect rgb(...)` becomes a `group` block (color is dropped).
             let label = line["rect".len()..].trim();
-            Some(if label.is_empty() {
-                "group".to_string()
-            } else {
-                format!("group {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "rect",
+                output: if label.is_empty() {
+                    "group".to_string()
+                } else {
+                    format!("group {label}")
+                },
             })
         }
         "box" => {
             let label = line["box".len()..].trim();
-            Some(if label.is_empty() {
-                "box".to_string()
-            } else {
-                format!("box {label}")
+            Some(MermaidSequenceBlock::Start {
+                mermaid_kind: "box",
+                output: if label.is_empty() {
+                    "box".to_string()
+                } else {
+                    format!("box {label}")
+                },
             })
         }
-        "end" => Some("end".to_string()),
+        "end" => Some(MermaidSequenceBlock::End),
         _ => None,
     }
 }
