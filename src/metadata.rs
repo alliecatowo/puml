@@ -245,6 +245,17 @@ pub fn extract_metadata(document: &Document, model: &NormalizedDocument) -> Diag
             ],
             &mut counts,
         ),
+        NormalizedDocument::Chen(doc) => metadata_for_simple(
+            "chen",
+            doc.title.clone(),
+            &doc.warnings,
+            ast_skinparams(document),
+            [
+                ("entities", doc.entities.len()),
+                ("relationships", doc.relationships.len()),
+            ],
+            &mut counts,
+        ),
     };
 
     DiagramMetadata {
@@ -357,6 +368,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Sdl => "sdl",
         DiagramKind::Ditaa => "ditaa",
         DiagramKind::Chart => "chart",
+        DiagramKind::Chen => "chen",
         DiagramKind::Unknown => "unknown",
     }
 }

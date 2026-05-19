@@ -1,8 +1,8 @@
 use crate::model::{
-    ArchimateDocument, ChartDocument, DitaaDocument, EbnfDocument, EbnfToken, FamilyDocument,
-    JsonDocument, MathDocument, NormalizedDocument, NwdiagDocument, ParticipantRole, RegexDocument,
-    RegexToken, RepeatKind, SdlDocument, SequenceEventKind, SequencePage, StateDocument, StateNode,
-    TimelineDocument, VirtualEndpointKind, WbsCheckbox, YamlDocument,
+    ArchimateDocument, ChartDocument, ChenDocument, DitaaDocument, EbnfDocument, EbnfToken,
+    FamilyDocument, JsonDocument, MathDocument, NormalizedDocument, NwdiagDocument, ParticipantRole,
+    RegexDocument, RegexToken, RepeatKind, SdlDocument, SequenceEventKind, SequencePage,
+    StateDocument, StateNode, TimelineDocument, VirtualEndpointKind, WbsCheckbox, YamlDocument,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +53,7 @@ pub fn render_text_pages(model: &NormalizedDocument, mode: TextOutputMode) -> Ve
         NormalizedDocument::Sdl(doc) => vec![render_sdl_text(doc, mode)],
         NormalizedDocument::Ditaa(doc) => vec![render_ditaa_text(doc, mode)],
         NormalizedDocument::Chart(doc) => vec![render_chart_text(doc, mode)],
+        NormalizedDocument::Chen(doc) => vec![render_chen_text(doc, mode)],
     }
 }
 
@@ -697,6 +698,25 @@ fn render_chart_text(doc: &ChartDocument, mode: TextOutputMode) -> String {
         }
     }
     push_meta(&mut lines, "caption", doc.caption.as_deref(), mode);
+    finish_text(lines)
+}
+
+fn render_chen_text(doc: &ChenDocument, mode: TextOutputMode) -> String {
+    let mut lines = Vec::new();
+    push_meta(&mut lines, "title", doc.title.as_deref(), mode);
+    lines.push("chen".to_string());
+    if !doc.entities.is_empty() {
+        lines.push(format!("entities ({})", doc.entities.len()));
+        for entity in &doc.entities {
+            lines.push(format!("  {}", text_value(&entity.name, mode)));
+        }
+    }
+    if !doc.relationships.is_empty() {
+        lines.push(format!("relationships ({})", doc.relationships.len()));
+        for rel in &doc.relationships {
+            lines.push(format!("  {}", text_value(&rel.name, mode)));
+        }
+    }
     finish_text(lines)
 }
 
