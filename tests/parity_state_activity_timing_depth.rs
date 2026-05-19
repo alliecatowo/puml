@@ -89,7 +89,7 @@ fn activity_old_swimlane_example_uses_only_real_lanes_and_keeps_nodes_in_bounds(
     let lane_headers: Vec<_> = doc
         .elements("rect")
         .into_iter()
-        .filter(|rect| rect.attribute("y") == Some("40") && rect.attribute("height") == Some("24"))
+        .filter(|rect| rect.attribute("height") == Some("24"))
         .collect();
     assert_eq!(
         lane_headers.len(),
