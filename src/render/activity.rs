@@ -187,6 +187,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
     // Extra arrows: (x1,y1, x2,y2) drawn in addition to prev->cur arrows
     let mut extra_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
+    // Direct arrows: rendered unconditionally (not filtered by node position).
+    // Used for fork-bar-to-branch and branch-to-join-bar arrows that target
+    // bar pixel positions rather than node layout slot positions.
+    let mut direct_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
     // Indices of nodes for which we suppress the standard prev->cur arrow
     let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
 

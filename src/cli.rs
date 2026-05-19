@@ -164,6 +164,7 @@ pub enum OutputFormat {
     Png,
     Jpg,
     Webp,
+    Pdf,
     Txt,
     Atxt,
     Utxt,

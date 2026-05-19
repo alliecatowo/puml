@@ -1703,6 +1703,7 @@ fn output_extension(format: OutputFormat) -> &'static str {
         OutputFormat::Png => "png",
         OutputFormat::Jpg => "jpg",
         OutputFormat::Webp => "webp",
+        OutputFormat::Pdf => "pdf",
         OutputFormat::Txt => "txt",
         OutputFormat::Atxt => "atxt",
         OutputFormat::Utxt => "utxt",
@@ -1713,12 +1714,12 @@ impl OutputFormat {
     fn uses_svg_renderer(self) -> bool {
         matches!(
             self,
-            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp
+            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp | Self::Pdf
         )
     }
 
     fn is_binary(self) -> bool {
-        matches!(self, Self::Png | Self::Jpg | Self::Webp)
+        matches!(self, Self::Png | Self::Jpg | Self::Webp | Self::Pdf)
     }
 
     fn is_text(self) -> bool {
@@ -1727,7 +1728,7 @@ impl OutputFormat {
 
     fn text_mode(self) -> Option<TextOutputMode> {
         match self {
-            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp => None,
+            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp | Self::Pdf => None,
             Self::Txt => Some(TextOutputMode::Txt),
             Self::Atxt => Some(TextOutputMode::Atxt),
             Self::Utxt => Some(TextOutputMode::Utxt),
