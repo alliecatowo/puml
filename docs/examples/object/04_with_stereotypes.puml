@@ -1,9 +1,9 @@
 @startuml
-object myUser <<User>> {
+object myUser : User <<User>> {
   id = 7
   name = Bob
 }
-object mySession <<Session>> {
+object mySession : Session <<Session>> {
   token = abc123
   active = true
 }
