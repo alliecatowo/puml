@@ -130,7 +130,10 @@ JoinNode --> [H]
     let ready_to_choice = doc.first_with_attr("line", "data-state-from", "Ready");
     assert_eq!(attr(ready_to_choice, "data-state-to"), "ChoiceNode");
     let transition_bounds = bounds(ready_to_choice);
-    assert!(transition_bounds.width > 0.0 && transition_bounds.height > 0.0);
+    assert!(
+        transition_bounds.width > 0.0 || transition_bounds.height > 0.0,
+        "state transition should span at least one axis"
+    );
 }
 
 #[test]

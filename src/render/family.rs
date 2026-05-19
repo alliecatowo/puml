@@ -45,7 +45,7 @@ fn relation_pair_label_lane_map(
         let lane = if count <= 1 {
             0
         } else {
-            (*seen * 2 - (count - 1)) * 10
+            (*seen * 2 - (count - 1)) * 14
         };
         *seen += 1;
         lanes.insert(idx, lane);
@@ -502,7 +502,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let mut raw_labels: Vec<RawLabel> = Vec::new();
 
         for (rel_idx, relation) in document.relations.iter().enumerate() {
-            if relation.label.is_none() {
+            let label_text = relation
+                .label
+                .as_deref()
+                .or(relation.stereotype.as_deref());
+            if label_text.is_none() {
                 continue;
             }
             let (from_name, to_name, _arrow) =
@@ -558,11 +562,10 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             } else {
                 ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
             };
-            let label = relation.label.as_deref().unwrap_or_default();
             raw_labels.push(RawLabel {
                 rel_idx,
                 to_name,
-                text: label.to_string(),
+                text: label_text.unwrap_or_default().to_string(),
                 lx,
                 ly,
             });
@@ -833,11 +836,25 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             .get(&rel_idx)
             .copied()
             .unwrap_or(0);
+        let from_is_class = document
+            .nodes
+            .iter()
+            .find(|node| node.name == from_name)
+            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
+        let to_is_class = document
+            .nodes
+            .iter()
+            .find(|node| node.name == to_name)
+            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
+        let prefer_side_clearance = pair_label_lane != 0 || (from_is_class && to_is_class);
         if let Some(stereotype) = &relation.stereotype {
             if usecase_dependency.is_none() {
-                let sx = label_mx;
+                let (sx, base_sy) = label_override
+                    .get(&rel_idx)
+                    .copied()
+                    .unwrap_or((label_mx, label_my));
                 let sy =
-                    label_my - if relation.label.is_some() { 18 } else { 14 } + pair_label_lane;
+                    base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
                 out.push_str(&format!(
                     "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
                     member_color = class_style.member_color,
@@ -876,7 +893,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let label_half_w = ((label.chars().count() as i32) * 3).max(18);
             let corridor_left = from.x.max(to.x);
             let corridor_right = (from.x + from.w).min(to.x + to.w);
-            let lx = if edge_dy.abs() > edge_dx.abs()
+            let lx = if prefer_side_clearance
+                && edge_dy.abs() > edge_dx.abs()
                 && corridor_left < corridor_right
                 && lx > corridor_left - 8 - label_half_w
                 && lx < corridor_right + 8 + label_half_w
@@ -929,7 +947,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let label_half_w = ((label.chars().count() as i32) * 3).max(18);
             let corridor_left = from.x.max(to.x);
             let corridor_right = (from.x + from.w).min(to.x + to.w);
-            let lx = if edge_dy.abs() > edge_dx.abs()
+            let lx = if prefer_side_clearance
+                && edge_dy.abs() > edge_dx.abs()
                 && corridor_left < corridor_right
                 && lx > corridor_left - 8 - label_half_w
                 && lx < corridor_right + 8 + label_half_w
