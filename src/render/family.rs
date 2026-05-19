@@ -3627,7 +3627,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             .iter()
             .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
     };
-    for (lx, ly, text, _) in &mut adjusted_labels {
+    for (lx, ly, text, _) in adjusted_labels.iter_mut().flatten() {
         if text.is_empty() {
             continue;
         }
