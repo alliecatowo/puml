@@ -3703,7 +3703,10 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             // Fan horizontally above the target node's top edge.
             let target_box = positions.get(to_name.as_str());
             let (anchor_cx, anchor_y) = match target_box {
-                Some(&(tx, ty, tw, _)) => (tx + tw / 2, ty - 14),
+                // Keep the shared-target fan high enough that the final
+                // obstacle-clearance pass does not push labels sideways into
+                // the same fallback slot beside the target node (#509).
+                Some(&(tx, ty, tw, _)) => (tx + tw / 2, ty - 28),
                 None => {
                     // Fallback: use mean position of the pending labels.
                     let mx = indices.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
