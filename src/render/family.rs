@@ -2099,8 +2099,21 @@ fn render_class_node(
     let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
     let title_font_size = class_style.font_size.unwrap_or(13);
     let member_font_size = title_font_size.saturating_sub(2).max(9);
+    // Determine the header fill colour.  For classes we also inspect the
+    // leading type-marker member so that enum / annotation / interface / abstract
+    // classes each get a visually distinct header (fix #769).
+    let builtin_type_marker = node
+        .members
+        .first()
+        .and_then(|m| builtin_type_stereotype_label(&m.text));
     let header_fill = match node.kind {
-        FamilyNodeKind::Class => class_style.header_color.as_str(),
+        FamilyNodeKind::Class => match builtin_type_marker {
+            Some("\u{ab}enumeration\u{bb}") => "#ffffcc", // lemon — PlantUML enum convention
+            Some("\u{ab}annotation\u{bb}") => "#fff0cc",  // warm amber for @annotation
+            Some("\u{ab}interface\u{bb}") => "#dae8fc",   // light blue for interface
+            Some("\u{ab}abstract\u{bb}") => "#f0e6ff",    // light lavender for abstract
+            _ => class_style.header_color.as_str(),
+        },
         FamilyNodeKind::Object => "#fef3c7",
         FamilyNodeKind::UseCase => "#dcfce7",
         _ => "#f1f5f9",
