@@ -19,7 +19,7 @@ const STATE_LABEL_WRAP_COLS: usize = 24;
 
 /// A placed node entry in the flat coord map.
 /// Stores the node's top-left (x, y) and its full rendered size (w, h).
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct PlacedNode {
     x: i32,
     y: i32,
@@ -183,45 +183,152 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     let mut max_x = placed.values().map(|p| p.x + p.w).max().unwrap_or(300);
     let mut max_y = placed.values().map(|p| p.y + p.h).max().unwrap_or(200);
 
+    // Build a map from child-node name → immediate composite-parent name.
+    // This is used in the label-extent prepass to exclude the composite parent
+    // from the obstacle set when simulating label placement for intra-composite
+    // transitions (the parent's bounding box covers the entire interior, so
+    // including it would force labels outside the composite — #709).
+    fn collect_child_to_parent<'a>(
+        node: &'a StateNode,
+        map: &mut std::collections::BTreeMap<&'a str, &'a str>,
+    ) {
+        for region in &node.regions {
+            for child in region {
+                map.insert(child.name.as_str(), node.name.as_str());
+                collect_child_to_parent(child, map);
+            }
+        }
+    }
+    let mut child_to_parent: std::collections::BTreeMap<&str, &str> =
+        std::collections::BTreeMap::new();
+    for node in nodes {
+        collect_child_to_parent(node, &mut child_to_parent);
+    }
+
     // Pre-pass: expand canvas to include transition label extents.
     // Labels are placed in Phase 2 but the canvas must account for their
     // right/bottom edges *before* the SVG viewBox is fixed. Without this
     // pre-pass, labels whose centers fall near the right edge are clipped
     // because only node bounding boxes contribute to max_x/max_y (#745).
+    //
+    // We must process transitions in the same order that Phase 2 does so that
+    // `prelim_occupied` mirrors `occupied_label_bounds` at every step and the
+    // simulated label positions match the real ones:
+    //   1. Non-intra-composite transitions (drawn in the outer loop, before nodes)
+    //   2. Intra-composite transitions (drawn inside render_node, after the outer loop)
+    // Without this ordering, composite-internal labels like "done" (Working → Idle)
+    // are simulated with a different occupied-set than the one used in Phase 2, so
+    // their estimated position diverges and the canvas is under-sized (#709).
     {
         let mut prelim_occupied: Vec<LabelBounds> = Vec::new();
+        // Helper: simulate placing one transition's label, expanding max_x/max_y.
+        // `obstacle_placed` is the placed-node map to use for collision checks
+        // (callers may exclude the composite parent for intra-composite transitions).
+        let account_for_label =
+            |t: &StateTransition,
+             obstacle_placed: &std::collections::BTreeMap<String, PlacedNode>,
+             max_x: &mut i32,
+             max_y: &mut i32,
+             prelim_occupied: &mut Vec<LabelBounds>| {
+                let Some(label) = &t.label else { return };
+                let from_p = placed.get(&t.from);
+                let to_p = placed.get(&t.to);
+                if let (Some(fp), Some(tp)) = (from_p, to_p) {
+                    let has_reverse =
+                        t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
+                    let (x1, y1, x2, y2) = edge_anchors_for_kinds(
+                        node_kinds.get(t.from.as_str()).copied(),
+                        fp,
+                        node_kinds.get(t.to.as_str()).copied(),
+                        tp,
+                    );
+                    let (lx1, ly1, lx2, ly2) = if has_reverse {
+                        offset_parallel_edge(x1, y1, x2, y2, 10)
+                    } else {
+                        (x1, y1, x2, y2)
+                    };
+                    let layout = place_state_transition_label(
+                        label,
+                        lx1,
+                        ly1,
+                        lx2,
+                        ly2,
+                        obstacle_placed,
+                        prelim_occupied,
+                    );
+                    let b = layout.bounds;
+                    *max_x = (*max_x).max(b.x + b.w);
+                    *max_y = (*max_y).max(b.y + b.h);
+                    prelim_occupied.push(b);
+                }
+            };
+        // Pass 1: non-intra-composite transitions (outer loop order in Phase 2).
+        // These use the full placed map (no parent composite to exclude).
         for t in transitions {
-            let Some(label) = &t.label else { continue };
-            let from_p = placed.get(&t.from);
-            let to_p = placed.get(&t.to);
-            if let (Some(fp), Some(tp)) = (from_p, to_p) {
-                let has_reverse =
-                    t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
-                let (x1, y1, x2, y2) = edge_anchors_for_kinds(
-                    node_kinds.get(t.from.as_str()).copied(),
-                    fp,
-                    node_kinds.get(t.to.as_str()).copied(),
-                    tp,
-                );
-                let (lx1, ly1, lx2, ly2) = if has_reverse {
-                    offset_parallel_edge(x1, y1, x2, y2, 10)
-                } else {
-                    (x1, y1, x2, y2)
-                };
-                let layout = place_state_transition_label(
-                    label,
-                    lx1,
-                    ly1,
-                    lx2,
-                    ly2,
-                    &placed,
-                    &prelim_occupied,
-                );
-                let b = layout.bounds;
-                max_x = max_x.max(b.x + b.w);
-                max_y = max_y.max(b.y + b.h);
-                prelim_occupied.push(b);
+            if child_node_names.contains(t.from.as_str())
+                && child_node_names.contains(t.to.as_str())
+            {
+                continue;
             }
+            account_for_label(t, &placed, &mut max_x, &mut max_y, &mut prelim_occupied);
+        }
+        // Pass 2: intra-composite transitions (render_node order in Phase 2).
+        // Replace the composite parent with thin wall slabs so labels are
+        // constrained to the interior content area without being pushed outside
+        // the composite boundary (#709).
+        for t in transitions {
+            if !child_node_names.contains(t.from.as_str())
+                || !child_node_names.contains(t.to.as_str())
+            {
+                continue;
+            }
+            let parent_name = child_to_parent.get(t.from.as_str()).copied();
+            let mut inner: std::collections::BTreeMap<String, PlacedNode> = placed
+                .iter()
+                .filter(|(k, _)| Some(k.as_str()) != parent_name)
+                .map(|(k, v)| (k.clone(), *v))
+                .collect();
+            if let Some(pname) = parent_name {
+                if let Some(cp) = placed.get(pname) {
+                    inner.insert(
+                        format!("__wall_header_{}", pname),
+                        PlacedNode {
+                            x: cp.x,
+                            y: cp.y,
+                            w: cp.w,
+                            h: COMPOSITE_PAD_Y,
+                        },
+                    );
+                    inner.insert(
+                        format!("__wall_footer_{}", pname),
+                        PlacedNode {
+                            x: cp.x,
+                            y: cp.y + cp.h - COMPOSITE_PAD_BOT,
+                            w: cp.w,
+                            h: COMPOSITE_PAD_BOT,
+                        },
+                    );
+                    inner.insert(
+                        format!("__wall_left_{}", pname),
+                        PlacedNode {
+                            x: cp.x,
+                            y: cp.y,
+                            w: COMPOSITE_PAD_X,
+                            h: cp.h,
+                        },
+                    );
+                    inner.insert(
+                        format!("__wall_right_{}", pname),
+                        PlacedNode {
+                            x: cp.x + cp.w - COMPOSITE_PAD_X,
+                            y: cp.y,
+                            w: COMPOSITE_PAD_X,
+                            h: cp.h,
+                        },
+                    );
+                }
+            }
+            account_for_label(t, &inner, &mut max_x, &mut max_y, &mut prelim_occupied);
         }
     }
 
@@ -1392,6 +1499,48 @@ fn render_node<'a>(
                     .map(|c| c.name.as_str())
                     .collect();
 
+                // For label placement within the composite, replace the composite
+                // parent's full bounding box with thin "wall" slabs along its
+                // content edges.  The parent's full bounding box covers the entire
+                // interior, so keeping it would force every intra-composite label
+                // outside the composite box (#709).  The walls prevent labels from
+                // drifting into the header / footer / side margins while still
+                // allowing the algorithm to find positions in the interior gap.
+                let composite_p = PlacedNode { x, y, w, h };
+                let header_wall = PlacedNode {
+                    x: composite_p.x,
+                    y: composite_p.y,
+                    w: composite_p.w,
+                    h: COMPOSITE_PAD_Y, // covers the title bar
+                };
+                let footer_wall = PlacedNode {
+                    x: composite_p.x,
+                    y: composite_p.y + composite_p.h - COMPOSITE_PAD_BOT,
+                    w: composite_p.w,
+                    h: COMPOSITE_PAD_BOT,
+                };
+                let left_wall = PlacedNode {
+                    x: composite_p.x,
+                    y: composite_p.y,
+                    w: COMPOSITE_PAD_X,
+                    h: composite_p.h,
+                };
+                let right_wall = PlacedNode {
+                    x: composite_p.x + composite_p.w - COMPOSITE_PAD_X,
+                    y: composite_p.y,
+                    w: COMPOSITE_PAD_X,
+                    h: composite_p.h,
+                };
+                let mut inner_placed: std::collections::BTreeMap<String, PlacedNode> = placed
+                    .iter()
+                    .filter(|(k, _)| k.as_str() != node.name.as_str())
+                    .map(|(k, v)| (k.clone(), *v))
+                    .collect();
+                inner_placed.insert(format!("__wall_header_{}", node.name), header_wall);
+                inner_placed.insert(format!("__wall_footer_{}", node.name), footer_wall);
+                inner_placed.insert(format!("__wall_left_{}", node.name), left_wall);
+                inner_placed.insert(format!("__wall_right_{}", node.name), right_wall);
+
                 // Draw intra-composite transitions (both endpoints are direct children).
                 // These were skipped in the outer transition loop so they appear above
                 // the composite background rect rather than hidden behind it.
@@ -1444,7 +1593,7 @@ fn render_node<'a>(
                                     oy1,
                                     ox2,
                                     oy2,
-                                    placed,
+                                    &inner_placed,
                                     occupied_label_bounds,
                                 );
                                 render_state_transition_label(
@@ -1481,7 +1630,7 @@ fn render_node<'a>(
                                 y1,
                                 x2,
                                 y2,
-                                placed,
+                                &inner_placed,
                                 occupied_label_bounds,
                             );
                             render_state_transition_label(
