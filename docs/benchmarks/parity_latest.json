@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-19T21:58:50Z",
+  "generated_at_utc": "2026-05-19T23:32:13Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml/.claude/worktrees/agent-a0a097fae71c4fc3e",
+    "cwd": "/home/Allie/develop/puml",
     "quick_mode": false
   },
   "oracle": {
@@ -60,7 +60,7 @@
         "exit_code": 0,
         "stderr": "",
         "metadata": {
-          "svg_bytes": 2523,
+          "svg_bytes": 2543,
           "viewbox": null
         }
       },
@@ -290,9 +290,9 @@
   "doc_examples": {
     "summary": {
       "total": 286,
-      "passed": 275,
+      "passed": 283,
       "excluded": 3,
-      "failed": 8
+      "failed": 0
     },
     "entries": [
       {
@@ -1486,15 +1486,12 @@
         "source_ref": "docs/examples/component/07_ports_lollipop_interfaces.puml",
         "artifact_svg": "docs/examples/component/07_ports_lollipop_interfaces.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1502,15 +1499,12 @@
         "source_ref": "docs/examples/component/08_cloud_db_queue_stereotypes.puml",
         "artifact_svg": "docs/examples/component/08_cloud_db_queue_stereotypes.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -1635,15 +1629,12 @@
         "source_ref": "docs/examples/deployment/06_kubernetes_pods_containers.puml",
         "artifact_svg": "docs/examples/deployment/06_kubernetes_pods_containers.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -3395,15 +3386,12 @@
         "source_ref": "docs/examples/themes/06_spacelab_state.puml",
         "artifact_svg": "docs/examples/themes/06_spacelab_state.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -3673,15 +3661,12 @@
         "source_ref": "docs/examples/themes/theme_sketchy_outline.puml",
         "artifact_svg": "docs/examples/themes/theme_sketchy_outline.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "",
@@ -4001,15 +3986,12 @@
         "source_ref": "docs/examples/sequence/README.md#snippet-1",
         "artifact_svg": "docs/examples/sequence/README_snippet_1.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/sequence/README.md",
@@ -4017,15 +3999,12 @@
         "source_ref": "docs/examples/sequence/README.md#snippet-2",
         "artifact_svg": "docs/examples/sequence/README_snippet_2.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       },
       {
         "source_markdown": "docs/examples/sequence/README.md",
@@ -4033,15 +4012,12 @@
         "source_ref": "docs/examples/sequence/README.md#snippet-3",
         "artifact_svg": "docs/examples/sequence/README_snippet_3.svg",
         "artifact_exists": true,
-        "artifact_matches_render": false,
-        "artifact_up_to_date": false,
+        "artifact_matches_render": true,
+        "artifact_up_to_date": true,
         "excluded": false,
         "exclusion_reason": null,
-        "status": "fail",
-        "notes": [
-          "artifact content does not match current renderer output",
-          "artifact content is stale vs current renderer output"
-        ]
+        "status": "pass",
+        "notes": []
       }
     ]
   }
