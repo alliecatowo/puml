@@ -1032,43 +1032,14 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
             ));
         }
         ParticipantRole::Actor => {
+            // Canonical actor stick-figure (issue #715).  The box provides the
+            // background; the canonical helper renders the figure centred in the
+            // left icon area (x+12) with cy=y+16 so proportions match family.rs.
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"#fff3e0\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
                 x, y, width, height
             ));
-            out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"none\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
-                x + 12,
-                y + 10
-            ));
-            out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
-                x + 12,
-                y + 14,
-                x + 12,
-                y + 22
-            ));
-            out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
-                x + 8,
-                y + 18,
-                x + 16,
-                y + 18
-            ));
-            out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
-                x + 12,
-                y + 22,
-                x + 8,
-                y + 28
-            ));
-            out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#8a5a00\" stroke-width=\"1\"/>",
-                x + 12,
-                y + 22,
-                x + 16,
-                y + 28
-            ));
+            render_actor_stick_figure(out, x + 12, y + 16, "#8a5a00");
         }
         ParticipantRole::Boundary => {
             out.push_str(&format!(

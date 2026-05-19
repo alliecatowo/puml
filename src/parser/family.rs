@@ -1384,6 +1384,12 @@ fn collect_scoped_class_group_content(
                     encoded.push('\t');
                     encoded.push_str(&name);
                 }
+                // Embed actor marker so the normalizer can promote to Actor kind
+                // (mirrors the same logic in the top-level declaration loop above).
+                if keyword == "actor" {
+                    encoded.push('\t');
+                    encoded.push_str("<<actor>>");
+                }
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
                     encoded.push_str(&format!("\x1fstyle:fill:{fill_color}"));
@@ -1412,6 +1418,12 @@ fn collect_scoped_class_group_content(
                 if has_alias {
                     encoded.push('\t');
                     encoded.push_str(&name);
+                }
+                // Embed actor marker so the normalizer can promote to Actor kind
+                // (mirrors the same logic in the top-level declaration loop above).
+                if keyword == "actor" {
+                    encoded.push('\t');
+                    encoded.push_str("<<actor>>");
                 }
                 if let Some(fill_color) = fill_color {
                     encoded.push('\t');
