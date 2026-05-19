@@ -158,8 +158,11 @@ API --> $cfg : config
     assert!(component_svg.contains("class=\"uml-projection\""));
     assert!(component_svg.contains("data-uml-projection=\"$cfg\""));
     assert!(component_svg.contains("data-uml-projection-format=\"json\""));
-    assert!(component_svg.contains("service.name: orders"));
-    assert!(component_svg.contains("ports[1]: 9090"));
+    assert!(component_svg.contains("data-uml-projection-row-label=\"service\""));
+    assert!(component_svg.contains("data-uml-projection-row-label=\"name: orders\""));
+    assert!(component_svg.contains("data-uml-projection-row-label=\"ports\""));
+    assert!(component_svg.contains("data-uml-projection-row-label=\"[1]: 9090\""));
+    assert!(component_svg.contains("class=\"uml-projection-connector\""));
 
     let deployment = r#"@startuml
 node Runtime
@@ -176,7 +179,9 @@ Runtime --> $settings : reads
     assert!(deployment_svg.contains("data-uml-projection=\"$settings\""));
     assert!(deployment_svg.contains("data-uml-projection-format=\"yaml\""));
     assert!(deployment_svg.contains("image: puml"));
-    assert!(deployment_svg.contains("cpu: 2"));
+    assert!(deployment_svg.contains("data-uml-projection-row-label=\"resources\""));
+    assert!(deployment_svg.contains("data-uml-projection-row-label=\"cpu: 2\""));
+    assert!(deployment_svg.contains("class=\"uml-projection-connector\""));
 }
 
 #[test]

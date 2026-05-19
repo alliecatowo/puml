@@ -7082,14 +7082,33 @@ fn json_projection_inline_parse_roundtrip() {
 }
 
 #[test]
-fn json_projection_flattens_nested_values() {
+fn json_projection_renders_nested_tree_rows_and_connectors() {
     let src = "@startuml\njson $cfg { \"user\": { \"name\": \"Ada\" }, \"roles\": [\"admin\"] }\n@enduml\n";
     let svg = render_source_to_svg(src).expect("nested json projection should render");
     assert!(
-        svg.contains("user.name"),
-        "SVG must contain nested object key"
+        svg.contains("data-uml-projection-row-label=\"user\""),
+        "SVG must contain a parent object row"
     );
-    assert!(svg.contains("roles[0]"), "SVG must contain array index key");
+    assert!(
+        svg.contains("data-uml-projection-row-label=\"name: Ada\""),
+        "SVG must contain a nested child row"
+    );
+    assert!(
+        svg.contains("data-uml-projection-row-label=\"roles\""),
+        "SVG must contain an array parent row"
+    );
+    assert!(
+        svg.contains("data-uml-projection-row-label=\"[0]: admin\""),
+        "SVG must contain an array child row"
+    );
+    assert!(
+        svg.contains("data-uml-projection-row-depth=\"1\""),
+        "SVG must include nested projection row depth metadata"
+    );
+    assert!(
+        svg.contains("class=\"uml-projection-connector\""),
+        "SVG must include projection connector lines"
+    );
 }
 
 #[test]
