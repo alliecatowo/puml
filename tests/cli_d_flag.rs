@@ -54,8 +54,13 @@ $A -> $B : msg
 
 #[test]
 fn d_flag_variable_usable_in_if_condition() {
+    // The diagram always has at least one participant so the parser can detect
+    // the sequence family even when the !if body is suppressed (SHOW=no).
+    // Without the unconditional participant the post-preprocess input would be
+    // an empty body, causing E_FAMILY_UNKNOWN and a spurious parse failure.
     let source = r#"
 @startuml
+participant Always
 !if $SHOW == "yes"
 Alice -> Bob : visible
 !endif
