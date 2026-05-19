@@ -30,6 +30,40 @@ state Parent {
 }
 
 #[test]
+fn composite_state_keeps_implicit_substates_inside_enclosing_box() {
+    let src = r#"
+state Parent {
+  [*] --> Child
+  Child --> Done
+  Done --> [*]
+}
+[*] --> Parent
+"#;
+
+    let svg = render_source_to_svg(src).expect("state svg should render");
+    let doc = SvgDoc::parse(&svg);
+
+    let parent_rect = rect_containing_text(&doc, "Parent");
+    let child_rect = rect_containing_text(&doc, "Child");
+    let done_rect = rect_containing_text(&doc, "Done");
+
+    for (label, rect) in [("Child", child_rect), ("Done", done_rect)] {
+        assert!(
+            rect.x >= parent_rect.x
+                && rect.y >= parent_rect.y
+                && rect.right() <= parent_rect.right()
+                && rect.bottom() <= parent_rect.bottom(),
+            "{label} should render inside its composite parent"
+        );
+        assert_eq!(
+            doc.texts_containing(label).len(),
+            1,
+            "{label} should not render as an orphaned duplicate"
+        );
+    }
+}
+
+#[test]
 fn architecture_state_transition_labels_clear_state_boxes() {
     let src = include_str!("../docs/diagrams/diagram-family-lifecycle.puml");
     let svg = render_source_to_svg(src).expect("architecture state svg should render");

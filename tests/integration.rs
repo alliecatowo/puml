@@ -6445,6 +6445,19 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
     let svg = render_source_to_svg(&src).expect("full machine state example should render");
     let doc = roxmltree::Document::parse(&svg).expect("state SVG should parse");
 
+    for node_name in ["Styled", "Rendered", "SkinParams", "Palette", "SVGOut", "TxtOut"] {
+        assert_eq!(
+            doc.descendants()
+                .filter(|node| {
+                    node.has_tag_name("metadata")
+                        && node.attribute("data-state-node") == Some(node_name)
+                })
+                .count(),
+            1,
+            "{node_name} should render exactly once"
+        );
+    }
+
     let confirm_edge = doc
         .descendants()
         .find(|node| {
