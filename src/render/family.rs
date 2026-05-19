@@ -3561,12 +3561,119 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
-            if let Some(first) = orth_pts.first_mut() {
-                *first = (x1, y1);
+            // ── Port overrides for interface (circular) nodes only ────────────
+            // The layout engine computes precise rectangular bottom/top-center
+            // port positions for downward edges.  For REGULAR rectangular nodes
+            // these are already correct; overriding them with pick_port anchors
+            // causes pick_port's horizontal-dominant bias to disagree with the
+            // layout engine's top-to-bottom assignment, producing side-exit ports
+            // that create slanted or X-crossing segments (issue #771).
+            // Only override for INTERFACE nodes whose circular port requires the
+            // adjust_interface_anchor placement from pick_port / x1,y1.
+            if interface_nodes.contains(&from_name) {
+                if let Some(first) = orth_pts.first_mut() {
+                    *first = (x1, y1);
+                }
             }
-            if let Some(last) = orth_pts.last_mut() {
-                *last = (x2, y2);
+            if interface_nodes.contains(&to_name) {
+                if let Some(last) = orth_pts.last_mut() {
+                    *last = (x2, y2);
+                }
             }
+
+            // ── Package header avoidance (fix #813) ──────────────────────────
+            // When a CROSS-PACKAGE downward edge has a vertical segment that
+            // passes through the destination package's header tab, reroute it
+            // to bypass the header by detouring left of the frame and
+            // re-entering the content area from the left side below the header.
+            //
+            // Only applies when src and dst are in DIFFERENT packages, so that
+            // within-package intra-edges (CLI→Frontends where both are in the
+            // same package concept) are not rerouted unnecessarily.
+            //
+            // Detection: for each downward vertical segment (x, y1)→(x, y2):
+            //   - x falls within the destination package's horizontal span
+            //   - the segment originates ABOVE the destination package (y1 < pfx.y)
+            //   - the segment crosses the header band [pkg_top, pkg_top+pkg_tab]
+            {
+                let dest_pkg = pkg_frame_boxes
+                    .iter()
+                    .find(|(_, members)| members.iter().any(|m| m == &to_name));
+
+                // Avoidance only applies to cross-package edges: src must NOT be
+                // a member of the destination package.
+                let src_in_dest_pkg = dest_pkg
+                    .map(|(_, members)| members.iter().any(|m| m == &from_name))
+                    .unwrap_or(false);
+
+                if !src_in_dest_pkg {
+                    if let Some(((pfx, pfy, pfw, _pfh), _)) = dest_pkg {
+                        let pfx = *pfx;
+                        let pfy = *pfy;
+                        let pfw = *pfw;
+                        let header_top = pfy;
+                        let header_bot = pfy + pkg_tab;
+                        let pkg_right = pfx + pfw;
+
+                        let mut fixed: Vec<(i32, i32)> = Vec::with_capacity(orth_pts.len() + 4);
+                        let mut i = 0usize;
+                        while i < orth_pts.len() {
+                            let pt = orth_pts[i];
+                            if i + 1 < orth_pts.len() {
+                                let next = orth_pts[i + 1];
+                                let is_vertical_down = pt.0 == next.0 && next.1 > pt.1;
+                                if is_vertical_down {
+                                    let seg_x = pt.0;
+                                    let seg_y_top = pt.1;
+                                    let seg_y_bot = next.1;
+                                    let x_in_pkg = seg_x >= pfx && seg_x <= pkg_right;
+                                    let crosses_header =
+                                        seg_y_top < header_bot && seg_y_bot > header_top;
+                                    // Only reroute if:
+                                    // 1. segment x is inside the destination package
+                                    // 2. segment crosses the header band
+                                    // 3. segment is NOT the initial source→channel descent
+                                    //    (i.e. there was a HORIZONTAL segment before this one,
+                                    //    meaning this is the channel-exit descent into the pkg)
+                                    let prev_was_horizontal = i >= 2
+                                        && orth_pts[i - 1].1 == pt.1
+                                        && orth_pts[i - 2].1 == pt.1;
+                                    // Alternative: the previous segment changed y, meaning
+                                    // this descent comes after a horizontal channel segment.
+                                    let preceded_by_horizontal = i >= 1 && {
+                                        let prev = orth_pts[i - 1];
+                                        prev.1 == pt.1 && prev.0 != pt.0 // horizontal: same y, different x
+                                    };
+                                    if x_in_pkg && crosses_header && preceded_by_horizontal {
+                                        // Bypass: go left of frame, descend below header,
+                                        // then re-enter from the left at content-area level.
+                                        let bypass_x = pfx - 12;
+                                        let below_header_y = header_bot + 4;
+                                        fixed.push(pt);
+                                        fixed.push((bypass_x, pt.1));
+                                        fixed.push((bypass_x, below_header_y));
+                                        fixed.push((seg_x, below_header_y));
+                                        if seg_y_bot > below_header_y {
+                                            fixed.push((seg_x, seg_y_bot));
+                                        }
+                                        i += 2;
+                                        let _ = prev_was_horizontal; // suppress unused warning
+                                        continue;
+                                    }
+                                }
+                            }
+                            fixed.push(pt);
+                            i += 1;
+                        }
+
+                        if fixed.len() > orth_pts.len() {
+                            fixed.dedup();
+                            orth_pts = fixed;
+                        }
+                    }
+                }
+            }
+
             // ── Orthogonal polyline from layout engine ────────────────────────
             let pts_str: String = orth_pts
                 .iter()

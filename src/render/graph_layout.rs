@@ -463,7 +463,111 @@ fn minimise_crossings(
         }
     }
 
+    // ── Adjacent-transposition pass (bipartite crossing refinement) ───────────
+    // After barycenter sweeps, nodes that share identical barycenters (e.g. two
+    // web servers both connected to the same pair of backends — a K_{2,2}
+    // bipartite subgraph) converge to a stable but crossing-containing order
+    // because all barycenters tie.  A single pass of adjacent transpositions
+    // resolves this: for every pair of adjacent nodes in a rank, try swapping
+    // them and keep the swap only when it strictly reduces the number of edge
+    // crossings with the neighbouring ranks.  Repeat until no improvement is
+    // found (typically 1–3 passes for deployment-scale graphs).
+    let max_rank = rank_order.keys().copied().max().unwrap_or(0);
+    let mut improved = true;
+    while improved {
+        improved = false;
+        for r in 0..=max_rank {
+            let order_len = rank_order.get(&r).map(|v| v.len()).unwrap_or(0);
+            for i in 0..order_len.saturating_sub(1) {
+                let before = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if let Some(cur) = rank_order.get_mut(&r) {
+                    cur.swap(i, i + 1);
+                }
+                let after = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if after < before {
+                    improved = true;
+                } else {
+                    // Revert — same or worse.
+                    if let Some(cur) = rank_order.get_mut(&r) {
+                        cur.swap(i, i + 1);
+                    }
+                }
+            }
+        }
+    }
+
     rank_order
+}
+
+/// Count edge crossings touching rank `r`: bilayer(r-1, r) + bilayer(r, r+1).
+///
+/// Used by the adjacent-transposition pass to decide whether a swap improves
+/// the overall crossing count.
+fn crossings_for_rank(
+    rank_order: &BTreeMap<usize, Vec<String>>,
+    below_neighbors: &BTreeMap<&str, Vec<&str>>,
+    r: usize,
+) -> usize {
+    let mut total = 0usize;
+    if r > 0 {
+        if let (Some(top), Some(bot)) = (rank_order.get(&(r - 1)), rank_order.get(&r)) {
+            total += bilayer_crossings(top, bot, below_neighbors);
+        }
+    }
+    if let (Some(top), Some(bot)) = (rank_order.get(&r), rank_order.get(&(r + 1))) {
+        total += bilayer_crossings(top, bot, below_neighbors);
+    }
+    total
+}
+
+/// Count edge crossings between two adjacent rank layers via inversion count.
+///
+/// `top_order` is the upper rank; `bot_order` the lower rank.
+/// `edges_down` maps upper-rank node → list of lower-rank neighbours.
+fn bilayer_crossings(
+    top_order: &[String],
+    bot_order: &[String],
+    edges_down: &BTreeMap<&str, Vec<&str>>,
+) -> usize {
+    let bot_pos: BTreeMap<&str, usize> = bot_order
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
+    let mut edge_targets: Vec<usize> = Vec::new();
+    for top_id in top_order {
+        if let Some(neighbors) = edges_down.get(top_id.as_str()) {
+            let mut positions: Vec<usize> = neighbors
+                .iter()
+                .filter_map(|nb| bot_pos.get(*nb))
+                .copied()
+                .collect();
+            positions.sort_unstable();
+            edge_targets.extend(positions);
+        }
+    }
+    count_inversions(&edge_targets)
+}
+
+/// Count inversions in a slice using merge-sort (O(n log n)).
+fn count_inversions(seq: &[usize]) -> usize {
+    if seq.len() <= 1 {
+        return 0;
+    }
+    let mid = seq.len() / 2;
+    let left = seq[..mid].to_vec();
+    let right = seq[mid..].to_vec();
+    let mut inversions = count_inversions(&left) + count_inversions(&right);
+    let (mut i, mut j) = (0, 0);
+    while i < left.len() && j < right.len() {
+        if left[i] <= right[j] {
+            i += 1;
+        } else {
+            inversions += left.len() - i;
+            j += 1;
+        }
+    }
+    inversions
 }
 
 /// Barycenter using borrowed-str position map (for route_edges path)
@@ -882,26 +986,41 @@ fn route_edges(
 
     // Symmetric track offset for a given channel and track index.
     // With n_tracks tracks in channel `ch`, track i is at:
-    //   offset = (i as f64 - n_tracks as f64 / 2.0) * TRACK_SPACING
+    //   offset = (i as f64 - n_tracks as f64 / 2.0) * effective_spacing
     // so the band is centered on the channel midpoint.
     //
-    // The band half-width is capped at (inter_rank_gap - 16) / 2 so that even
-    // many tracks never collide with the adjacent node rows.  If the gap is
-    // genuinely < 16px (degenerate), no clamping is applied here; the soft
-    // boundary below handles that case.
+    // For channels with ≤ 2 tracks, TRACK_SPACING (8px) is used — these narrow
+    // fans are visually fine.  For channels with ≥ 3 tracks (e.g. the bipartite
+    // web-server → db tier in a deployment diagram) the fan is spread to use
+    // roughly 1/(n+1) of the available channel gap so that crossing edges produce
+    // clearly separated horizontal segments rather than a visually tangled X.
+    //
+    // The band half-width is always capped at (inter_rank_gap - 8) / 2 so that
+    // tracks never collide with the adjacent node rows.
     let symmetric_offset = |ch: usize, track: usize| -> f64 {
-        let n_tracks = *channel_max_track.get(&ch).unwrap_or(&0) as f64;
-        let raw = (track as f64 - n_tracks / 2.0) * TRACK_SPACING;
+        let n_tracks_idx = *channel_max_track.get(&ch).unwrap_or(&0); // max track index
+        let n_tracks = n_tracks_idx as f64;
         // Compute the inter-rank gap for this channel to bound the fan width.
         let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
         let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
         let gap = next_top - bot;
-        if gap >= 16.0 {
-            let max_half = (gap - 8.0) / 2.0;
-            raw.clamp(-max_half, max_half)
+        let max_half = if gap >= 16.0 {
+            (gap - 8.0) / 2.0
         } else {
-            raw
-        }
+            gap / 2.0
+        };
+        // For ≥ 3 tracks use adaptive spacing so crossing pairs are separated by
+        // at least gap/(n+2) — enough to make individual segments distinguishable.
+        // For ≤ 2 tracks keep the fixed TRACK_SPACING baseline.
+        let effective_spacing = if n_tracks_idx >= 2 {
+            // n_tracks_idx ≥ 2 means at least 3 edges in the channel (indices 0..=2).
+            // Space them to fill ~2/3 of the available half-gap, floored by TRACK_SPACING.
+            (max_half * 2.0 / (n_tracks + 1.0)).max(TRACK_SPACING)
+        } else {
+            TRACK_SPACING
+        };
+        let raw = (track as f64 - n_tracks / 2.0) * effective_spacing;
+        raw.clamp(-max_half, max_half)
     };
 
     // ── Path generation ────────────────────────────────────────────────────────
@@ -962,17 +1081,39 @@ fn route_edges(
             // Determine direction: downward (src_rank < tgt_rank) or upward.
             let goes_down = ei.src_rank < ei.tgt_rank;
 
+            // ── Target-biased port assignment (fix #705) ──────────────────────
+            // Instead of always exiting/entering at the node centre, bias the
+            // horizontal port x toward the opposite endpoint.  This separates
+            // co-located departure ports for fan-out patterns (e.g. WS1→PDB and
+            // WS1→Cache both leaving from x=centre of WS1) so that the two edges
+            // depart at distinct x positions and do not share an overlapping
+            // stub before diverging.
+            //
+            // Algorithm:
+            //   src_port_x = clamp(tgt_centre_x, sx, sx+sw)
+            //   tgt_port_x = clamp(src_centre_x, tx, tx+tw)
+            //
+            // When source and target are horizontally aligned the clamp resolves
+            // to the centre and the path remains a straight vertical — no change.
+            // When they are offset the port is pushed to the nearest edge of the
+            // node that faces the target, shortening the crossing segment and
+            // keeping the departure direction unambiguous.
+            let src_centre_x = sx + sw / 2.0;
+            let tgt_centre_x = tx + tw / 2.0;
+            let src_biased_x = tgt_centre_x.clamp(sx, sx + sw);
+            let tgt_biased_x = src_centre_x.clamp(tx, tx + tw);
+
             // Source port: bottom if going down, top if going up.
             let (src_port_x, src_port_y) = if goes_down {
-                (sx + sw / 2.0, sy + sh)
+                (src_biased_x, sy + sh)
             } else {
-                (sx + sw / 2.0, sy)
+                (src_biased_x, sy)
             };
             // Target port: top if going down, bottom if going up.
             let (tgt_port_x, tgt_port_y) = if goes_down {
-                (tx + tw / 2.0, ty)
+                (tgt_biased_x, ty)
             } else {
-                (tx + tw / 2.0, ty + th)
+                (tgt_biased_x, ty + th)
             };
 
             let (min_r, max_r) = if goes_down {
@@ -1005,13 +1146,22 @@ fn route_edges(
             pts.push((src_port_x, src_port_y));
 
             if max_r - min_r == 1 {
-                // Single channel hop.  Route through the inter-rank channel midpoint
-                // (± symmetric track offset) so the horizontal bend segment is always
-                // clearly visible even when src_x == tgt_x (collinear nodes).
-                let raw_ch_y = channel_mid_y(min_r) + symmetric_offset(min_r, track);
-                let ch_y = soft_clamp_ch_y(min_r, raw_ch_y);
-                pts.push((src_port_x, ch_y));
-                pts.push((tgt_port_x, ch_y));
+                // Single channel hop.
+                // Collinear shortcut: when source and target share the same center-x
+                // (within 2px), emit a straight vertical — no horizontal jog needed.
+                // This eliminates unnecessary jogs for within-package chains like
+                // Parser → AST → Normalizer → Renderer that are stacked in a column.
+                let x_delta = (src_port_x - tgt_port_x).abs();
+                if x_delta < 2.0 {
+                    // Pure vertical: no channel waypoints, just drop straight down.
+                } else {
+                    // Route through the inter-rank channel midpoint (± symmetric
+                    // track offset) so the horizontal bend is clearly visible.
+                    let raw_ch_y = channel_mid_y(min_r) + symmetric_offset(min_r, track);
+                    let ch_y = soft_clamp_ch_y(min_r, raw_ch_y);
+                    pts.push((src_port_x, ch_y));
+                    pts.push((tgt_port_x, ch_y));
+                }
             } else {
                 // Multi-rank: staircase through each intermediate channel midpoint.
                 // X interpolates toward the target across hops.
