@@ -333,12 +333,12 @@ fn parse_gantt_start_and_duration(rest: &str) -> Option<(String, u32)> {
 }
 
 fn parse_gantt_start_date_clause(rest: &str) -> Option<String> {
-    let start_date = rest
-        .trim()
-        .strip_prefix("starts ")?
-        .trim()
+    // Strip the mandatory "starts " prefix (returns None if absent).
+    let after_starts = rest.trim().strip_prefix("starts ")?.trim();
+    // Accept both "starts at <date>" and "starts <date>" forms.
+    let start_date = after_starts
         .strip_prefix("at ")
-        .unwrap_or_else(|| rest.trim().strip_prefix("starts ").unwrap().trim())
+        .unwrap_or(after_starts)
         .trim();
     if !is_iso_date_literal(start_date) {
         return None;
