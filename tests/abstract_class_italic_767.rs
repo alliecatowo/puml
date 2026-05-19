@@ -1,6 +1,5 @@
 /// Regression tests for #767 — abstract class names and interface names must
 /// render in italic text per PlantUML / UML convention.
-
 fn svg_for(src: &str) -> String {
     puml::render_source_to_svg(src).expect("svg should render")
 }
