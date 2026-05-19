@@ -5700,7 +5700,7 @@ fn class_package_headers_clear_inner_class_labels() {
             .expect("package frame");
         let frame_y = svg_attr_i32_required(frame, "y");
         let min_member_y = members
-            .into_iter()
+            .iter()
             .flat_map(|member| svg_text_positions(&svg, member))
             .map(|(_, y)| y)
             .min()
