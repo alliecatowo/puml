@@ -166,10 +166,21 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
         }));
     }
     if let Some(rest) = trimmed.strip_prefix("partition ") {
-        let label = rest.trim().trim_end_matches('{').trim();
+        let raw = rest.trim().trim_end_matches('{').trim();
+        // Strip optional color token (`#rrggbb` or `#name`). PlantUML allows
+        // `partition #color Name {` and `partition Name #color {`.
+        let clean: Vec<&str> = raw
+            .split_whitespace()
+            .filter(|tok| !tok.starts_with('#'))
+            .collect();
+        let label = if clean.is_empty() {
+            raw.to_string()
+        } else {
+            clean.join(" ")
+        };
         return Some(StatementKind::ActivityStep(ActivityStep {
             kind: ActivityStepKind::PartitionStart,
-            label: Some(label.to_string()),
+            label: Some(label),
         }));
     }
     if trimmed == "}" {

@@ -187,6 +187,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
     // Extra arrows: (x1,y1, x2,y2) drawn in addition to prev->cur arrows
     let mut extra_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
+    // Direct arrows: rendered unconditionally after the node loop.
+    // Used for fork-bar→branch and branch→join-bar arrows that target bar
+    // pixel positions rather than node layout slot positions.
+    let mut direct_arrows: Vec<(i32, i32, i32, i32)> = Vec::new();
     // Indices of nodes for which we suppress the standard prev->cur arrow
     let mut suppress_prev_arrow: std::collections::HashSet<usize> = Default::default();
 
@@ -432,18 +436,21 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                             layout.cx = next_col_cx;
                         }
                     }
-                    // Arrow from branch end to join bar
+                    // Straight-down arrow from branch last node to the join
+                    // bar top at the same column x. Targeting slot_y+24 (bar
+                    // top) avoids diagonal crossing lines between columns.
                     let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
-                    extra_arrows.push((col_cx, branch_arrow_out_y, fork_cx, slot_y));
+                    let join_bar_top_y = slot_y + 24;
+                    direct_arrows.push((col_cx, branch_arrow_out_y, col_cx, join_bar_top_y));
                 }
 
-                // Arrows from fork bar down into each branch column.
-                // Suppress the standard prev->cur arrow for the first node of
-                // each branch (otherwise it duplicates the fork->branch arrow).
-                let fork_bar_arrow_out_y = frame.fork_slot_y + ARROW_OUT;
+                // Straight-down arrows from the fork bar bottom to each
+                // branch column's first action.
+                // Fork bar rect: fork_slot_y+24 (top) .. fork_slot_y+32 (bottom).
+                let fork_bar_bottom_y = frame.fork_slot_y + 32;
                 for (branch_idx, branch) in frame.branches.iter().enumerate() {
                     let col_cx = fork_branch_cx(fork_cx, branch_idx, n_branches, effective_col_w);
-                    extra_arrows.push((fork_cx, fork_bar_arrow_out_y, col_cx, branch_start_y));
+                    direct_arrows.push((col_cx, fork_bar_bottom_y, col_cx, branch_start_y));
                     // Suppress the standard prev->cur arrow for the branch's first node
                     suppress_prev_arrow.insert(branch.start_node_idx);
                 }
@@ -851,11 +858,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                 }
                 FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
                     if step_kind.contains("ForkAgain") {
-                        out.push_str(&format!(
-                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\" stroke-dasharray=\"3 2\"/>",
-                            cx - 16, y + 28, cx + 16, y + 28,
-                            escape_text(&act_style.fork_color)
-                        ));
+                        // ForkAgain nodes are layout bookmarks only; the fork
+                        // bar already spans all branch columns.  Render nothing.
                     } else {
                         let bar_half = fork_bar_half_widths.get(&i).copied().unwrap_or(box_w / 2);
                         let bar_w = (bar_half * 2).max(box_w);
@@ -944,6 +948,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         {
             emit_activity_arrow(&mut out, *x1, *y1, *x2, *y2, &act_style.arrow_color);
         }
+    }
+
+    // Direct arrows: fork-bar→branch and branch→join-bar arrows that target
+    // bar pixel positions rather than node layout slot positions.
+    for (x1, y1, x2, y2) in &direct_arrows {
+        emit_activity_arrow(&mut out, *x1, *y1, *x2, *y2, &act_style.arrow_color);
     }
 
     out.push_str("</svg>");
