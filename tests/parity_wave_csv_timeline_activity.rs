@@ -62,8 +62,14 @@ fn milestone_x_bounds(tag: &str) -> (i32, i32) {
         .filter_map(|pair| pair.split_once(','))
         .filter_map(|(x, _)| x.parse::<i32>().ok())
         .collect::<Vec<_>>();
-    let min_x = *xs.iter().min().expect("milestone should include x coordinates");
-    let max_x = *xs.iter().max().expect("milestone should include x coordinates");
+    let min_x = *xs
+        .iter()
+        .min()
+        .expect("milestone should include x coordinates");
+    let max_x = *xs
+        .iter()
+        .max()
+        .expect("milestone should include x coordinates");
     (min_x, max_x)
 }
 
