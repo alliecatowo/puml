@@ -469,7 +469,110 @@ fn minimise_crossings(
         }
     }
 
+    // ── Adjacent-transposition pass (bipartite crossing refinement) ───────────
+    // After barycenter sweeps, nodes that share identical barycenters (e.g. two
+    // web servers both connected to the same pair of backends — a K_{2,2}
+    // bipartite subgraph) converge to a stable but crossing-containing order
+    // because all barycenters tie.  A pass of adjacent transpositions resolves
+    // this: for every pair of adjacent nodes in a rank, try swapping them and
+    // keep the swap only when it strictly reduces the number of edge crossings
+    // with the neighbouring ranks.  Repeat until stable (typically 1–3 passes).
+    let max_rank = rank_order.keys().copied().max().unwrap_or(0);
+    let mut improved = true;
+    while improved {
+        improved = false;
+        for r in 0..=max_rank {
+            let order_len = rank_order.get(&r).map(|v| v.len()).unwrap_or(0);
+            for i in 0..order_len.saturating_sub(1) {
+                let before = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if let Some(cur) = rank_order.get_mut(&r) {
+                    cur.swap(i, i + 1);
+                }
+                let after = crossings_for_rank(&rank_order, &below_neighbors, r);
+                if after < before {
+                    improved = true;
+                } else {
+                    // Revert — same or worse.
+                    if let Some(cur) = rank_order.get_mut(&r) {
+                        cur.swap(i, i + 1);
+                    }
+                }
+            }
+        }
+    }
+
     rank_order
+}
+
+/// Count edge crossings touching rank `r`: bilayer(r-1, r) + bilayer(r, r+1).
+///
+/// Used by the adjacent-transposition pass to decide whether a swap improves
+/// the overall crossing count.
+fn crossings_for_rank(
+    rank_order: &BTreeMap<usize, Vec<String>>,
+    below_neighbors: &BTreeMap<&str, Vec<&str>>,
+    r: usize,
+) -> usize {
+    let mut total = 0usize;
+    if r > 0 {
+        if let (Some(top), Some(bot)) = (rank_order.get(&(r - 1)), rank_order.get(&r)) {
+            total += bilayer_crossings(top, bot, below_neighbors);
+        }
+    }
+    if let (Some(top), Some(bot)) = (rank_order.get(&r), rank_order.get(&(r + 1))) {
+        total += bilayer_crossings(top, bot, below_neighbors);
+    }
+    total
+}
+
+/// Count edge crossings between two adjacent rank layers via inversion count.
+///
+/// `top_order` is the upper rank; `bot_order` the lower rank.
+/// `edges_down` maps upper-rank node → list of lower-rank neighbours.
+fn bilayer_crossings(
+    top_order: &[String],
+    bot_order: &[String],
+    edges_down: &BTreeMap<&str, Vec<&str>>,
+) -> usize {
+    let bot_pos: BTreeMap<&str, usize> = bot_order
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
+    let mut edge_targets: Vec<usize> = Vec::new();
+    for top_id in top_order {
+        if let Some(neighbors) = edges_down.get(top_id.as_str()) {
+            let mut positions: Vec<usize> = neighbors
+                .iter()
+                .filter_map(|nb| bot_pos.get(*nb))
+                .copied()
+                .collect();
+            positions.sort_unstable();
+            edge_targets.extend(positions);
+        }
+    }
+    count_inversions(&edge_targets)
+}
+
+/// Count inversions in a slice using merge-sort (O(n log n)).
+fn count_inversions(seq: &[usize]) -> usize {
+    if seq.len() <= 1 {
+        return 0;
+    }
+    let mid = seq.len() / 2;
+    let left = seq[..mid].to_vec();
+    let right = seq[mid..].to_vec();
+    let mut inversions = count_inversions(&left) + count_inversions(&right);
+    let (mut i, mut j) = (0, 0);
+    while i < left.len() && j < right.len() {
+        if left[i] <= right[j] {
+            i += 1;
+        } else {
+            inversions += left.len() - i;
+            j += 1;
+        }
+    }
+    inversions
 }
 
 /// Barycenter using borrowed-str position map (for route_edges path)
@@ -689,6 +792,14 @@ const MAX_TRACKS: usize = 12;
 /// a small safety margin.
 const PKG_HEADER_HEIGHT: f64 = 48.0;
 
+/// Clearance above the package frame top that the horizontal segment of an
+/// incoming cross-package edge must maintain (TOP-PASS rule).  When the
+/// computed channel y would land inside or below a package frame top, we
+/// force it to `pkg_top - PACKAGE_TOP_CLEARANCE` so the horizontal shaft
+/// sits clearly above the frame border, and only the final vertical drop
+/// enters the package body (crossing the header as a single thin line).
+const PACKAGE_TOP_CLEARANCE: f64 = 12.0;
+
 fn route_edges(
     nodes: &[NodeSize],
     edges: &[EdgeSpec],
@@ -894,26 +1005,40 @@ fn route_edges(
 
     // Symmetric track offset for a given channel and track index.
     // With n_tracks tracks in channel `ch`, track i is at:
-    //   offset = (i as f64 - n_tracks as f64 / 2.0) * TRACK_SPACING
+    //   offset = (i as f64 - n_tracks as f64 / 2.0) * effective_spacing
     // so the band is centered on the channel midpoint.
     //
-    // The band half-width is capped at (inter_rank_gap - 16) / 2 so that even
-    // many tracks never collide with the adjacent node rows.  If the gap is
-    // genuinely < 16px (degenerate), no clamping is applied here; the soft
-    // boundary below handles that case.
+    // For channels with ≤ 2 tracks (≤ 2 edges crossing the gap), TRACK_SPACING
+    // (8 px) is used as before — narrow fans are visually fine.  For channels
+    // with ≥ 3 tracks (e.g. the four bipartite edges in a deployment web-server →
+    // db/cache tier), the fan is spread adaptively to fill ~2/3 of the available
+    // channel half-height so that crossing horizontal segments are clearly
+    // separated rather than overlapping in a visually tangled X.
+    //
+    // The band half-width is capped at (inter_rank_gap − 8) / 2 in all cases so
+    // that tracks never collide with the adjacent node rows.
     let symmetric_offset = |ch: usize, track: usize| -> f64 {
-        let n_tracks = *channel_max_track.get(&ch).unwrap_or(&0) as f64;
-        let raw = (track as f64 - n_tracks / 2.0) * TRACK_SPACING;
+        let n_tracks_idx = *channel_max_track.get(&ch).unwrap_or(&0); // max track index used
+        let n_tracks = n_tracks_idx as f64;
         // Compute the inter-rank gap for this channel to bound the fan width.
         let bot = rank_bottom_y.get(&ch).copied().unwrap_or(0.0);
         let next_top = rank_top_y.get(&(ch + 1)).copied().unwrap_or(bot + 80.0);
         let gap = next_top - bot;
-        if gap >= 16.0 {
-            let max_half = (gap - 8.0) / 2.0;
-            raw.clamp(-max_half, max_half)
+        let max_half = if gap >= 16.0 {
+            (gap - 8.0) / 2.0
         } else {
-            raw
-        }
+            gap / 2.0
+        };
+        // Adaptive spacing: only for channels with ≥ 3 tracks (max index ≥ 2).
+        let effective_spacing = if n_tracks_idx >= 2 {
+            // Spread the fan so adjacent tracks are ~gap/(n+2) apart, capped at
+            // max_half and floored at TRACK_SPACING.
+            (max_half * 2.0 / (n_tracks + 1.0)).max(TRACK_SPACING)
+        } else {
+            TRACK_SPACING
+        };
+        let raw = (track as f64 - n_tracks / 2.0) * effective_spacing;
+        raw.clamp(-max_half, max_half)
     };
 
     // ── Path generation ────────────────────────────────────────────────────────
@@ -956,19 +1081,53 @@ fn route_edges(
         let track = *edge_track.get(&ei.edge_id).unwrap_or(&0);
 
         let path = if ei.src_rank == ei.tgt_rank {
-            // Same-rank U-shape: exit bottom of source, route through channel
-            // below rank, enter bottom of target.
-            let src_bottom_x = sx + sw / 2.0;
-            let src_bottom_y = sy + sh;
-            let tgt_bottom_x = tx + tw / 2.0;
-            let tgt_bottom_y = ty + th;
-            let ch_y = channel_mid_y(ei.src_rank) + symmetric_offset(ei.src_rank, track);
-            vec![
-                (src_bottom_x, src_bottom_y),
-                (src_bottom_x, ch_y),
-                (tgt_bottom_x, ch_y),
-                (tgt_bottom_x, tgt_bottom_y),
-            ]
+            // Same-rank routing.
+            //
+            // When both endpoints share a parent package we route ABOVE the
+            // package (TOP-PASS for same-rank): exit the top of each node,
+            // arch above the package frame, and re-enter the top of the other.
+            // This avoids the U-shape dipping into the next package below.
+            //
+            // For nodes without a shared package (or no package at all) we fall
+            // back to the original below-channel U-shape.
+            let src_parent = node_by_id.get(src_id).and_then(|n| n.parent.as_deref());
+            let tgt_parent = node_by_id.get(tgt_id).and_then(|n| n.parent.as_deref());
+            let same_package = src_parent.is_some() && src_parent == tgt_parent;
+
+            if same_package {
+                // Route above the package: exit top of source, arch above
+                // the package frame, enter top of target.
+                let src_top_x = sx + sw / 2.0;
+                let src_top_y = sy;
+                let tgt_top_x = tx + tw / 2.0;
+                let tgt_top_y = ty;
+                // Use the package top minus clearance as the arch y.
+                let pkg_top = src_parent
+                    .and_then(|p| group_bounds.get(p))
+                    .map(|&(_, gy, _, _)| gy)
+                    .unwrap_or(src_top_y);
+                let arch_y = pkg_top - PACKAGE_TOP_CLEARANCE
+                    - (track as f64) * TRACK_SPACING;
+                vec![
+                    (src_top_x, src_top_y),
+                    (src_top_x, arch_y),
+                    (tgt_top_x, arch_y),
+                    (tgt_top_x, tgt_top_y),
+                ]
+            } else {
+                // Original below-channel U-shape for cross-package same-rank edges.
+                let src_bottom_x = sx + sw / 2.0;
+                let src_bottom_y = sy + sh;
+                let tgt_bottom_x = tx + tw / 2.0;
+                let tgt_bottom_y = ty + th;
+                let ch_y = channel_mid_y(ei.src_rank) + symmetric_offset(ei.src_rank, track);
+                vec![
+                    (src_bottom_x, src_bottom_y),
+                    (src_bottom_x, ch_y),
+                    (tgt_bottom_x, ch_y),
+                    (tgt_bottom_x, tgt_bottom_y),
+                ]
+            }
         } else {
             // Cross-rank orthogonal path.
             // Determine direction: downward (src_rank < tgt_rank) or upward.
@@ -1007,15 +1166,20 @@ fn route_edges(
                     // Normal gap: allow any value strictly within the gap.
                     raw.clamp(bot + 4.0, next_top - 4.0)
                 };
-                // Package-header avoidance: if the channel y lands inside any
-                // group's header band (top_y .. top_y + PKG_HEADER_HEIGHT), push
-                // it below the header so arrow shafts do not slice through the
-                // package label text.
+                // TOP-PASS rule: if the channel y lands at or below any package
+                // frame top, force it ABOVE the package frame
+                // (pkg_top − PACKAGE_TOP_CLEARANCE).  This keeps the horizontal
+                // routing segment in the inter-package gap so that only the final
+                // vertical drop enters the package body, crossing the header band
+                // as a single thin vertical line rather than a horizontal shaft
+                // that slices through the header label text.
                 let mut result = clamped;
                 for &(_, gy, _, _) in group_bounds.values() {
                     let header_bottom = gy + PKG_HEADER_HEIGHT;
-                    if result > gy && result < header_bottom {
-                        result = header_bottom + 4.0;
+                    if result >= gy - PACKAGE_TOP_CLEARANCE && result < header_bottom {
+                        // Snap the horizontal segment to sit above the package frame.
+                        let above = gy - PACKAGE_TOP_CLEARANCE;
+                        result = result.min(above);
                     }
                 }
                 result
@@ -1065,6 +1229,59 @@ fn route_edges(
             }
 
             pts.push((tgt_port_x, tgt_port_y));
+
+            // ── Package-header label bypass ───────────────────────────────────
+            // The TOP-PASS rule above guarantees ch_y < pkg_top for any edge
+            // that enters a package from above.  However, the final vertical
+            // shaft (tgt_port_x, ch_y) → (tgt_port_x, tgt_port_y) still passes
+            // through the header band [pkg_top, pkg_top + PKG_HEADER_HEIGHT]
+            // when tgt_port_x falls inside the label tab area.
+            //
+            // Fix: when the target node is a direct child of a package AND the
+            // channel bend (second-to-last point) sits above the package top AND
+            // the target x is inside the label tab, insert three bypass waypoints
+            // that route the final drop AROUND the header rather than through it:
+            //
+            //   (tgt_x, ch_y) → (bypass_x, ch_y) → (bypass_x, below_header)
+            //   → (tgt_x, below_header) → (tgt_x, tgt_y)
+            //
+            // `bypass_x` is just to the right of the label tab, keeping the
+            // shaft within the package frame while clearing the label text.
+            if goes_down && !column_aligned {
+                if let Some(tgt_parent_id) = node_by_id
+                    .get(tgt_id)
+                    .and_then(|n| n.parent.as_deref())
+                {
+                    if let Some(&(gx, gy, gw, _)) = group_bounds.get(tgt_parent_id) {
+                        // Replicate family.rs tab_w formula using group id as
+                        // a proxy for the label string length.
+                        let tab_w = ((tgt_parent_id.len() as f64) * 8.0 + 16.0)
+                            .max(60.0)
+                            .min(gw);
+                        // Channel bend y is the y of the second-to-last point
+                        // (i.e. the last horizontal waypoint before the target port).
+                        if let Some(&(_, ch_y)) = pts.get(pts.len().wrapping_sub(2)) {
+                            // Bypass only when:
+                            //  • channel is above the package top (ch_y < gy)
+                            //  • target x falls inside the label tab [gx, gx+tab_w]
+                            if ch_y < gy && tgt_port_x >= gx - 1.0 && tgt_port_x < gx + tab_w + 8.0 {
+                                let bypass_x = (gx + tab_w + 12.0).min(gx + gw - 8.0);
+                                let entry_y = gy + PKG_HEADER_HEIGHT + 4.0;
+                                // pts currently:
+                                //   [... (src_x,ch_y), (tgt_x,ch_y), (tgt_x,tgt_y)]
+                                // After insertions before final point:
+                                //   [... (src_x,ch_y), (tgt_x,ch_y),
+                                //        (bypass_x,ch_y), (bypass_x,entry_y),
+                                //        (tgt_x,entry_y), (tgt_x,tgt_y)]
+                                let last = pts.len() - 1;
+                                pts.insert(last, (bypass_x, ch_y));
+                                pts.insert(last + 1, (bypass_x, entry_y));
+                                pts.insert(last + 2, (tgt_port_x, entry_y));
+                            }
+                        }
+                    }
+                }
+            }
 
             // Remove adjacent duplicate points so the final polyline is compact
             // (≥3 distinct waypoints for a single-hop cross-rank edge).
