@@ -5595,6 +5595,28 @@ fn usecase_relation_labels_clear_arrowheads_and_each_other() {
 }
 
 #[test]
+fn usecase_relation_label_clears_actor_body_in_with_actors_example() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("usecase/02_with_actors.puml")).unwrap(),
+    )
+    .expect("usecase actor example should render");
+    let label = svg_text_positions(&svg, "leads to")
+        .into_iter()
+        .next()
+        .expect("leads to label position");
+    let admin = svg_text_positions(&svg, "Admin")
+        .into_iter()
+        .next()
+        .expect("Admin actor label position");
+    let dx = (label.0 - admin.0).abs();
+    let dy = label.1 - admin.1;
+    assert!(
+        dx >= 24 || dy <= -18 || dy >= 10,
+        "relation label should stay outside the Admin actor body envelope"
+    );
+}
+
+#[test]
 fn usecase_package_boundaries_render_tab_headers_and_short_names() {
     let svg = render_source_to_svg(
         &fs::read_to_string(example("usecase/04_with_packages.puml")).unwrap(),

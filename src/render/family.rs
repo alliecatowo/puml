@@ -3579,6 +3579,65 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         }
     }
 
+    // Final obstacle-clearance pass for relation labels. This catches solo
+    // labels like usecase/02_with_actors where the routed midpoint can still
+    // land inside a nearby node even after target-based fan-out.
+    const LABEL_CLEARANCE_X: i32 = 10;
+    const LABEL_CLEARANCE_Y: i32 = 10;
+    const LABEL_TEXT_HALF_HEIGHT: i32 = 8;
+    let obstacle_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
+    let label_overlaps_box =
+        |lx: i32, ly: i32, text: &str, (bx, by, bw, bh): (i32, i32, i32, i32)| {
+            let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
+            lx + half_w + LABEL_CLEARANCE_X >= bx
+                && lx - half_w - LABEL_CLEARANCE_X <= bx + bw
+                && ly + 4 + LABEL_CLEARANCE_Y >= by
+                && ly - LABEL_TEXT_HALF_HEIGHT - LABEL_CLEARANCE_Y <= by + bh
+        };
+    let label_overlaps_any = |lx: i32, ly: i32, text: &str| {
+        obstacle_boxes
+            .iter()
+            .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
+    };
+    for (lx, ly, text, _) in &mut adjusted_labels {
+        if text.is_empty() {
+            continue;
+        }
+        let max_passes = obstacle_boxes.len().max(1);
+        for _ in 0..max_passes {
+            if !label_overlaps_any(*lx, *ly, text) {
+                break;
+            }
+            let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
+            let mut moved = false;
+            for &(bx, by, bw, bh) in &obstacle_boxes {
+                if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) {
+                    continue;
+                }
+                let candidates = [
+                    (*lx, by - 14),
+                    (*lx, by + bh + 18),
+                    (bx - half_w - 12, *ly),
+                    (bx + bw + half_w + 12, *ly),
+                ];
+                if let Some((next_x, next_y)) = candidates
+                    .into_iter()
+                    .find(|&(cx, cy)| !label_overlaps_any(cx, cy, text))
+                {
+                    *lx = next_x;
+                    *ly = next_y;
+                } else {
+                    *ly = by - 14;
+                }
+                moved = true;
+                break;
+            }
+            if !moved {
+                break;
+            }
+        }
+    }
+
     // Emit the final labels
     for (lx, ly, text, color) in &adjusted_labels {
         if text.is_empty() {
