@@ -5733,6 +5733,57 @@ fn component_relations_render_dotted_markers_and_styled_port_shape() {
 }
 
 #[test]
+fn component_interfaces_attach_relation_endpoints_to_circle_edges() {
+    let svg = render_source_to_svg(&fs::read_to_string(example("component/02_interfaces.puml")).unwrap())
+        .expect("component interface example should render");
+    let interface_elements = svg_elements_with_attr(&svg, "data-uml-kind", "interface");
+    let graphql_label = svg_text_positions(&svg, "GraphQL")
+        .into_iter()
+        .next()
+        .expect("GraphQL label position");
+    let rest_label = svg_text_positions(&svg, "REST")
+        .into_iter()
+        .next()
+        .expect("REST label position");
+    let graphql_circle = interface_elements
+        .iter()
+        .find(|element| svg_attr_i32_required(element, "cx") == graphql_label.0)
+        .expect("GraphQL interface circle");
+    let rest_circle = interface_elements
+        .iter()
+        .find(|element| svg_attr_i32_required(element, "cx") == rest_label.0)
+        .expect("REST interface circle");
+    let endpoint_on_circle = |endpoint: (i32, i32), circle: &str| {
+        let cx = svg_attr_i32_required(circle, "cx");
+        let cy = svg_attr_i32_required(circle, "cy");
+        let r = svg_attr_i32_required(circle, "r");
+        let dx = (endpoint.0 - cx).abs();
+        let dy = (endpoint.1 - cy).abs();
+
+        (dx == r && dy <= 1) || (dy == r && dx <= 1)
+    };
+
+    let graphql_relation =
+        svg_relation_element(&svg, "API", "GraphQL").expect("API to GraphQL relation");
+    let graphql_end = svg_relation_end(graphql_relation).expect("GraphQL relation endpoint");
+    assert!(
+        endpoint_on_circle(graphql_end, graphql_circle),
+        "GraphQL relation should land on the interface circle edge"
+    );
+
+    for relation in [("API", "REST"), ("Client", "REST")] {
+        let rest_relation =
+            svg_relation_element(&svg, relation.0, relation.1).expect("REST relation");
+        let rest_end = svg_relation_end(rest_relation).expect("REST relation endpoint");
+        assert!(
+            endpoint_on_circle(rest_end, rest_circle),
+            "{} to REST should land on the interface circle edge",
+            relation.0
+        );
+    }
+}
+
+#[test]
 fn state_transitions_accept_short_and_directional_arrows() {
     let src = "@startuml\nstate Idle\nstate Active\nstate Closed\n[*] -> Idle\nIdle -down-> Active : open\nActive --> Closed : done\n@enduml\n";
     let svg = render_source_to_svg(src).expect("state directional transition svg should render");
