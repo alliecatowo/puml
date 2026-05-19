@@ -389,9 +389,24 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     // Use the layout engine's canvas size as a floor for both dimensions.
     let gl_canvas_right = gl_result_class.canvas_width as i32;
     let gl_canvas_bottom = gl_result_class.canvas_height as i32;
+    // Extra right-margin to ensure edge labels placed to the right of the rightmost
+    // node are not clipped at the canvas boundary (#521). Use the longest label
+    // half-width as an additional right pad.
+    let max_label_half_w = document
+        .relations
+        .iter()
+        .map(|rel| {
+            rel.label
+                .as_ref()
+                .map(|l| ((l.chars().count() as i32) * 6 / 2).max(18))
+                .unwrap_or(0)
+        })
+        .max()
+        .unwrap_or(0);
+    let label_right_pad = max_label_half_w + margin_x;
     let svg_width = (margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap)
         .max(gl_canvas_right + margin_x)
-        .max(nodes_right + margin_x)
+        .max(nodes_right + label_right_pad)
         .max(groups_right + margin_x);
     let svg_height =
         (nodes_bottom.max(groups_bottom) + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
@@ -658,6 +673,35 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             }
         }
     }
+
+    // Build a lateral-offset map for parallel edges (same unordered node pair).
+    // When multiple relations share the same from/to nodes, offset each by
+    // PARALLEL_EDGE_GAP * lane_index px perpendicular to the edge direction so
+    // they don't render on top of each other (#464, #471).
+    const PARALLEL_EDGE_GAP: i32 = 12;
+    // Map (canonical_from, canonical_to) → list of rel_idx in declaration order
+    let mut parallel_groups: std::collections::BTreeMap<(String, String), Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, rel) in document.relations.iter().enumerate() {
+        let (fn_, tn_, _) = normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+        let key = if fn_ <= tn_ { (fn_, tn_) } else { (tn_, fn_) };
+        parallel_groups.entry(key).or_default().push(i);
+    }
+    // rel_idx → signed lateral offset (px). Lane 0 gets 0, lane 1 gets +GAP, lane 2 gets −GAP, …
+    let mut parallel_offset: std::collections::BTreeMap<usize, i32> =
+        std::collections::BTreeMap::new();
+    for group in parallel_groups.values() {
+        if group.len() < 2 {
+            continue;
+        }
+        let n = group.len() as i32;
+        for (slot, &idx) in group.iter().enumerate() {
+            // Centre the fan: offsets are -floor(n/2)*GAP … +floor(n/2)*GAP
+            let lane = slot as i32 - n / 2;
+            parallel_offset.insert(idx, lane * PARALLEL_EDGE_GAP);
+        }
+    }
+
     // Render relations first so node rectangles cover endpoints
     for (rel_idx, relation) in document.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
@@ -688,6 +732,21 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             // Part of the layout engine refactor (#591, #590 epic).
             pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
+
+        // Lateral offset for parallel edges (#464, #471): shift perpendicular to
+        // the primary edge direction so overlapping edges fan apart visually.
+        let lat_offset = parallel_offset.get(&rel_idx).copied().unwrap_or(0);
+        // For a mostly-vertical edge the perpendicular direction is horizontal.
+        let edge_dx_raw = x2 - x1;
+        let edge_dy_raw = y2 - y1;
+        let (off_x, off_y) = if edge_dx_raw.abs() >= edge_dy_raw.abs() {
+            // Mostly horizontal → offset vertically
+            (0, lat_offset)
+        } else {
+            // Mostly vertical → offset horizontally
+            (lat_offset, 0)
+        };
+        let (x1, y1, x2, y2) = (x1 + off_x, y1 + off_y, x2 + off_x, y2 + off_y);
         let relation_color = relation
             .line_color
             .as_deref()
@@ -726,7 +785,11 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 .edge_paths
                 .get(&format!("r{rel_idx}"))
                 .filter(|p| p.len() >= 2)
-                .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+                .map(|p| {
+                    p.iter()
+                        .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
+                        .collect()
+                })
         } else {
             None
         };
