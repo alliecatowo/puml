@@ -37,4 +37,10 @@ stop
     );
     assert_eq!(svg.matches(">Done<").count(), 1);
     assert_eq!(svg.matches(">Notify Dev<").count(), 1);
+    assert!(
+        !svg.contains("points=\"720,842")
+            && !svg.contains("points=\"720,902")
+            && !svg.contains("points=\"720,962"),
+        "nested endif merges should not leave dangling arrowheads before the final stop"
+    );
 }

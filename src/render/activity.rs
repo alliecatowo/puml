@@ -562,6 +562,51 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         }
     }
 
+    let is_layout_only_control = |idx: usize| {
+        let step_kind = metas[idx].step_kind.as_str();
+        (matches!(doc.nodes[idx].kind, FamilyNodeKind::ActivityPartition)
+            && (step_kind == "PartitionStart"
+                || step_kind == "PartitionEnd"
+                || step_kind == "OldStyle"))
+            || step_kind == "Else"
+            || step_kind == "EndIf"
+            || step_kind == "EndWhile"
+            || step_kind == "RepeatStart"
+    };
+    let is_hidden_control_node = |idx: usize| hidden_nodes.contains(&idx) || is_layout_only_control(idx);
+    let next_visible_node = |idx: usize| {
+        ((idx + 1)..doc.nodes.len()).find(|&next_idx| !is_hidden_control_node(next_idx))
+    };
+    let slot_index_by_position: std::collections::HashMap<(i32, i32), usize> = node_layouts
+        .iter()
+        .enumerate()
+        .map(|(idx, layout)| ((layout.cx, layout.slot_y), idx))
+        .collect();
+    let arrow_out_index_by_position: std::collections::HashMap<(i32, i32), usize> = node_layouts
+        .iter()
+        .enumerate()
+        .map(|(idx, layout)| ((layout.cx, layout.arrow_out_y), idx))
+        .collect();
+    let redirected_extra_arrows: Vec<(i32, i32, i32, i32)> = extra_arrows
+        .into_iter()
+        .filter_map(|(x1, y1, mut x2, mut y2)| {
+            if let Some(&src_idx) = arrow_out_index_by_position.get(&(x1, y1)) {
+                if is_hidden_control_node(src_idx) {
+                    return None;
+                }
+            }
+            if let Some(&dst_idx) = slot_index_by_position.get(&(x2, y2)) {
+                if is_hidden_control_node(dst_idx) {
+                    let next_idx = next_visible_node(dst_idx)?;
+                    let layout = &node_layouts[next_idx];
+                    x2 = layout.cx;
+                    y2 = layout.slot_y;
+                }
+            }
+            Some((x1, y1, x2, y2))
+        })
+        .collect();
+
     // Total height needed
     let height = node_layouts
         .iter()
@@ -803,7 +848,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         // Arrow from previous node (suppressed for branch-control nodes).
         // Walk back past zero-height partition markers to find the real
         // predecessor so cross-lane edges are drawn correctly (#588).
-        if i > 0 && !suppress_prev_arrow.contains(&i) {
+        if i > 0
+            && !suppress_prev_arrow.contains(&i)
+            && !matches!(metas[i - 1].step_kind.as_str(), "Else" | "EndIf" | "EndWhile")
+        {
             let mut prev_idx = i - 1;
             while prev_idx > 0 {
                 let prev_kind = &doc.nodes[prev_idx].kind;
@@ -833,7 +881,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         }
 
         // Extra arrows for if-branching and fork connections
-        for (x1, y1, x2, y2) in extra_arrows.iter().filter(|a| a.2 == cx && a.3 == y) {
+        for (x1, y1, x2, y2) in redirected_extra_arrows
+            .iter()
+            .filter(|a| a.2 == cx && a.3 == y)
+        {
             emit_activity_arrow(&mut out, *x1, *y1, *x2, *y2, &act_style.arrow_color);
         }
     }
