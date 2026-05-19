@@ -4,7 +4,7 @@ Thanks for sending a PR to PUML!
 A few quick things to keep in mind:
 - Small, focused PRs land faster than large ones. If this is a big change, consider splitting it.
 - Visual changes need a regenerated PNG/SVG in the description so reviewers can see them at a glance.
-- Tests + parity harness are required to pass on every PR. The PR gate runs them for you.
+- Tests + docs render check are required to pass on every PR. The PR gate runs them for you.
 -->
 
 ## What this changes
@@ -67,7 +67,7 @@ Skip this section for pure-refactor / docs / CI PRs.
 - [ ] `cargo test --release` passes locally
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings` passes
 - [ ] `cargo fmt --check` passes
-- [ ] `python3 scripts/parity_harness.py --fail-on-doc-drift` passes
+- [ ] `python3 scripts/render_check.py --fail-on-doc-drift` passes
 - [ ] Visual baselines re-blessed where intentional change: `cargo test --release --test visual_regression bless_baselines -- --ignored`
 - [ ] Regenerated affected `docs/examples/*.svg` and `docs/diagrams/*.svg`
 - [ ] Multimodal verification: rendered the affected fixture to PNG and looked at it myself

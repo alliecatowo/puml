@@ -58,7 +58,7 @@ DOCS_EXAMPLES_DRIFT_EXACT = {
     "Cargo.toml",
     "Cargo.lock",
     "scripts/ci-classify-changes.py",
-    "scripts/parity_harness.py",
+    "scripts/render_check.py",
     ".github/workflows/pr-gate.yml",
 }
 

@@ -20,7 +20,6 @@ const DOC_SOURCE_EXTS: &[&str] = &["puml", "plantuml", "picouml"];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct DocExampleKey {
-    source_markdown: String,
     source_kind: String,
     source_ref: String,
     artifact_svg: String,
@@ -71,7 +70,6 @@ fn parse_expected_gallery_entries() -> Vec<DocExampleKey> {
                 }
                 let artifact = path.with_extension("svg");
                 expected.push(DocExampleKey {
-                    source_markdown: "".to_string(),
                     source_kind: "source_file".to_string(),
                     source_ref: path
                         .strip_prefix(env!("CARGO_MANIFEST_DIR"))
@@ -126,7 +124,6 @@ fn parse_expected_gallery_entries() -> Vec<DocExampleKey> {
                 .to_string_lossy()
                 .to_string();
             expected.push(DocExampleKey {
-                source_markdown: rel_md.clone(),
                 source_kind: "inline_snippet".to_string(),
                 source_ref: format!("{rel_md}#snippet-{snippet_index}"),
                 artifact_svg,
@@ -160,27 +157,27 @@ fn svg_bounds_audit_regression_corpus_passes() {
 }
 
 #[test]
-fn parity_harness_report_schema_is_stable() {
+fn docs_render_check_report_schema_is_stable() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("target");
-    path.push("parity_harness_test_report.json");
+    path.push("render_check_test_report.json");
 
     let output = Command::new("python3")
         .args([
-            "scripts/parity_harness.py",
+            "scripts/render_check.py",
             "--quiet",
             "--output",
             path.to_str().expect("utf-8 path"),
         ])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
-        .expect("failed to run scripts/parity_harness.py");
+        .expect("failed to run scripts/render_check.py");
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         panic!(
-            "parity harness failed\nstatus: {:?}\nstdout:\n{}\nstderr:\n{}",
+            "render_check failed\nstatus: {:?}\nstdout:\n{}\nstderr:\n{}",
             output.status.code(),
             stdout,
             stderr
@@ -189,39 +186,31 @@ fn parity_harness_report_schema_is_stable() {
 
     let raw = fs::read_to_string(&path).expect("report should be written");
     let json: Value = serde_json::from_str(&raw).expect("report must be valid JSON");
-    assert_eq!(json["schema_version"], "1.0.0");
-    assert!(json.get("fixtures").and_then(Value::as_array).is_some());
+    assert_eq!(json["schema_version"], "2.0.0");
     assert!(json.get("summary").is_some());
-    assert!(json.get("oracle").is_some());
-    assert!(json.get("doc_examples").is_some());
+    assert!(json.get("entries").and_then(Value::as_array).is_some());
     assert!(
-        json["doc_examples"]["summary"]["failed"].as_u64().is_some(),
-        "doc_examples.summary.failed should remain a numeric count"
+        json["summary"]["failed"].as_u64().is_some(),
+        "summary.failed should be a numeric count"
     );
     assert!(
-        json["doc_examples"]["entries"]
+        json["summary"]["excluded"].as_u64().is_some(),
+        "summary.excluded should be a numeric count"
+    );
+    assert!(
+        json["entries"]
             .as_array()
             .map(|rows| !rows.is_empty())
             .unwrap_or(false),
-        "doc_examples.entries should be non-empty"
-    );
-    assert!(
-        json["doc_examples"]["summary"]["excluded"]
-            .as_u64()
-            .is_some(),
-        "doc_examples.summary.excluded should remain a numeric count"
+        "entries should be non-empty"
     );
 
     let expected = parse_expected_gallery_entries();
-    let mut discovered = json["doc_examples"]["entries"]
+    let mut discovered = json["entries"]
         .as_array()
-        .expect("doc_examples.entries should be an array")
+        .expect("entries should be an array")
         .iter()
         .map(|entry| DocExampleKey {
-            source_markdown: entry["source_markdown"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
             source_kind: entry["source_kind"]
                 .as_str()
                 .unwrap_or_default()
@@ -238,16 +227,13 @@ fn parity_harness_report_schema_is_stable() {
 
     assert_eq!(
         discovered, expected,
-        "parity harness doc gallery discovery should stay in lock-step with all docs/examples source files and supported fenced snippets"
+        "render_check doc gallery discovery should stay in lock-step with all docs/examples source files and supported fenced snippets"
     );
 
-    // The mixed-family `nonuml_parity_gantt_chart_topology.puml` fixture was
-    // deleted in the Wave 1 docs reorg (#460); the harness now reports a smaller
-    // set of intentional exclusions. Assert that whatever exclusions remain
-    // each carry an explicit `exclusion_reason`.
-    let entries = json["doc_examples"]["entries"]
+    // Assert that every excluded entry carries an explicit exclusion_reason.
+    let entries = json["entries"]
         .as_array()
-        .expect("doc_examples.entries should be an array");
+        .expect("entries should be an array");
     for entry in entries
         .iter()
         .filter(|e| e["status"].as_str() == Some("excluded"))

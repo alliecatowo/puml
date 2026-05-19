@@ -7,9 +7,9 @@ This repo supports fully autonomous engineering loops for Codex and Claude with 
 Canonical cookbook: [`docs/autonomous-workflow-cookbook.md`](autonomous-workflow-cookbook.md).
 
 ```console
-./scripts/harness-check.sh         # agent-pack + MCP + parity harness only
+./scripts/harness-check.sh         # agent-pack + MCP + render check only
 ./scripts/autonomy-check.sh        # full chain: lint/test/bench/harness/smoke
-./scripts/harness-check.sh --quick # reduced parity corpus
+./scripts/harness-check.sh --quick # reduced render corpus
 ./scripts/autonomy-check.sh --quick
 ./scripts/harness-check.sh --dry   # dry-capable harness steps
 ./scripts/autonomy-check.sh --dry  # bench/harness dry checks only
@@ -34,12 +34,12 @@ Expected success tail:
 `./scripts/harness-check.sh` runs:
 1. `python3 ./scripts/validate_agent_pack.py`
 2. `bash ./agent-pack/tests/mcp_smoke.sh`
-3. `python3 ./scripts/parity_harness.py`
+3. `python3 ./scripts/render_check.py`
 
 Expected success tail:
 - `[agent-pack] validation complete`
 - `[mcp-smoke] complete`
-- `parity harness wrote ...`
+- `[render_check] wrote ...`
 - `[harness] complete`
 
 ## Exact Codex + Claude Runbook
@@ -60,7 +60,7 @@ for f in docs/examples/*.puml; do cargo run -- "$f"; done
 for f in docs/examples/*/*.puml; do [ -f "$f" ] && cargo run -- "$f"; done
 cargo run -- --from-markdown docs/examples/README.md --output docs/examples/README_snippet_1.svg
 cargo run -- --from-markdown --multi docs/examples/sequence/README.md
-python3 ./scripts/parity_harness.py --fail-on-doc-drift --output docs/benchmarks/parity_latest.json
+python3 ./scripts/render_check.py --fail-on-doc-drift --output docs/benchmarks/render_check_latest.json
 ```
 
 Pre-PR confidence chain:
@@ -73,17 +73,17 @@ Pre-PR confidence chain:
 Required green markers before opening PR:
 - `[harness] complete`
 - `[autonomy] complete`
-- `doc_examples.summary.failed = 0` in `docs/benchmarks/parity_latest.json`
+- `summary.failed = 0` in `docs/benchmarks/render_check_latest.json`
 
 ## Workflow Recipe (Codex + Claude)
 
 1. Create a dedicated worktree/branch for each task/issue.
 2. Author diagrams, docs, and skills under `agent-pack/**` and `docs/**`.
 3. Run `./scripts/harness-check.sh --quick` during iteration.
-4. If docs gallery sources changed, regenerate gallery artifacts and run parity drift checks.
+4. If docs gallery sources changed, regenerate gallery artifacts and run render drift checks.
 5. Run `./scripts/autonomy-check.sh --quick` before broad changes.
 6. Run `./scripts/autonomy-check.sh` before handoff/PR.
-7. Include `docs/benchmarks` + parity artifacts when behavior/perf changed.
+7. Include `docs/benchmarks` + render check artifacts when behavior/perf changed.
 
 ## Troubleshooting
 
@@ -104,7 +104,7 @@ git rev-parse --abbrev-ref HEAD
 git status --short
 
 # run docs/example drift check only
-python3 ./scripts/parity_harness.py --fail-on-doc-drift --quiet
+python3 ./scripts/render_check.py --fail-on-doc-drift --quiet
 
 # refresh committed docs example SVGs
 for f in docs/examples/*.puml; do cargo run -- "$f"; done

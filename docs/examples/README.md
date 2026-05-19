@@ -1,6 +1,6 @@
 # Docs Examples Corpus
 
-This directory is the canonical docs-as-tests corpus consumed by `scripts/parity_harness.py`.
+This directory is the canonical docs-as-tests corpus consumed by `scripts/render_check.py`.
 The corpus is executable documentation and parity evidence, but it is not proof
 of full PlantUML 1:1 parity and is not the source of truth for support status.
 The canonical current status is
