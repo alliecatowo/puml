@@ -234,6 +234,45 @@ Project ends 2026-05-20
 }
 
 #[test]
+fn gantt_legend_fixture_spans_phase_bars_and_keeps_launch_inside_grid() {
+    let src = fs::read_to_string(format!(
+        "{}/docs/examples/gantt/06_with_legend.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("legend fixture");
+    let svg = puml::render_source_to_svg(&src).expect("gantt render");
+
+    assert!(
+        svg.contains("data-gantt-tick-day="2026-09-01""),
+        "date axis should include the milestone day at the grid boundary"
+    );
+
+    let task_tags = svg_chunks_by_prefix(&svg, "<rect class="gantt-task");
+    let widths: Vec<i32> = task_tags
+        .iter()
+        .map(|tag| svg_first_number_attr(tag, "width"))
+        .collect();
+    assert_eq!(widths.len(), 3, "fixture should render three phase bars");
+    assert!(
+        widths.iter().all(|width| *width >= 120),
+        "implicit phase bars should span the next dated anchor instead of collapsing: {widths:?}"
+    );
+
+    let chart_left = 204;
+    let chart_width = 564;
+    let grid_right = chart_left + chart_width;
+    let milestone = svg_chunks_by_prefix(&svg, "<polygon class="gantt-milestone")
+        .into_iter()
+        .next()
+        .expect("expected launch milestone");
+    let launch_x = milestone_center_x(milestone);
+    assert!(
+        launch_x <= grid_right,
+        "launch milestone should remain inside the grid: x={launch_x}, grid_right={grid_right}"
+    );
+}
+
+#[test]
 fn gantt_scale_single_day_calendar_and_multi_resource_semantics_render() {
     let src = r#"@startgantt
 Project starts 2026-05-01
