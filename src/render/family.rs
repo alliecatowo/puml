@@ -857,7 +857,12 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 stroke_dash, visibility, direction_attr, markers
             ));
             // Label at midpoint of longest horizontal segment; fall back to
-            // overall polyline midpoint when no horizontal segment exists.
+            // the longest segment overall when no horizontal segment exists.
+            // The longest-segment midpoint is used for dependency labels
+            // (<<extend>>/<<include>>) so their de-collision spacing is preserved.
+            // For regular edge labels we use the overall endpoint midpoint to avoid
+            // the equal-length segment ambiguity (max_by_key picks last when tied)
+            // that placed labels near the arrowhead on straight vertical paths (fix #428).
             let longest_horiz = pts
                 .windows(2)
                 .filter(|seg| seg[0].1 == seg[1].1)
@@ -1032,12 +1037,19 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             // Use de-collided position from the pre-pass when available.
             let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
                 (ox, oy)
-            } else if ortho_pts.is_some() {
-                // For orthogonal paths, nudge the label off the arrow shaft so it
-                // doesn't overlap the arrowhead.  Vertical dominant edges shift right
-                // by 14px; horizontal dominant edges shift up by 14px (matching the
-                // nudge logic used for straight-line fallback below).
-                if edge_dy.abs() > edge_dx.abs() {
+            } else if let Some(ref pts) = ortho_pts {
+                // For collinear paths (no horizontal segment, e.g. a straight vertical
+                // edge with a layout-engine waypoint), use the overall endpoint midpoint
+                // without any perpendicular nudge — the label belongs centered on the
+                // shaft, not offset to the side (fix #428).
+                // For true L/Z-shaped paths with a horizontal segment, nudge the label
+                // off the arrow shaft: vertical-dominant shifts right 14px, horizontal-
+                // dominant shifts up 14px.
+                let has_horiz = pts.windows(2).any(|seg| seg[0].1 == seg[1].1);
+                if !has_horiz {
+                    // Collinear (straight-through) path: center on shaft.
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                } else if edge_dy.abs() > edge_dx.abs() {
                     (label_mx + 14, label_my)
                 } else {
                     (label_mx, label_my - 14)
@@ -3341,6 +3353,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         y: i32,
         text: String,
         color: String,
+        from_name: String,
         to_name: String,
     }
     let mut pending_labels: Vec<PendingLabel> = Vec::new();
@@ -3516,25 +3529,20 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             ));
 
             // Label at midpoint of the longest horizontal segment; fall back to
-            // the overall polyline midpoint when no horizontal segment exists.
+            // the overall endpoint midpoint when no horizontal segment exists.
+            // Using the overall endpoint midpoint avoids the equal-length segment
+            // ambiguity (max_by_key picks last when tied) that places labels near
+            // the arrowhead on straight vertical paths (fix #428).
             let longest_horiz = orth_pts
                 .windows(2)
                 .filter(|seg| seg[0].1 == seg[1].1)
                 .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
             let (lmx, lmy) = match longest_horiz {
                 Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                None => {
-                    // Fall back to midpoint of longest segment overall
-                    let longest_seg = orth_pts.windows(2).max_by_key(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    });
-                    match longest_seg {
-                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-                    }
-                }
+                // No horizontal segment: use overall endpoint midpoint so that
+                // purely-vertical (or collinear multi-segment) paths keep their
+                // label centered on the shaft, not biased toward one segment.
+                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
             };
             label_mx = lmx;
             label_my = lmy;
@@ -3749,14 +3757,42 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 if target_is_deployment_data_store && label_segments.len() > 1 {
                     label_segments.pop();
                 }
-                let longest_seg = label_segments.into_iter().max_by_key(|seg| {
-                    let (ax, ay) = seg[0];
-                    let (bx, by_) = seg[1];
-                    (bx - ax).pow(2) + (by_ - ay).pow(2)
-                });
-                let (lmx, lmy) = match longest_seg {
-                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                    None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                // Compute longest segment (first occurrence, so equal-length ties
+                // pick the first/top segment rather than the last/terminal one).
+                // When all segments are equal length (collinear path through
+                // intermediate waypoints), use the overall endpoint midpoint to
+                // keep the label centered on the shaft (fix #428).
+                let max_sq_len = label_segments
+                    .iter()
+                    .map(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2)
+                    })
+                    .max()
+                    .unwrap_or(0);
+                let uniquely_longest = label_segments
+                    .iter()
+                    .filter(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
+                    })
+                    .count()
+                    == 1;
+                let (lmx, lmy) = if uniquely_longest {
+                    let seg = label_segments
+                        .into_iter()
+                        .find(|seg| {
+                            let (ax, ay) = seg[0];
+                            let (bx, by_) = seg[1];
+                            (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
+                        })
+                        .unwrap();
+                    ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
+                } else {
+                    // All segments equal or no segments: overall endpoint midpoint
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
                 };
                 label_mx = lmx;
                 label_my = lmy;
@@ -3784,6 +3820,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 y: label_my,
                 text: label_text.to_string(),
                 color: label_color.to_string(),
+                from_name: from_name.clone(),
                 to_name: to_name.clone(),
             });
         }
@@ -3929,6 +3966,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Final obstacle-clearance pass for relation labels. This catches solo
     // labels like usecase/02_with_actors where the routed midpoint can still
     // land inside a nearby node even after target-based fan-out.
+    // Note: we skip the edge's own source and target boxes — labels on an edge
+    // shaft naturally sit inside the bounding envelope of the endpoints and
+    // should not be pushed away from them (fix #428).
     const LABEL_CLEARANCE_X: i32 = 10;
     const LABEL_CLEARANCE_Y: i32 = 10;
     const LABEL_TEXT_HALF_HEIGHT: i32 = 8;
@@ -3941,23 +3981,36 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 && ly + 4 + LABEL_CLEARANCE_Y >= by
                 && ly - LABEL_TEXT_HALF_HEIGHT - LABEL_CLEARANCE_Y <= by + bh
         };
-    let label_overlaps_any = |lx: i32, ly: i32, text: &str| {
-        obstacle_boxes
-            .iter()
-            .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
-    };
-    for (lx, ly, text, _) in adjusted_labels.iter_mut().flatten() {
+    for (label_idx, entry) in adjusted_labels.iter_mut().enumerate() {
+        let (lx, ly, text, _) = match entry.as_mut() {
+            Some(e) => e,
+            None => continue,
+        };
         if text.is_empty() {
             continue;
         }
-        let max_passes = obstacle_boxes.len().max(1);
+        // Build the obstacle list for this label, excluding the edge's own
+        // source and target node boxes so the label stays on the shaft.
+        let from_box = positions.get(&pending_labels[label_idx].from_name).copied();
+        let to_box = positions.get(&pending_labels[label_idx].to_name).copied();
+        let edge_obstacles: Vec<(i32, i32, i32, i32)> = obstacle_boxes
+            .iter()
+            .copied()
+            .filter(|&b| Some(b) != from_box && Some(b) != to_box)
+            .collect();
+        let label_overlaps_any_edge = |lx: i32, ly: i32, text: &str| {
+            edge_obstacles
+                .iter()
+                .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
+        };
+        let max_passes = edge_obstacles.len().max(1);
         for _ in 0..max_passes {
-            if !label_overlaps_any(*lx, *ly, text) {
+            if !label_overlaps_any_edge(*lx, *ly, text) {
                 break;
             }
             let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
             let mut moved = false;
-            for &(bx, by, bw, bh) in &obstacle_boxes {
+            for &(bx, by, bw, bh) in &edge_obstacles {
                 if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) {
                     continue;
                 }
@@ -3969,7 +4022,7 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
                 ];
                 if let Some((next_x, next_y)) = candidates
                     .into_iter()
-                    .find(|&(cx, cy)| !label_overlaps_any(cx, cy, text))
+                    .find(|&(cx, cy)| !label_overlaps_any_edge(cx, cy, text))
                 {
                     *lx = next_x;
                     *ly = next_y;
