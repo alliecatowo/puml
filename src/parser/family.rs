@@ -1028,6 +1028,7 @@ fn normalize_family_arrow_token(token: &str) -> String {
     let mut chars = token.chars().peekable();
     while let Some(ch) = chars.next() {
         if ch == '[' {
+            // Strip bracketed direction/color annotations like [left], [#red]
             for next in chars.by_ref() {
                 if next == ']' {
                     break;
@@ -1035,7 +1036,9 @@ fn normalize_family_arrow_token(token: &str) -> String {
             }
             continue;
         }
-        if ch.is_ascii_alphabetic() {
+        // 'o' is a valid arrow-head marker char (aggregation / hollow diamond).
+        // All other alphabetic runs are direction/color keywords — strip them.
+        if ch.is_ascii_alphabetic() && ch != 'o' {
             continue;
         }
         out.push(ch);
