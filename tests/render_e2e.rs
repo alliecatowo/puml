@@ -478,12 +478,9 @@ fn render_sequence_self_call_keeps_visible_arrowhead_after_groups_and_dividers()
         "docs/examples/sequence/17_all_groups.puml",
         "docs/examples/sequence/23_dividers.puml",
     ] {
-        let src = std::fs::read_to_string(format!(
-            "{}/{}",
-            env!("CARGO_MANIFEST_DIR"),
-            fixture_name
-        ))
-        .expect("fixture");
+        let src =
+            std::fs::read_to_string(format!("{}/{}", env!("CARGO_MANIFEST_DIR"), fixture_name))
+                .expect("fixture");
         let svg = puml::render_source_to_svg(&src).expect("self-call render");
 
         assert!(

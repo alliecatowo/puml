@@ -6507,7 +6507,10 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
             node.has_tag_name("text") && node.attribute("data-state-label") == Some("in stock")
         })
         .expect("choice1 -> join1 label should render");
-    assert_eq!(instock_label.attribute("data-state-label"), Some("in stock"));
+    assert_eq!(
+        instock_label.attribute("data-state-label"),
+        Some("in stock")
+    );
     assert_ne!(
         state_svg_attr_i32(instock_label, "x"),
         state_svg_attr_i32(instock_edge, "x1"),

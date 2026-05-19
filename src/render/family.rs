@@ -502,10 +502,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let mut raw_labels: Vec<RawLabel> = Vec::new();
 
         for (rel_idx, relation) in document.relations.iter().enumerate() {
-            let label_text = relation
-                .label
-                .as_deref()
-                .or(relation.stereotype.as_deref());
+            let label_text = relation.label.as_deref().or(relation.stereotype.as_deref());
             if label_text.is_none() {
                 continue;
             }
@@ -853,8 +850,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     .get(&rel_idx)
                     .copied()
                     .unwrap_or((label_mx, label_my));
-                let sy =
-                    base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
+                let sy = base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
                 out.push_str(&format!(
                     "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
                     member_color = class_style.member_color,
