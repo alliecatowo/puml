@@ -8584,3 +8584,42 @@ fn wbs_basic_fixture_renders_tree_via_cli() {
     assert!(svg.contains("wbs-node"), "must have wbs node class");
     assert!(!svg.contains("uml-relation"), "must not use DAG renderer");
 }
+
+// Regression test for #424: the `class` keyword must not leak into the box label.
+// Before the fix, labels rendered as "class Animal", "class Dog" etc.
+#[test]
+fn class_keyword_does_not_leak_into_box_label_issue_424() {
+    // Variant A: classes with body blocks.
+    let src = "@startuml\nclass Animal {\n  +name: String\n  +speak()\n}\nclass Dog {\n  +breed: String\n  +fetch()\n}\nAnimal --> Dog : owns\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("class svg must render");
+
+    // The display label must be just the identifier — no "class " prefix.
+    assert!(
+        svg.contains(">Animal<"),
+        "label must be 'Animal', got keyword leak or missing label"
+    );
+    assert!(
+        svg.contains(">Dog<"),
+        "label must be 'Dog', got keyword leak or missing label"
+    );
+    assert!(
+        !svg.contains(">class Animal<") && !svg.contains("class Animal"),
+        "keyword 'class' must not appear in the Animal box label"
+    );
+    assert!(
+        !svg.contains(">class Dog<") && !svg.contains("class Dog"),
+        "keyword 'class' must not appear in the Dog box label"
+    );
+
+    // Variant B: classes without body blocks (stub form).
+    let src_stub = "@startuml\nclass Vehicle\nclass Car\nVehicle <|-- Car\n@enduml\n";
+    let svg_stub = render_source_to_svg(src_stub).expect("stub class svg must render");
+    assert!(
+        !svg_stub.contains("class Vehicle"),
+        "keyword 'class' must not bleed into Vehicle stub label"
+    );
+    assert!(
+        svg_stub.contains(">Vehicle<"),
+        "Vehicle label must appear as bare identifier in stub form"
+    );
+}
