@@ -3589,12 +3589,44 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
+            // Overwrite the endpoint anchors with pick_port values, then propagate
+            // the orthogonality constraint to adjacent interior waypoints so that
+            // the first and last segments stay axis-aligned.
+            //
+            // Without this, pick_port may choose an anchor that differs in x from
+            // the layout-engine's src_center_x, producing a diagonal first segment
+            // that cuts back through the source node body (fix #713).
+            let orig_first_x = orth_pts.first().map(|&(x, _)| x);
+            let orig_last_x = orth_pts.last().map(|&(x, _)| x);
+
             if let Some(first) = orth_pts.first_mut() {
                 *first = (x1, y1);
             }
             if let Some(last) = orth_pts.last_mut() {
                 *last = (x2, y2);
             }
+
+            // Propagate: if the layout engine intended a vertical-first segment
+            // (points[0] and points[1] share the same x), update points[1].x to
+            // match the new x1 so the segment stays vertical and doesn't re-enter
+            // the source node body.
+            if let (Some(ox0), Some(p1)) = (orig_first_x, orth_pts.get_mut(1)) {
+                if p1.0 == ox0 {
+                    p1.0 = x1;
+                }
+            }
+            // Same for the last segment (vertical exit into target).
+            let n = orth_pts.len();
+            if n >= 2 {
+                if let (Some(ox_last), Some(p_penult)) =
+                    (orig_last_x, orth_pts.get_mut(n - 2))
+                {
+                    if p_penult.0 == ox_last {
+                        p_penult.0 = x2;
+                    }
+                }
+            }
+
             // ── Orthogonal polyline from layout engine ────────────────────────
             let pts_str: String = orth_pts
                 .iter()
