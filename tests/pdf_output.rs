@@ -18,7 +18,13 @@ fn pdf_output_to_file_produces_valid_pdf() {
 
     Command::cargo_bin("puml")
         .expect("binary")
-        .args(["--format", "pdf", "--output", out.path().to_str().unwrap(), "-"])
+        .args([
+            "--format",
+            "pdf",
+            "--output",
+            out.path().to_str().unwrap(),
+            "-",
+        ])
         .write_stdin(HELLO_PUML)
         .assert()
         .success();

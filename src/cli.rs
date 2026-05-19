@@ -375,8 +375,8 @@ mod tests {
 
     #[test]
     fn pdf_format_parses() {
-        let cli = Cli::try_parse_from(["puml", "--format", "pdf"])
-            .expect("--format pdf should parse");
+        let cli =
+            Cli::try_parse_from(["puml", "--format", "pdf"]).expect("--format pdf should parse");
         assert_eq!(cli.format, OutputFormat::Pdf);
     }
 }

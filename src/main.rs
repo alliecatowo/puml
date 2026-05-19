@@ -1802,7 +1802,6 @@ fn svg_to_raster_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<
     }
 }
 
-
 #[cfg(feature = "cli")]
 fn svg_to_pdf_bytes(svg: &str) -> Result<Vec<u8>, (u8, String)> {
     let mut opt = svg2pdf::usvg::Options::default();
@@ -1818,12 +1817,7 @@ fn svg_to_pdf_bytes(svg: &str) -> Result<Vec<u8>, (u8, String)> {
         svg2pdf::ConversionOptions::default(),
         svg2pdf::PageOptions::default(),
     )
-    .map_err(|e| {
-        (
-            EXIT_INTERNAL,
-            format!("failed to convert SVG to PDF: {e}"),
-        )
-    })
+    .map_err(|e| (EXIT_INTERNAL, format!("failed to convert SVG to PDF: {e}")))
 }
 
 fn rasterize_svg(svg: &str, dpi: f32) -> Result<RasterizedSvg, (u8, String)> {
