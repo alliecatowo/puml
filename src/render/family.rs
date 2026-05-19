@@ -878,6 +878,19 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         // Edge IDs are "r{rel_idx}" matching gl_edges_class construction above.
         // Fall back to a straight <line> when no pre-computed path is available
         // (explicit direction override, hidden, or layout produced no path).
+        //
+        // Endpoint snapping: graph_layout computes port positions from its own
+        // node positions (which may differ slightly from the SVG node_boxes due
+        // to integer rounding, width/height mismatch, or the lateral parallel
+        // offset applied to pick_port anchors).  To guarantee clean attachment
+        // to the actual rendered node edges, we REPLACE the first and last
+        // waypoint of the graph_layout path with the actual bottom-center /
+        // top-center ports derived from node_boxes.  The intermediate waypoints
+        // (channel y values) from graph_layout determine the routing shape.
+        //
+        // Direction: graph_layout routes downward edges from bottom-center of
+        // source to top-center of target (goes_down = src_rank < tgt_rank).
+        // We use the graph_layout path's y-coordinates to determine direction.
         let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
         {
             gl_result_class
@@ -885,9 +898,49 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                 .get(&format!("r{rel_idx}"))
                 .filter(|p| p.len() >= 2)
                 .map(|p| {
-                    p.iter()
-                        .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
-                        .collect()
+                    let mut pts: Vec<(i32, i32)> =
+                        p.iter().map(|&(px, py)| (px as i32, py as i32)).collect();
+                    // Snap the first waypoint to the actual from-box port.
+                    // Determine direction from graph_layout path: if first y <
+                    // last y, the edge goes downward (from bottom to top port).
+                    if pts.len() >= 2 {
+                        let goes_down = pts.first().map(|p| p.1).unwrap_or(0)
+                            < pts.last().map(|p| p.1).unwrap_or(0);
+                        // Snap endpoints to actual node_box port centers.
+                        let src_port = if goes_down {
+                            // bottom-center of from_box
+                            (from.x + from.w / 2, from.y + from.h)
+                        } else {
+                            // top-center of from_box
+                            (from.x + from.w / 2, from.y)
+                        };
+                        let tgt_port = if goes_down {
+                            // top-center of to_box
+                            (to.x + to.w / 2, to.y)
+                        } else {
+                            // bottom-center of to_box
+                            (to.x + to.w / 2, to.y + to.h)
+                        };
+                        // Replace first and last waypoints.
+                        if let Some(first) = pts.first_mut() {
+                            *first = src_port;
+                        }
+                        if let Some(last) = pts.last_mut() {
+                            *last = tgt_port;
+                        }
+                        // Fix up the adjacent intermediate waypoints so the path
+                        // remains orthogonal after endpoint snapping:
+                        // - point[1].x should equal point[0].x (same vertical)
+                        // - point[n-2].x should equal point[n-1].x (same vertical)
+                        if pts.len() >= 3 {
+                            let src_x = pts[0].0;
+                            pts[1].0 = src_x;
+                            let tgt_x = pts[pts.len() - 1].0;
+                            let n = pts.len();
+                            pts[n - 2].0 = tgt_x;
+                        }
+                    }
+                    pts
                 })
         } else {
             None
@@ -3589,27 +3642,36 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         };
 
         if let Some(mut orth_pts) = ortho_path_f64 {
+            // Snap the path endpoints to the actual pick_port anchors.
+            // This ensures arrows attach to the correct box edge.
+            // Also snap the adjacent intermediate waypoints' x-coordinate so
+            // the first and last path segments remain vertical (orthogonal),
+            // preventing diagonal segments when the anchor x differs from
+            // the graph_layout-computed port x.
+            //
+            // For a downward path with n≥3 points:
+            //   [0] → snap to (x1, y1); [1].x → x1 (vertical exit from src)
+            //   [n-1] → snap to (x2, y2); [n-2].x → x2 (vertical entry to tgt)
+            if let Some(first) = orth_pts.first_mut() {
+                *first = (x1, y1);
+            }
+            if let Some(last) = orth_pts.last_mut() {
+                *last = (x2, y2);
+            }
+            let n = orth_pts.len();
+            if n >= 3 {
+                // Snap the second point's x to x1 so the exit segment from
+                // the source is vertical (orthogonal from the snapped endpoint).
+                orth_pts[1].0 = x1;
+                // Snap the penultimate point's x to x2 so the entry segment
+                // into the target is also vertical.  For 3-point paths this is
+                // the same element as index 1, so only update when n > 3 to
+                // avoid overwriting the x1-snap above.
+                if n > 3 {
+                    orth_pts[n - 2].0 = x2;
+                }
+            }
             // ── Orthogonal polyline from layout engine ────────────────────────
-            // The layout engine (route_edges) computes precise port positions
-            // (bottom-center for downward edges, top-center for upward, etc.)
-            // that are correct for rectangular component nodes.
-            // Only override the first/last points for INTERFACE nodes (circles),
-            // whose circular port requires adjust_interface_anchor and differs
-            // from the layout engine's rectangular-box bottom/top-center.
-            // For regular rectangular nodes, pick_port's horizontal-dominant bias
-            // can disagree with the layout engine's top-to-bottom port assignment,
-            // producing a backward leftward segment that creates X-crossings
-            // between packages (issue #771).
-            if interface_nodes.contains(&from_name) {
-                if let Some(first) = orth_pts.first_mut() {
-                    *first = (x1, y1);
-                }
-            }
-            if interface_nodes.contains(&to_name) {
-                if let Some(last) = orth_pts.last_mut() {
-                    *last = (x2, y2);
-                }
-            }
             let pts_str: String = orth_pts
                 .iter()
                 .map(|(px, py)| format!("{px},{py}"))
