@@ -5532,7 +5532,7 @@ fn component_family_canvas_keeps_rightmost_nodes_inside_viewbox() {
         let svg = render_source_to_svg(&src).expect("component example should render");
         let svg_width = extract_svg_width_attr(&svg).expect("svg width");
         let rightmost_component = svg_elements_with_attr(&svg, "data-uml-kind", "component")
-            .into_iter()
+            .iter()
             .map(|element| {
                 svg_attr_i32_required(element, "x") + svg_attr_i32_required(element, "width")
             })
