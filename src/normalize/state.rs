@@ -210,7 +210,10 @@ fn ensure_region_state_node(region: &mut Vec<StateNode>, name: &str) {
 }
 
 fn upsert_region_state_node(region: &mut Vec<StateNode>, node: StateNode) {
-    if let Some(existing) = region.iter_mut().find(|existing| existing.name == node.name) {
+    if let Some(existing) = region
+        .iter_mut()
+        .find(|existing| existing.name == node.name)
+    {
         merge_state_node(existing, node);
     } else {
         region.push(node);
@@ -340,26 +343,29 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                 upsert_region_state_node(&mut current_region, state_decl_to_node(child_decl));
             }
             StatementKind::StateHistory { deep } => {
-                upsert_region_state_node(&mut current_region, StateNode {
-                    name: if *deep {
-                        "[H*]".to_string()
-                    } else {
-                        "[H]".to_string()
+                upsert_region_state_node(
+                    &mut current_region,
+                    StateNode {
+                        name: if *deep {
+                            "[H*]".to_string()
+                        } else {
+                            "[H]".to_string()
+                        },
+                        display: Some(if *deep {
+                            "H*".to_string()
+                        } else {
+                            "H".to_string()
+                        }),
+                        kind: if *deep {
+                            StateNodeKind::HistoryDeep
+                        } else {
+                            StateNodeKind::HistoryShallow
+                        },
+                        stereotype: None,
+                        internal_actions: Vec::new(),
+                        regions: Vec::new(),
                     },
-                    display: Some(if *deep {
-                        "H*".to_string()
-                    } else {
-                        "H".to_string()
-                    }),
-                    kind: if *deep {
-                        StateNodeKind::HistoryDeep
-                    } else {
-                        StateNodeKind::HistoryShallow
-                    },
-                    stereotype: None,
-                    internal_actions: Vec::new(),
-                    regions: Vec::new(),
-                });
+                );
             }
             StatementKind::StateTransition(t) => {
                 for endpoint in [&t.from, &t.to] {

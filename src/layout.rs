@@ -588,8 +588,14 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
     });
     let lower_metadata_height = metadata_lines_block_height(caption_lines.as_ref())
         + metadata_lines_block_height(footer_lines.as_ref());
-    width = width.max(metadata_lines_right_edge(caption_lines.as_ref(), options.margin));
-    width = width.max(metadata_lines_right_edge(footer_lines.as_ref(), options.margin));
+    width = width.max(metadata_lines_right_edge(
+        caption_lines.as_ref(),
+        options.margin,
+    ));
+    width = width.max(metadata_lines_right_edge(
+        footer_lines.as_ref(),
+        options.margin,
+    ));
     if let Some(legend_text) = document.legend.as_deref() {
         let (legend_width, _) = legend_box_size(legend_text);
         width = width.max(legend_width + (options.margin * 2));
@@ -950,7 +956,6 @@ fn note_vertical_position_y(position: &str, row_y: i32, height: i32, events_top:
     row_y
 }
 
-
 fn scene_leftmost_geometry_x(
     participants: &[ParticipantBox],
     footboxes: &[ParticipantBox],
@@ -970,10 +975,7 @@ fn scene_leftmost_geometry_x(
         .map(|message| message.x1.min(message.x2) - 8)
         .min();
     let activation_min = activations.iter().map(|activation| activation.x - 5).min();
-    let lifecycle_min = lifecycle_markers
-        .iter()
-        .map(|marker| marker.x - 6)
-        .min();
+    let lifecycle_min = lifecycle_markers.iter().map(|marker| marker.x - 6).min();
     let note_min = notes.iter().map(|note| note.x).min();
     let group_min = groups.iter().map(|group| group.x).min();
     let structure_min = structures

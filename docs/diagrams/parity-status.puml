@@ -2,7 +2,6 @@
 ' PlantUML parity targets.  Branches cover Core UML, Non-UML families,
 ' Preprocessor, and Output formats.  Color-coded nodes indicate
 ' implementation depth: green = broad, yellow = partial, red = stub.
-' Self-hosting stress test: 30+ nodes, color annotations, deep nesting.
 
 @startmindmap
 

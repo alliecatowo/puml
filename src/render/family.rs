@@ -16,7 +16,9 @@ pub fn render_family_stub_svg(document: &FamilyDocument) -> String {
     render_class_svg(document)
 }
 
-fn relation_pair_label_lane_map(document: &FamilyDocument) -> std::collections::BTreeMap<usize, i32> {
+fn relation_pair_label_lane_map(
+    document: &FamilyDocument,
+) -> std::collections::BTreeMap<usize, i32> {
     let mut pair_counts: std::collections::BTreeMap<(String, String), i32> =
         std::collections::BTreeMap::new();
     let mut pair_seen: std::collections::BTreeMap<(String, String), i32> =
@@ -591,7 +593,9 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             sorted.sort_unstable();
             let total_width = sorted
                 .iter()
-                .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
+                .map(|&raw_idx| {
+                    (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2
+                })
                 .sum::<i32>()
                 + (n - 1) * LABEL_FAN_GAP;
             let mut cursor = -total_width / 2;
@@ -635,7 +639,9 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             let n = sorted.len() as i32;
             let total_width = sorted
                 .iter()
-                .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
+                .map(|&raw_idx| {
+                    (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2
+                })
                 .sum::<i32>()
                 + (n - 1) * LABEL_FAN_GAP;
             let mut cursor = -total_width / 2;
@@ -647,10 +653,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     raw_labels[raw_idx].ly,
                     label_half_w,
                 );
-                label_override.insert(
-                    raw_labels[raw_idx].rel_idx,
-                    anchor,
-                );
+                label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
                 cursor += label_half_w * 2 + LABEL_FAN_GAP;
             }
         }
@@ -833,7 +836,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         if let Some(stereotype) = &relation.stereotype {
             if usecase_dependency.is_none() {
                 let sx = label_mx;
-                let sy = label_my - if relation.label.is_some() { 18 } else { 14 } + pair_label_lane;
+                let sy =
+                    label_my - if relation.label.is_some() { 18 } else { 14 } + pair_label_lane;
                 out.push_str(&format!(
                     "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
                     member_color = class_style.member_color,

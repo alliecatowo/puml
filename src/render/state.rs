@@ -104,7 +104,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             )
     });
     let has_top_level_composite = nodes.iter().any(|n| {
-        !child_node_names.contains(n.name.as_str()) && n.regions.iter().any(|region| !region.is_empty())
+        !child_node_names.contains(n.name.as_str())
+            && n.regions.iter().any(|region| !region.is_empty())
     });
     let cols: i32 = if has_fork_join_choice || has_top_level_composite || top_level_count <= 3 {
         1
@@ -258,7 +259,12 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                         &placed,
                         &occupied_label_bounds,
                     );
-                    render_state_transition_label(&mut out, &layout, label, &state_style.font_color);
+                    render_state_transition_label(
+                        &mut out,
+                        &layout,
+                        label,
+                        &state_style.font_color,
+                    );
                     occupied_label_bounds.push(layout.bounds);
                 }
             } else if has_reverse {
@@ -283,7 +289,12 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                         &placed,
                         &occupied_label_bounds,
                     );
-                    render_state_transition_label(&mut out, &layout, label, &state_style.font_color);
+                    render_state_transition_label(
+                        &mut out,
+                        &layout,
+                        label,
+                        &state_style.font_color,
+                    );
                     occupied_label_bounds.push(layout.bounds);
                 }
                 continue;
@@ -297,8 +308,15 @@ pub fn render_state_svg(document: &StateDocument) -> String {
             }
 
             if let Some(label) = &t.label {
-                let layout =
-                    place_state_transition_label(label, x1, y1, x2, y2, &placed, &occupied_label_bounds);
+                let layout = place_state_transition_label(
+                    label,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    &placed,
+                    &occupied_label_bounds,
+                );
                 render_state_transition_label(&mut out, &layout, label, &state_style.font_color);
                 occupied_label_bounds.push(layout.bounds);
             }
@@ -465,7 +483,10 @@ fn compute_top_level_depths<'a>(
         std::collections::BTreeMap::new();
     for t in transitions {
         if top_level_names.contains(t.from.as_str()) && top_level_names.contains(t.to.as_str()) {
-            adjacency.entry(t.from.as_str()).or_default().push(t.to.as_str());
+            adjacency
+                .entry(t.from.as_str())
+                .or_default()
+                .push(t.to.as_str());
         }
     }
 
@@ -546,12 +567,8 @@ fn place_top_level_layered<'a>(
 
     for row_nodes in rows.values_mut() {
         row_nodes.sort_by_key(|node| {
-            let desired = desired_state_center(
-                node.name.as_str(),
-                &predecessors,
-                placed,
-                default_center,
-            );
+            let desired =
+                desired_state_center(node.name.as_str(), &predecessors, placed, default_center);
             (
                 desired,
                 name_to_orig
@@ -582,14 +599,12 @@ fn place_top_level_layered<'a>(
                 .get(&node.name)
                 .copied()
                 .unwrap_or((STATE_NODE_W, STATE_NODE_H));
-            let desired_center = desired_state_center(
-                node.name.as_str(),
-                &predecessors,
-                placed,
-                default_center,
-            );
+            let desired_center =
+                desired_state_center(node.name.as_str(), &predecessors, placed, default_center);
             desired_centers.push(desired_center);
-            let min_x = right_edge.map(|edge| edge + STATE_NODE_GAP_X).unwrap_or(i32::MIN / 4);
+            let min_x = right_edge
+                .map(|edge| edge + STATE_NODE_GAP_X)
+                .unwrap_or(i32::MIN / 4);
             let x = (desired_center - w / 2).max(min_x);
             right_edge = Some(x + w);
             placements.push((node, x, w, h));
@@ -774,7 +789,11 @@ fn wrap_state_label(label: &str, max_cols: usize) -> Vec<String> {
 }
 
 fn measure_state_label(lines: &[String]) -> (i32, i32) {
-    let max_cols = lines.iter().map(|line| line.chars().count()).max().unwrap_or(0) as i32;
+    let max_cols = lines
+        .iter()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0) as i32;
     let width = (max_cols * STATE_LABEL_CHAR_W).max(24);
     let height = (lines.len() as i32 * STATE_LABEL_LINE_H).max(STATE_LABEL_LINE_H);
     (width, height)
@@ -951,7 +970,11 @@ fn edge_anchors_for_kinds(
     ) {
         let target_below = to_center_y >= from_center_y;
         anchors.0 = to_center_x.clamp(from.x, from.x + from.w);
-        anchors.1 = if target_below { from.y + from.h } else { from.y };
+        anchors.1 = if target_below {
+            from.y + from.h
+        } else {
+            from.y
+        };
         anchors.2 = to_center_x;
         anchors.3 = if target_below { to.y } else { to.y + to.h };
     }

@@ -347,14 +347,7 @@ fn render_archimate_element_shape(out: &mut String, element: ArchimateElementRen
     out.push_str("</g>");
 }
 
-fn render_archimate_role_icon(
-    out: &mut String,
-    kind: &str,
-    x: i32,
-    y: i32,
-    w: i32,
-    stroke: &str,
-) {
+fn render_archimate_role_icon(out: &mut String, kind: &str, x: i32, y: i32, w: i32, stroke: &str) {
     let icon_x = x + w - 22;
     let icon_y = y + 8;
     let lower = kind.to_ascii_lowercase();

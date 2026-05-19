@@ -185,8 +185,7 @@ mod tests {
     #[test]
     fn line_col_and_render_with_source_handle_spans_and_plain_messages() {
         let source = "alpha\nβeta line\nomega";
-        let diagnostic =
-            Diagnostic::error("bad token").with_span(Span { start: 6, end: 10 });
+        let diagnostic = Diagnostic::error("bad token").with_span(Span { start: 6, end: 10 });
 
         assert_eq!(diagnostic.line_col(source), Some((2, 1)));
         assert_eq!(

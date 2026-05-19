@@ -639,8 +639,8 @@ fn render_sequence_parity_slice_places_rich_parallel_and_multitarget_notes() {
 
 #[test]
 fn render_sequence_notes_fixture_keeps_leftmost_over_note_centered_with_canvas_padding() {
-    let src = std::fs::read_to_string(fixture("docs/examples/sequence/07_notes.puml"))
-        .expect("fixture");
+    let src =
+        std::fs::read_to_string(fixture("docs/examples/sequence/07_notes.puml")).expect("fixture");
     let ast = puml::parse(&src).expect("parse");
     let doc = puml::normalize(ast).expect("normalize");
     let options = LayoutOptions::default();

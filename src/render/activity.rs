@@ -573,7 +573,8 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             || step_kind == "EndWhile"
             || step_kind == "RepeatStart"
     };
-    let is_hidden_control_node = |idx: usize| hidden_nodes.contains(&idx) || is_layout_only_control(idx);
+    let is_hidden_control_node =
+        |idx: usize| hidden_nodes.contains(&idx) || is_layout_only_control(idx);
     let next_visible_node = |idx: usize| {
         ((idx + 1)..doc.nodes.len()).find(|&next_idx| !is_hidden_control_node(next_idx))
     };
@@ -850,7 +851,10 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         // predecessor so cross-lane edges are drawn correctly (#588).
         if i > 0
             && !suppress_prev_arrow.contains(&i)
-            && !matches!(metas[i - 1].step_kind.as_str(), "Else" | "EndIf" | "EndWhile")
+            && !matches!(
+                metas[i - 1].step_kind.as_str(),
+                "Else" | "EndIf" | "EndWhile"
+            )
         {
             let mut prev_idx = i - 1;
             while prev_idx > 0 {
