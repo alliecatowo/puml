@@ -5748,8 +5748,9 @@ fn component_relations_render_dotted_markers_and_styled_port_shape() {
 
 #[test]
 fn component_interfaces_attach_relation_endpoints_to_circle_edges() {
-    let svg = render_source_to_svg(&fs::read_to_string(example("component/02_interfaces.puml")).unwrap())
-        .expect("component interface example should render");
+    let svg =
+        render_source_to_svg(&fs::read_to_string(example("component/02_interfaces.puml")).unwrap())
+            .expect("component interface example should render");
     let interface_elements = svg_elements_with_attr(&svg, "data-uml-kind", "interface");
     let graphql_label = svg_text_positions(&svg, "GraphQL")
         .into_iter()

@@ -1331,11 +1331,13 @@ fn render_svg_sequence_all_group_types_fixture_uses_fragment_notches() {
         env!("CARGO_MANIFEST_DIR")
     ))
     .expect("sequence all-groups fixture should exist");
-    let svg =
-        puml::render_source_to_svg(&src).expect("sequence all-groups fixture should render");
+    let svg = puml::render_source_to_svg(&src).expect("sequence all-groups fixture should render");
 
     for (header_text, polygon_prefix) in [
-        ("alt success", "<polygon points=\"24,148 117,148 117,162 111,168 24,168\""),
+        (
+            "alt success",
+            "<polygon points=\"24,148 117,148 117,162 111,168 24,168\"",
+        ),
         (
             "opt optional step",
             "<polygon points=\"24,348 159,348 159,362 153,368 24,368\"",
@@ -1344,7 +1346,10 @@ fn render_svg_sequence_all_group_types_fixture_uses_fragment_notches() {
             "loop retry 3 times",
             "<polygon points=\"24,468 166,468 166,482 160,488 24,488\"",
         ),
-        ("par parallel", "<polygon points=\"24,588 124,588 124,602 118,608 24,608\""),
+        (
+            "par parallel",
+            "<polygon points=\"24,588 124,588 124,602 118,608 24,608\"",
+        ),
         (
             "critical critical section",
             "<polygon points=\"24,788 215,788 215,802 209,808 24,808\"",
