@@ -4879,10 +4879,13 @@ fn nwdiag_multi_network_group_and_multi_address_layout_is_preserved() {
         "distinct nwdiag nodes should occupy separate horizontal columns instead of one vertical list"
     );
 
+    // Groups now render as topology overlays positioned around their member nodes,
+    // not as a flat list appended below the diagram. The group rect y-position
+    // must be within the topology area, not beyond the last network row bottom edge.
     let group_y = svg_rect_y(&svg, "class=\"nwdiag-group\"", "group edge").expect("group y");
     assert!(
-        group_y > private_y,
-        "global group membership section should remain below network topology"
+        group_y < private_y + 150,
+        "group overlay should sit within the topology area, not appended below: group_y={group_y} private_y={private_y}"
     );
 }
 
