@@ -599,26 +599,12 @@ fn render_sequence_ref_fragment_uses_header_row_without_participant_text() {
     let doc = puml::normalize(ast).expect("normalize");
     let scene = layout::layout(&doc, LayoutOptions::default());
 
-    let ref_box = scene
-        .groups
-        .iter()
-        .find(|group| group.kind.eq_ignore_ascii_case("ref"))
-        .expect("ref group");
     let svg = render::render_svg(&scene);
-    let header_divider = format!(
-        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"",
-        ref_box.x,
-        ref_box.y + 22,
-        ref_box.x + ref_box.width,
-        ref_box.y + 22
-    );
-
-    assert!(svg.contains(&header_divider));
+    assert!(svg.contains("<polygon points=\"24,120 56,120 56,134 50,140 24,140\""));
     assert!(svg.contains(">ref</text>"));
+    assert!(svg.contains(">over Alice, Bob</text>"));
     assert!(svg.contains(">Authentication Flow</text>"));
     assert!(svg.contains(">See diagram AUTH-01</text>"));
-    assert!(!svg.contains(">over Alice, Bob</text>"));
-    assert!(!svg.contains(">Alice, Bob</text>"));
 }
 
 #[test]

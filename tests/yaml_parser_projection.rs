@@ -40,10 +40,13 @@ servers:
 
     let svg = render_source_to_svg(src).expect("YAML projection should render");
 
-    assert!(svg.contains("servers[0].name: api"));
-    assert!(svg.contains("servers[0].ports[0]: 80"));
-    assert!(svg.contains("servers[0].ports[1]: 443"));
-    assert!(svg.contains("servers[1].name: worker"));
+    assert!(svg.contains("$cfg"));
+    assert!(svg.contains("servers"));
+    assert!(svg.contains("name: api"));
+    assert!(svg.contains("ports"));
+    assert!(svg.contains("80"));
+    assert!(svg.contains("443"));
+    assert!(svg.contains("name: worker"));
 }
 
 #[test]

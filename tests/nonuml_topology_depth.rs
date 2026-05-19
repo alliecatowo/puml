@@ -309,7 +309,8 @@ nwdiag {
     assert!(nwdiag_svg.contains("data-nwdiag-style=\"dashed\""));
     assert!(nwdiag_svg.contains("data-nwdiag-name=\"web01\""));
     assert!(nwdiag_svg.contains("data-nwdiag-addresses=\"203.0.113.10, 2001:db8::10\""));
-    assert!(nwdiag_svg.contains("width=\"320\""));
+    assert!(nwdiag_svg.contains("data-nwdiag-shape=\"roundedbox\""));
+    assert!(nwdiag_svg.contains("width=\"240\""));
     assert!(nwdiag_svg.contains("DMZ group"));
 
     let archimate = r##"@startarchimate

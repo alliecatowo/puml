@@ -106,7 +106,10 @@ fn adapt_mermaid_sequence(source: &str) -> Result<String, Diagnostic> {
 
         if let Some(block) = adapt_mermaid_block(line) {
             match block {
-                MermaidSequenceBlock::Start { mermaid_kind, output } => {
+                MermaidSequenceBlock::Start {
+                    mermaid_kind,
+                    output,
+                } => {
                     block_stack.push(mermaid_kind);
                     out.push(output);
                 }

@@ -1,21 +1,21 @@
 # Benchmark Trend
 
-- Timestamp (UTC): `2026-05-18T00:17:52Z`
+- Timestamp (UTC): `2026-05-19T05:45:17Z`
 - Mode: `full`
-- Baseline source: `/home/Allie/develop/puml/.agents/worktrees/issue-378-benchmark-truth/docs/benchmarks/.baseline.previous.json`
+- Baseline source: `/home/Allie/develop/puml/.worktrees/main-green-consolidation/docs/benchmarks/.baseline.previous.json`
 - Baseline mode match: `true`
-- Baseline timestamp (UTC): `2026-05-18T00:13:12Z`
-- Binary: `10503720` bytes (limit `12000000`)
+- Baseline timestamp (UTC): `2026-05-18T00:17:52Z`
+- Binary: `11477872` bytes (limit `12000000`)
 - Regression gate: delta > `10.000%` and `>40.000ms`
 
 | Scenario | Current Mean (ms) | Previous Mean (ms) | Delta (ms) | Delta (%) |
 |---|---:|---:|---:|---:|
-| `cold_start_help` | 99.737 | 95.684 | 4.053 | 4.236 |
-| `parser_check` | 96.765 | 93.300 | 3.465 | 3.714 |
-| `parser_dump_scene` | 94.806 | 96.422 | -1.616 | -1.676 |
-| `render_file` | 97.095 | 95.068 | 2.027 | 2.132 |
-| `render_stdin` | 94.295 | 93.679 | 0.616 | 0.658 |
-| `render_stdin_multi` | 94.455 | 95.361 | -0.906 | -0.950 |
+| `cold_start_help` | 93.250 | 99.737 | -6.487 | -6.504 |
+| `parser_check` | 95.380 | 96.765 | -1.385 | -1.431 |
+| `parser_dump_scene` | 94.169 | 94.806 | -0.637 | -0.672 |
+| `render_file` | 94.937 | 97.095 | -2.158 | -2.223 |
+| `render_stdin` | 95.788 | 94.295 | 1.493 | 1.583 |
+| `render_stdin_multi` | 93.463 | 94.455 | -0.992 | -1.050 |
 
 ## PlantUML Oracle
 - Status: `todo`
