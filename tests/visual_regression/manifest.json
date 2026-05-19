@@ -50,6 +50,12 @@
       "min_text_elements": 2
     },
     {
+      "path": "docs/examples/state/05_fork_join_choice.puml",
+      "family": "state",
+      "expected_text": ["TaskA", "TaskB", "Success", "Failure", "ok", "error"],
+      "min_text_elements": 6
+    },
+    {
       "path": "docs/examples/usecase/01_basic.puml",
       "family": "usecase",
       "expected_text": ["Login", "Register", "leads to"],
