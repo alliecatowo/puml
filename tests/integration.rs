@@ -5741,6 +5741,35 @@ fn class_package_headers_clear_inner_class_labels() {
 }
 
 #[test]
+fn class_08_packages_renders_package_container_frames() {
+    // Regression for #744: package { } blocks must produce visible container
+    // frames around their member classes; a flat layout without borders is wrong.
+    let svg = render_source_to_svg(&fs::read_to_string(example("class/08_packages.puml")).unwrap())
+        .expect("class/08_packages.puml should render without error");
+
+    // The SVG must contain the dashed package-frame rectangles for both packages.
+    assert!(
+        svg.contains("uml-group-frame"),
+        "SVG must contain at least one package container frame (uml-group-frame)"
+    );
+    // Both package labels must be present in the output.
+    assert!(
+        svg.contains("services"),
+        "SVG must contain the 'services' package label"
+    );
+    assert!(
+        svg.contains("domain"),
+        "SVG must contain the 'domain' package label"
+    );
+    // The scoped class names must appear (package-qualified identifiers).
+    assert!(
+        svg.contains("UserService"),
+        "SVG must contain 'UserService' class node"
+    );
+    assert!(svg.contains("User"), "SVG must contain 'User' class node");
+}
+
+#[test]
 fn class_family_accepts_directional_and_dotted_relation_arrows() {
     let src = "@startuml\nclass Base\nclass Impl\nclass Service\nImpl -up-|> Base\nService ..> Impl : depends\n@enduml\n";
     let svg = render_source_to_svg(src).expect("class directional relation svg should render");

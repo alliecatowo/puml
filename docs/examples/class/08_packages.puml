@@ -1,9 +1,13 @@
 @startuml
-class UserService
-class OrderService
-class User
-class Order
-class Product
+package "services" {
+  class UserService
+  class OrderService
+}
+package "domain" {
+  class User
+  class Order
+  class Product
+}
 UserService --> User
 OrderService --> Order
 OrderService --> Product
