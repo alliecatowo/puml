@@ -1,0 +1,15 @@
+@startboard
++ Backlog
+++ Research phase
+++ Write specs
+++ Design mockups
+++ Review requirements
++ In Progress
+++ Implement parser
+++ Add unit tests
++ Review
+++ Code review PR
++ Done
+++ Setup CI
+++ Project skeleton
+@endboard

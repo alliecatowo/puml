@@ -1,0 +1,11 @@
+@startfiles
++ src
+++ main.rs
+++ lib.rs
+++ parser
++++ core.rs
++++ detect.rs
++ docs
+++ README.md
++ Cargo.toml
+@endfiles

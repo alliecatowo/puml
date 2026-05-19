@@ -1,0 +1,17 @@
+@startfiles
++ project
+++ src
++++ render
+++++ board.rs
+++++ files.rs
+++++ mod.rs
++++ parser
+++++ blocks.rs
+++++ core.rs
++++ lib.rs
++++ main.rs
+++ tests
++++ integration.rs
+++ Cargo.toml
+++ README.md
+@endfiles
