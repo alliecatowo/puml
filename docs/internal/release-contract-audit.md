@@ -40,9 +40,9 @@ Quick mode contract:
 
 - `./scripts/check-all.sh` passed end-to-end (fmt, clippy, tests, scoped 85% coverage gate, release build, full benchmark gates).
 - `./scripts/check-all.sh --quick` passed end-to-end (fmt, clippy, tests, quick benchmark gates).
-- `./scripts/harness-check.sh` passed (agent-pack contracts, MCP smoke checks, parity harness).
-- `tests/svg_bounds_audit.rs` now enforces docs-example parity closure with `doc_examples.summary.failed == 0`.
-- `scripts/parity_harness.py` now canonicalizes trailing SVG newlines before equality checks, removing false drift from stdin-vs-artifact newline differences.
+- `./scripts/harness-check.sh` passed (agent-pack contracts, MCP smoke checks, render check).
+- `tests/svg_bounds_audit.rs` now enforces docs-example render closure with `summary.failed == 0`.
+- `scripts/render_check.py` canonicalizes trailing SVG newlines before equality checks, removing false drift from stdin-vs-artifact newline differences.
 
 ## Remaining Known Deviations
 

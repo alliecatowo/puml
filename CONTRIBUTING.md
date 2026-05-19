@@ -26,7 +26,7 @@ Real code changes, big or small. The PR template walks you through what we need:
 - Type (bug fix / feature / breaking / visual / refactor / infra / docs)
 - Linked issues (`Closes #N`)
 - **Visual evidence for renderer changes** — even a path to the regenerated PNG works; you don't have to drag-drop an image
-- Test plan (cargo test, clippy, fmt, parity harness, baseline blessing if applicable)
+- Test plan (cargo test, clippy, fmt, render check, baseline blessing if applicable)
 - Self-review checklist
 
 We don't gatekeep on style or sophistication. Land the smallest change that fixes the thing, and we'll iterate from there.
@@ -69,7 +69,7 @@ Before opening a PR:
 cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --release
-python3 scripts/parity_harness.py --fail-on-doc-drift
+python3 scripts/render_check.py --fail-on-doc-drift
 ```
 
 If your change affects the renderer, also:

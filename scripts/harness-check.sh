@@ -12,7 +12,7 @@ usage() {
 Usage: ./scripts/harness-check.sh [--quick] [--dry]
 
 Options:
-  --quick  run reduced parity corpus for fast local validation
+  --quick  run reduced render corpus for fast local validation
   --dry    print planned commands and execute dry-capable harness checks only
 USAGE
 }
@@ -49,7 +49,7 @@ python3 ./scripts/validate_agent_pack.py
 echo "[harness] running MCP smoke checks"
 bash ./agent-pack/tests/mcp_smoke.sh
 
-echo "[harness] running parity harness ${PARITY_FLAGS[*]:-(full)}"
-python3 ./scripts/parity_harness.py --fail-on-doc-drift "${PARITY_FLAGS[@]}"
+echo "[harness] running render check ${PARITY_FLAGS[*]:-(full)}"
+python3 ./scripts/render_check.py --fail-on-doc-drift "${PARITY_FLAGS[@]}"
 
 echo "[harness] complete"

@@ -50,7 +50,7 @@ cargo test -- --nocapture render_e2e
 Every example in `docs/examples/` is both:
 
 1. Linked from the [gallery](@/gallery.md) on this site.
-2. Asserted by the parity harness (`scripts/parity_harness.py`).
+2. Asserted by the docs render check (`scripts/render_check.py`).
 
 When you commit a new `.puml`, commit the matching `.svg` artifact alongside it. The site's `scripts/build-site.mjs` walks the corpus on build, so new examples surface automatically on the next deploy.
 

@@ -9,37 +9,35 @@ retained for **90 days**.  Two separate artifact bundles are produced per run:
 | Artifact name | Retention | Contents |
 |---|---|---|
 | `main-benchmarks-<sha>` | 90 days | Full benchmark suite (all files listed below) |
-| `parity-report-<sha>` | 90 days | Parity/oracle subset: `parity_latest.json`, `latest_trend.json`, `latest_trend.md` |
+| `render-check-report-<sha>` | 90 days | Render check subset: `render_check_latest.json`, `latest_trend.json`, `latest_trend.md` |
 
 ## Artifact Files
 
-### `parity_latest.json`
-Machine-readable parity report produced by `scripts/parity_harness.py`.
+### `render_check_latest.json`
+Machine-readable docs render check report produced by `scripts/render_check.py`.
 
-Schema version: `1.0.0`
+Schema version: `2.0.0`
 
 Top-level keys:
-- `schema_version` — always `"1.0.0"` so consumers can version-gate parsing.
+- `schema_version` — always `"2.0.0"` so consumers can version-gate parsing.
 - `generated_at_utc` — ISO-8601 UTC timestamp of the run.
-- `tool` — metadata about the runner (name, CWD, quick mode flag).
-- `oracle` — oracle integration status (`mode: "todo"` until PlantUML JAR is wired in).
-- `summary` — aggregate counts: `total`, `check_passed`, `check_failed`, `render_passed`, `render_failed`.
-- `fixtures` — per-fixture records (see schema below).
-- `doc_examples` — drift detection results for every `.puml` snippet or linked file in `docs/examples/`.
+- `summary` — aggregate counts: `total`, `passed`, `excluded`, `failed`.
+- `entries` — per-source-file render results (see schema below).
 
-Each `fixtures[]` entry contains:
+Each `entries[]` entry contains:
 ```json
 {
-  "fixture": "basic/hello.puml",
-  "check":  { "passed": true, "exit_code": 0, "diagnostics": [], "stderr": "" },
-  "render": { "attempted": true, "passed": true, "exit_code": 0, "stderr": "",
-              "metadata": { "svg_bytes": 1234, "viewbox": { "x":0,"y":0,"width":400,"height":200 } } },
-  "oracle": { "status": "todo", "comparison": null, "notes": "..." }
+  "source_kind": "source_file",
+  "source_ref": "docs/examples/basic/hello.puml",
+  "artifact_svg": "docs/examples/basic/hello.svg",
+  "artifact_exists": true,
+  "artifact_up_to_date": true,
+  "excluded": false,
+  "exclusion_reason": null,
+  "status": "pass",
+  "notes": []
 }
 ```
-
-When the PlantUML oracle is active (`oracle.status != "todo"`), the `oracle.comparison`
-field will hold a structured diff summary (see `scripts/oracle.sh` output format).
 
 ### `oracle_smoke_latest.json`
 Machine-readable differential smoke report produced by
@@ -80,7 +78,7 @@ appropriate baseline.  Baselines are **not** auto-updated; use
 
 ## How to Read a Trend
 
-1. Download the `parity-report-<sha>` artifact from the Actions run you care about.
+1. Download the `render-check-report-<sha>` artifact from the Actions run you care about.
 2. Open `latest_trend.md` for a quick human summary.
 3. For programmatic analysis, parse `latest_trend.json`:
    - Any `gate_passed: false` entry is a regression against the baseline.
