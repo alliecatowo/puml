@@ -32,6 +32,10 @@ pub struct ParseOptions {
     /// When true, `!include https://...`, `!includeurl`, and `file://` URL
     /// targets fetch or read content. Defaults to false to avoid surprise IO.
     pub allow_url_includes: bool,
+    /// Variables pre-injected before preprocessing begins (e.g. from CLI `-D`
+    /// flags). These behave like `!set VAR = VALUE` declarations at the top of
+    /// the source and are accessible via `$VAR` in the diagram.
+    pub inject_vars: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
