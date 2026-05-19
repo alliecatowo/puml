@@ -665,7 +665,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             OutputFormat::Svg | OutputFormat::Html => {
                 println!("{}", outputs[0].content);
             }
-            OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
+            OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp | OutputFormat::Pdf => {
                 io::stdout()
                     .write_all(&binary_outputs[0].bytes)
                     .map_err(|e| {
@@ -1703,6 +1703,7 @@ fn output_extension(format: OutputFormat) -> &'static str {
         OutputFormat::Png => "png",
         OutputFormat::Jpg => "jpg",
         OutputFormat::Webp => "webp",
+        OutputFormat::Pdf => "pdf",
         OutputFormat::Txt => "txt",
         OutputFormat::Atxt => "atxt",
         OutputFormat::Utxt => "utxt",
@@ -1713,12 +1714,12 @@ impl OutputFormat {
     fn uses_svg_renderer(self) -> bool {
         matches!(
             self,
-            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp
+            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp | Self::Pdf
         )
     }
 
     fn is_binary(self) -> bool {
-        matches!(self, Self::Png | Self::Jpg | Self::Webp)
+        matches!(self, Self::Png | Self::Jpg | Self::Webp | Self::Pdf)
     }
 
     fn is_text(self) -> bool {
@@ -1727,7 +1728,7 @@ impl OutputFormat {
 
     fn text_mode(self) -> Option<TextOutputMode> {
         match self {
-            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp => None,
+            Self::Svg | Self::Html | Self::Png | Self::Jpg | Self::Webp | Self::Pdf => None,
             Self::Txt => Some(TextOutputMode::Txt),
             Self::Atxt => Some(TextOutputMode::Atxt),
             Self::Utxt => Some(TextOutputMode::Utxt),
@@ -1749,6 +1750,7 @@ fn render_output_bytes(
         OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
             svg_to_raster_bytes(&output.content, format, dpi)?
         }
+        OutputFormat::Pdf => svg_to_pdf_bytes(&output.content)?,
     };
     Ok(RenderedBinaryOutput {
         name_hint: output.name_hint.clone(),
@@ -1776,6 +1778,30 @@ fn svg_to_raster_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<
             ),
         )),
     }
+}
+
+
+#[cfg(feature = "cli")]
+fn svg_to_pdf_bytes(svg: &str) -> Result<Vec<u8>, (u8, String)> {
+    let mut opt = svg2pdf::usvg::Options::default();
+    opt.fontdb_mut().load_system_fonts();
+    let tree = svg2pdf::usvg::Tree::from_str(svg, &opt).map_err(|e| {
+        (
+            EXIT_VALIDATION,
+            format!("failed to parse rendered SVG for PDF output: {e}"),
+        )
+    })?;
+    svg2pdf::to_pdf(
+        &tree,
+        svg2pdf::ConversionOptions::default(),
+        svg2pdf::PageOptions::default(),
+    )
+    .map_err(|e| {
+        (
+            EXIT_INTERNAL,
+            format!("failed to convert SVG to PDF: {e}"),
+        )
+    })
 }
 
 fn rasterize_svg(svg: &str, dpi: f32) -> Result<RasterizedSvg, (u8, String)> {
