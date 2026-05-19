@@ -346,6 +346,53 @@ async function assertInteractiveHydration(script) {
   assert(panel.hidden, 'second click did not collapse the render panel', 'interactive hydration: click closes panel');
 }
 
+function assertSyntaxHighlightingWithPreWrappedMarkup(script) {
+  const document = new SmokeDocument();
+  const prose = document.createElement('main');
+  prose.className = 'prose';
+  const pre = document.createElement('pre');
+  pre.dataset.lang = 'puml';
+  const code = document.createElement('code');
+  code.textContent = '@startuml\nAlice -> Bob : hello\n@enduml\n';
+
+  const staleSpan = document.createElement('span');
+  staleSpan.className = 'zola-stale-token';
+  staleSpan.textContent = code.textContent;
+  code.appendChild(staleSpan);
+  pre.appendChild(code);
+  prose.appendChild(pre);
+  document.appendChild(prose);
+
+  const context = vm.createContext({
+    document,
+    PUML_HIGHLIGHT_LANGS: new Set(['puml', 'plantuml', 'picouml']),
+    highlightPumlToHtml: (source) => `<span class="tok-directive">@startuml</span>\n${source}`,
+    siteBaseUrl: () => '/docs/',
+    WasmRenderer: class {
+      async render() {
+        return { ok: true, svgs: ['<svg role="img"></svg>'] };
+      }
+    },
+    diagnosticLabel: (diag) => diag?.message || 'Render failed.',
+  });
+  const executable = script
+    .replace(/import[^\n]+;\n/g, '')
+    .replace('export function hydrateInlineFencePreviews', 'function hydrateInlineFencePreviews');
+  vm.runInContext(`${executable}\nthis.hydrateInlineFencePreviews = hydrateInlineFencePreviews;`, context);
+  context.hydrateInlineFencePreviews(document);
+
+  assert(
+    code.dataset.pumlHighlighted === 'true',
+    'supported PUML fences with pre-existing child markup were not highlighted',
+    'interactive highlighting: marks fence as highlighted',
+  );
+  assert(
+    code.innerHTML.includes('tok-directive'),
+    'supported PUML fences with pre-existing child markup did not receive PUML token markup',
+    'interactive highlighting: replaces stale child markup',
+  );
+}
+
 const markdownFencePage = readBuiltPage(markdownFencePagePath, 'Markdown fences');
 const statePage = readBuiltPage(statePagePath, 'State guide');
 
@@ -419,6 +466,7 @@ for (const [name, needle] of [
 }
 
 await assertInteractiveHydration(script);
+assertSyntaxHighlightingWithPreWrappedMarkup(script);
 
 for (const [name, needle] of [
   ['styles graph bubble', '.puml-fence-bubble'],
