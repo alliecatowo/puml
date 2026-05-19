@@ -8680,3 +8680,31 @@ fn class_keyword_does_not_leak_into_box_label_issue_424() {
         "Vehicle label must appear as bare identifier in stub form"
     );
 }
+
+// ── Issue #769: enum classes must render with distinct lemon header ───────────
+
+#[test]
+fn enum_class_renders_with_enumeration_stereotype_and_lemon_header() {
+    // `enum` keyword must produce a «enumeration» label and a #ffffcc header fill —
+    // distinguishing enum boxes from regular class boxes (fix #769).
+    let src = "@startuml\nenum Color {\n  RED\n  GREEN\n  BLUE\n}\nclass Widget {\n  +paint(c: Color)\n}\nWidget --> Color\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("enum class diagram must render");
+
+    // The «enumeration» guillemet label must appear in the header.
+    assert!(
+        svg.contains("\u{ab}enumeration\u{bb}"),
+        "enum header must contain «enumeration» stereotype label"
+    );
+    // The lemon fill colour is the PlantUML enum convention.
+    assert!(
+        svg.contains("#ffffcc"),
+        "enum header must use lemon fill #ffffcc, not the default class blue"
+    );
+    // The class box (Widget) should still use the default (non-lemon) header.
+    assert!(
+        !svg.contains("Widget\u{ab}enumeration\u{bb}"),
+        "regular class header must not carry the enumeration stereotype"
+    );
+    // Enum name must appear as the box label.
+    assert!(svg.contains(">Color<"), "enum box label must be 'Color'");
+}
