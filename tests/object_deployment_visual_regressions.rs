@@ -53,6 +53,106 @@ fn object_relation_labels_stay_centered_on_vertical_relations() {
     );
 }
 
+/// Regression test for #478: alias identifiers ('as UC1', 'as MP') must not appear as
+/// visible text in the rendered usecase SVG. Only the human-readable name should render.
+#[test]
+fn usecase_alias_identifiers_do_not_appear_as_rendered_text() {
+    // 02_with_actors pattern: aliases UC1/UC2/UC3 must be invisible
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+actor Customer
+actor Admin
+usecase BrowseProducts as UC1
+usecase PlaceOrder as UC2
+usecase ManageInventory as UC3
+Customer --> UC1
+Customer --> UC2
+Admin --> UC3
+@enduml
+"#,
+    )
+    .expect("usecase with aliases should render");
+
+    // Display names must be present
+    assert!(svg.contains(">BrowseProducts<"), "BrowseProducts should appear as display text");
+    assert!(svg.contains(">PlaceOrder<"), "PlaceOrder should appear as display text");
+    assert!(svg.contains(">ManageInventory<"), "ManageInventory should appear as display text");
+
+    // Alias identifiers must NOT appear as rendered text (they are internal routing ids)
+    assert!(!svg.contains(">UC1<"), "alias UC1 must not render as visible text (#478)");
+    assert!(!svg.contains(">UC2<"), "alias UC2 must not render as visible text (#478)");
+    assert!(!svg.contains(">UC3<"), "alias UC3 must not render as visible text (#478)");
+
+    // 04_with_packages pattern: aliases MP/MO inside rectangles must be invisible
+    let svg2 = puml::render_source_to_svg(
+        r#"@startuml
+actor Manager
+rectangle "Back Office" {
+  usecase ManageProducts as MP
+  usecase ManageOrders as MO
+}
+Manager --> MP
+Manager --> MO
+MP --> MO : depends
+@enduml
+"#,
+    )
+    .expect("usecase with package aliases should render");
+
+    assert!(svg2.contains(">ManageProducts<"), "ManageProducts should appear as display text");
+    assert!(svg2.contains(">ManageOrders<"), "ManageOrders should appear as display text");
+    assert!(!svg2.contains(">MP<"), "alias MP must not render as visible text (#478)");
+    assert!(!svg2.contains(">MO<"), "alias MO must not render as visible text (#478)");
+}
+
+/// Regression test for #477: C4 Rel() edge labels must not be clipped or truncated.
+/// Every label character must survive from source to rendered SVG text element.
+#[test]
+fn c4_rel_labels_are_fully_rendered_without_truncation() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+!include <C4/C4_Container>
+!Person(user, "User")
+!Container(spa, "SPA", "React", "Single page app")
+!Container(api, "API", "FastAPI", "REST backend")
+!Container(worker, "Worker", "Celery", "Background tasks")
+!System_Ext(email, "Email")
+!Rel(user, spa, "Uses")
+!Rel(spa, api, "Calls")
+!Rel(api, worker, "Enqueues")
+!Rel(worker, email, "Sends via")
+@enduml
+"#,
+    )
+    .expect("C4 container diagram should render");
+
+    // All Rel() labels must appear in full — none truncated mid-word (#477)
+    assert!(svg.contains(">Uses<"), "Rel label 'Uses' must render in full (#477)");
+    assert!(svg.contains(">Calls<"), "Rel label 'Calls' must render in full (#477)");
+    assert!(svg.contains(">Enqueues<"), "Rel label 'Enqueues' must render in full (#477)");
+    assert!(svg.contains(">Sends via<"), "Rel label 'Sends via' must render in full (#477)");
+
+    // Microservices pattern: multi-word and slash labels
+    let svg2 = puml::render_source_to_svg(
+        r#"@startuml
+!include <C4/C4_Container>
+!Person(client, "Client")
+!Container(gw, "API Gateway", "Kong", "Routes")
+!Container(svc, "User Service", "Go", "Users")
+!System_Ext(db, "User DB")
+!Rel(client, gw, "API calls")
+!Rel(gw, svc, "Routes")
+!Rel(svc, db, "Reads/writes")
+@enduml
+"#,
+    )
+    .expect("C4 microservices diagram should render");
+
+    assert!(svg2.contains(">API calls<"), "Rel label 'API calls' must render in full (#477)");
+    assert!(svg2.contains(">Routes<"), "Rel label 'Routes' must render in full (#477)");
+    assert!(svg2.contains(">Reads/writes<"), "Rel label 'Reads/writes' must render in full (#477)");
+}
+
 #[test]
 fn deployment_svg_keeps_rightmost_node_inside_viewbox_with_gutter() {
     let svg = puml::render_source_to_svg(
