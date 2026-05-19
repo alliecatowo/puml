@@ -1,7 +1,6 @@
 use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 use super::relation::{
-    arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
-    render_relation_marker_defs, render_relation_marker_defs_with_prefix, usecase_dependency_label,
+    normalize_relation_endpoints, render_relation_marker_defs, usecase_dependency_label,
 };
 use super::svg::{escape_text, render_actor_stick_figure};
 use crate::ast::MemberModifier;
@@ -93,6 +92,960 @@ fn relation_pair_label_lane_map(
     lanes
 }
 
+/// Box geometry for a single class/node box used by `render_class_svg`.
+#[derive(Clone, Copy)]
+struct ClassNodeBox {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    header_h: i32,
+}
+
+/// Render the group/package/namespace frames for a class diagram.
+///
+/// Draws labeled frame rectangles (with optional tab headers) behind all node
+/// boxes so that node rectangles visually sit on top of the frame borders.
+fn render_class_group_frames(
+    out: &mut String,
+    group_frames: &[RenderGroupFrame],
+    max_group_depth: usize,
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+) {
+    for group in group_frames {
+        let mut gx_min = i32::MAX;
+        let mut gy_min = i32::MAX;
+        let mut gx_max = i32::MIN;
+        let mut gy_max = i32::MIN;
+        let mut found_any = false;
+        for member_id in &group.member_ids {
+            if let Some(bx) = node_boxes.get(member_id.as_str()) {
+                gx_min = gx_min.min(bx.x);
+                gy_min = gy_min.min(bx.y);
+                gx_max = gx_max.max(bx.x + bx.w);
+                gy_max = gy_max.max(bx.y + bx.h);
+                found_any = true;
+            }
+        }
+        if !found_any {
+            continue;
+        }
+        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
+        let pad = 20 + depth_outset;
+        let tab_h = 24;
+        let label_header = tab_h + 28 + depth_outset;
+        let fx = gx_min - pad;
+        let fy = gy_min - pad - label_header;
+        let fw = (gx_max - gx_min) + pad * 2;
+        let fh = (gy_max - gy_min) + pad * 2 + label_header;
+
+        let group_label = group.display_label();
+        let uses_tab_header = matches!(group.kind.as_str(), "rectangle" | "package");
+
+        out.push_str(&format!(
+            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
+            escape_text(&group.scope)
+        ));
+        if uses_tab_header {
+            let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
+            out.push_str(&format!(
+                "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{tab_h}\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#6366f1\" stroke-width=\"1.5\"/>"
+            ));
+            out.push_str(&format!(
+                "<rect x=\"{fx}\" y=\"{}\" width=\"{tab_w}\" height=\"8\" fill=\"#ffffff\" stroke=\"none\"/>",
+                fy + tab_h - 8
+            ));
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
+                tx = fx + 8,
+                ty = fy + 16,
+                label = escape_text(&group_label)
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{fx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#6366f1\" stroke-width=\"1\"/>",
+                fy + tab_h,
+                fx + fw,
+                fy + tab_h
+            ));
+        } else {
+            out.push_str(&format!(
+                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
+                tx = fx + 8,
+                ty = fy + 14,
+                label = escape_text(&group_label)
+            ));
+        }
+    }
+}
+
+/// Nudge a label's y-coordinate upward until it no longer overlaps any node box.
+/// Used by `render_class_svg` for both the pre-pass and the inline placement.
+fn class_nudge_label_y(
+    lx: i32,
+    ly: i32,
+    label_half_w: i32,
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+) -> (i32, i32) {
+    let mut adjusted_y = ly;
+    for _ in 0..8 {
+        let overlap = node_boxes.values().find(|bbox| {
+            lx + label_half_w >= bbox.x - 8
+                && lx - label_half_w <= bbox.x + bbox.w + 8
+                && adjusted_y >= bbox.y - 14
+                && adjusted_y <= bbox.y + bbox.h + 6
+        });
+        match overlap {
+            Some(bbox) => adjusted_y = bbox.y - 18,
+            None => break,
+        }
+    }
+    (lx, adjusted_y)
+}
+
+/// Run the hierarchical layout engine and populate `node_boxes` for `render_class_svg`.
+///
+/// Builds `GlNodeSize` / `GlEdgeSpec` inputs for `layout_hierarchical`, runs the
+/// layout, then converts the resulting `(f64, f64)` positions into `ClassNodeBox`
+/// entries.  Falls back to a simple grid for any node the engine did not place.
+/// Returns `(GraphLayout, BTreeMap<String, ClassNodeBox>)`.
+#[allow(clippy::too_many_arguments)]
+fn class_run_layout(
+    document: &FamilyDocument,
+    node_heights: &[(String, i32)],
+    node_width: i32,
+    col_count: i32,
+    col_gap: i32,
+    row_gap: i32,
+    margin_x: i32,
+    margin_top: i32,
+    title_block_height: i32,
+    group_top_reserve: i32,
+    header_height: i32,
+) -> (
+    crate::render::graph_layout::GraphLayout,
+    std::collections::BTreeMap<String, ClassNodeBox>,
+) {
+    use crate::render::graph_layout::{
+        layout_hierarchical, EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions,
+        NodeSize as GlNodeSize,
+    };
+
+    // Build group membership lookup for parent assignment.
+    let group_frames_for_gl = collect_render_group_frames(&document.groups);
+    let mut node_to_gl_group: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for frame in &group_frames_for_gl {
+        for mid in &frame.member_ids {
+            node_to_gl_group
+                .entry(mid.clone())
+                .or_insert_with(|| frame.scope.clone());
+        }
+    }
+
+    let gl_nodes: Vec<GlNodeSize> = document
+        .nodes
+        .iter()
+        .zip(node_heights.iter())
+        .map(|(node, (_key, h))| {
+            let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+            let parent = node_to_gl_group
+                .get(&key)
+                .or_else(|| node_to_gl_group.get(&node.name))
+                .cloned();
+            GlNodeSize {
+                id: key,
+                width: node_width as f64,
+                height: *h as f64,
+                parent,
+            }
+        })
+        .collect();
+
+    // Build a resolver from unscoped/alias names to full node IDs so edges match.
+    let mut gl_name_to_id: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for n in &gl_nodes {
+        gl_name_to_id
+            .entry(n.id.clone())
+            .or_insert_with(|| n.id.clone());
+        if let Some(tail) = n.id.rsplit("::").next() {
+            gl_name_to_id
+                .entry(tail.to_string())
+                .or_insert_with(|| n.id.clone());
+        }
+    }
+    for node in &document.nodes {
+        if let Some(alias) = &node.alias {
+            let scoped = node.alias.clone().unwrap_or_else(|| node.name.clone());
+            gl_name_to_id
+                .entry(alias.clone())
+                .or_insert_with(|| scoped.clone());
+            gl_name_to_id
+                .entry(node.name.clone())
+                .or_insert_with(|| scoped);
+        }
+    }
+    let resolve_gl = |name: &str| -> String {
+        gl_name_to_id
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
+    };
+
+    let gl_edges: Vec<GlEdgeSpec> = document
+        .relations
+        .iter()
+        .enumerate()
+        .map(|(i, rel)| GlEdgeSpec {
+            id: format!("r{i}"),
+            from: resolve_gl(&rel.from),
+            to: resolve_gl(&rel.to),
+        })
+        .collect();
+
+    let gl_options = GlOptions {
+        rank_separation: (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60))
+            as f64,
+        node_separation: col_gap as f64,
+        group_padding: 16.0,
+        direction: crate::render::graph_layout::Direction::TopDown,
+        canvas_margin: (margin_top + title_block_height + group_top_reserve) as f64,
+    };
+
+    let gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
+
+    // Populate node_boxes: use layout positions when available, else grid fallback.
+    let mut node_boxes: std::collections::BTreeMap<String, ClassNodeBox> =
+        std::collections::BTreeMap::new();
+    let total_nodes = document.nodes.len() as i32;
+    let row_count = if total_nodes == 0 {
+        0
+    } else {
+        (total_nodes + col_count - 1) / col_count
+    };
+    let max_row_height = node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60);
+    let mut fallback_row_y_offsets: Vec<i32> = Vec::new();
+    {
+        let mut y = margin_top + title_block_height + group_top_reserve;
+        for _ in 0..row_count {
+            fallback_row_y_offsets.push(y);
+            y += max_row_height + row_gap;
+        }
+    }
+
+    for (idx, (node, (_key, h))) in document.nodes.iter().zip(node_heights.iter()).enumerate() {
+        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
+        let (nx, ny) = if let Some(&(lx, ly)) = gl_result.node_positions.get(&key) {
+            (lx as i32, ly as i32)
+        } else {
+            let col = (idx as i32) % col_count;
+            let row = (idx as i32) / col_count;
+            let fx = margin_x + col * (node_width + col_gap);
+            let fy = fallback_row_y_offsets
+                .get(row as usize)
+                .copied()
+                .unwrap_or(margin_top + title_block_height);
+            (fx, fy)
+        };
+        let nb = ClassNodeBox {
+            x: nx,
+            y: ny,
+            w: node_width,
+            h: *h,
+            header_h: header_height,
+        };
+        node_boxes.insert(key.clone(), nb);
+        if node.alias.is_some() {
+            node_boxes.entry(node.name.clone()).or_insert(nb);
+        }
+        // Register by unscoped name for relations that reference "Browse" not
+        // "Online Store::Browse" (fixes rectangle group scoping in usecase diagrams).
+        if key.contains("::") {
+            if let Some(unscoped) = key.rsplit("::").next() {
+                node_boxes.entry(unscoped.to_string()).or_insert(nb);
+            }
+        }
+    }
+
+    (gl_result, node_boxes)
+}
+
+/// Output of `class_compute_canvas` — the canvas dimensions and node extents
+/// needed to build the SVG header and position projections/labels.
+struct ClassCanvasMetrics {
+    svg_width: i32,
+    svg_height: i32,
+    nodes_bottom: i32,
+}
+
+/// Compute SVG canvas size and related metrics for `render_class_svg`.
+///
+/// Derives the canvas width/height from the bounding boxes of laid-out nodes,
+/// group frames, and the layout engine floor values.  Also computes the total
+/// projection extra height so the SVG is tall enough to include them.
+#[allow(clippy::too_many_arguments)] // All 13 args are distinct canvas metrics; a struct would add churn without clarity
+fn class_compute_canvas(
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+    group_frames: &[RenderGroupFrame],
+    max_group_depth: usize,
+    json_projections: &[crate::model::JsonProjection],
+    relations: &[crate::model::FamilyRelation],
+    gl_canvas_width: f64,
+    gl_canvas_height: f64,
+    margin_x: i32,
+    margin_top: i32,
+    title_block_height: i32,
+    col_count: i32,
+    node_width: i32,
+    col_gap: i32,
+) -> ClassCanvasMetrics {
+    let nodes_right = node_boxes
+        .values()
+        .map(|b| b.x + b.w)
+        .max()
+        .unwrap_or(margin_x);
+    let nodes_bottom = node_boxes
+        .values()
+        .map(|b| b.y + b.h)
+        .max()
+        .unwrap_or(margin_top + title_block_height);
+
+    let mut groups_right = margin_x;
+    let mut groups_bottom = margin_top + title_block_height;
+    for group in group_frames {
+        let mut gx_min = i32::MAX;
+        let mut gy_min = i32::MAX;
+        let mut gx_max = i32::MIN;
+        let mut gy_max = i32::MIN;
+        let mut found_any = false;
+        for member_id in &group.member_ids {
+            if let Some(bx) = node_boxes.get(member_id.as_str()) {
+                gx_min = gx_min.min(bx.x);
+                gy_min = gy_min.min(bx.y);
+                gx_max = gx_max.max(bx.x + bx.w);
+                gy_max = gy_max.max(bx.y + bx.h);
+                found_any = true;
+            }
+        }
+        if !found_any {
+            continue;
+        }
+        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
+        let pad = 16 + depth_outset;
+        let label_header = 40 + depth_outset;
+        let fx = gx_min - pad;
+        let fy = gy_min - pad - label_header;
+        let fw = (gx_max - gx_min) + pad * 2;
+        let fh = (gy_max - gy_min) + pad * 2 + label_header;
+        groups_right = groups_right.max(fx + fw);
+        groups_bottom = groups_bottom.max(fy + fh);
+    }
+
+    let proj_extra_height: i32 = json_projections.iter().fold(0, |acc, proj| {
+        let kv_count = extract_projection_tree_rows(&proj.body, &proj.format).len() as i32;
+        acc + 22 + kv_count * 16 + 8 + 12
+    });
+
+    let gl_canvas_right = gl_canvas_width as i32;
+    let gl_canvas_bottom = gl_canvas_height as i32;
+    let max_label_half_w = relations
+        .iter()
+        .map(|rel| {
+            rel.label
+                .as_ref()
+                .map(|l| ((l.chars().count() as i32) * 6 / 2).max(18))
+                .unwrap_or(0)
+        })
+        .max()
+        .unwrap_or(0);
+    let label_right_pad = max_label_half_w + margin_x;
+    let svg_width = (margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap)
+        .max(gl_canvas_right + margin_x)
+        .max(nodes_right + label_right_pad)
+        .max(groups_right + margin_x);
+    let svg_height =
+        (nodes_bottom.max(groups_bottom) + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
+
+    ClassCanvasMetrics {
+        svg_width,
+        svg_height,
+        nodes_bottom,
+    }
+}
+
+/// Context passed to `render_class_relations` — groups the many read-only
+/// inputs that the relation-rendering loop needs from `render_class_svg`.
+struct ClassRelationCtx<'a> {
+    relations: &'a [crate::model::FamilyRelation],
+    nodes: &'a [crate::model::FamilyNode],
+    node_boxes: &'a std::collections::BTreeMap<String, ClassNodeBox>,
+    edge_paths: &'a std::collections::BTreeMap<String, Vec<(f64, f64)>>,
+    label_override: &'a std::collections::BTreeMap<usize, (i32, i32)>,
+    parallel_offset: &'a std::collections::BTreeMap<usize, i32>,
+    relation_pair_label_lanes: &'a std::collections::BTreeMap<usize, i32>,
+    class_style: &'a crate::theme::ClassStyle,
+    arrow_stroke: &'a str,
+    margin_x: i32,
+    margin_top: i32,
+    svg_width: i32,
+}
+
+/// Render all edges (relations) for a class/object/usecase SVG diagram.
+///
+/// Emits `<line>` / `<polyline>` elements for edges, plus stereotype,
+/// dependency, regular, cardinality, and role labels for each relation.
+/// Nodes are rendered after this call so they visually cover edge endpoints.
+fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
+    use super::geometry::{compute_edge_anchors_for_direction, pick_port};
+    use super::relation::{
+        arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
+        usecase_dependency_label,
+    };
+
+    for (rel_idx, relation) in ctx.relations.iter().enumerate() {
+        let (from_name, to_name, normalized_arrow) =
+            normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
+        let from = ctx.node_boxes.get(&from_name);
+        let to = ctx.node_boxes.get(&to_name);
+        let (Some(from), Some(to)) = (from, to) else {
+            continue;
+        };
+        let mut style = arrow_style(&normalized_arrow);
+        let usecase_dependency = usecase_dependency_label(relation.label.as_deref())
+            .or_else(|| usecase_dependency_label(relation.stereotype.as_deref()));
+        if usecase_dependency.is_some() {
+            style.dashed = true;
+            if style.end_marker.is_none() {
+                style.end_marker = Some("arrow-open");
+            }
+        }
+        let (x1, y1, x2, y2) = if relation.direction.is_some() {
+            compute_edge_anchors_for_direction(
+                (from.x, from.y, from.w, from.h),
+                (to.x, to.y, to.w, to.h),
+                relation.direction.as_deref(),
+            )
+        } else {
+            pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
+        };
+
+        let lat_offset = ctx.parallel_offset.get(&rel_idx).copied().unwrap_or(0);
+        let edge_dx_raw = x2 - x1;
+        let edge_dy_raw = y2 - y1;
+        let (off_x, off_y) = if edge_dx_raw.abs() >= edge_dy_raw.abs() {
+            (0, lat_offset)
+        } else {
+            (lat_offset, 0)
+        };
+        let (x1, y1, x2, y2) = (x1 + off_x, y1 + off_y, x2 + off_x, y2 + off_y);
+        let relation_color = relation.line_color.as_deref().unwrap_or(ctx.arrow_stroke);
+        let stroke_width = relation.thickness.unwrap_or(2).clamp(1, 8);
+        let stroke_dash = if style.dashed || relation.dashed {
+            " stroke-dasharray=\"5 3\""
+        } else {
+            ""
+        };
+        let visibility = if relation.hidden {
+            " visibility=\"hidden\""
+        } else {
+            ""
+        };
+        let mut markers = String::new();
+        if let Some(end) = style.end_marker {
+            markers.push_str(&format!(" marker-end=\"url(#{end})\""));
+        }
+        if let Some(start) = style.start_marker {
+            markers.push_str(&format!(" marker-start=\"url(#{start})\""));
+        }
+        let direction_attr = relation
+            .direction
+            .as_deref()
+            .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
+            .unwrap_or_default();
+
+        let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
+        {
+            ctx.edge_paths
+                .get(&format!("r{rel_idx}"))
+                .filter(|p| p.len() >= 2)
+                .map(|p| {
+                    p.iter()
+                        .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
+                        .collect()
+                })
+        } else {
+            None
+        };
+
+        let (label_mx, label_my);
+
+        if let Some(ref pts) = ortho_pts {
+            let pts_str: String = pts
+                .iter()
+                .map(|(px, py)| format!("{px},{py}"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            out.push_str(&format!(
+                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                escape_text(&from_name),
+                escape_text(&to_name),
+                escape_text(&normalized_arrow),
+                pts_str,
+                relation_color, stroke_width,
+                stroke_dash, visibility, direction_attr, markers
+            ));
+            let longest_horiz = pts
+                .windows(2)
+                .filter(|seg| seg[0].1 == seg[1].1)
+                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
+            let (lmx, lmy) = match longest_horiz {
+                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                None => {
+                    let longest_seg = pts.windows(2).max_by_key(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2)
+                    });
+                    match longest_seg {
+                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
+                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                    }
+                }
+            };
+            label_mx = lmx;
+            label_my = lmy;
+        } else {
+            out.push_str(&format!(
+                "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
+                escape_text(&relation.from),
+                escape_text(&relation.to),
+                dash = stroke_dash,
+            ));
+            label_mx = (x1 + x2) / 2;
+            label_my = (y1 + y2) / 2 - 12;
+        }
+        let edge_dx = x2 - x1;
+        let edge_dy = y2 - y1;
+
+        if relation.left_lollipop {
+            render_lollipop_endpoint(out, x1, y1, relation_color);
+        }
+        if relation.right_lollipop {
+            render_lollipop_endpoint(out, x2, y2, relation_color);
+        }
+        if let Some(left) = &relation.left_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x1 - 4,
+                y = y1 - 6,
+                member_color = ctx.class_style.member_color,
+                txt = escape_text(left)
+            ));
+        }
+        if let Some(right) = &relation.right_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x2 + 4,
+                y = y2 - 6,
+                member_color = ctx.class_style.member_color,
+                txt = escape_text(right)
+            ));
+        }
+        if let Some(left_role) = &relation.left_role {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x1 - 4,
+                y = y1 + 12,
+                member_color = ctx.class_style.member_color,
+                txt = escape_text(left_role)
+            ));
+        }
+        if let Some(right_role) = &relation.right_role {
+            out.push_str(&format!(
+                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                x = x2 + 4,
+                y = y2 + 12,
+                member_color = ctx.class_style.member_color,
+                txt = escape_text(right_role)
+            ));
+        }
+        let pair_label_lane = ctx
+            .relation_pair_label_lanes
+            .get(&rel_idx)
+            .copied()
+            .unwrap_or(0);
+        let from_is_class = ctx
+            .nodes
+            .iter()
+            .find(|node| node.name == from_name)
+            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
+        let to_is_class = ctx
+            .nodes
+            .iter()
+            .find(|node| node.name == to_name)
+            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
+        let prefer_side_clearance = pair_label_lane != 0 || (from_is_class && to_is_class);
+        if let Some(stereotype) = &relation.stereotype {
+            if usecase_dependency.is_none() {
+                let (sx, base_sy) = ctx
+                    .label_override
+                    .get(&rel_idx)
+                    .copied()
+                    .unwrap_or((label_mx, label_my));
+                let sy = base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
+                out.push_str(&format!(
+                    "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
+                    member_color = ctx.class_style.member_color,
+                    txt = escape_text(stereotype)
+                ));
+            }
+        }
+        if let Some(label) = usecase_dependency {
+            let (lx, ly) = if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
+                (ox, oy)
+            } else if ortho_pts.is_some() {
+                if edge_dy.abs() > edge_dx.abs() {
+                    (label_mx + 14, label_my)
+                } else {
+                    (label_mx, label_my - 14)
+                }
+            } else {
+                let dx = x2 - x1;
+                let dy = y2 - y1;
+                let dx_abs = dx.abs();
+                let dy_abs = dy.abs();
+                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
+                if edge_len <= 2 {
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                } else {
+                    let clearance = 30i32;
+                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
+                    let raw_x = x1 + dx * t_num / edge_len;
+                    let raw_y = y1 + dy * t_num / edge_len;
+                    if dy_abs > dx_abs {
+                        (raw_x + 14, raw_y - 6)
+                    } else {
+                        (raw_x, raw_y - 14)
+                    }
+                }
+            };
+            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
+            let corridor_left = from.x.max(to.x);
+            let corridor_right = (from.x + from.w).min(to.x + to.w);
+            let lx = if prefer_side_clearance
+                && edge_dy.abs() > edge_dx.abs()
+                && corridor_left < corridor_right
+                && lx > corridor_left - 8 - label_half_w
+                && lx < corridor_right + 8 + label_half_w
+            {
+                if x2 >= x1 {
+                    corridor_right + 8 + label_half_w
+                } else {
+                    corridor_left - 8 - label_half_w
+                }
+            } else {
+                lx
+            };
+            let lx = lx.clamp(
+                ctx.margin_x + 8 + label_half_w,
+                ctx.svg_width - ctx.margin_x - 8 - label_half_w,
+            );
+            let ly = (ly + pair_label_lane).max(ctx.margin_top + 10);
+            let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            out.push_str(&relation_label_svg(
+                lx,
+                ly,
+                label,
+                11,
+                &ctx.class_style.member_color,
+            ));
+        } else if let Some(label) = relation.label.as_deref() {
+            let (lx, ly) = if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
+                (ox, oy)
+            } else if let Some(ref pts) = ortho_pts {
+                let has_horiz = pts.windows(2).any(|seg| seg[0].1 == seg[1].1);
+                if !has_horiz {
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                } else if edge_dy.abs() > edge_dx.abs() {
+                    (label_mx + 14, label_my)
+                } else {
+                    (label_mx, label_my - 14)
+                }
+            } else {
+                let dx = x2 - x1;
+                let dy = y2 - y1;
+                let dx_abs = dx.abs();
+                let dy_abs = dy.abs();
+                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
+                if edge_len <= 2 {
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                } else {
+                    let clearance = 30i32;
+                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
+                    let raw_x = x1 + dx * t_num / edge_len;
+                    let raw_y = y1 + dy * t_num / edge_len;
+                    if dy_abs > dx_abs {
+                        (raw_x + 14, raw_y - 6)
+                    } else {
+                        (raw_x, raw_y - 14)
+                    }
+                }
+            };
+            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
+            let corridor_left = from.x.max(to.x);
+            let corridor_right = (from.x + from.w).min(to.x + to.w);
+            let lx = if prefer_side_clearance
+                && edge_dy.abs() > edge_dx.abs()
+                && corridor_left < corridor_right
+                && lx > corridor_left - 8 - label_half_w
+                && lx < corridor_right + 8 + label_half_w
+            {
+                if x2 >= x1 {
+                    corridor_right + 8 + label_half_w
+                } else {
+                    corridor_left - 8 - label_half_w
+                }
+            } else {
+                lx
+            };
+            let lx = lx.clamp(
+                ctx.margin_x + 8 + label_half_w,
+                ctx.svg_width - ctx.margin_x - 8 - label_half_w,
+            );
+            let ly = (ly + pair_label_lane).max(ctx.margin_top + 10);
+            let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
+            out.push_str(&relation_label_svg(
+                lx,
+                ly,
+                label,
+                11,
+                &ctx.class_style.member_color,
+            ));
+        }
+    }
+}
+
+/// Build the `label_override` map for `render_class_svg`.
+///
+/// Performs the label de-collision pre-pass: clusters labels that land in the
+/// same y-band or converge on the same target node, then fans them out so they
+/// don't overlap.  Returns a map from `rel_idx` to the de-collided `(lx, ly)`.
+fn class_build_label_overrides(
+    relations: &[crate::model::FamilyRelation],
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+    edge_paths: &std::collections::BTreeMap<String, Vec<(f64, f64)>>,
+) -> std::collections::BTreeMap<usize, (i32, i32)> {
+    const LABEL_FAN_GAP: i32 = 24;
+    const LABEL_CLUSTER_BAND: i32 = 18;
+
+    let mut label_override: std::collections::BTreeMap<usize, (i32, i32)> =
+        std::collections::BTreeMap::new();
+
+    struct RawLabel {
+        rel_idx: usize,
+        from_name: String,
+        to_name: String,
+        text: String,
+        lx: i32,
+        ly: i32,
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+    }
+    let mut raw_labels: Vec<RawLabel> = Vec::new();
+
+    for (rel_idx, relation) in relations.iter().enumerate() {
+        let label_text = relation.label.as_deref().or(relation.stereotype.as_deref());
+        if label_text.is_none() {
+            continue;
+        }
+        let (from_name, to_name, _arrow) =
+            normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
+        let from = match node_boxes.get(&from_name) {
+            Some(b) => b,
+            None => continue,
+        };
+        let to = match node_boxes.get(&to_name) {
+            Some(b) => b,
+            None => continue,
+        };
+        let (x1, y1, x2, y2) = if relation.direction.is_some() {
+            compute_edge_anchors_for_direction(
+                (from.x, from.y, from.w, from.h),
+                (to.x, to.y, to.w, to.h),
+                relation.direction.as_deref(),
+            )
+        } else {
+            pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
+        };
+        let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
+        {
+            edge_paths
+                .get(&format!("r{rel_idx}"))
+                .filter(|p| p.len() >= 2)
+                .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+        } else {
+            None
+        };
+        let (lx, ly) = if let Some(ref pts) = ortho_pts {
+            let longest_horiz = pts
+                .windows(2)
+                .filter(|seg| seg[0].1 == seg[1].1)
+                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
+            match longest_horiz {
+                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                None => {
+                    let longest_seg = pts.windows(2).max_by_key(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2)
+                    });
+                    match longest_seg {
+                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
+                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+                    }
+                }
+            }
+        } else {
+            ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+        };
+        raw_labels.push(RawLabel {
+            rel_idx,
+            from_name,
+            to_name,
+            text: label_text.unwrap_or_default().to_string(),
+            lx,
+            ly,
+            x1,
+            y1,
+            x2,
+            y2,
+        });
+    }
+
+    // ── Target-based fan (≥ 2 labels → same target node) ─────────────────────
+    let mut by_target: std::collections::BTreeMap<String, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, rl) in raw_labels.iter().enumerate() {
+        by_target.entry(rl.to_name.clone()).or_default().push(i);
+    }
+    for (to_name, group) in &by_target {
+        if group.len() < 2 {
+            continue;
+        }
+        let target_box = match node_boxes.get(to_name.as_str()) {
+            Some(b) => b,
+            None => continue,
+        };
+        let anchor_y = target_box.y - 14;
+        let anchor_cx = target_box.x + target_box.w / 2;
+        let n = group.len() as i32;
+        let mut sorted = group.clone();
+        sorted.sort_unstable();
+        let total_width = sorted
+            .iter()
+            .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
+            .sum::<i32>()
+            + (n - 1) * LABEL_FAN_GAP;
+        let mut cursor = -total_width / 2;
+        for &raw_idx in &sorted {
+            let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
+            let center_offset = cursor + label_half_w;
+            let anchor = class_nudge_label_y(
+                anchor_cx + center_offset,
+                anchor_y,
+                label_half_w,
+                node_boxes,
+            );
+            label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
+            cursor += label_half_w * 2 + LABEL_FAN_GAP;
+        }
+    }
+
+    // ── Source-based fan (≥ 2 labelled edges share the same source node) ─────
+    let mut by_source: std::collections::BTreeMap<String, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, rl) in raw_labels.iter().enumerate() {
+        if !label_override.contains_key(&rl.rel_idx) {
+            by_source.entry(rl.from_name.clone()).or_default().push(i);
+        }
+    }
+    for group in by_source.values() {
+        if group.len() < 2 {
+            continue;
+        }
+        let mut sorted = group.clone();
+        sorted.sort_unstable();
+        let count = sorted.len();
+        for (slot, &raw_idx) in sorted.iter().enumerate() {
+            let rl = &raw_labels[raw_idx];
+            let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
+            let dx = rl.x2 - rl.x1;
+            let dy = rl.y2 - rl.y1;
+            let lx = rl.x1 + (dx as f64 * frac) as i32;
+            let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
+            let (lx, ly) = if dy.abs() > dx.abs() {
+                (lx + 14, ly)
+            } else {
+                (lx, ly - 2)
+            };
+            let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
+            let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, node_boxes);
+            label_override.insert(rl.rel_idx, (lx, ly));
+        }
+    }
+
+    // ── Same-y cluster fan (remaining labels in the same horizontal channel) ──
+    let mut y_clusters: Vec<Vec<usize>> = Vec::new();
+    for i in 0..raw_labels.len() {
+        if label_override.contains_key(&raw_labels[i].rel_idx) {
+            continue;
+        }
+        let ly_i = raw_labels[i].ly;
+        let found = y_clusters.iter().position(|cluster| {
+            let rep = cluster
+                .first()
+                .map(|&idx| raw_labels[idx].ly)
+                .unwrap_or(ly_i);
+            (ly_i - rep).abs() <= LABEL_CLUSTER_BAND
+        });
+        match found {
+            Some(ci) => y_clusters[ci].push(i),
+            None => y_clusters.push(vec![i]),
+        }
+    }
+    for cluster in &y_clusters {
+        if cluster.len() < 2 {
+            continue;
+        }
+        let mean_x = cluster.iter().map(|&i| raw_labels[i].lx).sum::<i32>() / cluster.len() as i32;
+        let mut sorted = cluster.clone();
+        sorted.sort_by_key(|&i| raw_labels[i].lx);
+        let n = sorted.len() as i32;
+        let total_width = sorted
+            .iter()
+            .map(|&raw_idx| (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2)
+            .sum::<i32>()
+            + (n - 1) * LABEL_FAN_GAP;
+        let mut cursor = -total_width / 2;
+        for &raw_idx in &sorted {
+            let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
+            let center_offset = cursor + label_half_w;
+            let anchor = class_nudge_label_y(
+                mean_x + center_offset,
+                raw_labels[raw_idx].ly,
+                label_half_w,
+                node_boxes,
+            );
+            label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
+            cursor += label_half_w * 2 + LABEL_FAN_GAP;
+        }
+    }
+
+    label_override
+}
+
 /// Render Class/Object/UseCase documents as a real SVG with boxed nodes
 /// (header + member compartment) laid out in a simple grid, plus arrows
 /// for the document's relations.
@@ -167,18 +1120,6 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     };
     let relation_pair_label_lanes = relation_pair_label_lane_map(document);
 
-    // Compute heights per node
-    #[derive(Clone, Copy)]
-    struct NodeBox {
-        x: i32,
-        y: i32,
-        w: i32,
-        h: i32,
-        header_h: i32,
-    }
-    let mut node_boxes: std::collections::BTreeMap<String, NodeBox> =
-        std::collections::BTreeMap::new();
-
     let title_block_height = document
         .title
         .as_deref()
@@ -214,242 +1155,40 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         })
         .collect();
 
-    // ── Hierarchical graph layout (mirrors Wave 12 / render_box_grid_svg) ────────
-    // Run layout_hierarchical so we can consume edge_paths for orthogonal routing.
-    // The resulting node positions replace the old grid layout.
-    use crate::render::graph_layout::{
-        layout_hierarchical, EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions,
-        NodeSize as GlNodeSize,
-    };
-
-    // Build group membership lookup for parent assignment.
-    let group_frames_for_gl = collect_render_group_frames(&document.groups);
-    let mut node_to_gl_group: std::collections::BTreeMap<String, String> =
-        std::collections::BTreeMap::new();
-    for frame in &group_frames_for_gl {
-        for mid in &frame.member_ids {
-            node_to_gl_group
-                .entry(mid.clone())
-                .or_insert_with(|| frame.scope.clone());
-        }
-    }
-
-    let gl_nodes: Vec<GlNodeSize> = document
-        .nodes
-        .iter()
-        .zip(node_heights.iter())
-        .map(|(node, (_key, h))| {
-            let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-            let parent = node_to_gl_group
-                .get(&key)
-                .or_else(|| node_to_gl_group.get(&node.name))
-                .cloned();
-            GlNodeSize {
-                id: key,
-                width: node_width as f64,
-                height: *h as f64,
-                parent,
-            }
-        })
-        .collect();
-
-    // Build a resolver from unscoped/alias names to the full node ID used in
-    // gl_nodes. Relations reference nodes by their short name (e.g. "Browse") or
-    // alias (e.g. "MP"), but gl_nodes use the scoped key (e.g.
-    // "Online Store::Browse"). Without this, edges never match node IDs and
-    // every node ends up at rank 0 — producing a flat horizontal strip.
-    let mut gl_name_to_id: std::collections::BTreeMap<String, String> =
-        std::collections::BTreeMap::new();
-    for n in &gl_nodes {
-        // Full scoped id always resolves to itself.
-        gl_name_to_id
-            .entry(n.id.clone())
-            .or_insert_with(|| n.id.clone());
-        // Unscoped tail (last "::" component) resolves to the full scoped id.
-        if let Some(tail) = n.id.rsplit("::").next() {
-            gl_name_to_id
-                .entry(tail.to_string())
-                .or_insert_with(|| n.id.clone());
-        }
-    }
-    // Also map alias → scoped id and node.name → scoped id.
-    for node in &document.nodes {
-        if let Some(alias) = &node.alias {
-            let scoped = node.alias.clone().unwrap_or_else(|| node.name.clone());
-            gl_name_to_id
-                .entry(alias.clone())
-                .or_insert_with(|| scoped.clone());
-            gl_name_to_id
-                .entry(node.name.clone())
-                .or_insert_with(|| scoped);
-        }
-    }
-
-    let resolve_gl = |name: &str| -> String {
-        gl_name_to_id
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| name.to_string())
-    };
-
-    // Build EdgeSpec list — IDs must be "r{i}" to match the lookup key below.
-    // Resolve from/to through the name map so scoped node IDs are used and
-    // the rank assignment correctly differentiates nodes within each package.
-    let gl_edges_class: Vec<GlEdgeSpec> = document
-        .relations
-        .iter()
-        .enumerate()
-        .map(|(i, rel)| GlEdgeSpec {
-            id: format!("r{i}"),
-            from: resolve_gl(&rel.from),
-            to: resolve_gl(&rel.to),
-        })
-        .collect();
-
-    let gl_options_class = GlOptions {
-        rank_separation: (row_gap + node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60))
-            as f64,
-        node_separation: col_gap as f64,
-        group_padding: 16.0,
-        direction: crate::render::graph_layout::Direction::TopDown,
-        canvas_margin: (margin_top + title_block_height + group_top_reserve) as f64,
-    };
-
-    let gl_result_class = layout_hierarchical(&gl_nodes, &gl_edges_class, &gl_options_class);
-
-    // ── Populate node_boxes from layout result ────────────────────────────────
-    // Use the hierarchical positions when available; fall back to grid for any
-    // node the layout engine did not place (e.g. disconnected singletons in an
-    // otherwise empty document).
-    let total_nodes = document.nodes.len() as i32;
-    let row_count = if total_nodes == 0 {
-        0
-    } else {
-        (total_nodes + col_count - 1) / col_count
-    };
-
-    // Build grid y-offsets as fallback for nodes missing from layout result.
-    let max_row_height = node_heights.iter().map(|(_, h)| *h).max().unwrap_or(60);
-    let mut fallback_row_y_offsets: Vec<i32> = Vec::new();
-    {
-        let mut y = margin_top + title_block_height + group_top_reserve;
-        for _ in 0..row_count {
-            fallback_row_y_offsets.push(y);
-            y += max_row_height + row_gap;
-        }
-    }
-
-    for (idx, (node, (_key, h))) in document.nodes.iter().zip(node_heights.iter()).enumerate() {
-        let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
-
-        let (nx, ny) = if let Some(&(lx, ly)) = gl_result_class.node_positions.get(&key) {
-            (lx as i32, ly as i32)
-        } else {
-            // Grid fallback
-            let col = (idx as i32) % col_count;
-            let row = (idx as i32) / col_count;
-            let fx = margin_x + col * (node_width + col_gap);
-            let fy = fallback_row_y_offsets
-                .get(row as usize)
-                .copied()
-                .unwrap_or(margin_top + title_block_height);
-            (fx, fy)
-        };
-
-        let nb = NodeBox {
-            x: nx,
-            y: ny,
-            w: node_width,
-            h: *h,
-            header_h: header_height,
-        };
-        node_boxes.insert(key.clone(), nb);
-        // Also register by the alias name when set.
-        if node.alias.is_some() {
-            node_boxes.entry(node.name.clone()).or_insert(nb);
-        }
-        // Register by the unscoped (last "::" component) name so relations that
-        // reference "Browse" can find "Online Store::Browse" (fix for rectangle
-        // group scoping in usecase diagrams).
-        if key.contains("::") {
-            if let Some(unscoped) = key.rsplit("::").next() {
-                node_boxes.entry(unscoped.to_string()).or_insert(nb);
-            }
-        }
-    }
-
+    // ── Hierarchical layout + node_boxes population ─────────────────────────────
+    let (gl_result_class, node_boxes) = class_run_layout(
+        document,
+        &node_heights,
+        node_width,
+        col_count,
+        col_gap,
+        row_gap,
+        margin_x,
+        margin_top,
+        title_block_height,
+        group_top_reserve,
+        header_height,
+    );
     // ── Canvas dimensions from layout result ──────────────────────────────────
-    let nodes_right = node_boxes
-        .values()
-        .map(|b| b.x + b.w)
-        .max()
-        .unwrap_or(margin_x);
-    let nodes_bottom = node_boxes
-        .values()
-        .map(|b| b.y + b.h)
-        .max()
-        .unwrap_or(margin_top + title_block_height);
-    let mut groups_right = margin_x;
-    let mut groups_bottom = margin_top + title_block_height;
-    for group in &group_frames {
-        let mut gx_min = i32::MAX;
-        let mut gy_min = i32::MAX;
-        let mut gx_max = i32::MIN;
-        let mut gy_max = i32::MIN;
-        let mut found_any = false;
-        for member_id in &group.member_ids {
-            if let Some(bx) = node_boxes.get(member_id.as_str()) {
-                gx_min = gx_min.min(bx.x);
-                gy_min = gy_min.min(bx.y);
-                gx_max = gx_max.max(bx.x + bx.w);
-                gy_max = gy_max.max(bx.y + bx.h);
-                found_any = true;
-            }
-        }
-        if !found_any {
-            continue;
-        }
-        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
-        let pad = 16 + depth_outset;
-        let label_header = 40 + depth_outset;
-        let fx = gx_min - pad;
-        let fy = gy_min - pad - label_header;
-        let fw = (gx_max - gx_min) + pad * 2;
-        let fh = (gy_max - gy_min) + pad * 2 + label_header;
-        groups_right = groups_right.max(fx + fw);
-        groups_bottom = groups_bottom.max(fy + fh);
-    }
-
-    // Compute width / height of the SVG; account for JSON projection height.
-    let proj_extra_height: i32 = document.json_projections.iter().fold(0, |acc, proj| {
-        let kv_count = extract_projection_tree_rows(&proj.body, &proj.format).len() as i32;
-        acc + 22 + kv_count * 16 + 8 + 12
-    });
-    // Use the layout engine's canvas size as a floor for both dimensions.
-    let gl_canvas_right = gl_result_class.canvas_width as i32;
-    let gl_canvas_bottom = gl_result_class.canvas_height as i32;
-    // Extra right-margin to ensure edge labels placed to the right of the rightmost
-    // node are not clipped at the canvas boundary (#521). Use the longest label
-    // half-width as an additional right pad.
-    let max_label_half_w = document
-        .relations
-        .iter()
-        .map(|rel| {
-            rel.label
-                .as_ref()
-                .map(|l| ((l.chars().count() as i32) * 6 / 2).max(18))
-                .unwrap_or(0)
-        })
-        .max()
-        .unwrap_or(0);
-    let label_right_pad = max_label_half_w + margin_x;
-    let svg_width = (margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap)
-        .max(gl_canvas_right + margin_x)
-        .max(nodes_right + label_right_pad)
-        .max(groups_right + margin_x);
-    let svg_height =
-        (nodes_bottom.max(groups_bottom) + 40 + proj_extra_height).max(gl_canvas_bottom + 40);
-
+    let canvas = class_compute_canvas(
+        &node_boxes,
+        &group_frames,
+        max_group_depth,
+        &document.json_projections,
+        &document.relations,
+        gl_result_class.canvas_width,
+        gl_result_class.canvas_height,
+        margin_x,
+        margin_top,
+        title_block_height,
+        col_count,
+        node_width,
+        col_gap,
+    );
+    let svg_width = canvas.svg_width;
+    let svg_height = canvas.svg_height;
+    let nodes_bottom = canvas.nodes_bottom;
+    // gl_canvas_right / gl_canvas_bottom consumed by class_compute_canvas
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
@@ -512,273 +1251,17 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     }
 
     // ── Label de-collision pre-pass ───────────────────────────────────────────
-    // Multiple edges arriving at the same target produce labels that cluster.
-    // Two scenarios:
-    //   1. Same-y cluster: edges share the same horizontal routing channel →
-    //      labels land at the same y.  Fan horizontally.
-    //   2. Same-target cluster: 3+ differently-ranked edges converge on a single
-    //      node (e.g. Theme/Diag/Normalizer → Renderer) → labels near the top
-    //      edge of the target box pile up.  Place them at the target's top-left
-    //      corner staggered with LABEL_FAN_GAP px between them.
-    //
-    // Strategy: build two cluster types, de-collide, populate label_override.
-    const LABEL_FAN_GAP: i32 = 24; // minimum gutter between fanned label boxes
-    const LABEL_CLUSTER_BAND: i32 = 18; // px y-range to detect same-channel clusters
+    // Delegate to helper: fans labels that cluster on the same target node or
+    // share the same horizontal y-band so they don't overlap (#706, #749).
+    let label_override = class_build_label_overrides(
+        &document.relations,
+        &node_boxes,
+        &gl_result_class.edge_paths,
+    );
 
-    // Map rel_idx → de-collided (lx, ly)
-    let mut label_override: std::collections::BTreeMap<usize, (i32, i32)> =
-        std::collections::BTreeMap::new();
-    let avoid_node_box_overlap = |lx: i32, ly: i32, label_half_w: i32| -> (i32, i32) {
-        let mut adjusted_y = ly;
-        for _ in 0..8 {
-            let overlap = node_boxes.values().find(|bbox| {
-                lx + label_half_w >= bbox.x - 8
-                    && lx - label_half_w <= bbox.x + bbox.w + 8
-                    && adjusted_y >= bbox.y - 14
-                    && adjusted_y <= bbox.y + bbox.h + 6
-            });
-            match overlap {
-                Some(bbox) => adjusted_y = bbox.y - 18,
-                None => break,
-            }
-        }
-        (lx, adjusted_y)
-    };
-
-    {
-        struct RawLabel {
-            rel_idx: usize,
-            from_name: String,
-            to_name: String,
-            text: String,
-            lx: i32,
-            ly: i32,
-            /// Endpoint coords for fractional label placement along edge
-            x1: i32,
-            y1: i32,
-            x2: i32,
-            y2: i32,
-        }
-        let mut raw_labels: Vec<RawLabel> = Vec::new();
-
-        for (rel_idx, relation) in document.relations.iter().enumerate() {
-            let label_text = relation.label.as_deref().or(relation.stereotype.as_deref());
-            if label_text.is_none() {
-                continue;
-            }
-            let (from_name, to_name, _arrow) =
-                normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
-            let from = match node_boxes.get(&from_name) {
-                Some(b) => b,
-                None => continue,
-            };
-            let to = match node_boxes.get(&to_name) {
-                Some(b) => b,
-                None => continue,
-            };
-            let (x1, y1, x2, y2) = if relation.direction.is_some() {
-                compute_edge_anchors_for_direction(
-                    (from.x, from.y, from.w, from.h),
-                    (to.x, to.y, to.w, to.h),
-                    relation.direction.as_deref(),
-                )
-            } else {
-                pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
-            };
-            let ortho_pts: Option<Vec<(i32, i32)>> =
-                if relation.direction.is_none() && !relation.hidden {
-                    gl_result_class
-                        .edge_paths
-                        .get(&format!("r{rel_idx}"))
-                        .filter(|p| p.len() >= 2)
-                        .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
-                } else {
-                    None
-                };
-            let (lx, ly) = if let Some(ref pts) = ortho_pts {
-                let longest_horiz = pts
-                    .windows(2)
-                    .filter(|seg| seg[0].1 == seg[1].1)
-                    .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
-                match longest_horiz {
-                    Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                    None => {
-                        let longest_seg = pts.windows(2).max_by_key(|seg| {
-                            let (ax, ay) = seg[0];
-                            let (bx, by_) = seg[1];
-                            (bx - ax).pow(2) + (by_ - ay).pow(2)
-                        });
-                        match longest_seg {
-                            Some(seg) => {
-                                ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
-                            }
-                            None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-                        }
-                    }
-                }
-            } else {
-                ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-            };
-            raw_labels.push(RawLabel {
-                rel_idx,
-                from_name,
-                to_name,
-                text: label_text.unwrap_or_default().to_string(),
-                lx,
-                ly,
-                x1,
-                y1,
-                x2,
-                y2,
-            });
-        }
-
-        // Group labelled edges by their resolved target node name.
-        // When ≥ 2 edges share a target, place labels above the target's top
-        // edge in a horizontal row fanned by LABEL_FAN_GAP px.
-        let mut by_target: std::collections::BTreeMap<String, Vec<usize>> =
-            std::collections::BTreeMap::new();
-        for (i, rl) in raw_labels.iter().enumerate() {
-            by_target.entry(rl.to_name.clone()).or_default().push(i);
-        }
-        for (to_name, group) in &by_target {
-            if group.len() < 2 {
-                continue;
-            }
-            let target_box = match node_boxes.get(to_name.as_str()) {
-                Some(b) => b,
-                None => continue,
-            };
-            // Anchor: 14px above target top, centred on target box.
-            let anchor_y = target_box.y - 14;
-            let anchor_cx = target_box.x + target_box.w / 2;
-            let n = group.len() as i32;
-            // Sort by raw_label index (declaration order) for determinism.
-            let mut sorted = group.clone();
-            sorted.sort_unstable();
-            let total_width = sorted
-                .iter()
-                .map(|&raw_idx| {
-                    (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2
-                })
-                .sum::<i32>()
-                + (n - 1) * LABEL_FAN_GAP;
-            let mut cursor = -total_width / 2;
-            for &raw_idx in &sorted {
-                let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
-                let center_offset = cursor + label_half_w;
-                let anchor =
-                    avoid_node_box_overlap(anchor_cx + center_offset, anchor_y, label_half_w);
-                label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
-                cursor += label_half_w * 2 + LABEL_FAN_GAP;
-            }
-        }
-
-        // Source-based fan: when ≥ 2 labelled edges share the same source node
-        // (fan-out pattern such as API Gateway → 3 services) their labels pile up
-        // near the source port even though the targets differ (#706, #749).
-        // Place each label at a staggered fraction along its own edge so labels
-        // spread out along the respective arrows rather than stacking at one point.
-        // Fraction for edge i (0-indexed) of count n: f = 0.3 + (i / n) * 0.4
-        // giving a spread from 30% to 70% of the edge length.
-        let mut by_source: std::collections::BTreeMap<String, Vec<usize>> =
-            std::collections::BTreeMap::new();
-        for (i, rl) in raw_labels.iter().enumerate() {
-            // Only consider edges not already handled by the target-based fan.
-            if !label_override.contains_key(&rl.rel_idx) {
-                by_source.entry(rl.from_name.clone()).or_default().push(i);
-            }
-        }
-        for group in by_source.values() {
-            if group.len() < 2 {
-                continue;
-            }
-            // Sort by raw_label index for determinism.
-            let mut sorted = group.clone();
-            sorted.sort_unstable();
-            let count = sorted.len();
-            for (slot, &raw_idx) in sorted.iter().enumerate() {
-                let rl = &raw_labels[raw_idx];
-                // Fractional position along the straight-line edge: 0.3 to 0.7
-                let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
-                let dx = rl.x2 - rl.x1;
-                let dy = rl.y2 - rl.y1;
-                let lx = rl.x1 + (dx as f64 * frac) as i32;
-                // Nudge vertically above the line
-                let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
-                // Side-nudge so label doesn't sit directly on the arrow shaft:
-                // for vertical-dominant edges push right, for horizontal push up.
-                let (lx, ly) = if dy.abs() > dx.abs() {
-                    (lx + 14, ly)
-                } else {
-                    (lx, ly - 2)
-                };
-                let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
-                let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
-                label_override.insert(rl.rel_idx, (lx, ly));
-            }
-        }
-
-        // Additionally, cluster any remaining labels that are within
-        // LABEL_CLUSTER_BAND px in y (same horizontal channel) and not yet
-        // covered by the target-based fan.
-        let mut y_clusters: Vec<Vec<usize>> = Vec::new();
-        for i in 0..raw_labels.len() {
-            // Skip labels already handled by the target-based fan.
-            if label_override.contains_key(&raw_labels[i].rel_idx) {
-                continue;
-            }
-            let ly_i = raw_labels[i].ly;
-            let found = y_clusters.iter().position(|cluster| {
-                // cluster is always non-empty: it is seeded as vec![i] below.
-                let rep = cluster
-                    .first()
-                    .map(|&idx| raw_labels[idx].ly)
-                    .unwrap_or(ly_i);
-                (ly_i - rep).abs() <= LABEL_CLUSTER_BAND
-            });
-            match found {
-                Some(ci) => y_clusters[ci].push(i),
-                None => y_clusters.push(vec![i]),
-            }
-        }
-        for cluster in &y_clusters {
-            if cluster.len() < 2 {
-                continue;
-            }
-            let mean_x =
-                cluster.iter().map(|&i| raw_labels[i].lx).sum::<i32>() / cluster.len() as i32;
-            let mut sorted = cluster.clone();
-            sorted.sort_by_key(|&i| raw_labels[i].lx);
-            let n = sorted.len() as i32;
-            let total_width = sorted
-                .iter()
-                .map(|&raw_idx| {
-                    (((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18)) * 2
-                })
-                .sum::<i32>()
-                + (n - 1) * LABEL_FAN_GAP;
-            let mut cursor = -total_width / 2;
-            for &raw_idx in &sorted {
-                let label_half_w = ((raw_labels[raw_idx].text.chars().count() as i32) * 3).max(18);
-                let center_offset = cursor + label_half_w;
-                let anchor = avoid_node_box_overlap(
-                    mean_x + center_offset,
-                    raw_labels[raw_idx].ly,
-                    label_half_w,
-                );
-                label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
-                cursor += label_half_w * 2 + LABEL_FAN_GAP;
-            }
-        }
-    }
-
-    // Build a lateral-offset map for parallel edges (same unordered node pair).
-    // When multiple relations share the same from/to nodes, offset each by
-    // PARALLEL_EDGE_GAP * lane_index px perpendicular to the edge direction so
-    // they don't render on top of each other (#464, #471).
+    // Build lateral-offset map for parallel edges and render all relations.
+    // Delegate to helper to keep this orchestrator function concise.
     const PARALLEL_EDGE_GAP: i32 = 12;
-    // Map (canonical_from, canonical_to) → list of rel_idx in declaration order
     let mut parallel_groups: std::collections::BTreeMap<(String, String), Vec<usize>> =
         std::collections::BTreeMap::new();
     for (i, rel) in document.relations.iter().enumerate() {
@@ -786,7 +1269,6 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         let key = if fn_ <= tn_ { (fn_, tn_) } else { (tn_, fn_) };
         parallel_groups.entry(key).or_default().push(i);
     }
-    // rel_idx → signed lateral offset (px). Lane 0 gets 0, lane 1 gets +GAP, lane 2 gets −GAP, …
     let mut parallel_offset: std::collections::BTreeMap<usize, i32> =
         std::collections::BTreeMap::new();
     for group in parallel_groups.values() {
@@ -795,498 +1277,31 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         }
         let n = group.len() as i32;
         for (slot, &idx) in group.iter().enumerate() {
-            // Centre the fan: offsets are -floor(n/2)*GAP … +floor(n/2)*GAP
             let lane = slot as i32 - n / 2;
             parallel_offset.insert(idx, lane * PARALLEL_EDGE_GAP);
         }
     }
+    render_class_relations(
+        &mut out,
+        &ClassRelationCtx {
+            relations: &document.relations,
+            nodes: &document.nodes,
+            node_boxes: &node_boxes,
+            edge_paths: &gl_result_class.edge_paths,
+            label_override: &label_override,
+            parallel_offset: &parallel_offset,
+            relation_pair_label_lanes: &relation_pair_label_lanes,
+            class_style: &class_style,
+            arrow_stroke: arrow_stroke.as_str(),
+            margin_x,
+            margin_top,
+            svg_width,
+        },
+    );
 
-    // Render relations first so node rectangles cover endpoints
-    for (rel_idx, relation) in document.relations.iter().enumerate() {
-        let (from_name, to_name, normalized_arrow) =
-            normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
-        let from = node_boxes.get(&from_name);
-        let to = node_boxes.get(&to_name);
-        let (Some(from), Some(to)) = (from, to) else {
-            continue;
-        };
-        let mut style = arrow_style(&normalized_arrow);
-        let usecase_dependency = usecase_dependency_label(relation.label.as_deref())
-            .or_else(|| usecase_dependency_label(relation.stereotype.as_deref()));
-        if usecase_dependency.is_some() {
-            style.dashed = true;
-            if style.end_marker.is_none() {
-                style.end_marker = Some("arrow-open");
-            }
-        }
-        let (x1, y1, x2, y2) = if relation.direction.is_some() {
-            compute_edge_anchors_for_direction(
-                (from.x, from.y, from.w, from.h),
-                (to.x, to.y, to.w, to.h),
-                relation.direction.as_deref(),
-            )
-        } else {
-            // Port-based anchoring: attach to mid-point of the nearest box edge
-            // (left/right for horizontal-dominant, top/bottom for vertical-dominant).
-            // Part of the layout engine refactor (#591, #590 epic).
-            pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
-        };
-
-        // Lateral offset for parallel edges (#464, #471): shift perpendicular to
-        // the primary edge direction so overlapping edges fan apart visually.
-        let lat_offset = parallel_offset.get(&rel_idx).copied().unwrap_or(0);
-        // For a mostly-vertical edge the perpendicular direction is horizontal.
-        let edge_dx_raw = x2 - x1;
-        let edge_dy_raw = y2 - y1;
-        let (off_x, off_y) = if edge_dx_raw.abs() >= edge_dy_raw.abs() {
-            // Mostly horizontal → offset vertically
-            (0, lat_offset)
-        } else {
-            // Mostly vertical → offset horizontally
-            (lat_offset, 0)
-        };
-        let (x1, y1, x2, y2) = (x1 + off_x, y1 + off_y, x2 + off_x, y2 + off_y);
-        let relation_color = relation
-            .line_color
-            .as_deref()
-            .unwrap_or(arrow_stroke.as_str());
-        let stroke_width = relation.thickness.unwrap_or(2).clamp(1, 8);
-        let stroke_dash = if style.dashed || relation.dashed {
-            " stroke-dasharray=\"5 3\""
-        } else {
-            ""
-        };
-        let visibility = if relation.hidden {
-            " visibility=\"hidden\""
-        } else {
-            ""
-        };
-        let mut markers = String::new();
-        if let Some(end) = style.end_marker {
-            markers.push_str(&format!(" marker-end=\"url(#{end})\""));
-        }
-        if let Some(start) = style.start_marker {
-            markers.push_str(&format!(" marker-start=\"url(#{start})\""));
-        }
-        let direction_attr = relation
-            .direction
-            .as_deref()
-            .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
-            .unwrap_or_default();
-
-        // ── Edge routing: prefer orthogonal polyline from graph_layout ────────
-        // Edge IDs are "r{rel_idx}" matching gl_edges_class construction above.
-        // Fall back to a straight <line> when no pre-computed path is available
-        // (explicit direction override, hidden, or layout produced no path).
-        //
-        // Endpoint snapping: graph_layout computes port positions from its own
-        // node positions (which may differ slightly from the SVG node_boxes due
-        // to integer rounding, width/height mismatch, or the lateral parallel
-        // offset applied to pick_port anchors).  To guarantee clean attachment
-        // to the actual rendered node edges, we REPLACE the first and last
-        // waypoint of the graph_layout path with the actual bottom-center /
-        // top-center ports derived from node_boxes.  The intermediate waypoints
-        // (channel y values) from graph_layout determine the routing shape.
-        //
-        // Direction: graph_layout routes downward edges from bottom-center of
-        // source to top-center of target (goes_down = src_rank < tgt_rank).
-        // We use the graph_layout path's y-coordinates to determine direction.
-        let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
-        {
-            gl_result_class
-                .edge_paths
-                .get(&format!("r{rel_idx}"))
-                .filter(|p| p.len() >= 2)
-                .map(|p| {
-                    let mut pts: Vec<(i32, i32)> =
-                        p.iter().map(|&(px, py)| (px as i32, py as i32)).collect();
-                    // Snap the first waypoint to the actual from-box port.
-                    // Determine direction from graph_layout path: if first y <
-                    // last y, the edge goes downward (from bottom to top port).
-                    if pts.len() >= 2 {
-                        let goes_down = pts.first().map(|p| p.1).unwrap_or(0)
-                            < pts.last().map(|p| p.1).unwrap_or(0);
-                        // Snap endpoints to actual node_box port centers.
-                        let src_port = if goes_down {
-                            // bottom-center of from_box
-                            (from.x + from.w / 2, from.y + from.h)
-                        } else {
-                            // top-center of from_box
-                            (from.x + from.w / 2, from.y)
-                        };
-                        let tgt_port = if goes_down {
-                            // top-center of to_box
-                            (to.x + to.w / 2, to.y)
-                        } else {
-                            // bottom-center of to_box
-                            (to.x + to.w / 2, to.y + to.h)
-                        };
-                        // Replace first and last waypoints.
-                        if let Some(first) = pts.first_mut() {
-                            *first = src_port;
-                        }
-                        if let Some(last) = pts.last_mut() {
-                            *last = tgt_port;
-                        }
-                        // Fix up the adjacent intermediate waypoints so the path
-                        // remains orthogonal after endpoint snapping:
-                        // - point[1].x should equal point[0].x (same vertical)
-                        // - point[n-2].x should equal point[n-1].x (same vertical)
-                        if pts.len() >= 3 {
-                            let src_x = pts[0].0;
-                            pts[1].0 = src_x;
-                            let tgt_x = pts[pts.len() - 1].0;
-                            let n = pts.len();
-                            pts[n - 2].0 = tgt_x;
-                        }
-                    }
-                    pts
-                })
-        } else {
-            None
-        };
-
-        // Label midpoint — computed in each branch below.
-        let (label_mx, label_my);
-
-        if let Some(ref pts) = ortho_pts {
-            // Orthogonal polyline from the layout engine.
-            let pts_str: String = pts
-                .iter()
-                .map(|(px, py)| format!("{px},{py}"))
-                .collect::<Vec<_>>()
-                .join(" ");
-            out.push_str(&format!(
-                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
-                escape_text(&from_name),
-                escape_text(&to_name),
-                escape_text(&normalized_arrow),
-                pts_str,
-                relation_color, stroke_width,
-                stroke_dash, visibility, direction_attr, markers
-            ));
-            // Label at midpoint of longest horizontal segment; fall back to
-            // the longest segment overall when no horizontal segment exists.
-            // The longest-segment midpoint is used for dependency labels
-            // (<<extend>>/<<include>>) so their de-collision spacing is preserved.
-            // For regular edge labels we use the overall endpoint midpoint to avoid
-            // the equal-length segment ambiguity (max_by_key picks last when tied)
-            // that placed labels near the arrowhead on straight vertical paths (fix #428).
-            let longest_horiz = pts
-                .windows(2)
-                .filter(|seg| seg[0].1 == seg[1].1)
-                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
-            let (lmx, lmy) = match longest_horiz {
-                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                None => {
-                    let longest_seg = pts.windows(2).max_by_key(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    });
-                    match longest_seg {
-                        Some(seg) => ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12),
-                        None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-                    }
-                }
-            };
-            label_mx = lmx;
-            label_my = lmy;
-        } else {
-            // Straight line fallback.
-            out.push_str(&format!(
-                "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
-                escape_text(&relation.from),
-                escape_text(&relation.to),
-                dash = stroke_dash
-            ));
-            label_mx = (x1 + x2) / 2;
-            label_my = (y1 + y2) / 2 - 12;
-        }
-        let edge_dx = x2 - x1;
-        let edge_dy = y2 - y1;
-
-        // Anchor points for cardinality / role labels (always from port anchors).
-        if relation.left_lollipop {
-            render_lollipop_endpoint(&mut out, x1, y1, relation_color);
-        }
-        if relation.right_lollipop {
-            render_lollipop_endpoint(&mut out, x2, y2, relation_color);
-        }
-        if let Some(left) = &relation.left_cardinality {
-            out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
-                x = x1 - 4,
-                y = y1 - 6,
-                member_color = class_style.member_color,
-                txt = escape_text(left)
-            ));
-        }
-        if let Some(right) = &relation.right_cardinality {
-            out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
-                x = x2 + 4,
-                y = y2 - 6,
-                member_color = class_style.member_color,
-                txt = escape_text(right)
-            ));
-        }
-        if let Some(left_role) = &relation.left_role {
-            out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
-                x = x1 - 4,
-                y = y1 + 12,
-                member_color = class_style.member_color,
-                txt = escape_text(left_role)
-            ));
-        }
-        if let Some(right_role) = &relation.right_role {
-            out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
-                x = x2 + 4,
-                y = y2 + 12,
-                member_color = class_style.member_color,
-                txt = escape_text(right_role)
-            ));
-        }
-        let pair_label_lane = relation_pair_label_lanes
-            .get(&rel_idx)
-            .copied()
-            .unwrap_or(0);
-        let from_is_class = document
-            .nodes
-            .iter()
-            .find(|node| node.name == from_name)
-            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
-        let to_is_class = document
-            .nodes
-            .iter()
-            .find(|node| node.name == to_name)
-            .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
-        let prefer_side_clearance = pair_label_lane != 0 || (from_is_class && to_is_class);
-        if let Some(stereotype) = &relation.stereotype {
-            if usecase_dependency.is_none() {
-                let (sx, base_sy) = label_override
-                    .get(&rel_idx)
-                    .copied()
-                    .unwrap_or((label_mx, label_my));
-                let sy = base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
-                out.push_str(&format!(
-                    "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
-                    member_color = class_style.member_color,
-                    txt = escape_text(stereotype)
-                ));
-            }
-        }
-        // UseCase dependency labels (<<extend>>, <<include>>) use the same
-        // de-collision pre-pass as other relation labels so shared channels do
-        // not stack labels on top of each other (#575, #482).
-        if let Some(label) = usecase_dependency {
-            let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
-                (ox, oy)
-            } else if ortho_pts.is_some() {
-                // Same perpendicular nudge as for regular edge labels so dependency
-                // labels (<<extend>>, <<include>>) don't sit on the arrow shaft.
-                if edge_dy.abs() > edge_dx.abs() {
-                    (label_mx + 14, label_my)
-                } else {
-                    (label_mx, label_my - 14)
-                }
-            } else {
-                let dx = x2 - x1;
-                let dy = y2 - y1;
-                let dx_abs = dx.abs();
-                let dy_abs = dy.abs();
-                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
-                if edge_len <= 2 {
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-                } else {
-                    let clearance = 30i32;
-                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
-                    let raw_x = x1 + dx * t_num / edge_len;
-                    let raw_y = y1 + dy * t_num / edge_len;
-                    if dy_abs > dx_abs {
-                        (raw_x + 14, raw_y - 6)
-                    } else {
-                        (raw_x, raw_y - 14)
-                    }
-                }
-            };
-            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
-            let corridor_left = from.x.max(to.x);
-            let corridor_right = (from.x + from.w).min(to.x + to.w);
-            let lx = if prefer_side_clearance
-                && edge_dy.abs() > edge_dx.abs()
-                && corridor_left < corridor_right
-                && lx > corridor_left - 8 - label_half_w
-                && lx < corridor_right + 8 + label_half_w
-            {
-                if x2 >= x1 {
-                    corridor_right + 8 + label_half_w
-                } else {
-                    corridor_left - 8 - label_half_w
-                }
-            } else {
-                lx
-            };
-            let lx = lx.clamp(
-                margin_x + 8 + label_half_w,
-                svg_width - margin_x - 8 - label_half_w,
-            );
-            let ly = (ly + pair_label_lane).max(margin_top + 10);
-            let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
-            out.push_str(&relation_label_svg(
-                lx,
-                ly,
-                label,
-                11,
-                &class_style.member_color,
-            ));
-        } else if let Some(label) = relation.label.as_deref() {
-            // Use de-collided position from the pre-pass when available.
-            let (lx, ly) = if let Some(&(ox, oy)) = label_override.get(&rel_idx) {
-                (ox, oy)
-            } else if let Some(ref pts) = ortho_pts {
-                // For collinear paths (no horizontal segment, e.g. a straight vertical
-                // edge with a layout-engine waypoint), use the overall endpoint midpoint
-                // without any perpendicular nudge — the label belongs centered on the
-                // shaft, not offset to the side (fix #428).
-                // For true L/Z-shaped paths with a horizontal segment, nudge the label
-                // off the arrow shaft: vertical-dominant shifts right 14px, horizontal-
-                // dominant shifts up 14px.
-                let has_horiz = pts.windows(2).any(|seg| seg[0].1 == seg[1].1);
-                if !has_horiz {
-                    // Collinear (straight-through) path: center on shaft.
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-                } else if edge_dy.abs() > edge_dx.abs() {
-                    (label_mx + 14, label_my)
-                } else {
-                    (label_mx, label_my - 14)
-                }
-            } else {
-                let dx = x2 - x1;
-                let dy = y2 - y1;
-                let dx_abs = dx.abs();
-                let dy_abs = dy.abs();
-                let edge_len = ((dx_abs * dx_abs + dy_abs * dy_abs) as f64).sqrt() as i32;
-                if edge_len <= 2 {
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-                } else {
-                    let clearance = 30i32;
-                    let t_num = (edge_len * 2 / 5).max(clearance).min(edge_len - clearance);
-                    let raw_x = x1 + dx * t_num / edge_len;
-                    let raw_y = y1 + dy * t_num / edge_len;
-                    if dy_abs > dx_abs {
-                        (raw_x + 14, raw_y - 6)
-                    } else {
-                        (raw_x, raw_y - 14)
-                    }
-                }
-            };
-            let label_half_w = ((label.chars().count() as i32) * 3).max(18);
-            let corridor_left = from.x.max(to.x);
-            let corridor_right = (from.x + from.w).min(to.x + to.w);
-            let lx = if prefer_side_clearance
-                && edge_dy.abs() > edge_dx.abs()
-                && corridor_left < corridor_right
-                && lx > corridor_left - 8 - label_half_w
-                && lx < corridor_right + 8 + label_half_w
-            {
-                if x2 >= x1 {
-                    corridor_right + 8 + label_half_w
-                } else {
-                    corridor_left - 8 - label_half_w
-                }
-            } else {
-                lx
-            };
-            let lx = lx.clamp(
-                margin_x + 8 + label_half_w,
-                svg_width - margin_x - 8 - label_half_w,
-            );
-            let ly = (ly + pair_label_lane).max(margin_top + 10);
-            let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
-            out.push_str(&relation_label_svg(
-                lx,
-                ly,
-                label,
-                11,
-                &class_style.member_color,
-            ));
-        }
-    }
-
-    // Render groups (together/package/namespace) as labeled frames BEFORE nodes
-    // so node rectangles visually sit on top of the frame borders.
-    for group in &group_frames {
-        // Compute bounding box around all member nodes in this group
-        let mut gx_min = i32::MAX;
-        let mut gy_min = i32::MAX;
-        let mut gx_max = i32::MIN;
-        let mut gy_max = i32::MIN;
-        let mut found_any = false;
-        for member_id in &group.member_ids {
-            if let Some(bx) = node_boxes.get(member_id.as_str()) {
-                gx_min = gx_min.min(bx.x);
-                gy_min = gy_min.min(bx.y);
-                gx_max = gx_max.max(bx.x + bx.w);
-                gy_max = gy_max.max(bx.y + bx.h);
-                found_any = true;
-            }
-        }
-        if !found_any {
-            continue;
-        }
-        // Add padding around the member bounding box
-        let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
-        let pad = 20 + depth_outset;
-        let tab_h = 24;
-        let label_header = tab_h + 28 + depth_outset; // keep package tab/header text above enclosed nodes in nested frames (#570)
-        let fx = gx_min - pad;
-        let fy = gy_min - pad - label_header;
-        let fw = (gx_max - gx_min) + pad * 2;
-        let fh = (gy_max - gy_min) + pad * 2 + label_header;
-
-        let group_label = group.display_label();
-
-        let uses_tab_header = matches!(group.kind.as_str(), "rectangle" | "package");
-
-        // Frame rectangle
-        out.push_str(&format!(
-            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
-            escape_text(&group.scope)
-        ));
-        if uses_tab_header {
-            let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
-            out.push_str(&format!(
-                "<rect x=\"{fx}\" y=\"{fy}\" width=\"{tab_w}\" height=\"{tab_h}\" rx=\"6\" ry=\"6\" fill=\"#ffffff\" stroke=\"#6366f1\" stroke-width=\"1.5\"/>"
-            ));
-            out.push_str(&format!(
-                "<rect x=\"{fx}\" y=\"{}\" width=\"{tab_w}\" height=\"8\" fill=\"#ffffff\" stroke=\"none\"/>",
-                fy + tab_h - 8
-            ));
-            out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
-                tx = fx + 8,
-                ty = fy + 16,
-                label = escape_text(&group_label)
-            ));
-            out.push_str(&format!(
-                "<line x1=\"{fx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#6366f1\" stroke-width=\"1\"/>",
-                fy + tab_h,
-                fx + fw,
-                fy + tab_h
-            ));
-        } else {
-            // Group label text
-            out.push_str(&format!(
-                "<text x=\"{tx}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#4338ca\">{label}</text>",
-                tx = fx + 8,
-                ty = fy + 14,
-                label = escape_text(&group_label)
-            ));
-        }
-    }
+    // Render group frames (together/package/namespace) BEFORE nodes so node
+    // rectangles visually sit on top of the frame borders.
+    render_class_group_frames(&mut out, &group_frames, max_group_depth, &node_boxes);
 
     // Render nodes
     for node in &document.nodes {
@@ -2872,6 +2887,655 @@ fn c4_sublabel(out: &mut String, cx: i32, y: i32, node: &crate::model::FamilyNod
     }
 }
 
+/// Per-relation label gathered during edge rendering, de-collided in Phase 3.
+struct BoxGridPendingLabel {
+    x: i32,
+    y: i32,
+    text: String,
+    color: String,
+    from_name: String,
+    to_name: String,
+}
+
+/// Render all edges (Phase 2) and de-collide their labels (Phase 3) for
+/// `render_box_grid_svg` (component and deployment diagrams).
+///
+/// Uses the hierarchical orthogonal paths from the layout engine when available,
+/// falling back to an L/Z-shape collision-avoidance router.  Labels are
+/// gathered into a pending list and de-collided before emission.
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)] // pkg_frame_boxes pairs a rect tuple with its member names; a named struct would be overkill for an internal helper
+fn render_box_grid_relations_and_labels(
+    out: &mut String,
+    doc: &FamilyDocument,
+    family: &str,
+    positions: &std::collections::BTreeMap<String, (i32, i32, i32, i32)>,
+    interface_nodes: &std::collections::BTreeSet<String>,
+    all_boxes: &[(i32, i32, i32, i32)],
+    pkg_frame_boxes: &[((i32, i32, i32, i32), &[String])],
+    edge_paths: &std::collections::BTreeMap<String, Vec<(f64, f64)>>,
+    comp_style: &ComponentStyle,
+) {
+    use super::geometry::{compute_edge_anchors_for_direction, pick_port};
+    use super::relation::{
+        arrow_style, normalize_relation_endpoints, render_lollipop_endpoint,
+        render_relation_marker_defs_with_prefix, usecase_dependency_label,
+    };
+
+    let mut pending_labels: Vec<BoxGridPendingLabel> = Vec::new();
+
+    // Helper: adjust port anchor for interface circle nodes.
+    let adjust_interface_anchor =
+        |node_box: (i32, i32, i32, i32), other_box: (i32, i32, i32, i32)| {
+            const INTERFACE_RADIUS: i32 = 18;
+            let (nx, ny, nw, nh) = node_box;
+            let (ox, oy, ow, oh) = other_box;
+            let cx = nx + nw / 2;
+            let cy = ny + nh / 2;
+            let other_cx = ox + ow / 2;
+            let other_cy = oy + oh / 2;
+            let dx = other_cx - cx;
+            let dy = other_cy - cy;
+            if dx.abs() >= dy.abs() {
+                (
+                    cx + if dx >= 0 {
+                        INTERFACE_RADIUS
+                    } else {
+                        -INTERFACE_RADIUS
+                    },
+                    cy,
+                )
+            } else {
+                (
+                    cx,
+                    cy + if dy >= 0 {
+                        INTERFACE_RADIUS
+                    } else {
+                        -INTERFACE_RADIUS
+                    },
+                )
+            }
+        };
+
+    // ── Phase 2: Draw relations ──────────────────────────────────────────────
+    for (rel_idx, rel) in doc.relations.iter().enumerate() {
+        let (from_name, to_name, normalized_arrow) =
+            normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
+        let from_box = positions.get(&from_name);
+        let to_box = positions.get(&to_name);
+        let (Some(&(fx, fy, fw, fh)), Some(&(tx, ty, tw, th))) = (from_box, to_box) else {
+            continue;
+        };
+        let (mut x1, mut y1, mut x2, mut y2) = if rel.direction.is_some() {
+            compute_edge_anchors_for_direction(
+                (fx, fy, fw, fh),
+                (tx, ty, tw, th),
+                rel.direction.as_deref(),
+            )
+        } else {
+            pick_port((fx, fy, fw, fh), (tx, ty, tw, th))
+        };
+        if family == "component" {
+            if interface_nodes.contains(&from_name) {
+                (x1, y1) = adjust_interface_anchor((fx, fy, fw, fh), (tx, ty, tw, th));
+            }
+            if interface_nodes.contains(&to_name) {
+                (x2, y2) = adjust_interface_anchor((tx, ty, tw, th), (fx, fy, fw, fh));
+            }
+        }
+
+        let style = arrow_style(&normalized_arrow);
+        let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
+        let marker_prefix = if rel.line_color.is_some() && relation_color != comp_style.arrow_color
+        {
+            let prefix = format!("uml-rel-{rel_idx}-");
+            render_relation_marker_defs_with_prefix(out, relation_color, &prefix);
+            prefix
+        } else {
+            String::new()
+        };
+        let stroke_width = rel.thickness.unwrap_or(2).clamp(1, 8);
+        let dash_attr = if style.dashed || rel.dashed {
+            " stroke-dasharray=\"5 3\""
+        } else {
+            ""
+        };
+        let visibility_attr = if rel.hidden {
+            " visibility=\"hidden\""
+        } else {
+            ""
+        };
+        let mut markers = String::new();
+        if let Some(end) = style.end_marker {
+            markers.push_str(&format!(" marker-end=\"url(#{marker_prefix}{end})\""));
+        }
+        if let Some(start) = style.start_marker {
+            markers.push_str(&format!(" marker-start=\"url(#{marker_prefix}{start})\""));
+        }
+        let direction_attr = rel
+            .direction
+            .as_deref()
+            .map(|d| format!(" data-uml-direction=\"{}\"", escape_text(d)))
+            .unwrap_or_default();
+        let style_attr = {
+            let mut tokens: Vec<String> = Vec::new();
+            if rel.line_color.is_some() {
+                tokens.push(format!("color:{relation_color}"));
+            }
+            if style.dashed || rel.dashed {
+                tokens.push("dashed".to_string());
+            }
+            if rel.hidden {
+                tokens.push("hidden".to_string());
+            }
+            if rel.thickness.is_some() {
+                tokens.push(format!("thickness:{stroke_width}"));
+            }
+            if tokens.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " data-uml-relation-style=\"{}\"",
+                    escape_text(&tokens.join(" "))
+                )
+            }
+        };
+
+        let label_color = "#1e293b";
+        let (label_mx, label_my);
+
+        // Prefer orthogonal path from layout engine; fall back to L/Z router.
+        let ortho_path: Option<Vec<(i32, i32)>> = if rel.direction.is_none() && !rel.hidden {
+            edge_paths
+                .get(&format!("r{rel_idx}"))
+                .filter(|p| p.len() >= 2)
+                .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
+        } else {
+            None
+        };
+
+        if let Some(mut orth_pts) = ortho_path {
+            // Snap the path endpoints to the actual pick_port anchors.
+            // This ensures arrows attach to the correct box edge.
+            // Also snap the adjacent intermediate waypoints' x-coordinate so
+            // the first and last path segments remain vertical (orthogonal),
+            // preventing diagonal segments when the anchor x differs from
+            // the graph_layout-computed port x.
+            //
+            // For a downward path with n≥3 points:
+            //   [0] → snap to (x1, y1); [1].x → x1 (vertical exit from src)
+            //   [n-1] → snap to (x2, y2); [n-2].x → x2 (vertical entry to tgt)
+            if let Some(first) = orth_pts.first_mut() {
+                *first = (x1, y1);
+            }
+            if let Some(last) = orth_pts.last_mut() {
+                *last = (x2, y2);
+            }
+            let n = orth_pts.len();
+            if n >= 3 {
+                // Snap the second point's x to x1 so the exit segment from
+                // the source is vertical (orthogonal from the snapped endpoint).
+                orth_pts[1].0 = x1;
+                // Snap the penultimate point's x to x2 so the entry segment
+                // into the target is also vertical.  For 3-point paths this is
+                // the same element as index 1, so only update when n > 3 to
+                // avoid overwriting the x1-snap above.
+                if n > 3 {
+                    orth_pts[n - 2].0 = x2;
+                }
+            }
+            let pts_str: String = orth_pts
+                .iter()
+                .map(|(px, py)| format!("{px},{py}"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            out.push_str(&format!(
+                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                escape_text(&from_name), escape_text(&to_name), escape_text(&normalized_arrow),
+                pts_str, relation_color, stroke_width,
+                dash_attr, visibility_attr, direction_attr, style_attr, markers
+            ));
+            let longest_horiz = orth_pts
+                .windows(2)
+                .filter(|seg| seg[0].1 == seg[1].1)
+                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
+            let (lmx, lmy) = match longest_horiz {
+                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
+                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
+            };
+            label_mx = lmx;
+            label_my = lmy;
+        } else {
+            // ── Legacy L/Z-shape routing ─────────────────────────────────────
+            let rel_obstacles: Vec<(i32, i32, i32, i32)> = {
+                let mut obs: Vec<(i32, i32, i32, i32)> = all_boxes.to_vec();
+                for &(rect, members) in pkg_frame_boxes {
+                    let src_inside = members.iter().any(|m| m == &from_name);
+                    let tgt_inside = members.iter().any(|m| m == &to_name);
+                    if !src_inside && !tgt_inside {
+                        obs.push(rect);
+                    }
+                }
+                obs
+            };
+            let line_collides = if rel.direction.is_some() || rel.hidden {
+                false
+            } else {
+                all_boxes.iter().any(|&(bx, by, bw, bh)| {
+                    if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th)
+                    {
+                        return false;
+                    }
+                    segment_intersects_rect(x1, y1, x2, y2, (bx, by, bw, bh))
+                })
+            };
+            if !line_collides {
+                out.push_str(&format!(
+                    "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                    escape_text(&from_name), escape_text(&to_name), escape_text(&normalized_arrow),
+                    x1, y1, x2, y2, relation_color, stroke_width,
+                    dash_attr, visibility_attr, direction_attr, style_attr, markers
+                ));
+                label_mx = (x1 + x2) / 2;
+                label_my = (y1 + y2) / 2 - 12;
+            } else {
+                // L/Z-shape routing: try L first; escalate to Z if still collides.
+                let src_cx = fx + fw / 2;
+                let tgt_cx = tx + tw / 2;
+                let src_cy = fy + fh / 2;
+                let tgt_cy = ty + th / 2;
+                let dx_abs = (tgt_cx - src_cx).abs();
+                let dy_abs = (tgt_cy - src_cy).abs();
+                let hv_mid_x = (x1 + x2) / 2;
+                let hv_pts = [(x1, y1), (hv_mid_x, y1), (hv_mid_x, y2), (x2, y2)];
+                let vh_mid_y = (y1 + y2) / 2;
+                let vh_pts = [(x1, y1), (x1, vh_mid_y), (x2, vh_mid_y), (x2, y2)];
+                let hv_col = count_polyline_collisions(
+                    &hv_pts,
+                    &rel_obstacles,
+                    (fx, fy, fw, fh),
+                    (tx, ty, tw, th),
+                );
+                let vh_col = count_polyline_collisions(
+                    &vh_pts,
+                    &rel_obstacles,
+                    (fx, fy, fw, fh),
+                    (tx, ty, tw, th),
+                );
+                let (l_pts, l_col) = if dx_abs >= dy_abs {
+                    if vh_col <= hv_col {
+                        (&vh_pts[..], vh_col)
+                    } else {
+                        (&hv_pts[..], hv_col)
+                    }
+                } else {
+                    if hv_col <= vh_col {
+                        (&hv_pts[..], hv_col)
+                    } else {
+                        (&vh_pts[..], vh_col)
+                    }
+                };
+                let blocking: Vec<(i32, i32, i32, i32)> = if l_col > 0 {
+                    rel_obstacles
+                        .iter()
+                        .copied()
+                        .filter(|&b| {
+                            b != (fx, fy, fw, fh)
+                                && b != (tx, ty, tw, th)
+                                && l_pts.windows(2).any(|seg| {
+                                    segment_intersects_rect(
+                                        seg[0].0, seg[0].1, seg[1].0, seg[1].1, b,
+                                    )
+                                })
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                let best_pts: Vec<(i32, i32)> = if l_col == 0 || blocking.is_empty() {
+                    l_pts.to_vec()
+                } else {
+                    let gap = 12i32;
+                    let mut best: Option<Vec<(i32, i32)>> = None;
+                    let mut best_col = l_col;
+                    let mut waypoint_candidates: Vec<(i32, i32)> = Vec::new();
+                    for &(bx, by, bw, bh) in &blocking {
+                        waypoint_candidates.push((bx + bw / 2, by - gap));
+                        waypoint_candidates.push((bx + bw / 2, by + bh + gap));
+                        waypoint_candidates.push((bx - gap, by + bh / 2));
+                        waypoint_candidates.push((bx + bw + gap, by + bh / 2));
+                        waypoint_candidates.push((bx - gap, by - gap));
+                        waypoint_candidates.push((bx + bw + gap, by - gap));
+                        waypoint_candidates.push((bx - gap, by + bh + gap));
+                        waypoint_candidates.push((bx + bw + gap, by + bh + gap));
+                    }
+                    'waypoint_loop: for &(wx, wy) in &waypoint_candidates {
+                        let z1: Vec<(i32, i32)> = vec![(x1, y1), (wx, y1), (wx, y2), (x2, y2)];
+                        let z2: Vec<(i32, i32)> = vec![(x1, y1), (x1, wy), (x2, wy), (x2, y2)];
+                        let z3: Vec<(i32, i32)> =
+                            vec![(x1, y1), (wx, y1), (wx, wy), (x2, wy), (x2, y2)];
+                        let z4: Vec<(i32, i32)> =
+                            vec![(x1, y1), (x1, wy), (wx, wy), (wx, y2), (x2, y2)];
+                        for cand in [&z1, &z2, &z3, &z4] {
+                            if cand.len() > 5 {
+                                continue;
+                            }
+                            let c = count_polyline_collisions(
+                                cand,
+                                &rel_obstacles,
+                                (fx, fy, fw, fh),
+                                (tx, ty, tw, th),
+                            );
+                            if c < best_col {
+                                best_col = c;
+                                best = Some(cand.clone());
+                                if c == 0 {
+                                    break 'waypoint_loop;
+                                }
+                            }
+                        }
+                    }
+                    best.unwrap_or_else(|| l_pts.to_vec())
+                };
+
+                let pts = best_pts.as_slice();
+                let pts_str: String = pts
+                    .iter()
+                    .map(|(px, py)| format!("{},{}", px, py))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                out.push_str(&format!(
+                    "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                    escape_text(&from_name), escape_text(&to_name), escape_text(&normalized_arrow),
+                    pts_str, relation_color, stroke_width,
+                    dash_attr, visibility_attr, direction_attr, markers
+                ));
+
+                let target_is_deployment_data_store = family == "deployment"
+                    && doc.nodes.iter().any(|node| {
+                        node.name == to_name
+                            && matches!(
+                                node.kind,
+                                FamilyNodeKind::Database | FamilyNodeKind::Storage
+                            )
+                    });
+                let mut label_segments: Vec<&[(i32, i32)]> = pts.windows(2).collect();
+                if target_is_deployment_data_store && label_segments.len() > 1 {
+                    label_segments.pop();
+                }
+                let max_sq_len = label_segments
+                    .iter()
+                    .map(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2)
+                    })
+                    .max()
+                    .unwrap_or(0);
+                let uniquely_longest = label_segments
+                    .iter()
+                    .filter(|seg| {
+                        let (ax, ay) = seg[0];
+                        let (bx, by_) = seg[1];
+                        (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
+                    })
+                    .count()
+                    == 1;
+                let (lmx, lmy) = if uniquely_longest {
+                    let seg = label_segments
+                        .into_iter()
+                        .find(|seg| {
+                            let (ax, ay) = seg[0];
+                            let (bx, by_) = seg[1];
+                            (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
+                        })
+                        .unwrap();
+                    ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
+                } else {
+                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
+                };
+                label_mx = lmx;
+                label_my = lmy;
+            }
+        }
+
+        if rel.left_lollipop {
+            render_lollipop_endpoint(out, x1, y1, relation_color);
+        }
+        if rel.right_lollipop {
+            render_lollipop_endpoint(out, x2, y2, relation_color);
+        }
+        if let Some(stereotype) = &rel.stereotype {
+            let sx = (x1 + x2) / 2;
+            let sy = (y1 + y2) / 2 - if rel.label.is_some() { 20 } else { 6 };
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">&lt;&lt;{}&gt;&gt;</text>",
+                sx, sy, escape_text(stereotype)
+            ));
+        }
+        if let Some(label) = &rel.label {
+            let label_text = usecase_dependency_label(Some(label)).unwrap_or(label);
+            pending_labels.push(BoxGridPendingLabel {
+                x: label_mx,
+                y: label_my,
+                text: label_text.to_string(),
+                color: label_color.to_string(),
+                from_name: from_name.clone(),
+                to_name: to_name.clone(),
+            });
+        }
+        if let Some(left) = &rel.left_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x1 - 4, y1 - 6, escape_text(left)
+            ));
+        }
+        if let Some(right) = &rel.right_cardinality {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x2 + 4, y2 - 6, escape_text(right)
+            ));
+        }
+        if let Some(left_role) = &rel.left_role {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x1 - 4, y1 + 12, escape_text(left_role)
+            ));
+        }
+        if let Some(right_role) = &rel.right_role {
+            out.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                x2 + 4, y2 + 12, escape_text(right_role)
+            ));
+        }
+    }
+
+    // ── Phase 3: De-collide edge labels ──────────────────────────────────────
+    const LABEL_FAN_H_GAP: i32 = 85;
+    const LABEL_CLUSTER_BAND: i32 = 18;
+    const LABEL_CLEARANCE_X: i32 = 10;
+    const LABEL_CLEARANCE_Y: i32 = 10;
+    const LABEL_TEXT_HALF_HEIGHT: i32 = 8;
+
+    let mut by_target: std::collections::BTreeMap<String, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, pl) in pending_labels.iter().enumerate() {
+        by_target.entry(pl.to_name.clone()).or_default().push(i);
+    }
+    let n = pending_labels.len();
+    let mut adjusted_labels: Vec<Option<(i32, i32, String, String)>> = vec![None; n];
+
+    // Fan labels that target the same node horizontally above that node.
+    for (to_name, indices) in &by_target {
+        let count = indices.len() as i32;
+        if count < 2 {
+            continue;
+        }
+        let (anchor_cx, anchor_y) = match positions.get(to_name.as_str()) {
+            Some(&(tx, ty, tw, _)) => (tx + tw / 2, ty - 28),
+            None => {
+                let mx = indices.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
+                let my = indices.iter().map(|&i| pending_labels[i].y).sum::<i32>() / count;
+                (mx, my)
+            }
+        };
+        let mut sorted_idx = indices.clone();
+        sorted_idx.sort_by_key(|&i| pending_labels[i].x);
+        for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
+            let offset = (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
+            adjusted_labels[raw_idx] = Some((
+                anchor_cx + offset,
+                anchor_y,
+                pending_labels[raw_idx].text.clone(),
+                pending_labels[raw_idx].color.clone(),
+            ));
+        }
+    }
+
+    // Fan remaining labels in the same y-band horizontally.
+    let mut y_clusters: Vec<Vec<usize>> = Vec::new();
+    for (i, label) in pending_labels.iter().enumerate() {
+        if adjusted_labels[i].is_some() {
+            continue;
+        }
+        let found = y_clusters.iter().position(|cluster| {
+            let rep = pending_labels[*cluster.first().expect("non-empty cluster")].y;
+            (label.y - rep).abs() <= LABEL_CLUSTER_BAND
+        });
+        match found {
+            Some(ci) => y_clusters[ci].push(i),
+            None => y_clusters.push(vec![i]),
+        }
+    }
+    for cluster in y_clusters {
+        if cluster.len() >= 2 {
+            let count = cluster.len() as i32;
+            let mut sorted_idx = cluster;
+            sorted_idx.sort_by_key(|&i| pending_labels[i].x);
+            let labels_overlap = sorted_idx.windows(2).any(|pair| {
+                let left = &pending_labels[pair[0]];
+                let right = &pending_labels[pair[1]];
+                let left_half_w = ((left.text.chars().count() as i32) * 7 + 2) / 2;
+                let right_half_w = ((right.text.chars().count() as i32) * 7 + 2) / 2;
+                left.x + left_half_w + LABEL_CLEARANCE_X
+                    >= right.x - right_half_w - LABEL_CLEARANCE_X
+            });
+            if labels_overlap {
+                let mean_x = sorted_idx.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
+                for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
+                    let offset =
+                        (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
+                    adjusted_labels[raw_idx] = Some((
+                        mean_x + offset,
+                        pending_labels[raw_idx].y,
+                        pending_labels[raw_idx].text.clone(),
+                        pending_labels[raw_idx].color.clone(),
+                    ));
+                }
+                continue;
+            }
+            for &raw_idx in &sorted_idx {
+                adjusted_labels[raw_idx] = Some((
+                    pending_labels[raw_idx].x,
+                    pending_labels[raw_idx].y,
+                    pending_labels[raw_idx].text.clone(),
+                    pending_labels[raw_idx].color.clone(),
+                ));
+            }
+        } else if let Some(&raw_idx) = cluster.first() {
+            adjusted_labels[raw_idx] = Some((
+                pending_labels[raw_idx].x,
+                pending_labels[raw_idx].y,
+                pending_labels[raw_idx].text.clone(),
+                pending_labels[raw_idx].color.clone(),
+            ));
+        }
+    }
+
+    // Final obstacle-clearance pass: push labels out of any node box they overlap.
+    let label_overlaps_box =
+        |lx: i32, ly: i32, text: &str, (bx, by, bw, bh): (i32, i32, i32, i32)| {
+            let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
+            lx + half_w + LABEL_CLEARANCE_X >= bx
+                && lx - half_w - LABEL_CLEARANCE_X <= bx + bw
+                && ly + 4 + LABEL_CLEARANCE_Y >= by
+                && ly - LABEL_TEXT_HALF_HEIGHT - LABEL_CLEARANCE_Y <= by + bh
+        };
+    let obstacle_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
+    for (label_idx, entry) in adjusted_labels.iter_mut().enumerate() {
+        let (lx, ly, text, _) = match entry.as_mut() {
+            Some(e) => e,
+            None => continue,
+        };
+        if text.is_empty() {
+            continue;
+        }
+        let from_box = positions.get(&pending_labels[label_idx].from_name).copied();
+        let to_box = positions.get(&pending_labels[label_idx].to_name).copied();
+        let edge_obstacles: Vec<(i32, i32, i32, i32)> = obstacle_boxes
+            .iter()
+            .copied()
+            .filter(|&b| Some(b) != from_box && Some(b) != to_box)
+            .collect();
+        let label_overlaps_any = |lx: i32, ly: i32, text: &str| {
+            edge_obstacles
+                .iter()
+                .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
+        };
+        for _ in 0..edge_obstacles.len().max(1) {
+            if !label_overlaps_any(*lx, *ly, text) {
+                break;
+            }
+            let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
+            let mut moved = false;
+            for &(bx, by, bw, bh) in &edge_obstacles {
+                if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) {
+                    continue;
+                }
+                let candidates = [
+                    (*lx, by - 14),
+                    (*lx, by + bh + 18),
+                    (bx - half_w - 12, *ly),
+                    (bx + bw + half_w + 12, *ly),
+                ];
+                if let Some((next_x, next_y)) = candidates
+                    .into_iter()
+                    .find(|&(cx, cy)| !label_overlaps_any(cx, cy, text))
+                {
+                    *lx = next_x;
+                    *ly = next_y;
+                } else {
+                    *ly = by - 14;
+                }
+                moved = true;
+                break;
+            }
+            if !moved {
+                break;
+            }
+        }
+    }
+
+    // Fill any None slots with the original position and emit all labels.
+    for (idx, entry) in adjusted_labels.iter_mut().enumerate() {
+        if entry.is_none() {
+            *entry = Some((
+                pending_labels[idx].x,
+                pending_labels[idx].y,
+                pending_labels[idx].text.clone(),
+                pending_labels[idx].color.clone(),
+            ));
+        }
+    }
+    for entry in adjusted_labels.into_iter().flatten() {
+        let (lx, ly, text, color) = entry;
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            lx, ly, escape_text(&color), escape_text(&text)
+        ));
+    }
+}
+
 /// Backwards-compatible alias; delegates to the real timeline renderer.
 pub fn render_component_svg(doc: &FamilyDocument) -> String {
     render_box_grid_svg(doc, "component")
@@ -3453,741 +4117,19 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         .collect();
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Phase 2: Draw relations with L-shape routing on collision
-    // Phase 3: Collect edge label positions, then de-collide at the end
+    // Phase 2+3: Relation routing and label de-collision (extracted helper)
     // ─────────────────────────────────────────────────────────────────────────
-    struct PendingLabel {
-        x: i32,
-        y: i32,
-        text: String,
-        color: String,
-        from_name: String,
-        to_name: String,
-    }
-    let mut pending_labels: Vec<PendingLabel> = Vec::new();
-    let adjust_interface_anchor =
-        |node_box: (i32, i32, i32, i32), other_box: (i32, i32, i32, i32)| {
-            const INTERFACE_RADIUS: i32 = 18;
-
-            let (nx, ny, nw, nh) = node_box;
-            let (ox, oy, ow, oh) = other_box;
-            let cx = nx + nw / 2;
-            let cy = ny + nh / 2;
-            let other_cx = ox + ow / 2;
-            let other_cy = oy + oh / 2;
-            let dx = other_cx - cx;
-            let dy = other_cy - cy;
-
-            if dx.abs() >= dy.abs() {
-                (
-                    cx + if dx >= 0 {
-                        INTERFACE_RADIUS
-                    } else {
-                        -INTERFACE_RADIUS
-                    },
-                    cy,
-                )
-            } else {
-                (
-                    cx,
-                    cy + if dy >= 0 {
-                        INTERFACE_RADIUS
-                    } else {
-                        -INTERFACE_RADIUS
-                    },
-                )
-            }
-        };
-
-    for (rel_idx, rel) in doc.relations.iter().enumerate() {
-        let (from_name, to_name, normalized_arrow) =
-            normalize_relation_endpoints(&rel.from, &rel.to, &rel.arrow);
-        let from_box = positions.get(&from_name);
-        let to_box = positions.get(&to_name);
-        let (Some(&(fx, fy, fw, fh)), Some(&(tx, ty, tw, th))) = (from_box, to_box) else {
-            continue;
-        };
-
-        // Compute anchor points (edge of box, not center).
-        // Port-based anchoring: attach to mid-point of the nearest box edge
-        // (left/right for horizontal-dominant, top/bottom for vertical-dominant).
-        // Part of the layout engine refactor (#591, #590 epic).
-        let (mut x1, mut y1, mut x2, mut y2) = if rel.direction.is_some() {
-            compute_edge_anchors_for_direction(
-                (fx, fy, fw, fh),
-                (tx, ty, tw, th),
-                rel.direction.as_deref(),
-            )
-        } else {
-            pick_port((fx, fy, fw, fh), (tx, ty, tw, th))
-        };
-        if family == "component" {
-            if interface_nodes.contains(&from_name) {
-                (x1, y1) = adjust_interface_anchor((fx, fy, fw, fh), (tx, ty, tw, th));
-            }
-            if interface_nodes.contains(&to_name) {
-                (x2, y2) = adjust_interface_anchor((tx, ty, tw, th), (fx, fy, fw, fh));
-            }
-        }
-
-        let style = arrow_style(&normalized_arrow);
-        let relation_color = rel.line_color.as_deref().unwrap_or(&comp_style.arrow_color);
-        let marker_prefix = if rel.line_color.is_some() && relation_color != comp_style.arrow_color
-        {
-            let prefix = format!("uml-rel-{rel_idx}-");
-            render_relation_marker_defs_with_prefix(&mut out, relation_color, &prefix);
-            prefix
-        } else {
-            String::new()
-        };
-        let stroke_width = rel.thickness.unwrap_or(2).clamp(1, 8);
-        let dash_attr = if style.dashed || rel.dashed {
-            " stroke-dasharray=\"5 3\""
-        } else {
-            ""
-        };
-        let visibility_attr = if rel.hidden {
-            " visibility=\"hidden\""
-        } else {
-            ""
-        };
-        let mut markers = String::new();
-        if let Some(end) = style.end_marker {
-            markers.push_str(&format!(" marker-end=\"url(#{marker_prefix}{end})\""));
-        }
-        if let Some(start) = style.start_marker {
-            markers.push_str(&format!(" marker-start=\"url(#{marker_prefix}{start})\""));
-        }
-        let direction_attr = rel
-            .direction
-            .as_deref()
-            .map(|d| format!(" data-uml-direction=\"{}\"", escape_text(d)))
-            .unwrap_or_default();
-
-        // Build data-uml-relation-style metadata (same as old renderer)
-        let style_attr = {
-            let mut tokens: Vec<String> = Vec::new();
-            if rel.line_color.is_some() {
-                tokens.push(format!("color:{relation_color}"));
-            }
-            if style.dashed || rel.dashed {
-                tokens.push("dashed".to_string());
-            }
-            if rel.hidden {
-                tokens.push("hidden".to_string());
-            }
-            if rel.thickness.is_some() {
-                tokens.push(format!("thickness:{stroke_width}"));
-            }
-            if tokens.is_empty() {
-                String::new()
-            } else {
-                format!(
-                    " data-uml-relation-style=\"{}\"",
-                    escape_text(&tokens.join(" "))
-                )
-            }
-        };
-
-        // ── Phase 2: Edge routing ────────────────────────────────────────────
-        // Prefer the orthogonal polyline from the hierarchical layout engine
-        // (graph_layout::route_edges, Stage 3 of #593).  Fall back to the
-        // existing L/Z-shape collision-avoidance router when no pre-computed
-        // path is available (e.g. explicit `direction` override, or the edge
-        // was not included in the layout pass).
-
-        // Label midpoint (set in each branch below)
-        let label_color = "#1e293b";
-        let (label_mx, label_my);
-
-        // Try the orthogonal path from graph_layout first.
-        // Edge IDs are "r{rel_idx}" matching the gl_edges construction above.
-        let ortho_path_f64: Option<Vec<(i32, i32)>> = if rel.direction.is_none() && !rel.hidden {
-            gl_result
-                .edge_paths
-                .get(&format!("r{rel_idx}"))
-                .filter(|p| p.len() >= 2)
-                .map(|p| p.iter().map(|&(px, py)| (px as i32, py as i32)).collect())
-        } else {
-            None
-        };
-
-        if let Some(mut orth_pts) = ortho_path_f64 {
-            // Snap the path endpoints to the actual pick_port anchors.
-            // This ensures arrows attach to the correct box edge.
-            // Also snap the adjacent intermediate waypoints' x-coordinate so
-            // the first and last path segments remain vertical (orthogonal),
-            // preventing diagonal segments when the anchor x differs from
-            // the graph_layout-computed port x.
-            //
-            // For a downward path with n≥3 points:
-            //   [0] → snap to (x1, y1); [1].x → x1 (vertical exit from src)
-            //   [n-1] → snap to (x2, y2); [n-2].x → x2 (vertical entry to tgt)
-            if let Some(first) = orth_pts.first_mut() {
-                *first = (x1, y1);
-            }
-            if let Some(last) = orth_pts.last_mut() {
-                *last = (x2, y2);
-            }
-            let n = orth_pts.len();
-            if n >= 3 {
-                // Snap the second point's x to x1 so the exit segment from
-                // the source is vertical (orthogonal from the snapped endpoint).
-                orth_pts[1].0 = x1;
-                // Snap the penultimate point's x to x2 so the entry segment
-                // into the target is also vertical.  For 3-point paths this is
-                // the same element as index 1, so only update when n > 3 to
-                // avoid overwriting the x1-snap above.
-                if n > 3 {
-                    orth_pts[n - 2].0 = x2;
-                }
-            }
-            // ── Orthogonal polyline from layout engine ────────────────────────
-            let pts_str: String = orth_pts
-                .iter()
-                .map(|(px, py)| format!("{px},{py}"))
-                .collect::<Vec<_>>()
-                .join(" ");
-
-            out.push_str(&format!(
-                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-                escape_text(&from_name),
-                escape_text(&to_name),
-                escape_text(&normalized_arrow),
-                pts_str,
-                relation_color, stroke_width,
-                dash_attr, visibility_attr, direction_attr, style_attr, markers
-            ));
-
-            // Label at midpoint of the longest horizontal segment; fall back to
-            // the overall endpoint midpoint when no horizontal segment exists.
-            // Using the overall endpoint midpoint avoids the equal-length segment
-            // ambiguity (max_by_key picks last when tied) that places labels near
-            // the arrowhead on straight vertical paths (fix #428).
-            let longest_horiz = orth_pts
-                .windows(2)
-                .filter(|seg| seg[0].1 == seg[1].1)
-                .max_by_key(|seg| (seg[1].0 - seg[0].0).abs());
-            let (lmx, lmy) = match longest_horiz {
-                Some(seg) => ((seg[0].0 + seg[1].0) / 2, seg[0].1 - 12),
-                // No horizontal segment: use overall endpoint midpoint so that
-                // purely-vertical (or collinear multi-segment) paths keep their
-                // label centered on the shaft, not biased toward one segment.
-                None => ((x1 + x2) / 2, (y1 + y2) / 2 - 12),
-            };
-            label_mx = lmx;
-            label_my = lmy;
-        } else {
-            // ── Legacy L/Z-shape routing ──────────────────────────────────────
-            // Skip L-routing when a direction is explicitly specified (directed
-            // relations must stay straight to preserve test-verified geometry).
-            // Also skip when the relation is hidden (direction doesn't matter).
-
-            // Build a combined obstacle list: individual node boxes + package frames
-            // that do NOT contain the source or target node.
-            let rel_obstacles: Vec<(i32, i32, i32, i32)> = {
-                let mut obs: Vec<(i32, i32, i32, i32)> = all_boxes.clone();
-                for &(rect, members) in &pkg_frame_boxes {
-                    // A package frame is not an obstacle for arrows that start/end inside it
-                    let src_inside = members.iter().any(|m| m == &from_name);
-                    let tgt_inside = members.iter().any(|m| m == &to_name);
-                    if !src_inside && !tgt_inside {
-                        obs.push(rect);
-                    }
-                }
-                obs
-            };
-
-            let line_collides = if rel.direction.is_some() || rel.hidden {
-                false
-            } else {
-                // Check if the direct line (x1,y1)→(x2,y2) passes through any individual
-                // component box. Package frames are NOT used for the straight-line trigger
-                // (they're only used to improve L/Z route quality when routing is needed).
-                all_boxes.iter().any(|&(bx, by, bw, bh)| {
-                    if (bx, by, bw, bh) == (fx, fy, fw, fh) || (bx, by, bw, bh) == (tx, ty, tw, th)
-                    {
-                        return false;
-                    }
-                    segment_intersects_rect(x1, y1, x2, y2, (bx, by, bw, bh))
-                })
-            };
-
-            if !line_collides {
-                // Straight line
-                out.push_str(&format!(
-                    "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-                    escape_text(&from_name),
-                    escape_text(&to_name),
-                    escape_text(&normalized_arrow),
-                    x1, y1, x2, y2,
-                    relation_color, stroke_width,
-                    dash_attr, visibility_attr, direction_attr, style_attr, markers
-                ));
-                label_mx = (x1 + x2) / 2;
-                label_my = (y1 + y2) / 2 - 12;
-            } else {
-                // L-shape / Z-shape routing
-                // Strategy: try L first (2 segments); if still collides try Z-shapes;
-                // cap at 5 segments, fall back to best L if nothing cleans up.
-                let src_cx = fx + fw / 2;
-                let tgt_cx = tx + tw / 2;
-                let src_cy = fy + fh / 2;
-                let tgt_cy = ty + th / 2;
-                let dx_abs = (tgt_cx - src_cx).abs();
-                let dy_abs = (tgt_cy - src_cy).abs();
-
-                // ── Two L-shape candidates ────────────────────────────────────────
-                // H→V: go horizontal to mid-x, then vertical
-                let hv_mid_x = (x1 + x2) / 2;
-                let hv_pts = [(x1, y1), (hv_mid_x, y1), (hv_mid_x, y2), (x2, y2)];
-                // V→H: go vertical to mid-y, then horizontal
-                let vh_mid_y = (y1 + y2) / 2;
-                let vh_pts = [(x1, y1), (x1, vh_mid_y), (x2, vh_mid_y), (x2, y2)];
-
-                let hv_col = count_polyline_collisions(
-                    &hv_pts,
-                    &rel_obstacles,
-                    (fx, fy, fw, fh),
-                    (tx, ty, tw, th),
-                );
-                let vh_col = count_polyline_collisions(
-                    &vh_pts,
-                    &rel_obstacles,
-                    (fx, fy, fw, fh),
-                    (tx, ty, tw, th),
-                );
-
-                // Pick the preferred L-shape
-                let (l_pts, l_col) = if dx_abs >= dy_abs {
-                    if vh_col <= hv_col {
-                        (&vh_pts[..], vh_col)
-                    } else {
-                        (&hv_pts[..], hv_col)
-                    }
-                } else {
-                    if hv_col <= vh_col {
-                        (&hv_pts[..], hv_col)
-                    } else {
-                        (&vh_pts[..], vh_col)
-                    }
-                };
-
-                // ── Z-shape escalation if L still collides ────────────────────────
-                // Gather all blocking boxes from rel_obstacles (including package frames)
-                let blocking: Vec<(i32, i32, i32, i32)> = if l_col > 0 {
-                    rel_obstacles
-                        .iter()
-                        .copied()
-                        .filter(|&b| {
-                            b != (fx, fy, fw, fh)
-                                && b != (tx, ty, tw, th)
-                                && l_pts.windows(2).any(|seg| {
-                                    segment_intersects_rect(
-                                        seg[0].0,
-                                        seg[0].1,
-                                        seg[1].0,
-                                        seg[1].1,
-                                        (b.0, b.1, b.2, b.3),
-                                    )
-                                })
-                        })
-                        .collect()
-                } else {
-                    Vec::new()
-                };
-
-                let best_pts: Vec<(i32, i32)> = if l_col == 0 || blocking.is_empty() {
-                    // L is clean — use it
-                    l_pts.to_vec()
-                } else {
-                    // Try Z-routes by generating waypoints around every blocking box.
-                    // Use clearance = 12px outside the box edge.
-                    let gap = 12i32;
-                    let mut best: Option<Vec<(i32, i32)>> = None;
-                    let mut best_col = l_col;
-
-                    // Generate candidate waypoints: edges of every blocking box
-                    let mut waypoint_candidates: Vec<(i32, i32)> = Vec::new();
-                    for &(bx, by, bw, bh) in &blocking {
-                        waypoint_candidates.push((bx + bw / 2, by - gap)); // above
-                        waypoint_candidates.push((bx + bw / 2, by + bh + gap)); // below
-                        waypoint_candidates.push((bx - gap, by + bh / 2)); // left
-                        waypoint_candidates.push((bx + bw + gap, by + bh / 2)); // right
-                                                                                // Also try corners (useful for routing around package frames)
-                        waypoint_candidates.push((bx - gap, by - gap));
-                        waypoint_candidates.push((bx + bw + gap, by - gap));
-                        waypoint_candidates.push((bx - gap, by + bh + gap));
-                        waypoint_candidates.push((bx + bw + gap, by + bh + gap));
-                    }
-
-                    'waypoint_loop: for &(wx, wy) in &waypoint_candidates {
-                        // Z1: H→V→H  (x1,y1)→(wx,y1)→(wx,y2)→(x2,y2)
-                        let z1: Vec<(i32, i32)> = vec![(x1, y1), (wx, y1), (wx, y2), (x2, y2)];
-                        // Z2: V→H→V  (x1,y1)→(x1,wy)→(x2,wy)→(x2,y2)
-                        let z2: Vec<(i32, i32)> = vec![(x1, y1), (x1, wy), (x2, wy), (x2, y2)];
-                        // Z3: 5-seg H→V→H with waypoint intermediate
-                        let z3: Vec<(i32, i32)> =
-                            vec![(x1, y1), (wx, y1), (wx, wy), (x2, wy), (x2, y2)];
-                        // Z4: 5-seg V→H→V with waypoint intermediate
-                        let z4: Vec<(i32, i32)> =
-                            vec![(x1, y1), (x1, wy), (wx, wy), (wx, y2), (x2, y2)];
-
-                        for cand in [&z1, &z2, &z3, &z4] {
-                            if cand.len() > 5 {
-                                continue;
-                            }
-                            let c = count_polyline_collisions(
-                                cand,
-                                &rel_obstacles,
-                                (fx, fy, fw, fh),
-                                (tx, ty, tw, th),
-                            );
-                            if c < best_col {
-                                best_col = c;
-                                best = Some(cand.clone());
-                                if c == 0 {
-                                    break 'waypoint_loop;
-                                }
-                            }
-                        }
-                    }
-
-                    best.unwrap_or_else(|| l_pts.to_vec())
-                };
-
-                let pts = best_pts.as_slice();
-                let pts_str: String = pts
-                    .iter()
-                    .map(|(px, py)| format!("{},{}", px, py))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                out.push_str(&format!(
-                    "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
-                    escape_text(&from_name),
-                    escape_text(&to_name),
-                    escape_text(&normalized_arrow),
-                    pts_str,
-                    relation_color, stroke_width,
-                    dash_attr, visibility_attr, direction_attr, markers
-                ));
-
-                // Label at longest segment midpoint. For deployment database/storage
-                // targets, avoid the terminal segment into the cylinder because that
-                // can collide with the arrowhead and node text (#507).
-                let target_is_deployment_data_store = family == "deployment"
-                    && doc.nodes.iter().any(|node| {
-                        node.name == to_name
-                            && matches!(
-                                node.kind,
-                                FamilyNodeKind::Database | FamilyNodeKind::Storage
-                            )
-                    });
-                let mut label_segments: Vec<&[(i32, i32)]> = pts.windows(2).collect();
-                if target_is_deployment_data_store && label_segments.len() > 1 {
-                    label_segments.pop();
-                }
-                // Compute longest segment (first occurrence, so equal-length ties
-                // pick the first/top segment rather than the last/terminal one).
-                // When all segments are equal length (collinear path through
-                // intermediate waypoints), use the overall endpoint midpoint to
-                // keep the label centered on the shaft (fix #428).
-                let max_sq_len = label_segments
-                    .iter()
-                    .map(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2)
-                    })
-                    .max()
-                    .unwrap_or(0);
-                let uniquely_longest = label_segments
-                    .iter()
-                    .filter(|seg| {
-                        let (ax, ay) = seg[0];
-                        let (bx, by_) = seg[1];
-                        (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
-                    })
-                    .count()
-                    == 1;
-                let (lmx, lmy) = if uniquely_longest {
-                    let seg = label_segments
-                        .into_iter()
-                        .find(|seg| {
-                            let (ax, ay) = seg[0];
-                            let (bx, by_) = seg[1];
-                            (bx - ax).pow(2) + (by_ - ay).pow(2) == max_sq_len
-                        })
-                        .unwrap();
-                    ((seg[0].0 + seg[1].0) / 2, (seg[0].1 + seg[1].1) / 2 - 12)
-                } else {
-                    // All segments equal or no segments: overall endpoint midpoint
-                    ((x1 + x2) / 2, (y1 + y2) / 2 - 12)
-                };
-                label_mx = lmx;
-                label_my = lmy;
-            }
-        }
-
-        if rel.left_lollipop {
-            render_lollipop_endpoint(&mut out, x1, y1, relation_color);
-        }
-        if rel.right_lollipop {
-            render_lollipop_endpoint(&mut out, x2, y2, relation_color);
-        }
-        if let Some(stereotype) = &rel.stereotype {
-            let sx = (x1 + x2) / 2;
-            let sy = (y1 + y2) / 2 - if rel.label.is_some() { 20 } else { 6 };
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#475569\">&lt;&lt;{}&gt;&gt;</text>",
-                sx, sy, escape_text(stereotype)
-            ));
-        }
-        if let Some(label) = &rel.label {
-            let label_text = usecase_dependency_label(Some(label)).unwrap_or(label);
-            pending_labels.push(PendingLabel {
-                x: label_mx,
-                y: label_my,
-                text: label_text.to_string(),
-                color: label_color.to_string(),
-                from_name: from_name.clone(),
-                to_name: to_name.clone(),
-            });
-        }
-        if let Some(left) = &rel.left_cardinality {
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x1 - 4, y1 - 6, escape_text(left)
-            ));
-        }
-        if let Some(right) = &rel.right_cardinality {
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x2 + 4, y2 - 6, escape_text(right)
-            ));
-        }
-        if let Some(left_role) = &rel.left_role {
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x1 - 4, y1 + 12, escape_text(left_role)
-            ));
-        }
-        if let Some(right_role) = &rel.right_role {
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
-                x2 + 4, y2 + 12, escape_text(right_role)
-            ));
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Phase 3: De-collide edge labels
-    // ─────────────────────────────────────────────────────────────────────────
-    // Strategy:
-    // 1. Cluster labels by destination node name. When >= 2 labels target the
-    //    same node, fan them horizontally above that node's top edge.
-    // 2. For any remaining labels that still share a horizontal lane, fan them
-    //    horizontally around their mean x so parallel channels stay readable.
-    const LABEL_FAN_H_GAP: i32 = 85; // horizontal gap between adjacent fanned labels
-    const LABEL_CLUSTER_BAND: i32 = 18; // px y-range to detect shared label lanes
-
-    // Build target → list of pending_label indices
-    let mut by_target_ph3: std::collections::BTreeMap<String, Vec<usize>> =
-        std::collections::BTreeMap::new();
-    for (i, pl) in pending_labels.iter().enumerate() {
-        by_target_ph3.entry(pl.to_name.clone()).or_default().push(i);
-    }
-
-    let n = pending_labels.len();
-    let mut adjusted_labels: Vec<Option<(i32, i32, String, String)>> = vec![None; n];
-
-    for (to_name, indices) in &by_target_ph3 {
-        let count = indices.len() as i32;
-        if count >= 2 {
-            // Fan horizontally above the target node's top edge.
-            let target_box = positions.get(to_name.as_str());
-            let (anchor_cx, anchor_y) = match target_box {
-                // Keep the shared-target fan high enough that the final
-                // obstacle-clearance pass does not push labels sideways into
-                // the same fallback slot beside the target node (#509).
-                Some(&(tx, ty, tw, _)) => (tx + tw / 2, ty - 28),
-                None => {
-                    // Fallback: use mean position of the pending labels.
-                    let mx = indices.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
-                    let my = indices.iter().map(|&i| pending_labels[i].y).sum::<i32>() / count;
-                    (mx, my)
-                }
-            };
-            // Sort by original x for left-to-right ordering.
-            let mut sorted_idx = indices.clone();
-            sorted_idx.sort_by_key(|&i| pending_labels[i].x);
-            for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
-                let offset = (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
-                adjusted_labels[raw_idx] = Some((
-                    anchor_cx + offset,
-                    anchor_y,
-                    pending_labels[raw_idx].text.clone(),
-                    pending_labels[raw_idx].color.clone(),
-                ));
-            }
-        }
-    }
-
-    let mut y_clusters: Vec<Vec<usize>> = Vec::new();
-    for (i, label) in pending_labels.iter().enumerate() {
-        if adjusted_labels[i].is_some() {
-            continue;
-        }
-        let found = y_clusters.iter().position(|cluster| {
-            let rep = pending_labels[*cluster.first().expect("cluster member")].y;
-            (label.y - rep).abs() <= LABEL_CLUSTER_BAND
-        });
-        match found {
-            Some(ci) => y_clusters[ci].push(i),
-            None => y_clusters.push(vec![i]),
-        }
-    }
-
-    for cluster in y_clusters {
-        if cluster.len() >= 2 {
-            let count = cluster.len() as i32;
-            let mut sorted_idx = cluster;
-            sorted_idx.sort_by_key(|&i| pending_labels[i].x);
-            let labels_overlap = sorted_idx.windows(2).any(|pair| {
-                let left = &pending_labels[pair[0]];
-                let right = &pending_labels[pair[1]];
-                let left_half_w = ((left.text.chars().count() as i32) * 7 + 2) / 2;
-                let right_half_w = ((right.text.chars().count() as i32) * 7 + 2) / 2;
-                left.x + left_half_w + LABEL_CLEARANCE_X
-                    >= right.x - right_half_w - LABEL_CLEARANCE_X
-            });
-            if labels_overlap {
-                let mean_x = sorted_idx.iter().map(|&i| pending_labels[i].x).sum::<i32>() / count;
-                for (slot, &raw_idx) in sorted_idx.iter().enumerate() {
-                    let offset =
-                        (slot as i32) * LABEL_FAN_H_GAP - (count - 1) * LABEL_FAN_H_GAP / 2;
-                    adjusted_labels[raw_idx] = Some((
-                        mean_x + offset,
-                        pending_labels[raw_idx].y,
-                        pending_labels[raw_idx].text.clone(),
-                        pending_labels[raw_idx].color.clone(),
-                    ));
-                }
-                continue;
-            }
-            for &raw_idx in &sorted_idx {
-                adjusted_labels[raw_idx] = Some((
-                    pending_labels[raw_idx].x,
-                    pending_labels[raw_idx].y,
-                    pending_labels[raw_idx].text.clone(),
-                    pending_labels[raw_idx].color.clone(),
-                ));
-            }
-        } else if let Some(&raw_idx) = cluster.first() {
-            adjusted_labels[raw_idx] = Some((
-                pending_labels[raw_idx].x,
-                pending_labels[raw_idx].y,
-                pending_labels[raw_idx].text.clone(),
-                pending_labels[raw_idx].color.clone(),
-            ));
-        }
-    }
-
-    // Final obstacle-clearance pass for relation labels. This catches solo
-    // labels like usecase/02_with_actors where the routed midpoint can still
-    // land inside a nearby node even after target-based fan-out.
-    // Note: we skip the edge's own source and target boxes — labels on an edge
-    // shaft naturally sit inside the bounding envelope of the endpoints and
-    // should not be pushed away from them (fix #428).
-    const LABEL_CLEARANCE_X: i32 = 10;
-    const LABEL_CLEARANCE_Y: i32 = 10;
-    const LABEL_TEXT_HALF_HEIGHT: i32 = 8;
-    let obstacle_boxes: Vec<(i32, i32, i32, i32)> = positions.values().copied().collect();
-    let label_overlaps_box =
-        |lx: i32, ly: i32, text: &str, (bx, by, bw, bh): (i32, i32, i32, i32)| {
-            let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
-            lx + half_w + LABEL_CLEARANCE_X >= bx
-                && lx - half_w - LABEL_CLEARANCE_X <= bx + bw
-                && ly + 4 + LABEL_CLEARANCE_Y >= by
-                && ly - LABEL_TEXT_HALF_HEIGHT - LABEL_CLEARANCE_Y <= by + bh
-        };
-    for (label_idx, entry) in adjusted_labels.iter_mut().enumerate() {
-        let (lx, ly, text, _) = match entry.as_mut() {
-            Some(e) => e,
-            None => continue,
-        };
-        if text.is_empty() {
-            continue;
-        }
-        // Build the obstacle list for this label, excluding the edge's own
-        // source and target node boxes so the label stays on the shaft.
-        let from_box = positions.get(&pending_labels[label_idx].from_name).copied();
-        let to_box = positions.get(&pending_labels[label_idx].to_name).copied();
-        let edge_obstacles: Vec<(i32, i32, i32, i32)> = obstacle_boxes
-            .iter()
-            .copied()
-            .filter(|&b| Some(b) != from_box && Some(b) != to_box)
-            .collect();
-        let label_overlaps_any_edge = |lx: i32, ly: i32, text: &str| {
-            edge_obstacles
-                .iter()
-                .any(|&bbox| label_overlaps_box(lx, ly, text, bbox))
-        };
-        let max_passes = edge_obstacles.len().max(1);
-        for _ in 0..max_passes {
-            if !label_overlaps_any_edge(*lx, *ly, text) {
-                break;
-            }
-            let half_w = ((text.chars().count() as i32) * 7 + 2) / 2;
-            let mut moved = false;
-            for &(bx, by, bw, bh) in &edge_obstacles {
-                if !label_overlaps_box(*lx, *ly, text, (bx, by, bw, bh)) {
-                    continue;
-                }
-                let candidates = [
-                    (*lx, by - 14),
-                    (*lx, by + bh + 18),
-                    (bx - half_w - 12, *ly),
-                    (bx + bw + half_w + 12, *ly),
-                ];
-                if let Some((next_x, next_y)) = candidates
-                    .into_iter()
-                    .find(|&(cx, cy)| !label_overlaps_any_edge(cx, cy, text))
-                {
-                    *lx = next_x;
-                    *ly = next_y;
-                } else {
-                    *ly = by - 14;
-                }
-                moved = true;
-                break;
-            }
-            if !moved {
-                break;
-            }
-        }
-    }
-
-    // Emit the final labels
-    for (idx, entry) in adjusted_labels.iter_mut().enumerate() {
-        if entry.is_none() {
-            *entry = Some((
-                pending_labels[idx].x,
-                pending_labels[idx].y,
-                pending_labels[idx].text.clone(),
-                pending_labels[idx].color.clone(),
-            ));
-        }
-    }
-    for entry in adjusted_labels.into_iter().flatten() {
-        let (lx, ly, text, color) = entry;
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
-            lx, ly, escape_text(&color), escape_text(&text)
-        ));
-    }
-
+    render_box_grid_relations_and_labels(
+        &mut out,
+        doc,
+        family,
+        &positions,
+        &interface_nodes,
+        &all_boxes,
+        &pkg_frame_boxes,
+        &gl_result.edge_paths,
+        &comp_style,
+    );
     // JSON projections
     if !doc.json_projections.is_empty() {
         let proj_y = all_pkg_bottom.max(ungrouped_bottom) + 16;
