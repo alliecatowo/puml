@@ -1,0 +1,34 @@
+@startmindmap
+title Software Engineering Competencies — 4 levels deep, asymmetric
+* Engineering
+** Systems Design
+*** Scalability
+**** Horizontal Scaling
+**** Database Sharding
+**** CAP Theorem
+*** Reliability
+**** SLOs and Error Budgets
+**** Chaos Engineering
+*** Security
+**** Threat Modeling
+** Programming
+*** Languages
+**** Rust
+***** Ownership Model
+***** Async/Await
+**** Python
+**** TypeScript
+*** Paradigms
+**** Functional
+**** OOP
+** Operations
+*** CI/CD
+**** Pipeline Design
+*** Observability
+**** Metrics
+**** Traces
+**** Logs
+** Leadership
+*** Mentoring
+*** RFC Writing
+@endmindmap

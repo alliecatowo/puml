@@ -548,10 +548,16 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     {
         struct RawLabel {
             rel_idx: usize,
+            from_name: String,
             to_name: String,
             text: String,
             lx: i32,
             ly: i32,
+            /// Endpoint coords for fractional label placement along edge
+            x1: i32,
+            y1: i32,
+            x2: i32,
+            y2: i32,
         }
         let mut raw_labels: Vec<RawLabel> = Vec::new();
 
@@ -615,10 +621,15 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             };
             raw_labels.push(RawLabel {
                 rel_idx,
+                from_name,
                 to_name,
                 text: label_text.unwrap_or_default().to_string(),
                 lx,
                 ly,
+                x1,
+                y1,
+                x2,
+                y2,
             });
         }
 
@@ -660,6 +671,51 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     avoid_node_box_overlap(anchor_cx + center_offset, anchor_y, label_half_w);
                 label_override.insert(raw_labels[raw_idx].rel_idx, anchor);
                 cursor += label_half_w * 2 + LABEL_FAN_GAP;
+            }
+        }
+
+        // Source-based fan: when ≥ 2 labelled edges share the same source node
+        // (fan-out pattern such as API Gateway → 3 services) their labels pile up
+        // near the source port even though the targets differ (#706, #749).
+        // Place each label at a staggered fraction along its own edge so labels
+        // spread out along the respective arrows rather than stacking at one point.
+        // Fraction for edge i (0-indexed) of count n: f = 0.3 + (i / n) * 0.4
+        // giving a spread from 30% to 70% of the edge length.
+        let mut by_source: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, rl) in raw_labels.iter().enumerate() {
+            // Only consider edges not already handled by the target-based fan.
+            if !label_override.contains_key(&rl.rel_idx) {
+                by_source.entry(rl.from_name.clone()).or_default().push(i);
+            }
+        }
+        for group in by_source.values() {
+            if group.len() < 2 {
+                continue;
+            }
+            // Sort by raw_label index for determinism.
+            let mut sorted = group.clone();
+            sorted.sort_unstable();
+            let count = sorted.len();
+            for (slot, &raw_idx) in sorted.iter().enumerate() {
+                let rl = &raw_labels[raw_idx];
+                // Fractional position along the straight-line edge: 0.3 to 0.7
+                let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
+                let dx = rl.x2 - rl.x1;
+                let dy = rl.y2 - rl.y1;
+                let lx = rl.x1 + (dx as f64 * frac) as i32;
+                // Nudge vertically above the line
+                let ly = rl.y1 + (dy as f64 * frac) as i32 - 12;
+                // Side-nudge so label doesn't sit directly on the arrow shaft:
+                // for vertical-dominant edges push right, for horizontal push up.
+                let (lx, ly) = if dy.abs() > dx.abs() {
+                    (lx + 14, ly)
+                } else {
+                    (lx, ly - 2)
+                };
+                let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
+                let (lx, ly) = avoid_node_box_overlap(lx, ly, label_half_w);
+                label_override.insert(rl.rel_idx, (lx, ly));
             }
         }
 
@@ -1805,6 +1861,13 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
         // Render members with visibility markers + modifier styling
         let show_members = !hide_empty_members || !node.members.is_empty();
         if show_members {
+            // Detect abstract/interface nodes so members can be rendered italic (fix #767)
+            let node_is_abstract = node
+                .members
+                .first()
+                .and_then(|m| builtin_type_stereotype_label(&m.text))
+                .map(|lbl| lbl == "\u{ab}abstract\u{bb}" || lbl == "\u{ab}interface\u{bb}")
+                .unwrap_or(false);
             let member_y_base =
                 layout.y + NODE_PADDING_Y + (layout.label_lines.len() as i32 * 18) + 4;
             for (midx, member) in node.members.iter().enumerate() {
@@ -1832,7 +1895,12 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
                             extra_style.push_str(" text-decoration=\"underline\"");
                         }
                     }
-                    Some(MemberModifier::Method) | None => {}
+                    Some(MemberModifier::Method) | None => {
+                        // Interface members are implicitly abstract — render in italic (fix #767)
+                        if node_is_abstract && !extra_style.contains("font-style") {
+                            extra_style.push_str(" font-style=\"italic\"");
+                        }
+                    }
                 }
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\"{}>{}</text>",
@@ -2334,15 +2402,26 @@ fn render_class_node(
     } else {
         ""
     };
+    // Italic name for abstract classes and interfaces (fix #767 — PlantUML UML convention)
+    let is_abstract_node = matches!(
+        builtin_type_marker,
+        Some("\u{ab}abstract\u{bb}") | Some("\u{ab}interface\u{bb}")
+    );
+    let name_font_style = if is_abstract_node {
+        " font-style=\"italic\""
+    } else {
+        ""
+    };
     let name_ty = y + effective_header_h - 9;
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}>{txt}</text>",
+        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
         ff = escape_text(font_family),
         fs = title_font_size,
         fc = escape_text(&class_style.font_color),
         tx = x + w / 2,
         ty = name_ty,
         td = text_decoration,
+        fi = name_font_style,
         txt = escape_text(&header_text)
     ));
 
@@ -2425,7 +2504,12 @@ fn render_class_node(
                     style_attrs.push_str(" text-decoration=\"underline\"");
                 }
             }
-            Some(MemberModifier::Method) | None => {}
+            Some(MemberModifier::Method) | None => {
+                // Interface members are implicitly abstract — render in italic (fix #767)
+                if is_abstract_node && !style_attrs.contains("font-style") {
+                    style_attrs.push_str(" font-style=\"italic\"");
+                }
+            }
         }
         // If no explicit visibility color, fall back to member_color from style
         let effective_color = if vis_sym.is_some() {

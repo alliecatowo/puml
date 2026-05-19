@@ -1,0 +1,16 @@
+@startchart
+title Weekly Active Users — Multi-series Line Chart
+line
+  "W1" : 1200 : 800 : 400
+  "W2" : 1350 : 820 : 430
+  "W3" : 1280 : 790 : 460
+  "W4" : 1500 : 900 : 510
+  "W5" : 1620 : 980 : 540
+  "W6" : 1700 : 1050 : 580
+  "W7" : 1580 : 1020 : 560
+  "W8" : 1800 : 1100 : 610
+legend
+  "Desktop" : "SteelBlue"
+  "Mobile" : "DarkOrange"
+  "Tablet" : "DarkGreen"
+@endchart

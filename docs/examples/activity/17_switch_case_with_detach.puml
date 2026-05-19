@@ -1,0 +1,32 @@
+@startuml
+title Switch/case pattern with detach and kill
+start
+:Read event type;
+switch (event.type)
+case (HTTP_REQUEST)
+  :Parse headers;
+  :Route to handler;
+  :Send response;
+case (WEBSOCKET_MESSAGE)
+  :Decode frame;
+  if (frame.opcode == CLOSE) then (yes)
+    :Send close frame;
+    kill
+  else (no)
+    :Dispatch message;
+  endif
+case (TIMER_TICK)
+  :Run scheduled tasks;
+  if (shutdown signal?) then (yes)
+    :Flush queues;
+    detach
+  endif
+case (SIGNAL)
+  :Log signal;
+  :Graceful shutdown;
+  :Flush state;
+  stop
+endswitch
+:Reset event buffer;
+stop
+@enduml

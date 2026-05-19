@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "generated_at_utc": "2026-05-19T11:20:37Z",
+  "generated_at_utc": "2026-05-19T15:31:06Z",
   "tool": {
     "name": "puml",
     "runner": "cargo run --quiet --",
-    "cwd": "/home/Allie/develop/puml/.claude/worktrees/agent-a936524064c2dfb11",
+    "cwd": "/home/Allie/develop/puml",
     "quick_mode": false
   },
   "oracle": {
