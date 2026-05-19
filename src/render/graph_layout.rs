@@ -1005,13 +1005,23 @@ fn route_edges(
             pts.push((src_port_x, src_port_y));
 
             if max_r - min_r == 1 {
-                // Single channel hop.  Route through the inter-rank channel midpoint
-                // (± symmetric track offset) so the horizontal bend segment is always
-                // clearly visible even when src_x == tgt_x (collinear nodes).
-                let raw_ch_y = channel_mid_y(min_r) + symmetric_offset(min_r, track);
-                let ch_y = soft_clamp_ch_y(min_r, raw_ch_y);
-                pts.push((src_port_x, ch_y));
-                pts.push((tgt_port_x, ch_y));
+                // Single channel hop.
+                // Collinear shortcut: when source and target center-x are within 2px
+                // of each other, emit a straight vertical — no horizontal jog needed.
+                // This fires for within-package chains (e.g. Parser → AST → Normalizer)
+                // where the layout engine places nodes in the same column.
+                let x_delta = (src_port_x - tgt_port_x).abs();
+                if x_delta < 2.0 {
+                    // Pure vertical drop — no channel waypoint, no horizontal jog.
+                    // (tgt_port is pushed below as the final point)
+                } else {
+                    // Route through the inter-rank channel midpoint (± symmetric track
+                    // offset) so the horizontal bend segment is clearly visible.
+                    let raw_ch_y = channel_mid_y(min_r) + symmetric_offset(min_r, track);
+                    let ch_y = soft_clamp_ch_y(min_r, raw_ch_y);
+                    pts.push((src_port_x, ch_y));
+                    pts.push((tgt_port_x, ch_y));
+                }
             } else {
                 // Multi-rank: staircase through each intermediate channel midpoint.
                 // X interpolates toward the target across hops.

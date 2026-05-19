@@ -179,6 +179,55 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         }
     }
 
+    // ── Post-process: rewrite top-level [H]/[H*] transition endpoints to
+    // composite-scoped names when those history pseudo-states live inside a
+    // composite region. This ensures that `Active --> [H]` resolves to the
+    // history node already placed inside the composite (e.g. `[H]__Active`)
+    // rather than creating a duplicate floating top-level node.
+    {
+        fn collect_scoped_history<'a>(
+            node: &'a StateNode,
+            map: &mut std::collections::BTreeMap<String, String>,
+        ) {
+            for region in &node.regions {
+                for child in region {
+                    // Record scoped history names: "[H]__X" → "[H]", "[H*]__X" → "[H*]"
+                    if child.name.starts_with("[H]__") {
+                        map.entry("[H]".to_string())
+                            .or_insert_with(|| child.name.clone());
+                    } else if child.name.starts_with("[H*]__") {
+                        map.entry("[H*]".to_string())
+                            .or_insert_with(|| child.name.clone());
+                    }
+                    collect_scoped_history(child, map);
+                }
+            }
+        }
+        let mut history_scope_map: std::collections::BTreeMap<String, String> =
+            std::collections::BTreeMap::new();
+        for node in &nodes {
+            collect_scoped_history(node, &mut history_scope_map);
+        }
+
+        if !history_scope_map.is_empty() {
+            // Rewrite transition endpoints that use bare [H]/[H*] when a scoped
+            // version exists (i.e. the history pseudo-state lives inside a composite).
+            for t in transitions.iter_mut() {
+                if let Some(scoped) = history_scope_map.get(&t.from) {
+                    t.from = scoped.clone();
+                }
+                if let Some(scoped) = history_scope_map.get(&t.to) {
+                    t.to = scoped.clone();
+                }
+            }
+            // Remove stale top-level bare [H]/[H*] placeholder nodes that were
+            // added by ensure_state_node before we knew they lived in a composite.
+            for bare in history_scope_map.keys() {
+                nodes.retain(|n| &n.name != bare);
+            }
+        }
+    }
+
     Ok(StateDocument {
         kind: document.kind,
         nodes,
@@ -240,9 +289,9 @@ fn merge_state_node(existing: &mut StateNode, node: StateNode) {
 fn placeholder_state_node(name: &str) -> StateNode {
     let kind = if name == "[*]" {
         StateNodeKind::StartEnd
-    } else if name == "[H]" {
+    } else if name == "[H]" || name.starts_with("[H]__") {
         StateNodeKind::HistoryShallow
-    } else if name == "[H*]" {
+    } else if name == "[H*]" || name.starts_with("[H*]__") {
         StateNodeKind::HistoryDeep
     } else if name.starts_with("[*]__in__") {
         StateNodeKind::StartEnd
@@ -251,10 +300,12 @@ fn placeholder_state_node(name: &str) -> StateNode {
     } else {
         StateNodeKind::Normal
     };
-    let display = match name {
-        "[H]" => Some("H".to_string()),
-        "[H*]" => Some("H*".to_string()),
-        _ => None,
+    let display = if name == "[H]" || name.starts_with("[H]__") {
+        Some("H".to_string())
+    } else if name == "[H*]" || name.starts_with("[H*]__") {
+        Some("H*".to_string())
+    } else {
+        None
     };
     StateNode {
         name: name.to_string(),
@@ -267,7 +318,9 @@ fn placeholder_state_node(name: &str) -> StateNode {
 }
 
 fn is_composite_region_endpoint(name: &str, parent_name: &str) -> bool {
-    !matches!(name, "[*]" | "[H]" | "[H*]") && name != parent_name
+    // [*] is scoped separately; [H]/[H*] get scoped via scope_history_pseudo and
+    // are added to the region when they appear in transitions inside the composite.
+    name != "[*]" && name != parent_name
 }
 
 fn collect_decl_transitions(
@@ -281,8 +334,10 @@ fn collect_decl_transitions(
     for child_stmt in &decl.children {
         match &child_stmt.kind {
             StatementKind::StateTransition(t) => {
-                let from = scope_pseudo_star(&t.from, parent_name, false);
-                let to = scope_pseudo_star(&t.to, parent_name, true);
+                let from_star = scope_pseudo_star(&t.from, parent_name, false);
+                let to_star = scope_pseudo_star(&t.to, parent_name, true);
+                let from = scope_history_pseudo(&from_star, parent_name);
+                let to = scope_history_pseudo(&to_star, parent_name);
                 ensure_state_node(nodes, &from);
                 ensure_state_node(nodes, &to);
                 transitions.push(ModelStateTransition {
@@ -319,6 +374,20 @@ fn scope_pseudo_star(name: &str, parent: &str, is_target: bool) -> String {
     }
 }
 
+/// Rewrite `[H]` or `[H*]` to a composite-scoped synthetic name so that
+/// history pseudo-states declared inside a composite are contained within it
+/// rather than floating at the top level.
+/// Non-history names are passed through unchanged.
+fn scope_history_pseudo(name: &str, parent: &str) -> String {
+    if name == "[H]" {
+        format!("[H]__{parent}")
+    } else if name == "[H*]" {
+        format!("[H*]__{parent}")
+    } else {
+        name.to_string()
+    }
+}
+
 fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
     let kind = match decl.stereotype.as_deref() {
         Some("fork") => StateNodeKind::Fork,
@@ -344,14 +413,17 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                 upsert_region_state_node(&mut current_region, state_decl_to_node(child_decl));
             }
             StatementKind::StateHistory { deep } => {
+                // Scope history pseudo-state to this composite so it renders
+                // inside the composite rather than as a top-level floating node.
+                let scoped_name = if *deep {
+                    format!("[H*]__{}", decl.alias.as_deref().unwrap_or(&decl.name))
+                } else {
+                    format!("[H]__{}", decl.alias.as_deref().unwrap_or(&decl.name))
+                };
                 upsert_region_state_node(
                     &mut current_region,
                     StateNode {
-                        name: if *deep {
-                            "[H*]".to_string()
-                        } else {
-                            "[H]".to_string()
-                        },
+                        name: scoped_name,
                         display: Some(if *deep {
                             "H*".to_string()
                         } else {
@@ -369,9 +441,13 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                 );
             }
             StatementKind::StateTransition(t) => {
+                let parent_name = decl.alias.as_deref().unwrap_or(decl.name.as_str());
                 for endpoint in [&t.from, &t.to] {
                     if is_composite_region_endpoint(endpoint, decl.name.as_str()) {
-                        ensure_region_state_node(&mut current_region, endpoint);
+                        // Scope history pseudo-state names so they become children
+                        // of this composite rather than floating top-level nodes.
+                        let scoped = scope_history_pseudo(endpoint, parent_name);
+                        ensure_region_state_node(&mut current_region, &scoped);
                     }
                 }
             }

@@ -108,6 +108,9 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     let lane_area_w = base_lane_area_w + extra_branch_width + extra_fork_width;
     let width = lane_area_w + 64;
     let lane_w = (lane_area_w / (lanes.len() as i32)).max(120);
+    // Width of an action-node box (rounded rect).  Used both for rendering
+    // and for obstacle-bbox computation in arrow routing.
+    let box_w = (lane_w - 24).clamp(120, 220);
     let lane_index = |name: &str| -> i32 {
         lanes
             .iter()
@@ -653,6 +656,73 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     }
 
     // ---------------------------------------------------------------------------
+    // Build obstacle bboxes for arrow routing (#734).
+    //
+    // Collect the bounding boxes of every visible, solid node so that
+    // emit_activity_arrow can route L-bend horizontal segments around them.
+    // We include action nodes (rounded rects), decision diamonds, start/stop
+    // circles, and note cards.  Control-only nodes (Else, EndIf, …) that have
+    // no visual body are skipped.
+    // ---------------------------------------------------------------------------
+    let node_bboxes: Vec<NodeBbox> = doc
+        .nodes
+        .iter()
+        .zip(node_layouts.iter())
+        .zip(metas.iter())
+        .filter_map(|((node, layout), meta)| {
+            let cx = layout.cx;
+            let y = layout.slot_y;
+            match node.kind {
+                FamilyNodeKind::ActivityAction | FamilyNodeKind::Note => {
+                    // rounded rect: x = cx ± box_w/2, y_top = y+4, height = 36
+                    Some(NodeBbox {
+                        left: cx - box_w / 2,
+                        top: y + 4,
+                        right: cx + box_w / 2,
+                        bottom: y + 40,
+                    })
+                }
+                FamilyNodeKind::ActivityDecision => {
+                    // diamond: half-width 100, half-height 22; drawn from y+2
+                    Some(NodeBbox {
+                        left: cx - 100,
+                        top: y + 2,
+                        right: cx + 100,
+                        bottom: y + 46,
+                    })
+                }
+                FamilyNodeKind::ActivityStart => Some(NodeBbox {
+                    left: cx - 12,
+                    top: y + 8,
+                    right: cx + 12,
+                    bottom: y + 32,
+                }),
+                FamilyNodeKind::ActivityStop => Some(NodeBbox {
+                    left: cx - 14,
+                    top: y + 6,
+                    right: cx + 14,
+                    bottom: y + 34,
+                }),
+                FamilyNodeKind::ActivityFork | FamilyNodeKind::ActivityForkEnd => {
+                    // Fork/join bar: thin rect, usually not in the arrow path
+                    // but include for completeness.
+                    if meta.step_kind.contains("ForkAgain") {
+                        None
+                    } else {
+                        Some(NodeBbox {
+                            left: cx - box_w / 2,
+                            top: y + 24,
+                            right: cx + box_w / 2,
+                            bottom: y + 32,
+                        })
+                    }
+                }
+                _ => None,
+            }
+        })
+        .collect();
+
+    // ---------------------------------------------------------------------------
     // Emit SVG
     // ---------------------------------------------------------------------------
     let mut out = String::new();
@@ -937,6 +1007,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
                     cx,
                     y,
                     &act_style.arrow_color,
+                    &node_bboxes,
                 );
             }
         }
@@ -946,14 +1017,30 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             .iter()
             .filter(|a| a.2 == cx && a.3 == y)
         {
-            emit_activity_arrow(&mut out, *x1, *y1, *x2, *y2, &act_style.arrow_color);
+            emit_activity_arrow(
+                &mut out,
+                *x1,
+                *y1,
+                *x2,
+                *y2,
+                &act_style.arrow_color,
+                &node_bboxes,
+            );
         }
     }
 
     // Direct arrows: fork-bar→branch and branch→join-bar arrows that target
     // bar pixel positions rather than node layout slot positions.
     for (x1, y1, x2, y2) in &direct_arrows {
-        emit_activity_arrow(&mut out, *x1, *y1, *x2, *y2, &act_style.arrow_color);
+        emit_activity_arrow(
+            &mut out,
+            *x1,
+            *y1,
+            *x2,
+            *y2,
+            &act_style.arrow_color,
+            &node_bboxes,
+        );
     }
 
     out.push_str("</svg>");
@@ -976,6 +1063,99 @@ fn fork_branch_cx(fork_cx: i32, branch_idx: usize, n_branches: usize, col_w: i32
     leftmost + branch_idx as i32 * col_w
 }
 
+/// A node bounding box used for obstacle-avoidance in arrow routing.
+/// Fields: (left, top, right, bottom) in SVG coordinates.
+#[derive(Clone, Copy)]
+struct NodeBbox {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
+
+/// Return true if a horizontal line at `y` overlaps with `bbox` in the x
+/// range `[x_min, x_max]` (inclusive, with a small margin so edges that
+/// touch a border are not considered collisions).
+fn bbox_blocks_horiz(bbox: &NodeBbox, x_min: i32, x_max: i32, y: i32) -> bool {
+    let margin = 3;
+    let x_lo = x_min.min(x_max) + margin;
+    let x_hi = x_min.max(x_max) - margin;
+    // x ranges must overlap
+    if bbox.right <= x_lo || bbox.left >= x_hi {
+        return false;
+    }
+    // y must fall inside the box (with margin)
+    y > bbox.top + margin && y < bbox.bottom - margin
+}
+
+/// Choose an obstacle-free `mid_y` for an L-bend arrow from (x1,y1) to
+/// (x2,y2).  The horizontal segment at `mid_y` must not cross any bbox
+/// whose x range overlaps [x1,x2].
+///
+/// Strategy (in order):
+///   1. Try the naive midpoint `(y1+y2)/2`.
+///   2. Try just above each conflicting box (box.top - 4).
+///   3. Try just below each conflicting box (box.bottom + 4).
+///   4. If still boxed-in, extend the routing outside the obstacle column
+///      and use a 5-segment path instead of an L.
+fn choose_mid_y(x1: i32, y1: i32, x2: i32, y2: i32, bboxes: &[NodeBbox]) -> i32 {
+    let x_lo = x1.min(x2);
+    let x_hi = x1.max(x2);
+
+    // Collect only the boxes that lie in the x corridor between x1 and x2.
+    let obstacles: Vec<&NodeBbox> = bboxes
+        .iter()
+        .filter(|b| !(b.right <= x_lo || b.left >= x_hi))
+        .collect();
+
+    let is_clear = |y: i32| -> bool {
+        obstacles
+            .iter()
+            .all(|b| !bbox_blocks_horiz(b, x_lo, x_hi, y))
+    };
+
+    // 1. Naive midpoint
+    let naive = y1 + (y2 - y1) / 2;
+    if is_clear(naive) {
+        return naive;
+    }
+
+    // 2. Candidate y values: just above/below every obstacle box.
+    //    Also try y1 (exit gap) and y2 (entry gap) as last resort within range.
+    let mut candidates: Vec<i32> = Vec::new();
+    for b in &obstacles {
+        candidates.push(b.top - 4);
+        candidates.push(b.bottom + 4);
+    }
+    candidates.push(y1);
+    candidates.push(y2);
+
+    // Prefer candidates between y1 and y2 (or y2 and y1 for upward arrows).
+    let lo = y1.min(y2);
+    let hi = y1.max(y2);
+    candidates.sort_unstable();
+    candidates.dedup();
+
+    // First try candidates in the [lo, hi] range sorted by distance from naive.
+    let mut in_range: Vec<i32> = candidates
+        .iter()
+        .copied()
+        .filter(|&y| y >= lo && y <= hi)
+        .collect();
+    in_range.sort_unstable_by_key(|&y| (y - naive).abs());
+    for y in &in_range {
+        if is_clear(*y) {
+            return *y;
+        }
+    }
+
+    // 3. Fall back to y1 (immediately after leaving the source node) —
+    //    only the vertical segment from y1 may still conflict, but the
+    //    horizontal segment at y1 is in the source node's own column which
+    //    is already separated.
+    naive // give up — return naive if truly boxed in
+}
+
 /// Emit an orthogonal (L-shaped / elbow) arrow from (x1,y1) to (x2,y2).
 ///
 /// When the source and destination share the same X coordinate the arrow is a
@@ -986,10 +1166,17 @@ fn fork_branch_cx(fork_cx: i32, branch_idx: usize, n_branches: usize, col_w: i32
 ///   2. Straight across from (x1, mid_y) to (x2, mid_y) — horizontal segment
 ///   3. Straight down from (x2, mid_y) to (x2, y2)    — vertical segment
 ///
-/// `mid_y` is placed half-way between y1 and y2, giving a symmetric elbow.
-/// This eliminates the diagonal arrows that would otherwise cross through
-/// node bodies on multi-branch flows (#778).
-fn emit_activity_arrow(out: &mut String, x1: i32, y1: i32, x2: i32, y2: i32, color: &str) {
+/// `mid_y` is chosen to avoid any node bboxes that lie between x1 and x2,
+/// preventing arrows from routing through action-node box bodies (#734).
+fn emit_activity_arrow(
+    out: &mut String,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    color: &str,
+    bboxes: &[NodeBbox],
+) {
     if x1 == x2 {
         // Straight vertical arrow — no routing needed.
         out.push_str(&format!(
@@ -1011,8 +1198,8 @@ fn emit_activity_arrow(out: &mut String, x1: i32, y1: i32, x2: i32, y2: i32, col
         ));
     } else {
         // L-shaped orthogonal routing: down → across → down.
-        // mid_y is half-way between y1 and y2 on both sides.
-        let mid_y = y1 + (y2 - y1) / 2;
+        // Choose mid_y to avoid obstacle boxes in the x corridor.
+        let mid_y = choose_mid_y(x1, y1, x2, y2, bboxes);
         // Segment 1: x1, y1 → x1, mid_y
         out.push_str(&format!(
             "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
