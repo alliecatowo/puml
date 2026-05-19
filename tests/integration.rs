@@ -5246,10 +5246,9 @@ fn class_relations_with_roles_render_endpoint_role_labels() {
 
 #[test]
 fn class_parallel_relations_stagger_labels_for_shared_node_pairs() {
-    let svg = render_source_to_svg(
-        &fs::read_to_string(example("class/12_all_relations.puml")).unwrap(),
-    )
-    .expect("class all relations example should render");
+    let svg =
+        render_source_to_svg(&fs::read_to_string(example("class/12_all_relations.puml")).unwrap())
+            .expect("class all relations example should render");
     let extends_label = svg_text_positions(&svg, "&lt;&lt;extends&gt;&gt;")
         .into_iter()
         .next()
@@ -5630,10 +5629,9 @@ fn usecase_relation_labels_clear_arrowheads_and_each_other() {
 
 #[test]
 fn usecase_relation_label_clears_actor_body_in_with_actors_example() {
-    let svg = render_source_to_svg(
-        &fs::read_to_string(example("usecase/02_with_actors.puml")).unwrap(),
-    )
-    .expect("usecase actor example should render");
+    let svg =
+        render_source_to_svg(&fs::read_to_string(example("usecase/02_with_actors.puml")).unwrap())
+            .expect("usecase actor example should render");
     let label = svg_text_positions(&svg, "leads to")
         .into_iter()
         .next()
@@ -6431,8 +6429,16 @@ fn state_svg_center_x(node: roxmltree::Node<'_, '_>) -> i32 {
                 .filter_map(|pair| pair.split_once(','))
                 .map(|(x, _)| x.parse::<i32>().expect("polygon x should be an integer"))
                 .collect::<Vec<_>>();
-            let min_x = xs.iter().min().copied().expect("polygon should have x points");
-            let max_x = xs.iter().max().copied().expect("polygon should have x points");
+            let min_x = xs
+                .iter()
+                .min()
+                .copied()
+                .expect("polygon should have x points");
+            let max_x = xs
+                .iter()
+                .max()
+                .copied()
+                .expect("polygon should have x points");
             (min_x + max_x) / 2
         }
         other => panic!("unsupported state SVG node for center extraction: {other}"),
@@ -6445,7 +6451,14 @@ fn state_full_machine_offsets_vertical_labels_and_keeps_final_state_in_canvas_fl
     let svg = render_source_to_svg(&src).expect("full machine state example should render");
     let doc = roxmltree::Document::parse(&svg).expect("state SVG should parse");
 
-    for node_name in ["Styled", "Rendered", "SkinParams", "Palette", "SVGOut", "TxtOut"] {
+    for node_name in [
+        "Styled",
+        "Rendered",
+        "SkinParams",
+        "Palette",
+        "SVGOut",
+        "TxtOut",
+    ] {
         assert_eq!(
             doc.descendants()
                 .filter(|node| {
@@ -6623,9 +6636,11 @@ fn state_arch_lifecycle_composites_render_enclosing_boxes() {
         styled_x <= state_svg_attr_i32(skin_rect, "x")
             && styled_y <= state_svg_attr_i32(skin_rect, "y")
             && styled_x + styled_w
-                >= state_svg_attr_i32(palette_rect, "x") + state_svg_attr_i32(palette_rect, "width")
+                >= state_svg_attr_i32(palette_rect, "x")
+                    + state_svg_attr_i32(palette_rect, "width")
             && styled_y + styled_h
-                >= state_svg_attr_i32(palette_rect, "y") + state_svg_attr_i32(palette_rect, "height"),
+                >= state_svg_attr_i32(palette_rect, "y")
+                    + state_svg_attr_i32(palette_rect, "height"),
         "Styled should render an enclosing box around its child states"
     );
 

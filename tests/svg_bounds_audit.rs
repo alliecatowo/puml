@@ -206,7 +206,9 @@ fn parity_harness_report_schema_is_stable() {
         "doc_examples.entries should be non-empty"
     );
     assert!(
-        json["doc_examples"]["summary"]["excluded"].as_u64().is_some(),
+        json["doc_examples"]["summary"]["excluded"]
+            .as_u64()
+            .is_some(),
         "doc_examples.summary.excluded should remain a numeric count"
     );
 

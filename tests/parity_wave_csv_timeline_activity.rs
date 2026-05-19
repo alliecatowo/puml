@@ -243,11 +243,11 @@ fn gantt_legend_fixture_spans_phase_bars_and_keeps_launch_inside_grid() {
     let svg = puml::render_source_to_svg(&src).expect("gantt render");
 
     assert!(
-        svg.contains("data-gantt-tick-day="2026-09-01""),
+        svg.contains(r#"data-gantt-tick-day="2026-09-01""#),
         "date axis should include the milestone day at the grid boundary"
     );
 
-    let task_tags = svg_chunks_by_prefix(&svg, "<rect class="gantt-task");
+    let task_tags = svg_chunks_by_prefix(&svg, r#"<rect class="gantt-task"#);
     let widths: Vec<i32> = task_tags
         .iter()
         .map(|tag| svg_first_number_attr(tag, "width"))
@@ -261,7 +261,7 @@ fn gantt_legend_fixture_spans_phase_bars_and_keeps_launch_inside_grid() {
     let chart_left = 204;
     let chart_width = 564;
     let grid_right = chart_left + chart_width;
-    let milestone = svg_chunks_by_prefix(&svg, "<polygon class="gantt-milestone")
+    let milestone = svg_chunks_by_prefix(&svg, r#"<polygon class="gantt-milestone"#)
         .into_iter()
         .next()
         .expect("expected launch milestone");
