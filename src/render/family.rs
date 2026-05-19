@@ -563,23 +563,40 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
             .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
             .unwrap_or_default();
 
-        let ortho_pts: Option<Vec<(i32, i32)>> = if relation.direction.is_none() && !relation.hidden
-        {
-            ctx.edge_paths
-                .get(&format!("r{rel_idx}"))
-                .filter(|p| p.len() >= 2)
-                .map(|p| {
-                    p.iter()
-                        .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
-                        .collect()
-                })
-        } else {
-            None
-        };
+        let mut ortho_pts: Option<Vec<(i32, i32)>> =
+            if relation.direction.is_none() && !relation.hidden {
+                ctx.edge_paths
+                    .get(&format!("r{rel_idx}"))
+                    .filter(|p| p.len() >= 2)
+                    .map(|p| {
+                        p.iter()
+                            .map(|&(px, py)| (px as i32 + off_x, py as i32 + off_y))
+                            .collect()
+                    })
+            } else {
+                None
+            };
 
         let (label_mx, label_my);
 
-        if let Some(ref pts) = ortho_pts {
+        if let Some(ref mut pts) = ortho_pts {
+            // Snap path endpoints to the actual rendered node ports so arrows
+            // attach correctly when layout coordinates differ from box anchors
+            // (e.g. rounding, lateral offsets).  Also realign the adjacent
+            // waypoints so the entry/exit segments stay axis-aligned.
+            if let Some(first) = pts.first_mut() {
+                *first = (x1, y1);
+            }
+            if let Some(last) = pts.last_mut() {
+                *last = (x2, y2);
+            }
+            let cn = pts.len();
+            if cn >= 3 {
+                pts[1].0 = x1;
+                if cn > 3 {
+                    pts[cn - 2].0 = x2;
+                }
+            }
             let pts_str: String = pts
                 .iter()
                 .map(|(px, py)| format!("{px},{py}"))
