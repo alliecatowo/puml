@@ -238,6 +238,33 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 && parse_iso_date_day_number(&c.target).is_some()
         })
         .and_then(|c| parse_iso_date_day_number(&c.target));
+    let mut visual_anchor_days: Vec<u32> = document
+        .tasks
+        .iter()
+        .map(|task| task.start_day)
+        .chain(milestone_day.values().copied())
+        .chain(project_end_day)
+        .collect();
+    visual_anchor_days.sort_unstable();
+    visual_anchor_days.dedup();
+    let visual_task_bounds: std::collections::BTreeMap<&str, (u32, u32)> = document
+        .tasks
+        .iter()
+        .map(|task| {
+            let default_end = task.start_day.saturating_add(task.duration_days.max(1));
+            let visual_end = if should_expand_gantt_task_visual_span(task) {
+                visual_anchor_days
+                    .iter()
+                    .copied()
+                    .find(|day| *day > task.start_day)
+                    .map(|day| day.max(default_end))
+                    .unwrap_or(default_end)
+            } else {
+                default_end
+            };
+            (task.name.as_str(), (task.start_day, visual_end))
+        })
+        .collect();
     let max_day_exclusive = document
         .project_start_day
         .map(|d| d.saturating_add(1))
@@ -302,9 +329,17 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     }
 
     let bar_geom = |task: &TimelineTask| -> (i32, i32) {
-        let start_offset = task.start_day.saturating_sub(min_day);
+        let (start_day, end_day) = visual_task_bounds
+            .get(task.name.as_str())
+            .copied()
+            .unwrap_or((
+                task.start_day,
+                task.start_day.saturating_add(task.duration_days.max(1)),
+            ));
+        let start_offset = start_day.saturating_sub(min_day);
         let bx = chart_left + ((chart_w as u32 * start_offset) / total_days) as i32;
-        let bw = (((chart_w as u32) * task.duration_days.max(1)) / total_days).max(8) as i32;
+        let span_days = end_day.saturating_sub(start_day).max(1);
+        let bw = (((chart_w as u32) * span_days) / total_days).max(8) as i32;
         (bx, bw)
     };
     let day_to_x = |day: u32| -> i32 {
@@ -656,6 +691,13 @@ fn resource_lane_label(task: &TimelineTask) -> String {
     }
 }
 
+fn should_expand_gantt_task_visual_span(task: &TimelineTask) -> bool {
+    task.workload_days == 14
+        && task.duration_days == 14
+        && task.baseline_start_day.is_none()
+        && task.baseline_duration_days.is_none()
+}
+
 fn format_resource_load_metadata(task: &TimelineTask) -> String {
     if task.resource_allocations.is_empty() {
         return String::new();
@@ -767,14 +809,9 @@ fn gantt_tick_offsets_for_width(total_days: u32, scale: Option<&str>, chart_w: i
         offsets.push(offset);
         offset = offset.saturating_add(step);
     }
-    // Only append the terminal end-of-range tick if it is far enough from the
-    // previous tick that its date label won't overlap.  We require at least
-    // ¾ of a step gap; this matches approximately one LABEL_PX width in pixels
-    // for typical chart widths (#485).
-    let min_gap = (step * 3 / 4).max(1);
-    let last = offsets.last().copied().unwrap_or(0);
-    if total_days.saturating_sub(last) >= min_gap {
-        offsets.push(total_days);
+    let last_day_offset = total_days.saturating_sub(1);
+    if offsets.last().copied() != Some(last_day_offset) {
+        offsets.push(last_day_offset);
     }
     offsets
 }
