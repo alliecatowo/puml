@@ -752,6 +752,54 @@ fn render_sequence_advanced_wave_autonumber_spacing_and_rare_heads() {
 }
 
 #[test]
+fn render_sequence_ref_over_implicit_participant_extends_span() {
+    let src = "@startuml\n\
+title Ref Over Multiple Participants\n\
+Alice -> Bob: request\n\
+ref over Alice, Bob, Charlie\n\
+  See authentication flow\n\
+  in diagram AUTH-001\n\
+end ref\n\
+Bob --> Alice: response\n\
+@enduml\n";
+    let ast = puml::parse(src).expect("parse");
+    let doc = puml::normalize(ast).expect("normalize");
+    let scene = layout::layout(&doc, LayoutOptions::default());
+
+    let participant_ids = scene
+        .participants
+        .iter()
+        .map(|participant| participant.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(participant_ids, vec!["Alice", "Bob", "Charlie"]);
+
+    let alice = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "Alice")
+        .expect("Alice participant");
+    let charlie = scene
+        .participants
+        .iter()
+        .find(|participant| participant.id == "Charlie")
+        .expect("Charlie participant");
+    let reference = scene
+        .groups
+        .iter()
+        .find(|group| group.kind == "ref")
+        .expect("ref group");
+
+    assert_eq!(reference.x, alice.x);
+    assert_eq!(reference.x + reference.width, charlie.x + charlie.width);
+
+    let svg = render::render_svg(&scene);
+    assert!(
+        svg.matches(">Charlie</text>").count() >= 2,
+        "Charlie should render in both the top and bottom participant rows"
+    );
+}
+
+#[test]
 fn render_sequence_lifecycle_shortcuts_have_visible_markers() {
     let src = fixture("lifecycle/valid_shortcuts_expansion.puml");
     let svg = puml::render_source_to_svg(&src).expect("lifecycle shortcut render");
