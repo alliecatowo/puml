@@ -633,7 +633,10 @@ fn compute_group_bounds(
     let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     let pad = options.group_padding;
-    let label_reserve = 28.0; // space for the group label tab
+    // pkg_tab in family.rs is 40px (bumped from 28 in the W23 pass).
+    // Using 28 here caused the routing gy to be 12px above the actual
+    // rendered package frame, making header-avoidance imprecise.
+    let label_reserve = 40.0;
 
     let mut bounds: BTreeMap<String, (f64, f64, f64, f64)> = BTreeMap::new();
     for (group_id, children) in &children_by_group {
@@ -688,6 +691,12 @@ const MAX_TRACKS: usize = 12;
 /// routing.  Matches the `label_header` constant in family.rs (40px) plus
 /// a small safety margin.
 const PKG_HEADER_HEIGHT: f64 = 48.0;
+
+/// Clearance above the package frame top for the TOP-PASS rule.
+/// When the computed channel y would land inside a package header band,
+/// force it to `pkg_top - PACKAGE_TOP_CLEARANCE` so the horizontal shaft
+/// sits clearly above the frame border.
+const PACKAGE_TOP_CLEARANCE: f64 = 12.0;
 
 fn route_edges(
     nodes: &[NodeSize],
@@ -1007,15 +1016,17 @@ fn route_edges(
                     // Normal gap: allow any value strictly within the gap.
                     raw.clamp(bot + 4.0, next_top - 4.0)
                 };
-                // Package-header avoidance: if the channel y lands inside any
-                // group's header band (top_y .. top_y + PKG_HEADER_HEIGHT), push
-                // it below the header so arrow shafts do not slice through the
-                // package label text.
+                // TOP-PASS rule: if the channel y lands at or near any package
+                // frame top, force it ABOVE the frame (pkg_top - CLEARANCE).
+                // This keeps the horizontal segment in the inter-package gap so
+                // only the final vertical drop crosses the header band as a thin
+                // line instead of a horizontal shaft slicing through label text.
                 let mut result = clamped;
                 for &(_, gy, _, _) in group_bounds.values() {
                     let header_bottom = gy + PKG_HEADER_HEIGHT;
-                    if result > gy && result < header_bottom {
-                        result = header_bottom + 4.0;
+                    if result >= gy - PACKAGE_TOP_CLEARANCE && result < header_bottom {
+                        let above = gy - PACKAGE_TOP_CLEARANCE;
+                        result = result.min(above);
                     }
                 }
                 result
