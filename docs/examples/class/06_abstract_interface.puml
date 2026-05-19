@@ -1,8 +1,11 @@
 @startuml
-class Shape {
+abstract class Shape {
   color: String
-  area(): Float
-  perimeter(): Float
+  {abstract} area(): Float
+  {abstract} perimeter(): Float
+}
+interface Drawable {
+  draw(): void
 }
 class Circle {
   radius: Float
@@ -16,4 +19,5 @@ class Rectangle {
 }
 Shape <|-- Circle
 Shape <|-- Rectangle
+Drawable <|.. Circle
 @enduml
