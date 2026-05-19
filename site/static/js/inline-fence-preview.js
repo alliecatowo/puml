@@ -126,7 +126,13 @@ function hydrateFence(pre) {
 }
 
 function applySyntaxHighlighting(code, lang) {
-  if (!code || !PUML_HIGHLIGHT_LANGS.has(lang) || code.children.length > 0) return;
+  if (
+    !code ||
+    typeof PUML_HIGHLIGHT_LANGS === 'undefined' ||
+    typeof highlightPumlToHtml !== 'function' ||
+    !PUML_HIGHLIGHT_LANGS.has(lang) ||
+    code.children.length > 0
+  ) return;
   code.innerHTML = highlightPumlToHtml(code.textContent || '');
 }
 
