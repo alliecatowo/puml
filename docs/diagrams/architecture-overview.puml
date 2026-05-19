@@ -1,18 +1,25 @@
 ' Architecture Overview: PUML high-level component diagram
-' Shows frontends (PlantUML, PicoUML, Mermaid), the pipeline core
-' (Parser -> AST -> Normalize -> Render), transports (CLI, LSP, WASM),
-' and shared services (language_service, diagnostic, theme, preprocessor).
-' Self-hosting stress test: 18 components, multiple packages, labelled arrows.
+' Simplified overview tuned for readable generated output.
 
 @startuml
 
 skinparam componentStyle rectangle
 skinparam packageStyle frame
 
+package "Transports" {
+  component [CLI] as CLI
+  component [LSP] as LSP
+  component [WASM] as WASM
+}
+
 package "Frontends" {
-  component [PlantUML Frontend] as PlantumlFE
-  component [PicoUML Frontend] as PicoumlFE
-  component [Mermaid Adapter] as MermaidFE
+  component [Adapters] as Frontends
+}
+
+package "Shared Services" {
+  component [Preprocessor] as Preproc
+  component [Language Service] as LangSvc
+  component [Diagnostics + Theme] as RenderSupport
 }
 
 package "Pipeline Core" {
@@ -22,49 +29,24 @@ package "Pipeline Core" {
   component [Renderer] as Renderer
 }
 
-package "Shared Services" {
-  component [Preprocessor] as Preproc
-  component [Language Service] as LangSvc
-  component [Diagnostics] as Diag
-  component [Theme Engine] as Theme
-}
-
-package "Transports" {
-  component [CLI Binary] as CLI
-  component [LSP Server] as LSP
-  component [WASM Crate] as WASM
-}
-
 package "Output Formats" {
-  component [SVG] as SVG
-  component [PNG / JPEG] as Raster
-  component [Text (utxt/atxt)] as Text
+  component [SVG / PNG / Text] as Outputs
 }
 
-PlantumlFE --> Parser : source text
-PicoumlFE --> Parser : source text
-MermaidFE --> Parser : source text
+CLI --> Frontends
+CLI --> Preproc
+LSP --> LangSvc
+WASM --> LangSvc
 
-Preproc --> Parser : expanded source
-Parser --> AST : token tree
-AST --> Normalizer : raw nodes
-Normalizer --> Renderer : NormalizedDocument
-Theme --> Renderer : style tokens
-Diag --> Renderer : annotations
+Frontends --> Parser
+Preproc --> Parser
+LangSvc --> Parser
+LangSvc --> RenderSupport
+RenderSupport --> Renderer
 
-Renderer --> SVG : vector output
-Renderer --> Raster : rasterized
-Renderer --> Text : ascii art
-
-CLI --> PlantumlFE : file input
-CLI --> PicoumlFE : file input
-CLI --> MermaidFE : file input
-CLI --> Preproc : !include / macros
-
-LSP --> LangSvc : hover / completion
-LangSvc --> Parser : parse_with_options
-LangSvc --> Diag : emit
-
-WASM --> LangSvc : browser call
+Parser --> AST
+AST --> Normalizer
+Normalizer --> Renderer
+Renderer --> Outputs
 
 @enduml
