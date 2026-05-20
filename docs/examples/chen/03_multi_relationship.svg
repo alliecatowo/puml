@@ -1,56 +1,56 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1296" height="719" viewBox="0 0 1296 719">
+<svg xmlns="http://www.w3.org/2000/svg" width="905" height="526" viewBox="0 0 905 526">
 <rect width="100%" height="100%" fill="white"/>
-<text x="648.0" y="28" font-family="monospace" font-size="16" font-weight="bold" fill="#111827" text-anchor="middle">Library Management</text>
-<line x1="472.6" y1="222.0" x2="374.5" y2="307.4" stroke="#555555" stroke-width="1.5"/>
-<text x="447.5" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">N</text>
-<line x1="227.4" y1="222.0" x2="325.5" y2="307.4" stroke="#555555" stroke-width="1.5"/>
-<text x="252.5" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">M</text>
-<line x1="745.2" y1="222.0" x2="533.7" y2="311.5" stroke="#555555" stroke-width="1.5"/>
-<text x="695.0" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">1</text>
-<line x1="254.8" y1="222.0" x2="466.3" y2="311.5" stroke="#555555" stroke-width="1.5"/>
-<text x="305.0" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">N</text>
-<line x1="166.0" y1="218.0" x2="104.5" y2="178.3" stroke="#888888" stroke-width="1.0"/>
-<line x1="214.2" y1="218.0" x2="265.3" y2="139.0" stroke="#888888" stroke-width="1.0"/>
-<line x1="234.0" y1="262.0" x2="295.5" y2="301.7" stroke="#888888" stroke-width="1.0"/>
-<line x1="185.8" y1="262.0" x2="134.7" y2="341.0" stroke="#888888" stroke-width="1.0"/>
-<line x1="541.0" y1="218.0" x2="598.4" y2="187.2" stroke="#888888" stroke-width="1.0"/>
-<line x1="499.3" y1="262.0" x2="496.2" y2="362.8" stroke="#888888" stroke-width="1.0"/>
-<line x1="464.5" y1="218.0" x2="403.7" y2="180.4" stroke="#888888" stroke-width="1.0"/>
-<line x1="860.0" y1="223.9" x2="901.7" y2="212.7" stroke="#888888" stroke-width="1.0"/>
-<line x1="740.0" y1="256.1" x2="698.3" y2="267.3" stroke="#888888" stroke-width="1.0"/>
-<line x1="350.0" y1="344.5" x2="350.0" y2="439.1" stroke="#888888" stroke-width="1.0"/>
-<line x1="350.0" y1="296.5" x2="350.0" y2="201.9" stroke="#888888" stroke-width="1.0"/>
-<rect x="140.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="200.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Book</text>
-<rect x="440.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="500.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Member</text>
-<rect x="740.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="800.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Librarian</text>
-<polygon points="350.0,296.5 404.0,320.5 350.0,344.5 296.0,320.5" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-<text x="350.0" y="320.5" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">Borrows</text>
-<polygon points="500.0,296.5 554.0,320.5 500.0,344.5 446.0,320.5" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-<text x="500.0" y="320.5" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">Manages</text>
-<ellipse cx="81.7" cy="163.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="81.7" y="163.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">ISBN</text>
-<ellipse cx="276.5" cy="121.7" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="276.5" y="121.7" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Title</text>
-<ellipse cx="318.3" cy="316.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5" stroke-dasharray="4 3"/>
-<text x="318.3" y="316.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">AgeRating</text>
-<ellipse cx="123.5" cy="358.3" rx="44.0" ry="22.0" fill="white" stroke="#374151" stroke-width="1.5"/>
-<ellipse cx="123.5" cy="358.3" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="123.5" y="358.3" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Authors</text>
-<ellipse cx="624.1" cy="173.4" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="624.1" y="173.4" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">MemberID</text>
-<ellipse cx="495.6" cy="380.8" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="495.6" y="380.8" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
-<ellipse cx="380.2" cy="165.8" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="380.2" y="165.8" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Email</text>
-<ellipse cx="936.1" cy="203.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="936.1" y="203.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">StaffID</text>
-<ellipse cx="663.9" cy="276.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="663.9" y="276.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
-<ellipse cx="350.0" cy="457.1" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="350.0" y="457.1" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">BorrowDate</text>
-<ellipse cx="350.0" cy="183.9" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="350.0" y="183.9" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">DueDate</text>
+<text class="chen-title" x="452.5" y="28" font-family="monospace" font-size="16" font-weight="bold" fill="#111827" text-anchor="middle">Library Management</text>
+<line class="chen-relationship-line" data-chen-relationship="Borrows" data-chen-entity="Member" x1="240.2" y1="238.0" x2="334.6" y2="383.8" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-relationship-line" data-chen-relationship="Borrows" data-chen-entity="Book" x1="443.2" y1="238.0" x2="358.5" y2="383.3" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-relationship-line" data-chen-relationship="Manages" data-chen-entity="Librarian" x1="671.8" y1="238.0" x2="577.4" y2="383.8" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-relationship-line" data-chen-relationship="Manages" data-chen-entity="Book" x1="468.8" y1="238.0" x2="553.5" y2="383.3" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-attribute-line" data-chen-owner="Book" data-chen-attribute="ISBN" x1="419.9" y1="194.0" x2="364.8" y2="160.5" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Book" data-chen-attribute="Title" x1="451.1" y1="194.0" x2="444.5" y2="163.9" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Book" data-chen-attribute="AgeRating" x1="487.3" y1="194.0" x2="532.3" y2="162.3" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Book" data-chen-attribute="Authors" x1="456.0" y1="194.0" x2="456.0" y2="112.0" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Member" data-chen-attribute="MemberID" x1="166.0" y1="194.0" x2="119.7" y2="177.1" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Member" data-chen-attribute="Name" x1="166.0" y1="216.0" x2="136.0" y2="216.0" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Member" data-chen-attribute="Email" x1="170.4" y1="238.0" x2="125.2" y2="255.9" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Librarian" data-chen-attribute="StaffID" x1="746.0" y1="204.7" x2="781.2" y2="198.1" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Librarian" data-chen-attribute="Name" x1="746.0" y1="228.0" x2="779.4" y2="234.7" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Borrows" data-chen-attribute="BorrowDate" x1="332.6" y1="421.3" x2="303.3" y2="458.5" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Borrows" data-chen-attribute="DueDate" x1="363.3" y1="420.5" x2="399.2" y2="459.0" stroke="#888888" stroke-width="1.0"/>
+<rect class="chen-entity" data-chen-entity="Book" x="396.0" y="194.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="456.0" y="216.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Book</text>
+<rect class="chen-entity" data-chen-entity="Member" x="166.0" y="194.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="226.0" y="216.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Member</text>
+<rect class="chen-entity" data-chen-entity="Librarian" x="626.0" y="194.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="686.0" y="216.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Librarian</text>
+<polygon class="chen-relationship" data-chen-relationship="Borrows" points="347.0,378.0 401.0,403.0 347.0,428.0 293.0,403.0" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text class="chen-relationship-label" x="347.0" y="403.0" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">Borrows</text>
+<polygon class="chen-relationship" data-chen-relationship="Manages" points="565.0,378.0 619.0,403.0 565.0,428.0 511.0,403.0" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text class="chen-relationship-label" x="565.0" y="403.0" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">Manages</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Book" data-chen-attribute="ISBN" data-chen-attribute-id="entity:Book:ISBN" cx="341.0" cy="146.0" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="341.0" y="146.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">ISBN</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Book" data-chen-attribute="Title" data-chen-attribute-id="entity:Book:Title" cx="440.5" cy="146.0" rx="41.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="440.5" y="146.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Title</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Book" data-chen-attribute="AgeRating" data-chen-attribute-id="entity:Book:AgeRating" cx="555.5" cy="146.0" rx="55.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text class="chen-attribute-label" x="555.5" y="146.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">AgeRating</text>
+<ellipse class="chen-attribute-outline" cx="456.0" cy="94.0" rx="52.5" ry="22.0" fill="white" stroke="#374151" stroke-width="1.5"/>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Book" data-chen-attribute="Authors" data-chen-attribute-id="entity:Book:Authors" cx="456.0" cy="94.0" rx="48.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="456.0" y="94.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Authors</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Member" data-chen-attribute="MemberID" data-chen-attribute-id="entity:Member:MemberID" cx="84.0" cy="164.0" rx="52.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="84.0" y="164.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">MemberID</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Member" data-chen-attribute="Name" data-chen-attribute-id="entity:Member:Name" cx="96.0" cy="216.0" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="96.0" y="216.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Member" data-chen-attribute="Email" data-chen-attribute-id="entity:Member:Email" cx="94.5" cy="268.0" rx="41.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="94.5" y="268.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Email</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Librarian" data-chen-attribute="StaffID" data-chen-attribute-id="entity:Librarian:StaffID" cx="824.5" cy="190.0" rx="48.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="824.5" y="190.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">StaffID</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Librarian" data-chen-attribute="Name" data-chen-attribute-id="entity:Librarian:Name" cx="816.0" cy="242.0" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="816.0" y="242.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="relationship" data-chen-owner="Borrows" data-chen-attribute="BorrowDate" data-chen-attribute-id="relationship:Borrows:BorrowDate" cx="289.5" cy="476.0" rx="59.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="289.5" y="476.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">BorrowDate</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="relationship" data-chen-owner="Borrows" data-chen-attribute="DueDate" data-chen-attribute-id="relationship:Borrows:DueDate" cx="415.0" cy="476.0" rx="48.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="415.0" y="476.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">DueDate</text>
+<text class="chen-cardinality" data-chen-relationship="Borrows" data-chen-entity="Member" x="275.0" y="258.6" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">N</text>
+<text class="chen-cardinality" data-chen-relationship="Borrows" data-chen-entity="Book" x="441.0" y="277.4" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">M</text>
+<text class="chen-cardinality" data-chen-relationship="Manages" data-chen-entity="Librarian" x="667.2" y="278.1" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">1</text>
+<text class="chen-cardinality" data-chen-relationship="Manages" data-chen-entity="Book" x="502.1" y="259.3" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">N</text>
 </svg>
