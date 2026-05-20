@@ -36,6 +36,7 @@ enum BlockKind {
     Sdl,
     Ditaa,
     Chart,
+    Chen,
 }
 
 /// Like `parse_block_marker_kind`, but also returns the trimmed text that
@@ -60,6 +61,7 @@ fn parse_start_block_kind_with_qualifier(line: &str) -> Option<(BlockKind, &str)
         ("@startgantt", BlockKind::Gantt),
         ("@startwbs", BlockKind::Wbs),
         ("@startsalt", BlockKind::Salt),
+        ("@startchen", BlockKind::Chen),
         ("@startuml", BlockKind::Uml),
     ];
     for (marker, kind) in markers {
@@ -98,6 +100,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@startgantt", BlockKind::Gantt),
             ("@startwbs", BlockKind::Wbs),
             ("@startsalt", BlockKind::Salt),
+            ("@startchen", BlockKind::Chen),
             ("@startuml", BlockKind::Uml),
         ]
     } else {
@@ -118,6 +121,7 @@ fn parse_block_marker_kind(line: &str, start: bool) -> Option<BlockKind> {
             ("@endgantt", BlockKind::Gantt),
             ("@endwbs", BlockKind::Wbs),
             ("@endsalt", BlockKind::Salt),
+            ("@endchen", BlockKind::Chen),
             ("@enduml", BlockKind::Uml),
         ]
     };
@@ -150,6 +154,7 @@ fn start_block_family(kind: BlockKind) -> Option<DiagramKind> {
         BlockKind::Sdl => Some(DiagramKind::Sdl),
         BlockKind::Ditaa => Some(DiagramKind::Ditaa),
         BlockKind::Chart => Some(DiagramKind::Chart),
+        BlockKind::Chen => Some(DiagramKind::Chen),
     }
 }
 
@@ -171,13 +176,14 @@ fn block_kind_name(kind: BlockKind) -> &'static str {
         BlockKind::Sdl => "sdl",
         BlockKind::Ditaa => "ditaa",
         BlockKind::Chart => "chart",
+        BlockKind::Chen => "chen",
     }
 }
 
 fn is_raw_body_block(kind: BlockKind) -> bool {
     matches!(
         kind,
-        BlockKind::Json | BlockKind::Yaml | BlockKind::Nwdiag | BlockKind::Archimate
+        BlockKind::Json | BlockKind::Yaml | BlockKind::Nwdiag | BlockKind::Archimate | BlockKind::Chen
     )
 }
 
@@ -257,6 +263,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
         DiagramKind::Sdl => "sdl",
         DiagramKind::Ditaa => "ditaa",
         DiagramKind::Chart => "chart",
+        DiagramKind::Chen => "chen",
         DiagramKind::Unknown => "unknown",
     }
 }

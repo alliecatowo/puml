@@ -75,8 +75,12 @@ pub struct LayoutOptions {
     /// Flow direction (TopDown or LeftRight).
     #[allow(dead_code)]
     pub direction: Direction,
-    /// Left/top margin around the full canvas.
+    /// Left/top margin around the full canvas (also used for node x-origin).
     pub canvas_margin: f64,
+    /// Right-side margin added to the canvas width.  Defaults to 40px when
+    /// not set (i.e. `None`).  Use this to decouple the large top/left margin
+    /// (which absorbs titles and package-label tabs) from the right margin.
+    pub canvas_right_margin: Option<f64>,
 }
 
 impl Default for LayoutOptions {
@@ -87,6 +91,7 @@ impl Default for LayoutOptions {
             group_padding: 28.0,
             direction: Direction::TopDown,
             canvas_margin: 40.0,
+            canvas_right_margin: None,
         }
     }
 }
@@ -789,6 +794,8 @@ fn assign_coordinates(
     }
 
     // Canvas size — recompute to include any post-shift rightward extension.
+    // Use canvas_right_margin when set to avoid inflating the canvas with a
+    // large top/left margin (e.g. title + package-tab height) on the right side.
     let canvas_content_width = {
         let max_right = positions
             .iter()
@@ -800,7 +807,8 @@ fn assign_coordinates(
                 x + w
             })
             .fold(0.0_f64, f64::max);
-        max_right + options.canvas_margin
+        let right_margin = options.canvas_right_margin.unwrap_or(options.canvas_margin);
+        max_right + right_margin
     };
     let canvas_height = {
         let bottom = rank_y[max_rank]

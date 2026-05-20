@@ -32,6 +32,7 @@ pub enum DiagramKind {
     Sdl,
     Ditaa,
     Chart,
+    Chen,
     Unknown,
 }
 

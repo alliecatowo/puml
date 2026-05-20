@@ -58,6 +58,7 @@ pub enum DiagramFamily {
     Sdl,
     Ditaa,
     Chart,
+    Chen,
     Unknown,
 }
 
@@ -88,6 +89,7 @@ impl DiagramFamily {
             Self::Sdl => "sdl",
             Self::Ditaa => "ditaa",
             Self::Chart => "chart",
+            Self::Chen => "chen",
             Self::Unknown => "unknown",
         }
     }
@@ -424,6 +426,12 @@ fn render_document_for_family(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during chart render",
             )),
         },
+        DiagramFamily::Chen => match normalize::normalize_family(document)? {
+            model::NormalizedDocument::Chen(doc) => Ok(vec![render::render_chen_svg(&doc)]),
+            _ => Err(Diagnostic::error(
+                "[E_FAMILY_CHEN_INTERNAL] unexpected model during chen render",
+            )),
+        },
         DiagramFamily::MindMap => render_family_with(document, render::render_mindmap_svg),
         DiagramFamily::Wbs => render_family_with(document, render::render_wbs_svg),
         DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
@@ -488,6 +496,7 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
         NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
         NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
         NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
+        NormalizedDocument::Chen(doc) => vec![render::render_chen_svg(doc)],
     }
 }
 
@@ -537,6 +546,7 @@ fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {
         ast::DiagramKind::Sdl => DiagramFamily::Sdl,
         ast::DiagramKind::Ditaa => DiagramFamily::Ditaa,
         ast::DiagramKind::Chart => DiagramFamily::Chart,
+        ast::DiagramKind::Chen => DiagramFamily::Chen,
         ast::DiagramKind::Unknown => DiagramFamily::Unknown,
     }
 }

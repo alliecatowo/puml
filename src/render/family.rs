@@ -310,6 +310,9 @@ fn class_run_layout(
         group_padding: 16.0,
         direction: crate::render::graph_layout::Direction::TopDown,
         canvas_margin: (margin_top + title_block_height + group_top_reserve) as f64,
+        // Right-side canvas gutter should only be margin_x (32px), not the full
+        // canvas_margin which absorbs title + group-label height.
+        canvas_right_margin: Some(margin_x as f64),
     };
 
     let gl_result = layout_hierarchical(&gl_nodes, &gl_edges, &gl_options);
@@ -383,7 +386,7 @@ struct ClassCanvasMetrics {
 /// Derives the canvas width/height from the bounding boxes of laid-out nodes,
 /// group frames, and the layout engine floor values.  Also computes the total
 /// projection extra height so the SVG is tall enough to include them.
-#[allow(clippy::too_many_arguments)] // All 13 args are distinct canvas metrics; a struct would add churn without clarity
+#[allow(clippy::too_many_arguments)] // 10 args are distinct canvas metrics; a struct would add churn without clarity
 fn class_compute_canvas(
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
     group_frames: &[RenderGroupFrame],
@@ -395,9 +398,6 @@ fn class_compute_canvas(
     margin_x: i32,
     margin_top: i32,
     title_block_height: i32,
-    col_count: i32,
-    node_width: i32,
-    col_gap: i32,
 ) -> ClassCanvasMetrics {
     let nodes_right = node_boxes
         .values()
@@ -459,8 +459,10 @@ fn class_compute_canvas(
         .max()
         .unwrap_or(0);
     let label_right_pad = max_label_half_w + margin_x;
-    let svg_width = (margin_x * 2 + col_count * node_width + (col_count - 1) * col_gap)
-        .max(gl_canvas_right + margin_x)
+    // Drop the old 3-column grid minimum (col_count * node_width) — it inflated the
+    // canvas to 700+ px even for 2-node diagrams.  The GL layout width and actual
+    // node positions are a tighter, correct bound.
+    let svg_width = gl_canvas_right
         .max(nodes_right + label_right_pad)
         .max(groups_right + margin_x);
     let svg_height =
@@ -1198,9 +1200,6 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         margin_x,
         margin_top,
         title_block_height,
-        col_count,
-        node_width,
-        col_gap,
     );
     let svg_width = canvas.svg_width;
     let svg_height = canvas.svg_height;
@@ -3717,6 +3716,9 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         group_padding: pkg_pad as f64,
         direction: crate::render::graph_layout::Direction::TopDown,
         canvas_margin: canvas_margin as f64 + header_h as f64 + group_top_overhead,
+        // Separate right margin: canvas_margin here absorbs the title + package-label
+        // tab height (can be 100+px), which is too large as a right-side gutter.
+        canvas_right_margin: Some(canvas_margin as f64),
     };
 
     // Run hierarchical layout
