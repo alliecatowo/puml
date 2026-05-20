@@ -1,6 +1,9 @@
+mod svg_test_helpers;
+
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::{DiagramFamily, NormalizedDocument};
 use std::fs;
+use svg_test_helpers::{f64_attr, has_class, SvgDoc};
 
 fn timeline_fixture(name: &str) -> String {
     format!(
@@ -668,20 +671,18 @@ stop
 
     // There must be at least two distinct x-coordinates in the arrows, proving
     // that the diagram is not purely linear (i.e., branching exists).
-    let arrow_xs: std::collections::HashSet<i32> = {
-        let mut xs = std::collections::HashSet::new();
-        // Match <line x1="..." and x2="..."
-        let mut rest = svg.as_str();
-        while let Some(pos) = rest.find("<line x1=\"") {
-            rest = &rest[pos + 10..];
-            if let Some(end) = rest.find('"') {
-                if let Ok(v) = rest[..end].parse::<i32>() {
-                    xs.insert(v);
-                }
-            }
-        }
-        xs
-    };
+    let doc = SvgDoc::parse(&svg);
+    let arrow_xs: std::collections::HashSet<i32> = doc
+        .elements_with_class("line", "activity-arrow")
+        .into_iter()
+        .filter(|line| has_class(*line, "puml-edge"))
+        .flat_map(|line| {
+            [
+                f64_attr(line, "x1").round() as i32,
+                f64_attr(line, "x2").round() as i32,
+            ]
+        })
+        .collect();
     assert!(
         arrow_xs.len() >= 2,
         "expected arrows at >= 2 distinct x positions (branching), got: {:?}",
@@ -700,8 +701,23 @@ A --> E
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("state render");
-    assert!(svg.contains("class=\"state-transition\""));
-    assert!(svg.contains("data-state-from=\"A\" data-state-to=\"A\""));
+    let doc = SvgDoc::parse(&svg);
+    let transitions = doc.elements_with_class("path", "state-transition");
+    assert!(
+        transitions
+            .iter()
+            .all(|transition| has_class(*transition, "puml-edge")),
+        "state transitions should participate in canonical semantic hooks"
+    );
+    assert!(
+        transitions.iter().any(
+            |transition| transition.attribute("data-state-from") == Some("A")
+                && transition.attribute("data-state-to") == Some("A")
+                && transition.attribute("data-puml-from") == Some("A")
+                && transition.attribute("data-puml-to") == Some("A")
+        ),
+        "self-loop transition should expose both state and canonical endpoints"
+    );
     // Pseudo-state radius shifted in Wave 4-B refactor (was 14, now 12 outer
     // with inner 8 for the <<end>> marker). Assert on presence of distinct radii.
     assert!(svg.contains("r=\"12\""));
