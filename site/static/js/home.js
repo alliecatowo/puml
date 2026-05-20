@@ -1,6 +1,7 @@
-// Homepage: populate stat strip, hero preview, and featured gallery from the manifest.
+// Homepage: populate stat strip, hero preview, featured gallery, and hero code highlight.
 
 import { loadManifest, siteBaseUrl, assetUrl } from './manifest.js';
+import { highlightPumlToHtml, PUML_HIGHLIGHT_LANGS } from './puml-tokens.js';
 
 const FEATURED = [
   'sequence/01_basic',
@@ -13,6 +14,23 @@ const FEATURED = [
   'gantt/01_basic',
   'chart/01_basic',
 ];
+
+// Apply syntax highlighting to every <code class="language-*"> inside the hero
+// preview block.  This mirrors the `applySyntaxHighlighting` guard used in
+// inline-fence-preview.js but targets the hero element directly so we don't
+// need to widen the fence hydration selector.
+function highlightHeroCode() {
+  document.querySelectorAll('.hero-preview pre > code').forEach((codeEl) => {
+    if (codeEl.dataset.pumlHighlighted === 'true') return;
+    const lang = [...codeEl.classList]
+      .find((c) => c.startsWith('language-'))
+      ?.slice('language-'.length)
+      .toLowerCase();
+    if (!lang || !PUML_HIGHLIGHT_LANGS.has(lang)) return;
+    codeEl.innerHTML = highlightPumlToHtml(codeEl.textContent || '');
+    codeEl.dataset.pumlHighlighted = 'true';
+  });
+}
 
 async function init() {
   const base = siteBaseUrl();
@@ -31,7 +49,7 @@ async function init() {
     if (key === 'families') el.textContent = manifest.totals.families.toLocaleString();
   }
 
-  // Hero preview &mdash; inline the sequence/01_basic SVG.
+  // Hero preview — inline the sequence/01_basic SVG.
   const heroRender = document.querySelector('[data-hero-render]');
   if (heroRender) {
     const hero = manifest.examples.find((e) => e.family === 'sequence' && e.name === '01_basic')
@@ -76,6 +94,13 @@ async function init() {
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Highlight hero code immediately (no manifest needed — it's static HTML).
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', highlightHeroCode, { once: true });
+} else {
+  highlightHeroCode();
 }
 
 init();
