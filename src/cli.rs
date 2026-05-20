@@ -173,6 +173,8 @@ pub struct Cli {
 pub enum Command {
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Compare two .puml files and report structural differences (added/removed nodes and edges).
+    Diff(DiffArgs),
 }
 
 #[derive(Debug, Clone, Args)]
@@ -188,6 +190,29 @@ pub struct FormatArgs {
     /// PlantUML-compatible source files to format.
     #[arg(value_name = "FILE", required = true)]
     pub files: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct DiffArgs {
+    /// First .puml file (the "before" side of the diff).
+    #[arg(value_name = "FILE_A")]
+    pub file_a: PathBuf,
+
+    /// Second .puml file (the "after" side of the diff).
+    #[arg(value_name = "FILE_B")]
+    pub file_b: PathBuf,
+
+    /// Output format for the diff report.
+    #[arg(long, value_enum, default_value_t = DiffFormat::Human)]
+    pub format: DiffFormat,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum DiffFormat {
+    /// Human-readable unified-diff-style report.
+    Human,
+    /// Machine-readable JSON report.
+    Json,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
@@ -338,6 +363,7 @@ mod tests {
                     vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
                 );
             }
+            _ => panic!("expected Format subcommand"),
         }
     }
 

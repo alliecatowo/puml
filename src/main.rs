@@ -1,4 +1,5 @@
 mod cli;
+mod cli_diff;
 
 use clap::{CommandFactory, FromArgMatches};
 use cli::{
@@ -263,6 +264,11 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     if let Some(command) = cli.command.take() {
         return match command {
             CliCommand::Format(args) => run_format_command(args),
+            CliCommand::Diff(args) => match cli_diff::run_diff(&args) {
+                Ok(0) => Ok(()),
+                Ok(code) => Err((code as u8, String::new())),
+                Err((code, msg)) => Err((code as u8, msg)),
+            },
         };
     }
 
