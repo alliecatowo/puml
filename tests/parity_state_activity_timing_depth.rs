@@ -1,6 +1,24 @@
 mod svg_test_helpers;
 
-use svg_test_helpers::{attr, bounds, f64_attr, SvgDoc};
+use svg_test_helpers::{attr, bounds, f64_attr, has_class, SvgDoc};
+
+fn assert_group_frame(doc: &SvgDoc<'_>, group: &str) {
+    let frame = doc
+        .elements_with_attr("rect", "data-uml-group", group)
+        .into_iter()
+        .find(|node| has_class(*node, "uml-group-frame"))
+        .unwrap_or_else(|| panic!("expected nested package frame for {group:?}"));
+
+    assert!(
+        has_class(frame, "puml-container"),
+        "group frames should also participate in canonical semantic hooks"
+    );
+    assert_eq!(frame.attribute("data-puml-kind"), Some("package"));
+    assert!(
+        frame.attribute("data-puml-bbox").is_some(),
+        "group frames should expose a canonical bbox"
+    );
+}
 
 #[test]
 fn activity_swimlane_and_fork_depth_renders_lane_boxes_and_branch_markers() {
@@ -393,9 +411,10 @@ class Account
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("class render should succeed");
+    let doc = SvgDoc::parse(&svg);
 
-    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Domain\""));
-    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Domain::Core\""));
+    assert_group_frame(&doc, "Domain");
+    assert_group_frame(&doc, "Domain::Core");
     assert!(svg.contains(">package Domain<"));
     assert!(svg.contains(">package Core<"));
     assert!(svg.contains("Domain::Core::User"));
@@ -415,10 +434,11 @@ api --> Gateway : exposes
 @enduml
 "#;
     let svg = puml::render_source_to_svg(src).expect("component render should succeed");
+    let doc = SvgDoc::parse(&svg);
 
     // Wave 3-A (#490 family-type label suppression).
-    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Edge\""));
-    assert!(svg.contains("class=\"uml-group-frame\" data-uml-group=\"Edge::Rack\""));
+    assert_group_frame(&doc, "Edge");
+    assert_group_frame(&doc, "Edge::Rack");
     assert!(svg.contains(">package Edge<"));
     assert!(svg.contains(">package Rack<"));
     assert!(svg.contains("API Gateway"));
