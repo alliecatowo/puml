@@ -35,7 +35,12 @@ function slugify(s) {
 }
 
 function escapeToml(s) {
-  return s.replace(/"/g, '\\"');
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
 }
 
 function extractTitle(md, fallback) {
