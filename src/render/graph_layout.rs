@@ -1376,6 +1376,25 @@ pub fn layout_to_i32_positions(
 mod tests {
     use super::*;
 
+    #[test]
+    fn count_inversions_merge_sort_correctness() {
+        // Sorted: 0 inversions.
+        assert_eq!(count_inversions(&[]), 0);
+        assert_eq!(count_inversions(&[5]), 0);
+        assert_eq!(count_inversions(&[1, 2, 3, 4]), 0);
+        // Reverse: n*(n-1)/2 inversions.
+        assert_eq!(count_inversions(&[4, 3, 2, 1]), 6);
+        // The case codex flagged ([1,2,0] → expected 2): pairs (1,0) and (2,0).
+        assert_eq!(count_inversions(&[1, 2, 0]), 2);
+        // Another regression case with cross-half + same-half mixed.
+        // [3,1,2,0] inversions: (3,1)(3,2)(3,0)(1,0)(2,0) = 5
+        assert_eq!(count_inversions(&[3, 1, 2, 0]), 5);
+        // Duplicates: equal elements are NOT inversions.
+        assert_eq!(count_inversions(&[1, 1, 1]), 0);
+        // [2,1,2,1] inversions: (2,1)@0-1, (2,1)@0-3, (2,1)@2-3 = 3
+        assert_eq!(count_inversions(&[2, 1, 2, 1]), 3);
+    }
+
     fn make_node(id: &str, parent: Option<&str>) -> NodeSize {
         NodeSize {
             id: id.to_string(),
