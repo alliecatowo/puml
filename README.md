@@ -221,6 +221,10 @@ puml hello.puml                          # → hello.svg
 puml --format png --dpi 192 hello.puml   # → hello.png at 2x
 puml --format html hello.puml            # → hello.html (self-contained)
 
+# Live re-render on save (pure polling, no extra dependencies)
+puml --watch hello.puml                  # re-renders hello.svg on every mtime change
+puml --watch hello.puml -o out.svg       # explicit output path
+
 # Lint
 puml --check hello.puml                  # exit 0 = valid
 puml --from-markdown --check notes.md    # lint all fenced puml blocks in a Markdown file

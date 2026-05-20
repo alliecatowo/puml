@@ -1,4 +1,5 @@
 mod cli;
+mod cli_watch;
 
 use clap::{CommandFactory, FromArgMatches};
 use cli::{
@@ -264,6 +265,12 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         return match command {
             CliCommand::Format(args) => run_format_command(args),
         };
+    }
+
+    if cli.watch {
+        return cli_watch::run_watch(&cli)
+            .map(|_code| ())
+            .map_err(|msg| (EXIT_IO, msg));
     }
 
     if cli.stdrpt {
