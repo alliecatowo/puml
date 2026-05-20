@@ -378,6 +378,37 @@ Audit notes live at: `docs/internal/visual-audit-<date>.md`
 - `src/render/graph_layout.rs` — second most contended; same rule applies
 - A worker that discovers a merge conflict mid-rebase should **stop, report, and let the
   orchestrator resolve** rather than force-resolving and possibly silently dropping code
+- **Never fire parallel agents on the SAME bug.** They produce competing PRs with
+  opposite-direction fixes that conflict, force pauses, and waste hours. If first
+  agent stalls, send a stronger SendMessage rather than firing a redundant one.
+
+### When the orchestrator (Opus) implements directly vs delegates
+
+Default: delegate. But these patterns force the Opus orchestrator to implement:
+
+- **Layout-engine bugs that ≥2 Sonnet agents have failed on.** Sonnet excels at
+  well-scoped "one bug → one file → one test" fixes. For "the whole layout looks wrong"
+  problems requiring algorithm-level reasoning, Sonnet patches symptoms; Opus sees
+  the geometry. (Lesson: arch-overview group-collision saga took 5 Sonnet agents + 10
+  PRs before the Opus orchestrator personally shipped PR #864.)
+- **Cross-file algorithm refactors where the diff is small but reasoning is deep.**
+- **When user is in-loop watching and frustration is mounting** — delegation latency
+  compounds frustration; Opus directly iterating with visual-gate-each-iteration is
+  faster.
+
+### Layout debugging: grep SVG coords first
+
+For layout bugs (overlapping frames, touching packages, edge through node), grep the
+rendered SVG for actual bbox coordinates BEFORE patching:
+
+```bash
+./target/release/puml docs/diagrams/architecture-overview.puml -o /tmp/arch.svg
+grep -oE 'class="uml-group-frame"[^>]*' /tmp/arch.svg
+```
+
+Exact `x="…" y="…" width="…" height="…"` per frame is ground truth. Two frames with
+matching dark header colors can look like they touch when there's actually a 40px gap.
+Diagnose with coords, then re-verify the fix with PNG Read.
 
 ---
 
