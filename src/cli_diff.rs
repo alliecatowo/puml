@@ -158,9 +158,7 @@ pub fn run_diff(args: &DiffArgs) -> Result<i32, (i32, String)> {
                 .map_err(|e| (3_i32, format!("failed to serialize diff output: {e}")))?;
             println!("{json}");
         }
-        // Exit directly when files are identical — no cleanup needed since
-        // we're at the top level of the diff command.
-        std::process::exit(0);
+        return Ok(0);
     }
 
     match args.format {
