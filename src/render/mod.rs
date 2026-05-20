@@ -19,6 +19,7 @@ pub(crate) mod graph_layout;
 mod mindmap;
 mod relation;
 mod salt;
+pub mod scene_graph;
 mod sequence;
 mod specialized;
 mod state;

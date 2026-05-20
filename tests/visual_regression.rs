@@ -14,7 +14,9 @@
 
 use assert_cmd::Command;
 use image::ImageEncoder;
+use puml::render::validate;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -37,6 +39,14 @@ struct Fixture {
     min_text_elements: usize,
     #[serde(default)]
     structural_only_reason: Option<String>,
+    #[serde(default)]
+    required_classes: Vec<String>,
+    #[serde(default)]
+    expected_counts: BTreeMap<String, usize>,
+    #[serde(default)]
+    required_data_attrs: Vec<String>,
+    #[serde(default)]
+    geometry_profile: Option<String>,
 }
 
 fn load_manifest() -> Manifest {
@@ -583,6 +593,8 @@ fn check_fixture_with_required_text(
         ));
     }
 
+    append_semantic_svg_contract_failures(&svg, fixture, &mut reasons);
+
     if reasons.is_empty() {
         None
     } else {
@@ -591,6 +603,87 @@ fn check_fixture_with_required_text(
             reasons,
         })
     }
+}
+
+fn append_semantic_svg_contract_failures(svg: &str, fixture: &Fixture, reasons: &mut Vec<String>) {
+    if !fixture.required_classes.is_empty()
+        || !fixture.expected_counts.is_empty()
+        || !fixture.required_data_attrs.is_empty()
+    {
+        let Ok(doc) = roxmltree::Document::parse(svg) else {
+            reasons.push("rendered SVG did not parse as XML for semantic hook checks".to_string());
+            return;
+        };
+
+        for class_name in &fixture.required_classes {
+            if count_class_tokens(&doc, class_name) == 0 {
+                reasons.push(format!(
+                    "required SVG class {:?} not found; semantic render hooks regressed",
+                    class_name
+                ));
+            }
+        }
+
+        for (class_name, expected) in &fixture.expected_counts {
+            let actual = count_class_tokens(&doc, class_name);
+            if actual != *expected {
+                reasons.push(format!(
+                    "expected exactly {expected} elements with class {class_name:?}, found {actual}"
+                ));
+            }
+        }
+
+        for attr_name in &fixture.required_data_attrs {
+            let found = doc
+                .descendants()
+                .any(|node| node.is_element() && node.attribute(attr_name.as_str()).is_some());
+            if !found {
+                reasons.push(format!(
+                    "required SVG data attribute {attr_name:?} not found"
+                ));
+            }
+        }
+    }
+
+    match fixture.geometry_profile.as_deref() {
+        None | Some("") => {}
+        Some("graph") => {
+            let edge_node = validate::check_edge_node_clearance(svg);
+            let endpoints = validate::check_endpoint_connectivity(svg);
+            if !edge_node.is_empty() || !endpoints.is_empty() {
+                let details = edge_node
+                    .iter()
+                    .chain(endpoints.iter())
+                    .take(3)
+                    .map(|violation| violation.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                reasons.push(format!(
+                    "graph geometry profile failed: {} edge/node violation(s), {} endpoint violation(s)",
+                    edge_node.len(),
+                    endpoints.len()
+                ));
+                if !details.is_empty() {
+                    reasons.push(format!("first geometry violations: {details}"));
+                }
+            }
+        }
+        Some(profile) => {
+            reasons.push(format!("unknown geometry_profile {profile:?}"));
+        }
+    }
+}
+
+fn count_class_tokens(doc: &roxmltree::Document<'_>, class_name: &str) -> usize {
+    doc.descendants()
+        .filter(|node| {
+            node.is_element()
+                && node
+                    .attribute("class")
+                    .map(|class| class.split_whitespace().any(|token| token == class_name))
+                    .unwrap_or(false)
+        })
+        .count()
 }
 
 fn run_text_sweep<'a>(fixtures: impl IntoIterator<Item = &'a Fixture>, total: usize) {

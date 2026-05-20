@@ -24,6 +24,28 @@ pub struct SvgDoc<'a> {
     doc: Document<'a>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SvgHookNode {
+    pub id: String,
+    pub kind: Option<String>,
+    pub bounds: Bounds,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SvgSegment {
+    pub x1: f64,
+    pub y1: f64,
+    pub x2: f64,
+    pub y2: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SvgHookEdge {
+    pub from: String,
+    pub to: String,
+    pub segments: Vec<SvgSegment>,
+}
+
 impl<'a> SvgDoc<'a> {
     pub fn parse(svg: &'a str) -> Self {
         let doc = Document::parse(svg).expect("rendered SVG should parse as XML");
@@ -78,6 +100,53 @@ impl<'a> SvgDoc<'a> {
         self.elements("text")
             .into_iter()
             .filter(|node| text_content(*node).contains(needle))
+            .collect()
+    }
+
+    pub fn hook_nodes(&self) -> Vec<SvgHookNode> {
+        self.doc
+            .descendants()
+            .filter(|node| {
+                node.is_element() && (has_class(*node, "puml-node") || has_class(*node, "uml-node"))
+            })
+            .map(|node| SvgHookNode {
+                id: node
+                    .attribute("data-puml-id")
+                    .or_else(|| node.attribute("data-uml-id"))
+                    .or_else(|| node.attribute("id"))
+                    .unwrap_or("")
+                    .to_string(),
+                kind: node
+                    .attribute("data-puml-kind")
+                    .or_else(|| node.attribute("data-uml-kind"))
+                    .map(str::to_string),
+                bounds: semantic_bounds(node),
+            })
+            .collect()
+    }
+
+    pub fn hook_edges(&self) -> Vec<SvgHookEdge> {
+        self.doc
+            .descendants()
+            .filter(|node| {
+                node.is_element()
+                    && (has_class(*node, "puml-edge") || has_class(*node, "uml-relation"))
+            })
+            .filter_map(|node| {
+                let from = node
+                    .attribute("data-puml-from")
+                    .or_else(|| node.attribute("data-uml-from"))?
+                    .to_string();
+                let to = node
+                    .attribute("data-puml-to")
+                    .or_else(|| node.attribute("data-uml-to"))?
+                    .to_string();
+                Some(SvgHookEdge {
+                    from,
+                    to,
+                    segments: edge_segments(node),
+                })
+            })
             .collect()
     }
 }
@@ -144,6 +213,60 @@ pub fn bounds(node: Node<'_, '_>) -> Bounds {
             height: 0.0,
         },
         tag => panic!("bounds unsupported for <{tag}>"),
+    }
+}
+
+pub fn semantic_bounds(node: Node<'_, '_>) -> Bounds {
+    if let Some(raw) = node.attribute("data-puml-bbox") {
+        let parts = raw
+            .split_whitespace()
+            .map(|part| {
+                part.parse::<f64>()
+                    .unwrap_or_else(|err| panic!("expected data-puml-bbox number: {err}"))
+            })
+            .collect::<Vec<_>>();
+        if parts.len() == 4 {
+            return Bounds {
+                x: parts[0],
+                y: parts[1],
+                width: parts[2],
+                height: parts[3],
+            };
+        }
+    }
+    bounds(node)
+}
+
+pub fn edge_segments(node: Node<'_, '_>) -> Vec<SvgSegment> {
+    match node.tag_name().name() {
+        "line" => vec![SvgSegment {
+            x1: f64_attr(node, "x1"),
+            y1: f64_attr(node, "y1"),
+            x2: f64_attr(node, "x2"),
+            y2: f64_attr(node, "y2"),
+        }],
+        "polyline" => {
+            let points = attr(node, "points")
+                .split_whitespace()
+                .filter_map(|point| {
+                    let (x, y) = point.split_once(',')?;
+                    Some((
+                        x.parse::<f64>().expect("point x should be numeric"),
+                        y.parse::<f64>().expect("point y should be numeric"),
+                    ))
+                })
+                .collect::<Vec<_>>();
+            points
+                .windows(2)
+                .map(|pair| SvgSegment {
+                    x1: pair[0].0,
+                    y1: pair[0].1,
+                    x2: pair[1].0,
+                    y2: pair[1].1,
+                })
+                .collect()
+        }
+        tag => panic!("edge segments unsupported for <{tag}>"),
     }
 }
 

@@ -16,6 +16,7 @@ use super::graph_layout::{
     layout_hierarchical, Direction, EdgeSpec as GlEdgeSpec, LayoutOptions as GlOptions,
     NodeSize as GlNodeSize,
 };
+use super::scene_graph::{estimate_text_bbox, Rect as SceneRect};
 use super::svg::escape_text;
 use crate::model::{ChenAttrKind, ChenDocument};
 
@@ -227,8 +228,10 @@ pub fn render_chen_svg(doc: &ChenDocument) -> String {
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>\n");
 
     if let Some(title) = &doc.title {
+        let title_bbox = estimate_text_bbox(width / 2.0, 28.0, title, 16.0, true).as_puml_bbox();
         out.push_str(&format!(
-            "<text class=\"chen-title\" x=\"{:.1}\" y=\"28\" {} fill=\"#111827\" text-anchor=\"middle\">{}</text>\n",
+            "<text class=\"chen-title puml-label\" data-puml-owner=\"diagram\" data-puml-label-kind=\"title\" data-puml-bbox=\"{}\" x=\"{:.1}\" y=\"28\" {} fill=\"#111827\" text-anchor=\"middle\">{}</text>\n",
+            title_bbox,
             width / 2.0,
             FONT_TITLE,
             escape_text(title)
@@ -322,6 +325,7 @@ fn build_primary_layout(doc: &ChenDocument) -> ChenLayout {
             group_padding: 0.0,
             direction: Direction::TopDown,
             canvas_margin: 80.0,
+            canvas_right_margin: None,
         },
     );
 
@@ -631,6 +635,14 @@ fn place_cardinality_labels(layout: &ChenLayout) -> Vec<CardinalityLayout> {
 
 // ─── SVG rendering helpers ────────────────────────────────────────────────────
 
+fn shifted_bbox(rect: Rect, dx: f64, dy: f64) -> String {
+    SceneRect::new(rect.x + dx, rect.y + dy, rect.w, rect.h).as_puml_bbox()
+}
+
+fn text_bbox(x: f64, y: f64, text: &str, font_size: f64) -> String {
+    estimate_text_bbox(x, y, text, font_size, true).as_puml_bbox()
+}
+
 fn render_relationship_lines(out: &mut String, layout: &ChenLayout, dx: f64, dy: f64) {
     let entity_by_name: BTreeMap<&str, &EntityLayout> = layout
         .entities
@@ -660,9 +672,13 @@ fn render_relationship_lines(out: &mut String, layout: &ChenLayout, dx: f64, dy:
                 entity.cy + dy,
             );
             out.push_str(&format!(
-                "<line class=\"chen-relationship-line\" data-chen-relationship=\"{}\" data-chen-entity=\"{}\" x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.5\"/>\n",
+                "<line class=\"chen-relationship-line puml-edge\" data-chen-relationship=\"{}\" data-chen-entity=\"{}\" data-puml-edge-id=\"relationship:{}:{}\" data-puml-from=\"{}\" data-puml-to=\"{}\" data-puml-family=\"chen\" data-puml-edge-kind=\"relationship\" x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.5\"/>\n",
                 escape_text(&rel.name),
                 escape_text(entity_name),
+                escape_text(&rel.name),
+                escape_text(entity_name),
+                escape_text(entity_name),
+                escape_text(&rel.name),
                 ex,
                 ey,
                 rx,
@@ -675,24 +691,41 @@ fn render_relationship_lines(out: &mut String, layout: &ChenLayout, dx: f64, dy:
 
 fn render_attribute_lines(out: &mut String, layout: &ChenLayout, dx: f64, dy: f64) {
     for entity in &layout.entities {
+        let top = entity.cy - entity.h / 2.0;
+        let bottom = entity.cy + entity.h / 2.0;
+        let nearest_above_y = entity
+            .attr_positions
+            .iter()
+            .filter(|attr| attr.cy + attr.ry <= top)
+            .map(|attr| attr.cy)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let nearest_below_y = entity
+            .attr_positions
+            .iter()
+            .filter(|attr| attr.cy - attr.ry >= bottom)
+            .map(|attr| attr.cy)
+            .fold(f64::INFINITY, f64::min);
+        let sibling_left = entity
+            .attr_positions
+            .iter()
+            .map(|attr| attr.cx - attr.rx)
+            .fold(f64::INFINITY, f64::min);
+        let sibling_right = entity
+            .attr_positions
+            .iter()
+            .map(|attr| attr.cx + attr.rx)
+            .fold(f64::NEG_INFINITY, f64::max);
         for attr in &entity.attr_positions {
-            let (ex, ey) = clip_to_rect_edge(
-                entity.cx + dx,
-                entity.cy + dy,
-                entity.w / 2.0,
-                entity.h / 2.0,
-                attr.cx + dx,
-                attr.cy + dy,
-            );
-            let (ax, ay) = clip_to_oval_edge(
-                attr.cx + dx,
-                attr.cy + dy,
-                attr.rx,
-                attr.ry,
-                entity.cx + dx,
-                entity.cy + dy,
-            );
-            out.push_str(&attribute_line(entity.name.as_str(), attr, ex, ey, ax, ay));
+            out.push_str(&entity_attribute_line(
+                entity,
+                attr,
+                nearest_above_y,
+                nearest_below_y,
+                sibling_left,
+                sibling_right,
+                dx,
+                dy,
+            ));
         }
     }
 
@@ -719,15 +752,118 @@ fn render_attribute_lines(out: &mut String, layout: &ChenLayout, dx: f64, dy: f6
     }
 }
 
+fn entity_attribute_line(
+    entity: &EntityLayout,
+    attr: &AttrLayout,
+    nearest_above_y: f64,
+    nearest_below_y: f64,
+    sibling_left: f64,
+    sibling_right: f64,
+    dx: f64,
+    dy: f64,
+) -> String {
+    let left = entity.cx - entity.w / 2.0 + dx;
+    let right = entity.cx + entity.w / 2.0 + dx;
+    let top = entity.cy - entity.h / 2.0 + dy;
+    let bottom = entity.cy + entity.h / 2.0 + dy;
+    let attr_cx = attr.cx + dx;
+    let attr_cy = attr.cy + dy;
+    let attr_left = attr_cx - attr.rx;
+    let attr_right = attr_cx + attr.rx;
+    let above = attr.cy + attr.ry <= entity.cy - entity.h / 2.0;
+    let below = attr.cy - attr.ry >= entity.cy + entity.h / 2.0;
+    let stacked_above = above && attr.cy < nearest_above_y - 1.0;
+    let stacked_below = below && attr.cy > nearest_below_y + 1.0;
+    let outside_left = attr_cx < left;
+    let outside_right = attr_cx > right;
+
+    if outside_left || outside_right || stacked_above || stacked_below {
+        let route_right = if outside_right {
+            true
+        } else if outside_left {
+            false
+        } else {
+            attr_cx >= entity.cx + dx
+        };
+        let source_y = if attr_cy < top {
+            top
+        } else if attr_cy > bottom {
+            bottom
+        } else {
+            attr_cy.clamp(top, bottom)
+        };
+        let source = if route_right {
+            (right, source_y)
+        } else {
+            (left, source_y)
+        };
+        let target = if route_right {
+            (attr_right, attr_cy)
+        } else {
+            (attr_left, attr_cy)
+        };
+        let lane_x = if route_right {
+            right.max(sibling_right + dx) + 6.0
+        } else {
+            left.min(sibling_left + dx) - 6.0
+        };
+        return attribute_polyline(
+            entity.name.as_str(),
+            attr,
+            &[source, (lane_x, source.1), (lane_x, target.1), target],
+        );
+    }
+
+    let (ex, ey) = if above {
+        (attr_cx.clamp(left, right), top)
+    } else if below {
+        (attr_cx.clamp(left, right), bottom)
+    } else {
+        clip_to_rect_edge(
+            entity.cx + dx,
+            entity.cy + dy,
+            entity.w / 2.0,
+            entity.h / 2.0,
+            attr_cx,
+            attr_cy,
+        )
+    };
+    let (ax, ay) = clip_to_oval_edge(attr_cx, attr_cy, attr.rx, attr.ry, ex, ey);
+    attribute_line(entity.name.as_str(), attr, ex, ey, ax, ay)
+}
+
 fn attribute_line(owner: &str, attr: &AttrLayout, x1: f64, y1: f64, x2: f64, y2: f64) -> String {
+    let attr_id = attr.id();
     format!(
-        "<line class=\"chen-attribute-line\" data-chen-owner=\"{}\" data-chen-attribute=\"{}\" x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.0\"/>\n",
+        "<line class=\"chen-attribute-line puml-edge\" data-chen-owner=\"{}\" data-chen-attribute=\"{}\" data-puml-edge-id=\"attribute:{}\" data-puml-from=\"{}\" data-puml-to=\"{}\" data-puml-family=\"chen\" data-puml-edge-kind=\"attribute\" x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.0\"/>\n",
         escape_text(owner),
         escape_text(&attr.name),
+        escape_text(&attr_id),
+        escape_text(owner),
+        escape_text(&attr_id),
         x1,
         y1,
         x2,
         y2,
+        ATTR_LINE_COLOR
+    )
+}
+
+fn attribute_polyline(owner: &str, attr: &AttrLayout, points: &[(f64, f64)]) -> String {
+    let attr_id = attr.id();
+    let points = points
+        .iter()
+        .map(|(x, y)| format!("{x:.1},{y:.1}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(
+        "<polyline class=\"chen-attribute-line puml-edge\" data-chen-owner=\"{}\" data-chen-attribute=\"{}\" data-puml-edge-id=\"attribute:{}\" data-puml-from=\"{}\" data-puml-to=\"{}\" data-puml-family=\"chen\" data-puml-edge-kind=\"attribute\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.0\"/>\n",
+        escape_text(owner),
+        escape_text(&attr.name),
+        escape_text(&attr_id),
+        escape_text(owner),
+        escape_text(&attr_id),
+        points,
         ATTR_LINE_COLOR
     )
 }
@@ -747,9 +883,12 @@ fn render_entity(entity: &EntityLayout, dx: f64, dy: f64) -> String {
             WEAK_STROKE
         ));
     }
+    let node_bbox = shifted_bbox(entity.bounds(), dx, dy);
     s.push_str(&format!(
-        "<rect class=\"chen-entity\" data-chen-entity=\"{}\" x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>\n",
+        "<rect class=\"chen-entity puml-node\" data-chen-entity=\"{}\" data-puml-id=\"{}\" data-puml-kind=\"entity\" data-puml-family=\"chen\" data-puml-bbox=\"{}\" x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"3\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>\n",
         escape_text(&entity.name),
+        escape_text(&entity.name),
+        node_bbox,
         x,
         y,
         entity.w,
@@ -757,8 +896,11 @@ fn render_entity(entity: &EntityLayout, dx: f64, dy: f64) -> String {
         ENTITY_FILL,
         ENTITY_STROKE
     ));
+    let label_bbox = text_bbox(entity.cx + dx, entity.cy + dy, &entity.name, 13.0);
     s.push_str(&format!(
-        "<text class=\"chen-entity-label\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+        "<text class=\"chen-entity-label puml-label\" data-puml-owner=\"{}\" data-puml-label-kind=\"node-label\" data-puml-bbox=\"{}\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+        escape_text(&entity.name),
+        label_bbox,
         entity.cx + dx,
         entity.cy + dy,
         FONT_ATTRS,
@@ -781,15 +923,21 @@ fn render_relationship(rel: &RelLayout, dx: f64, dy: f64) -> String {
             REL_STROKE
         ));
     }
+    let node_bbox = shifted_bbox(rel.bounds(), dx, dy);
     s.push_str(&format!(
-        "<polygon class=\"chen-relationship\" data-chen-relationship=\"{}\" points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>\n",
+        "<polygon class=\"chen-relationship puml-node\" data-chen-relationship=\"{}\" data-puml-id=\"{}\" data-puml-kind=\"relationship\" data-puml-family=\"chen\" data-puml-bbox=\"{}\" points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>\n",
         escape_text(&rel.name),
+        escape_text(&rel.name),
+        node_bbox,
         points,
         REL_FILL,
         REL_STROKE
     ));
+    let label_bbox = text_bbox(cx, cy, &rel.name, 13.0);
     s.push_str(&format!(
-        "<text class=\"chen-relationship-label\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+        "<text class=\"chen-relationship-label puml-label\" data-puml-owner=\"{}\" data-puml-label-kind=\"node-label\" data-puml-bbox=\"{}\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+        escape_text(&rel.name),
+        label_bbox,
         cx,
         cy,
         FONT_ATTRS,
@@ -822,11 +970,13 @@ fn render_attribute_oval(attr: &AttrLayout, dx: f64, dy: f64) -> String {
         ""
     };
     s.push_str(&format!(
-        "<ellipse class=\"chen-attribute\" data-chen-owner-kind=\"{}\" data-chen-owner=\"{}\" data-chen-attribute=\"{}\" data-chen-attribute-id=\"{}\" cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>\n",
+        "<ellipse class=\"chen-attribute puml-node\" data-chen-owner-kind=\"{}\" data-chen-owner=\"{}\" data-chen-attribute=\"{}\" data-chen-attribute-id=\"{}\" data-puml-id=\"{}\" data-puml-kind=\"attribute\" data-puml-family=\"chen\" data-puml-bbox=\"{}\" cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{}/>\n",
         attr.owner_kind,
         escape_text(&attr.owner_name),
         escape_text(&attr.name),
         escape_text(&id),
+        escape_text(&id),
+        shifted_bbox(attr.bounds(), dx, dy),
         cx,
         cy,
         attr.rx,
@@ -841,8 +991,11 @@ fn render_attribute_oval(attr: &AttrLayout, dx: f64, dy: f64) -> String {
     } else {
         ""
     };
+    let label_bbox = text_bbox(cx, cy, &attr.name, 13.0);
     s.push_str(&format!(
-        "<text class=\"chen-attribute-label\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\"{}>{}</text>\n",
+        "<text class=\"chen-attribute-label puml-label\" data-puml-owner=\"{}\" data-puml-label-kind=\"attribute-label\" data-puml-bbox=\"{}\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\"{}>{}</text>\n",
+        escape_text(&id),
+        label_bbox,
         cx,
         cy,
         FONT_ATTRS,
@@ -854,10 +1007,14 @@ fn render_attribute_oval(attr: &AttrLayout, dx: f64, dy: f64) -> String {
 }
 
 fn render_cardinality_label(label: &CardinalityLayout, dx: f64, dy: f64) -> String {
+    let owner = format!("{}:{}", label.rel_name, label.entity_name);
+    let bbox = shifted_bbox(label.bounds(), dx, dy);
     format!(
-        "<text class=\"chen-cardinality\" data-chen-relationship=\"{}\" data-chen-entity=\"{}\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+        "<text class=\"chen-cardinality puml-label\" data-chen-relationship=\"{}\" data-chen-entity=\"{}\" data-puml-owner=\"{}\" data-puml-label-kind=\"cardinality\" data-puml-bbox=\"{}\" x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
         escape_text(&label.rel_name),
         escape_text(&label.entity_name),
+        escape_text(&owner),
+        bbox,
         label.cx + dx,
         label.cy + dy,
         FONT_ATTRS,

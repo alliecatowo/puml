@@ -259,7 +259,11 @@ fn parse_attr_i32(tag: &str, attr: &str) -> Option<i32> {
         let value_start = match_pos + needle.len();
         if ok {
             let end = value_start + tag[value_start..].find('"')?;
-            return tag[value_start..end].parse().ok();
+            let raw = &tag[value_start..end];
+            return raw
+                .parse::<i32>()
+                .ok()
+                .or_else(|| raw.parse::<f64>().ok().map(|value| value.round() as i32));
         }
         search_pos = match_pos + needle.len();
     }
@@ -364,39 +368,124 @@ pub struct NodeBbox {
     pub h: i32,
 }
 
-/// Extract node bounding boxes from `<rect class="uml-node"` elements.
-/// The bounding box is derived from `x`, `y`, `width`, `height` attributes.
+/// Extract node bounding boxes from canonical `puml-node` hooks, falling back
+/// to legacy `uml-node` hooks while renderer families migrate.
 pub(crate) fn extract_node_bboxes(svg: &str) -> Vec<NodeBbox> {
     let mut result = Vec::new();
-    // Look for elements with class="uml-node" in their tag.
-    let mut pos = 0;
-    while let Some(rel) = svg[pos..].find("class=\"uml-node") {
-        let abs = pos + rel;
-        // Walk back from the match to find the opening '<' of this tag.
-        let tag_start = svg[..abs].rfind('<').unwrap_or(abs);
-        // Ensure we always advance past the current match to avoid infinite loops.
-        let next_pos = abs + "class=\"uml-node".len();
 
-        let Some(rel_close) = svg[tag_start..].find('>') else {
-            pos = next_pos;
+    for tag in svg_element_tags(svg) {
+        if !tag_has_class(tag, "puml-node") && !tag_has_class(tag, "uml-node") {
+            continue;
+        }
+
+        let Some((x, y, w, h)) = extract_node_bbox_from_tag(tag) else {
             continue;
         };
-        let tag = &svg[tag_start..tag_start + rel_close];
-
-        let x = parse_attr_i32(tag, "x").unwrap_or(0);
-        let y = parse_attr_i32(tag, "y").unwrap_or(0);
-        let w = parse_attr_i32(tag, "width").unwrap_or(0);
-        let h = parse_attr_i32(tag, "height").unwrap_or(0);
-        let id = extract_attr_str(tag, "data-uml-id")
+        let id = extract_attr_str(tag, "data-puml-id")
+            .or_else(|| extract_attr_str(tag, "data-uml-id"))
             .or_else(|| extract_attr_str(tag, "id"))
             .unwrap_or_else(|| format!("node@{x},{y}"));
 
         if w > 0 && h > 0 {
             result.push(NodeBbox { id, x, y, w, h });
         }
-        pos = next_pos;
     }
     result
+}
+
+fn extract_node_bbox_from_tag(tag: &str) -> Option<(i32, i32, i32, i32)> {
+    if let Some(bbox) = extract_attr_str(tag, "data-puml-bbox").and_then(|raw| parse_bbox(&raw)) {
+        return Some(bbox);
+    }
+
+    if tag.starts_with("<rect ") {
+        return Some((
+            parse_attr_i32(tag, "x").unwrap_or(0),
+            parse_attr_i32(tag, "y").unwrap_or(0),
+            parse_attr_i32(tag, "width").unwrap_or(0),
+            parse_attr_i32(tag, "height").unwrap_or(0),
+        ));
+    }
+    if tag.starts_with("<circle ") {
+        let cx = parse_attr_i32(tag, "cx")?;
+        let cy = parse_attr_i32(tag, "cy")?;
+        let r = parse_attr_i32(tag, "r")?;
+        return Some((cx - r, cy - r, r * 2, r * 2));
+    }
+    if tag.starts_with("<ellipse ") {
+        let cx = parse_attr_i32(tag, "cx")?;
+        let cy = parse_attr_i32(tag, "cy")?;
+        let rx = parse_attr_i32(tag, "rx")?;
+        let ry = parse_attr_i32(tag, "ry")?;
+        return Some((cx - rx, cy - ry, rx * 2, ry * 2));
+    }
+    if tag.starts_with("<polygon ") || tag.starts_with("<polyline ") {
+        let points = extract_attr_str(tag, "points")?;
+        return parse_points_bbox(&points);
+    }
+    None
+}
+
+fn parse_bbox(raw: &str) -> Option<(i32, i32, i32, i32)> {
+    let parts: Vec<i32> = raw
+        .split_whitespace()
+        .filter_map(|part| part.parse::<f64>().ok().map(|value| value.round() as i32))
+        .collect();
+    if parts.len() == 4 {
+        Some((parts[0], parts[1], parts[2], parts[3]))
+    } else {
+        None
+    }
+}
+
+fn parse_points_bbox(points: &str) -> Option<(i32, i32, i32, i32)> {
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for pair in points.split_whitespace() {
+        let Some((x, y)) = pair.split_once(',') else {
+            continue;
+        };
+        let x = x.parse::<f64>().ok()?;
+        let y = y.parse::<f64>().ok()?;
+        min_x = min_x.min(x);
+        max_x = max_x.max(x);
+        min_y = min_y.min(y);
+        max_y = max_y.max(y);
+    }
+
+    min_x.is_finite().then_some((
+        min_x.round() as i32,
+        min_y.round() as i32,
+        (max_x - min_x).round() as i32,
+        (max_y - min_y).round() as i32,
+    ))
+}
+
+fn svg_element_tags(svg: &str) -> Vec<&str> {
+    let mut tags = Vec::new();
+    let mut pos = 0;
+    while let Some(rel) = svg[pos..].find('<') {
+        let start = pos + rel;
+        if svg[start..].starts_with("</") || svg[start..].starts_with("<!--") {
+            pos = start + 1;
+            continue;
+        }
+        let Some(rel_end) = svg[start..].find('>') else {
+            break;
+        };
+        tags.push(&svg[start..start + rel_end + 1]);
+        pos = start + rel_end + 1;
+    }
+    tags
+}
+
+fn tag_has_class(tag: &str, class_name: &str) -> bool {
+    extract_attr_str(tag, "class")
+        .map(|class| class.split_whitespace().any(|part| part == class_name))
+        .unwrap_or(false)
 }
 
 /// Extract a string attribute value from a tag fragment.
@@ -482,8 +571,7 @@ fn segment_crosses_rect(seg: Segment, bx: i32, by: i32, bw: i32, bh: i32) -> boo
     seg_min_x < rx2 && seg_max_x > rx1 && seg_min_y < ry2 && seg_max_y > ry1
 }
 
-/// Extract polyline/line endpoints from SVG `<polyline …/>` and `<line …/>`
-/// elements that carry `class="uml-relation"`.
+/// Extract polyline/line endpoints from SVG edge hooks.
 fn extract_relation_segments(svg: &str) -> Vec<(String, String, Vec<Segment>)> {
     let mut result = Vec::new();
     let mut pos = 0;
@@ -496,12 +584,16 @@ fn extract_relation_segments(svg: &str) -> Vec<(String, String, Vec<Segment>)> {
             continue;
         };
         let tag = &svg[tag_start..tag_start + rel_close];
-        if !tag.contains("uml-relation") {
+        if !tag_has_class(tag, "puml-edge") && !tag_has_class(tag, "uml-relation") {
             pos = tag_start + 1;
             continue;
         }
-        let from = extract_attr_str(tag, "data-uml-from").unwrap_or_default();
-        let to = extract_attr_str(tag, "data-uml-to").unwrap_or_default();
+        let from = extract_attr_str(tag, "data-puml-from")
+            .or_else(|| extract_attr_str(tag, "data-uml-from"))
+            .unwrap_or_default();
+        let to = extract_attr_str(tag, "data-puml-to")
+            .or_else(|| extract_attr_str(tag, "data-uml-to"))
+            .unwrap_or_default();
         let segs = parse_polyline_segments(tag);
         if !segs.is_empty() {
             result.push((from, to, segs));
@@ -518,12 +610,16 @@ fn extract_relation_segments(svg: &str) -> Vec<(String, String, Vec<Segment>)> {
             continue;
         };
         let tag = &svg[tag_start..tag_start + rel_close];
-        if !tag.contains("uml-relation") {
+        if !tag_has_class(tag, "puml-edge") && !tag_has_class(tag, "uml-relation") {
             pos = tag_start + 1;
             continue;
         }
-        let from = extract_attr_str(tag, "data-uml-from").unwrap_or_default();
-        let to = extract_attr_str(tag, "data-uml-to").unwrap_or_default();
+        let from = extract_attr_str(tag, "data-puml-from")
+            .or_else(|| extract_attr_str(tag, "data-uml-from"))
+            .unwrap_or_default();
+        let to = extract_attr_str(tag, "data-puml-to")
+            .or_else(|| extract_attr_str(tag, "data-uml-to"))
+            .unwrap_or_default();
         let x1 = parse_attr_i32(tag, "x1").unwrap_or(0);
         let y1 = parse_attr_i32(tag, "y1").unwrap_or(0);
         let x2 = parse_attr_i32(tag, "x2").unwrap_or(0);
@@ -550,8 +646,8 @@ fn parse_polyline_segments(tag: &str) -> Vec<Segment> {
         .split_whitespace()
         .filter_map(|pair| {
             let mut it = pair.splitn(2, ',');
-            let x: i32 = it.next()?.parse().ok()?;
-            let y: i32 = it.next()?.parse().ok()?;
+            let x = it.next()?.parse::<f64>().ok()?.round() as i32;
+            let y = it.next()?.parse::<f64>().ok()?.round() as i32;
             Some((x, y))
         })
         .collect();

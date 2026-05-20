@@ -114,6 +114,29 @@ relationship SupervisesDependentEnrollment identifying {
     assert_eq!(first, second);
 
     let doc = SvgDoc::parse(&first);
+    let hook_nodes = doc.hook_nodes();
+    let hook_edges = doc.hook_edges();
+    assert_eq!(
+        hook_nodes.len(),
+        7,
+        "Chen fixture should expose entity, relationship, and attribute puml-node hooks"
+    );
+    assert_eq!(
+        hook_edges.len(),
+        6,
+        "Chen fixture should expose relationship and attribute puml-edge hooks"
+    );
+    assert!(
+        hook_nodes.iter().all(|node| !node.id.is_empty()),
+        "puml-node hooks should have stable ids"
+    );
+    assert!(
+        hook_edges
+            .iter()
+            .all(|edge| !edge.from.is_empty() && !edge.to.is_empty() && !edge.segments.is_empty()),
+        "puml-edge hooks should have endpoint ids and geometry"
+    );
+
     let rel = bounds(doc.first_with_attr(
         "polygon",
         "data-chen-relationship",

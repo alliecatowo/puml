@@ -134,19 +134,31 @@
       "path": "docs/examples/chen/01_basic.puml",
       "family": "chen",
       "expected_text": ["Student Enrollment", "Student", "Course", "Enrolls"],
-      "min_text_elements": 8
+      "min_text_elements": 8,
+      "required_classes": ["puml-node", "puml-edge", "puml-label"],
+      "expected_counts": { "puml-node": 9, "puml-edge": 8, "puml-label": 12 },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/chen/02_keys.puml",
       "family": "chen",
       "expected_text": ["Employee Department Schema", "Employee", "Department", "Dependent", "HasDependent"],
-      "min_text_elements": 12
+      "min_text_elements": 12,
+      "required_classes": ["puml-node", "puml-edge", "puml-label"],
+      "expected_counts": { "puml-node": 13, "puml-edge": 12, "puml-label": 18 },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/chen/03_multi_relationship.puml",
       "family": "chen",
       "expected_text": ["Library Management", "Book", "Member", "Librarian", "Borrows", "Manages"],
-      "min_text_elements": 14
+      "min_text_elements": 14,
+      "required_classes": ["puml-node", "puml-edge", "puml-label"],
+      "expected_counts": { "puml-node": 16, "puml-edge": 15, "puml-label": 21 },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/sdl/02_with_transitions.puml",

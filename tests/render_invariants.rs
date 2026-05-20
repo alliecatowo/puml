@@ -127,6 +127,40 @@ fn invariant1_check_returns_structured_violations() {
     ));
 }
 
+#[test]
+fn invariant1_uses_canonical_puml_node_and_edge_hooks() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180" viewBox="0 0 300 180">"#,
+        r#"<rect class="puml-node" data-puml-id="A" data-puml-kind="entity" data-puml-bbox="10 70 70 40" x="10" y="70" width="70" height="40"/>"#,
+        r#"<ellipse class="puml-node" data-puml-id="B" data-puml-kind="attribute" data-puml-bbox="210 70 70 40" cx="245" cy="90" rx="35" ry="20"/>"#,
+        r#"<polygon class="puml-node" data-puml-id="obstacle" data-puml-kind="relationship" data-puml-bbox="120 60 60 60" points="150,60 180,90 150,120 120,90"/>"#,
+        "<line class=\"puml-edge\" data-puml-from=\"A\" data-puml-to=\"B\" x1=\"80.0\" y1=\"90.0\" x2=\"210.0\" y2=\"90.0\" stroke=\"#333\"/>",
+        r#"</svg>"#
+    );
+    let violations = validate::check_edge_node_clearance(svg);
+    assert_eq!(violations.len(), 1);
+    assert!(matches!(
+        violations[0].kind,
+        InvariantKind::EdgeCrossesNode { ref node_id, .. } if node_id == "obstacle"
+    ));
+}
+
+#[test]
+fn invariant6_uses_canonical_puml_node_and_edge_hooks() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180" viewBox="0 0 300 180">"#,
+        r#"<rect class="puml-node" data-puml-id="A" data-puml-kind="entity" data-puml-bbox="10 70 70 40" x="10" y="70" width="70" height="40"/>"#,
+        r#"<ellipse class="puml-node" data-puml-id="B" data-puml-kind="attribute" data-puml-bbox="210 70 70 40" cx="245" cy="90" rx="35" ry="20"/>"#,
+        "<line class=\"puml-edge\" data-puml-from=\"A\" data-puml-to=\"B\" x1=\"80.0\" y1=\"90.0\" x2=\"210.0\" y2=\"90.0\" stroke=\"#333\"/>",
+        r#"</svg>"#
+    );
+    let violations = validate::check_endpoint_connectivity(svg);
+    assert!(
+        violations.is_empty(),
+        "expected connected puml-edge: {violations:?}"
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Invariant #3: Label-vs-edge-stroke clearance
 // ─────────────────────────────────────────────────────────────────────────────
