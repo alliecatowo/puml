@@ -229,6 +229,10 @@ puml --from-markdown --check notes.md    # lint all fenced puml blocks in a Mark
 puml --dump ast hello.puml
 puml --dump model hello.puml
 puml --dump scene hello.puml
+
+# Structural statistics (node count, edge count, family, depth, kind histogram)
+puml stats hello.puml                    # human-readable summary
+puml stats hello.puml --format json      # machine-readable for scripting
 ```
 
 Full flag reference, dialect options, and exit codes: [CLI reference](https://alliecatowo.github.io/puml/guide/cli/)

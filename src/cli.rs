@@ -1,6 +1,8 @@
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+pub use crate::cli_stats::{StatsArgs, StatsFormat};
+
 /// Parse a single `-DKEY=VALUE` or `-D KEY=VALUE` argument into `(key, value)`.
 /// A bare key with no `=` is accepted and yields an empty value.
 pub fn parse_define(raw: &str) -> Result<(String, String), String> {
@@ -173,6 +175,8 @@ pub struct Cli {
 pub enum Command {
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Print structural statistics for a .puml file: node count, edge count, families, depth, histogram.
+    Stats(StatsArgs),
 }
 
 #[derive(Debug, Clone, Args)]
@@ -338,6 +342,20 @@ mod tests {
                     vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
                 );
             }
+            other => panic!("expected Format command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stats_subcommand_parses_file_and_format() {
+        let cli = Cli::try_parse_from(["puml", "stats", "diagram.puml", "--format", "json"])
+            .expect("stats subcommand should parse");
+        match cli.command.expect("stats command should be present") {
+            Command::Stats(args) => {
+                assert_eq!(args.file, PathBuf::from("diagram.puml"));
+                assert_eq!(args.format, StatsFormat::Json);
+            }
+            other => panic!("expected Stats command, got {other:?}"),
         }
     }
 

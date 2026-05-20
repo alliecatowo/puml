@@ -1,4 +1,6 @@
 mod cli;
+mod cli_stats;
+mod cli_stats_format;
 
 use clap::{CommandFactory, FromArgMatches};
 use cli::{
@@ -263,6 +265,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     if let Some(command) = cli.command.take() {
         return match command {
             CliCommand::Format(args) => run_format_command(args),
+            CliCommand::Stats(args) => cli_stats::run_stats(args)
+                .map_err(|e| (EXIT_VALIDATION, e))
+                .map(|_| ()),
         };
     }
 
