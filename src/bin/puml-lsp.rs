@@ -6,7 +6,7 @@ use puml::language_service::{
     CompletionItemKind, DocumentSymbolKind, SemanticTokenKind,
 };
 use puml::{
-    normalize_family, parse_with_pipeline_options, render_svg_pages_from_model, Document,
+    normalize_family, parse_with_pipeline_options, try_render_svg_pages_from_model, Document,
     FrontendSelection, ParsePipelineOptions,
 };
 use serde_json::{json, Value};
@@ -866,7 +866,18 @@ fn range(src: &str, s: usize, e: usize) -> Value {
 fn render_result(src: &str, frontend: Option<FrontendSelection>) -> Value {
     match lsp_parse_with_frontend(src, frontend).and_then(normalize_family) {
         Ok(model) => {
-            let pages = render_svg_pages_from_model(&model);
+            let pages = match try_render_svg_pages_from_model(&model) {
+                Ok(pages) => pages,
+                Err(d) => {
+                    return json!({
+                        "svg": "",
+                        "svgs": [],
+                        "width": 0,
+                        "height": 0,
+                        "diagnostics": [d.to_json_with_source(src)]
+                    });
+                }
+            };
             json!({
                 "svg": pages.first().cloned().unwrap_or_default(),
                 "svgs": pages,

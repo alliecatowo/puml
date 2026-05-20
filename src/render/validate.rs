@@ -567,6 +567,69 @@ pub fn check_semantic_bboxes_inside_viewbox(svg: &str) -> Vec<InvariantViolation
     violations
 }
 
+/// Expand the root SVG viewBox/intrinsic size until every canonical semantic
+/// bbox fits. Returns the corrected overflow diagnostics.
+pub fn expand_viewbox_to_semantic_bboxes(svg: &mut String) -> Vec<InvariantViolation> {
+    let Some((vb_x, vb_y, mut vb_w, mut vb_h)) = parse_viewbox(svg) else {
+        return Vec::new();
+    };
+
+    let mut violations = Vec::new();
+    let mut expanded = false;
+    let semantic_boxes = extract_semantic_nodes(svg)
+        .into_iter()
+        .map(|node| (SemanticRole::Node, node.id, node.bbox))
+        .chain(
+            extract_semantic_labels(svg)
+                .into_iter()
+                .map(|label| (SemanticRole::Label, semantic_label_id(&label), label.bbox)),
+        )
+        .collect::<Vec<_>>();
+
+    for (role, id, bbox) in semantic_boxes {
+        let left_overflow = (vb_x - bbox.x).max(0);
+        let top_overflow = (vb_y - bbox.y).max(0);
+        let right_overflow = (bbox.x + bbox.w - (vb_x + vb_w)).max(0);
+        let bottom_overflow = (bbox.y + bbox.h - (vb_y + vb_h)).max(0);
+        let overflow_px = left_overflow
+            .max(top_overflow)
+            .max(right_overflow)
+            .max(bottom_overflow);
+        if overflow_px == 0 {
+            continue;
+        }
+
+        violations.push(InvariantViolation {
+            kind: InvariantKind::SemanticBBoxOutsideViewbox {
+                role,
+                id: id.clone(),
+                overflow_px,
+            },
+            corrected: true,
+            message: format!(
+                "[INV-PUML-BBOX] {role:?} {id:?} bbox ({},{},{},{}) overflows viewBox by {}px",
+                bbox.x, bbox.y, bbox.w, bbox.h, overflow_px
+            ),
+        });
+
+        if left_overflow > 0 {
+            vb_w += left_overflow + 8;
+        }
+        if top_overflow > 0 {
+            vb_h += top_overflow + 8;
+        }
+        vb_w = vb_w.max(bbox.x + bbox.w - vb_x + 8);
+        vb_h = vb_h.max(bbox.y + bbox.h - vb_y + 8);
+        expanded = true;
+    }
+
+    if expanded {
+        *svg = sync_svg_dimensions(svg, vb_x, vb_y, vb_w, vb_h);
+    }
+
+    violations
+}
+
 /// Check that canonical primary `puml-node` bounding boxes do not overlap.
 pub fn check_primary_node_non_overlap(svg: &str) -> Vec<InvariantViolation> {
     let nodes = extract_semantic_nodes(svg);
@@ -672,6 +735,46 @@ pub fn check_canonical_graph_hooks(
         require_graph_attr(&mut violations, tag, "puml-edge", "data-puml-to");
     }
     for tag in label_tags {
+        require_graph_attr(&mut violations, tag, "puml-label", "data-puml-owner");
+        require_graph_attr(&mut violations, tag, "puml-label", "data-puml-label-kind");
+        require_graph_attr(&mut violations, tag, "puml-label", "data-puml-bbox");
+    }
+
+    violations
+}
+
+/// Check canonical hook attributes without requiring that every role exists.
+///
+/// This is the public render-boundary contract: if a renderer emits a canonical
+/// `puml-*` hook, the hook must be complete enough for downstream geometry
+/// checks. Fixture manifests remain responsible for asserting role counts when
+/// a specific diagram should contain nodes, edges, or labels.
+pub fn check_canonical_semantic_hook_attrs(svg: &str) -> Vec<InvariantViolation> {
+    let mut violations = Vec::new();
+    let tags = svg_element_tags(svg);
+
+    for tag in tags
+        .iter()
+        .copied()
+        .filter(|tag| tag_has_class(tag, "puml-node"))
+    {
+        require_graph_attr(&mut violations, tag, "puml-node", "data-puml-id");
+        require_graph_attr(&mut violations, tag, "puml-node", "data-puml-kind");
+        require_graph_attr(&mut violations, tag, "puml-node", "data-puml-bbox");
+    }
+    for tag in tags
+        .iter()
+        .copied()
+        .filter(|tag| tag_has_class(tag, "puml-edge"))
+    {
+        require_graph_attr(&mut violations, tag, "puml-edge", "data-puml-from");
+        require_graph_attr(&mut violations, tag, "puml-edge", "data-puml-to");
+    }
+    for tag in tags
+        .iter()
+        .copied()
+        .filter(|tag| tag_has_class(tag, "puml-label"))
+    {
         require_graph_attr(&mut violations, tag, "puml-label", "data-puml-owner");
         require_graph_attr(&mut violations, tag, "puml-label", "data-puml-label-kind");
         require_graph_attr(&mut violations, tag, "puml-label", "data-puml-bbox");
@@ -1443,7 +1546,7 @@ fn point_touches_bbox(pt: (i32, i32), bbox: &NodeBbox) -> bool {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Result of a full invariant run.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct InvariantReport {
     pub violations: Vec<InvariantViolation>,
     pub expansions: usize,

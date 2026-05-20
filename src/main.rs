@@ -20,8 +20,8 @@ use puml::model::{
 use puml::source::Span;
 use puml::{
     extract_markdown_diagrams, extract_metadata, normalize_family,
-    preprocess_with_pipeline_options, render, render_svg_pages_from_model, specialized, CompatMode,
-    DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
+    preprocess_with_pipeline_options, render, specialized, try_render_svg_pages_from_model,
+    CompatMode, DeterminismMode, Diagnostic, DiagnosticJson, DiagramInput, FrontendSelection,
     NormalizedDocument, ParsePipelineOptions, TextOutputMode,
 };
 use serde::Serialize;
@@ -551,6 +551,16 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             })?;
             let svg = result
                 .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
+            let svg = render::validate_svg(svg, render::RenderProfile::Legacy)
+                .map(render::ValidatedSvg::into_string)
+                .map_err(|err| {
+                    diag_err_mapped(
+                        &raw,
+                        source.source_span,
+                        Diagnostic::error_code("E_RENDER_CONTRACT", err.to_string()),
+                        diagnostics_output,
+                    )
+                })?;
             let name_hint = source
                 .output_name_hint
                 .as_ref()
@@ -575,7 +585,8 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         let model = normalize_family(doc)
             .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
         emit_warnings_for_model(&model, &raw, source.source_span, diagnostics_output);
-        let pages = render_pages_from_model(&model, cli.format);
+        let pages = render_pages_from_model(&model, cli.format)
+            .map_err(|d| diag_err_mapped(&raw, source.source_span, d, diagnostics_output))?;
         let page_count = pages.len();
         for (page_idx, content) in pages.into_iter().enumerate() {
             let name_hint = source.output_name_hint.as_ref().map(|base| {
@@ -1217,13 +1228,16 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
     }
 }
 
-fn render_pages_from_model(model: &NormalizedDocument, format: OutputFormat) -> Vec<String> {
+fn render_pages_from_model(
+    model: &NormalizedDocument,
+    format: OutputFormat,
+) -> Result<Vec<String>, Diagnostic> {
     match format.text_mode() {
-        Some(mode) => render::render_text_pages(model, mode),
-        None => render_svg_pages_from_model(model)
+        Some(mode) => Ok(render::render_text_pages(model, mode)),
+        None => Ok(try_render_svg_pages_from_model(model)?
             .into_iter()
             .map(|svg| render_svg_export_content(&svg, format))
-            .collect(),
+            .collect()),
     }
 }
 

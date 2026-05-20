@@ -12,6 +12,7 @@ pub(crate) use std::collections::BTreeMap;
 
 mod activity;
 mod chen;
+pub mod contract;
 mod data;
 mod family;
 mod geometry;
@@ -32,6 +33,7 @@ pub mod validate;
 
 pub use activity::render_activity_svg;
 pub use chen::render_chen_svg;
+pub use contract::{validate_svg, RawSvg, RenderProfile, SvgContractError, ValidatedSvg};
 pub use data::{render_json_svg, render_yaml_svg};
 pub use family::{
     render_class_svg, render_component_svg, render_deployment_svg, render_family_stub_svg,

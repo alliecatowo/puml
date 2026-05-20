@@ -254,7 +254,9 @@ pub fn render_source_to_svgs(source: &str) -> Result<Vec<String>, Diagnostic> {
                 "[E_SPECIALIZED_PREPROC] preprocessed specialized source changed family",
             )
         })?;
-        return result.map(|svg| vec![svg]);
+        return result.and_then(|svg| {
+            validate_svg_for_family(svg, DiagramFamily::Unknown).map(|svg| vec![svg])
+        });
     }
     let document = parse(source)?;
     let family = map_ast_kind_to_family(document.kind);
@@ -317,15 +319,16 @@ fn render_document_for_family(
         DiagramFamily::Sequence => {
             let sequence = normalize(document)?;
             let scenes = layout::layout_pages(&sequence, LayoutOptions::default());
-            Ok(scenes.iter().map(render::render_svg).collect())
+            scenes
+                .iter()
+                .map(|scene| validate_svg_for_family(render::render_svg(scene), DiagramFamily::Sequence))
+                .collect()
         }
         DiagramFamily::Class
         | DiagramFamily::Object
         | DiagramFamily::UseCase => match normalize::normalize_family(document)? {
             model::NormalizedDocument::Family(family_doc) => {
-                let mut svg = render::render_class_svg(&family_doc);
-                let _ = render::validate::run(&mut svg, render::validate::AutoCorrect::Apply);
-                Ok(vec![svg])
+                validate_svg_for_family(render::render_class_svg(&family_doc), family).map(|svg| vec![svg])
             }
             model::NormalizedDocument::Sequence(_)
             | model::NormalizedDocument::Timeline(_)
@@ -338,7 +341,7 @@ fn render_document_for_family(
         },
         DiagramFamily::Salt => match normalize::normalize_family(document)? {
             model::NormalizedDocument::Family(family_doc) => {
-                Ok(vec![render::render_salt_svg(&family_doc)])
+                validate_svg_for_family(render::render_salt_svg(&family_doc), family).map(|svg| vec![svg])
             }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during salt render",
@@ -347,7 +350,7 @@ fn render_document_for_family(
         DiagramFamily::Gantt | DiagramFamily::Chronology => {
             match normalize::normalize_family(document)? {
                 model::NormalizedDocument::Timeline(timeline) => {
-                    Ok(vec![render::render_timeline_svg(&timeline)])
+                    validate_svg_for_family(render::render_timeline_svg(&timeline), family).map(|svg| vec![svg])
                 }
                 _ => Err(Diagnostic::error(
                     "[E_TIMELINE_INTERNAL] unexpected model during timeline render",
@@ -356,96 +359,123 @@ fn render_document_for_family(
         }
         DiagramFamily::State => match normalize::normalize_family(document)? {
             model::NormalizedDocument::State(state_doc) => {
-                Ok(vec![render::render_state_svg(&state_doc)])
+                validate_svg_for_family(render::render_state_svg(&state_doc), family).map(|svg| vec![svg])
             }
             _ => Err(Diagnostic::error(
                 "[E_STATE_INTERNAL] unexpected model variant during state render",
             )),
         },
-        DiagramFamily::Component => render_family_with(document, render::render_component_svg),
-        DiagramFamily::Deployment => render_family_with(document, render::render_deployment_svg),
-        DiagramFamily::Activity => render_family_with(document, render::render_activity_svg),
-        DiagramFamily::Timing => render_family_with(document, render::render_timing_svg),
+        DiagramFamily::Component => {
+            render_family_with(document, family, render::render_component_svg)
+        }
+        DiagramFamily::Deployment => {
+            render_family_with(document, family, render::render_deployment_svg)
+        }
+        DiagramFamily::Activity => render_family_with(document, family, render::render_activity_svg),
+        DiagramFamily::Timing => render_family_with(document, family, render::render_timing_svg),
         DiagramFamily::Json => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Json(doc) => Ok(vec![render::render_json_svg(&doc)]),
+            model::NormalizedDocument::Json(doc) => {
+                validate_svg_for_family(render::render_json_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_JSON_INTERNAL] unexpected model during json render",
             )),
         },
         DiagramFamily::Yaml => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Yaml(doc) => Ok(vec![render::render_yaml_svg(&doc)]),
+            model::NormalizedDocument::Yaml(doc) => {
+                validate_svg_for_family(render::render_yaml_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_YAML_INTERNAL] unexpected model during yaml render",
             )),
         },
         DiagramFamily::Nwdiag => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Nwdiag(doc) => Ok(vec![render::render_nwdiag_svg(&doc)]),
+            model::NormalizedDocument::Nwdiag(doc) => {
+                validate_svg_for_family(render::render_nwdiag_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_NWDIAG_INTERNAL] unexpected model during nwdiag render",
             )),
         },
         DiagramFamily::Archimate => match normalize::normalize_family(document)? {
             model::NormalizedDocument::Archimate(doc) => {
-                Ok(vec![render::render_archimate_svg(&doc)])
+                validate_svg_for_family(render::render_archimate_svg(&doc), family).map(|svg| vec![svg])
             }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_ARCHIMATE_INTERNAL] unexpected model during archimate render",
             )),
         },
         DiagramFamily::Regex => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Regex(doc) => Ok(vec![render::render_regex_svg(&doc)]),
+            model::NormalizedDocument::Regex(doc) => {
+                validate_svg_for_family(render::render_regex_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during regex render",
             )),
         },
         DiagramFamily::Ebnf => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Ebnf(doc) => Ok(vec![render::render_ebnf_svg(&doc)]),
+            model::NormalizedDocument::Ebnf(doc) => {
+                validate_svg_for_family(render::render_ebnf_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during ebnf render",
             )),
         },
         DiagramFamily::Math => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Math(doc) => Ok(vec![render::render_math_svg(&doc)]),
+            model::NormalizedDocument::Math(doc) => {
+                validate_svg_for_family(render::render_math_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during math render",
             )),
         },
         DiagramFamily::Sdl => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Sdl(doc) => Ok(vec![render::render_sdl_svg(&doc)]),
+            model::NormalizedDocument::Sdl(doc) => {
+                validate_svg_for_family(render::render_sdl_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during sdl render",
             )),
         },
         DiagramFamily::Ditaa => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Ditaa(doc) => Ok(vec![render::render_ditaa_svg(&doc)]),
+            model::NormalizedDocument::Ditaa(doc) => {
+                validate_svg_for_family(render::render_ditaa_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during ditaa render",
             )),
         },
         DiagramFamily::Chart => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Chart(doc) => Ok(vec![render::render_chart_svg(&doc)]),
+            model::NormalizedDocument::Chart(doc) => {
+                validate_svg_for_family(render::render_chart_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during chart render",
             )),
         },
         DiagramFamily::Chen => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Chen(doc) => Ok(vec![render::render_chen_svg(&doc)]),
+            model::NormalizedDocument::Chen(doc) => {
+                validate_svg_for_family(render::render_chen_svg(&doc), family).map(|svg| vec![svg])
+            }
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_CHEN_INTERNAL] unexpected model during chen render",
             )),
         },
-        DiagramFamily::MindMap => render_family_with(document, render::render_mindmap_svg),
-        DiagramFamily::Wbs => render_family_with(document, render::render_wbs_svg),
+        DiagramFamily::MindMap => render_family_with(document, family, render::render_mindmap_svg),
+        DiagramFamily::Wbs => render_family_with(document, family, render::render_wbs_svg),
         DiagramFamily::Unknown => Err(unsupported_render_family_diagnostic(family)),
     }
 }
 
 fn render_family_with(
     document: Document,
+    family: DiagramFamily,
     renderer: fn(&FamilyDocument) -> String,
 ) -> Result<Vec<String>, Diagnostic> {
     match normalize::normalize_family(document)? {
-        model::NormalizedDocument::Family(doc) => Ok(vec![renderer(&doc)]),
+        model::NormalizedDocument::Family(doc) => {
+            validate_svg_for_family(renderer(&doc), family).map(|svg| vec![svg])
+        }
         model::NormalizedDocument::Sequence(_) => Err(Diagnostic::error(
             "[E_FAMILY_INTERNAL] unexpected sequence model during extended family render",
         )),
@@ -479,31 +509,82 @@ fn unsupported_render_family_diagnostic(family: DiagramFamily) -> Diagnostic {
     )
 }
 
-pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
+pub fn try_render_svg_pages_from_model(
+    model: &NormalizedDocument,
+) -> Result<Vec<String>, Diagnostic> {
     match model {
         NormalizedDocument::Sequence(sequence) => {
             let scenes = layout::layout_pages(sequence, LayoutOptions::default());
-            scenes.iter().map(render::render_svg).collect::<Vec<_>>()
+            scenes
+                .iter()
+                .map(|scene| {
+                    validate_svg_for_family(render::render_svg(scene), DiagramFamily::Sequence)
+                })
+                .collect()
         }
-        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
-        NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
-        NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
-        NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
-        NormalizedDocument::Yaml(doc) => vec![render::render_yaml_svg(doc)],
-        NormalizedDocument::Nwdiag(doc) => vec![render::render_nwdiag_svg(doc)],
-        NormalizedDocument::Archimate(doc) => vec![render::render_archimate_svg(doc)],
-        NormalizedDocument::Regex(doc) => vec![render::render_regex_svg(doc)],
-        NormalizedDocument::Ebnf(doc) => vec![render::render_ebnf_svg(doc)],
-        NormalizedDocument::Math(doc) => vec![render::render_math_svg(doc)],
-        NormalizedDocument::Sdl(doc) => vec![render::render_sdl_svg(doc)],
-        NormalizedDocument::Ditaa(doc) => vec![render::render_ditaa_svg(doc)],
-        NormalizedDocument::Chart(doc) => vec![render::render_chart_svg(doc)],
-        NormalizedDocument::Chen(doc) => vec![render::render_chen_svg(doc)],
+        NormalizedDocument::Family(family) => Ok(vec![try_render_family_document_svg(family)?]),
+        NormalizedDocument::Timeline(timeline) => {
+            validate_svg_for_family(render::render_timeline_svg(timeline), DiagramFamily::Gantt)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::State(state) => {
+            validate_svg_for_family(render::render_state_svg(state), DiagramFamily::State)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Json(doc) => {
+            validate_svg_for_family(render::render_json_svg(doc), DiagramFamily::Json)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Yaml(doc) => {
+            validate_svg_for_family(render::render_yaml_svg(doc), DiagramFamily::Yaml)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Nwdiag(doc) => {
+            validate_svg_for_family(render::render_nwdiag_svg(doc), DiagramFamily::Nwdiag)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Archimate(doc) => {
+            validate_svg_for_family(render::render_archimate_svg(doc), DiagramFamily::Archimate)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Regex(doc) => {
+            validate_svg_for_family(render::render_regex_svg(doc), DiagramFamily::Regex)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Ebnf(doc) => {
+            validate_svg_for_family(render::render_ebnf_svg(doc), DiagramFamily::Ebnf)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Math(doc) => {
+            validate_svg_for_family(render::render_math_svg(doc), DiagramFamily::Math)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Sdl(doc) => {
+            validate_svg_for_family(render::render_sdl_svg(doc), DiagramFamily::Sdl)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Ditaa(doc) => {
+            validate_svg_for_family(render::render_ditaa_svg(doc), DiagramFamily::Ditaa)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Chart(doc) => {
+            validate_svg_for_family(render::render_chart_svg(doc), DiagramFamily::Chart)
+                .map(|svg| vec![svg])
+        }
+        NormalizedDocument::Chen(doc) => {
+            validate_svg_for_family(render::render_chen_svg(doc), DiagramFamily::Chen)
+                .map(|svg| vec![svg])
+        }
     }
 }
 
-pub fn render_family_document_svg(family: &FamilyDocument) -> String {
-    let mut svg = match family.kind {
+pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
+    try_render_svg_pages_from_model(model)
+        .expect("normalized model should satisfy the validated SVG render contract")
+}
+
+pub fn try_render_family_document_svg(family: &FamilyDocument) -> Result<String, Diagnostic> {
+    let svg = match family.kind {
         ast::DiagramKind::Salt => render::render_salt_svg(family),
         ast::DiagramKind::Component => render::render_component_svg(family),
         ast::DiagramKind::Deployment => render::render_deployment_svg(family),
@@ -513,13 +594,39 @@ pub fn render_family_document_svg(family: &FamilyDocument) -> String {
         ast::DiagramKind::Wbs => render::render_wbs_svg(family),
         _ => render::render_family_stub_svg(family),
     };
-    // Render-time invariants pass: enforce structural correctness.
-    // Auto-corrections (viewBox expansion, label background rects) are applied
-    // in-place.  Diagnostic-only violations are silently recorded — they do not
-    // block rendering because the layout engine is the authoritative fix site
-    // for routing violations.
-    let _ = render::validate::run(&mut svg, render::validate::AutoCorrect::Apply);
-    svg
+    validate_svg_for_family(svg, map_ast_kind_to_family(family.kind))
+}
+
+pub fn render_family_document_svg(family: &FamilyDocument) -> String {
+    try_render_family_document_svg(family)
+        .expect("family document should satisfy the validated SVG render contract")
+}
+
+fn validate_svg_for_family(svg: String, family: DiagramFamily) -> Result<String, Diagnostic> {
+    render::validate_svg(svg, render_profile_for_family(family))
+        .map(render::ValidatedSvg::into_string)
+        .map_err(render_contract_diagnostic)
+}
+
+fn render_contract_diagnostic(err: render::SvgContractError) -> Diagnostic {
+    Diagnostic::error_code("E_RENDER_CONTRACT", err.to_string())
+}
+
+fn render_profile_for_family(family: DiagramFamily) -> render::RenderProfile {
+    match family {
+        DiagramFamily::Class
+        | DiagramFamily::Object
+        | DiagramFamily::UseCase
+        | DiagramFamily::Component
+        | DiagramFamily::Deployment
+        | DiagramFamily::State
+        | DiagramFamily::Chen => render::RenderProfile::Graph,
+        DiagramFamily::Sequence | DiagramFamily::Activity => render::RenderProfile::Semantic,
+        DiagramFamily::Chart => render::RenderProfile::Chart,
+        DiagramFamily::MindMap | DiagramFamily::Wbs => render::RenderProfile::Tree,
+        DiagramFamily::Gantt | DiagramFamily::Chronology => render::RenderProfile::Timeline,
+        _ => render::RenderProfile::Legacy,
+    }
 }
 
 fn map_ast_kind_to_family(kind: ast::DiagramKind) -> DiagramFamily {

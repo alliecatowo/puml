@@ -472,8 +472,14 @@ impl RenderScene {
     pub fn validate(&self) -> Vec<SceneValidationIssue> {
         let mut issues = Vec::new();
         let mut node_ids = HashSet::new();
+        let mut edge_ids = HashSet::new();
         let mut label_ids = HashSet::new();
         let mut container_ids = HashSet::new();
+        let known_container_ids = self
+            .containers
+            .iter()
+            .map(|container| container.id.as_str())
+            .collect::<HashSet<_>>();
 
         validate_rect("scene", &self.family, "viewbox", self.viewbox, &mut issues);
 
@@ -498,6 +504,14 @@ impl RenderScene {
         }
 
         for edge in &self.edges {
+            if !edge_ids.insert(edge.id.as_str()) {
+                issues.push(SceneValidationIssue::new(
+                    SceneValidationSeverity::Error,
+                    edge.id.clone(),
+                    SceneValidationKind::DuplicateId,
+                    "duplicate edge id",
+                ));
+            }
             if edge.points.iter().any(|point| !point.is_finite()) {
                 issues.push(SceneValidationIssue::new(
                     SceneValidationSeverity::Error,
@@ -556,6 +570,18 @@ impl RenderScene {
                     "label anchor is non-finite",
                 ));
             }
+            if !label.owner_id.is_empty()
+                && !node_ids.contains(label.owner_id.as_str())
+                && !edge_ids.contains(label.owner_id.as_str())
+                && !known_container_ids.contains(label.owner_id.as_str())
+            {
+                issues.push(SceneValidationIssue::new(
+                    SceneValidationSeverity::Warning,
+                    label.id.clone(),
+                    SceneValidationKind::MissingReference,
+                    "label owner does not reference a known visual element",
+                ));
+            }
         }
 
         for container in &self.containers {
@@ -599,6 +625,51 @@ impl RenderScene {
 
         issues
     }
+
+    pub fn into_validated(self) -> Result<ValidatedRenderScene, SceneValidationError> {
+        let issues = self.validate();
+        let errors = issues
+            .iter()
+            .filter(|issue| matches!(issue.severity, SceneValidationSeverity::Error))
+            .cloned()
+            .collect::<Vec<_>>();
+        if errors.is_empty() {
+            Ok(ValidatedRenderScene {
+                scene: self,
+                issues,
+            })
+        } else {
+            Err(SceneValidationError { errors, issues })
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ValidatedRenderScene {
+    scene: RenderScene,
+    issues: Vec<SceneValidationIssue>,
+}
+
+impl ValidatedRenderScene {
+    pub fn scene(&self) -> &RenderScene {
+        &self.scene
+    }
+
+    pub fn warnings(&self) -> impl Iterator<Item = &SceneValidationIssue> {
+        self.issues
+            .iter()
+            .filter(|issue| matches!(issue.severity, SceneValidationSeverity::Warning))
+    }
+
+    pub fn into_scene(self) -> RenderScene {
+        self.scene
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SceneValidationError {
+    pub errors: Vec<SceneValidationIssue>,
+    pub issues: Vec<SceneValidationIssue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -872,6 +943,7 @@ mod tests {
         assert!(issues
             .iter()
             .any(|issue| issue.kind == SceneValidationKind::DegenerateGeometry));
+        assert!(scene.into_validated().is_err());
     }
 
     #[test]
@@ -901,6 +973,32 @@ mod tests {
             scene.visual_bounds(),
             Some(Rect::new(10.0, 10.0, 150.0, 160.0))
         );
+    }
+
+    #[test]
+    fn render_scene_validation_produces_opaque_validated_scene() {
+        let mut scene = RenderScene::new("test", Rect::new(0.0, 0.0, 200.0, 200.0));
+        scene.nodes.push(VisualNode {
+            id: "n1".to_string(),
+            family: "test".to_string(),
+            kind: "node".to_string(),
+            shape: ShapeKind::Rect,
+            bbox: Rect::new(10.0, 10.0, 40.0, 30.0),
+            label_ids: vec!["l1".to_string()],
+            parent_id: None,
+        });
+        scene.labels.push(VisualLabel {
+            id: "l1".to_string(),
+            owner_id: "n1".to_string(),
+            kind: "node-label".to_string(),
+            text: "Node".to_string(),
+            anchor: Point::new(20.0, 25.0),
+            estimated_bbox: Rect::new(12.0, 14.0, 24.0, 14.0),
+        });
+
+        let validated = scene.into_validated().expect("scene should validate");
+        assert_eq!(validated.scene().nodes.len(), 1);
+        assert_eq!(validated.warnings().count(), 0);
     }
 
     #[test]
