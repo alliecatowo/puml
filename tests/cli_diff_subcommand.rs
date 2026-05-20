@@ -80,9 +80,9 @@ fn diff_json_format_is_valid_json_with_expected_keys() {
         "JSON must have removed_edges key"
     );
 
-    // NOTE: This assertion is flaky — added_nodes is a Vec populated in insertion
-    // order, which is not guaranteed to be stable across parse runs. Using index [0]
-    // to check "Bob" here may spuriously fail if node ordering changes.
     let added = parsed["added_nodes"].as_array().unwrap();
-    assert_eq!(added[0].as_str().unwrap(), "Bob");
+    assert!(
+        added.iter().any(|v| v.as_str() == Some("Bob")),
+        "added_nodes must contain Bob"
+    );
 }
