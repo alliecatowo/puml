@@ -1,13 +1,10 @@
+use super::layout_constants::{MESSAGE_LABEL_LINE_GAP, REF_BODY_BASELINE_Y, REF_HEADER_HEIGHT};
 use super::svg::{creole_text, escape_text, render_actor_stick_figure};
 use crate::ast::NoteKind;
 use crate::model::{LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, VirtualEndpointKind};
 use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
 use crate::theme::{css3_color_to_hex, MessageAlign};
 use std::collections::BTreeMap;
-
-const MESSAGE_LABEL_LINE_GAP: i32 = 16;
-const REF_HEADER_HEIGHT: i32 = 20;
-const REF_BODY_BASELINE_Y: i32 = 32;
 
 pub fn render_svg(scene: &Scene) -> String {
     let mut out = String::new();

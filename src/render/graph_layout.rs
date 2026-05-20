@@ -9,6 +9,12 @@
 //!   4. Group bounds      — bounding box over all children + padding
 //!   5. Edge routing      — orthogonal channel-based routing (Stage 3)
 
+use super::layout_constants::{
+    COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, DEFAULT_CANVAS_MARGIN, DEFAULT_GROUP_PADDING,
+    DEFAULT_NODE_SEPARATION, DEFAULT_RANK_SEPARATION, GROUP_COLLISION_MAX_PASSES,
+    GROUP_COLLISION_MIN_GAP, MAX_TRACKS, PKG_HEADER_ROUTING_CLEARANCE, PKG_TAB_HEIGHT,
+    TRACK_SPACING,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,11 +92,11 @@ pub struct LayoutOptions {
 impl Default for LayoutOptions {
     fn default() -> Self {
         Self {
-            rank_separation: 80.0,
-            node_separation: 60.0,
-            group_padding: 28.0,
+            rank_separation: DEFAULT_RANK_SEPARATION,
+            node_separation: DEFAULT_NODE_SEPARATION,
+            group_padding: DEFAULT_GROUP_PADDING,
             direction: Direction::TopDown,
-            canvas_margin: 40.0,
+            canvas_margin: DEFAULT_CANVAS_MARGIN,
             canvas_right_margin: None,
         }
     }
@@ -709,7 +715,7 @@ fn assign_coordinates(
             let w = node_by_id
                 .get(id.as_str())
                 .map(|n| n.width)
-                .unwrap_or(200.0);
+                .unwrap_or(COMPONENT_BOX_WIDTH as f64);
             positions.insert(id.clone(), (x, ry));
             x += w + options.node_separation;
         }
@@ -723,7 +729,7 @@ fn assign_coordinates(
     // clear the collision.
     {
         let pad = options.group_padding;
-        let label_reserve = 40.0;
+        let label_reserve = PKG_TAB_HEIGHT as f64;
         // Compute current group bboxes from positions.
         let compute_bounds =
             |positions: &BTreeMap<String, (f64, f64)>| -> BTreeMap<String, (f64, f64, f64, f64)> {
@@ -765,9 +771,9 @@ fn assign_coordinates(
                 bb
             };
 
-        let min_gap = 40.0;
-        // Iterate up to a few passes; in practice 1–2 are enough.
-        for _ in 0..4 {
+        let min_gap = GROUP_COLLISION_MIN_GAP;
+        // Iterate up to GROUP_COLLISION_MAX_PASSES; in practice 1–2 are enough.
+        for _ in 0..GROUP_COLLISION_MAX_PASSES {
             let bb = compute_bounds(&positions);
             // Find first overlapping pair (sorted by group id for determinism).
             let mut overlap: Option<(String, f64)> = None;
@@ -820,7 +826,7 @@ fn assign_coordinates(
                 let w = node_by_id
                     .get(id.as_str())
                     .map(|n| n.width)
-                    .unwrap_or(200.0);
+                    .unwrap_or(COMPONENT_BOX_WIDTH as f64);
                 x + w
             })
             .fold(0.0_f64, f64::max);
@@ -869,11 +875,10 @@ fn compute_group_bounds(
     let node_by_id: BTreeMap<&str, &NodeSize> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     let pad = options.group_padding;
-    // label_reserve must match the pkg_tab height used by the component renderer
-    // (family.rs: `pkg_tab = 40`).  Using 40 here ensures that group_bounds.gy
-    // accurately reflects the rendered frame top so that the package-header
-    // avoidance check in soft_clamp_ch_y fires at the correct y coordinate.
-    let label_reserve = 40.0; // space for the group label tab (matches pkg_tab=40 in family.rs)
+    // label_reserve must match PKG_TAB_HEIGHT used by the component renderer.
+    // Using the same constant ensures group_bounds.gy accurately reflects the
+    // rendered frame top so the package-header avoidance check fires correctly.
+    let label_reserve = PKG_TAB_HEIGHT as f64;
 
     let mut bounds: BTreeMap<String, (f64, f64, f64, f64)> = BTreeMap::new();
     for (group_id, children) in &children_by_group {
@@ -885,7 +890,7 @@ fn compute_group_bounds(
             let (nw, nh) = node_by_id
                 .get(id)
                 .map(|n| (n.width, n.height))
-                .unwrap_or((200.0, 80.0));
+                .unwrap_or((COMPONENT_BOX_WIDTH as f64, COMPONENT_BOX_HEIGHT as f64));
             min_x = min_x.min(cx);
             min_y = min_y.min(cy);
             max_x = max_x.max(cx + nw);
@@ -919,15 +924,8 @@ fn compute_group_bounds(
 //      horizontal, then back up.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Vertical spacing between tracks within a channel (px).
-const TRACK_SPACING: f64 = 8.0;
-/// Number of tracks available per channel before we wrap (soft cap).
-const MAX_TRACKS: usize = 12;
-
-/// Height of the package header band that should not be crossed by edge
-/// routing.  Matches the `label_header` constant in family.rs (40px) plus
-/// a small safety margin.
-const PKG_HEADER_HEIGHT: f64 = 48.0;
+// TRACK_SPACING, MAX_TRACKS, and PKG_HEADER_ROUTING_CLEARANCE are imported
+// from super::layout_constants — see the use statement at the top of this file.
 
 fn route_edges(
     nodes: &[NodeSize],
@@ -1201,11 +1199,11 @@ fn route_edges(
         let (sw, sh) = node_by_id
             .get(src_id)
             .map(|n| (n.width, n.height))
-            .unwrap_or((200.0, 80.0));
+            .unwrap_or((COMPONENT_BOX_WIDTH as f64, COMPONENT_BOX_HEIGHT as f64));
         let (tw, th) = node_by_id
             .get(tgt_id)
             .map(|n| (n.width, n.height))
-            .unwrap_or((200.0, 80.0));
+            .unwrap_or((COMPONENT_BOX_WIDTH as f64, COMPONENT_BOX_HEIGHT as f64));
 
         let track = *edge_track.get(&ei.edge_id).unwrap_or(&0);
 
@@ -1265,8 +1263,8 @@ fn route_edges(
                 // header band whose frame top (gy) lies within this inter-rank
                 // channel [bot, next_top].  When gy is inside the channel, the
                 // vertical entry shaft from ch_y to the first node inside the
-                // package crosses [gy, gy + PKG_HEADER_HEIGHT], so we must
-                // ensure ch_y >= gy + PKG_HEADER_HEIGHT + 4 to keep arrow shafts
+                // package crosses [gy, gy + PKG_HEADER_ROUTING_CLEARANCE], so we must
+                // ensure ch_y >= gy + PKG_HEADER_ROUTING_CLEARANCE + 4 to keep arrow shafts
                 // out of the package label text.
                 let mut result = clamped;
                 for &(_, gy, _, _) in group_bounds.values() {
@@ -1274,7 +1272,7 @@ fn route_edges(
                     if gy < bot || gy > next_top {
                         continue;
                     }
-                    let header_bottom = gy + PKG_HEADER_HEIGHT;
+                    let header_bottom = gy + PKG_HEADER_ROUTING_CLEARANCE;
                     if result < header_bottom {
                         // Push below the header band; re-clamp to the inter-rank
                         // gap ceiling so we don't overshoot the target row.
@@ -1362,7 +1360,7 @@ pub fn layout_to_i32_positions(
         let (w, h) = node_by_id
             .get(id.as_str())
             .map(|n| (n.width as i32, n.height as i32))
-            .unwrap_or((200, 80));
+            .unwrap_or((COMPONENT_BOX_WIDTH, COMPONENT_BOX_HEIGHT));
         out.insert(id.clone(), (x as i32, y as i32, w, h));
     }
     out

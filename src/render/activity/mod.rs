@@ -1,3 +1,6 @@
+use super::layout_constants::{
+    ACTIVITY_BASE_LANE_WIDTH, ACTIVITY_BRANCH_X_OFFSET, ACTIVITY_LANE_AREA_X, ACTIVITY_STEP_HEIGHT,
+};
 use super::svg::escape_text;
 use crate::model::{FamilyDocument, FamilyNodeKind, FamilyStyle};
 use crate::theme::ActivityStyle;
@@ -17,7 +20,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         _ => ActivityStyle::default(),
     };
 
-    let step_h = 60i32;
+    let step_h = ACTIVITY_STEP_HEIGHT;
     let title_lines = doc
         .title
         .as_deref()
@@ -84,12 +87,12 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
             }
         }
     }
-    let branch_x_offset = 160i32;
+    let branch_x_offset = ACTIVITY_BRANCH_X_OFFSET;
     let extra_branch_width = 2 * branch_x_offset * max_if_depth;
-    let extra_fork_width = (max_fork_branches * 160i32).max(0);
+    let extra_fork_width = (max_fork_branches * ACTIVITY_BRANCH_X_OFFSET).max(0);
 
-    let lane_area_x = 32i32;
-    let base_lane_area_w = 416i32;
+    let lane_area_x = ACTIVITY_LANE_AREA_X;
+    let base_lane_area_w = ACTIVITY_BASE_LANE_WIDTH;
     let lane_area_w = base_lane_area_w + extra_branch_width + extra_fork_width;
     let width = lane_area_w + 64;
     let lane_w = (lane_area_w / (lanes.len() as i32)).max(120);
