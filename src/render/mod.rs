@@ -15,6 +15,7 @@ mod data;
 mod family;
 mod geometry;
 pub(crate) mod graph_layout;
+pub(crate) mod layout_constants;
 mod mindmap;
 mod relation;
 mod salt;
