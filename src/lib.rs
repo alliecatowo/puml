@@ -36,13 +36,8 @@ use std::path::PathBuf;
 pub enum DiagramFamily {
     Sequence,
     Class,
-    State,
-    Activity,
-    Timing,
-    Component,
-    Deployment,
-    UseCase,
     Object,
+    UseCase,
     Salt,
     MindMap,
     Wbs,
@@ -58,6 +53,11 @@ pub enum DiagramFamily {
     Sdl,
     Ditaa,
     Chart,
+    Component,
+    Deployment,
+    State,
+    Activity,
+    Timing,
     Unknown,
 }
 
@@ -90,6 +90,20 @@ impl DiagramFamily {
             Self::Chart => "chart",
             Self::Unknown => "unknown",
         }
+    }
+
+    /// Returns all diagram families that have a registered renderer, in
+    /// alphabetical order by [`Self::as_str`] value.
+    ///
+    /// Excludes [`DiagramFamily::Unknown`]. When a new renderer is added,
+    /// add the corresponding variant here so that `puml about` stays accurate.
+    pub fn all_known() -> &'static [DiagramFamily] {
+        use DiagramFamily::*;
+        &[
+            Activity, Archimate, Chart, Chronology, Class, Component, Deployment,
+            Ditaa, Ebnf, Gantt, Json, Math, MindMap, Nwdiag, Object, Regex,
+            Salt, Sdl, Sequence, State, Timing, UseCase, Wbs, Yaml,
+        ]
     }
 }
 
@@ -195,25 +209,6 @@ pub fn preprocess_with_pipeline_options(
             parser::preprocess_with_options(&adapted, &parser_options)
         }
     }
-}
-
-fn interpret_parser_contract(
-    options: &ParsePipelineOptions,
-) -> Result<parser::ParseOptions, Diagnostic> {
-    let include_root = match options.compat {
-        CompatMode::Strict => options.include_root.clone(),
-        CompatMode::Extended => options.include_root.clone(),
-    };
-    Ok(parser::ParseOptions {
-        include_root,
-        allow_url_includes: options.allow_url_includes,
-        inject_vars: options.inject_vars.clone(),
-    })
-}
-
-fn interpret_determinism_contract(_mode: DeterminismMode) {
-    // Determinism behavior is currently fully deterministic across modes.
-    // Keep this explicit interpretation point to avoid split-brain routing.
 }
 
 pub fn normalize(document: Document) -> Result<SequenceDocument, Diagnostic> {
