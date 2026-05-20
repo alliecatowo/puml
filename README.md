@@ -225,6 +225,10 @@ puml --format html hello.puml            # → hello.html (self-contained)
 puml --check hello.puml                  # exit 0 = valid
 puml --from-markdown --check notes.md    # lint all fenced puml blocks in a Markdown file
 
+# Count nodes and edges
+puml count hello.puml                    # → "4 nodes, 3 edges"
+puml count --by-kind hello.puml          # → summary + per-kind breakdown
+
 # Pipeline inspection (for debugging and tooling)
 puml --dump ast hello.puml
 puml --dump model hello.puml

@@ -173,6 +173,19 @@ pub struct Cli {
 pub enum Command {
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Count nodes and edges in a .puml file and print a one-line summary.
+    Count(CountArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct CountArgs {
+    /// PlantUML source file to count nodes and edges in.
+    #[arg(value_name = "FILE")]
+    pub file: std::path::PathBuf,
+
+    /// Break down node count by node kind.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub by_kind: bool,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -338,6 +351,7 @@ mod tests {
                     vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
                 );
             }
+            Command::Count(_) => panic!("expected Format command"),
         }
     }
 
