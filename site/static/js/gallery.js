@@ -117,7 +117,9 @@ function escapeHtml(s) {
 }
 
 function cssEscape(s) {
-  return s.replace(/"/g, '\\"');
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
 }
 
 init();
