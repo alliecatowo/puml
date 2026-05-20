@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-19T22:02:34Z",
+  "generated_at_utc": "2026-05-20T05:15:11Z",
   "summary": {
-    "total": 286,
-    "passed": 283,
+    "total": 289,
+    "passed": 286,
     "excluded": 3,
     "failed": 0
   },
@@ -551,6 +551,39 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/chart/06_multi_series_line.puml",
       "artifact_svg": "docs/examples/chart/06_multi_series_line.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/chen/01_basic.puml",
+      "artifact_svg": "docs/examples/chen/01_basic.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/chen/02_keys.puml",
+      "artifact_svg": "docs/examples/chen/02_keys.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/chen/03_multi_relationship.puml",
+      "artifact_svg": "docs/examples/chen/03_multi_relationship.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
