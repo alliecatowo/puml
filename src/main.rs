@@ -4,7 +4,7 @@ use clap::{CommandFactory, FromArgMatches};
 use cli::{
     Cli, ColorChoice as CliColorChoice, Command as CliCommand, CompatMode as CliCompatMode,
     DeterminismMode as CliDeterminismMode, DiagnosticsFormat, Dialect as CliDialect, DumpKind,
-    FormatArgs, LintReportFormat, OutputFormat,
+    FormatArgs, LintArgs, LintFormat, LintReportFormat, OutputFormat,
 };
 use glob::glob;
 use image::ImageEncoder;
@@ -264,6 +264,7 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     if let Some(command) = cli.command.take() {
         return match command {
             CliCommand::Format(args) => run_format_command(args),
+            CliCommand::Lint(args) => run_lint_subcommand(args),
         };
     }
 
@@ -816,6 +817,228 @@ fn run_format_command(args: FormatArgs) -> Result<(), (u8, String)> {
     }
 
     Ok(())
+}
+
+// ── puml lint <file> ──────────────────────────────────────────────────────────
+//
+// Parse and normalize only; no rendering.  Exit codes:
+//   0  no errors (warnings may still be emitted)
+//   1  at least one diagnostic error
+//   2  I/O failure (file unreadable)
+//
+// JSON output schema:
+//   { "file": "...",
+//     "diagnostics": [ { "severity", "code", "message",
+//                         "span": { "start_line", "start_col",
+//                                   "end_line",   "end_col"  } } ],
+//     "summary": { "errors": N, "warnings": N } }
+
+#[derive(Debug, Serialize)]
+struct LintSubcommandOutput {
+    file: String,
+    diagnostics: Vec<LintDiagnosticEntry>,
+    summary: LintSubcommandSummary,
+}
+
+#[derive(Debug, Serialize)]
+struct LintDiagnosticEntry {
+    severity: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+    message: String,
+    span: LintSpan,
+}
+
+#[derive(Debug, Serialize)]
+struct LintSpan {
+    start_line: usize,
+    start_col: usize,
+    end_line: usize,
+    end_col: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct LintSubcommandSummary {
+    errors: usize,
+    warnings: usize,
+}
+
+fn run_lint_subcommand(args: LintArgs) -> Result<(), (u8, String)> {
+    let path = &args.file;
+    let is_stdin = path == std::path::Path::new("-");
+
+    let (file_label, raw) = if is_stdin {
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|e| (EXIT_IO, format!("failed to read stdin: {e}")))?;
+        ("<stdin>".to_string(), buf)
+    } else {
+        let content = fs::read_to_string(path)
+            .map_err(|e| (EXIT_IO, format!("failed to read '{}': {e}", path.display())))?;
+        (path.display().to_string(), content)
+    };
+
+    let include_root = if is_stdin {
+        None
+    } else {
+        path.parent().map(|p| p.to_path_buf())
+    };
+
+    // Collect all diagnostics (both parse errors and normalisation warnings).
+    let mut diag_entries: Vec<LintDiagnosticEntry> = Vec::new();
+    let mut error_count: usize = 0;
+    let mut warning_count: usize = 0;
+
+    let options = puml::ParsePipelineOptions {
+        frontend: puml::FrontendSelection::Auto,
+        compat: puml::CompatMode::Strict,
+        determinism: puml::DeterminismMode::Strict,
+        include_root,
+        allow_url_includes: false,
+        inject_vars: std::collections::BTreeMap::new(),
+    };
+
+    let parse_result = puml::parse_with_pipeline_options(&raw, &options);
+
+    match parse_result {
+        Err(d) => {
+            error_count += 1;
+            diag_entries.push(diagnostic_to_entry(&d, &raw));
+        }
+        Ok(doc) => match puml::normalize_family(doc) {
+            Err(d) => {
+                error_count += 1;
+                diag_entries.push(diagnostic_to_entry(&d, &raw));
+            }
+            Ok(model) => {
+                let warnings = normalized_warnings(&model);
+                for w in warnings {
+                    warning_count += 1;
+                    diag_entries.push(diagnostic_to_entry(w, &raw));
+                }
+            }
+        },
+    }
+
+    match args.format {
+        LintFormat::Human => {
+            // Emit errors always; suppress warnings in --quiet mode.
+            for entry in &diag_entries {
+                if args.quiet && entry.severity == "warning" {
+                    continue;
+                }
+                let severity_label = if entry.severity == "error" {
+                    "error"
+                } else {
+                    "warning"
+                };
+                let span_hint = if entry.span.start_line > 0 {
+                    format!(
+                        " [{}:{}:{}]",
+                        file_label, entry.span.start_line, entry.span.start_col
+                    )
+                } else {
+                    format!(" [{}]", file_label)
+                };
+                eprintln!("{severity_label}{span_hint}: {}", entry.message);
+            }
+            if !args.quiet {
+                println!(
+                    "{}: {} error(s), {} warning(s)",
+                    file_label, error_count, warning_count
+                );
+            }
+        }
+        LintFormat::Json => {
+            // In quiet mode, suppress warning-only entries from JSON output.
+            let output_diags: Vec<&LintDiagnosticEntry> = if args.quiet {
+                diag_entries
+                    .iter()
+                    .filter(|e| e.severity == "error")
+                    .collect()
+            } else {
+                diag_entries.iter().collect()
+            };
+            let output = LintSubcommandOutput {
+                file: file_label,
+                diagnostics: output_diags
+                    .into_iter()
+                    .map(|e| LintDiagnosticEntry {
+                        severity: e.severity,
+                        code: e.code.clone(),
+                        message: e.message.clone(),
+                        span: LintSpan {
+                            start_line: e.span.start_line,
+                            start_col: e.span.start_col,
+                            end_line: e.span.end_line,
+                            end_col: e.span.end_col,
+                        },
+                    })
+                    .collect(),
+                summary: LintSubcommandSummary {
+                    errors: error_count,
+                    warnings: warning_count,
+                },
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).map_err(|e| (
+                    EXIT_INTERNAL,
+                    format!("failed to serialize lint output: {e}")
+                ))?
+            );
+        }
+    }
+
+    if error_count > 0 {
+        Err((EXIT_VALIDATION, String::new()))
+    } else {
+        Ok(())
+    }
+}
+
+fn diagnostic_to_entry(d: &puml::Diagnostic, source: &str) -> LintDiagnosticEntry {
+    let json = d.to_json_with_source(source);
+    let (start_line, start_col, end_line, end_col) = match d.span {
+        Some(span) => {
+            let (sl, sc) = line_col_at(source, span.start);
+            let (el, ec) = line_col_at(source, span.end);
+            (sl, sc, el, ec)
+        }
+        None => (0, 0, 0, 0),
+    };
+    LintDiagnosticEntry {
+        severity: match d.severity {
+            puml::diagnostic::Severity::Error => "error",
+            puml::diagnostic::Severity::Warning => "warning",
+        },
+        code: json.code,
+        message: d.message.clone(),
+        span: LintSpan {
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        },
+    }
+}
+
+fn line_col_at(source: &str, offset: usize) -> (usize, usize) {
+    let off = offset.min(source.len());
+    let mut line = 1usize;
+    let mut line_start = 0usize;
+    for (idx, ch) in source.char_indices() {
+        if idx >= off {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            line_start = idx + 1;
+        }
+    }
+    let col = source[line_start..off].chars().count() + 1;
+    (line, col)
 }
 
 fn format_unified_diff(path: &Path, old: &str, new: &str) -> String {
