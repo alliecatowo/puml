@@ -20,6 +20,7 @@ mod mindmap;
 mod relation;
 mod salt;
 pub mod scene_graph;
+mod semantic_svg;
 mod sequence;
 mod specialized;
 mod state;
@@ -51,4 +52,8 @@ pub use timing::render_timing_svg;
 pub(crate) use family::family_node_label;
 pub(crate) use geometry::compute_edge_anchors_for_direction;
 pub(crate) use relation::render_relation_marker_defs;
+pub(crate) use semantic_svg::{
+    container_attrs as puml_container_attrs, edge_attrs as puml_edge_attrs,
+    label_attrs as puml_label_attrs, node_attrs as puml_node_attrs,
+};
 pub(crate) use svg::{creole_text, escape_text};

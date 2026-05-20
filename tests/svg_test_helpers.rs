@@ -47,14 +47,18 @@ pub struct SvgHookEdge {
 }
 
 impl<'a> SvgDoc<'a> {
-    pub fn parse(svg: &'a str) -> Self {
-        let doc = Document::parse(svg).expect("rendered SVG should parse as XML");
+    pub fn try_parse(svg: &'a str) -> Result<Self, roxmltree::Error> {
+        let doc = Document::parse(svg)?;
         assert_eq!(
             doc.root_element().tag_name().name(),
             "svg",
             "rendered document should have an <svg> root"
         );
-        Self { doc }
+        Ok(Self { doc })
+    }
+
+    pub fn parse(svg: &'a str) -> Self {
+        Self::try_parse(svg).expect("rendered SVG should parse as XML")
     }
 
     pub fn root_attr(&self, name: &str) -> Option<&str> {
@@ -75,11 +79,57 @@ impl<'a> SvgDoc<'a> {
             .collect()
     }
 
+    pub fn elements_with_class_any_tag(&self, class_name: &str) -> Vec<Node<'_, '_>> {
+        self.doc
+            .descendants()
+            .filter(|node| node.is_element() && has_class(*node, class_name))
+            .collect()
+    }
+
     pub fn elements_with_attr(&self, tag: &str, name: &str, value: &str) -> Vec<Node<'_, '_>> {
         self.elements(tag)
             .into_iter()
             .filter(|node| node.attribute(name) == Some(value))
             .collect()
+    }
+
+    pub fn elements_with_attr_name(&self, name: &str) -> Vec<Node<'_, '_>> {
+        self.doc
+            .descendants()
+            .filter(|node| node.is_element() && node.attribute(name).is_some())
+            .collect()
+    }
+
+    pub fn elements_matching_attr(
+        &self,
+        name: &str,
+        value: Option<&str>,
+        class_name: Option<&str>,
+        tag: Option<&str>,
+    ) -> Vec<Node<'_, '_>> {
+        self.doc
+            .descendants()
+            .filter(|node| {
+                node.is_element()
+                    && tag.is_none_or(|expected| node.tag_name().name() == expected)
+                    && class_name.is_none_or(|expected| has_class(*node, expected))
+                    && node
+                        .attribute(name)
+                        .is_some_and(|actual| value.is_none_or(|expected| actual == expected))
+            })
+            .collect()
+    }
+
+    pub fn class_count(&self, class_name: &str) -> usize {
+        self.elements_with_class_any_tag(class_name).len()
+    }
+
+    pub fn attr_count(&self, name: &str) -> usize {
+        self.elements_with_attr_name(name).len()
+    }
+
+    pub fn tag_count(&self, tag: &str) -> usize {
+        self.elements(tag).len()
     }
 
     pub fn first_with_attr(&self, tag: &str, name: &str, value: &str) -> Node<'_, '_> {

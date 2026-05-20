@@ -1,4 +1,33 @@
 use super::*;
+use crate::render::scene_graph::{estimate_text_bbox, Rect as SceneRect};
+
+fn chart_text_attrs(
+    owner: &str,
+    label_kind: &str,
+    x: i32,
+    y: i32,
+    text: &str,
+    font_size: f64,
+) -> String {
+    puml_label_attrs(
+        owner,
+        label_kind,
+        estimate_text_bbox(x as f64, y as f64, text, font_size, true),
+    )
+}
+
+fn chart_mark_bbox(x: i32, y: i32, w: i32, h: i32) -> SceneRect {
+    SceneRect::new(x as f64, y as f64, w as f64, h as f64)
+}
+
+fn chart_point_attrs(id: &str, x: i32, y: i32, radius: i32) -> String {
+    puml_node_attrs(
+        id,
+        "chart",
+        "chart-point",
+        chart_mark_bbox(x - radius, y - radius, radius * 2, radius * 2),
+    )
+}
 
 pub fn render_chart_svg(document: &ChartDocument) -> String {
     let title_lines: Vec<&str> = document
@@ -198,8 +227,16 @@ fn render_chart_bars(
             let by = y1.min(y2);
             let bh = (y1 - y2).abs().max(1);
             let color = chart_series_color(document, item, series_idx, style.bar_color.as_str());
+            let mark_id = format!("bar:{cat_idx}:{series_idx}");
+            let mark_attrs = puml_node_attrs(
+                &mark_id,
+                "chart",
+                "chart-bar",
+                chart_mark_bbox(bx, by, bar_w, bh),
+            );
             out.push_str(&format!(
-                "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                "<rect class=\"chart-bar puml-node\" {} x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                mark_attrs,
                 escape_text(&style.axis_color),
                 bx = bx,
                 by = by,
@@ -207,12 +244,15 @@ fn render_chart_bars(
                 bh = bh,
                 color = escape_text(&color)
             ));
+            let value_label = format_chart_value(value);
+            let value_y = if value >= 0.0 { by - 4 } else { by + bh + 12 };
             out.push_str(&format!(
-                "<text class=\"chart-value-label\" data-chart-label-mode=\"{}\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                "<text class=\"chart-value-label puml-label\" {} data-chart-label-mode=\"{}\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                chart_text_attrs(&mark_id, "value-label", bx + bar_w / 2, value_y, &value_label, 10.0),
                 chart_label_mode_name(document.label_mode),
-                format_chart_value(value),
+                escape_text(&value_label),
                 tx = bx + bar_w / 2,
-                ty = if value >= 0.0 { by - 4 } else { by + bh + 12 }
+                ty = value_y
             ));
         }
         out.push_str(&format!(
@@ -251,18 +291,22 @@ fn render_chart_line(
                 points.push(' ');
             }
             points.push_str(&format!("{px},{py}"));
+            let point_id = format!("point:{series_idx}:{idx}");
             out.push_str(&format!(
-                "<circle class=\"chart-point\" data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                "<circle class=\"chart-point puml-node\" {} data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                chart_point_attrs(&point_id, px, py, 3),
                 format_chart_value(value),
                 escape_text(&color)
             ));
             if !matches!(document.label_mode, ChartLabelMode::None) {
                 // Offset label above the point with enough clearance to avoid
                 // overlapping with category tick labels (#491).
+                let value_label = format_chart_value(value);
                 out.push_str(&format!(
-                    "<text class=\"chart-value-label\" data-chart-label-mode=\"{}\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                    "<text class=\"chart-value-label puml-label\" {} data-chart-label-mode=\"{}\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                    chart_text_attrs(&point_id, "value-label", px + 14, py - 16, &value_label, 10.0),
                     chart_label_mode_name(document.label_mode),
-                    format_chart_value(value),
+                    escape_text(&value_label),
                     tx = px + 14, // shift right to avoid tick label below
                     ty = py - 16  // raise by 16 px to clear axis tick labels
                 ));
@@ -341,8 +385,10 @@ fn render_chart_area(
             let value = item.values.get(idx).copied().unwrap_or(0.0);
             let px = plot.left + ((idx as f64) * step) as i32;
             let py = chart_y_for_value(value, min_value, max_value, plot);
+            let point_id = format!("point:{series_idx}:{idx}");
             out.push_str(&format!(
-                "<circle class=\"chart-point\" data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                "<circle class=\"chart-point puml-node\" {} data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"3\" fill=\"{}\"/>",
+                chart_point_attrs(&point_id, px, py, 3),
                 format_chart_value(value),
                 escape_text(&color)
             ));
@@ -371,8 +417,10 @@ fn render_chart_scatter(
             let value = item.values.get(idx).copied().unwrap_or(0.0);
             let px = plot.left + ((idx as f64) * step) as i32;
             let py = chart_y_for_value(value, min_value, max_value, plot);
+            let point_id = format!("point:{series_idx}:{idx}");
             out.push_str(&format!(
-                "<circle class=\"chart-point\" data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"4\" fill=\"{}\" stroke=\"white\" stroke-width=\"1.5\"/>",
+                "<circle class=\"chart-point puml-node\" {} data-chart-value=\"{}\" cx=\"{px}\" cy=\"{py}\" r=\"4\" fill=\"{}\" stroke=\"white\" stroke-width=\"1.5\"/>",
+                chart_point_attrs(&point_id, px, py, 4),
                 format_chart_value(value),
                 escape_text(&color)
             ));
@@ -442,8 +490,16 @@ fn render_chart_horizontal_bars(
                     (series_idx as i32) * bar_h
                 };
             let color = chart_series_color(document, item, series_idx, style.bar_color.as_str());
+            let mark_id = format!("bar:{cat_idx}:{series_idx}");
+            let mark_attrs = puml_node_attrs(
+                &mark_id,
+                "chart",
+                "chart-bar",
+                chart_mark_bbox(bx, by, bw, bar_h),
+            );
             out.push_str(&format!(
-                "<rect x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                "<rect class=\"chart-bar puml-node\" {} x=\"{bx}\" y=\"{by}\" width=\"{bw}\" height=\"{bh}\" fill=\"{color}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                mark_attrs,
                 escape_text(&style.axis_color),
                 bx = bx,
                 by = by,
@@ -500,8 +556,16 @@ fn render_chart_pie(
             0
         };
         let color = chart_slice_color(document, point, idx, style.series_color.as_str());
+        let slice_id = format!("slice:{idx}");
+        let slice_attrs = puml_node_attrs(
+            &slice_id,
+            "chart",
+            "chart-pie-slice",
+            chart_mark_bbox(cx - radius, cy - radius, radius * 2, radius * 2),
+        );
         out.push_str(&format!(
-            "<path class=\"chart-pie-slice\" data-chart-slice=\"{}\" data-chart-value=\"{}\" data-chart-percent=\"{}\" d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            "<path class=\"chart-pie-slice puml-node\" {} data-chart-slice=\"{}\" data-chart-value=\"{}\" data-chart-percent=\"{}\" d=\"M {cx} {cy} L {x1:.2} {y1:.2} A {r} {r} 0 {large} 1 {x2:.2} {y2:.2} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+            slice_attrs,
             escape_text(&point.label),
             format_chart_value(point.value),
             format_chart_percent(v, total),
@@ -538,7 +602,15 @@ fn render_chart_pie(
                 ));
             }
             out.push_str(&format!(
-                "<text class=\"chart-pie-label\" data-chart-label-mode=\"{}\" data-chart-slice-label=\"{}\" x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                "<text class=\"chart-pie-label puml-label\" {} data-chart-label-mode=\"{}\" data-chart-slice-label=\"{}\" x=\"{lx:.0}\" y=\"{ly:.0}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                chart_text_attrs(
+                    &slice_id,
+                    "slice-label",
+                    lx.round() as i32,
+                    ly.round() as i32,
+                    &label_text,
+                    11.0
+                ),
                 chart_label_mode_name(document.label_mode),
                 escape_text(&point.label),
                 escape_text(&style.font_color),
@@ -591,7 +663,8 @@ fn render_chart_axes(
             r = plot.right
         ));
         out.push_str(&format!(
-            "<text class=\"chart-axis-tick chart-axis-tick-v\" data-chart-axis-tick=\"{}\" x=\"{x}\" y=\"{ty}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            "<text class=\"chart-axis-tick chart-axis-tick-v puml-label\" {} data-chart-axis-tick=\"{}\" x=\"{x}\" y=\"{ty}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            chart_text_attrs("chart:v-axis", "axis-tick", plot.left - 8, y + 4, &format_chart_value(value), 10.0),
             format_chart_value(value),
             escape_text(v_label_color),
             format_chart_value(value),

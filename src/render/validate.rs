@@ -70,6 +70,22 @@ pub enum InvariantKind {
         allocated_px: i32,
         minimum_px: i32,
     },
+    /// A canonical `data-puml-bbox` lies outside the root SVG viewBox.
+    SemanticBBoxOutsideViewbox {
+        role: SemanticRole,
+        id: String,
+        overflow_px: i32,
+    },
+    /// Two primary canonical `puml-node` boxes overlap.
+    PrimaryNodeOverlap { a: String, b: String },
+    /// A canonical `puml-label` overlaps a `puml-node` that it does not own.
+    LabelOverlapsNonOwnerNode {
+        owner: String,
+        label_kind: String,
+        node_id: String,
+    },
+    /// A graph-profile render is missing one of the canonical `puml-*` hooks.
+    CanonicalGraphHookMissing { element: String, hook: String },
 }
 
 /// Whether the invariant was auto-corrected or only recorded as a diagnostic.
@@ -101,6 +117,21 @@ pub enum PseudoStateKind {
 pub enum EndpointSide {
     Source,
     Target,
+}
+
+/// Semantic SVG role extracted from canonical `puml-*` hooks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SemanticRole {
+    Node,
+    Edge,
+    Label,
+}
+
+/// Optional validation profile requested by visual/invariant callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GraphValidationProfile {
+    None,
+    Graph,
 }
 
 impl fmt::Display for InvariantViolation {
@@ -358,14 +389,112 @@ pub fn check_labels_inside_viewbox(svg: &mut String, mode: AutoCorrect) -> Vec<I
 // Node bounding-box extraction from SVG data attributes
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A node bounding box scraped from SVG `data-uml-*` attributes.
-#[derive(Debug, Clone)]
+/// A node bounding box scraped from SVG semantic hook attributes.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeBbox {
     pub id: String,
     pub x: i32,
     pub y: i32,
     pub w: i32,
     pub h: i32,
+}
+
+/// A canonical semantic node extracted from a `puml-node` SVG hook.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticNode {
+    pub id: String,
+    pub kind: Option<String>,
+    pub bbox: NodeBbox,
+}
+
+/// A canonical semantic edge extracted from a `puml-edge` SVG hook.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticEdge {
+    pub from: String,
+    pub to: String,
+    pub segments: Vec<Segment>,
+}
+
+/// A canonical semantic label extracted from a `puml-label` SVG hook.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticLabel {
+    pub owner: String,
+    pub label_kind: String,
+    pub bbox: NodeBbox,
+    pub text: Option<String>,
+}
+
+/// Extract semantic nodes from canonical `puml-node` hooks only.
+pub fn extract_semantic_nodes(svg: &str) -> Vec<SemanticNode> {
+    let mut result = Vec::new();
+
+    for tag in svg_element_tags(svg) {
+        if !tag_has_class(tag, "puml-node") {
+            continue;
+        }
+
+        let Some((x, y, w, h)) = extract_node_bbox_from_tag(tag) else {
+            continue;
+        };
+        if w <= 0 || h <= 0 {
+            continue;
+        }
+
+        let id = extract_attr_str(tag, "data-puml-id").unwrap_or_else(|| format!("node@{x},{y}"));
+        let kind = extract_attr_str(tag, "data-puml-kind");
+        let bbox = NodeBbox {
+            id: id.clone(),
+            x,
+            y,
+            w,
+            h,
+        };
+        result.push(SemanticNode { id, kind, bbox });
+    }
+
+    result
+}
+
+/// Extract semantic edges from canonical `puml-edge` hooks only.
+pub fn extract_semantic_edges(svg: &str) -> Vec<SemanticEdge> {
+    extract_relation_segments_with_class(svg, "puml-edge", "data-puml-from", "data-puml-to")
+        .into_iter()
+        .map(|(from, to, segments)| SemanticEdge { from, to, segments })
+        .collect()
+}
+
+/// Extract semantic labels from canonical `puml-label` hooks only.
+pub fn extract_semantic_labels(svg: &str) -> Vec<SemanticLabel> {
+    let mut result = Vec::new();
+
+    for (tag_start, tag) in svg_element_tags_with_pos(svg) {
+        if !tag_has_class(tag, "puml-label") {
+            continue;
+        }
+
+        let Some((x, y, w, h)) =
+            extract_attr_str(tag, "data-puml-bbox").and_then(|raw| parse_bbox(&raw))
+        else {
+            continue;
+        };
+        if w <= 0 || h <= 0 {
+            continue;
+        }
+
+        let owner = extract_attr_str(tag, "data-puml-owner").unwrap_or_default();
+        let label_kind = extract_attr_str(tag, "data-puml-label-kind").unwrap_or_default();
+        let text = extract_text_content_at(svg, tag_start);
+        let id = format!("{owner}:{label_kind}@{x},{y}");
+        let bbox = NodeBbox { id, x, y, w, h };
+        result.push(SemanticLabel {
+            owner,
+            label_kind,
+            bbox,
+            text,
+        });
+    }
+
+    result
 }
 
 /// Extract node bounding boxes from canonical `puml-node` hooks, falling back
@@ -391,6 +520,204 @@ pub(crate) fn extract_node_bboxes(svg: &str) -> Vec<NodeBbox> {
         }
     }
     result
+}
+
+/// Check that all canonical semantic bounding boxes fit inside the SVG viewBox.
+pub fn check_semantic_bboxes_inside_viewbox(svg: &str) -> Vec<InvariantViolation> {
+    let Some(viewbox) = parse_viewbox(svg) else {
+        return Vec::new();
+    };
+    let mut violations = Vec::new();
+
+    for node in extract_semantic_nodes(svg) {
+        if let Some(overflow_px) = bbox_viewbox_overflow(&node.bbox, viewbox) {
+            violations.push(InvariantViolation {
+                kind: InvariantKind::SemanticBBoxOutsideViewbox {
+                    role: SemanticRole::Node,
+                    id: node.id.clone(),
+                    overflow_px,
+                },
+                corrected: false,
+                message: format!(
+                    "[INV-PUML-BBOX] puml-node {:?} bbox ({},{},{},{}) overflows viewBox by {}px",
+                    node.id, node.bbox.x, node.bbox.y, node.bbox.w, node.bbox.h, overflow_px
+                ),
+            });
+        }
+    }
+
+    for label in extract_semantic_labels(svg) {
+        if let Some(overflow_px) = bbox_viewbox_overflow(&label.bbox, viewbox) {
+            let id = semantic_label_id(&label);
+            violations.push(InvariantViolation {
+                kind: InvariantKind::SemanticBBoxOutsideViewbox {
+                    role: SemanticRole::Label,
+                    id: id.clone(),
+                    overflow_px,
+                },
+                corrected: false,
+                message: format!(
+                    "[INV-PUML-BBOX] puml-label {id:?} bbox ({},{},{},{}) overflows viewBox by {}px",
+                    label.bbox.x, label.bbox.y, label.bbox.w, label.bbox.h, overflow_px
+                ),
+            });
+        }
+    }
+
+    violations
+}
+
+/// Check that canonical primary `puml-node` bounding boxes do not overlap.
+pub fn check_primary_node_non_overlap(svg: &str) -> Vec<InvariantViolation> {
+    let nodes = extract_semantic_nodes(svg);
+    let mut violations = Vec::new();
+
+    for i in 0..nodes.len() {
+        for j in (i + 1)..nodes.len() {
+            let a = &nodes[i];
+            let b = &nodes[j];
+            if bboxes_overlap(&a.bbox, &b.bbox) {
+                violations.push(InvariantViolation {
+                    kind: InvariantKind::PrimaryNodeOverlap {
+                        a: a.id.clone(),
+                        b: b.id.clone(),
+                    },
+                    corrected: false,
+                    message: format!(
+                        "[INV-PUML-NODE] puml-node {:?} bbox overlaps puml-node {:?} bbox",
+                        a.id, b.id
+                    ),
+                });
+            }
+        }
+    }
+
+    violations
+}
+
+/// Check that canonical labels do not overlap nodes other than their owner.
+pub fn check_labels_clear_non_owner_nodes(svg: &str) -> Vec<InvariantViolation> {
+    let nodes = extract_semantic_nodes(svg);
+    let labels = extract_semantic_labels(svg);
+    let mut violations = Vec::new();
+
+    for label in &labels {
+        for node in &nodes {
+            if node.id == label.owner {
+                continue;
+            }
+            if bboxes_overlap(&label.bbox, &node.bbox) {
+                violations.push(InvariantViolation {
+                    kind: InvariantKind::LabelOverlapsNonOwnerNode {
+                        owner: label.owner.clone(),
+                        label_kind: label.label_kind.clone(),
+                        node_id: node.id.clone(),
+                    },
+                    corrected: false,
+                    message: format!(
+                        "[INV-PUML-LABEL] puml-label owner={:?} kind={:?} overlaps non-owner puml-node {:?}",
+                        label.owner, label.label_kind, node.id
+                    ),
+                });
+            }
+        }
+    }
+
+    violations
+}
+
+/// Check that graph-profile SVGs expose the canonical `puml-*` hooks.
+pub fn check_canonical_graph_hooks(
+    svg: &str,
+    profile: GraphValidationProfile,
+) -> Vec<InvariantViolation> {
+    if matches!(profile, GraphValidationProfile::None) {
+        return Vec::new();
+    }
+
+    let mut violations = Vec::new();
+    let tags = svg_element_tags(svg);
+    let node_tags: Vec<&str> = tags
+        .iter()
+        .copied()
+        .filter(|tag| tag_has_class(tag, "puml-node"))
+        .collect();
+    let edge_tags: Vec<&str> = tags
+        .iter()
+        .copied()
+        .filter(|tag| tag_has_class(tag, "puml-edge"))
+        .collect();
+    let label_tags: Vec<&str> = tags
+        .iter()
+        .copied()
+        .filter(|tag| tag_has_class(tag, "puml-label"))
+        .collect();
+
+    if node_tags.is_empty() {
+        push_missing_graph_hook(&mut violations, "svg", "class=puml-node");
+    }
+    if edge_tags.is_empty() {
+        push_missing_graph_hook(&mut violations, "svg", "class=puml-edge");
+    }
+    if label_tags.is_empty() {
+        push_missing_graph_hook(&mut violations, "svg", "class=puml-label");
+    }
+
+    for tag in node_tags {
+        require_graph_attr(&mut violations, tag, "puml-node", "data-puml-id");
+        require_graph_attr(&mut violations, tag, "puml-node", "data-puml-bbox");
+    }
+    for tag in edge_tags {
+        require_graph_attr(&mut violations, tag, "puml-edge", "data-puml-from");
+        require_graph_attr(&mut violations, tag, "puml-edge", "data-puml-to");
+    }
+    for tag in label_tags {
+        require_graph_attr(&mut violations, tag, "puml-label", "data-puml-owner");
+        require_graph_attr(&mut violations, tag, "puml-label", "data-puml-label-kind");
+        require_graph_attr(&mut violations, tag, "puml-label", "data-puml-bbox");
+    }
+
+    violations
+}
+
+fn bbox_viewbox_overflow(bbox: &NodeBbox, viewbox: (i32, i32, i32, i32)) -> Option<i32> {
+    let (vb_x, vb_y, vb_w, vb_h) = viewbox;
+    let left = (vb_x - bbox.x).max(0);
+    let top = (vb_y - bbox.y).max(0);
+    let right = (bbox.x + bbox.w - (vb_x + vb_w)).max(0);
+    let bottom = (bbox.y + bbox.h - (vb_y + vb_h)).max(0);
+    let overflow = left.max(top).max(right).max(bottom);
+    (overflow > 0).then_some(overflow)
+}
+
+fn bboxes_overlap(a: &NodeBbox, b: &NodeBbox) -> bool {
+    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+}
+
+fn semantic_label_id(label: &SemanticLabel) -> String {
+    format!("{}:{}", label.owner, label.label_kind)
+}
+
+fn require_graph_attr(
+    violations: &mut Vec<InvariantViolation>,
+    tag: &str,
+    element: &str,
+    attr: &str,
+) {
+    if extract_attr_str(tag, attr).is_none() {
+        push_missing_graph_hook(violations, element, attr);
+    }
+}
+
+fn push_missing_graph_hook(violations: &mut Vec<InvariantViolation>, element: &str, hook: &str) {
+    violations.push(InvariantViolation {
+        kind: InvariantKind::CanonicalGraphHookMissing {
+            element: element.to_string(),
+            hook: hook.to_string(),
+        },
+        corrected: false,
+        message: format!("[INV-PUML-HOOK] graph profile requires {hook:?} on {element}"),
+    });
 }
 
 fn extract_node_bbox_from_tag(tag: &str) -> Option<(i32, i32, i32, i32)> {
@@ -428,7 +755,8 @@ fn extract_node_bbox_from_tag(tag: &str) -> Option<(i32, i32, i32, i32)> {
 
 fn parse_bbox(raw: &str) -> Option<(i32, i32, i32, i32)> {
     let parts: Vec<i32> = raw
-        .split_whitespace()
+        .split(|ch: char| ch.is_whitespace() || ch == ',')
+        .filter(|part| !part.is_empty())
         .filter_map(|part| part.parse::<f64>().ok().map(|value| value.round() as i32))
         .collect();
     if parts.len() == 4 {
@@ -465,6 +793,13 @@ fn parse_points_bbox(points: &str) -> Option<(i32, i32, i32, i32)> {
 }
 
 fn svg_element_tags(svg: &str) -> Vec<&str> {
+    svg_element_tags_with_pos(svg)
+        .into_iter()
+        .map(|(_, tag)| tag)
+        .collect()
+}
+
+fn svg_element_tags_with_pos(svg: &str) -> Vec<(usize, &str)> {
     let mut tags = Vec::new();
     let mut pos = 0;
     while let Some(rel) = svg[pos..].find('<') {
@@ -476,10 +811,26 @@ fn svg_element_tags(svg: &str) -> Vec<&str> {
         let Some(rel_end) = svg[start..].find('>') else {
             break;
         };
-        tags.push(&svg[start..start + rel_end + 1]);
+        tags.push((start, &svg[start..start + rel_end + 1]));
         pos = start + rel_end + 1;
     }
     tags
+}
+
+fn extract_text_content_at(svg: &str, tag_start: usize) -> Option<String> {
+    if !svg[tag_start..].starts_with("<text ") {
+        return None;
+    }
+    let tag_end = tag_start + svg[tag_start..].find('>')?;
+    let content_start = tag_end + 1;
+    let content_end = content_start + svg[content_start..].find("</text>")?;
+    Some(
+        svg[content_start..content_end]
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\""),
+    )
 }
 
 fn tag_has_class(tag: &str, class_name: &str) -> bool {
@@ -518,12 +869,12 @@ fn extract_attr_str(tag: &str, attr: &str) -> Option<String> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A polyline segment for intersection testing.
-#[derive(Debug, Clone, Copy)]
-struct Segment {
-    x1: i32,
-    y1: i32,
-    x2: i32,
-    y2: i32,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Segment {
+    pub x1: i32,
+    pub y1: i32,
+    pub x2: i32,
+    pub y2: i32,
 }
 
 /// Returns `true` if the axis-aligned segment intersects the rectangle
@@ -574,61 +925,68 @@ fn segment_crosses_rect(seg: Segment, bx: i32, by: i32, bw: i32, bh: i32) -> boo
 /// Extract polyline/line endpoints from SVG edge hooks.
 fn extract_relation_segments(svg: &str) -> Vec<(String, String, Vec<Segment>)> {
     let mut result = Vec::new();
-    let mut pos = 0;
 
-    // Polylines
-    while let Some(rel) = svg[pos..].find("<polyline ") {
-        let tag_start = pos + rel;
-        let Some(rel_close) = svg[tag_start..].find("/>") else {
-            pos = tag_start + 1;
-            continue;
-        };
-        let tag = &svg[tag_start..tag_start + rel_close];
+    for tag in svg_element_tags(svg) {
         if !tag_has_class(tag, "puml-edge") && !tag_has_class(tag, "uml-relation") {
-            pos = tag_start + 1;
             continue;
         }
+
+        let segs = segments_from_edge_tag(tag);
+        if segs.is_empty() {
+            continue;
+        }
+
         let from = extract_attr_str(tag, "data-puml-from")
             .or_else(|| extract_attr_str(tag, "data-uml-from"))
             .unwrap_or_default();
         let to = extract_attr_str(tag, "data-puml-to")
             .or_else(|| extract_attr_str(tag, "data-uml-to"))
             .unwrap_or_default();
-        let segs = parse_polyline_segments(tag);
-        if !segs.is_empty() {
-            result.push((from, to, segs));
-        }
-        pos = tag_start + 1;
+        result.push((from, to, segs));
     }
 
-    // Straight lines
-    pos = 0;
-    while let Some(rel) = svg[pos..].find("<line ") {
-        let tag_start = pos + rel;
-        let Some(rel_close) = svg[tag_start..].find("/>") else {
-            pos = tag_start + 1;
-            continue;
-        };
-        let tag = &svg[tag_start..tag_start + rel_close];
-        if !tag_has_class(tag, "puml-edge") && !tag_has_class(tag, "uml-relation") {
-            pos = tag_start + 1;
+    result
+}
+
+fn extract_relation_segments_with_class(
+    svg: &str,
+    class_name: &str,
+    from_attr: &str,
+    to_attr: &str,
+) -> Vec<(String, String, Vec<Segment>)> {
+    let mut result = Vec::new();
+
+    for tag in svg_element_tags(svg) {
+        if !tag_has_class(tag, class_name) {
             continue;
         }
-        let from = extract_attr_str(tag, "data-puml-from")
-            .or_else(|| extract_attr_str(tag, "data-uml-from"))
-            .unwrap_or_default();
-        let to = extract_attr_str(tag, "data-puml-to")
-            .or_else(|| extract_attr_str(tag, "data-uml-to"))
-            .unwrap_or_default();
+
+        let segs = segments_from_edge_tag(tag);
+
+        if segs.is_empty() {
+            continue;
+        }
+
+        let from = extract_attr_str(tag, from_attr).unwrap_or_default();
+        let to = extract_attr_str(tag, to_attr).unwrap_or_default();
+        result.push((from, to, segs));
+    }
+
+    result
+}
+
+fn segments_from_edge_tag(tag: &str) -> Vec<Segment> {
+    if tag.starts_with("<polyline ") {
+        parse_polyline_segments(tag)
+    } else if tag.starts_with("<line ") {
         let x1 = parse_attr_i32(tag, "x1").unwrap_or(0);
         let y1 = parse_attr_i32(tag, "y1").unwrap_or(0);
         let x2 = parse_attr_i32(tag, "x2").unwrap_or(0);
         let y2 = parse_attr_i32(tag, "y2").unwrap_or(0);
-        result.push((from, to, vec![Segment { x1, y1, x2, y2 }]));
-        pos = tag_start + 1;
+        vec![Segment { x1, y1, x2, y2 }]
+    } else {
+        Vec::new()
     }
-
-    result
 }
 
 /// Parse `points="x1,y1 x2,y2 …"` into a list of `Segment` values.

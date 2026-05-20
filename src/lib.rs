@@ -1,6 +1,8 @@
 pub mod ast;
+pub mod chart_subtype_registry;
 pub mod creole;
 pub mod diagnostic;
+pub mod diagram_family_registry;
 pub mod formatter;
 pub mod language_service;
 // Frontend adapters translate non-default input surfaces into PlantUML-shaped

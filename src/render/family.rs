@@ -2,8 +2,9 @@ use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 use super::relation::{
     normalize_relation_endpoints, render_relation_marker_defs, usecase_dependency_label,
 };
+use super::scene_graph::{estimate_text_bbox, Rect as SceneRect};
 use super::svg::{escape_text, render_actor_stick_figure};
-use crate::ast::MemberModifier;
+use crate::ast::{DiagramKind, MemberModifier};
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
 };
@@ -15,12 +16,104 @@ use crate::theme::{ClassStyle, ComponentStyle};
 /// the same source→target pair into a single coalesced label (#425).  Each
 /// logical line is emitted as a `<tspan>` so they stack visually instead of
 /// being run together as a single string of whitespace.
-fn relation_label_svg(x: i32, y: i32, label: &str, font_size: i32, fill: &str) -> String {
+fn diagram_family_id(kind: DiagramKind) -> &'static str {
+    match kind {
+        DiagramKind::Class => "class",
+        DiagramKind::Object => "object",
+        DiagramKind::UseCase => "usecase",
+        DiagramKind::Component => "component",
+        DiagramKind::Deployment => "deployment",
+        DiagramKind::State => "state",
+        DiagramKind::Activity => "activity",
+        DiagramKind::Timing => "timing",
+        DiagramKind::Sequence => "sequence",
+        DiagramKind::Salt => "salt",
+        DiagramKind::MindMap => "mindmap",
+        DiagramKind::Wbs => "wbs",
+        DiagramKind::Gantt => "gantt",
+        DiagramKind::Chronology => "chronology",
+        DiagramKind::Json => "json",
+        DiagramKind::Yaml => "yaml",
+        DiagramKind::Nwdiag => "nwdiag",
+        DiagramKind::Archimate => "archimate",
+        DiagramKind::Regex => "regex",
+        DiagramKind::Ebnf => "ebnf",
+        DiagramKind::Math => "math",
+        DiagramKind::Sdl => "sdl",
+        DiagramKind::Ditaa => "ditaa",
+        DiagramKind::Chart => "chart",
+        DiagramKind::Chen => "chen",
+        DiagramKind::Unknown => "unknown",
+    }
+}
+
+fn geometry_bbox(x: i32, y: i32, w: i32, h: i32) -> SceneRect {
+    SceneRect::new(x as f64, y as f64, w as f64, h as f64)
+}
+
+fn semantic_node_rect(
+    id: &str,
+    family: &str,
+    kind: &str,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+) -> String {
+    let attrs = super::puml_node_attrs(id, family, kind, geometry_bbox(x, y, w, h));
+    format!(
+        "<rect class=\"puml-node\" data-uml-id=\"{}\" data-uml-kind=\"{}\" {} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"none\" pointer-events=\"none\"/>",
+        escape_text(id),
+        escape_text(kind),
+        attrs,
+        x,
+        y,
+        w,
+        h
+    )
+}
+
+fn text_semantic_attrs(
+    owner: &str,
+    label_kind: &str,
+    x: i32,
+    y: i32,
+    text: &str,
+    font_size: i32,
+    middle_anchor: bool,
+) -> String {
+    let bbox = estimate_text_bbox(x as f64, y as f64, text, font_size as f64, middle_anchor);
+    super::puml_label_attrs(owner, label_kind, bbox)
+}
+
+fn relation_label_svg(
+    x: i32,
+    y: i32,
+    label: &str,
+    font_size: i32,
+    fill: &str,
+    owner: &str,
+    label_kind: &str,
+) -> String {
     let lines: Vec<&str> = label.split('\n').collect();
+    let label_attrs = if lines.len() <= 1 {
+        text_semantic_attrs(owner, label_kind, x, y, label, font_size, true)
+    } else {
+        let longest = lines
+            .iter()
+            .copied()
+            .max_by_key(|line| line.chars().count())
+            .unwrap_or(label);
+        let mut bbox = estimate_text_bbox(x as f64, y as f64, longest, font_size as f64, true);
+        bbox.h = (lines.len() as i32 * (font_size + 2)) as f64;
+        bbox.y = (y - bbox.h as i32 / 2) as f64;
+        super::puml_label_attrs(owner, label_kind, bbox)
+    };
     if lines.len() <= 1 {
         // Fast path – no newline, emit plain text element.
         return format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">{}</text>",
+            "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">{}</text>",
+            label_attrs,
             x, y, font_size, escape_text(fill), escape_text(label)
         );
     }
@@ -31,7 +124,8 @@ fn relation_label_svg(x: i32, y: i32, label: &str, font_size: i32, fill: &str) -
     // Start above the anchor so the block is centred on y.
     let start_y = y - total_h / 2;
     let mut buf = format!(
-        "<text text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">",
+        "<text class=\"puml-label\" {} text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">",
+        label_attrs,
         font_size,
         escape_text(fill)
     );
@@ -141,10 +235,17 @@ fn render_class_group_frames(
 
         let group_label = group.display_label();
         let uses_tab_header = matches!(group.kind.as_str(), "rectangle" | "package");
+        let container_attrs = super::puml_container_attrs(
+            &group.scope,
+            "class",
+            &group.kind,
+            geometry_bbox(fx, fy, fw, fh),
+        );
 
         out.push_str(&format!(
-            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
-            escape_text(&group.scope)
+            "<rect class=\"uml-group-frame puml-container\" data-uml-group=\"{}\" {} x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"#6366f1\" stroke-width=\"1.5\" stroke-dasharray=\"5 3\"/>",
+            escape_text(&group.scope),
+            container_attrs
         ));
         if uses_tab_header {
             let tab_w = ((group_label.len() as i32) * 8 + 16).max(60).min(fw);
@@ -490,6 +591,7 @@ struct ClassRelationCtx<'a> {
     parallel_offset: &'a std::collections::BTreeMap<usize, i32>,
     relation_pair_label_lanes: &'a std::collections::BTreeMap<usize, i32>,
     class_style: &'a crate::theme::ClassStyle,
+    family_id: &'a str,
     arrow_stroke: &'a str,
     margin_x: i32,
     margin_top: i32,
@@ -568,6 +670,10 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
             .as_deref()
             .map(|direction| format!(" data-uml-direction=\"{}\"", escape_text(direction)))
             .unwrap_or_default();
+        let edge_id = format!("relation:{rel_idx}");
+        let family_id = ctx.family_id;
+        let puml_edge_attrs =
+            super::puml_edge_attrs(&edge_id, family_id, "relation", &from_name, &to_name);
 
         let mut ortho_pts: Option<Vec<(i32, i32)>> =
             if relation.direction.is_none() && !relation.hidden {
@@ -609,9 +715,10 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 .collect::<Vec<_>>()
                 .join(" ");
             out.push_str(&format!(
-                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                "<polyline class=\"uml-relation puml-edge\" data-uml-from=\"{}\" data-uml-to=\"{}\" {} data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
                 escape_text(&from_name),
                 escape_text(&to_name),
+                puml_edge_attrs,
                 escape_text(&normalized_arrow),
                 pts_str,
                 relation_color, stroke_width,
@@ -639,9 +746,10 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
             label_my = lmy;
         } else {
             out.push_str(&format!(
-                "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
+                "<line class=\"uml-relation puml-edge\" data-uml-from=\"{}\" data-uml-to=\"{}\" {} x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{relation_color}\" stroke-width=\"{stroke_width}\"{dash}{visibility}{direction_attr}{markers}/>",
                 escape_text(&relation.from),
                 escape_text(&relation.to),
+                puml_edge_attrs,
                 dash = stroke_dash,
             ));
             label_mx = (x1 + x2) / 2;
@@ -658,7 +766,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         }
         if let Some(left) = &relation.left_cardinality {
             out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                "<text class=\"puml-label\" {} x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                text_semantic_attrs(&edge_id, "cardinality", x1 - 4, y1 - 6, left, 10, false),
                 x = x1 - 4,
                 y = y1 - 6,
                 member_color = ctx.class_style.member_color,
@@ -667,7 +776,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         }
         if let Some(right) = &relation.right_cardinality {
             out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                "<text class=\"puml-label\" {} x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                text_semantic_attrs(&edge_id, "cardinality", x2 + 4, y2 - 6, right, 10, false),
                 x = x2 + 4,
                 y = y2 - 6,
                 member_color = ctx.class_style.member_color,
@@ -676,7 +786,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         }
         if let Some(left_role) = &relation.left_role {
             out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                "<text class=\"puml-label\" {} x=\"{x}\" y=\"{y}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                text_semantic_attrs(&edge_id, "role", x1 - 4, y1 + 12, left_role, 10, false),
                 x = x1 - 4,
                 y = y1 + 12,
                 member_color = ctx.class_style.member_color,
@@ -685,7 +796,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         }
         if let Some(right_role) = &relation.right_role {
             out.push_str(&format!(
-                "<text x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                "<text class=\"puml-label\" {} x=\"{x}\" y=\"{y}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">{txt}</text>",
+                text_semantic_attrs(&edge_id, "role", x2 + 4, y2 + 12, right_role, 10, false),
                 x = x2 + 4,
                 y = y2 + 12,
                 member_color = ctx.class_style.member_color,
@@ -717,7 +829,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                     .unwrap_or((label_mx, label_my));
                 let sy = base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
                 out.push_str(&format!(
-                    "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
+                    "<text class=\"puml-label\" {} x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
+                    text_semantic_attrs(&edge_id, "stereotype", sx, sy, stereotype, 10, true),
                     member_color = ctx.class_style.member_color,
                     txt = escape_text(stereotype)
                 ));
@@ -781,6 +894,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 label,
                 11,
                 &ctx.class_style.member_color,
+                &edge_id,
+                "edge-label",
             ));
         } else if let Some(label) = relation.label.as_deref() {
             let (lx, ly) = if let Some(&(ox, oy)) = ctx.label_override.get(&rel_idx) {
@@ -843,6 +958,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 label,
                 11,
                 &ctx.class_style.member_color,
+                &edge_id,
+                "edge-label",
             ));
         }
     }
@@ -1312,6 +1429,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             parallel_offset: &parallel_offset,
             relation_pair_label_lanes: &relation_pair_label_lanes,
             class_style: &class_style,
+            family_id: diagram_family_id(document.kind),
             arrow_stroke: arrow_stroke.as_str(),
             margin_x,
             margin_top,
@@ -1332,6 +1450,8 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         render_class_node(
             &mut out,
             node,
+            diagram_family_id(document.kind),
+            &key,
             ClassNodeGeometry {
                 x: bx.x,
                 y: bx.y,
@@ -2254,6 +2374,8 @@ fn count_header_stereotype_members(members: &[crate::ast::ClassMember]) -> usize
 fn render_class_node(
     out: &mut String,
     node: &crate::model::FamilyNode,
+    family: &str,
+    semantic_id: &str,
     geometry: ClassNodeGeometry,
     class_style: &ClassStyle,
     namespace_separator: Option<&str>,
@@ -2268,11 +2390,21 @@ fn render_class_node(
 
     // ── C4 node rendering ─────────────────────────────────────────────────────
     if is_c4_kind(node.kind) {
+        out.push_str(&semantic_node_rect(
+            semantic_id,
+            family,
+            family_node_label(node.kind),
+            x,
+            y,
+            w,
+            h,
+        ));
         render_c4_node(out, node, x, y, w, h);
         return;
     }
 
     if node.kind == FamilyNodeKind::Note {
+        out.push_str(&semantic_node_rect(semantic_id, family, "note", x, y, w, h));
         render_note_card(out, x, y, w, h, node.label.as_deref().unwrap_or(&node.name));
         return;
     }
@@ -2284,6 +2416,7 @@ fn render_class_node(
     let stroke = &class_style.border_color;
     let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
     let title_font_size = class_style.font_size.unwrap_or(13);
+    let title_font_size_i32 = title_font_size as i32;
     let member_font_size = title_font_size.saturating_sub(2).max(9);
     // Determine the header fill colour.  For classes we also inspect the
     // leading type-marker member so that enum / annotation / interface / abstract
@@ -2306,6 +2439,15 @@ fn render_class_node(
     };
 
     if matches!(node.kind, FamilyNodeKind::Actor) {
+        out.push_str(&semantic_node_rect(
+            semantic_id,
+            family,
+            "actor",
+            x,
+            y,
+            w,
+            h,
+        ));
         // Canonical stick-figure rendering for actors (issue #715).
         // Proportions are shared with the sequence renderer via render_actor_stick_figure.
         // The figure centre cy is placed at y + 21 so the head top sits at y + 0.
@@ -2315,7 +2457,8 @@ fn render_class_node(
         // Name below the figure: feet end at fig_cy + 23, add 4 px gap.
         let name_y = fig_cy + 27;
         out.push_str(&format!(
-            "<text x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            "<text class=\"puml-label\" {} x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            text_semantic_attrs(semantic_id, "node-label", cx, name_y, &node.name, title_font_size_i32, true),
             escape_text(font_family),
             title_font_size,
             escape_text(&class_style.font_color),
@@ -2344,8 +2487,12 @@ fn render_class_node(
         let cy = y + h / 2;
         let rx = w / 2;
         let ry = h / 2;
+        let node_attrs =
+            super::puml_node_attrs(semantic_id, family, "usecase", geometry_bbox(x, y, w, h));
         out.push_str(&format!(
-            "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            "<ellipse class=\"uml-node puml-node\" data-uml-id=\"{}\" data-uml-kind=\"usecase\" {} cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            escape_text(semantic_id),
+            node_attrs,
         ));
         // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
         // the human-readable label as members[0] when the parser embeds `as DisplayName`
@@ -2376,7 +2523,8 @@ fn render_class_node(
         };
         // Name centered — the alias is the internal id only; do NOT display it (fix #478)
         out.push_str(&format!(
-            "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            "<text class=\"puml-label\" {} x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
+            text_semantic_attrs(semantic_id, "node-label", cx, cy + 4, uc_display_name, title_font_size_i32, true),
             escape_text(font_family),
             title_font_size,
             escape_text(&class_style.font_color),
@@ -2418,8 +2566,17 @@ fn render_class_node(
     let display_members = &node.members[header_skip..];
 
     // Outer rect
+    let node_attrs = super::puml_node_attrs(
+        semantic_id,
+        family,
+        family_node_label(node.kind),
+        geometry_bbox(x, y, w, h),
+    );
     out.push_str(&format!(
-        "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        "<rect class=\"uml-node puml-node\" data-uml-id=\"{}\" data-uml-kind=\"{}\" {} x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        escape_text(semantic_id),
+        escape_text(family_node_label(node.kind)),
+        node_attrs,
     ));
     // Header band — taller when we display stereotype labels (14px per label — fix #470, #551)
     let stereotype_extra = (header_stereotype_labels.len() as i32) * 14;
@@ -2473,7 +2630,8 @@ fn render_class_node(
     };
     let name_ty = y + effective_header_h - 9;
     out.push_str(&format!(
-        "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
+        "<text class=\"puml-label\" {} x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
+        text_semantic_attrs(semantic_id, "node-label", x + w / 2, name_ty, &header_text, title_font_size_i32, true),
         ff = escape_text(font_family),
         fs = title_font_size,
         fc = escape_text(&class_style.font_color),
@@ -2913,6 +3071,7 @@ struct BoxGridPendingLabel {
     y: i32,
     text: String,
     color: String,
+    edge_id: String,
     from_name: String,
     to_name: String,
 }
@@ -3037,6 +3196,9 @@ fn render_box_grid_relations_and_labels(
             .as_deref()
             .map(|d| format!(" data-uml-direction=\"{}\"", escape_text(d)))
             .unwrap_or_default();
+        let edge_id = format!("relation:{rel_idx}");
+        let puml_edge_attrs =
+            super::puml_edge_attrs(&edge_id, family, "relation", &from_name, &to_name);
         let style_attr = {
             let mut tokens: Vec<String> = Vec::new();
             if rel.line_color.is_some() {
@@ -3110,9 +3272,9 @@ fn render_box_grid_relations_and_labels(
                 .collect::<Vec<_>>()
                 .join(" ");
             out.push_str(&format!(
-                "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-                escape_text(&from_name), escape_text(&to_name), escape_text(&normalized_arrow),
-                pts_str, relation_color, stroke_width,
+                "<polyline class=\"uml-relation puml-edge\" data-uml-from=\"{}\" data-uml-to=\"{}\" {} data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                escape_text(&from_name), escape_text(&to_name), puml_edge_attrs,
+                escape_text(&normalized_arrow), pts_str, relation_color, stroke_width,
                 dash_attr, visibility_attr, direction_attr, style_attr, markers
             ));
             let longest_horiz = orth_pts
@@ -3151,9 +3313,9 @@ fn render_box_grid_relations_and_labels(
             };
             if !line_collides {
                 out.push_str(&format!(
-                    "<line class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
-                    escape_text(&from_name), escape_text(&to_name), escape_text(&normalized_arrow),
-                    x1, y1, x2, y2, relation_color, stroke_width,
+                    "<line class=\"uml-relation puml-edge\" data-uml-from=\"{}\" data-uml-to=\"{}\" {} data-uml-arrow=\"{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{}{} />",
+                    escape_text(&from_name), escape_text(&to_name), puml_edge_attrs,
+                    escape_text(&normalized_arrow), x1, y1, x2, y2, relation_color, stroke_width,
                     dash_attr, visibility_attr, direction_attr, style_attr, markers
                 ));
                 label_mx = (x1 + x2) / 2;
@@ -3265,9 +3427,9 @@ fn render_box_grid_relations_and_labels(
                     .collect::<Vec<_>>()
                     .join(" ");
                 out.push_str(&format!(
-                    "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
-                    escape_text(&from_name), escape_text(&to_name), escape_text(&normalized_arrow),
-                    pts_str, relation_color, stroke_width,
+                    "<polyline class=\"uml-relation puml-edge\" data-uml-from=\"{}\" data-uml-to=\"{}\" {} data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
+                    escape_text(&from_name), escape_text(&to_name), puml_edge_attrs,
+                    escape_text(&normalized_arrow), pts_str, relation_color, stroke_width,
                     dash_attr, visibility_attr, direction_attr, markers
                 ));
 
@@ -3340,31 +3502,36 @@ fn render_box_grid_relations_and_labels(
                 y: label_my,
                 text: label_text.to_string(),
                 color: label_color.to_string(),
+                edge_id: edge_id.clone(),
                 from_name: from_name.clone(),
                 to_name: to_name.clone(),
             });
         }
         if let Some(left) = &rel.left_cardinality {
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                text_semantic_attrs(&edge_id, "cardinality", x1 - 4, y1 - 6, left, 10, false),
                 x1 - 4, y1 - 6, escape_text(left)
             ));
         }
         if let Some(right) = &rel.right_cardinality {
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                text_semantic_attrs(&edge_id, "cardinality", x2 + 4, y2 - 6, right, 10, false),
                 x2 + 4, y2 - 6, escape_text(right)
             ));
         }
         if let Some(left_role) = &rel.left_role {
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"end\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                text_semantic_attrs(&edge_id, "role", x1 - 4, y1 + 12, left_role, 10, false),
                 x1 - 4, y1 + 12, escape_text(left_role)
             ));
         }
         if let Some(right_role) = &rel.right_role {
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                text_semantic_attrs(&edge_id, "role", x2 + 4, y2 + 12, right_role, 10, false),
                 x2 + 4, y2 + 12, escape_text(right_role)
             ));
         }
@@ -3547,10 +3714,15 @@ fn render_box_grid_relations_and_labels(
             ));
         }
     }
-    for entry in adjusted_labels.into_iter().flatten() {
+    for (idx, entry) in adjusted_labels.into_iter().enumerate() {
+        let Some(entry) = entry else {
+            continue;
+        };
         let (lx, ly, text, color) = entry;
+        let owner = &pending_labels[idx].edge_id;
         out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            text_semantic_attrs(owner, "edge-label", lx, ly, &text, 11, true),
             lx, ly, escape_text(&color), escape_text(&text)
         ));
     }
@@ -4027,11 +4199,18 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let fh = pkg_frame_heights[i];
         let fx = pkg.abs_x;
         let fy = pkg.abs_y;
+        let container_attrs = super::puml_container_attrs(
+            &pkg.scope,
+            family,
+            "package",
+            geometry_bbox(fx, fy, fw, fh),
+        );
 
         // Draw the outer frame first (light fill, dark border, rounded corners)
         out.push_str(&format!(
-            "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"#f8faff\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            "<rect class=\"uml-group-frame puml-container\" data-uml-group=\"{}\" {} x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"8\" ry=\"8\" fill=\"#f8faff\" stroke=\"{}\" stroke-width=\"1.5\"/>",
             escape_text(&pkg.scope),
+            container_attrs,
             comp_style.border_color
         ));
         // Full-width header band inset into the frame top.  The band uses
@@ -4108,9 +4287,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
             let fw = gx_max - gx_min + pad * 2;
             let fh = gy_max - gy_min + pad * 2 + label_h;
             let sub_label = frame.display_label();
+            let container_attrs = super::puml_container_attrs(
+                &frame.scope,
+                family,
+                &frame.kind,
+                geometry_bbox(fx, fy, fw, fh),
+            );
             out.push_str(&format!(
-                "<rect class=\"uml-group-frame\" data-uml-group=\"{}\" x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>",
+                "<rect class=\"uml-group-frame puml-container\" data-uml-group=\"{}\" {} x=\"{fx}\" y=\"{fy}\" width=\"{fw}\" height=\"{fh}\" rx=\"6\" ry=\"6\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>",
                 escape_text(&frame.scope),
+                container_attrs,
                 comp_style.border_color
             ));
             out.push_str(&format!(
@@ -4131,6 +4317,15 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
         let Some(&(nx, ny, nw, nh)) = positions.get(&key) else {
             continue;
         };
+        out.push_str(&semantic_node_rect(
+            &key,
+            family,
+            family_node_label(node.kind),
+            nx,
+            ny,
+            nw,
+            nh,
+        ));
         render_family_node_shape_styled(&mut out, node, nx, ny, nw, nh, &comp_style);
     }
 

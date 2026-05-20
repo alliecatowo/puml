@@ -715,17 +715,16 @@ fn render_attribute_lines(out: &mut String, layout: &ChenLayout, dx: f64, dy: f6
             .iter()
             .map(|attr| attr.cx + attr.rx)
             .fold(f64::NEG_INFINITY, f64::max);
+        let routing = EntityAttributeRouting {
+            nearest_above_y,
+            nearest_below_y,
+            sibling_left,
+            sibling_right,
+            dx,
+            dy,
+        };
         for attr in &entity.attr_positions {
-            out.push_str(&entity_attribute_line(
-                entity,
-                attr,
-                nearest_above_y,
-                nearest_below_y,
-                sibling_left,
-                sibling_right,
-                dx,
-                dy,
-            ));
+            out.push_str(&entity_attribute_line(entity, attr, routing));
         }
     }
 
@@ -752,28 +751,33 @@ fn render_attribute_lines(out: &mut String, layout: &ChenLayout, dx: f64, dy: f6
     }
 }
 
-fn entity_attribute_line(
-    entity: &EntityLayout,
-    attr: &AttrLayout,
+#[derive(Debug, Clone, Copy)]
+struct EntityAttributeRouting {
     nearest_above_y: f64,
     nearest_below_y: f64,
     sibling_left: f64,
     sibling_right: f64,
     dx: f64,
     dy: f64,
+}
+
+fn entity_attribute_line(
+    entity: &EntityLayout,
+    attr: &AttrLayout,
+    routing: EntityAttributeRouting,
 ) -> String {
-    let left = entity.cx - entity.w / 2.0 + dx;
-    let right = entity.cx + entity.w / 2.0 + dx;
-    let top = entity.cy - entity.h / 2.0 + dy;
-    let bottom = entity.cy + entity.h / 2.0 + dy;
-    let attr_cx = attr.cx + dx;
-    let attr_cy = attr.cy + dy;
+    let left = entity.cx - entity.w / 2.0 + routing.dx;
+    let right = entity.cx + entity.w / 2.0 + routing.dx;
+    let top = entity.cy - entity.h / 2.0 + routing.dy;
+    let bottom = entity.cy + entity.h / 2.0 + routing.dy;
+    let attr_cx = attr.cx + routing.dx;
+    let attr_cy = attr.cy + routing.dy;
     let attr_left = attr_cx - attr.rx;
     let attr_right = attr_cx + attr.rx;
     let above = attr.cy + attr.ry <= entity.cy - entity.h / 2.0;
     let below = attr.cy - attr.ry >= entity.cy + entity.h / 2.0;
-    let stacked_above = above && attr.cy < nearest_above_y - 1.0;
-    let stacked_below = below && attr.cy > nearest_below_y + 1.0;
+    let stacked_above = above && attr.cy < routing.nearest_above_y - 1.0;
+    let stacked_below = below && attr.cy > routing.nearest_below_y + 1.0;
     let outside_left = attr_cx < left;
     let outside_right = attr_cx > right;
 
@@ -783,7 +787,7 @@ fn entity_attribute_line(
         } else if outside_left {
             false
         } else {
-            attr_cx >= entity.cx + dx
+            attr_cx >= entity.cx + routing.dx
         };
         let source_y = if attr_cy < top {
             top
@@ -803,9 +807,9 @@ fn entity_attribute_line(
             (attr_left, attr_cy)
         };
         let lane_x = if route_right {
-            right.max(sibling_right + dx) + 6.0
+            right.max(routing.sibling_right + routing.dx) + 6.0
         } else {
-            left.min(sibling_left + dx) - 6.0
+            left.min(routing.sibling_left + routing.dx) - 6.0
         };
         return attribute_polyline(
             entity.name.as_str(),
@@ -820,8 +824,8 @@ fn entity_attribute_line(
         (attr_cx.clamp(left, right), bottom)
     } else {
         clip_to_rect_edge(
-            entity.cx + dx,
-            entity.cy + dy,
+            entity.cx + routing.dx,
+            entity.cy + routing.dy,
             entity.w / 2.0,
             entity.h / 2.0,
             attr_cx,

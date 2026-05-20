@@ -3,7 +3,9 @@
 //! Renders each fixture in `tests/visual_regression/manifest.json` to SVG via
 //! the `puml` CLI and asserts (1) no empty `<text>` elements, (2) all
 //! `expected_text` substrings appear, (3) at least `min_text_elements`
-//! non-empty `<text>` elements are emitted.
+//! non-empty `<text>` elements are emitted. Fixtures may also opt into
+//! generic semantic SVG contracts for classes, data attributes, expected
+//! element counts, and geometry profiles.
 //!
 //! Also provides PNG baseline-diff sweeps and a bless mechanism
 //! (`bless_baselines`) for promoting renders to baselines after intentional
@@ -12,13 +14,16 @@
 //! Catches the family of bugs where the renderer drops text labels.
 //! See `tests/visual_regression/README.md`.
 
+mod svg_test_helpers;
+
 use assert_cmd::Command;
 use image::ImageEncoder;
 use puml::render::validate;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use svg_test_helpers::SvgDoc;
 
 // ---------------------------------------------------------------------------
 // Manifest types
@@ -42,11 +47,158 @@ struct Fixture {
     #[serde(default)]
     required_classes: Vec<String>,
     #[serde(default)]
-    expected_counts: BTreeMap<String, usize>,
+    expected_counts: BTreeMap<String, ExpectedCount>,
     #[serde(default)]
-    required_data_attrs: Vec<String>,
+    required_data_attrs: Vec<DataAttrRequirement>,
     #[serde(default)]
-    geometry_profile: Option<String>,
+    geometry_profile: Option<GeometryProfile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum DataAttrRequirement {
+    Name(String),
+    Match {
+        name: String,
+        #[serde(default)]
+        value: Option<String>,
+        #[serde(default)]
+        class: Option<String>,
+        #[serde(default)]
+        tag: Option<String>,
+    },
+}
+
+impl DataAttrRequirement {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) | Self::Match { name, .. } => name,
+        }
+    }
+
+    fn description(&self) -> String {
+        match self {
+            Self::Name(name) => name.clone(),
+            Self::Match {
+                name,
+                value,
+                class,
+                tag,
+            } => {
+                let mut parts = vec![name.clone()];
+                if let Some(value) = value {
+                    parts.push(format!("={value:?}"));
+                }
+                if let Some(class) = class {
+                    parts.push(format!(" on .{class}"));
+                }
+                if let Some(tag) = tag {
+                    parts.push(format!(" on <{tag}>"));
+                }
+                parts.join("")
+            }
+        }
+    }
+
+    fn matching_count(&self, doc: &SvgDoc<'_>) -> usize {
+        match self {
+            Self::Name(name) => doc.attr_count(name),
+            Self::Match {
+                name,
+                value,
+                class,
+                tag,
+            } => doc
+                .elements_matching_attr(name, value.as_deref(), class.as_deref(), tag.as_deref())
+                .len(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ExpectedCount {
+    Exact(usize),
+    Range {
+        #[serde(default)]
+        exact: Option<usize>,
+        #[serde(default)]
+        min: Option<usize>,
+        #[serde(default)]
+        max: Option<usize>,
+    },
+}
+
+impl ExpectedCount {
+    fn accepts(&self, actual: usize) -> bool {
+        match self {
+            Self::Exact(expected) => actual == *expected,
+            Self::Range { exact, min, max } => {
+                exact.is_none_or(|expected| actual == expected)
+                    && min.is_none_or(|expected| actual >= expected)
+                    && max.is_none_or(|expected| actual <= expected)
+            }
+        }
+    }
+
+    fn description(&self) -> String {
+        match self {
+            Self::Exact(expected) => format!("exactly {expected}"),
+            Self::Range { exact, min, max } => {
+                let mut parts = Vec::new();
+                if let Some(exact) = exact {
+                    parts.push(format!("exactly {exact}"));
+                }
+                if let Some(min) = min {
+                    parts.push(format!("at least {min}"));
+                }
+                if let Some(max) = max {
+                    parts.push(format!("at most {max}"));
+                }
+                parts.join(" and ")
+            }
+        }
+    }
+
+    fn is_well_formed(&self) -> bool {
+        match self {
+            Self::Exact(_) => true,
+            Self::Range { exact, min, max } => {
+                (exact.is_some() || min.is_some() || max.is_some())
+                    && match (*min, *max) {
+                        (Some(min), Some(max)) => min <= max,
+                        _ => true,
+                    }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GeometryProfile {
+    Graph,
+    Chart,
+    StructuralOnly,
+    Unsupported,
+}
+
+impl<'de> Deserialize<'de> for GeometryProfile {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        match raw.as_str() {
+            "graph" => Ok(Self::Graph),
+            "chart" => Ok(Self::Chart),
+            "structural-only" => Ok(Self::StructuralOnly),
+            "unsupported" => Ok(Self::Unsupported),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["graph", "chart", "structural-only", "unsupported"],
+            )),
+        }
+    }
 }
 
 fn load_manifest() -> Manifest {
@@ -609,14 +761,15 @@ fn append_semantic_svg_contract_failures(svg: &str, fixture: &Fixture, reasons: 
     if !fixture.required_classes.is_empty()
         || !fixture.expected_counts.is_empty()
         || !fixture.required_data_attrs.is_empty()
+        || fixture.geometry_profile.is_some()
     {
-        let Ok(doc) = roxmltree::Document::parse(svg) else {
+        let Ok(doc) = SvgDoc::try_parse(svg) else {
             reasons.push("rendered SVG did not parse as XML for semantic hook checks".to_string());
             return;
         };
 
         for class_name in &fixture.required_classes {
-            if count_class_tokens(&doc, class_name) == 0 {
+            if doc.class_count(class_name) == 0 {
                 reasons.push(format!(
                     "required SVG class {:?} not found; semantic render hooks regressed",
                     class_name
@@ -624,66 +777,177 @@ fn append_semantic_svg_contract_failures(svg: &str, fixture: &Fixture, reasons: 
             }
         }
 
-        for (class_name, expected) in &fixture.expected_counts {
-            let actual = count_class_tokens(&doc, class_name);
-            if actual != *expected {
+        for (target, expected) in &fixture.expected_counts {
+            let actual = count_expected_target(&doc, target);
+            if !expected.accepts(actual) {
                 reasons.push(format!(
-                    "expected exactly {expected} elements with class {class_name:?}, found {actual}"
+                    "expected {} elements matching {target:?}, found {actual}",
+                    expected.description()
                 ));
             }
         }
 
-        for attr_name in &fixture.required_data_attrs {
-            let found = doc
-                .descendants()
-                .any(|node| node.is_element() && node.attribute(attr_name.as_str()).is_some());
-            if !found {
+        for attr in &fixture.required_data_attrs {
+            if attr.matching_count(&doc) == 0 {
                 reasons.push(format!(
-                    "required SVG data attribute {attr_name:?} not found"
+                    "required SVG data attribute {} not found",
+                    attr.description()
+                ));
+            }
+        }
+
+        append_canonical_puml_hook_failures(&doc, fixture, reasons);
+        append_geometry_profile_failures(&doc, svg, fixture, reasons);
+    }
+}
+
+fn append_canonical_puml_hook_failures(
+    doc: &SvgDoc<'_>,
+    fixture: &Fixture,
+    reasons: &mut Vec<String>,
+) {
+    if !fixture_opts_into_canonical_puml_hooks(fixture) {
+        return;
+    }
+
+    for node in doc.elements_with_class_any_tag("puml-node") {
+        for attr in ["data-puml-id", "data-puml-kind", "data-puml-bbox"] {
+            if node.attribute(attr).is_none() {
+                reasons.push(format!(
+                    "canonical .puml-node hook is missing required {attr:?}"
                 ));
             }
         }
     }
 
-    match fixture.geometry_profile.as_deref() {
-        None | Some("") => {}
-        Some("graph") => {
-            let edge_node = validate::check_edge_node_clearance(svg);
-            let endpoints = validate::check_endpoint_connectivity(svg);
-            if !edge_node.is_empty() || !endpoints.is_empty() {
-                let details = edge_node
-                    .iter()
-                    .chain(endpoints.iter())
-                    .take(3)
-                    .map(|violation| violation.message.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" | ");
+    for edge in doc.elements_with_class_any_tag("puml-edge") {
+        for attr in ["data-puml-from", "data-puml-to"] {
+            if edge.attribute(attr).is_none() {
                 reasons.push(format!(
-                    "graph geometry profile failed: {} edge/node violation(s), {} endpoint violation(s)",
-                    edge_node.len(),
-                    endpoints.len()
+                    "canonical .puml-edge hook is missing required {attr:?}"
                 ));
-                if !details.is_empty() {
-                    reasons.push(format!("first geometry violations: {details}"));
-                }
             }
         }
-        Some(profile) => {
-            reasons.push(format!("unknown geometry_profile {profile:?}"));
+    }
+
+    for label in doc.elements_with_class_any_tag("puml-label") {
+        for attr in ["data-puml-owner", "data-puml-label-kind", "data-puml-bbox"] {
+            if label.attribute(attr).is_none() {
+                reasons.push(format!(
+                    "canonical .puml-label hook is missing required {attr:?}"
+                ));
+            }
         }
     }
 }
 
-fn count_class_tokens(doc: &roxmltree::Document<'_>, class_name: &str) -> usize {
-    doc.descendants()
-        .filter(|node| {
-            node.is_element()
-                && node
-                    .attribute("class")
-                    .map(|class| class.split_whitespace().any(|token| token == class_name))
-                    .unwrap_or(false)
-        })
-        .count()
+fn fixture_opts_into_canonical_puml_hooks(fixture: &Fixture) -> bool {
+    fixture
+        .required_classes
+        .iter()
+        .any(|class| class.starts_with("puml-"))
+        || fixture
+            .expected_counts
+            .keys()
+            .any(|target| count_target_name(target).is_some_and(|name| name.starts_with("puml-")))
+        || fixture
+            .required_data_attrs
+            .iter()
+            .any(|attr| attr.name().starts_with("data-puml-"))
+}
+
+fn append_geometry_profile_failures(
+    doc: &SvgDoc<'_>,
+    svg: &str,
+    fixture: &Fixture,
+    reasons: &mut Vec<String>,
+) {
+    match fixture.geometry_profile {
+        None | Some(GeometryProfile::StructuralOnly | GeometryProfile::Unsupported) => {}
+        Some(GeometryProfile::Chart) => {
+            let semantic = validate::check_semantic_bboxes_inside_viewbox(svg);
+            if semantic.is_empty() {
+                return;
+            }
+
+            let details = semantic
+                .iter()
+                .take(3)
+                .map(|violation| violation.message.as_str())
+                .collect::<Vec<_>>()
+                .join(" | ");
+            reasons.push(format!(
+                "chart geometry profile failed: {} semantic bbox violation(s)",
+                semantic.len()
+            ));
+            if !details.is_empty() {
+                reasons.push(format!("first chart geometry violations: {details}"));
+            }
+        }
+        Some(GeometryProfile::Graph) => {
+            let node_count = doc.class_count("puml-node") + doc.class_count("uml-node");
+            let edge_count = doc.class_count("puml-edge") + doc.class_count("uml-relation");
+            if node_count == 0 || edge_count == 0 {
+                reasons.push(format!(
+                    "graph geometry profile requires puml/uml node and edge hooks; found {node_count} node hook(s), {edge_count} edge hook(s)"
+                ));
+                return;
+            }
+
+            let edge_node = validate::check_edge_node_clearance(svg);
+            let endpoints = validate::check_endpoint_connectivity(svg);
+            if edge_node.is_empty() && endpoints.is_empty() {
+                return;
+            }
+
+            let details = edge_node
+                .iter()
+                .chain(endpoints.iter())
+                .take(3)
+                .map(|violation| violation.message.as_str())
+                .collect::<Vec<_>>()
+                .join(" | ");
+            reasons.push(format!(
+                "graph geometry profile failed: {} edge/node violation(s), {} endpoint violation(s)",
+                edge_node.len(),
+                endpoints.len()
+            ));
+            if !details.is_empty() {
+                reasons.push(format!("first geometry violations: {details}"));
+            }
+        }
+    }
+}
+
+fn count_expected_target(doc: &SvgDoc<'_>, target: &str) -> usize {
+    if let Some(class_name) = target
+        .strip_prefix("class:")
+        .or_else(|| target.strip_prefix('.'))
+    {
+        return doc.class_count(class_name);
+    }
+    if let Some(attr_name) = target
+        .strip_prefix("attr:")
+        .or_else(|| target.strip_prefix("data_attr:"))
+    {
+        return doc.attr_count(attr_name);
+    }
+    if let Some(tag) = target.strip_prefix("tag:") {
+        return doc.tag_count(tag);
+    }
+    doc.class_count(target)
+}
+
+fn count_target_name(target: &str) -> Option<&str> {
+    if target.starts_with("attr:") || target.starts_with("data_attr:") || target.starts_with("tag:")
+    {
+        None
+    } else {
+        target
+            .strip_prefix("class:")
+            .or_else(|| target.strip_prefix('.'))
+            .or(Some(target))
+    }
 }
 
 fn run_text_sweep<'a>(fixtures: impl IntoIterator<Item = &'a Fixture>, total: usize) {
@@ -743,6 +1007,68 @@ fn manifest_requires_semantic_text_expectations_or_explicit_exception() {
         "visual manifest fixtures must assert semantic expected_text and nonzero \
          min_text_elements, or include non-empty structural_only_reason for \
          machine/structural-only exceptions: {weak_fixtures:#?}"
+    );
+}
+
+#[test]
+fn manifest_semantic_svg_contract_fields_are_well_formed() {
+    let manifest = load_manifest();
+    let mut problems = Vec::new();
+
+    for fixture in &manifest.fixtures {
+        for class_name in &fixture.required_classes {
+            if class_name.trim().is_empty() || class_name.split_whitespace().count() != 1 {
+                problems.push(format!(
+                    "{} has invalid required_classes entry {:?}",
+                    fixture.path, class_name
+                ));
+            }
+        }
+
+        for attr in &fixture.required_data_attrs {
+            let name = attr.name();
+            if name.trim().is_empty() || !name.starts_with("data-") {
+                problems.push(format!(
+                    "{} has invalid required_data_attrs entry {}",
+                    fixture.path,
+                    attr.description()
+                ));
+            }
+        }
+
+        for (target, expected) in &fixture.expected_counts {
+            if target.trim().is_empty() || target.split_whitespace().count() != 1 {
+                problems.push(format!(
+                    "{} has invalid expected_counts target {:?}",
+                    fixture.path, target
+                ));
+            }
+            if !expected.is_well_formed() {
+                problems.push(format!(
+                    "{} has invalid expected_counts expectation for {:?}",
+                    fixture.path, target
+                ));
+            }
+        }
+
+        if matches!(
+            fixture.geometry_profile,
+            Some(GeometryProfile::StructuralOnly | GeometryProfile::Unsupported)
+        ) && fixture
+            .structural_only_reason
+            .as_deref()
+            .is_none_or(|reason| reason.trim().is_empty())
+        {
+            problems.push(format!(
+                "{} uses an escape-hatch geometry profile without structural_only_reason",
+                fixture.path
+            ));
+        }
+    }
+
+    assert!(
+        problems.is_empty(),
+        "visual manifest semantic contract fields must be well formed: {problems:#?}"
     );
 }
 

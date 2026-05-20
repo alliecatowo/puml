@@ -1,5 +1,5 @@
 {
-  "_comment": "Visual regression manifest. Each fixture is rendered to SVG and checked for: (1) all expected_text substrings appear, (2) no <text> element is empty. Add semantic expected_text for label-rendering fixtures. Structural-only exceptions must include structural_only_reason. Run: cargo test --test visual_regression",
+  "_comment": "Visual regression manifest. Each fixture is rendered to SVG and checked for: (1) all expected_text substrings appear, (2) no <text> element is empty. Optional semantic SVG contracts: required_classes, required_data_attrs (string or {name,value,class,tag}), expected_counts (class names by default, or class:/attr:/data_attr:/tag: targets; values may be exact integers or {min,max,exact}), and geometry_profile (graph, chart, structural-only, unsupported). Structural-only/unsupported escapes must include structural_only_reason. Run: cargo test --test visual_regression",
   "fixtures": [
     {
       "path": "docs/examples/sequence/01_basic.puml",
@@ -66,7 +66,11 @@
       "path": "docs/examples/component/01_basic.puml",
       "family": "component",
       "expected_text": ["Frontend", "Backend", "calls"],
-      "min_text_elements": 5
+      "min_text_elements": 5,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": 2, "puml-edge": 1, "uml-node": 2, "uml-relation": 1 },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/object/01_basic.puml",
@@ -78,7 +82,11 @@
       "path": "docs/examples/deployment/01_nodes.puml",
       "family": "deployment",
       "expected_text": ["WebServer", "AppServer", "DBServer", "HTTP", "TCP"],
-      "min_text_elements": 8
+      "min_text_elements": 8,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": 3, "puml-edge": 2, "uml-node": 3, "uml-relation": 2 },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/deployment/03_cloud.puml",
@@ -128,7 +136,19 @@
       "path": "docs/examples/chart/01_bar.puml",
       "family": "chart",
       "expected_text": ["Q1", "Q2", "Q3", "Q4", "42", "58", "73", "91"],
-      "min_text_elements": 13
+      "min_text_elements": 13,
+      "required_classes": ["puml-node", "puml-label", "chart-bar", "chart-axis-tick", "chart-value-label"],
+      "expected_counts": { "puml-node": 4, "puml-label": 9, "chart-bar": 4, "chart-axis-tick": 5, "chart-value-label": 4, "attr:data-chart-axis-tick": 5 },
+      "required_data_attrs": [
+        "data-puml-id",
+        "data-puml-owner",
+        "data-puml-label-kind",
+        "data-puml-bbox",
+        { "name": "data-chart-type", "value": "bar" },
+        "data-chart-axis-tick",
+        "data-chart-label-mode"
+      ],
+      "geometry_profile": "chart"
     },
     {
       "path": "docs/examples/chen/01_basic.puml",

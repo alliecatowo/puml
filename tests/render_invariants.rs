@@ -7,7 +7,10 @@
 //! Tests live here (not in src/render/validate.rs) because they exercise the full
 //! round-trip: parse → normalize → render → SVG post-processing.
 
-use puml::render::validate::{self, AutoCorrect, InvariantKind, PackageFrame, PseudoStateKind};
+use puml::render::validate::{
+    self, AutoCorrect, GraphValidationProfile, InvariantKind, PackageFrame, PseudoStateKind,
+    SemanticRole,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -158,6 +161,134 @@ fn invariant6_uses_canonical_puml_node_and_edge_hooks() {
     assert!(
         violations.is_empty(),
         "expected connected puml-edge: {violations:?}"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonical puml-* semantic hooks
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn canonical_puml_label_hooks_are_parsed_family_neutrally() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="220" height="120" viewBox="0 0 220 120">"#,
+        r#"<text class="puml-label" data-puml-owner="node-a" data-puml-label-kind="caption" data-puml-bbox="20 30 56 16" x="48" y="42" text-anchor="middle">Alpha</text>"#,
+        r#"</svg>"#
+    );
+
+    let labels = validate::extract_semantic_labels(svg);
+    assert_eq!(labels.len(), 1);
+    assert_eq!(labels[0].owner, "node-a");
+    assert_eq!(labels[0].label_kind, "caption");
+    assert_eq!((labels[0].bbox.x, labels[0].bbox.y), (20, 30));
+    assert_eq!(labels[0].text.as_deref(), Some("Alpha"));
+}
+
+#[test]
+fn canonical_semantic_bboxes_must_fit_inside_viewbox() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90">"#,
+        r#"<rect class="puml-node" data-puml-id="inside" data-puml-kind="box" data-puml-bbox="10 10 40 30" x="10" y="10" width="40" height="30"/>"#,
+        r#"<text class="puml-label" data-puml-owner="inside" data-puml-label-kind="caption" data-puml-bbox="130 70 50 16" x="155" y="82">too far</text>"#,
+        r#"</svg>"#
+    );
+
+    let violations = validate::check_semantic_bboxes_inside_viewbox(svg);
+    assert_eq!(violations.len(), 1);
+    assert!(matches!(
+        violations[0].kind,
+        InvariantKind::SemanticBBoxOutsideViewbox {
+            role: SemanticRole::Label,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn canonical_primary_puml_nodes_must_not_overlap() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120" viewBox="0 0 240 120">"#,
+        r#"<rect class="puml-node" data-puml-id="left" data-puml-kind="generic" data-puml-bbox="20 30 80 40" x="20" y="30" width="80" height="40"/>"#,
+        r#"<rect class="puml-node" data-puml-id="right" data-puml-kind="generic" data-puml-bbox="90 40 80 40" x="90" y="40" width="80" height="40"/>"#,
+        r#"</svg>"#
+    );
+
+    let violations = validate::check_primary_node_non_overlap(svg);
+    assert_eq!(violations.len(), 1);
+    assert!(matches!(
+        violations[0].kind,
+        InvariantKind::PrimaryNodeOverlap { ref a, ref b }
+            if a == "left" && b == "right"
+    ));
+}
+
+#[test]
+fn canonical_labels_must_clear_non_owner_nodes() {
+    let svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="260" height="140" viewBox="0 0 260 140">"#,
+        r#"<rect class="puml-node" data-puml-id="owner" data-puml-kind="generic" data-puml-bbox="20 40 70 40" x="20" y="40" width="70" height="40"/>"#,
+        r#"<rect class="puml-node" data-puml-id="other" data-puml-kind="generic" data-puml-bbox="140 40 70 40" x="140" y="40" width="70" height="40"/>"#,
+        r#"<text class="puml-label" data-puml-owner="owner" data-puml-label-kind="caption" data-puml-bbox="150 50 44 16" x="172" y="62">oops</text>"#,
+        r#"</svg>"#
+    );
+
+    let violations = validate::check_labels_clear_non_owner_nodes(svg);
+    assert_eq!(violations.len(), 1);
+    assert!(matches!(
+        violations[0].kind,
+        InvariantKind::LabelOverlapsNonOwnerNode { ref node_id, .. } if node_id == "other"
+    ));
+}
+
+#[test]
+fn graph_profile_requires_canonical_graph_hooks() {
+    let good_svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="260" height="140" viewBox="0 0 260 140">"#,
+        r#"<rect class="puml-node" data-puml-id="a" data-puml-kind="generic" data-puml-bbox="20 40 70 40" x="20" y="40" width="70" height="40"/>"#,
+        r#"<rect class="puml-node" data-puml-id="b" data-puml-kind="generic" data-puml-bbox="170 40 70 40" x="170" y="40" width="70" height="40"/>"#,
+        r#"<line class="puml-edge" data-puml-from="a" data-puml-to="b" x1="90" y1="60" x2="170" y2="60"/>"#,
+        r#"<text class="puml-label" data-puml-owner="a" data-puml-label-kind="caption" data-puml-bbox="34 52 42 16" x="55" y="64">A</text>"#,
+        r#"</svg>"#
+    );
+    assert!(
+        validate::check_canonical_graph_hooks(good_svg, GraphValidationProfile::Graph).is_empty()
+    );
+
+    let bad_svg = concat!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="260" height="140" viewBox="0 0 260 140">"#,
+        r#"<rect class="puml-node" data-puml-id="a" x="20" y="40" width="70" height="40"/>"#,
+        r#"<line class="puml-edge" data-puml-from="a" x1="90" y1="60" x2="170" y2="60"/>"#,
+        r#"<text class="puml-label" data-puml-owner="a" x="55" y="64">A</text>"#,
+        r#"</svg>"#
+    );
+    assert!(
+        validate::check_canonical_graph_hooks(bad_svg, GraphValidationProfile::None).is_empty()
+    );
+
+    let violations = validate::check_canonical_graph_hooks(bad_svg, GraphValidationProfile::Graph);
+    assert!(
+        violations.iter().any(|v| matches!(
+            v.kind,
+            InvariantKind::CanonicalGraphHookMissing { ref element, ref hook }
+                if element == "puml-node" && hook == "data-puml-bbox"
+        )),
+        "expected missing puml-node bbox hook: {violations:?}"
+    );
+    assert!(
+        violations.iter().any(|v| matches!(
+            v.kind,
+            InvariantKind::CanonicalGraphHookMissing { ref element, ref hook }
+                if element == "puml-edge" && hook == "data-puml-to"
+        )),
+        "expected missing puml-edge target hook: {violations:?}"
+    );
+    assert!(
+        violations.iter().any(|v| matches!(
+            v.kind,
+            InvariantKind::CanonicalGraphHookMissing { ref element, ref hook }
+                if element == "puml-label" && hook == "data-puml-label-kind"
+        )),
+        "expected missing puml-label kind hook: {violations:?}"
     );
 }
 
