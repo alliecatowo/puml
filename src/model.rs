@@ -118,6 +118,7 @@ pub enum NormalizedDocument {
     Sdl(SdlDocument),
     Ditaa(DitaaDocument),
     Chart(ChartDocument),
+    Chen(ChenDocument),
 }
 
 #[derive(Debug, Clone)]
@@ -872,4 +873,53 @@ pub enum VirtualEndpointKind {
     Circle,
     Cross,
     Filled,
+}
+
+// ─── Chen/EER diagram model ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChenAttrKind {
+    Regular,
+    Key,
+    Multivalued,
+    Derived,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenAttr {
+    pub name: String,
+    pub kind: ChenAttrKind,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenEntity {
+    pub name: String,
+    pub is_weak: bool,
+    pub attrs: Vec<ChenAttr>,
+    /// Layout position (grid col, grid row) — assigned during normalization.
+    pub grid_col: usize,
+    pub grid_row: usize,
+}
+
+/// Cardinality label on one side of a relationship (e.g. "1", "N", "M").
+#[derive(Debug, Clone)]
+pub struct ChenRelParticipant {
+    pub entity: String,
+    pub cardinality: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenRelationship {
+    pub name: String,
+    pub is_identifying: bool,
+    pub participants: Vec<ChenRelParticipant>,
+    pub attrs: Vec<ChenAttr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChenDocument {
+    pub entities: Vec<ChenEntity>,
+    pub relationships: Vec<ChenRelationship>,
+    pub title: Option<String>,
+    pub warnings: Vec<Diagnostic>,
 }

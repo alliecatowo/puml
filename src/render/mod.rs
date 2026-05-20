@@ -11,6 +11,7 @@ pub(crate) use crate::theme::css3_color_to_hex;
 pub(crate) use std::collections::BTreeMap;
 
 mod activity;
+mod chen;
 mod data;
 mod family;
 mod geometry;
@@ -28,6 +29,7 @@ mod timing;
 pub mod validate;
 
 pub use activity::render_activity_svg;
+pub use chen::render_chen_svg;
 pub use data::{render_json_svg, render_yaml_svg};
 pub use family::{
     render_class_svg, render_component_svg, render_deployment_svg, render_family_stub_svg,

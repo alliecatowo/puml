@@ -822,6 +822,7 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
         NormalizedDocument::Sdl(doc) => &doc.warnings,
         NormalizedDocument::Ditaa(doc) => &doc.warnings,
         NormalizedDocument::Chart(doc) => &doc.warnings,
+        NormalizedDocument::Chen(doc) => &doc.warnings,
     }
 }
 
