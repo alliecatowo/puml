@@ -1,6 +1,9 @@
 //! `puml hash` subcommand — print a deterministic content hash of a file.
 //!
-//! Uses FNV-1a 64-bit over the raw file bytes, encoded as lowercase hex.
+//! Currently uses FNV-1a 64-bit over the raw file bytes, encoded as lowercase
+//! hex or base64.  The `sha256` and `blake3` algorithm options are reserved for
+//! future backends; selecting them today returns an error.
+//!
 //! No external crates required.
 
 use crate::cli::{HashAlgoArg, HashArgs, HashFormatArg};
@@ -19,9 +22,26 @@ pub fn run_hash(args: &HashArgs) -> Result<i32, (i32, String)> {
     })?;
 
     let digest = match args.algo {
-        // All three algorithm options use FNV-1a in this minimal implementation.
-        // A future PR can add algorithm-specific backends behind feature flags.
-        HashAlgoArg::Sha256 | HashAlgoArg::Blake3 | HashAlgoArg::Fnv => fnv1a_hex(&bytes),
+        HashAlgoArg::Sha256 => {
+            // TODO: wire in a sha256 backend (ring / sha2 crate) once the
+            // dependency decision is made.
+            return Err((
+                1_i32,
+                "--algo sha256 is not yet implemented; use --algo fnv for now \
+                 (sha256 backend is planned)"
+                    .to_string(),
+            ));
+        }
+        HashAlgoArg::Blake3 => {
+            // TODO: wire in the blake3 crate once the dependency decision is made.
+            return Err((
+                1_i32,
+                "--algo blake3 is not yet implemented; use --algo fnv for now \
+                 (blake3 backend is planned)"
+                    .to_string(),
+            ));
+        }
+        HashAlgoArg::Fnv => fnv1a_hex(&bytes),
     };
 
     let output = match args.format {
