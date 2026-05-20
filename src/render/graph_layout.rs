@@ -113,7 +113,7 @@ pub fn layout_hierarchical(
 
     // Step 3 — Coordinate assignment
     let (node_positions, canvas_width, canvas_height) =
-        assign_coordinates(nodes, &ranks, &rank_order, options);
+        assign_coordinates(nodes, edges, &ranks, &rank_order, options);
 
     // Step 4 — Group bounding boxes
     let group_bounds = compute_group_bounds(nodes, &node_positions, options);
@@ -224,22 +224,33 @@ fn assign_ranks(
         ranks.entry(n.id.clone()).or_insert(0);
     }
 
-    // ── Group-cohesion rank snap (Bug 2: Theme Engine placement) ──────────────
-    // When a root node (no DAG predecessors) lives in a declared parent group
-    // whose other members are at a different rank, snap the root to the median
-    // sibling rank provided the snap doesn't violate DAG constraints:
-    //   median_rank < min(rank[successors])
-    // This keeps Theme Engine inside Shared Services instead of floating to
-    // rank-0 alongside Transports (CLI/LSP/WASM).
+    // ── Group-cohesion rank snap ───────────────────────────────────────────────
+    // When members of the same declared parent group end up at different ranks,
+    // snap outlier members toward the group majority rank so the package frame
+    // stays compact.
+    //
+    // Two cases are handled:
+    //  A. Root nodes (no DAG predecessors): snap to median sibling rank if that
+    //     rank is strictly below all successors.
+    //  B. Non-root nodes whose ALL predecessors are in a DIFFERENT group AND the
+    //     snap target rank is strictly above all predecessors: snap to the minimum
+    //     group rank.  This is the "cross-package predecessor" case where a node
+    //     like RenderSupport (Shared Services) has a predecessor LangSvc (also
+    //     Shared Services) at rank N, forcing RenderSupport to rank N+1, even
+    //     though its sibling Preproc is at rank N.  We snap RenderSupport to
+    //     rank N (same as its sibling) accepting that the layout will show the
+    //     same-rank ordering in the crossing-minimisation step.
     {
         // Build group → member_ids list from NodeSize.parent field.
         let mut group_members: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let mut node_group: BTreeMap<&str, &str> = BTreeMap::new();
         for n in nodes {
             if let Some(parent) = &n.parent {
                 group_members
                     .entry(parent.clone())
                     .or_default()
                     .push(n.id.clone());
+                node_group.entry(n.id.as_str()).or_insert(parent.as_str());
             }
         }
 
@@ -256,6 +267,7 @@ fn assign_ranks(
                 continue;
             }
             member_ranks.sort_unstable();
+            let min_rank = member_ranks[0];
             let median_rank = member_ranks[member_ranks.len() / 2];
 
             for id in members {
@@ -263,27 +275,63 @@ fn assign_ranks(
                     Some(&r) => r,
                     None => continue,
                 };
-                if current_rank == median_rank {
+                // ── Case A: root nodes → snap to median ───────────────────────
+                let preds = dag_rev.get(id.as_str()).cloned().unwrap_or_default();
+                if preds.is_empty() {
+                    if current_rank == median_rank {
+                        continue;
+                    }
+                    let min_succ_rank: Option<usize> = dag_fwd.get(id.as_str()).and_then(|succs| {
+                        succs.iter().filter_map(|s| ranks.get(*s)).copied().min()
+                    });
+                    let ok = match min_succ_rank {
+                        Some(min_s) => median_rank < min_s,
+                        None => true,
+                    };
+                    if ok {
+                        ranks.insert(id.clone(), median_rank);
+                    }
                     continue;
                 }
-                // Only snap root nodes (no predecessors in the working DAG).
-                let has_preds = dag_rev
-                    .get(id.as_str())
-                    .map(|preds| !preds.is_empty())
-                    .unwrap_or(false);
-                if has_preds {
+
+                // ── Case B: non-root nodes with all preds in different groups ──
+                if current_rank <= min_rank {
+                    continue; // already at or above group minimum
+                }
+                let my_group = match node_group.get(id.as_str()) {
+                    Some(&g) => g,
+                    None => continue,
+                };
+                // Check that all predecessors are in a DIFFERENT group.
+                let all_preds_cross_group = preds.iter().all(|&p| {
+                    let pred_group = node_group.get(p).copied();
+                    pred_group.map(|g| g != my_group).unwrap_or(true)
+                });
+                if !all_preds_cross_group {
                     continue;
                 }
-                // Confirm DAG constraint: median_rank < min(rank[successors]).
+                // Check DAG constraint: min_rank > max(rank[predecessors]).
+                let max_pred_rank = preds
+                    .iter()
+                    .filter_map(|p| ranks.get(*p))
+                    .copied()
+                    .max()
+                    .unwrap_or(0);
+                // We can snap to min_rank only if min_rank > max_pred_rank
+                // (the node must remain downstream of its predecessors).
+                if min_rank <= max_pred_rank {
+                    continue;
+                }
+                // Check that snap doesn't put us above our successors.
                 let min_succ_rank: Option<usize> = dag_fwd
                     .get(id.as_str())
                     .and_then(|succs| succs.iter().filter_map(|s| ranks.get(*s)).copied().min());
                 let ok = match min_succ_rank {
-                    Some(min_s) => median_rank < min_s,
+                    Some(min_s) => min_rank < min_s,
                     None => true,
                 };
                 if ok {
-                    ranks.insert(id.clone(), median_rank);
+                    ranks.insert(id.clone(), min_rank);
                 }
             }
         }
@@ -519,6 +567,7 @@ fn barycenter_owned(
 
 fn assign_coordinates(
     nodes: &[NodeSize],
+    edges: &[EdgeSpec],
     ranks: &BTreeMap<String, usize>,
     rank_order: &BTreeMap<usize, Vec<String>>,
     options: &LayoutOptions,
@@ -588,6 +637,105 @@ fn assign_coordinates(
             positions.insert(id.clone(), (x, ry));
             x += w + options.node_separation;
         }
+    }
+
+    // ── Predecessor-alignment pass ─────────────────────────────────────────────
+    // When a rank has exactly one node and all of its incoming edges come from
+    // a single predecessor, align the node's x-centre with that predecessor's
+    // x-centre.  This keeps linear pipeline chains (A→B→C→D) visually straight
+    // (the nodes stack in a column rather than snapping to the canvas midpoint).
+    //
+    // Build: predecessor set for each node.
+    {
+        // predecessors[node_id] = set of predecessor ids (from edge list).
+        let mut predecessors: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        for n in nodes {
+            predecessors.entry(n.id.as_str()).or_default();
+        }
+        for e in edges {
+            predecessors
+                .entry(e.to.as_str())
+                .or_default()
+                .insert(e.from.as_str());
+        }
+
+        // Build a parent-group lookup for same-package predecessor preference.
+        let node_parent: BTreeMap<&str, Option<&str>> = nodes
+            .iter()
+            .map(|n| (n.id.as_str(), n.parent.as_deref()))
+            .collect();
+
+        let mut aligned = positions.clone();
+        // Process ranks top-to-bottom so that chain alignment propagates correctly.
+        for r in 1..=max_rank {
+            let ids = match rank_order.get(&r) {
+                Some(v) => v,
+                None => continue,
+            };
+            // Only align single-node ranks.
+            if ids.len() != 1 {
+                continue;
+            }
+            let node_id = &ids[0];
+            let preds = match predecessors.get(node_id.as_str()) {
+                Some(p) => p,
+                None => continue,
+            };
+            if preds.is_empty() {
+                continue;
+            }
+            // Determine which predecessor to align to:
+            // 1. If exactly one predecessor, use it.
+            // 2. If multiple predecessors, prefer the one in the same package group
+            //    as the current node; if still ambiguous, pick the one with the
+            //    x-position closest to the current node's x.
+            let node_group = node_parent.get(node_id.as_str()).and_then(|g| *g);
+            let pred_id: &str = if preds.len() == 1 {
+                preds.iter().next().unwrap()
+            } else {
+                // Among predecessors, prefer same-group first.
+                let same_group_preds: Vec<&&str> = preds
+                    .iter()
+                    .filter(|&&p| node_parent.get(p).and_then(|g| *g) == node_group)
+                    .collect();
+                let candidate_preds: Vec<&&str> = if same_group_preds.is_empty() {
+                    preds.iter().collect()
+                } else {
+                    same_group_preds
+                };
+                // Among candidates, pick the one with x closest to current node.
+                let cur_x = aligned
+                    .get(node_id.as_str())
+                    .map(|&(x, _)| x)
+                    .unwrap_or(0.0);
+                candidate_preds
+                    .iter()
+                    .min_by(|&&a, &&b| {
+                        let xa = aligned.get(*a).map(|&(x, _)| x).unwrap_or(0.0);
+                        let xb = aligned.get(*b).map(|&(x, _)| x).unwrap_or(0.0);
+                        (xa - cur_x)
+                            .abs()
+                            .partial_cmp(&(xb - cur_x).abs())
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                    .unwrap()
+            };
+            // Get predecessor's x from the already-aligned positions.
+            if let Some(&(pred_x, _)) = aligned.get(pred_id) {
+                let (_, cur_y) = aligned[node_id.as_str()];
+                // Align centre: predecessor centre is pred_x + pred_width/2,
+                // new x is that centre minus this node's half-width.
+                let pred_w = node_by_id.get(pred_id).map(|n| n.width).unwrap_or(200.0);
+                let this_w = node_by_id
+                    .get(node_id.as_str())
+                    .map(|n| n.width)
+                    .unwrap_or(200.0);
+                let pred_cx = pred_x + pred_w / 2.0;
+                let new_x = pred_cx - this_w / 2.0;
+                aligned.insert(node_id.clone(), (new_x, cur_y));
+            }
+        }
+        positions = aligned;
     }
 
     // Canvas size

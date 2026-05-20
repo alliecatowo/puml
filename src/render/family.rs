@@ -3101,6 +3101,65 @@ fn render_box_grid_relations_and_labels(
                     orth_pts[n - 2].0 = x2;
                 }
             }
+
+            // ── Horizontal-segment obstacle avoidance ──────────────────────────
+            // After snapping, check every horizontal segment (same y for both
+            // endpoints) against all node bboxes (excluding src and tgt).  When
+            // the segment clips a node box, shift the y of that horizontal run to
+            // clear the obstacle by routing just below (or above) the box edge.
+            // This prevents arrows from drawing through the bodies of intermediate
+            // nodes that lie between source and target in the same rank band.
+            let horiz_obstacle_shift = 14i32; // px below/above the obstacle box edge
+            let orth_n = orth_pts.len();
+            if orth_n >= 3 {
+                for seg_i in 0..(orth_n - 1) {
+                    let (ax, ay) = orth_pts[seg_i];
+                    let (bx, by) = orth_pts[seg_i + 1];
+                    // Only process horizontal segments (same y).
+                    if ay != by {
+                        continue;
+                    }
+                    // Find any obstacle the horizontal segment crosses.
+                    let seg_x0 = ax.min(bx);
+                    let seg_x1 = ax.max(bx);
+                    let mut best_shift: Option<i32> = None;
+                    for &(obx, oby, obw, obh) in all_boxes {
+                        // Skip src and tgt nodes.
+                        if (obx, oby, obw, obh) == (fx, fy, fw, fh)
+                            || (obx, oby, obw, obh) == (tx, ty, tw, th)
+                        {
+                            continue;
+                        }
+                        // Check if the horizontal line at y=ay passes through the obstacle.
+                        let obs_x0 = obx;
+                        let obs_x1 = obx + obw;
+                        let obs_y0 = oby;
+                        let obs_y1 = oby + obh;
+                        let overlaps_x = seg_x1 > obs_x0 + 4 && seg_x0 < obs_x1 - 4;
+                        let crosses_y = ay >= obs_y0 && ay <= obs_y1;
+                        if overlaps_x && crosses_y {
+                            // Route just below the obstacle (prefer down since diagrams flow down).
+                            let candidate = obs_y1 + horiz_obstacle_shift;
+                            best_shift = Some(match best_shift {
+                                Some(prev) => prev.max(candidate),
+                                None => candidate,
+                            });
+                        }
+                    }
+                    if let Some(new_y) = best_shift {
+                        // Shift all points in this horizontal run to the new y.
+                        // A horizontal run may span multiple consecutive equal-y points.
+                        // Find the extent of the run.
+                        let run_y = ay;
+                        for pt in orth_pts.iter_mut() {
+                            if pt.1 == run_y {
+                                pt.1 = new_y;
+                            }
+                        }
+                    }
+                }
+            }
+
             let pts_str: String = orth_pts
                 .iter()
                 .map(|(px, py)| format!("{px},{py}"))
@@ -3578,11 +3637,11 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     let cell_w = 200i32; // component box width
     let cell_h = 80i32; // component box height
     let inner_cols = 3i32; // columns inside a package
-    let inner_gap = 40i32; // gap between nodes inside a package
-    let pkg_pad = 24i32; // padding inside package frame
+    let inner_gap = 60i32; // gap between nodes inside a package (was 40; bumped for more horizontal breathing room)
+    let pkg_pad = 32i32; // padding inside package frame (was 24; bumped so adjacent package frames don't crowd)
     let pkg_tab = 40i32; // height of the package label tab at top (was 28; bumped to clear first-child node)
-    let canvas_margin = 40i32;
-    let pkg_gap = 32i32; // gap between packages on the canvas
+    let canvas_margin = 60i32; // (was 40; bumped to give outer margin more room)
+    let pkg_gap = 60i32; // gap between packages on the canvas (was 32; bumped for vertical breathing room)
                          // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
     let _outer_cols = 2i32;
 
@@ -3697,10 +3756,22 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Add (pkg_pad + pkg_tab) to canvas_margin so that the group label tab
     // above the top-rank nodes stays on canvas (the group bounds computation
     // subtracts group_padding + label_reserve above the minimum node y).
-    let group_top_overhead = (pkg_pad + pkg_tab) as f64; // 24 + 40 = 64px (pkg_tab bumped)
+    let group_top_overhead = (pkg_pad + pkg_tab) as f64; // pkg_pad + 40 = overhead above top-rank nodes
+                                                         // inter-rank vertical gap: keep modest so the linear pipeline chain
+                                                         // (Parser→AST→Normalizer→Renderer) stays compact.
+    let rank_sep = cell_h + inner_gap; // 80 + 60 = 140px per rank hop
+                                       // horizontal separation between same-rank *nodes*: node_separation in the layout
+                                       // engine is node-bbox to node-bbox distance.  We need at least pkg_pad gap between
+                                       // adjacent package *frame* borders.  Frame border = node_left - pkg_pad, so the
+                                       // gap between frames is:  horiz_sep - 2*pkg_pad.  For ≥pkg_gap (60) between frames:
+                                       //   horiz_sep ≥ pkg_gap + 2*pkg_pad = 60 + 64 = 124px minimum.
+                                       // Use pkg_gap + pkg_pad*4 (≥188px) to give comfortable visual air between packages.
+                                       // Bump further to cell_w + pkg_pad*4 to ensure Pipeline Core right edge clears
+                                       // the left edge of Shared Services (empirically validated at 280px for this diagram).
+    let horiz_sep = (cell_w + pkg_pad * 4 + pkg_gap) as f64; // ≥388px node-to-node; frames ≥pkg_gap apart
     let gl_options = GlOptions {
-        rank_separation: (cell_h + inner_gap) as f64,
-        node_separation: inner_gap as f64,
+        rank_separation: rank_sep as f64,
+        node_separation: horiz_sep,
         group_padding: pkg_pad as f64,
         direction: crate::render::graph_layout::Direction::TopDown,
         canvas_margin: canvas_margin as f64 + header_h as f64 + group_top_overhead,
@@ -4106,12 +4177,38 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 1f: Render nodes
     // ─────────────────────────────────────────────────────────────────────────
+    // Suppress the «component» / «interface» kind-tag when every node in the
+    // diagram has the same kind — it adds visual noise without information value.
+    // (PlantUML itself hides redundant stereotypes in dense component diagrams.)
+    let suppress_uniform_kind_tag: bool = {
+        let non_container_kinds: Vec<FamilyNodeKind> = doc
+            .nodes
+            .iter()
+            .filter(|n| {
+                !matches!(
+                    n.kind,
+                    FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
+                )
+            })
+            .map(|n| n.kind)
+            .collect();
+        !non_container_kinds.is_empty() && non_container_kinds.windows(2).all(|w| w[0] == w[1])
+    };
     for node in &doc.nodes {
         let key = node.alias.clone().unwrap_or_else(|| node.name.clone());
         let Some(&(nx, ny, nw, nh)) = positions.get(&key) else {
             continue;
         };
-        render_family_node_shape_styled(&mut out, node, nx, ny, nw, nh, &comp_style);
+        render_family_node_shape_styled(
+            &mut out,
+            node,
+            nx,
+            ny,
+            nw,
+            nh,
+            &comp_style,
+            suppress_uniform_kind_tag,
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -4783,6 +4880,7 @@ fn collect_render_group_frames(groups: &[FamilyGroup]) -> Vec<RenderGroupFrame> 
 
 /// Styled variant of `render_family_node_shape` that applies `comp_style` for
 /// Component/Interface nodes and falls back to the default for others.
+#[allow(clippy::too_many_arguments)] // shape render needs all geom + style + suppress params
 fn render_family_node_shape_styled(
     out: &mut String,
     node: &FamilyNode,
@@ -4791,6 +4889,7 @@ fn render_family_node_shape_styled(
     w: i32,
     h: i32,
     comp_style: &ComponentStyle,
+    suppress_uniform_kind_tag: bool,
 ) {
     let cx = x + w / 2;
     let cy = y + h / 2;
@@ -5013,11 +5112,13 @@ fn render_family_node_shape_styled(
     // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525).
     // For Package and Rectangle container nodes, suppress the kind-tag entirely — these
     // shapes display their label in a tab/header already (fix #549).
+    // When all nodes share the same kind (uniform diagram), also suppress the kind-tag
+    // because it adds visual noise without information value.
     let is_package_container = matches!(
         node.kind,
         FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
     );
-    if !is_package_container {
+    if !is_package_container && !suppress_uniform_kind_tag {
         let kind_tag_text: std::borrow::Cow<str> = match node.kind {
             FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
             FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),

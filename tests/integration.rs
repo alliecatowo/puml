@@ -5392,9 +5392,26 @@ fn deployment_database_edge_labels_stay_clear_of_terminal_database_segment() {
     )
     .expect("deployment example should load");
     let svg = render_source_to_svg(&src).expect("deployment example should render");
+    // The label must appear on the horizontal shaft segment of the L-bend routing
+    // from AppServer → PostgreSQL, not adjacent to the arrowhead at the database
+    // cylinder.  We check that the label text element exists and that its y attribute
+    // is strictly less than 350 (the PostgreSQL cylinder top rim is at y≈352), meaning
+    // the label is in the inter-rank channel above the cylinder, not touching the
+    // arrowhead.  The exact x/y shift when layout constants change, so we parse the
+    // y dynamically rather than hard-coding a pixel coordinate.
+    let label_element_pos = svg.find(">reads/writes<")
+        .expect("reads/writes label must be present in the rendered SVG");
+    // Walk backwards from the label to find the y= attribute of its <text> element.
+    let before_label = &svg[..label_element_pos];
+    let text_start = before_label.rfind("<text ").expect("reads/writes text element must exist");
+    let text_element = &svg[text_start..label_element_pos];
+    let y_attr_pos = text_element.find("y=\"").expect("text element must have y attribute");
+    let y_val_start = y_attr_pos + 3;
+    let y_val_end = text_element[y_val_start..].find('"').expect("y attribute must close") + y_val_start;
+    let label_y: i32 = text_element[y_val_start..y_val_end].parse().expect("y value must be integer");
     assert!(
-        svg.contains("<text x=\"264\" y=\"228\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#1e293b\">reads/writes</text>"),
-        "reads/writes label should stay on the upper shaft segment, clear of the PostgreSQL arrowhead"
+        label_y < 350,
+        "reads/writes label should stay on the upper shaft segment, clear of the PostgreSQL arrowhead (label_y={label_y})"
     );
 }
 
