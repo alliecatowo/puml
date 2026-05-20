@@ -1,6 +1,6 @@
 {
   "name": "puml-mcp",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "transport": "stdio",
   "tools": [
     {
@@ -55,6 +55,22 @@
           "path": { "type": "string" },
           "text": { "type": "string" },
           "output_path": { "type": "string" },
+          "include_root": { "type": "string" },
+          "allow_url_includes": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "puml_render_png",
+      "description": "Render puml source to PNG and return base64-encoded image data. Use this to visually verify a diagram. Optionally save to a workspace file by providing output_path.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "output_path": { "type": "string" },
+          "dpi": { "type": "number" },
           "include_root": { "type": "string" },
           "allow_url_includes": { "type": "boolean" }
         },
