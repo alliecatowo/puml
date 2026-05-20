@@ -1,4 +1,5 @@
 mod cli;
+mod cli_env;
 
 use clap::{CommandFactory, FromArgMatches};
 use cli::{
@@ -263,6 +264,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     if let Some(command) = cli.command.take() {
         return match command {
             CliCommand::Format(args) => run_format_command(args),
+            CliCommand::Env(args) => cli_env::run_env(&args)
+                .map(|_| ())
+                .map_err(|msg| (EXIT_VALIDATION, msg)),
         };
     }
 

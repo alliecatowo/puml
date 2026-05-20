@@ -1,6 +1,9 @@
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+// Re-export so that main.rs can import EnvArgs from cli without knowing cli_env.
+pub use crate::cli_env::EnvArgs;
+
 /// Parse a single `-DKEY=VALUE` or `-D KEY=VALUE` argument into `(key, value)`.
 /// A bare key with no `=` is accepted and yields an empty value.
 pub fn parse_define(raw: &str) -> Result<(String, String), String> {
@@ -173,6 +176,8 @@ pub struct Cli {
 pub enum Command {
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Print PUML-related environment variables and their resolved values.
+    Env(EnvArgs),
 }
 
 #[derive(Debug, Clone, Args)]
@@ -338,6 +343,7 @@ mod tests {
                     vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
                 );
             }
+            Command::Env(_) => panic!("unexpected Env command"),
         }
     }
 
@@ -378,5 +384,28 @@ mod tests {
         let cli =
             Cli::try_parse_from(["puml", "--format", "pdf"]).expect("--format pdf should parse");
         assert_eq!(cli.format, OutputFormat::Pdf);
+    }
+
+    #[test]
+    fn env_subcommand_parses_default_format() {
+        let cli = Cli::try_parse_from(["puml", "env"]).expect("env subcommand should parse");
+        match cli.command.expect("env command should be present") {
+            Command::Env(args) => {
+                assert_eq!(args.format, crate::cli_env::EnvFormat::Human);
+            }
+            Command::Format(_) => panic!("unexpected Format command"),
+        }
+    }
+
+    #[test]
+    fn env_subcommand_parses_json_format() {
+        let cli = Cli::try_parse_from(["puml", "env", "--format", "json"])
+            .expect("env --format json should parse");
+        match cli.command.expect("env command should be present") {
+            Command::Env(args) => {
+                assert_eq!(args.format, crate::cli_env::EnvFormat::Json);
+            }
+            Command::Format(_) => panic!("unexpected Format command"),
+        }
     }
 }

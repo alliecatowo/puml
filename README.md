@@ -229,6 +229,10 @@ puml --from-markdown --check notes.md    # lint all fenced puml blocks in a Mark
 puml --dump ast hello.puml
 puml --dump model hello.puml
 puml --dump scene hello.puml
+
+# Environment inspection — show PUML-related env vars and their resolved values
+puml env                  # human-readable table
+puml env --format json    # machine-readable JSON (useful in CI scripts)
 ```
 
 Full flag reference, dialect options, and exit codes: [CLI reference](https://alliecatowo.github.io/puml/guide/cli/)
