@@ -560,24 +560,40 @@ fn bilayer_crossings(
 }
 
 /// Count inversions in a slice using merge-sort (O(n log n)).
-fn count_inversions(seq: &[usize]) -> usize {
+///
+/// Returns the inversion count AND the sorted version of the input so that
+/// callers can use it in the merge step (standard merge-sort inversion
+/// counting requires each half to be sorted before the cross-half comparison).
+fn count_inversions_sorted(seq: &[usize]) -> (usize, Vec<usize>) {
     if seq.len() <= 1 {
-        return 0;
+        return (0, seq.to_vec());
     }
     let mid = seq.len() / 2;
-    let left = seq[..mid].to_vec();
-    let right = seq[mid..].to_vec();
-    let mut inversions = count_inversions(&left) + count_inversions(&right);
+    let (left_inv, left_sorted) = count_inversions_sorted(&seq[..mid]);
+    let (right_inv, right_sorted) = count_inversions_sorted(&seq[mid..]);
+    let mut inversions = left_inv + right_inv;
+    // Merge step: count cross-half inversions and produce merged sorted output.
+    let mut merged = Vec::with_capacity(seq.len());
     let (mut i, mut j) = (0, 0);
-    while i < left.len() && j < right.len() {
-        if left[i] <= right[j] {
+    while i < left_sorted.len() && j < right_sorted.len() {
+        if left_sorted[i] <= right_sorted[j] {
+            merged.push(left_sorted[i]);
             i += 1;
         } else {
-            inversions += left.len() - i;
+            // All remaining elements in left are greater than right_sorted[j].
+            inversions += left_sorted.len() - i;
+            merged.push(right_sorted[j]);
             j += 1;
         }
     }
-    inversions
+    merged.extend_from_slice(&left_sorted[i..]);
+    merged.extend_from_slice(&right_sorted[j..]);
+    (inversions, merged)
+}
+
+/// Count inversions in a slice using merge-sort (O(n log n)).
+fn count_inversions(seq: &[usize]) -> usize {
+    count_inversions_sorted(seq).0
 }
 
 /// Barycenter using borrowed-str position map (for route_edges path)
