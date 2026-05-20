@@ -91,6 +91,20 @@ impl DiagramFamily {
             Self::Unknown => "unknown",
         }
     }
+
+    /// Returns all diagram families that have a registered renderer, in
+    /// alphabetical order by [`Self::as_str`] value.
+    ///
+    /// Excludes [`DiagramFamily::Unknown`]. When a new renderer is added,
+    /// add the corresponding variant here so that `puml about` stays accurate.
+    pub fn all_known() -> &'static [DiagramFamily] {
+        use DiagramFamily::*;
+        &[
+            Activity, Archimate, Chart, Chronology, Class, Component, Deployment,
+            Ditaa, Ebnf, Gantt, Json, Math, MindMap, Nwdiag, Object, Regex,
+            Salt, Sdl, Sequence, State, Timing, UseCase, Wbs, Yaml,
+        ]
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

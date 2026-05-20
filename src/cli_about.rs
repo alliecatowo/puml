@@ -21,27 +21,18 @@ pub fn collect_about_info() -> AboutInfo {
     };
 
     AboutInfo {
-        version: "0.1.0".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         profile,
         arch: std::env::consts::ARCH.to_string(),
-        families: vec![
-            "sequence",
-            "class",
-            "activity",
-            "usecase",
-            "state",
-            "component",
-            "deployment",
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect(),
+        families: puml::DiagramFamily::all_known()
+            .iter()
+            .map(|f| f.as_str().to_string())
+            .collect(),
         stdlib_path: std::env::var("PUML_STDLIB_PATH").ok(),
     }
 }
 
-#[allow(clippy::ptr_arg)]
-fn format_families_line(families: &Vec<String>) -> String {
+fn format_families_line(families: &[String]) -> String {
     families.join(", ")
 }
 
