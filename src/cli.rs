@@ -173,6 +173,10 @@ pub struct Cli {
 pub enum Command {
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Print a deterministic content hash of the parsed AST of a .puml file.
+    ///
+    /// Useful for "did this file change semantically?" checks in CI pipelines.
+    Hash(HashArgs),
 }
 
 #[derive(Debug, Clone, Args)]
@@ -188,6 +192,34 @@ pub struct FormatArgs {
     /// PlantUML-compatible source files to format.
     #[arg(value_name = "FILE", required = true)]
     pub files: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct HashArgs {
+    /// Hash algorithm to use.
+    #[arg(long, value_enum, default_value_t = HashAlgoArg::Sha256)]
+    pub algo: HashAlgoArg,
+
+    /// Output encoding for the hash digest.
+    #[arg(long, value_enum, default_value_t = HashFormatArg::Hex)]
+    pub format: HashFormatArg,
+
+    /// The .puml file to hash.
+    #[arg(value_name = "FILE")]
+    pub file: PathBuf,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum HashAlgoArg {
+    Sha256,
+    Blake3,
+    Fnv,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum HashFormatArg {
+    Hex,
+    Base64,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
