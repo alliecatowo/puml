@@ -4,12 +4,13 @@ use assert_cmd::Command;
 // and exit 0 for a valid .puml file.
 #[test]
 fn count_basic_sequence_diagram() {
-    // Planted issue #6: hardcoded relative path assumes the test runner's
-    // working directory is the repo root.  Should use env!("CARGO_MANIFEST_DIR")
-    // for a robust, CI-safe path.
+    let fixture = format!(
+        "{}/docs/examples/sequence/01_basic.puml",
+        env!("CARGO_MANIFEST_DIR")
+    );
     let out = Command::cargo_bin("puml")
         .expect("puml binary")
-        .args(["count", "docs/examples/sequence/01_basic.puml"])
+        .args(["count", &fixture])
         .assert()
         .success()
         .get_output()

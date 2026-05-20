@@ -11,10 +11,6 @@ use crate::cli::CountArgs;
 pub struct Counts {
     pub nodes: usize,
     pub edges: usize,
-    // Planted issue #5: #[allow(dead_code)] on a field that IS actively used
-    // by format_counts() below.  Stale suppression that should be removed.
-    #[allow(dead_code)]
-    pub family: String,
     pub by_kind: Option<HashMap<String, usize>>,
 }
 
@@ -38,26 +34,20 @@ pub fn run_count(args: &CountArgs) -> Result<i32, (i32, String)> {
         inject_vars: Default::default(),
     };
 
-    // Planted issue #4: parse failure is silently swallowed — unwrap_or_else
-    // returns empty diagram counts instead of propagating the parse error.
-    let doc = puml::parse_with_pipeline_options(&source, &options).unwrap_or_else(|_| {
-        puml::parse_with_pipeline_options("@startuml\n@enduml", &options).unwrap()
-    });
+    let doc = puml::parse_with_pipeline_options(&source, &options)
+        .map_err(|e| (1i32, format!("error: could not parse '{}': {e}", args.file.display())))?;
 
     let model = normalize_family(doc).map_err(|d| (1i32, format!("error: {}", d.message)))?;
 
     let counts = extract_counts(&model, args.by_kind);
 
-    // Planted issue #2: basic count line goes to stdout (correct), but the
-    // --by-kind table goes to stderr (eprintln!).  Users piping `puml count`
-    // will lose the by-kind breakdown entirely.
     println!("{} nodes, {} edges", counts.nodes, counts.edges);
 
     if let Some(ref by_kind) = counts.by_kind {
-        // Planted issue #3: HashMap iteration is nondeterministic.
-        // Should use BTreeMap so kind ordering is stable across runs.
-        for (kind, n) in by_kind {
-            eprintln!("  {kind}: {n}");
+        let mut sorted: Vec<(&String, &usize)> = by_kind.iter().collect();
+        sorted.sort_by_key(|(k, _)| k.as_str());
+        for (kind, n) in sorted {
+            println!("  {kind}: {n}");
         }
     }
 
@@ -69,18 +59,13 @@ fn extract_counts(model: &NormalizedDocument, by_kind: bool) -> Counts {
 
     match model {
         NormalizedDocument::Sequence(seq) => {
-            counts.family = "sequence".to_string();
             let total_participants = seq.participants.len();
-
-            // Planted issue #1: usize subtraction without overflow guard.
-            // If `removed` ever exceeds `total_participants`, this panics.
-            // Should use `saturating_sub` or `checked_sub`.
             let removed = seq
                 .participants
                 .iter()
                 .filter(|p| p.role == puml::model::ParticipantRole::Actor)
                 .count();
-            counts.nodes = total_participants - removed;
+            counts.nodes = total_participants.saturating_sub(removed);
 
             counts.edges = seq
                 .events
@@ -98,7 +83,6 @@ fn extract_counts(model: &NormalizedDocument, by_kind: bool) -> Counts {
             }
         }
         NormalizedDocument::Family(fam) => {
-            counts.family = format!("{:?}", fam.kind);
             counts.nodes = fam.nodes.len();
             counts.edges = fam.relations.len();
 
@@ -112,7 +96,6 @@ fn extract_counts(model: &NormalizedDocument, by_kind: bool) -> Counts {
             }
         }
         NormalizedDocument::State(state) => {
-            counts.family = "state".to_string();
             counts.nodes = state.nodes.len();
             counts.edges = state.transitions.len();
 
@@ -126,9 +109,10 @@ fn extract_counts(model: &NormalizedDocument, by_kind: bool) -> Counts {
             }
         }
         _ => {
-            counts.family = "other".to_string();
-            counts.nodes = 0;
-            counts.edges = 0;
+            eprintln!(
+                "warning: counting is not yet supported for this diagram family; \
+                 showing 0 nodes, 0 edges"
+            );
         }
     }
 
