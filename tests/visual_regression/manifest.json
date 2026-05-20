@@ -131,6 +131,24 @@
       "min_text_elements": 13
     },
     {
+      "path": "docs/examples/chen/01_basic.puml",
+      "family": "chen",
+      "expected_text": ["Student Enrollment", "Student", "Course", "Enrolls"],
+      "min_text_elements": 8
+    },
+    {
+      "path": "docs/examples/chen/02_keys.puml",
+      "family": "chen",
+      "expected_text": ["Employee Department Schema", "Employee", "Department", "Dependent", "HasDependent"],
+      "min_text_elements": 12
+    },
+    {
+      "path": "docs/examples/chen/03_multi_relationship.puml",
+      "family": "chen",
+      "expected_text": ["Library Management", "Book", "Member", "Librarian", "Borrows", "Manages"],
+      "min_text_elements": 14
+    },
+    {
       "path": "docs/examples/sdl/02_with_transitions.puml",
       "family": "sdl",
       "expected_text": ["Idle", "Processing", "Waiting", "Done", "request", "complete"],

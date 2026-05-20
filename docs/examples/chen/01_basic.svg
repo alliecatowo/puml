@@ -1,32 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="984" height="643" viewBox="0 0 984 643">
+<svg xmlns="http://www.w3.org/2000/svg" width="643" height="418" viewBox="0 0 643 418">
 <rect width="100%" height="100%" fill="white"/>
-<text x="492.1" y="28" font-family="monospace" font-size="16" font-weight="bold" fill="#111827" text-anchor="middle">Student Enrollment</text>
-<line x1="227.4" y1="222.0" x2="325.5" y2="307.4" stroke="#555555" stroke-width="1.5"/>
-<text x="252.5" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">N</text>
-<line x1="472.6" y1="222.0" x2="374.5" y2="307.4" stroke="#555555" stroke-width="1.5"/>
-<text x="447.5" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">M</text>
-<line x1="159.0" y1="218.0" x2="101.6" y2="187.2" stroke="#888888" stroke-width="1.0"/>
-<line x1="235.5" y1="218.0" x2="296.3" y2="180.4" stroke="#888888" stroke-width="1.0"/>
-<line x1="200.7" y1="262.0" x2="203.8" y2="362.8" stroke="#888888" stroke-width="1.0"/>
-<line x1="541.0" y1="218.0" x2="598.4" y2="187.2" stroke="#888888" stroke-width="1.0"/>
-<line x1="499.3" y1="262.0" x2="496.2" y2="362.8" stroke="#888888" stroke-width="1.0"/>
-<line x1="464.5" y1="218.0" x2="403.7" y2="180.4" stroke="#888888" stroke-width="1.0"/>
-<rect x="140.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="200.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Student</text>
-<rect x="440.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="500.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Course</text>
-<polygon points="350.0,296.5 404.0,320.5 350.0,344.5 296.0,320.5" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-<text x="350.0" y="320.5" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">Enrolls</text>
-<ellipse cx="75.9" cy="173.4" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="75.9" y="173.4" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">StudentID</text>
-<ellipse cx="319.8" cy="165.8" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="319.8" y="165.8" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
-<ellipse cx="204.4" cy="380.8" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="204.4" y="380.8" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Email</text>
-<ellipse cx="624.1" cy="173.4" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="624.1" y="173.4" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">CourseID</text>
-<ellipse cx="495.6" cy="380.8" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="495.6" y="380.8" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Title</text>
-<ellipse cx="380.2" cy="165.8" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="380.2" y="165.8" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Credits</text>
+<text class="chen-title" x="321.5" y="28" font-family="monospace" font-size="16" font-weight="bold" fill="#111827" text-anchor="middle">Student Enrollment</text>
+<line class="chen-relationship-line" data-chen-relationship="Enrolls" data-chen-entity="Student" x1="200.5" y1="196.0" x2="290.0" y2="341.5" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-relationship-line" data-chen-relationship="Enrolls" data-chen-entity="Course" x1="403.5" y1="196.0" x2="314.0" y2="341.5" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-attribute-line" data-chen-owner="Student" data-chen-attribute="StudentID" x1="155.7" y1="152.0" x2="110.7" y2="120.3" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Student" data-chen-attribute="Name" x1="191.4" y1="152.0" x2="197.4" y2="121.9" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Student" data-chen-attribute="Email" x1="222.7" y1="152.0" x2="276.6" y2="118.7" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Course" data-chen-attribute="CourseID" x1="477.0" y1="152.0" x2="523.3" y2="135.1" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Course" data-chen-attribute="Title" x1="477.0" y1="174.0" x2="507.0" y2="174.0" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Course" data-chen-attribute="Credits" x1="475.6" y1="196.0" x2="521.4" y2="213.2" stroke="#888888" stroke-width="1.0"/>
+<rect class="chen-entity" data-chen-entity="Student" x="127.0" y="152.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="187.0" y="174.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Student</text>
+<rect class="chen-entity" data-chen-entity="Course" x="357.0" y="152.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="417.0" y="174.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Course</text>
+<polygon class="chen-relationship" data-chen-relationship="Enrolls" points="302.0,336.0 356.0,361.0 302.0,386.0 248.0,361.0" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text class="chen-relationship-label" x="302.0" y="361.0" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">Enrolls</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Student" data-chen-attribute="StudentID" data-chen-attribute-id="entity:Student:StudentID" cx="87.5" cy="104.0" rx="55.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="87.5" y="104.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">StudentID</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Student" data-chen-attribute="Name" data-chen-attribute-id="entity:Student:Name" cx="201.0" cy="104.0" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="201.0" y="104.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Student" data-chen-attribute="Email" data-chen-attribute-id="entity:Student:Email" cx="300.5" cy="104.0" rx="41.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="300.5" y="104.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Email</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Course" data-chen-attribute="CourseID" data-chen-attribute-id="entity:Course:CourseID" cx="559.0" cy="122.0" rx="52.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="559.0" y="122.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">CourseID</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Course" data-chen-attribute="Title" data-chen-attribute-id="entity:Course:Title" cx="548.5" cy="174.0" rx="41.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="548.5" y="174.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Title</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Course" data-chen-attribute="Credits" data-chen-attribute-id="entity:Course:Credits" cx="555.5" cy="226.0" rx="48.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="555.5" y="226.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Credits</text>
+<text class="chen-cardinality" data-chen-relationship="Enrolls" data-chen-entity="Student" x="234.5" y="216.9" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">N</text>
+<text class="chen-cardinality" data-chen-relationship="Enrolls" data-chen-entity="Course" x="400.1" y="235.8" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">M</text>
 </svg>

@@ -112,6 +112,18 @@ pub fn bounds(node: Node<'_, '_>) -> Bounds {
                 height: r * 2.0,
             }
         }
+        "ellipse" => {
+            let cx = f64_attr(node, "cx");
+            let cy = f64_attr(node, "cy");
+            let rx = f64_attr(node, "rx");
+            let ry = f64_attr(node, "ry");
+            Bounds {
+                x: cx - rx,
+                y: cy - ry,
+                width: rx * 2.0,
+                height: ry * 2.0,
+            }
+        }
         "line" => {
             let x1 = f64_attr(node, "x1");
             let y1 = f64_attr(node, "y1");

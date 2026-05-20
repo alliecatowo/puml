@@ -1,49 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1296" height="620" viewBox="0 0 1296 620">
+<svg xmlns="http://www.w3.org/2000/svg" width="953" height="465" viewBox="0 0 953 465">
 <rect width="100%" height="100%" fill="white"/>
-<text x="648.0" y="28" font-family="monospace" font-size="16" font-weight="bold" fill="#111827" text-anchor="middle">Employee Department Schema</text>
-<line x1="227.4" y1="222.0" x2="325.5" y2="307.4" stroke="#555555" stroke-width="1.5"/>
-<text x="252.5" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">N</text>
-<line x1="472.6" y1="222.0" x2="374.5" y2="307.4" stroke="#555555" stroke-width="1.5"/>
-<text x="447.5" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">1</text>
-<line x1="254.8" y1="222.0" x2="466.3" y2="311.5" stroke="#555555" stroke-width="1.5"/>
-<text x="305.0" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">1</text>
-<line x1="745.2" y1="222.0" x2="533.7" y2="311.5" stroke="#555555" stroke-width="1.5"/>
-<text x="695.0" y="260.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle">N</text>
-<line x1="166.0" y1="218.0" x2="104.5" y2="178.3" stroke="#888888" stroke-width="1.0"/>
-<line x1="214.2" y1="218.0" x2="265.3" y2="139.0" stroke="#888888" stroke-width="1.0"/>
-<line x1="234.0" y1="262.0" x2="295.5" y2="301.7" stroke="#888888" stroke-width="1.0"/>
-<line x1="185.8" y1="262.0" x2="134.7" y2="341.0" stroke="#888888" stroke-width="1.0"/>
-<line x1="541.0" y1="218.0" x2="598.4" y2="187.2" stroke="#888888" stroke-width="1.0"/>
-<line x1="459.0" y1="262.0" x2="401.6" y2="292.8" stroke="#888888" stroke-width="1.0"/>
-<line x1="860.0" y1="223.9" x2="901.7" y2="212.7" stroke="#888888" stroke-width="1.0"/>
-<line x1="740.0" y1="256.1" x2="698.3" y2="267.3" stroke="#888888" stroke-width="1.0"/>
-<rect x="140.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="200.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Employee</text>
-<rect x="440.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="500.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Department</text>
-<rect x="736.0" y="214.0" width="128.0" height="52.0" rx="3" fill="white" stroke="#4444cc" stroke-width="3.5"/>
-<rect x="740.0" y="218.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-<text x="800.0" y="240.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Dependent</text>
-<polygon points="350.0,296.5 404.0,320.5 350.0,344.5 296.0,320.5" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-<text x="350.0" y="320.5" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">WorksIn</text>
-<polygon points="500.0,291.5 559.0,320.5 500.0,349.5 441.0,320.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
-<polygon points="500.0,296.5 554.0,320.5 500.0,344.5 446.0,320.5" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
-<text x="500.0" y="320.5" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">HasDependent</text>
-<ellipse cx="81.7" cy="163.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="81.7" y="163.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">EmployeeID</text>
-<ellipse cx="276.5" cy="121.7" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="276.5" y="121.7" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
-<ellipse cx="318.3" cy="316.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5" stroke-dasharray="4 3"/>
-<text x="318.3" y="316.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Age</text>
-<ellipse cx="123.5" cy="358.3" rx="44.0" ry="22.0" fill="white" stroke="#374151" stroke-width="1.5"/>
-<ellipse cx="123.5" cy="358.3" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="123.5" y="358.3" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Skills</text>
-<ellipse cx="624.1" cy="173.4" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="624.1" y="173.4" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">DeptID</text>
-<ellipse cx="375.9" cy="306.6" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="375.9" y="306.6" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">DeptName</text>
-<ellipse cx="936.1" cy="203.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="936.1" y="203.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">DependentName</text>
-<ellipse cx="663.9" cy="276.5" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
-<text x="663.9" y="276.5" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Relationship</text>
+<text class="chen-title" x="476.5" y="28" font-family="monospace" font-size="16" font-weight="bold" fill="#111827" text-anchor="middle">Employee Department Schema</text>
+<line class="chen-relationship-line" data-chen-relationship="WorksIn" data-chen-entity="Employee" x1="443.4" y1="238.0" x2="346.7" y2="383.9" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-relationship-line" data-chen-relationship="WorksIn" data-chen-entity="Department" x1="239.6" y1="238.0" x2="322.7" y2="383.2" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-relationship-line" data-chen-relationship="HasDependent" data-chen-entity="Employee" x1="470.7" y1="238.0" x2="554.1" y2="382.4" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-relationship-line" data-chen-relationship="HasDependent" data-chen-entity="Dependent" x1="673.6" y1="238.0" x2="579.2" y2="382.8" stroke="#555555" stroke-width="1.5"/>
+<line class="chen-attribute-line" data-chen-owner="Employee" data-chen-attribute="EmployeeID" x1="427.2" y1="194.0" x2="383.2" y2="162.6" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Employee" data-chen-attribute="Name" x1="464.0" y1="194.0" x2="472.2" y2="163.9" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Employee" data-chen-attribute="Age" x1="494.8" y1="194.0" x2="551.0" y2="160.4" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Employee" data-chen-attribute="Skills" x1="458.0" y1="194.0" x2="458.0" y2="112.0" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Department" data-chen-attribute="DeptID" x1="166.0" y1="204.3" x2="131.6" y2="197.8" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Department" data-chen-attribute="DeptName" x1="166.0" y1="227.1" x2="130.0" y2="233.6" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Dependent" data-chen-attribute="DependentName" x1="748.0" y1="206.5" x2="792.3" y2="199.4" stroke="#888888" stroke-width="1.0"/>
+<line class="chen-attribute-line" data-chen-owner="Dependent" data-chen-attribute="Relationship" x1="748.0" y1="225.8" x2="791.3" y2="232.8" stroke="#888888" stroke-width="1.0"/>
+<rect class="chen-entity" data-chen-entity="Employee" x="398.0" y="194.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="458.0" y="216.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Employee</text>
+<rect class="chen-entity" data-chen-entity="Department" x="166.0" y="194.0" width="122.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="227.0" y="216.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Department</text>
+<rect class="chen-entity-outline" x="624.0" y="190.0" width="128.0" height="52.0" rx="3" fill="white" stroke="#4444cc" stroke-width="3.5"/>
+<rect class="chen-entity" data-chen-entity="Dependent" x="628.0" y="194.0" width="120.0" height="44.0" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+<text class="chen-entity-label" x="688.0" y="216.0" font-family="monospace" font-size="13" fill="#1e3a8a" text-anchor="middle" dominant-baseline="middle">Dependent</text>
+<polygon class="chen-relationship" data-chen-relationship="WorksIn" points="334.0,378.0 388.0,403.0 334.0,428.0 280.0,403.0" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text class="chen-relationship-label" x="334.0" y="403.0" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">WorksIn</text>
+<polygon class="chen-relationship-outline" points="566.0,373.0 639.0,403.0 566.0,433.0 493.0,403.0" fill="white" stroke="#7c3aed" stroke-width="2"/>
+<polygon class="chen-relationship" data-chen-relationship="HasDependent" points="566.0,378.0 634.0,403.0 566.0,428.0 498.0,403.0" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text class="chen-relationship-label" x="566.0" y="403.0" font-family="monospace" font-size="13" fill="#4c1d95" text-anchor="middle" dominant-baseline="middle">HasDependent</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Employee" data-chen-attribute="EmployeeID" data-chen-attribute-id="entity:Employee:EmployeeID" cx="360.0" cy="146.0" rx="59.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="360.0" y="146.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">EmployeeID</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Employee" data-chen-attribute="Name" data-chen-attribute-id="entity:Employee:Name" cx="477.0" cy="146.0" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="477.0" y="146.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Name</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Employee" data-chen-attribute="Age" data-chen-attribute-id="entity:Employee:Age" cx="575.0" cy="146.0" rx="40.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text class="chen-attribute-label" x="575.0" y="146.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Age</text>
+<ellipse class="chen-attribute-outline" cx="458.0" cy="94.0" rx="49.0" ry="22.0" fill="white" stroke="#374151" stroke-width="1.5"/>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Employee" data-chen-attribute="Skills" data-chen-attribute-id="entity:Employee:Skills" cx="458.0" cy="94.0" rx="45.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="458.0" y="94.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Skills</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Department" data-chen-attribute="DeptID" data-chen-attribute-id="entity:Department:DeptID" cx="91.0" cy="190.0" rx="45.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="91.0" y="190.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">DeptID</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Department" data-chen-attribute="DeptName" data-chen-attribute-id="entity:Department:DeptName" cx="84.0" cy="242.0" rx="52.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="84.0" y="242.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">DeptName</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Dependent" data-chen-attribute="DependentName" data-chen-attribute-id="entity:Dependent:DependentName" cx="851.5" cy="190.0" rx="69.5" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="851.5" y="190.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle" text-decoration="underline">DependentName</text>
+<ellipse class="chen-attribute" data-chen-owner-kind="entity" data-chen-owner="Dependent" data-chen-attribute="Relationship" data-chen-attribute-id="entity:Dependent:Relationship" cx="848.0" cy="242.0" rx="66.0" ry="18.0" fill="#f9fafb" stroke="#374151" stroke-width="1.5"/>
+<text class="chen-attribute-label" x="848.0" y="242.0" font-family="monospace" font-size="13" fill="#374151" text-anchor="middle" dominant-baseline="middle">Relationship</text>
+<text class="chen-cardinality" data-chen-relationship="WorksIn" data-chen-entity="Employee" x="438.3" y="278.3" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">N</text>
+<text class="chen-cardinality" data-chen-relationship="WorksIn" data-chen-entity="Department" x="272.6" y="259.4" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">1</text>
+<text class="chen-cardinality" data-chen-relationship="HasDependent" data-chen-entity="Employee" x="503.8" y="259.4" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">1</text>
+<text class="chen-cardinality" data-chen-relationship="HasDependent" data-chen-entity="Dependent" x="668.9" y="278.2" font-family="monospace" font-size="13" fill="#555555" text-anchor="middle" dominant-baseline="middle">N</text>
 </svg>
