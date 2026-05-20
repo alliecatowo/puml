@@ -6,14 +6,20 @@
 ///   - Relationship   - diamond (double-border for identifying relationships)
 ///   - Lines          - straight line connecting shapes
 ///
-/// Layout strategy (Wave-1 baseline):
+/// Layout strategy (Wave-55 polish):
 ///   - Entities placed in a grid (3 columns max), 200 px cell size.
 ///   - Relationships placed between each pair of participating entities
-///     (centroid of participant bounding box).
+///     (centroid of participant bounding box + perpendicular offset).
 ///   - Attributes placed around the perimeter of their owner (entity or
-///     relationship) in an evenly-spaced ring.
+///     relationship) in 8 directional slots at sufficient clearance from
+///     entity bbox so ovals never overlap the entity rectangle.
+///   - Each attribute oval connects to its owner via a thin line from
+///     the oval edge (perimeter-clipped) to the entity bbox edge.
+///   - Relationship diamonds connect to each participating entity via a
+///     line; cardinality labels appear 65% along the line from diamond
+///     toward entity (near the entity endpoint).
 use super::svg::escape_text;
-use crate::model::{ChenAttrKind, ChenDocument};
+use crate::model::{ChenAttrKind, ChenDocument, ChenRelationship};
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
@@ -24,10 +30,18 @@ const ATTR_RY: f64 = 18.0; // vertical radius
 const DIAMOND_HALF_W: f64 = 54.0;
 const DIAMOND_HALF_H: f64 = 24.0;
 const GRID_COLS: usize = 3;
-const COL_SPACING: f64 = 240.0; // horizontal distance between entity centers
-const ROW_SPACING: f64 = 200.0; // vertical distance between entity rows
-const MARGIN: f64 = 120.0;
-const ATTR_ORBIT_R: f64 = 70.0; // radius of attribute orbit around owner center
+const COL_SPACING: f64 = 300.0; // horizontal distance between entity centers
+const ROW_SPACING: f64 = 230.0; // vertical distance between entity rows
+/// Left/top margin = distance from canvas edge to first entity center.
+/// orbit_r ≈ 141 for entity attrs.  Using 200 ensures attrs in any direction
+/// land at x ≥ 200 - 141 = 59, which with rx=40 gives left edge at 19px.
+/// The canvas-bound rotation loop then pushes the ring to keep edges ≥ 30px in.
+const MARGIN: f64 = 200.0;
+
+/// Clearance from entity bbox edge to attribute oval center (minimum gap so
+/// the oval border does not touch the entity rectangle border).
+/// Must be large enough to compensate for diagonal-exit corner effects.
+const ATTR_CLEARANCE: f64 = 25.0;
 
 const FONT_ATTRS: &str = "font-family=\"monospace\" font-size=\"13\"";
 const FONT_TITLE: &str = "font-family=\"monospace\" font-size=\"16\" font-weight=\"bold\"";
@@ -83,13 +97,19 @@ struct RelLayout {
     attr_positions: Vec<(Pt, String, ChenAttrKind)>,
 }
 
+/// Intermediate relationship data: (name, cx, cy, is_identifying, participants).
+/// The participants list is (entity_name, cardinality) pairs.
+type RelCenter = (String, f64, f64, bool, Vec<(String, String)>);
+
 // ─── Public entry point ───────────────────────────────────────────────────────
 
 pub fn render_chen_svg(doc: &ChenDocument) -> String {
     let cols = GRID_COLS.max(1);
 
     // ── Step 1: assign entity centers ────────────────────────────────────────
-    let entity_layouts: Vec<EntityLayout> = doc
+    // First pass: compute entity centers without attributes (needed for
+    // relationship placement which then feeds attribute slot selection).
+    let entity_centers: Vec<(String, f64, f64, bool)> = doc
         .entities
         .iter()
         .enumerate()
@@ -98,12 +118,55 @@ pub fn render_chen_svg(doc: &ChenDocument) -> String {
             let row = idx / cols;
             let cx = MARGIN + col as f64 * COL_SPACING;
             let cy = MARGIN + row as f64 * ROW_SPACING;
-            let n_attrs = e.attrs.len();
-            let attr_positions = compute_orbit_positions(cx, cy, ATTR_ORBIT_R, n_attrs)
-                .into_iter()
-                .zip(e.attrs.iter())
-                .map(|(pt, attr)| (pt, attr.name.clone(), attr.kind))
+            (e.name.clone(), cx, cy, e.is_weak)
+        })
+        .collect();
+
+    // ── Step 2: assign relationship centers ──────────────────────────────────
+    // Compute rel centers early so we know the "diamond direction" per entity.
+    let rel_centers: Vec<RelCenter> = doc
+        .relationships
+        .iter()
+        .map(|rel| {
+            let (cx, cy) = compute_rel_center(rel, &entity_centers, cols);
+            let participants = rel
+                .participants
+                .iter()
+                .map(|p| (p.entity.clone(), p.cardinality.clone()))
                 .collect();
+            (rel.name.clone(), cx, cy, rel.is_identifying, participants)
+        })
+        .collect();
+
+    // ── Step 3: assign attribute positions with clearance ────────────────────
+    let entity_layouts: Vec<EntityLayout> = doc
+        .entities
+        .iter()
+        .zip(entity_centers.iter())
+        .map(|(e, (_, cx, cy, _))| {
+            let cx = *cx;
+            let cy = *cy;
+            // Collect directions toward each relationship this entity participates in.
+            let rel_dirs: Vec<(f64, f64)> = rel_centers
+                .iter()
+                .filter(|(_, _, _, _, participants)| {
+                    participants.iter().any(|(en, _)| en == &e.name)
+                })
+                .map(|(_, rcx, rcy, _, _)| {
+                    let dx = rcx - cx;
+                    let dy = rcy - cy;
+                    let len = (dx * dx + dy * dy).sqrt().max(1.0);
+                    (dx / len, dy / len)
+                })
+                .collect();
+
+            let n_attrs = e.attrs.len();
+            let attr_positions =
+                compute_entity_attr_positions(cx, cy, ENTITY_W, ENTITY_H, n_attrs, &rel_dirs, 0.0)
+                    .into_iter()
+                    .zip(e.attrs.iter())
+                    .map(|(pt, attr)| (pt, attr.name.clone(), attr.kind))
+                    .collect();
             EntityLayout {
                 name: e.name.clone(),
                 cx,
@@ -114,57 +177,53 @@ pub fn render_chen_svg(doc: &ChenDocument) -> String {
         })
         .collect();
 
-    // ── Step 2: assign relationship centers ──────────────────────────────────
+    // ── Step 4: build full RelLayout with relationship attrs ─────────────────
     let rel_layouts: Vec<RelLayout> = doc
         .relationships
         .iter()
-        .map(|rel| {
-            let (cx, cy) = if rel.participants.is_empty() {
-                let row = entity_layouts.len().div_ceil(cols);
-                (MARGIN, MARGIN + row as f64 * ROW_SPACING)
-            } else {
-                let mut sum_x = 0.0f64;
-                let mut sum_y = 0.0f64;
-                let mut matched = 0usize;
-                for p in &rel.participants {
-                    if let Some(el) = entity_layouts.iter().find(|e| e.name == p.entity) {
-                        sum_x += el.cx;
-                        sum_y += el.cy;
-                        matched += 1;
-                    }
-                }
-                if matched == 0 {
-                    let row = entity_layouts.len().div_ceil(cols);
-                    (MARGIN, MARGIN + row as f64 * ROW_SPACING)
-                } else {
-                    // Offset slightly below the midpoint so it doesn't overlap entity boxes.
-                    let mid_x = sum_x / matched as f64;
-                    let mid_y = sum_y / matched as f64;
-                    (mid_x, mid_y + 60.0)
-                }
-            };
+        .zip(rel_centers.iter())
+        .map(|(rel, (_, cx, cy, _, participants))| {
+            let cx = *cx;
+            let cy = *cy;
             let n_attrs = rel.attrs.len();
-            let attr_positions = compute_orbit_positions(cx, cy, ATTR_ORBIT_R, n_attrs)
-                .into_iter()
-                .zip(rel.attrs.iter())
-                .map(|(pt, attr)| (pt, attr.name.clone(), attr.kind))
+            // Relationship attributes orbit the diamond center.
+            // Avoid directions toward participant entities.
+            let rel_dirs: Vec<(f64, f64)> = participants
+                .iter()
+                .filter_map(|(en, _)| {
+                    entity_layouts.iter().find(|e| &e.name == en).map(|el| {
+                        let dx = el.cx - cx;
+                        let dy = el.cy - cy;
+                        let len = (dx * dx + dy * dy).sqrt().max(1.0);
+                        (dx / len, dy / len)
+                    })
+                })
                 .collect();
+            let attr_positions = compute_entity_attr_positions(
+                cx,
+                cy,
+                DIAMOND_HALF_W * 2.0,
+                DIAMOND_HALF_H * 2.0,
+                n_attrs,
+                &rel_dirs,
+                0.0,
+            )
+            .into_iter()
+            .zip(rel.attrs.iter())
+            .map(|(pt, attr)| (pt, attr.name.clone(), attr.kind))
+            .collect();
             RelLayout {
                 name: rel.name.clone(),
                 cx,
                 cy,
                 is_identifying: rel.is_identifying,
-                participants: rel
-                    .participants
-                    .iter()
-                    .map(|p| (p.entity.clone(), p.cardinality.clone()))
-                    .collect(),
+                participants: participants.clone(),
                 attr_positions,
             }
         })
         .collect();
 
-    // ── Step 3: compute canvas size ───────────────────────────────────────────
+    // ── Step 5: compute canvas size ───────────────────────────────────────────
     let all_x: Vec<f64> = entity_layouts
         .iter()
         .map(|e| e.cx)
@@ -223,30 +282,34 @@ pub fn render_chen_svg(doc: &ChenDocument) -> String {
     // Shift all diagram elements down by title_h.
     let dy = title_h;
 
-    // ── Entity-to-entity connection lines (through diamond) ────────────────
+    // ── Relationship-to-entity connection lines ────────────────────────────
+    // Drawn first (below everything else) so entity rects occlude the line
+    // end that enters the entity bbox.
     for rl in &rel_layouts {
         for (entity_name, cardinality) in &rl.participants {
             if let Some(el) = entity_layouts.iter().find(|e| e.name == *entity_name) {
-                // Line from entity to relationship diamond.
-                out.push_str(&segment_line(
-                    el.cx,
-                    el.cy + dy,
-                    rl.cx,
-                    rl.cy + dy,
-                    CONN_COLOR,
-                    1.5,
-                ));
-                // Cardinality label near the entity.
-                let label_x = el.cx + (rl.cx - el.cx) * 0.25;
-                let label_y = el.cy + (rl.cy - el.cy) * 0.25 + dy - 6.0;
-                out.push_str(&format!(
-                    "<text x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\">{}</text>\n",
-                    label_x,
-                    label_y,
-                    FONT_ATTRS,
-                    CONN_COLOR,
-                    escape_text(cardinality)
-                ));
+                // Line from entity center to relationship diamond center.
+                // Clip endpoints to entity bbox edge and diamond perimeter so
+                // the line doesn't visually go through shapes.
+                let (ex, ey) =
+                    clip_to_entity_edge(el.cx, el.cy, rl.cx, rl.cy + dy, el.cx, el.cy + dy);
+                let (rx, ry) = clip_to_diamond_edge(rl.cx, rl.cy + dy, el.cx, el.cy + dy);
+                out.push_str(&segment_line(ex, ey, rx, ry, CONN_COLOR, 1.5));
+
+                // Cardinality label: 65% along from diamond toward entity (near entity).
+                if !cardinality.is_empty() {
+                    let t = 0.65_f64;
+                    let label_x = rl.cx + (el.cx - rl.cx) * t;
+                    let label_y = (rl.cy + dy) + (el.cy + dy - (rl.cy + dy)) * t - 8.0;
+                    out.push_str(&format!(
+                        "<text x=\"{:.1}\" y=\"{:.1}\" {} fill=\"{}\" text-anchor=\"middle\">{}</text>\n",
+                        label_x,
+                        label_y,
+                        FONT_ATTRS,
+                        CONN_COLOR,
+                        escape_text(cardinality)
+                    ));
+                }
             }
         }
     }
@@ -254,28 +317,21 @@ pub fn render_chen_svg(doc: &ChenDocument) -> String {
     // ── Entity attribute lines ────────────────────────────────────────────────
     for el in &entity_layouts {
         for (pt, ..) in &el.attr_positions {
-            out.push_str(&segment_line(
-                el.cx,
-                el.cy + dy,
-                pt.x,
-                pt.y + dy,
-                ATTR_LINE_COLOR,
-                1.0,
-            ));
+            // Clip the entity end to the entity bbox edge.
+            let (ex, ey) =
+                clip_to_entity_edge(el.cx, el.cy + dy, pt.x, pt.y + dy, el.cx, el.cy + dy);
+            // Clip the oval end to the oval perimeter.
+            let (ax, ay) = clip_to_oval_edge(pt.x, pt.y + dy, el.cx, el.cy + dy);
+            out.push_str(&segment_line(ex, ey, ax, ay, ATTR_LINE_COLOR, 1.0));
         }
     }
 
     // ── Relationship attribute lines ─────────────────────────────────────────
     for rl in &rel_layouts {
         for (pt, ..) in &rl.attr_positions {
-            out.push_str(&segment_line(
-                rl.cx,
-                rl.cy + dy,
-                pt.x,
-                pt.y + dy,
-                ATTR_LINE_COLOR,
-                1.0,
-            ));
+            let (rx, ry) = clip_to_diamond_edge(rl.cx, rl.cy + dy, pt.x, pt.y + dy);
+            let (ax, ay) = clip_to_oval_edge(pt.x, pt.y + dy, rl.cx, rl.cy + dy);
+            out.push_str(&segment_line(rx, ry, ax, ay, ATTR_LINE_COLOR, 1.0));
         }
     }
 
@@ -436,17 +492,237 @@ fn segment_line(x1: f64, y1: f64, x2: f64, y2: f64, color: &str, width: f64) -> 
 
 // ─── Layout utilities ─────────────────────────────────────────────────────────
 
-/// Compute `n` evenly-spaced points on a circle of radius `r` around `(cx, cy)`.
-/// When `n == 0` returns empty. Starts from the top and goes clockwise.
-fn compute_orbit_positions(cx: f64, cy: f64, r: f64, n: usize) -> Vec<Pt> {
+/// Compute relationship center: centroid of participating entities + perpendicular
+/// offset to avoid sitting directly on the line between them.
+fn compute_rel_center(
+    rel: &ChenRelationship,
+    entity_centers: &[(String, f64, f64, bool)],
+    cols: usize,
+) -> (f64, f64) {
+    if rel.participants.is_empty() {
+        let row = entity_centers.len().div_ceil(cols);
+        return (MARGIN, MARGIN + row as f64 * ROW_SPACING);
+    }
+    let mut sum_x = 0.0f64;
+    let mut sum_y = 0.0f64;
+    let mut matched = 0usize;
+    for p in &rel.participants {
+        if let Some((_, ex, ey, _)) = entity_centers.iter().find(|(n, ..)| n == &p.entity) {
+            sum_x += ex;
+            sum_y += ey;
+            matched += 1;
+        }
+    }
+    if matched == 0 {
+        let row = entity_centers.len().div_ceil(cols);
+        return (MARGIN, MARGIN + row as f64 * ROW_SPACING);
+    }
+    let mid_x = sum_x / matched as f64;
+    let mid_y = sum_y / matched as f64;
+    // If relationship connects exactly 2 entities, offset perpendicular to their
+    // connecting line so the diamond doesn't sit on the entity-to-entity line.
+    // For 1 or 3+ entities, offset downward by a fixed amount.
+    if matched == 2 {
+        let fallback1 = (String::new(), mid_x, mid_y, false);
+        let fallback2 = (String::new(), mid_x, mid_y, false);
+        let (_, x1, y1, _) = entity_centers
+            .iter()
+            .find(|(n, ..)| n == &rel.participants[0].entity)
+            .unwrap_or(&fallback1);
+        let (_, x2, y2, _) = entity_centers
+            .iter()
+            .find(|(n, ..)| n == &rel.participants[1].entity)
+            .unwrap_or(&fallback2);
+        let dx = x2 - x1;
+        let dy_vec = y2 - y1;
+        let len = (dx * dx + dy_vec * dy_vec).sqrt().max(1.0);
+        // Perpendicular unit vector (rotate 90° clockwise): (dy_vec/len, -dx/len)
+        // Offset by ROW_SPACING * 0.35 toward lower-right to push diamond below center.
+        let offset = ROW_SPACING * 0.35;
+        // Choose the perpendicular direction that has a positive y component
+        // (preferring "below" placement so diamond appears between entities and below).
+        let (perp_x, perp_y) = if -dx / len >= 0.0 {
+            (dy_vec / len, -dx / len)
+        } else {
+            (-dy_vec / len, dx / len)
+        };
+        // If entities are in the same row (same y), push diamond below.
+        // If entities are in different rows, push to the right of the midpoint.
+        let (off_x, off_y) = if (dy_vec / len).abs() < 0.3 {
+            // Mostly horizontal — push below
+            (0.0, offset)
+        } else {
+            // Diagonal or vertical — use perpendicular + below bias
+            (perp_x * offset * 0.5, perp_y.abs() * offset + 20.0)
+        };
+        (mid_x + off_x, mid_y + off_y)
+    } else {
+        (mid_x, mid_y + 60.0)
+    }
+}
+
+/// Compute attribute oval centers for an owner at (cx, cy) with half-extents
+/// (owner_w × owner_h).
+///
+/// Strategy:
+///   - N attributes are placed evenly around the owner at angles
+///     `start_angle + i*(TAU/N)`, where `start_angle` is chosen to put the
+///     first attribute in the direction MOST OPPOSITE to the average relationship
+///     direction.
+///   - Oval center distance from owner center is computed so the oval border
+///     clears the owner bbox by ATTR_CLEARANCE pixels.
+///   - If any oval center would be off-canvas (x < min_canvas_x + 2*ATTR_RX),
+///     the ring is rotated by TAU/16 steps until all ovals are on-canvas, up to
+///     a full rotation (at which point the best-effort position is used).
+fn compute_entity_attr_positions(
+    cx: f64,
+    cy: f64,
+    owner_w: f64,
+    owner_h: f64,
+    n: usize,
+    rel_dirs: &[(f64, f64)],
+    min_canvas_x: f64,
+) -> Vec<Pt> {
     if n == 0 {
         return Vec::new();
     }
-    let step = std::f64::consts::TAU / n as f64;
+
+    let half_w = owner_w / 2.0;
+    let half_h = owner_h / 2.0;
+
+    // Oval center must stay far enough from canvas edges that the full oval
+    // and its text label are comfortably visible.  Use 30px from left/top.
+    let min_oval_cx = min_canvas_x + ATTR_RX + 30.0;
+    let min_oval_cy = ATTR_RY + 30.0;
+
+    // Orbit radius: the distance from the owner center to the attribute oval center.
+    // Computed as the diagonal of the (half_w + clearance + oval_rx) × (half_h + clearance + oval_ry)
+    // bounding box, which guarantees the oval bbox clears the owner bbox in ALL directions
+    // including diagonals (the worst case for axis-aligned clearance).
+    let orbit_r = ((half_w + ATTR_CLEARANCE + ATTR_RX).powi(2)
+        + (half_h + ATTR_CLEARANCE + ATTR_RY).powi(2))
+    .sqrt();
+
+    // Helper: given a direction angle, compute the oval center position at orbit_r.
+    let oval_center_for_angle = |angle: f64| -> Pt {
+        let ux = angle.cos();
+        let uy = angle.sin();
+        Pt::new(cx + ux * orbit_r, cy + uy * orbit_r)
+    };
+
+    // Find start angle: direction most opposed to the average relationship direction.
+    let start_angle = if rel_dirs.is_empty() {
+        // No relationships: start at top (-PI/2).
+        -std::f64::consts::FRAC_PI_2
+    } else {
+        // Average relationship direction.
+        let avg_rdx: f64 = rel_dirs.iter().map(|&(rx, _)| rx).sum::<f64>() / rel_dirs.len() as f64;
+        let avg_rdy: f64 = rel_dirs.iter().map(|&(_, ry)| ry).sum::<f64>() / rel_dirs.len() as f64;
+        // Opposite direction of average: negate both components.
+        // In Rust, atan2(y, x) → the angle is the second argument (x) axis reference.
+        // f64::atan2(self, other) = atan2(self=y, other=x).
+        (-avg_rdy).atan2(-avg_rdx)
+    };
+
+    // Angular spacing between attributes.
+    let attr_step = if n > 1 {
+        std::f64::consts::TAU / n as f64
+    } else {
+        0.0
+    };
+
+    // Try ring rotations in small steps (TAU/32 ≈ 11.25°) until all ovals are
+    // on-canvas.  Give up after a full rotation and use whatever we have.
+    let n_rot_steps = 32usize;
+    let rot_step = std::f64::consts::TAU / n_rot_steps as f64;
+
+    for rot in 0..=n_rot_steps {
+        let offset = rot as f64 * rot_step;
+        let positions: Vec<Pt> = (0..n)
+            .map(|i| {
+                let angle = start_angle + offset + i as f64 * attr_step;
+                oval_center_for_angle(angle)
+            })
+            .collect();
+
+        // Check all ovals are on-canvas.
+        let all_ok = positions
+            .iter()
+            .all(|p| p.x >= min_oval_cx && p.y >= min_oval_cy);
+
+        if all_ok || rot == n_rot_steps {
+            return positions;
+        }
+    }
+
+    // Should never reach here, but return top placement as fallback.
     (0..n)
         .map(|i| {
-            let angle = -std::f64::consts::FRAC_PI_2 + i as f64 * step;
-            Pt::new(cx + r * angle.cos(), cy + r * angle.sin())
+            let angle = start_angle + i as f64 * attr_step;
+            oval_center_for_angle(angle)
         })
         .collect()
+}
+
+// ─── Perimeter-clip helpers ───────────────────────────────────────────────────
+
+/// Return the point on the entity bbox boundary (centered at ecx,ecy with
+/// half-extents ENTITY_W/2 × ENTITY_H/2) that lies on the line from (ecx,ecy)
+/// toward (tx,ty).  Falls back to center if the direction is zero.
+fn clip_to_entity_edge(ecx: f64, ecy: f64, tx: f64, ty: f64, _cx: f64, _cy: f64) -> (f64, f64) {
+    let dx = tx - ecx;
+    let dy = ty - ecy;
+    let half_w = ENTITY_W / 2.0;
+    let half_h = ENTITY_H / 2.0;
+    if dx.abs() < 1e-9 && dy.abs() < 1e-9 {
+        return (ecx, ecy);
+    }
+    // Parametric ray: (ecx + t*dx, ecy + t*dy).  Find smallest t>0 hitting bbox.
+    let tx_hit = if dx.abs() > 1e-9 {
+        (half_w * dx.signum() / dx).abs()
+    } else {
+        f64::INFINITY
+    };
+    let ty_hit = if dy.abs() > 1e-9 {
+        (half_h * dy.signum() / dy).abs()
+    } else {
+        f64::INFINITY
+    };
+    let t = tx_hit.min(ty_hit);
+    (ecx + t * dx, ecy + t * dy)
+}
+
+/// Return the point on the diamond perimeter (centered at dcx,dcy with
+/// half-extents DIAMOND_HALF_W × DIAMOND_HALF_H) on the line toward (tx,ty).
+fn clip_to_diamond_edge(dcx: f64, dcy: f64, tx: f64, ty: f64) -> (f64, f64) {
+    let dx = tx - dcx;
+    let dy = ty - dcy;
+    if dx.abs() < 1e-9 && dy.abs() < 1e-9 {
+        return (dcx, dcy);
+    }
+    let hw = DIAMOND_HALF_W;
+    let hh = DIAMOND_HALF_H;
+    // Diamond inequality: |x/hw| + |y/hh| ≤ 1 → t = 1 / (|dx|/hw + |dy|/hh).
+    let denom = dx.abs() / hw + dy.abs() / hh;
+    if denom < 1e-9 {
+        return (dcx, dcy);
+    }
+    let t = 1.0 / denom;
+    (dcx + t * dx, dcy + t * dy)
+}
+
+/// Return the point on the oval perimeter (centered at ocx,ocy with radii
+/// ATTR_RX × ATTR_RY) on the line toward (tx,ty).
+fn clip_to_oval_edge(ocx: f64, ocy: f64, tx: f64, ty: f64) -> (f64, f64) {
+    let dx = tx - ocx;
+    let dy = ty - ocy;
+    if dx.abs() < 1e-9 && dy.abs() < 1e-9 {
+        return (ocx, ocy);
+    }
+    // Ellipse: (x/rx)² + (y/ry)² = 1.  On the ray x=t*dx, y=t*dy:
+    //   t = 1 / sqrt((dx/rx)² + (dy/ry)²)
+    let rx = ATTR_RX;
+    let ry = ATTR_RY;
+    let t = 1.0 / ((dx / rx).powi(2) + (dy / ry).powi(2)).sqrt().max(1e-9);
+    (ocx + t * dx, ocy + t * dy)
 }
