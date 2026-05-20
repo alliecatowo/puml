@@ -40,6 +40,7 @@ pub struct EnvVarInfo {
     pub value: Option<String>,
     /// Where the value came from: `"env"` when present in the process environment,
     /// `"default"` when the variable is absent and no built-in default applies,
+    /// `"env-invalid-unicode"` when the variable is set but its value is not valid UTF-8,
     /// or `"builtin-default"` when a compiled-in fallback is used.
     pub source: String,
 }
@@ -73,10 +74,15 @@ pub fn collect_env_report() -> EnvReport {
                 value: Some(value),
                 source: "env".to_string(),
             },
-            Err(_) => EnvVarInfo {
+            Err(std::env::VarError::NotPresent) => EnvVarInfo {
                 name: name.to_string(),
                 value: None,
                 source: "default".to_string(),
+            },
+            Err(std::env::VarError::NotUnicode(_)) => EnvVarInfo {
+                name: name.to_string(),
+                value: None,
+                source: "env-invalid-unicode".to_string(),
             },
         };
         vars.insert(name.to_string(), info);
@@ -95,11 +101,7 @@ fn format_human(report: &EnvReport) -> String {
     let mut out = String::new();
     // BTreeMap iteration is ordered — deterministic per CLAUDE.md §6.
     for (name, info) in &report.vars {
-        let value_display = info
-            .value
-            .as_deref()
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "<unset>".to_string());
+        let value_display = info.value.as_deref().unwrap_or("<unset>").to_string();
         out.push_str(&format!("{}={}  [{}]\n", name, value_display, info.source));
     }
     out
@@ -197,7 +199,10 @@ mod tests {
     #[test]
     fn source_field_is_env_when_var_is_set() {
         // Use RUST_LOG since tests may set it; we force-set it here to be certain.
-        std::env::set_var("RUST_LOG", "info");
+        // SAFETY: this test must not run concurrently with other threads that read
+        // the process environment. The default Rust test harness is single-threaded
+        // per binary, satisfying that requirement.
+        unsafe { std::env::set_var("RUST_LOG", "info") };
         let report = collect_env_report();
         let info = report
             .vars
@@ -205,6 +210,6 @@ mod tests {
             .expect("RUST_LOG must be in report");
         assert_eq!(info.source, "env");
         assert_eq!(info.value.as_deref(), Some("info"));
-        std::env::remove_var("RUST_LOG");
+        unsafe { std::env::remove_var("RUST_LOG") };
     }
 }
