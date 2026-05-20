@@ -157,6 +157,11 @@ pub struct Cli {
     #[arg(long, value_name = "CHARSET", default_value = "UTF-8")]
     pub charset: String,
 
+    /// Watch the input file for changes and re-render on each mtime update.
+    /// Polls the file; no inotify or OS-watch dependency.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub watch: bool,
+
     /// Print elapsed wall time to stderr after run completes.
     #[arg(long, action = ArgAction::SetTrue)]
     pub duration: bool,
