@@ -566,7 +566,8 @@ fn assign_coordinates(
         .collect();
 
     let max_rank_width = rank_widths.iter().cloned().fold(0.0_f64, f64::max);
-    let canvas_content_width = max_rank_width + 2.0 * options.canvas_margin;
+    // Note: canvas_content_width is recomputed at the bottom after the
+    // post-layout group-collision shift, which may extend the canvas right.
 
     let mut positions: BTreeMap<String, (f64, f64)> = BTreeMap::new();
 
@@ -590,7 +591,114 @@ fn assign_coordinates(
         }
     }
 
-    // Canvas size
+    // ── Post-layout: resolve group-bounds collisions ──────────────────────────
+    // When a group has members spanning multiple ranks (e.g. Shared Services
+    // with LangSvc at rank N and RenderSupport at rank N+1), its bbox can
+    // extend into another group's column at the overlapping rank.  Detect
+    // such overlaps and shift the right-side group's members rightward to
+    // clear the collision.
+    {
+        let pad = options.group_padding;
+        let label_reserve = 40.0;
+        // Compute current group bboxes from positions.
+        let compute_bounds =
+            |positions: &BTreeMap<String, (f64, f64)>| -> BTreeMap<String, (f64, f64, f64, f64)> {
+                let mut bb: BTreeMap<String, (f64, f64, f64, f64)> = BTreeMap::new();
+                let mut by_group: BTreeMap<String, Vec<(f64, f64, f64, f64)>> = BTreeMap::new();
+                for n in nodes {
+                    if let Some(parent) = &n.parent {
+                        if let Some(&(x, y)) = positions.get(n.id.as_str()) {
+                            by_group
+                                .entry(parent.clone())
+                                .or_default()
+                                .push((x, y, n.width, n.height));
+                        }
+                    }
+                }
+                for (g, members) in by_group {
+                    let mut min_x = f64::MAX;
+                    let mut min_y = f64::MAX;
+                    let mut max_x = f64::MIN;
+                    let mut max_y = f64::MIN;
+                    for (x, y, w, h) in members {
+                        min_x = min_x.min(x);
+                        min_y = min_y.min(y);
+                        max_x = max_x.max(x + w);
+                        max_y = max_y.max(y + h);
+                    }
+                    if min_x != f64::MAX {
+                        bb.insert(
+                            g,
+                            (
+                                min_x - pad,
+                                min_y - pad - label_reserve,
+                                (max_x - min_x) + pad * 2.0,
+                                (max_y - min_y) + pad * 2.0 + label_reserve,
+                            ),
+                        );
+                    }
+                }
+                bb
+            };
+
+        let min_gap = 40.0;
+        // Iterate up to a few passes; in practice 1–2 are enough.
+        for _ in 0..4 {
+            let bb = compute_bounds(&positions);
+            // Find first overlapping pair (sorted by group id for determinism).
+            let mut overlap: Option<(String, f64)> = None;
+            #[allow(clippy::type_complexity)] // simple (id, bbox) pairs; tuple is fine here
+            let groups: Vec<(&String, &(f64, f64, f64, f64))> = bb.iter().collect();
+            'outer: for (i, (ga, &(ax, ay, aw, ah))) in groups.iter().enumerate() {
+                for (gb, &(bx, by, bw, bh)) in &groups[i + 1..] {
+                    let a_right = ax + aw;
+                    let a_bottom = ay + ah;
+                    let b_right = bx + bw;
+                    let b_bottom = by + bh;
+                    let x_overlap = a_right > bx && b_right > ax;
+                    let y_overlap = a_bottom > by && b_bottom > ay;
+                    if x_overlap && y_overlap {
+                        // Shift the right-side group rightward.
+                        let (shift_target, shift_amount) = if ax <= bx {
+                            (gb.to_string(), a_right - bx + min_gap)
+                        } else {
+                            (ga.to_string(), b_right - ax + min_gap)
+                        };
+                        overlap = Some((shift_target, shift_amount));
+                        break 'outer;
+                    }
+                }
+            }
+            match overlap {
+                None => break,
+                Some((g, dx)) => {
+                    // Shift all members of group `g` rightward by dx.
+                    for n in nodes {
+                        if n.parent.as_deref() == Some(g.as_str()) {
+                            if let Some(p) = positions.get_mut(n.id.as_str()) {
+                                p.0 += dx;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Canvas size — recompute to include any post-shift rightward extension.
+    let canvas_content_width = {
+        let max_right = positions
+            .iter()
+            .map(|(id, &(x, _))| {
+                let w = node_by_id
+                    .get(id.as_str())
+                    .map(|n| n.width)
+                    .unwrap_or(200.0);
+                x + w
+            })
+            .fold(0.0_f64, f64::max);
+        max_right + options.canvas_margin
+    };
     let canvas_height = {
         let bottom = rank_y[max_rank]
             + rank_order
