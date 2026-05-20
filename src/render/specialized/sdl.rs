@@ -1,15 +1,78 @@
 use super::*;
 
+/// Compute BFS-based rank (depth from source) for each SDL state.
+///
+/// States reachable from the first `Start` node receive their BFS depth as rank.
+/// Unreachable states are placed after all reachable ones at rank = max_rank + 1.
+/// Back-edges (cycles, e.g. retry loops) are skipped so ranks are finite.
+fn sdl_compute_ranks(document: &SdlDocument) -> BTreeMap<&str, usize> {
+    use std::collections::VecDeque;
+    // Build adjacency: from → Vec<to>
+    let mut adj: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for s in &document.states {
+        adj.entry(s.name.as_str()).or_default();
+    }
+    for tr in &document.transitions {
+        adj.entry(tr.from.as_str())
+            .or_default()
+            .push(tr.to.as_str());
+    }
+
+    let mut ranks: BTreeMap<&str, usize> = BTreeMap::new();
+    // Find the Start node (or fall back to first state)
+    let start = document
+        .states
+        .iter()
+        .find(|s| s.kind == SdlStateKind::Start)
+        .or_else(|| document.states.first())
+        .map(|s| s.name.as_str());
+
+    if let Some(root) = start {
+        let mut queue: VecDeque<&str> = VecDeque::new();
+        ranks.insert(root, 0);
+        queue.push_back(root);
+        while let Some(node) = queue.pop_front() {
+            let r = *ranks.get(node).unwrap_or(&0);
+            for &neighbour in adj.get(node).map(|v| v.as_slice()).unwrap_or(&[]) {
+                if !ranks.contains_key(neighbour) {
+                    ranks.insert(neighbour, r + 1);
+                    queue.push_back(neighbour);
+                }
+            }
+        }
+    }
+
+    // Unreachable nodes get rank = max_rank + 1
+    let max_rank = ranks.values().copied().max().unwrap_or(0);
+    for s in &document.states {
+        ranks.entry(s.name.as_str()).or_insert(max_rank + 1);
+    }
+    ranks
+}
+
 pub fn render_sdl_svg(document: &SdlDocument) -> String {
-    let state_count = document.states.len().max(1) as i32;
-    let cols = state_count.clamp(1, 2);
     let col_w = 260;
     let row_h = 96;
     let margin_x = 40;
     let header_h = if document.title.is_some() { 64 } else { 40 };
-    let rows = (state_count + cols - 1) / cols;
-    let width = margin_x * 2 + cols * col_w;
+
+    // Compute topology-aware ranks so nodes are positioned in BFS order.
+    let ranks = sdl_compute_ranks(document);
+
+    // Group states by rank, preserving document order within each rank.
+    let max_rank = ranks.values().copied().max().unwrap_or(0);
+    let mut by_rank: BTreeMap<usize, Vec<&str>> = BTreeMap::new();
+    for s in &document.states {
+        by_rank
+            .entry(*ranks.get(s.name.as_str()).unwrap_or(&0))
+            .or_default()
+            .push(s.name.as_str());
+    }
+    let max_cols = by_rank.values().map(|v| v.len()).max().unwrap_or(1) as i32;
+    let rows = (max_rank + 1) as i32;
+    let width = margin_x * 2 + max_cols * col_w;
     let height = header_h + rows * row_h + 48;
+
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
@@ -35,16 +98,30 @@ pub fn render_sdl_svg(document: &SdlDocument) -> String {
         "<text x=\"24\" y=\"{y}\" font-family=\"monospace\" font-size=\"12\" fill=\"#475569\">SDL diagram</text>"
     ));
     let grid_top = header_h;
+
+    // Build position map using topology-aware rank + column slot.
     let mut positions: BTreeMap<&str, SdlNodeBox> = BTreeMap::new();
-    for (idx, state) in document.states.iter().enumerate() {
-        let col = (idx as i32) % cols;
-        let row = (idx as i32) / cols;
-        let node = sdl_node_box(
-            margin_x + col * col_w + (col_w - SDL_NODE_W) / 2,
-            grid_top + row * row_h + 12,
-            state.kind,
-        );
-        positions.insert(&state.name, node);
+    // Look up state kind by name for sdl_node_box.
+    let kind_by_name: BTreeMap<&str, SdlStateKind> = document
+        .states
+        .iter()
+        .map(|s| (s.name.as_str(), s.kind))
+        .collect();
+    for (rank, names) in &by_rank {
+        let n = names.len() as i32;
+        // Centre the nodes within this rank horizontally.
+        let rank_width = n * col_w;
+        let start_x = margin_x + (width - margin_x * 2 - rank_width) / 2;
+        for (col, &name) in names.iter().enumerate() {
+            let kind = kind_by_name
+                .get(name)
+                .copied()
+                .unwrap_or(SdlStateKind::State);
+            let x = start_x + col as i32 * col_w + (col_w - SDL_NODE_W) / 2;
+            let row_y = grid_top + *rank as i32 * row_h + 12;
+            let node = sdl_node_box(x, row_y, kind);
+            positions.insert(name, node);
+        }
     }
 
     let mut transition_labels = String::new();
@@ -114,7 +191,12 @@ fn render_sdl_transition(
     to: SdlNodeBox,
 ) {
     let (x1, y1, x2, y2) = sdl_transition_endpoints(from, to);
-    if from.x == to.x && from.y == to.y {
+    // True self-loop: same node position.
+    let is_self_loop = from.x == to.x && from.y == to.y;
+    // Back-edge: target is above the source (y2 < y1 by a significant margin).
+    // These need curved routing so the arrow doesn't pass through intermediate nodes.
+    let is_back_edge = !is_self_loop && y2 < y1 - 10;
+    if is_self_loop {
         let cx = from.x + from.w;
         let cy = from.y + from.h / 2;
         out.push_str(&format!(
@@ -127,6 +209,19 @@ fn render_sdl_transition(
             cy + 34,
             cy + 10,
         ));
+    } else if is_back_edge {
+        // Route back-edges as a wide curved arc to the LEFT of the node column
+        // so the arc clearly bypasses intermediate nodes and avoids text overlap.
+        // Push control points far left (-120px) so the curve stays visually
+        // distinct from the forward arrows and any node boundaries.
+        let offset = -120;
+        let cp1x = x1 + offset;
+        let cp2x = x2 + offset;
+        out.push_str(&format!(
+            "<path class=\"sdl-transition\" data-sdl-from=\"{}\" data-sdl-to=\"{}\" d=\"M {x1} {y1} C {cp1x} {y1}, {cp2x} {y2}, {x2} {y2}\" fill=\"none\" stroke=\"#334155\" stroke-width=\"1.5\" marker-end=\"url(#sdl-arrow)\"/>",
+            escape_text(&tr.from),
+            escape_text(&tr.to),
+        ));
     } else {
         out.push_str(&format!(
             "<line class=\"sdl-transition\" data-sdl-from=\"{}\" data-sdl-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#334155\" stroke-width=\"1.5\" marker-end=\"url(#sdl-arrow)\"/>",
@@ -137,13 +232,19 @@ fn render_sdl_transition(
     if let Some(label) = &tr.signal {
         // Compute label position at the path midpoint with a perpendicular
         // offset so the text sits clearly beside the shaft rather than on it.
-        let (lx, ly) = if from.x == to.x && from.y == to.y {
+        let (lx, ly) = if is_self_loop {
             // Self-loop: cubic bezier bulges to the right (+x).  Place the
             // label at the loop apex — cx+46 at cy, offset slightly right so
             // it clears the loop arc.
             let cx = from.x + from.w;
             let cy = from.y + from.h / 2;
             (cx + 52, cy + 5)
+        } else if is_back_edge {
+            // Back-edge: cubic S-curve to the left.  Place label at the
+            // leftmost extent of the curve (the control-point level midpoint).
+            let mid_y = (y1 + y2) / 2;
+            let curve_left_x = x1 - 120; // matches the offset above
+            (curve_left_x - 5, mid_y)
         } else {
             // Straight line: midpoint + perpendicular offset of 10 px.
             // The perpendicular (left of the direction of travel) is:
