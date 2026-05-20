@@ -8,13 +8,7 @@ fn attr_value_in_tag(haystack: &str, marker: &str, attr: &str) -> i32 {
         .map(|idx| marker_idx + idx)
         .expect("tag end should exist");
     let tag = &haystack[tag_start..=tag_end];
-    let needle = format!("{attr}=\"");
-    let attr_start = tag.find(&needle).expect("attribute should exist") + needle.len();
-    let rest = &tag[attr_start..];
-    let end = rest.find('"').expect("attribute should terminate");
-    rest[..end]
-        .parse::<i32>()
-        .expect("attribute should parse as i32")
+    attr_value_in_svg_tag(tag, attr)
 }
 
 fn attr_value_in_next_tag_after(haystack: &str, marker: &str, tag_prefix: &str, attr: &str) -> i32 {
@@ -28,13 +22,18 @@ fn attr_value_in_next_tag_after(haystack: &str, marker: &str, tag_prefix: &str, 
         .map(|idx| tag_start + idx)
         .expect("tag end should exist");
     let tag = &haystack[tag_start..=tag_end];
-    let needle = format!("{attr}=\"");
+    attr_value_in_svg_tag(tag, attr)
+}
+
+fn attr_value_in_svg_tag(tag: &str, attr: &str) -> i32 {
+    let needle = format!(" {attr}=\"");
     let attr_start = tag.find(&needle).expect("attribute should exist") + needle.len();
     let rest = &tag[attr_start..];
     let end = rest.find('"').expect("attribute should terminate");
     rest[..end]
-        .parse::<i32>()
-        .expect("attribute should parse as i32")
+        .parse::<f64>()
+        .expect("attribute should parse as number")
+        .round() as i32
 }
 
 #[test]
