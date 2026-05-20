@@ -1679,10 +1679,20 @@ struct SvgCircle {
 
 fn parse_svg_attr(tag: &str, key: &str) -> Option<String> {
     let pat = format!("{key}=\"");
-    let start = tag.find(&pat)? + pat.len();
-    let rest = &tag[start..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
+    for (start, _) in tag.match_indices(&pat) {
+        let is_attr_boundary = start == 0
+            || tag[..start]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace);
+        if !is_attr_boundary {
+            continue;
+        }
+        let rest = &tag[start + pat.len()..];
+        let end = rest.find('"')?;
+        return Some(rest[..end].to_string());
+    }
+    None
 }
 
 fn parse_svg_lines(svg: &str) -> Vec<SvgLine> {
