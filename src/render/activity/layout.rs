@@ -1,3 +1,4 @@
+use super::super::layout_constants::ACTIVITY_ARROW_OUT_OFFSET;
 use super::arrows::fork_branch_cx;
 use crate::model::{FamilyDocument, FamilyNodeKind};
 
@@ -143,7 +144,7 @@ pub(super) fn compute_layout(
         *fork_col_w,
         *lane_w,
     );
-    const ARROW_OUT: i32 = 42;
+    let arrow_out = ACTIVITY_ARROW_OUT_OFFSET;
 
     let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
     let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
@@ -175,7 +176,7 @@ pub(super) fn compute_layout(
         match meta.step_kind.as_str() {
             "IfStart" => {
                 let slot_y = current_slot_y;
-                let arrow_out_y = slot_y + ARROW_OUT;
+                let arrow_out_y = slot_y + arrow_out;
                 let next_slot_y = slot_y + step_h;
                 node_layouts.push(NodeLayout {
                     cx,
@@ -214,7 +215,7 @@ pub(super) fn compute_layout(
                 let diamond_cx = frame.diamond_cx;
                 let diamond_arrow_out = frame.diamond_arrow_out;
                 let slot_y = frame.diamond_next_slot;
-                let arrow_out_y = slot_y + ARROW_OUT;
+                let arrow_out_y = slot_y + arrow_out;
                 let next_slot_y = slot_y + step_h;
                 frame.else_start_slot = slot_y;
                 frame.in_else = true;
@@ -235,12 +236,12 @@ pub(super) fn compute_layout(
             }
             "EndIf" => {
                 let frame = if_stack.pop().expect("endif without if");
-                let then_arrow_out_y = frame.then_end_next_slot - step_h + ARROW_OUT;
+                let then_arrow_out_y = frame.then_end_next_slot - step_h + arrow_out;
                 let then_cx = frame.then_cx;
-                let else_arrow_out_y = current_slot_y - step_h + ARROW_OUT;
+                let else_arrow_out_y = current_slot_y - step_h + arrow_out;
                 let else_cx = frame.else_cx;
                 let slot_y = frame.then_end_next_slot.max(current_slot_y);
-                let arrow_out_y = slot_y + ARROW_OUT;
+                let arrow_out_y = slot_y + arrow_out;
                 let next_slot_y = slot_y + step_h;
                 suppress_prev_arrow.insert(i);
                 extra_arrows.push((then_cx, then_arrow_out_y, frame.diamond_cx, slot_y));
@@ -261,7 +262,7 @@ pub(super) fn compute_layout(
             }
             "Fork" => {
                 let slot_y = current_slot_y;
-                let arrow_out_y = slot_y + ARROW_OUT;
+                let arrow_out_y = slot_y + arrow_out;
                 let next_slot_y = slot_y + step_h;
                 node_layouts.push(NodeLayout {
                     cx,
@@ -302,7 +303,7 @@ pub(super) fn compute_layout(
                 node_layouts.push(NodeLayout {
                     cx: branch_col_cx,
                     slot_y,
-                    arrow_out_y: slot_y + ARROW_OUT,
+                    arrow_out_y: slot_y + arrow_out,
                     next_slot_y: slot_y + step_h,
                 });
                 current_slot_y = frame.branch_start_y;
@@ -322,7 +323,7 @@ pub(super) fn compute_layout(
             }
             "RepeatWhile" => {
                 let slot_y = current_slot_y;
-                let arrow_out_y = slot_y + ARROW_OUT;
+                let arrow_out_y = slot_y + arrow_out;
                 let next_slot_y = slot_y + step_h;
                 node_layouts.push(NodeLayout {
                     cx,
@@ -353,7 +354,7 @@ pub(super) fn compute_layout(
                     .max()
                     .unwrap_or(current_slot_y);
                 let slot_y = max_end;
-                let arrow_out_y = slot_y + ARROW_OUT;
+                let arrow_out_y = slot_y + arrow_out;
                 let next_slot_y = slot_y + step_h;
 
                 suppress_prev_arrow.insert(i);
@@ -392,7 +393,7 @@ pub(super) fn compute_layout(
                         }
                     }
                     // Straight-down arrow from branch last node to the join bar
-                    let branch_arrow_out_y = branch.end_next_slot - step_h + ARROW_OUT;
+                    let branch_arrow_out_y = branch.end_next_slot - step_h + arrow_out;
                     let join_bar_top_y = slot_y + 24;
                     direct_arrows.push((col_cx, branch_arrow_out_y, col_cx, join_bar_top_y));
                 }
@@ -439,7 +440,7 @@ pub(super) fn compute_layout(
                     suppress_prev_arrow.insert(i);
                 } else {
                     let slot_y = current_slot_y;
-                    let arrow_out_y = slot_y + ARROW_OUT;
+                    let arrow_out_y = slot_y + arrow_out;
                     let next_slot_y = slot_y + step_h;
                     node_layouts.push(NodeLayout {
                         cx,
