@@ -90,9 +90,7 @@ fn walk_statements(
         match &stmt.kind {
             StatementKind::Participant(p) => {
                 stats.node_count += 1;
-                let name = p.name.clone();
-                hist.counts.entry(name).or_insert(0);
-                *hist.counts.get_mut(&p.name.clone()).unwrap() += 1;
+                hist.record(&format!("{:?}", p.role).to_lowercase());
             }
             StatementKind::Message(_) => {
                 stats.edge_count += 1;
@@ -194,7 +192,8 @@ pub fn compute_stats(doc: &Document) -> Stats {
 
 /// Public entry point called from `main.rs`.
 pub fn run_stats(args: StatsArgs) -> Result<i32, String> {
-    let source = std::fs::read_to_string(&args.file).unwrap();
+    let source = std::fs::read_to_string(&args.file)
+        .map_err(|e| format!("cannot read {:?}: {e}", args.file))?;
 
     let doc = puml::parse(&source).map_err(|d| format!("parse error: {}", d.message))?;
 
