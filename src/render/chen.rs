@@ -322,6 +322,7 @@ fn build_primary_layout(doc: &ChenDocument) -> ChenLayout {
             group_padding: 0.0,
             direction: Direction::TopDown,
             canvas_margin: 80.0,
+            canvas_right_margin: None,
         },
     );
 
