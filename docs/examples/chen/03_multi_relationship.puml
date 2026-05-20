@@ -1,0 +1,31 @@
+@startchen
+title Library Management
+
+entity Book {
+  key ISBN
+  Title
+  derived AgeRating
+  multivalued Authors
+}
+
+entity Member {
+  key MemberID
+  Name
+  Email
+}
+
+entity Librarian {
+  key StaffID
+  Name
+}
+
+relationship Borrows {
+  Member -> Book [N:M]
+  BorrowDate
+  DueDate
+}
+
+relationship Manages {
+  Librarian -> Book [1:N]
+}
+@endchen

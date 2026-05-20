@@ -36,6 +36,7 @@ use crate::theme::{
 
 mod archimate;
 mod chart;
+mod chen;
 mod ebnf;
 mod family;
 mod nwdiag;
@@ -92,6 +93,7 @@ pub fn normalize_family_with_options(
         DiagramKind::Sdl => sdl::normalize_sdl(document).map(NormalizedDocument::Sdl),
         DiagramKind::Ditaa => raw::normalize_ditaa(document).map(NormalizedDocument::Ditaa),
         DiagramKind::Chart => chart::normalize_chart(document).map(NormalizedDocument::Chart),
+        DiagramKind::Chen => chen::normalize_chen(document).map(NormalizedDocument::Chen),
         DiagramKind::Component
         | DiagramKind::Deployment
         | DiagramKind::Activity

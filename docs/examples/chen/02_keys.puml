@@ -1,0 +1,28 @@
+@startchen
+title Employee Department Schema
+
+entity Employee {
+  key EmployeeID
+  Name
+  derived Age
+  multivalued Skills
+}
+
+entity Department {
+  key DeptID
+  DeptName
+}
+
+entity Dependent weak {
+  key DependentName
+  Relationship
+}
+
+relationship WorksIn {
+  Employee -> Department [N:1]
+}
+
+relationship HasDependent identifying {
+  Employee -> Dependent [1:N]
+}
+@endchen
