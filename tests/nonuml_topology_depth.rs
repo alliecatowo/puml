@@ -212,6 +212,12 @@ right side
     assert!(svg.contains("data-mindmap-depth=\"2\""));
     assert!(svg.contains("mindmap-depth-2"));
     assert!(svg.contains("data-mindmap-fill=\"#fecaca\""));
+    assert!(svg.contains("class=\"mindmap-edge puml-edge\""));
+    assert!(svg.contains("class=\"mindmap-label puml-label\""));
+    assert!(svg.contains("data-puml-family=\"mindmap\""));
+    assert!(svg.contains("data-puml-kind=\"tree-node\""));
+    assert!(svg.contains("data-puml-edge-kind=\"parent-child\""));
+    assert!(svg.contains("data-puml-label-kind=\"node-label\""));
     assert!(svg.contains("#fef3c7"));
     assert!(svg.contains("#fecaca"));
     assert!(svg.contains("#bbf7d0"));
@@ -236,6 +242,13 @@ left to right direction
     assert!(svg.contains("data-wbs-checkbox=\"unchecked\""));
     assert!(svg.contains("wbs-depth-1"));
     assert!(svg.contains("wbs-checked"));
+    assert!(svg.contains("puml-node"));
+    assert!(svg.contains("class=\"wbs-edge puml-edge\""));
+    assert!(svg.contains("class=\"wbs-label puml-label\""));
+    assert!(svg.contains("data-puml-family=\"wbs\""));
+    assert!(svg.contains("data-puml-kind=\"tree-node\""));
+    assert!(svg.contains("data-puml-edge-kind=\"parent-child\""));
+    assert!(svg.contains("data-puml-label-kind=\"node-label\""));
     assert!(svg.contains("data-wbs-annotation-style=\"checked\""));
     assert!(svg.contains("class=\"wbs-progress-fill\" data-wbs-progress-fill=\"60\""));
 }
@@ -279,7 +292,8 @@ top to bottom direction
     assert!(wbs_svg.contains("data-wbs-node-count=\"7\""));
     assert!(wbs_svg.contains("data-wbs-leaf-count=\"4\""));
     assert!(wbs_svg.contains("data-wbs-child-count=\"2\""));
-    assert!(wbs_svg.contains("class=\"wbs-edge\" data-wbs-edge-depth=\"2\""));
+    assert!(wbs_svg.contains("class=\"wbs-edge puml-edge\""));
+    assert!(wbs_svg.contains("data-wbs-edge-depth=\"2\""));
     assert!(wbs_svg.contains("wbs-branch"));
     assert!(wbs_svg.contains("wbs-leaf"));
 }

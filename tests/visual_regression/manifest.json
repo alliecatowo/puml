@@ -1,66 +1,106 @@
 {
-  "_comment": "Visual regression manifest. Each fixture is rendered to SVG and checked for: (1) all expected_text substrings appear, (2) no <text> element is empty. Optional semantic SVG contracts: required_classes, required_data_attrs (string or {name,value,class,tag}), expected_counts (class names by default, or class:/attr:/data_attr:/tag: targets; values may be exact integers or {min,max,exact}), and geometry_profile (graph, chart, structural-only, unsupported). Structural-only/unsupported escapes must include structural_only_reason. Run: cargo test --test visual_regression",
+  "_comment": "Visual regression manifest. Each fixture is rendered to SVG and checked for: (1) all expected_text substrings appear, (2) no <text> element is empty. Optional semantic SVG contracts: required_classes, required_data_attrs (string or {name,value,class,tag}), expected_counts (class names by default, or class:/attr:/data_attr:/tag: targets; values may be exact integers or {min,max,exact}), and geometry_profile (basic, graph, chart, tree, timeline, structural-only, unsupported). Structural-only/unsupported escapes must include structural_only_reason. Run: cargo test --test visual_regression",
   "fixtures": [
     {
       "path": "docs/examples/sequence/01_basic.puml",
       "family": "sequence",
       "expected_text": ["Alice", "Bob", "Hello"],
-      "min_text_elements": 3
+      "min_text_elements": 3,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "sequence-participant"],
+      "expected_counts": { "puml-node": { "min": 2 }, "puml-edge": { "min": 1 }, "puml-label": { "min": 1 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-edge-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox"],
+      "geometry_profile": "basic"
     },
     {
       "path": "docs/examples/sequence/05_alt_opt_loop.puml",
       "family": "sequence",
       "expected_text": ["alt", "else", "opt", "loop"],
-      "min_text_elements": 4
+      "min_text_elements": 4,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "sequence-participant"],
+      "expected_counts": { "puml-node": { "min": 2 }, "puml-edge": { "min": 3 }, "puml-label": { "min": 4 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-edge-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox"],
+      "geometry_profile": "basic"
     },
     {
       "path": "docs/examples/themes/theme_sunlust.puml",
       "family": "sequence",
       "expected_text": ["sunlust Theme Showcase", "alt success", "else error", "log success", "log error"],
-      "min_text_elements": 10
+      "min_text_elements": 10,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "sequence-participant"],
+      "expected_counts": { "puml-node": { "min": 2 }, "puml-edge": { "min": 3 }, "puml-label": { "min": 10 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-edge-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox"],
+      "geometry_profile": "basic"
     },
     {
       "path": "docs/examples/class/01_basic.puml",
       "family": "class",
       "expected_text": ["Animal", "Dog"],
-      "min_text_elements": 2
+      "min_text_elements": 2,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": { "min": 2 }, "puml-edge": { "min": 1 }, "puml-label": { "min": 1 }, "uml-node": { "min": 2 }, "uml-relation": { "min": 1 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/class/02_inheritance.puml",
       "family": "class",
       "expected_text": ["Vehicle", "Car", "Truck", "+make: String", "+drive()", "+haul()"],
-      "min_text_elements": 9
+      "min_text_elements": 9,
+      "required_classes": ["puml-node", "puml-edge", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": { "min": 3 }, "puml-edge": { "min": 2 }, "uml-node": { "min": 3 }, "uml-relation": { "min": 2 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/activity/01_simple_flow.puml",
       "family": "activity",
       "expected_text": ["Simple Activity Flow", "Initialize", "Process Data", "Save Results"],
-      "min_text_elements": 5
+      "min_text_elements": 5,
+      "required_classes": ["puml-node", "puml-edge", "puml-label"],
+      "expected_counts": { "puml-node": { "min": 4 }, "puml-edge": { "min": 3 }, "puml-label": { "min": 3 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox"],
+      "geometry_profile": "basic"
     },
     {
       "path": "docs/examples/activity/02_if_then_else.puml",
       "family": "activity",
       "expected_text": ["If-Then-Else Decision", "Receive Request", "authenticated?", "Process", "Return 200", "Return 401"],
       "unexpected_text": ["(else) no", "(endif)"],
-      "min_text_elements": 7
+      "min_text_elements": 7,
+      "required_classes": ["puml-node", "puml-edge", "puml-label"],
+      "expected_counts": { "puml-node": { "min": 6 }, "puml-edge": { "min": 5 }, "puml-label": { "min": 6 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox"],
+      "geometry_profile": "basic"
     },
     {
       "path": "docs/examples/state/01_basic.puml",
       "family": "state",
       "expected_text": ["Idle", "Running", "start", "stop", "init"],
-      "min_text_elements": 5
+      "min_text_elements": 5,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "state-transition"],
+      "expected_counts": { "puml-node": { "min": 2 }, "puml-edge": { "min": 2 }, "puml-label": { "min": 4 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox", "data-state-from", "data-state-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/state/05_fork_join_choice.puml",
       "family": "state",
       "expected_text": ["TaskA", "TaskB", "Success", "Failure", "ok", "error"],
-      "min_text_elements": 6
+      "min_text_elements": 6,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "state-transition"],
+      "expected_counts": { "puml-node": { "min": 5 }, "puml-edge": { "min": 5 }, "puml-label": { "min": 6 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox", "data-state-from", "data-state-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/usecase/01_basic.puml",
       "family": "usecase",
       "expected_text": ["Login", "Register", "leads to"],
-      "min_text_elements": 3
+      "min_text_elements": 3,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": { "min": 3 }, "puml-edge": { "min": 2 }, "puml-label": { "min": 1 }, "uml-node": { "min": 2 }, "uml-relation": { "min": 2 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/component/01_basic.puml",
@@ -68,7 +108,7 @@
       "expected_text": ["Frontend", "Backend", "calls"],
       "min_text_elements": 5,
       "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
-      "expected_counts": { "puml-node": 2, "puml-edge": 1, "uml-node": 2, "uml-relation": 1 },
+      "expected_counts": { "puml-node": { "min": 2 }, "puml-edge": { "min": 1 }, "puml-label": { "min": 1 }, "uml-node": { "min": 2 }, "uml-relation": { "min": 1 } },
       "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
       "geometry_profile": "graph"
     },
@@ -76,7 +116,11 @@
       "path": "docs/examples/object/01_basic.puml",
       "family": "object",
       "expected_text": ["Alice", "Bob", "knows"],
-      "min_text_elements": 3
+      "min_text_elements": 3,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": { "min": 2 }, "puml-edge": { "min": 1 }, "puml-label": { "min": 1 }, "uml-node": { "min": 2 }, "uml-relation": { "min": 1 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/deployment/01_nodes.puml",
@@ -84,7 +128,7 @@
       "expected_text": ["WebServer", "AppServer", "DBServer", "HTTP", "TCP"],
       "min_text_elements": 8,
       "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
-      "expected_counts": { "puml-node": 3, "puml-edge": 2, "uml-node": 3, "uml-relation": 2 },
+      "expected_counts": { "puml-node": { "min": 3 }, "puml-edge": { "min": 2 }, "puml-label": { "min": 2 }, "uml-node": { "min": 3 }, "uml-relation": { "min": 2 } },
       "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
       "geometry_profile": "graph"
     },
@@ -100,7 +144,11 @@
         "stores",
         "reads"
       ],
-      "min_text_elements": 7
+      "min_text_elements": 7,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": { "min": 4 }, "puml-edge": { "min": 3 }, "puml-label": { "min": 3 }, "uml-node": { "min": 4 }, "uml-relation": { "min": 3 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/gantt/01_basic.puml",
@@ -112,19 +160,31 @@
       "path": "docs/examples/mindmap/01_basic.puml",
       "family": "mindmap",
       "expected_text": ["Project", "Planning", "Development", "Testing"],
-      "min_text_elements": 4
+      "min_text_elements": 4,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "mindmap-node", "mindmap-edge"],
+      "expected_counts": { "puml-node": { "min": 4 }, "puml-edge": { "min": 3 }, "puml-label": { "min": 4 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-edge-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox"],
+      "geometry_profile": "tree"
     },
     {
       "path": "docs/examples/wbs/01_basic.puml",
       "family": "wbs",
       "expected_text": ["Project Scope", "Phase 1", "Phase 2", "Phase 3"],
-      "min_text_elements": 4
+      "min_text_elements": 4,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "wbs-node", "wbs-edge"],
+      "expected_counts": { "puml-node": { "min": 4 }, "puml-edge": { "min": 3 }, "puml-label": { "min": 4 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-edge-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox"],
+      "geometry_profile": "tree"
     },
     {
       "path": "docs/examples/c4/01_context.puml",
       "family": "c4",
       "expected_text": ["System Context - Banking App", "Customer", "Support", "Banking Application", "SMS Gateway", "Core Banking", "Uses", "Manages", "Sends notifications", "Transfers funds"],
-      "min_text_elements": 14
+      "min_text_elements": 14,
+      "required_classes": ["puml-node", "puml-edge", "puml-label", "uml-relation"],
+      "expected_counts": { "puml-node": { "min": 5 }, "puml-edge": { "min": 4 }, "puml-label": { "min": 4 }, "uml-relation": { "min": 4 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-owner", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "graph"
     },
     {
       "path": "docs/examples/json/01_object.puml",
@@ -199,7 +259,11 @@
         "Renderer",
         "SVG / PNG / Text"
       ],
-      "min_text_elements": 20
+      "min_text_elements": 20,
+      "required_classes": ["puml-node", "puml-edge", "uml-node", "uml-relation"],
+      "expected_counts": { "puml-node": { "min": 8 }, "puml-edge": { "min": 8 }, "uml-node": { "min": 8 }, "uml-relation": { "min": 8 } },
+      "required_data_attrs": ["data-puml-id", "data-puml-from", "data-puml-to", "data-puml-bbox", "data-uml-kind", "data-uml-from", "data-uml-to"],
+      "geometry_profile": "basic"
     }
   ]
 }

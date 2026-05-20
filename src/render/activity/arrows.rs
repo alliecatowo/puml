@@ -1,3 +1,19 @@
+use crate::render::puml_edge_attrs;
+
+pub(super) struct EdgeSemantic<'a> {
+    pub id: String,
+    pub kind: &'a str,
+    pub from: String,
+    pub to: String,
+}
+
+pub(super) struct ArrowGeometry {
+    pub x1: i32,
+    pub y1: i32,
+    pub x2: i32,
+    pub y2: i32,
+}
+
 /// Compute the center X for a fork branch column.
 ///
 /// Branches are laid out symmetrically around `fork_cx`.
@@ -152,13 +168,19 @@ fn choose_mid_y(x1: i32, y1: i32, x2: i32, y2: i32, bboxes: &[NodeBbox]) -> i32 
 /// lies in the x corridor between x1 and x2, fixing through-node routing (#734).
 pub(crate) fn emit_activity_arrow(
     out: &mut String,
-    x1: i32,
-    y1: i32,
-    x2: i32,
-    y2: i32,
+    semantic: &EdgeSemantic<'_>,
+    geometry: ArrowGeometry,
     color: &str,
     bboxes: &[NodeBbox],
 ) {
+    let ArrowGeometry { x1, y1, x2, y2 } = geometry;
+    let attrs = puml_edge_attrs(
+        &semantic.id,
+        "activity",
+        semantic.kind,
+        &semantic.from,
+        &semantic.to,
+    );
     if x1 == x2 {
         // Vertical arrow.  Check whether it passes through any node bbox;
         // if so, route as a 5-segment bypass: out → up/down → back (#734).
@@ -166,22 +188,22 @@ pub(crate) fn emit_activity_arrow(
             // 5-segment path: (x1,y1) → (side_x,y1) → (side_x,y2) → (x2,y2)
             // implemented as 3 line segments with the arrowhead at (x2,y2).
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, side_x, y1, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, x1, y1, side_x, y1, color
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                side_x, y1, side_x, y2, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, side_x, y1, side_x, y2, color
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                side_x, y2, x2, y2, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, side_x, y2, x2, y2, color
             ));
         } else {
             // Straight vertical arrow -- no routing needed.
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, x2, y2, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, x1, y1, x2, y2, color
             ));
         }
         // Arrowhead pointing downward (or upward for back-edges).
@@ -209,37 +231,34 @@ pub(crate) fn emit_activity_arrow(
         if let Some(bypass_x) = choose_vert_bypass_x(x1, y1, mid_y, bboxes) {
             // 5-segment: (x1,y1)→(bypass,y1)→(bypass,mid_y)→(x2,mid_y)→(x2,y2)
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, bypass_x, y1, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, x1, y1, bypass_x, y1, color
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                bypass_x, y1, bypass_x, mid_y, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, bypass_x, y1, bypass_x, mid_y, color
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                bypass_x, mid_y, x2, mid_y, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, bypass_x, mid_y, x2, mid_y, color
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x2, mid_y, x2, y2, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, x2, mid_y, x2, y2, color
             ));
         } else {
             // Normal 3-segment L-bend.
-            // Segment 1: x1, y1 -> x1, mid_y
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, x1, mid_y, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, x1, y1, x1, mid_y, color
             ));
-            // Segment 2: x1, mid_y -> x2, mid_y
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, mid_y, x2, mid_y, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, x1, mid_y, x2, mid_y, color
             ));
-            // Segment 3: x2, mid_y -> x2, y2
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x2, mid_y, x2, y2, color
+                "<line class=\"activity-arrow puml-edge\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                attrs, x2, mid_y, x2, y2, color
             ));
         }
         // Arrowhead at (x2, y2) pointing vertically (downward or upward).
@@ -274,7 +293,24 @@ pub(super) fn emit_extra_arrows(
         .iter()
         .filter(|a| a.2 == dst_cx && a.3 == dst_y)
     {
-        emit_activity_arrow(out, *x1, *y1, *x2, *y2, color, bboxes);
+        let semantic = EdgeSemantic {
+            id: format!("activity-edge-extra-{x1}-{y1}-{x2}-{y2}"),
+            kind: "control-flow",
+            from: format!("activity-point-{x1}-{y1}"),
+            to: format!("activity-point-{x2}-{y2}"),
+        };
+        emit_activity_arrow(
+            out,
+            &semantic,
+            ArrowGeometry {
+                x1: *x1,
+                y1: *y1,
+                x2: *x2,
+                y2: *y2,
+            },
+            color,
+            bboxes,
+        );
     }
 }
 
@@ -286,6 +322,23 @@ pub(super) fn emit_direct_arrows(
     bboxes: &[NodeBbox],
 ) {
     for (x1, y1, x2, y2) in direct_arrows {
-        emit_activity_arrow(out, *x1, *y1, *x2, *y2, color, bboxes);
+        let semantic = EdgeSemantic {
+            id: format!("activity-edge-direct-{x1}-{y1}-{x2}-{y2}"),
+            kind: "control-flow",
+            from: format!("activity-point-{x1}-{y1}"),
+            to: format!("activity-point-{x2}-{y2}"),
+        };
+        emit_activity_arrow(
+            out,
+            &semantic,
+            ArrowGeometry {
+                x1: *x1,
+                y1: *y1,
+                x2: *x2,
+                y2: *y2,
+            },
+            color,
+            bboxes,
+        );
     }
 }

@@ -1,3 +1,4 @@
+use super::scene_graph::Rect;
 use super::*;
 
 const MINDMAP_PALETTE: &[&str] = &[
@@ -21,6 +22,7 @@ fn family_node_fill<'a>(node: &'a crate::model::FamilyNode, fallback: &'a str) -
 /// labels for explicit line breaks (#560); the parser converts the escape to a
 /// real newline and this helper paints each line as a `<tspan>` centered around
 /// `y_center`.
+#[allow(clippy::too_many_arguments)]
 fn render_multiline_text(
     x: i32,
     y_center: i32,
@@ -28,13 +30,18 @@ fn render_multiline_text(
     font_size: i32,
     font_family: &str,
     font_weight: &str,
+    class_attr: &str,
+    attrs: &str,
 ) -> String {
     let lines: Vec<&str> = text.split('\n').collect();
-    // Single-line case: emit a plain `<text>` element so test helpers that
-    // inspect direct text content keep working.
+    let attr_suffix = if attrs.is_empty() {
+        String::new()
+    } else {
+        format!(" {attrs}")
+    };
     if lines.len() <= 1 {
         return format!(
-            "<text x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">{txt}</text>",
+            "<text class=\"{class_attr}\"{attr_suffix} x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">{txt}</text>",
             x = x,
             y_center = y_center,
             ff = font_family,
@@ -48,7 +55,7 @@ fn render_multiline_text(
     let total_h = line_h * (n - 1);
     let start_y = y_center - total_h / 2;
     let mut out = format!(
-        "<text x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">",
+        "<text class=\"{class_attr}\"{attr_suffix} x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">",
         x = x,
         y_center = y_center,
         ff = font_family,
@@ -66,6 +73,26 @@ fn render_multiline_text(
     }
     out.push_str("</text>");
     out
+}
+
+fn tree_node_id(family: &str, idx: usize) -> String {
+    format!("{family}-node-{idx}")
+}
+
+fn tree_edge_id(family: &str, parent_idx: usize, child_idx: usize) -> String {
+    format!("{family}-edge-{parent_idx}-{child_idx}")
+}
+
+fn rect_from_i32(x: i32, y: i32, w: i32, h: i32) -> Rect {
+    Rect::new(x as f64, y as f64, w as f64, h as f64)
+}
+
+fn label_bbox(x: i32, y_center: i32, text: &str, font_size: i32) -> Rect {
+    let width = (multiline_char_width(text) * 7).max(1);
+    let lines = multiline_line_count(text).max(1);
+    let line_h = ((font_size as f32) * 1.25) as i32;
+    let height = (line_h * lines).max(font_size);
+    rect_from_i32(x - width / 2, y_center - height / 2, width, height)
 }
 
 /// Width of a multi-line label = the longest line, in monospace char units.
@@ -314,12 +341,21 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     // Draw root node
     let rx = root_cx - root_w / 2;
     let ry = root_cy - NODE_H / 2;
+    let root_id = tree_node_id("mindmap", 0);
+    let root_bbox = rect_from_i32(rx, ry, root_w, NODE_H);
+    let root_attrs = puml_node_attrs(&root_id, "mindmap", "tree-node", root_bbox);
     out.push_str(&format!(
-        "<rect class=\"mindmap-node mindmap-root mindmap-branch\" data-mindmap-depth=\"0\" data-mindmap-child-count=\"{child_count}\" data-mindmap-fill=\"{fill}\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
+        "<rect class=\"mindmap-node mindmap-root mindmap-branch puml-node\" {root_attrs} data-mindmap-depth=\"0\" data-mindmap-child-count=\"{child_count}\" data-mindmap-fill=\"{fill}\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
         rx = rx, ry = ry, rw = root_w, h = NODE_H,
+        root_attrs = root_attrs,
         child_count = family_tree_child_indices(nodes, 0).len(),
         fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
     ));
+    let root_label_attrs = puml_label_attrs(
+        &root_id,
+        "node-label",
+        label_bbox(root_cx, root_cy, &nodes[0].name, 13),
+    );
     out.push_str(&render_multiline_text(
         root_cx,
         root_cy,
@@ -327,6 +363,8 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         13,
         "monospace",
         "600",
+        "mindmap-label puml-label",
+        &root_label_attrs,
     ));
 
     // Draw right-side branches.
@@ -456,6 +494,14 @@ fn node_sibling_index(nodes: &[crate::model::FamilyNode], idx: usize) -> usize {
     count
 }
 
+fn parent_index(nodes: &[crate::model::FamilyNode], idx: usize) -> Option<usize> {
+    if idx == 0 {
+        return None;
+    }
+    let depth = nodes[idx].depth;
+    (0..idx).rev().find(|&prev| nodes[prev].depth + 1 == depth)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn draw_mindmap_subtree(
     out: &mut String,
@@ -488,8 +534,18 @@ fn draw_mindmap_subtree(
 
     // Connection line from parent
     let node_attach_x = if is_left { nx + nw } else { nx };
+    let parent_idx = parent_index(nodes, idx).unwrap_or(0);
+    let edge_id = tree_edge_id("mindmap", parent_idx, idx);
+    let edge_attrs = puml_edge_attrs(
+        &edge_id,
+        "mindmap",
+        "parent-child",
+        &tree_node_id("mindmap", parent_idx),
+        &tree_node_id("mindmap", idx),
+    );
     out.push_str(&format!(
-        "<line class=\"mindmap-edge\" data-mindmap-side=\"{side}\" x1=\"{px}\" y1=\"{py}\" x2=\"{ax}\" y2=\"{ny}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+        "<line class=\"mindmap-edge puml-edge\" {edge_attrs} data-mindmap-side=\"{side}\" x1=\"{px}\" y1=\"{py}\" x2=\"{ax}\" y2=\"{ny}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+        edge_attrs = edge_attrs,
         side = if is_left { "left" } else { "right" },
         px = parent_attach_x,
         py = parent_attach_y,
@@ -507,16 +563,29 @@ fn draw_mindmap_subtree(
     };
 
     // Node rectangle (rounded, pastel by depth)
+    let node_id = tree_node_id("mindmap", idx);
+    let node_attrs = puml_node_attrs(
+        &node_id,
+        "mindmap",
+        "tree-node",
+        rect_from_i32(nx, ny_top, nw, node_h),
+    );
     out.push_str(&format!(
-        "<rect class=\"mindmap-node mindmap-depth-{depth} {branch_class}\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" data-mindmap-child-count=\"{child_count}\" data-mindmap-sibling-index=\"{sibling_index}\" data-mindmap-fill=\"{fill}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+        "<rect class=\"mindmap-node mindmap-depth-{depth} {branch_class} puml-node\" {node_attrs} data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" data-mindmap-child-count=\"{child_count}\" data-mindmap-sibling-index=\"{sibling_index}\" data-mindmap-fill=\"{fill}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
         depth = node.depth,
         branch_class = branch_class,
+        node_attrs = node_attrs,
         side = if is_left { "left" } else { "right" },
         child_count = child_count,
         sibling_index = sibling_index,
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
         fill = escape_text(family_node_fill(node, mindmap_node_fill(node.depth)))
     ));
+    let label_attrs = puml_label_attrs(
+        &node_id,
+        "node-label",
+        label_bbox(nx + nw / 2, ny, &node.name, 12),
+    );
     out.push_str(&render_multiline_text(
         nx + nw / 2,
         ny,
@@ -524,6 +593,8 @@ fn draw_mindmap_subtree(
         12,
         "monospace",
         "400",
+        "mindmap-label puml-label",
+        &label_attrs,
     ));
 
     let next_x_center = if is_left {
@@ -767,8 +838,17 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
                     y_positions[i],
                 ),
             };
+            let edge_id = tree_edge_id("wbs", p, i);
+            let edge_attrs = puml_edge_attrs(
+                &edge_id,
+                "wbs",
+                "parent-child",
+                &tree_node_id("wbs", p),
+                &tree_node_id("wbs", i),
+            );
             out.push_str(&format!(
-                "<line class=\"wbs-edge\" data-wbs-edge-depth=\"{depth}\" x1=\"{px}\" y1=\"{py}\" x2=\"{cx}\" y2=\"{cy}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+                "<line class=\"wbs-edge puml-edge\" {edge_attrs} data-wbs-edge-depth=\"{depth}\" x1=\"{px}\" y1=\"{py}\" x2=\"{cx}\" y2=\"{cy}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
+                edge_attrs = edge_attrs,
                 depth = nodes[i].depth,
                 px = px, py = py, cx = cx, cy = cy
             ));
@@ -814,11 +894,19 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         } else {
             " wbs-branch"
         };
+        let node_id = tree_node_id("wbs", i);
+        let node_attrs = puml_node_attrs(
+            &node_id,
+            "wbs",
+            "tree-node",
+            rect_from_i32(nx, ny, nw, NODE_H),
+        );
         out.push_str(&format!(
-            "<rect class=\"wbs-node wbs-depth-{depth}{checkbox_class}{branch_class}\" data-wbs-depth=\"{depth}\" data-wbs-child-count=\"{child_count}\" data-wbs-sibling-index=\"{sibling_index}\" data-wbs-fill=\"{fill}\"{checkbox_attr} x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            "<rect class=\"wbs-node wbs-depth-{depth}{checkbox_class}{branch_class} puml-node\" {node_attrs} data-wbs-depth=\"{depth}\" data-wbs-child-count=\"{child_count}\" data-wbs-sibling-index=\"{sibling_index}\" data-wbs-fill=\"{fill}\"{checkbox_attr} x=\"{nx}\" y=\"{ny}\" width=\"{nw}\" height=\"{nh}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
             depth = node.depth,
             checkbox_class = checkbox_class,
             branch_class = branch_class,
+            node_attrs = node_attrs,
             child_count = child_count,
             sibling_index = node_sibling_index(nodes, i),
             checkbox_attr = checkbox_attr,
@@ -833,6 +921,11 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         // Render checkbox annotation if present.
         match &node.wbs_checkbox {
             Some(WbsCheckbox::Checked) => {
+                let label_attrs = puml_label_attrs(
+                    &node_id,
+                    "node-label",
+                    label_bbox(cx + 8, cy, &node.name, 12),
+                );
                 // Checked checkbox before label
                 out.push_str(&format!(
                     "<rect class=\"wbs-checkbox-box\" data-wbs-annotation-style=\"checked\" x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" rx=\"2\" ry=\"2\" fill=\"#16a34a\" stroke=\"#166534\" stroke-width=\"1\"/>",
@@ -843,18 +936,23 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
                     tx = nx + NODE_PAD + 1, ty = cy + 4
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
-                    escape_text(&node.name), tx = cx + 8, ty = cy
+                    "<text class=\"wbs-label puml-label\" {label_attrs} x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    escape_text(&node.name), label_attrs = label_attrs, tx = cx + 8, ty = cy
                 ));
             }
             Some(WbsCheckbox::Unchecked) => {
+                let label_attrs = puml_label_attrs(
+                    &node_id,
+                    "node-label",
+                    label_bbox(cx + 8, cy, &node.name, 12),
+                );
                 out.push_str(&format!(
                     "<rect class=\"wbs-checkbox-box\" data-wbs-annotation-style=\"unchecked\" x=\"{bx}\" y=\"{by}\" width=\"12\" height=\"12\" rx=\"2\" ry=\"2\" fill=\"#fff\" stroke=\"#64748b\" stroke-width=\"1\"/>",
                     bx = nx + NODE_PAD, by = cy - 6
                 ));
                 out.push_str(&format!(
-                    "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
-                    escape_text(&node.name), tx = cx + 8, ty = cy
+                    "<text class=\"wbs-label puml-label\" {label_attrs} x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    escape_text(&node.name), label_attrs = label_attrs, tx = cx + 8, ty = cy
                 ));
             }
             Some(WbsCheckbox::Progress(pct)) => {
@@ -871,15 +969,20 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
                         bx = nx + NODE_PAD, by = cy + 9, fill_w = fill_w
                     ));
                 }
+                let label = format!("{} [{}%]", node.name, pct);
+                let label_attrs =
+                    puml_label_attrs(&node_id, "node-label", label_bbox(cx, cy - 2, &label, 12));
                 out.push_str(&format!(
-                    "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{} [{}%]</text>",
-                    escape_text(&node.name), pct, tx = cx, ty = cy - 2
+                    "<text class=\"wbs-label puml-label\" {label_attrs} x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{} [{}%]</text>",
+                    escape_text(&node.name), pct, label_attrs = label_attrs, tx = cx, ty = cy - 2
                 ));
             }
             None => {
+                let label_attrs =
+                    puml_label_attrs(&node_id, "node-label", label_bbox(cx, cy, &node.name, 12));
                 out.push_str(&format!(
-                    "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
-                    escape_text(&node.name), tx = cx, ty = cy
+                    "<text class=\"wbs-label puml-label\" {label_attrs} x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"monospace\" font-size=\"12\">{}</text>",
+                    escape_text(&node.name), label_attrs = label_attrs, tx = cx, ty = cy
                 ));
             }
         }

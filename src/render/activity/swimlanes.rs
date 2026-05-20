@@ -1,5 +1,15 @@
+use crate::render::scene_graph::{estimate_text_bbox, Rect as SceneRect};
 use crate::render::svg::escape_text;
+use crate::render::{puml_label_attrs, puml_node_attrs};
 use crate::theme::ActivityStyle;
+
+fn swimlane_id(idx: usize, lane: &str) -> String {
+    format!("activity-swimlane-{idx}-{lane}")
+}
+
+fn swimlane_bbox(x: i32, y: i32, w: i32, h: i32) -> SceneRect {
+    SceneRect::new(x as f64, y as f64, w as f64, h as f64)
+}
 
 /// Emit lane background rectangles and header labels.
 ///
@@ -36,16 +46,34 @@ pub(super) fn emit_lanes(
             };
             let body_y = span_top + lane_header_h;
             let body_h = (span_bottom - body_y).max(24);
+            let lane_id = swimlane_id(idx, lane);
+            let body_attrs = puml_node_attrs(
+                &lane_id,
+                "activity",
+                "swimlane",
+                swimlane_bbox(lx, body_y, lane_w, body_h),
+            );
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
-                lx, body_y, lane_w, body_h, bg
+                "<rect class=\"activity-swimlane puml-node\" {} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+                body_attrs, lx, body_y, lane_w, body_h, bg
             ));
             out.push_str(&format!(
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
                 lx, span_top, lane_w, lane_header_h, header_fill
             ));
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                "<text class=\"activity-swimlane-label puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                puml_label_attrs(
+                    &lane_id,
+                    "swimlane-label",
+                    estimate_text_bbox(
+                        (lx + lane_w / 2) as f64,
+                        (span_top + lane_header_h / 2 + 4) as f64,
+                        lane,
+                        11.0,
+                        true,
+                    ),
+                ),
                 lx + lane_w / 2,
                 span_top + lane_header_h / 2 + 4,
                 escape_text(&act_style.font_color),
@@ -55,13 +83,18 @@ pub(super) fn emit_lanes(
         }
 
         // Lane body (below header)
+        let lane_id = swimlane_id(idx, lane);
+        let body_y = header_h + lane_header_h;
+        let body_h = height - header_h - lane_header_h - 20;
+        let body_attrs = puml_node_attrs(
+            &lane_id,
+            "activity",
+            "swimlane",
+            swimlane_bbox(lx, body_y, lane_w, body_h),
+        );
         out.push_str(&format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
-            lx,
-            header_h + lane_header_h,
-            lane_w,
-            height - header_h - lane_header_h - 20,
-            bg
+            "<rect class=\"activity-swimlane puml-node\" {} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"#cbd5e1\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>",
+            body_attrs, lx, body_y, lane_w, body_h, bg
         ));
         if lane != "default" {
             // Lane header box
@@ -75,7 +108,18 @@ pub(super) fn emit_lanes(
             ));
             // Lane name centered in the header box
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                "<text class=\"activity-swimlane-label puml-label\" {} x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"{}\">{}</text>",
+                puml_label_attrs(
+                    &lane_id,
+                    "swimlane-label",
+                    estimate_text_bbox(
+                        (lx + lane_w / 2) as f64,
+                        (header_h + lane_header_h / 2 + 4) as f64,
+                        lane,
+                        11.0,
+                        true,
+                    ),
+                ),
                 lx + lane_w / 2,
                 header_h + lane_header_h / 2 + 4,
                 escape_text(&act_style.font_color),

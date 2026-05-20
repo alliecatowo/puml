@@ -1,7 +1,8 @@
+use super::scene_graph::{estimate_text_bbox, Rect as SceneRect};
 use super::svg::{creole_text, escape_text, render_actor_stick_figure};
 use crate::ast::NoteKind;
 use crate::model::{LegendHAlign, LegendVAlign, ParticipantRole, ScaleSpec, VirtualEndpointKind};
-use crate::scene::{LifecycleMarkerKind, ParticipantBox, Scene, StructureKind};
+use crate::scene::{LifecycleMarkerKind, NoteBox, ParticipantBox, Scene, StructureKind};
 use crate::theme::{css3_color_to_hex, MessageAlign};
 use std::collections::BTreeMap;
 
@@ -82,10 +83,21 @@ pub fn render_svg(scene: &Scene) -> String {
 
     if let Some(title) = &scene.title {
         for (idx, line) in title.lines.iter().enumerate() {
+            let attrs = sequence_label_attrs(
+                "diagram",
+                "title",
+                title.x,
+                title.y + (idx as i32 * 24),
+                line,
+                18,
+                false,
+            );
             out.push_str(&creole_text(
                 title.x,
                 title.y + (idx as i32 * 24),
-                "font-family=\"monospace\" font-size=\"18\" font-weight=\"600\"",
+                &format!(
+                    "class=\"puml-label\" {attrs} font-family=\"monospace\" font-size=\"18\" font-weight=\"600\""
+                ),
                 line,
                 &scene.style.arrow_color,
             ));
@@ -108,9 +120,24 @@ pub fn render_svg(scene: &Scene) -> String {
     }
     let lifeline_stroke_width = scene.style.lifeline_thickness.unwrap_or(1);
     for l in &scene.lifelines {
+        let edge_id = format!("lifeline:{}", l.participant_id);
+        let puml_attrs = super::puml_edge_attrs(
+            &edge_id,
+            "sequence",
+            "lifeline",
+            &l.participant_id,
+            &l.participant_id,
+        );
         out.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"6 4\"/>",
-            l.x, l.y1, l.x, l.y2, scene.style.lifeline_border_color, lifeline_stroke_width
+            "<line class=\"sequence-lifeline puml-edge\" data-participant=\"{}\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"6 4\"/>",
+            escape_text(&l.participant_id),
+            puml_attrs,
+            l.x,
+            l.y1,
+            l.x,
+            l.y2,
+            scene.style.lifeline_border_color,
+            lifeline_stroke_width
         ));
     }
     if scene.style.hand_drawn {
@@ -122,6 +149,13 @@ pub fn render_svg(scene: &Scene) -> String {
         let x = a.x + offset - 5;
         let y = a.y1.min(a.y2);
         let height = (a.y2 - a.y1).abs().max(12);
+        let node_id = format!("activation:{}:{}:{}", a.participant_id, y, a.depth);
+        let puml_attrs = super::puml_node_attrs(
+            &node_id,
+            "sequence",
+            "activation",
+            geometry_bbox(x, y, 10, height),
+        );
         out.push_str(&format!(
             "<rect class=\"sequence-activation\" data-participant=\"{}\" x=\"{}\" y=\"{}\" width=\"10\" height=\"{}\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1\"/>",
             escape_text(&a.participant_id),
@@ -129,6 +163,14 @@ pub fn render_svg(scene: &Scene) -> String {
             y,
             height,
             scene.style.lifeline_border_color
+        ));
+        out.push_str(&format!(
+            "<rect class=\"puml-node\" data-participant=\"{}\" {} x=\"{}\" y=\"{}\" width=\"10\" height=\"{}\" fill=\"none\" stroke=\"none\" pointer-events=\"none\"/>",
+            escape_text(&a.participant_id),
+            puml_attrs,
+            x,
+            y,
+            height
         ));
     }
 
@@ -198,17 +240,29 @@ pub fn render_svg(scene: &Scene) -> String {
                 out.push_str(&creole_text(
                     g.x + 6,
                     g.y + 14,
-                    &format!("font-family=\"monospace\" font-size=\"11\" {header_font_weight}{header_font_style_attr}"),
+                    &format!(
+                        "class=\"puml-label\" {} font-family=\"monospace\" font-size=\"11\" {header_font_weight}{header_font_style_attr}",
+                        sequence_label_attrs("group:ref", "group-header", g.x + 6, g.y + 14, "ref", 11, false)
+                    ),
                     "ref",
                     header_font_color,
                 ));
                 if let Some(label) = &g.label {
                     let mut y = g.y + REF_BODY_BASELINE_Y;
                     for line in label.lines() {
+                        let attrs = sequence_label_attrs(
+                            "group:ref",
+                            "group-label",
+                            g.x + 8,
+                            y,
+                            line,
+                            12,
+                            false,
+                        );
                         out.push_str(&creole_text(
                             g.x + 8,
                             y,
-                            "font-family=\"monospace\" font-size=\"12\"",
+                            &format!("class=\"puml-label\" {attrs} font-family=\"monospace\" font-size=\"12\""),
                             line,
                             &scene.style.arrow_color,
                         ));
@@ -238,7 +292,10 @@ pub fn render_svg(scene: &Scene) -> String {
                 out.push_str(&creole_text(
                     g.x + 8,
                     g.y + 14,
-                    &format!("font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}"),
+                    &format!(
+                        "class=\"puml-label\" {} font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}",
+                        sequence_label_attrs("group", "group-header", g.x + 8, g.y + 14, &header_text, 12, false)
+                    ),
                     &header_text,
                     header_font_color,
                 ));
@@ -259,7 +316,10 @@ pub fn render_svg(scene: &Scene) -> String {
                 out.push_str(&creole_text(
                     g.x + 8,
                     g.y + 14,
-                    &format!("font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}"),
+                    &format!(
+                        "class=\"puml-label\" {} font-family=\"monospace\" font-size=\"12\" {header_font_weight}{header_font_style_attr}",
+                        sequence_label_attrs("group", "group-header", g.x + 8, g.y + 14, &g.kind, 12, false)
+                    ),
                     &g.kind,
                     header_font_color,
                 ));
@@ -279,10 +339,19 @@ pub fn render_svg(scene: &Scene) -> String {
                 // Place the label above the dashed divider so it doesn't
                 // overlap the rule.  A baseline of sep.y - 4 sits just above
                 // the 1 px stroke and leaves a small gap.
+                let attrs = sequence_label_attrs(
+                    "group-separator",
+                    "separator-label",
+                    g.x + 8,
+                    sep.y - 14,
+                    label,
+                    11,
+                    false,
+                );
                 out.push_str(&creole_text(
                     g.x + 8,
                     sep.y - 14,
-                    "font-family=\"monospace\" font-size=\"11\" fill=\"#333\"",
+                    &format!("class=\"puml-label\" {attrs} font-family=\"monospace\" font-size=\"11\" fill=\"#333\""),
                     label,
                     "#333",
                 ));
@@ -413,6 +482,7 @@ pub fn render_svg(scene: &Scene) -> String {
                 hidden,
             );
         }
+        render_sequence_message_edge_hook(&mut out, m, is_self_loop);
         // Close sketch group (shaft + arrowheads only; labels are outside).
         if !sketch_attr.is_empty() {
             out.push_str("</g>");
@@ -443,10 +513,22 @@ pub fn render_svg(scene: &Scene) -> String {
                 line_y - 8 - (((m.label_lines.len() as i32) - 1) * MESSAGE_LABEL_LINE_GAP)
             };
             for (idx, line) in m.label_lines.iter().enumerate() {
+                let label_y = start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP);
+                let attrs = sequence_label_attrs(
+                    &sequence_message_id(m),
+                    "message-label",
+                    tx,
+                    label_y,
+                    line,
+                    12,
+                    anchor == "middle",
+                );
                 out.push_str(&creole_text(
                     tx,
-                    start_y + (idx as i32 * MESSAGE_LABEL_LINE_GAP),
-                    &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
+                    label_y,
+                    &format!(
+                        "class=\"puml-label\" {attrs} text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""
+                    ),
                     line,
                     &scene.style.arrow_color,
                 ));
@@ -460,25 +542,39 @@ pub fn render_svg(scene: &Scene) -> String {
             } else {
                 line_y - 8
             };
+            let attrs = sequence_label_attrs(
+                &sequence_message_id(m),
+                "message-label",
+                tx,
+                ty,
+                label,
+                12,
+                anchor == "middle",
+            );
             out.push_str(&creole_text(
                 tx,
                 ty,
-                &format!("text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""),
+                &format!(
+                    "class=\"puml-label\" {attrs} text-anchor=\"{anchor}\" font-family=\"monospace\" font-size=\"12\""
+                ),
                 label,
                 &scene.style.arrow_color,
             ));
         }
     }
 
-    for n in &scene.notes {
-        render_sequence_note_shape(&mut out, n.kind, n.x, n.y, n.width, n.height, scene);
+    for (idx, n) in scene.notes.iter().enumerate() {
+        let note_id = sequence_note_id(idx, n);
+        render_sequence_note_shape(&mut out, n, scene, &note_id);
 
         let mut text_y = n.y + 20;
         for line in n.text.lines() {
+            let attrs =
+                sequence_label_attrs(&note_id, "note-label", n.x + 8, text_y, line, 12, false);
             out.push_str(&creole_text(
                 n.x + 8,
                 text_y,
-                "font-family=\"monospace\" font-size=\"12\"",
+                &format!("class=\"puml-label\" {attrs} font-family=\"monospace\" font-size=\"12\""),
                 line,
                 &scene.style.arrow_color,
             ));
@@ -489,14 +585,35 @@ pub fn render_svg(scene: &Scene) -> String {
     for marker in &scene.lifecycle_markers {
         match marker.kind {
             LifecycleMarkerKind::Create => {
+                let marker_id = format!("create:{}", marker.participant_id);
+                let puml_attrs = super::puml_node_attrs(
+                    &marker_id,
+                    "sequence",
+                    "lifecycle-create",
+                    geometry_bbox(marker.x - 5, marker.y - 5, 10, 10),
+                );
                 out.push_str(&format!(
                     "<circle class=\"sequence-create\" data-participant=\"{}\" cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"#dcfce7\" stroke=\"#15803d\" stroke-width=\"1.5\"/>",
                     escape_text(&marker.participant_id),
                     marker.x,
                     marker.y
                 ));
+                out.push_str(&format!(
+                    "<circle class=\"puml-node\" data-participant=\"{}\" {} cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"none\" stroke=\"none\" pointer-events=\"none\"/>",
+                    escape_text(&marker.participant_id),
+                    puml_attrs,
+                    marker.x,
+                    marker.y
+                ));
             }
             LifecycleMarkerKind::Destroy => {
+                let marker_id = format!("destroy:{}", marker.participant_id);
+                let puml_attrs = super::puml_node_attrs(
+                    &marker_id,
+                    "sequence",
+                    "lifecycle-destroy",
+                    geometry_bbox(marker.x - 6, marker.y - 6, 12, 12),
+                );
                 out.push_str(&format!(
                     "<g class=\"sequence-destroy\" data-participant=\"{}\" stroke=\"#b91c1c\" stroke-width=\"2\"><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"/></g>",
                     escape_text(&marker.participant_id),
@@ -507,6 +624,13 @@ pub fn render_svg(scene: &Scene) -> String {
                     marker.x - 6,
                     marker.y + 6,
                     marker.x + 6,
+                    marker.y - 6
+                ));
+                out.push_str(&format!(
+                    "<rect class=\"puml-node\" data-participant=\"{}\" {} x=\"{}\" y=\"{}\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"none\" pointer-events=\"none\"/>",
+                    escape_text(&marker.participant_id),
+                    puml_attrs,
+                    marker.x - 6,
                     marker.y - 6
                 ));
             }
@@ -521,10 +645,22 @@ pub fn render_svg(scene: &Scene) -> String {
                     s.x1, s.y, s.x2, s.y
                 ));
                 if let Some(label) = &s.label {
-                    out.push_str(&creole_text(
-                        (s.x1 + s.x2) / 2,
+                    let tx = (s.x1 + s.x2) / 2;
+                    let attrs = sequence_label_attrs(
+                        "delay",
+                        "structure-label",
+                        tx,
                         s.y - 6,
-                        "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#444\"",
+                        label,
+                        11,
+                        true,
+                    );
+                    out.push_str(&creole_text(
+                        tx,
+                        s.y - 6,
+                        &format!(
+                            "class=\"puml-label\" {attrs} text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#444\""
+                        ),
                         label,
                         "#444",
                     ));
@@ -536,10 +672,22 @@ pub fn render_svg(scene: &Scene) -> String {
                     s.x1, s.y, s.x2, s.y
                 ));
                 if let Some(label) = &s.label {
-                    out.push_str(&creole_text(
-                        (s.x1 + s.x2) / 2,
+                    let tx = (s.x1 + s.x2) / 2;
+                    let attrs = sequence_label_attrs(
+                        "divider",
+                        "structure-label",
+                        tx,
                         s.y - 6,
-                        "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#333\"",
+                        label,
+                        11,
+                        true,
+                    );
+                    out.push_str(&creole_text(
+                        tx,
+                        s.y - 6,
+                        &format!(
+                            "class=\"puml-label\" {attrs} text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#333\""
+                        ),
                         label,
                         "#333",
                     ));
@@ -555,10 +703,22 @@ pub fn render_svg(scene: &Scene) -> String {
                 } else {
                     "== ==".to_string()
                 };
-                out.push_str(&creole_text(
-                    (s.x1 + s.x2) / 2,
+                let tx = (s.x1 + s.x2) / 2;
+                let attrs = sequence_label_attrs(
+                    "separator",
+                    "structure-label",
+                    tx,
                     s.y - 6,
-                    "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#222\"",
+                    &label,
+                    11,
+                    true,
+                );
+                out.push_str(&creole_text(
+                    tx,
+                    s.y - 6,
+                    &format!(
+                        "class=\"puml-label\" {attrs} text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" font-weight=\"600\" fill=\"#222\""
+                    ),
                     &label,
                     "#222",
                 ));
@@ -638,10 +798,13 @@ fn render_sequence_metadata_label(
 ) {
     out.push_str(&format!("<g class=\"{}\">", escape_text(class_name)));
     for (idx, line) in label.lines.iter().enumerate() {
+        let y = label.y + (idx as i32 * line_gap);
+        let semantic_attrs =
+            sequence_label_attrs("diagram", class_name, label.x, y, line, 12, false);
         out.push_str(&creole_text(
             label.x,
-            label.y + (idx as i32 * line_gap),
-            attrs,
+            y,
+            &format!("class=\"puml-label\" {semantic_attrs} {attrs}"),
             line,
             color,
         ));
@@ -700,6 +863,58 @@ fn sequence_message_label_anchor(x1: i32, x2: i32, align: MessageAlign) -> (i32,
         MessageAlign::Center => (((x1 + x2) / 2) + 2, "middle"),
         MessageAlign::Right => (right - 8, "end"),
     }
+}
+
+fn geometry_bbox(x: i32, y: i32, w: i32, h: i32) -> SceneRect {
+    SceneRect::new(x as f64, y as f64, w as f64, h as f64)
+}
+
+fn sequence_label_attrs(
+    owner: &str,
+    label_kind: &str,
+    x: i32,
+    y: i32,
+    text: &str,
+    font_size: i32,
+    middle_anchor: bool,
+) -> String {
+    let bbox = estimate_text_bbox(x as f64, y as f64, text, font_size as f64, middle_anchor);
+    super::puml_label_attrs(owner, label_kind, bbox)
+}
+
+fn sequence_message_id(m: &crate::scene::MessageLine) -> String {
+    format!("message:{}:{}:{}", m.from_id, m.to_id, m.route_y)
+}
+
+fn sequence_note_id(idx: usize, note: &crate::scene::NoteBox) -> String {
+    match &note.target_id {
+        Some(target) => format!("note:{idx}:{target}"),
+        None => format!("note:{idx}"),
+    }
+}
+
+fn render_sequence_message_edge_hook(
+    out: &mut String,
+    m: &crate::scene::MessageLine,
+    is_self_loop: bool,
+) {
+    let edge_id = sequence_message_id(m);
+    let puml_attrs = super::puml_edge_attrs(&edge_id, "sequence", "message", &m.from_id, &m.to_id);
+    let (x1, y1, x2, y2) = if is_self_loop {
+        (m.x1, m.route_y, m.x1, m.route_y + 32)
+    } else {
+        (m.x1, m.route_y, m.x2, m.route_y)
+    };
+    out.push_str(&format!(
+        "<line class=\"puml-edge\" data-sequence-from=\"{}\" data-sequence-to=\"{}\" {} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"none\" pointer-events=\"none\"/>",
+        escape_text(&m.from_id),
+        escape_text(&m.to_id),
+        puml_attrs,
+        x1,
+        y1,
+        x2,
+        y2
+    ));
 }
 
 fn is_response_message_arrow(arrow: &str) -> bool {
@@ -981,22 +1196,25 @@ fn render_legend(out: &mut String, text: &str, scene: &Scene) {
     }
 }
 
-fn render_sequence_note_shape(
-    out: &mut String,
-    kind: NoteKind,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    scene: &Scene,
-) {
+fn render_sequence_note_shape(out: &mut String, note: &NoteBox, scene: &Scene, note_id: &str) {
+    let x = note.x;
+    let y = note.y;
+    let width = note.width;
+    let height = note.height;
     let fill = &scene.style.note_background_color;
     let stroke = &scene.style.note_border_color;
-    match kind {
+    let puml_attrs = super::puml_node_attrs(
+        note_id,
+        "sequence",
+        "note",
+        geometry_bbox(x, y, width, height),
+    );
+    match note.kind {
         NoteKind::Folded => {
             let fold = 14.min(width / 4).min(height / 3).max(8);
             out.push_str(&format!(
-                "<path d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<path class=\"sequence-note puml-node\" {} d=\"M{x},{y} H{} L{} {} V{} H{x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                puml_attrs,
                 x + width - fold,
                 x + width,
                 y + fold,
@@ -1015,7 +1233,8 @@ fn render_sequence_note_shape(
         NoteKind::Hexagonal => {
             let cut = 16.min(width / 5).max(8);
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<polygon class=\"sequence-note puml-node\" {} points=\"{},{} {},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                puml_attrs,
                 x + cut,
                 y,
                 x + width - cut,
@@ -1034,7 +1253,8 @@ fn render_sequence_note_shape(
         }
         NoteKind::Rectangle => {
             out.push_str(&format!(
-                "<rect x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"0\" ry=\"0\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<rect class=\"sequence-note puml-node\" {} x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"0\" ry=\"0\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                puml_attrs,
                 fill,
                 stroke
             ));
@@ -1049,6 +1269,17 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
     let height = participant.height;
     let display_lines = &participant.display_lines;
     let cx = x + (width / 2);
+    let puml_attrs = super::puml_node_attrs(
+        &participant.id,
+        "sequence",
+        "participant",
+        geometry_bbox(x, y, width, height),
+    );
+    out.push_str(&format!(
+        "<g class=\"sequence-participant puml-node\" data-participant=\"{}\" {}>",
+        escape_text(&participant.id),
+        puml_attrs
+    ));
 
     match participant.role {
         ParticipantRole::Participant => {
@@ -1207,14 +1438,27 @@ fn render_participant_box(out: &mut String, participant: &ParticipantBox, scene:
 
     let participant_font_color = scene.style.participant_font_color_resolved();
     for (idx, line) in display_lines.iter().enumerate() {
+        let label_y = y + 21 + (idx as i32 * 16);
+        let attrs = sequence_label_attrs(
+            &participant.id,
+            "participant-label",
+            cx,
+            label_y,
+            line,
+            13,
+            true,
+        );
         out.push_str(&creole_text(
             cx,
-            y + 21 + (idx as i32 * 16),
-            "text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\"",
+            label_y,
+            &format!(
+                "class=\"puml-label\" {attrs} text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\""
+            ),
             line,
             participant_font_color,
         ));
     }
+    out.push_str("</g>");
 }
 
 fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: VirtualEndpointKind) {

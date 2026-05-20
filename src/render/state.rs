@@ -1,3 +1,4 @@
+use super::scene_graph::Rect as SceneRect;
 use super::*;
 use crate::model::StateTransition;
 
@@ -46,6 +47,63 @@ struct LabelBounds {
     y: i32,
     w: i32,
     h: i32,
+}
+
+fn state_geometry_bbox(x: i32, y: i32, w: i32, h: i32) -> SceneRect {
+    SceneRect::new(x as f64, y as f64, w as f64, h as f64)
+}
+
+fn state_label_bounds_centered(
+    cx: i32,
+    baseline_y: i32,
+    label: &str,
+    font_size: i32,
+) -> LabelBounds {
+    let char_w = (font_size * 3 / 5).max(6);
+    let w = (label.chars().count() as i32 * char_w).max(char_w);
+    let h = font_size + 3;
+    LabelBounds {
+        x: cx - w / 2,
+        y: baseline_y - font_size,
+        w,
+        h,
+    }
+}
+
+fn state_label_bounds_left(x: i32, baseline_y: i32, label: &str, font_size: i32) -> LabelBounds {
+    let char_w = (font_size * 3 / 5).max(6);
+    LabelBounds {
+        x,
+        y: baseline_y - font_size,
+        w: (label.chars().count() as i32 * char_w).max(char_w),
+        h: font_size + 3,
+    }
+}
+
+fn state_label_bbox(bounds: LabelBounds) -> SceneRect {
+    state_geometry_bbox(bounds.x, bounds.y, bounds.w, bounds.h)
+}
+
+fn puml_state_node_attrs(node: &StateNode, x: i32, y: i32, w: i32, h: i32) -> String {
+    puml_node_attrs(
+        &node.name,
+        "state",
+        state_node_kind_name(&node.kind),
+        state_geometry_bbox(x, y, w, h),
+    )
+}
+
+fn puml_state_edge_attrs(from: &str, to: &str) -> String {
+    let id = state_edge_id(from, to);
+    puml_edge_attrs(&id, "state", "transition", from, to)
+}
+
+fn state_edge_id(from: &str, to: &str) -> String {
+    format!("state:{from}->{to}")
+}
+
+fn puml_state_label_attrs(owner: &str, kind: &str, bounds: LabelBounds) -> String {
+    puml_label_attrs(owner, kind, state_label_bbox(bounds))
 }
 
 pub fn render_state_svg(document: &StateDocument) -> String {
@@ -580,7 +638,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 let cpx = x1 + loop_rx;
                 let cpy = y1 - loop_ry;
                 out.push_str(&format!(
-                    "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    "<path class=\"state-transition puml-edge\" {} data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    puml_state_edge_attrs(&t.from, &t.to),
                     escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                 ));
                 if let Some(label) = &t.label {
@@ -596,6 +655,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     render_state_transition_label(
                         &mut out,
                         &layout,
+                        &state_edge_id(&t.from, &t.to),
                         label,
                         &state_style.font_color,
                     );
@@ -608,7 +668,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 let cpx = (ox1 + ox2) / 2;
                 let cpy = (oy1 + oy2) / 2;
                 out.push_str(&format!(
-                    "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {} {} Q {} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    "<path class=\"state-transition puml-edge\" {} data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {} {} Q {} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                    puml_state_edge_attrs(&t.from, &t.to),
                     escape_text(&t.from), escape_text(&t.to),
                     ox1, oy1, cpx, cpy, ox2, oy2,
                     stroke, sw, dash, hidden, dir
@@ -626,6 +687,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     render_state_transition_label(
                         &mut out,
                         &layout,
+                        &state_edge_id(&t.from, &t.to),
                         label,
                         &state_style.font_color,
                     );
@@ -661,7 +723,13 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                     &placed,
                     &occupied_label_bounds,
                 );
-                render_state_transition_label(&mut out, &layout, label, &state_style.font_color);
+                render_state_transition_label(
+                    &mut out,
+                    &layout,
+                    &state_edge_id(&t.from, &t.to),
+                    label,
+                    &state_style.font_color,
+                );
                 occupied_label_bounds.push(layout.bounds);
             }
         }
@@ -1135,7 +1203,8 @@ fn emit_state_orthogonal_path(
         format!("M {x1} {y1} L {x1} {mid_y} L {x2} {mid_y} L {x2} {y2}")
     };
     out.push_str(&format!(
-        "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+        "<path class=\"state-transition puml-edge\" {} data-state-from=\"{}\" data-state-to=\"{}\" d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+        puml_state_edge_attrs(from_name, to_name),
         escape_text(from_name),
         escape_text(to_name),
         d,
@@ -1383,11 +1452,13 @@ fn bounds_overlap(a: LabelBounds, b: LabelBounds, padding: i32) -> bool {
 fn render_state_transition_label(
     out: &mut String,
     layout: &StateLabelLayout,
+    owner: &str,
     original_label: &str,
     font_color: &str,
 ) {
     out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\" data-state-label=\"{}\">",
+        "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\" data-state-label=\"{}\">",
+        puml_state_label_attrs(owner, "edge-label", layout.bounds),
         layout.cx,
         layout.top + 11,
         escape_text(font_color),
@@ -1549,7 +1620,8 @@ fn render_node<'a>(
             if incoming_count > 0 && outgoing_count == 0 {
                 // End variant: outer ring + inner dot
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    "<circle class=\"puml-node\" {} cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    puml_state_node_attrs(node, x, y, w, h),
                     cx, cy, r, state_style.background_color, state_style.border_color
                 ));
                 out.push_str(&format!(
@@ -1559,8 +1631,12 @@ fn render_node<'a>(
             } else {
                 // Start variant: filled circle
                 out.push_str(&format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\"/>",
-                    cx, cy, r, state_style.start_color
+                    "<circle class=\"puml-node\" {} cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\"/>",
+                    puml_state_node_attrs(node, x, y, w, h),
+                    cx,
+                    cy,
+                    r,
+                    state_style.start_color
                 ));
             }
         }
@@ -1569,7 +1645,8 @@ fn render_node<'a>(
             let cx = x + w / 2;
             let cy = y + h / 2;
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                "<circle class=\"puml-node\" {} cx=\"{}\" cy=\"{}\" r=\"12\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                puml_state_node_attrs(node, x, y, w, h),
                 cx, cy, state_style.background_color, state_style.border_color
             ));
             out.push_str(&format!(
@@ -1583,11 +1660,14 @@ fn render_node<'a>(
             let cy = y + h / 2;
             let label = node.display.as_deref().unwrap_or("H");
             out.push_str(&format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"16\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                "<circle class=\"puml-node\" {} cx=\"{}\" cy=\"{}\" r=\"16\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                puml_state_node_attrs(node, x, y, w, h),
                 cx, cy, state_style.background_color, state_style.border_color
             ));
+            let label_bounds = state_label_bounds_centered(cx, cy, label, 13);
             out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
+                "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"{}\">{}</text>",
+                puml_state_label_attrs(&node.name, "node-label", label_bounds),
                 cx, cy, state_style.font_color, escape_text(label)
             ));
         }
@@ -1596,7 +1676,8 @@ fn render_node<'a>(
             // UML spec: thick horizontal bar; no text label
             let bar_h = 8i32;
             out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"/>",
+                "<rect class=\"puml-node\" {} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"/>",
+                puml_state_node_attrs(node, x, y, w, h),
                 x,
                 y + h / 2 - bar_h / 2,
                 w,
@@ -1611,7 +1692,8 @@ fn render_node<'a>(
             let cy = y + h / 2;
             let r = (w / 2).min(h / 2) - 2;
             out.push_str(&format!(
-                "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                "<polygon class=\"puml-node\" {} points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                puml_state_node_attrs(node, x, y, w, h),
                 cx, cy - r,
                 cx + r, cy,
                 cx, cy + r,
@@ -1628,13 +1710,17 @@ fn render_node<'a>(
                 // ── Composite state ──────────────────────────────────────────
                 // Draw the enclosing rounded-rect box
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    "<rect class=\"puml-node\" {} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    puml_state_node_attrs(node, x, y, w, h),
                     x, y, w, h, state_style.background_color, state_style.border_color
                 ));
                 // Composite name label at top-center
+                let title_y = y + 20;
+                let title_bounds = state_label_bounds_centered(x + w / 2, title_y, display, 13);
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    x + w / 2, y + 20, state_style.font_color, escape_text(display)
+                    "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    puml_state_label_attrs(&node.name, "node-label", title_bounds),
+                    x + w / 2, title_y, state_style.font_color, escape_text(display)
                 ));
 
                 // Draw concurrent region dividers (dashed vertical lines)
@@ -1748,7 +1834,8 @@ fn render_node<'a>(
                             let cpx = x1 + 18;
                             let cpy = y1 - 14;
                             out.push_str(&format!(
-                                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                "<path class=\"state-transition puml-edge\" {} data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {x1} {y1} Q {cpx} {cpy} {x2} {y2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                puml_state_edge_attrs(&t.from, &t.to),
                                 escape_text(&t.from), escape_text(&t.to), stroke, sw, dash, hidden, dir
                             ));
                         } else if has_reverse {
@@ -1756,7 +1843,8 @@ fn render_node<'a>(
                             let cpx = (ox1 + ox2) / 2;
                             let cpy = (oy1 + oy2) / 2;
                             out.push_str(&format!(
-                                "<path class=\"state-transition\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {} {} Q {} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                "<path class=\"state-transition puml-edge\" {} data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {} {} Q {} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{} marker-end=\"url(#arrow)\"/>",
+                                puml_state_edge_attrs(&t.from, &t.to),
                                 escape_text(&t.from), escape_text(&t.to),
                                 ox1, oy1, cpx, cpy, ox2, oy2,
                                 stroke, sw, dash, hidden, dir
@@ -1774,6 +1862,7 @@ fn render_node<'a>(
                                 render_state_transition_label(
                                     out,
                                     &layout,
+                                    &state_edge_id(&t.from, &t.to),
                                     label,
                                     &state_style.font_color,
                                 );
@@ -1811,6 +1900,7 @@ fn render_node<'a>(
                             render_state_transition_label(
                                 out,
                                 &layout,
+                                &state_edge_id(&t.from, &t.to),
                                 label,
                                 &state_style.font_color,
                             );
@@ -1849,12 +1939,16 @@ fn render_node<'a>(
             } else {
                 // ── Simple state box ─────────────────────────────────────────
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    "<rect class=\"puml-node\" {} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    puml_state_node_attrs(node, x, y, w, h),
                     x, y, w, h, state_style.background_color, state_style.border_color
                 ));
+                let label_y = y + 24;
+                let label_bounds = state_label_bounds_centered(x + w / 2, label_y, display, 13);
                 out.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    x + w / 2, y + 24, state_style.font_color, escape_text(display)
+                    "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
+                    puml_state_label_attrs(&node.name, "node-label", label_bounds),
+                    x + w / 2, label_y, state_style.font_color, escape_text(display)
                 ));
                 // Internal actions
                 if !node.internal_actions.is_empty() {
@@ -1869,9 +1963,13 @@ fn render_node<'a>(
                         } else {
                             format!("{} / {}", action.kind, action.action)
                         };
+                        let action_x = x + 6;
+                        let action_y = ay + 10;
+                        let action_bounds = state_label_bounds_left(action_x, action_y, &text, 10);
                         out.push_str(&format!(
-                            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
-                            x + 6, ay + 10, state_style.font_color, escape_text(&text)
+                            "<text class=\"puml-label\" {} x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
+                            puml_state_label_attrs(&node.name, "state-action", action_bounds),
+                            action_x, action_y, state_style.font_color, escape_text(&text)
                         ));
                     }
                 }

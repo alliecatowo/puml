@@ -1,7 +1,70 @@
 mod svg_test_helpers;
 
 use puml::render_source_to_svg;
-use svg_test_helpers::{bounds, f64_attr, SvgDoc};
+use svg_test_helpers::{attr, bounds, f64_attr, has_class, SvgDoc};
+
+#[test]
+fn state_renderer_emits_canonical_puml_semantic_hooks() {
+    let src = r#"@startuml
+state Idle
+[*] --> Idle : start
+Idle --> Done : finish
+Done --> [*]
+@enduml"#;
+
+    let svg = render_source_to_svg(src).expect("state svg should render");
+    let doc = SvgDoc::parse(&svg);
+
+    let idle_node = doc
+        .elements_with_class_any_tag("puml-node")
+        .into_iter()
+        .find(|node| node.attribute("data-puml-id") == Some("Idle"))
+        .expect("Idle state should expose a canonical puml-node hook");
+    assert_eq!(attr(idle_node, "data-puml-family"), "state");
+    assert_eq!(attr(idle_node, "data-puml-kind"), "normal");
+    assert!(idle_node.attribute("data-puml-bbox").is_some());
+
+    let start_edge = doc
+        .elements_with_attr("path", "data-state-label", "start")
+        .into_iter()
+        .next();
+    assert!(
+        start_edge.is_none(),
+        "transition labels should keep data-state-label on text, not paths"
+    );
+
+    let start_transition = doc
+        .elements_with_attr("path", "data-state-from", "[*]")
+        .into_iter()
+        .find(|node| node.attribute("data-state-to") == Some("Idle"))
+        .expect("initial transition should keep state attrs");
+    assert!(has_class(start_transition, "state-transition"));
+    assert!(has_class(start_transition, "puml-edge"));
+    assert_eq!(attr(start_transition, "data-puml-family"), "state");
+    assert_eq!(attr(start_transition, "data-puml-edge-kind"), "transition");
+    assert_eq!(attr(start_transition, "data-puml-from"), "[*]");
+    assert_eq!(attr(start_transition, "data-puml-to"), "Idle");
+
+    let idle_label = doc
+        .elements_with_class_any_tag("puml-label")
+        .into_iter()
+        .find(|node| {
+            node.has_tag_name("text")
+                && node.attribute("data-puml-owner") == Some("Idle")
+                && node.attribute("data-puml-label-kind") == Some("node-label")
+        })
+        .expect("Idle state label should expose a canonical puml-label hook");
+    assert!(has_class(idle_label, "puml-label"));
+    assert_eq!(attr(idle_label, "data-puml-owner"), "Idle");
+    assert_eq!(attr(idle_label, "data-puml-label-kind"), "node-label");
+    assert!(idle_label.attribute("data-puml-bbox").is_some());
+
+    let transition_label = doc.first_with_attr("text", "data-state-label", "start");
+    assert!(has_class(transition_label, "puml-label"));
+    assert_eq!(attr(transition_label, "data-puml-owner"), "state:[*]->Idle");
+    assert_eq!(attr(transition_label, "data-puml-label-kind"), "edge-label");
+    assert!(transition_label.attribute("data-puml-bbox").is_some());
+}
 
 #[test]
 fn composite_state_scopes_internal_start_and_end_pseudostates() {

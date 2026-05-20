@@ -2,7 +2,7 @@ mod svg_test_helpers;
 
 use puml::parser::{parse_with_options, ParseOptions};
 use puml::{render_source_to_svg_for_family, DiagramFamily, NormalizedDocument};
-use svg_test_helpers::{attr, bounds, SvgDoc};
+use svg_test_helpers::{attr, bounds, has_class, SvgDoc};
 
 #[test]
 fn chart_axes_named_series_arrays_and_legend_render() {
@@ -244,11 +244,18 @@ legend position bottom left background #f8fafc border #334155 text #111827
 
     let svg = render_source_to_svg_for_family(src, DiagramFamily::Chart)
         .expect("pie slice-level legend chart should render");
-    assert!(svg.contains("class=\"chart-pie-slice\""));
+    let doc = SvgDoc::parse(&svg);
+    let pie_slice = doc.first_with_attr("path", "data-chart-slice", "Frontend");
+    assert!(has_class(pie_slice, "chart-pie-slice"));
+    assert!(has_class(pie_slice, "puml-node"));
+    assert_eq!(attr(pie_slice, "data-puml-kind"), "chart-pie-slice");
     assert!(svg.contains("data-chart-slice=\"Frontend\""));
     assert!(svg.contains("data-chart-value=\"35\""));
     assert!(svg.contains("data-chart-percent=\"35%\""));
-    assert!(svg.contains("class=\"chart-pie-label\""));
+    let pie_label = doc.first_with_attr("text", "data-chart-slice-label", "Frontend");
+    assert!(has_class(pie_label, "chart-pie-label"));
+    assert!(has_class(pie_label, "puml-label"));
+    assert_eq!(attr(pie_label, "data-puml-label-kind"), "slice-label");
     assert!(svg.contains(">Frontend 35%</text>"));
     assert!(svg.contains("data-chart-legend=\"bottom-left\""));
     assert!(svg.contains("class=\"chart-legend-swatch\""));
@@ -272,7 +279,10 @@ legend at top center background #f8fafc border #0f172a text #111827
         .expect("chart axis semantic ticks should render");
     let doc = SvgDoc::parse(&svg);
     let tick = doc.first_with_attr("text", "data-chart-axis-tick", "5");
-    assert_eq!(attr(tick, "class"), "chart-axis-tick chart-axis-tick-v");
+    assert!(has_class(tick, "chart-axis-tick"));
+    assert!(has_class(tick, "chart-axis-tick-v"));
+    assert!(has_class(tick, "puml-label"));
+    assert_eq!(attr(tick, "data-puml-label-kind"), "axis-tick");
     assert!(!doc
         .elements_with_class("line", "chart-axis-grid-h")
         .is_empty());
@@ -313,9 +323,15 @@ line \"Actual\" [3,8]
 ";
     let line_svg = render_source_to_svg_for_family(line, DiagramFamily::Chart)
         .expect("line value labels should render");
+    let line_doc = SvgDoc::parse(&line_svg);
     assert!(line_svg.contains("data-chart-label-mode=\"value\""));
-    assert!(line_svg.contains("class=\"chart-point\" data-chart-value=\"8\""));
-    assert!(line_svg.contains("class=\"chart-value-label\""));
+    let point = line_doc.first_with_attr("circle", "data-chart-value", "8");
+    assert!(has_class(point, "chart-point"));
+    assert!(has_class(point, "puml-node"));
+    assert_eq!(attr(point, "data-puml-kind"), "chart-point");
+    assert!(!line_doc
+        .elements_with_class("text", "chart-value-label")
+        .is_empty());
 }
 
 #[test]

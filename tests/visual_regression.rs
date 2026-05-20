@@ -176,8 +176,11 @@ impl ExpectedCount {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GeometryProfile {
+    Basic,
     Graph,
     Chart,
+    Tree,
+    Timeline,
     StructuralOnly,
     Unsupported,
 }
@@ -189,13 +192,24 @@ impl<'de> Deserialize<'de> for GeometryProfile {
     {
         let raw = String::deserialize(deserializer)?;
         match raw.as_str() {
+            "basic" => Ok(Self::Basic),
             "graph" => Ok(Self::Graph),
             "chart" => Ok(Self::Chart),
+            "tree" => Ok(Self::Tree),
+            "timeline" => Ok(Self::Timeline),
             "structural-only" => Ok(Self::StructuralOnly),
             "unsupported" => Ok(Self::Unsupported),
             other => Err(serde::de::Error::unknown_variant(
                 other,
-                &["graph", "chart", "structural-only", "unsupported"],
+                &[
+                    "basic",
+                    "graph",
+                    "chart",
+                    "tree",
+                    "timeline",
+                    "structural-only",
+                    "unsupported",
+                ],
             )),
         }
     }
@@ -864,27 +878,16 @@ fn append_geometry_profile_failures(
 ) {
     match fixture.geometry_profile {
         None | Some(GeometryProfile::StructuralOnly | GeometryProfile::Unsupported) => {}
-        Some(GeometryProfile::Chart) => {
-            let semantic = validate::check_semantic_bboxes_inside_viewbox(svg);
-            if semantic.is_empty() {
-                return;
-            }
-
-            let details = semantic
-                .iter()
-                .take(3)
-                .map(|violation| violation.message.as_str())
-                .collect::<Vec<_>>()
-                .join(" | ");
-            reasons.push(format!(
-                "chart geometry profile failed: {} semantic bbox violation(s)",
-                semantic.len()
-            ));
-            if !details.is_empty() {
-                reasons.push(format!("first chart geometry violations: {details}"));
-            }
+        Some(
+            GeometryProfile::Basic
+            | GeometryProfile::Chart
+            | GeometryProfile::Tree
+            | GeometryProfile::Timeline,
+        ) => {
+            append_semantic_bbox_failures(svg, fixture.geometry_profile.unwrap(), reasons);
         }
         Some(GeometryProfile::Graph) => {
+            append_semantic_bbox_failures(svg, GeometryProfile::Graph, reasons);
             let node_count = doc.class_count("puml-node") + doc.class_count("uml-node");
             let edge_count = doc.class_count("puml-edge") + doc.class_count("uml-relation");
             if node_count == 0 || edge_count == 0 {
@@ -916,6 +919,43 @@ fn append_geometry_profile_failures(
                 reasons.push(format!("first geometry violations: {details}"));
             }
         }
+    }
+}
+
+fn append_semantic_bbox_failures(svg: &str, profile: GeometryProfile, reasons: &mut Vec<String>) {
+    let semantic = validate::check_semantic_bboxes_inside_viewbox(svg);
+    if semantic.is_empty() {
+        return;
+    }
+
+    let details = semantic
+        .iter()
+        .take(3)
+        .map(|violation| violation.message.as_str())
+        .collect::<Vec<_>>()
+        .join(" | ");
+    reasons.push(format!(
+        "{} geometry profile failed: {} semantic bbox violation(s)",
+        geometry_profile_name(profile),
+        semantic.len()
+    ));
+    if !details.is_empty() {
+        reasons.push(format!(
+            "first {} geometry violations: {details}",
+            geometry_profile_name(profile)
+        ));
+    }
+}
+
+fn geometry_profile_name(profile: GeometryProfile) -> &'static str {
+    match profile {
+        GeometryProfile::Basic => "basic",
+        GeometryProfile::Graph => "graph",
+        GeometryProfile::Chart => "chart",
+        GeometryProfile::Tree => "tree",
+        GeometryProfile::Timeline => "timeline",
+        GeometryProfile::StructuralOnly => "structural-only",
+        GeometryProfile::Unsupported => "unsupported",
     }
 }
 
