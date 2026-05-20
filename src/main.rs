@@ -1,4 +1,5 @@
 mod cli;
+mod cli_diff;
 mod cli_hash;
 
 use clap::{CommandFactory, FromArgMatches};
