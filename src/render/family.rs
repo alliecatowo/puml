@@ -2915,6 +2915,11 @@ struct BoxGridPendingLabel {
     color: String,
     from_name: String,
     to_name: String,
+    /// Edge start/end coordinates used for fractional label placement (source fan-out pass).
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
 }
 
 /// Render all edges (Phase 2) and de-collide their labels (Phase 3) for
@@ -3342,6 +3347,10 @@ fn render_box_grid_relations_and_labels(
                 color: label_color.to_string(),
                 from_name: from_name.clone(),
                 to_name: to_name.clone(),
+                x1,
+                y1,
+                x2,
+                y2,
             });
         }
         if let Some(left) = &rel.left_cardinality {
@@ -3409,6 +3418,42 @@ fn render_box_grid_relations_and_labels(
                 pending_labels[raw_idx].text.clone(),
                 pending_labels[raw_idx].color.clone(),
             ));
+        }
+    }
+
+    // Source fan-out: when ≥2 labelled edges leave the same source node their labels
+    // cluster near the source port.  Place each label at a staggered fraction along its
+    // own edge (30%–70%) so they spread out rather than stacking at one point.
+    {
+        let mut by_source: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, pl) in pending_labels.iter().enumerate() {
+            if adjusted_labels[i].is_none() {
+                by_source.entry(pl.from_name.clone()).or_default().push(i);
+            }
+        }
+        for group in by_source.values() {
+            if group.len() < 2 {
+                continue;
+            }
+            let mut sorted = group.clone();
+            sorted.sort_unstable();
+            let count = sorted.len();
+            for (slot, &raw_idx) in sorted.iter().enumerate() {
+                let pl = &pending_labels[raw_idx];
+                let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
+                let dx = pl.x2 - pl.x1;
+                let dy = pl.y2 - pl.y1;
+                let lx = pl.x1 + (dx as f64 * frac) as i32;
+                let ly = pl.y1 + (dy as f64 * frac) as i32 - 12;
+                // Side-nudge away from the arrow shaft.
+                let (lx, ly) = if dy.abs() > dx.abs() {
+                    (lx + 14, ly)
+                } else {
+                    (lx, ly - 2)
+                };
+                adjusted_labels[raw_idx] = Some((lx, ly, pl.text.clone(), pl.color.clone()));
+            }
         }
     }
 
