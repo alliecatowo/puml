@@ -173,6 +173,21 @@ pub struct Cli {
 pub enum Command {
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
+    /// Print build and runtime information (version, profile, arch, families, stdlib path).
+    About(AboutArgs),
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum AboutFormat {
+    Human,
+    Json,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct AboutArgs {
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = AboutFormat::Human)]
+    pub format: AboutFormat,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -338,6 +353,7 @@ mod tests {
                     vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
                 );
             }
+            Command::About(_) => panic!("expected Format command"),
         }
     }
 
