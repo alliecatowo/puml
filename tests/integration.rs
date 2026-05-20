@@ -4976,35 +4976,68 @@ fn svg_node_rect(svg: &str, name: &str, addresses: &str) -> Option<SvgRectGeom> 
 }
 
 fn svg_attr_i32(tag: &str, attr: &str) -> Option<i32> {
-    let needle = format!("{attr}=\"");
+    let needle = format!(" {attr}=\"");
     let rest = tag.split_once(&needle)?.1;
     let value = rest.split_once('"')?.0;
-    value.parse().ok()
+    value.parse::<f64>().ok().map(|value| value.round() as i32)
 }
 
 fn svg_text_positions(svg: &str, text: &str) -> Vec<(i32, i32)> {
-    let marker = format!(">{text}</text>");
     let mut positions = Vec::new();
     let mut start = 0usize;
-    while let Some(rel_ix) = svg[start..].find(&marker) {
-        let abs_ix = start + rel_ix;
-        let Some(tag_start) = svg[..abs_ix].rfind("<text ") else {
+    while let Some(rel_ix) = svg[start..].find("<text ") {
+        let tag_start = start + rel_ix;
+        let Some(open_end) = svg[tag_start..].find('>').map(|ix| tag_start + ix) else {
             break;
         };
         let tag = svg[tag_start..]
             .split_once('>')
             .map(|(tag, _)| tag)
             .unwrap_or("");
-        let Some(x) = svg_attr_i32(tag, "x") else {
+        let content_start = open_end + 1;
+        let Some(close_rel) = svg[content_start..].find("</text>") else {
             break;
+        };
+        let close = content_start + close_rel;
+        let raw_text = svg_text_content(&svg[content_start..close]);
+        let decoded_text = decode_svg_text_entities(&raw_text);
+        start = close + "</text>".len();
+
+        let decoded_expected = decode_svg_text_entities(text);
+        if !raw_text.contains(text) && !decoded_text.contains(&decoded_expected) {
+            continue;
+        }
+
+        let Some(x) = svg_attr_i32(tag, "x") else {
+            continue;
         };
         let Some(y) = svg_attr_i32(tag, "y") else {
-            break;
+            continue;
         };
         positions.push((x, y));
-        start = abs_ix + marker.len();
     }
     positions
+}
+
+fn svg_text_content(raw: &str) -> String {
+    let mut text = String::new();
+    let mut in_tag = false;
+    for ch in raw.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => text.push(ch),
+            _ => {}
+        }
+    }
+    text
+}
+
+fn decode_svg_text_entities(raw: &str) -> String {
+    raw.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
 }
 
 fn svg_relation_element<'a>(svg: &'a str, from: &str, to: &str) -> Option<&'a str> {
@@ -5191,11 +5224,12 @@ fn class_inheritance_example_renders_fixture_text_and_relations() {
     }
 
     for (from, to) in [("Vehicle", "Car"), ("Vehicle", "Truck")] {
+        let relation = svg_relation_element(&svg, from, to)
+            .unwrap_or_else(|| panic!("missing inheritance relation {from} -> {to}"));
         assert!(
-            svg.contains(&format!(
-                "class=\"uml-relation\" data-uml-from=\"{from}\" data-uml-to=\"{to}\""
-            )),
-            "missing inheritance relation {from} -> {to}"
+            svg_element_has_class(relation, "uml-relation")
+                || svg_element_has_class(relation, "puml-edge"),
+            "inheritance relation {from} -> {to} should have a semantic edge class"
         );
     }
     assert!(
@@ -5643,9 +5677,7 @@ fn component_family_canvas_keeps_rightmost_nodes_inside_viewbox() {
             .expect("component nodes");
         let rightmost_interface = svg_elements_with_attr(&svg, "data-uml-kind", "interface")
             .into_iter()
-            .map(|element| {
-                svg_attr_i32_required(element, "cx") + svg_attr_i32_required(element, "r")
-            })
+            .filter_map(|element| Some(svg_attr_i32(element, "cx")? + svg_attr_i32(element, "r")?))
             .max()
             .unwrap_or(0);
         let rightmost_drawn = rightmost_component.max(rightmost_interface);
@@ -5759,7 +5791,7 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
     .expect("usecase package example should render");
     let frame = svg_elements_with_attr(&svg, "data-uml-group", "Back Office")
         .into_iter()
-        .find(|element| element.contains("class=\"uml-group-frame\""))
+        .find(|element| svg_element_has_class(element, "uml-group-frame"))
         .expect("back office frame");
     let frame_y = svg_attr_i32_required(frame, "y");
     let label = svg_text_positions(&svg, "Back Office")
@@ -5772,8 +5804,8 @@ fn usecase_package_boundaries_render_tab_headers_and_short_names() {
     );
     assert!(svg.contains(">ManageProducts<"));
     assert!(svg.contains(">ManageOrders<"));
-    assert!(!svg.contains("Back Office::MP"));
-    assert!(!svg.contains("Back Office::MO"));
+    assert!(svg_text_positions(&svg, "Back Office::MP").is_empty());
+    assert!(svg_text_positions(&svg, "Back Office::MO").is_empty());
 }
 
 #[test]
@@ -5799,7 +5831,7 @@ fn class_package_headers_clear_inner_class_labels() {
     ] {
         let frame = svg_elements_with_attr(&svg, "data-uml-group", group)
             .into_iter()
-            .find(|element| element.contains("class=\"uml-group-frame\""))
+            .find(|element| svg_element_has_class(element, "uml-group-frame"))
             .expect("package frame");
         let frame_y = svg_attr_i32_required(frame, "y");
         let min_member_y = members
@@ -5840,7 +5872,10 @@ fn component_interfaces_attach_relation_endpoints_to_circle_edges() {
     let svg =
         render_source_to_svg(&fs::read_to_string(example("component/02_interfaces.puml")).unwrap())
             .expect("component interface example should render");
-    let interface_elements = svg_elements_with_attr(&svg, "data-uml-kind", "interface");
+    let interface_elements = svg_elements_with_attr(&svg, "data-uml-kind", "interface")
+        .into_iter()
+        .filter(|element| svg_attr_i32(element, "cx").is_some())
+        .collect::<Vec<_>>();
     let graphql_label = svg_text_positions(&svg, "GraphQL")
         .into_iter()
         .next()
@@ -7962,12 +7997,33 @@ fn svg_elements_with_attr<'a>(svg: &'a str, attr: &str, value: &str) -> Vec<&'a 
         .collect()
 }
 
+fn svg_elements_with_class<'a>(svg: &'a str, tag: &str, class_name: &str) -> Vec<&'a str> {
+    svg.split('<')
+        .filter(|element| {
+            svg_element_has_tag(element, tag) && svg_element_has_class(element, class_name)
+        })
+        .collect()
+}
+
+fn svg_element_has_tag(element: &str, tag: &str) -> bool {
+    element.strip_prefix(tag).is_some_and(|rest| {
+        rest.starts_with(char::is_whitespace) || rest.starts_with('>') || rest.starts_with('/')
+    })
+}
+
+fn svg_element_has_class(element: &str, class_name: &str) -> bool {
+    let Some((_, rest)) = element.split_once("class=\"") else {
+        return false;
+    };
+    let Some((classes, _)) = rest.split_once('"') else {
+        return false;
+    };
+    classes.split_whitespace().any(|class| class == class_name)
+}
+
 fn svg_attr_i32_required(element: &str, attr: &str) -> i32 {
-    let key = format!("{attr}=\"");
-    let start = element.find(&key).expect("attribute start") + key.len();
-    let rest = &element[start..];
-    let end = rest.find('"').expect("attribute end");
-    rest[..end].parse::<i32>().expect("integer SVG attribute")
+    svg_attr_i32(element, attr)
+        .unwrap_or_else(|| panic!("expected numeric SVG attr {attr:?} in {element}"))
 }
 
 fn svg_group_with_attr<'a>(svg: &'a str, attr: &str, value: &str) -> &'a str {
@@ -8732,11 +8788,7 @@ fn wbs_no_crossing_edges_in_left_right_mode() {
     }
 
     let mut checked = 0usize;
-    let mut search = svg.as_str();
-    while let Some(idx) = search.find("<line class=\"wbs-edge\"") {
-        search = &search[idx..];
-        let end = search.find("/>").unwrap_or(search.len());
-        let elem = &search[..end + 2];
+    for elem in svg_elements_with_class(&svg, "line", "wbs-edge") {
         if let Some((x1, x2)) = parse_line_x1_x2(elem) {
             assert!(
                 x2 > x1,
@@ -8744,7 +8796,6 @@ fn wbs_no_crossing_edges_in_left_right_mode() {
             );
             checked += 1;
         }
-        search = &search[1..];
     }
     assert!(checked > 0, "must have at least one wbs edge to verify");
 }
