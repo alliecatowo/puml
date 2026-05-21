@@ -2380,6 +2380,9 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
                 "end_date": end_date
             }
         }),
+        StatementKind::GanttNamedDate { date, label } => {
+            json!({"GanttNamedDate": {"date": date, "label": label}})
+        }
         StatementKind::ChronologyHappensOn { subject, when } => {
             json!({"ChronologyHappensOn": {"subject": subject, "when": when}})
         }
@@ -2655,6 +2658,11 @@ fn timeline_model_to_json(model: &TimelineDocument) -> Value {
             .open_ranges
             .iter()
             .map(|r| json!({"start_date": r.start_date, "end_date": r.end_date, "start_day": r.start_day, "end_day": r.end_day}))
+            .collect::<Vec<_>>(),
+        "named_dates": model
+            .named_dates
+            .iter()
+            .map(|n| json!({"date": n.date, "label": n.label, "day": n.day}))
             .collect::<Vec<_>>(),
         "chronology_events": model
             .chronology_events

@@ -803,6 +803,31 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         note_y += h + 8;
     }
 
+    // Named-date markers: vertical line + rotated label at the top of the chart
+    for named in &document.named_dates {
+        if named.day < min_day {
+            continue;
+        }
+        let x = day_to_x(named.day);
+        if x < chart_left || x > chart_right {
+            continue;
+        }
+        out.push_str(&format!(
+            "<line class=\"gantt-named-date\" data-gantt-date=\"{}\" x1=\"{x}\" y1=\"{}\" x2=\"{x}\" y2=\"{}\" stroke=\"#b45309\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\"/>",
+            escape_text(&named.date),
+            chart_top - header_h,
+            chart_top + chart_h
+        ));
+        out.push_str(&format!(
+            "<text class=\"gantt-named-date-label\" x=\"{}\" y=\"{}\" transform=\"rotate(-45,{},{})\" font-family=\"monospace\" font-size=\"10\" fill=\"#92400e\">{}</text>",
+            x + 3,
+            chart_top - header_h + 2,
+            x + 3,
+            chart_top - header_h + 2,
+            escape_text(&named.label)
+        ));
+    }
+
     out.push_str("</svg>");
     out
 }

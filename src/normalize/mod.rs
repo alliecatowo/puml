@@ -18,10 +18,10 @@ use crate::model::{
     SequenceMessageStyle, SequencePage, StateDocument,
     StateInternalAction as ModelStateInternalAction, StateNode, StateNodeKind, StateNodeStyle,
     StateTransition as ModelStateTransition, TimelineChronologyEvent, TimelineClosedRange,
-    TimelineConstraint, TimelineDayMarker, TimelineDocument, TimelineMilestone, TimelineNote,
-    TimelineOpenRange, TimelineResourceAllocation, TimelineResourceOffRange, TimelineSeparator,
-    TimelineTask, VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox,
-    YamlDocument, YamlTreeNode,
+    TimelineDocument, TimelineMilestone, TimelineNamedDate, TimelineNote, TimelineOpenRange,
+    TimelineResourceAllocation, TimelineResourceOffRange, TimelineSeparator, TimelineTask,
+    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument,
+    YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{

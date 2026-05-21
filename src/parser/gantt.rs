@@ -98,6 +98,9 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             target,
         });
     }
+    if let Some(kind) = parse_gantt_named_date(trimmed) {
+        return Some(kind);
+    }
     if let Some(compound) = parse_gantt_then_statement(trimmed) {
         return Some(compound);
     }
@@ -762,4 +765,23 @@ fn is_iso_date_literal(raw: &str) -> bool {
     y.chars().all(|c| c.is_ascii_digit())
         && m.chars().all(|c| c.is_ascii_digit())
         && d.chars().all(|c| c.is_ascii_digit())
+}
+
+fn parse_gantt_named_date(line: &str) -> Option<StatementKind> {
+    let lower = line.to_ascii_lowercase();
+    let is_named_idx = lower.find(" is named [")?;
+    let date = line[..is_named_idx].trim();
+    if !is_iso_date_literal(date) {
+        return None;
+    }
+    let after_bracket = is_named_idx + " is named [".len();
+    let close = line[after_bracket..].find(']')?;
+    let label = line[after_bracket..after_bracket + close].trim().to_string();
+    if label.is_empty() {
+        return None;
+    }
+    Some(StatementKind::GanttNamedDate {
+        date: date.to_string(),
+        label,
+    })
 }
