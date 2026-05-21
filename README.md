@@ -14,6 +14,11 @@ Give it a `.puml` file and get a pixel-perfect SVG, PNG, or PDF out — no Java,
 no network. It ships as a single static binary, a WebAssembly module for in-browser
 editing, and a Language Server (LSP) for editor integration across 25+ diagram families.
 
+```
+✦ Single static binary   ✦ 25+ diagram families   ✦ SVG · PNG · PDF · WebP
+✦ Deterministic output   ✦ Built-in LSP            ✦ WASM in-browser editor
+```
+
 <details>
 <summary><b>How it works</b> — pipeline architecture</summary>
 
@@ -33,50 +38,142 @@ upstream is family-agnostic AST.
 
 ## Gallery
 
+### UML Core
+
 <table>
   <tr>
     <td align="center">
       <a href="docs/examples/sequence/05_alt_opt_loop.puml">
-        <img src="docs/examples/sequence/05_alt_opt_loop.svg" alt="Sequence diagram with alt/opt/loop" width="300">
+        <img src="docs/examples/sequence/05_alt_opt_loop.svg" alt="Sequence diagram with alt/opt/loop" width="280">
       </a>
-      <br><sub><b>Sequence</b></sub>
+      <br><sub><b>Sequence</b> — alt / opt / loop frames</sub>
     </td>
     <td align="center">
-      <a href="docs/examples/class/02_inheritance.puml">
-        <img src="docs/examples/class/02_inheritance.svg" alt="Class diagram with inheritance" width="300">
+      <a href="docs/examples/class/10_full_domain.puml">
+        <img src="docs/examples/class/10_full_domain.svg" alt="Full domain class diagram" width="280">
       </a>
-      <br><sub><b>Class</b></sub>
+      <br><sub><b>Class</b> — full domain model</sub>
     </td>
     <td align="center">
-      <a href="docs/examples/mindmap/03_with_colors.puml">
-        <img src="docs/examples/mindmap/03_with_colors.svg" alt="MindMap with colors" width="300">
+      <a href="docs/examples/state/08_full_machine.puml">
+        <img src="docs/examples/state/08_full_machine.svg" alt="Full state machine" width="280">
       </a>
-      <br><sub><b>MindMap</b></sub>
+      <br><sub><b>State</b> — full state machine</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <a href="docs/examples/gantt/05_multi_task.puml">
-        <img src="docs/examples/gantt/05_multi_task.svg" alt="Gantt chart with multiple tasks" width="300">
+      <a href="docs/examples/activity/08_order_processing.puml">
+        <img src="docs/examples/activity/08_order_processing.svg" alt="Activity diagram — order processing" width="280">
       </a>
-      <br><sub><b>Gantt</b></sub>
+      <br><sub><b>Activity</b> — order processing flow</sub>
     </td>
     <td align="center">
-      <a href="docs/examples/c4/03_containers.puml">
-        <img src="docs/examples/c4/03_containers.svg" alt="C4 container diagram" width="300">
+      <a href="docs/examples/timing/05_concurrent_timelines_message_arrows.puml">
+        <img src="docs/examples/timing/05_concurrent_timelines_message_arrows.svg" alt="Timing diagram with concurrent timelines" width="280">
       </a>
-      <br><sub><b>C4 Container</b></sub>
+      <br><sub><b>Timing</b> — concurrent signal timelines</sub>
     </td>
     <td align="center">
-      <a href="docs/examples/component/04_deployment_style.puml">
-        <img src="docs/examples/component/04_deployment_style.svg" alt="Component diagram in deployment style" width="300">
+      <a href="docs/examples/activity/16_nested_swimlanes_parallel_forks.puml">
+        <img src="docs/examples/activity/16_nested_swimlanes_parallel_forks.svg" alt="Activity diagram — nested swimlanes" width="280">
       </a>
-      <br><sub><b>Component</b></sub>
+      <br><sub><b>Activity</b> — swimlanes + parallel forks</sub>
     </td>
   </tr>
 </table>
 
-[Browse all 25+ diagram families in the examples gallery →](docs/examples/GALLERY.md)
+### Architecture & Infrastructure
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="docs/examples/c4/03_containers.puml">
+        <img src="docs/examples/c4/03_containers.svg" alt="C4 container diagram" width="280">
+      </a>
+      <br><sub><b>C4 Container</b></sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/component/08_cloud_db_queue_stereotypes.puml">
+        <img src="docs/examples/component/08_cloud_db_queue_stereotypes.svg" alt="Component diagram — cloud/db/queue" width="280">
+      </a>
+      <br><sub><b>Component</b> — cloud · DB · queue</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/deployment/02_databases.puml">
+        <img src="docs/examples/deployment/02_databases.svg" alt="Deployment diagram with databases" width="280">
+      </a>
+      <br><sub><b>Deployment</b> — multi-tier with databases</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="docs/examples/archimate/01_layered.puml">
+        <img src="docs/examples/archimate/01_layered.svg" alt="ArchiMate layered diagram" width="280">
+      </a>
+      <br><sub><b>ArchiMate</b> — layered view</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/c4/07_microservices.puml">
+        <img src="docs/examples/c4/07_microservices.svg" alt="C4 microservices diagram" width="280">
+      </a>
+      <br><sub><b>C4</b> — microservices landscape</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/class/21_microservices.puml">
+        <img src="docs/examples/class/21_microservices.svg" alt="Class diagram — microservices" width="280">
+      </a>
+      <br><sub><b>Class</b> — microservices + DDD</sub>
+    </td>
+  </tr>
+</table>
+
+### Planning & Data
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="docs/examples/gantt/05_multi_task.puml">
+        <img src="docs/examples/gantt/05_multi_task.svg" alt="Gantt chart with multiple tasks" width="280">
+      </a>
+      <br><sub><b>Gantt</b> — multi-task project schedule</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/mindmap/03_with_colors.puml">
+        <img src="docs/examples/mindmap/03_with_colors.svg" alt="MindMap with colors" width="280">
+      </a>
+      <br><sub><b>MindMap</b> — color-coded branches</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/wbs/04_multi_level.puml">
+        <img src="docs/examples/wbs/04_multi_level.svg" alt="WBS multi-level breakdown" width="280">
+      </a>
+      <br><sub><b>WBS</b> — work breakdown structure</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="docs/examples/chart/04_multi_series.puml">
+        <img src="docs/examples/chart/04_multi_series.svg" alt="Multi-series chart" width="280">
+      </a>
+      <br><sub><b>Chart</b> — multi-series bar</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/chart/06_multi_series_line.puml">
+        <img src="docs/examples/chart/06_multi_series_line.svg" alt="Multi-series line chart" width="280">
+      </a>
+      <br><sub><b>Chart</b> — multi-series line</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/chronology/03_release_history.puml">
+        <img src="docs/examples/chronology/03_release_history.svg" alt="Chronology — release history" width="280">
+      </a>
+      <br><sub><b>Chronology</b> — release history timeline</sub>
+    </td>
+  </tr>
+</table>
+
+[Browse all 25+ diagram families →](docs/examples/GALLERY.md)
 
 ---
 
