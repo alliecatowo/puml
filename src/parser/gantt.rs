@@ -150,11 +150,8 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
         });
     }
     let lower = rest.to_ascii_lowercase();
-    if let Some(color_part) = lower
-        .strip_prefix("is colored in ")
-        .and_then(|_| rest.get("is colored in ".len()..))
-    {
-        let color = color_part.trim().to_string();
+    if lower.starts_with("is colored in ") {
+        let color = rest["is colored in ".len()..].trim().to_string();
         if !color.is_empty() {
             return Some(StatementKind::GanttTaskColor { subject, color });
         }
@@ -460,6 +457,25 @@ fn parse_gantt_happens_target(rest: &str) -> Option<String> {
     }
 }
 
+fn parse_gantt_named_date(line: &str) -> Option<StatementKind> {
+    let lower = line.to_ascii_lowercase();
+    let is_named_idx = lower.find(" is named [")?;
+    let date = line[..is_named_idx].trim();
+    if !is_iso_date_literal(date) {
+        return None;
+    }
+    let after_bracket = is_named_idx + " is named [".len();
+    let close = line[after_bracket..].find(']')?;
+    let label = line[after_bracket..after_bracket + close].trim().to_string();
+    if label.is_empty() {
+        return None;
+    }
+    Some(StatementKind::GanttNamedDate {
+        date: date.to_string(),
+        label,
+    })
+}
+
 fn is_iso_date_literal(raw: &str) -> bool {
     let mut parts = raw.trim().split('-');
     let Some(y) = parts.next() else {
@@ -481,23 +497,3 @@ fn is_iso_date_literal(raw: &str) -> bool {
         && m.chars().all(|c| c.is_ascii_digit())
         && d.chars().all(|c| c.is_ascii_digit())
 }
-
-fn parse_gantt_named_date(line: &str) -> Option<StatementKind> {
-    let lower = line.to_ascii_lowercase();
-    let is_named_idx = lower.find(" is named [")?;
-    let date = line[..is_named_idx].trim();
-    if !is_iso_date_literal(date) {
-        return None;
-    }
-    let after_bracket = is_named_idx + " is named [".len();
-    let close = line[after_bracket..].find(']')?;
-    let label = line[after_bracket..after_bracket + close].trim().to_string();
-    if label.is_empty() {
-        return None;
-    }
-    Some(StatementKind::GanttNamedDate {
-        date: date.to_string(),
-        label,
-    })
-}
-

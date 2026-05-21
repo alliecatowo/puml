@@ -12,6 +12,10 @@ pub(super) fn normalize_timeline_baseline(
     let mut closed_ranges = Vec::new();
     let mut open_ranges = Vec::new();
     let mut named_dates: Vec<TimelineNamedDate> = Vec::new();
+    // Pending task-color overrides: collected in pass 1, applied in pass 2 after all
+    // GanttTaskDecl entries are processed.  This allows `[Task] is colored in Red` to
+    // appear *before* the task declaration, matching PlantUML's permissive ordering.
+    let mut pending_task_colors: Vec<(String, String)> = Vec::new();
     let mut scale = None;
     let mut title = None;
     let mut header = None;
@@ -174,9 +178,9 @@ pub(super) fn normalize_timeline_baseline(
                 }
             }
             StatementKind::GanttTaskColor { subject, color } => {
-                if let Some(task) = tasks.iter_mut().find(|t| t.name == subject) {
-                    task.color = Some(color);
-                }
+                // Collect for pass 2; do NOT look up tasks here — the task declaration
+                // may not have been parsed yet.
+                pending_task_colors.push((subject, color));
             }
             StatementKind::ChronologyHappensOn { subject, when } => {
                 chronology_events.push(TimelineChronologyEvent { subject, when })
@@ -229,6 +233,13 @@ pub(super) fn normalize_timeline_baseline(
     let project_start_day = project_start.as_deref().and_then(parse_iso_date_day);
     let inferred_gantt_anchor_day =
         infer_gantt_anchor_day(project_start_day, &tasks, &milestones, &constraints);
+
+    // Pass 2: apply pending task-color overrides now that all tasks are known.
+    for (subject, color) in pending_task_colors {
+        if let Some(task) = tasks.iter_mut().find(|t| t.name == subject) {
+            task.color = Some(color);
+        }
+    }
 
     if document.kind == DiagramKind::Gantt && !tasks.is_empty() {
         let fallback_anchor = inferred_gantt_anchor_day.unwrap_or(0);

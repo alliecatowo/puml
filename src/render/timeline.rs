@@ -374,8 +374,8 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let x = day_to_x(start);
         let w = (day_to_x(end) - x).max(2);
         out.push_str(&format!(
-            "<rect class=\"gantt-open-range\" data-gantt-open=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#dcfce7\" opacity=\"0.62\"/>",
-            escape_text(&format!(
+            "<rect class=\"gantt-open-range\" data-gantt-open=\"{open}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#dcfce7\" opacity=\"0.62\"/>",
+            open = escape_text(&format!(
                 "{} to {}",
                 format_gantt_axis_label(start, min_day, true),
                 format_gantt_axis_label(end.saturating_sub(1), min_day, true)
@@ -396,8 +396,8 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 let x = day_to_x(day);
                 let w = (day_to_x(day.saturating_add(1)) - x).max(2);
                 out.push_str(&format!(
-                    "<rect class=\"gantt-closed-weekday\" data-gantt-day=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#f8fafc\" opacity=\"0.82\"/>",
-                    escape_text(&format_gantt_axis_label(day, min_day, date_axis)),
+                    "<rect class=\"gantt-closed-weekday\" data-gantt-day=\"{day}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#f8fafc\" opacity=\"0.82\"/>",
+                    day = escape_text(&format_gantt_axis_label(day, min_day, date_axis)),
                     y = chart_top,
                     h = chart_h
                 ));
@@ -468,9 +468,9 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             let base_w = (((chart_w as u32) * base_duration.max(1)) / total_days).max(8) as i32;
             let (base_x, base_w) = clamp_span_to_chart(base_x, base_w);
             out.push_str(&format!(
-                "<rect class=\"gantt-baseline\" data-gantt-baseline-start=\"{}\" data-gantt-baseline-duration=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"4\" rx=\"2\" ry=\"2\" fill=\"#64748b\" opacity=\"0.88\"/>",
-                escape_text(&format_gantt_axis_label(base_start, min_day, true)),
-                base_duration,
+                "<rect class=\"gantt-baseline\" data-gantt-baseline-start=\"{start}\" data-gantt-baseline-duration=\"{dur}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"4\" rx=\"2\" ry=\"2\" fill=\"#64748b\" opacity=\"0.88\"/>",
+                start = escape_text(&format_gantt_axis_label(base_start, min_day, true)),
+                dur = base_duration,
                 x = base_x,
                 y = y + bar_height + 3,
                 w = base_w
@@ -484,12 +484,12 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         };
         let (fill, stroke) = resolve_gantt_task_colors(task);
         out.push_str(&format!(
-            "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{}\" data-gantt-workload=\"{}\" data-gantt-duration=\"{}\" data-gantt-resources=\"{}\" data-gantt-load=\"{}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
-            escape_text(&format_gantt_axis_label(task.start_day, min_day, date_axis)),
-            task.workload_days,
-            task.duration_days,
-            escape_text(&task.resources.join(", ")),
-            escape_text(&resource_load),
+            "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{start}\" data-gantt-workload=\"{wl}\" data-gantt-duration=\"{dur}\" data-gantt-resources=\"{res}\" data-gantt-load=\"{load}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+            start = escape_text(&format_gantt_axis_label(task.start_day, min_day, date_axis)),
+            wl = task.workload_days,
+            dur = task.duration_days,
+            res = escape_text(&task.resources.join(", ")),
+            load = escape_text(&resource_load),
             bh = bar_height
         ));
         if !task.resources.is_empty() {
@@ -537,10 +537,10 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         let r = (bar_height / 2) - 2;
         let cx = cx.clamp(chart_left + r, chart_right - r);
         out.push_str(&format!(
-            "<polygon class=\"gantt-milestone{}\" points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-            if milestone.is_critical { " gantt-critical" } else { "" },
-            if milestone.is_critical { "#fb7185" } else { "#facc15" },
-            if milestone.is_critical { "#9f1239" } else { "#854d0e" },
+            "<polygon class=\"gantt-milestone{crit}\" points=\"{x1},{y1} {x2},{y2} {x3},{y3} {x4},{y4}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            crit = if milestone.is_critical { " gantt-critical" } else { "" },
+            fill = if milestone.is_critical { "#fb7185" } else { "#facc15" },
+            stroke = if milestone.is_critical { "#9f1239" } else { "#854d0e" },
             x1 = cx,
             y1 = cy - r,
             x2 = cx + r,
@@ -562,15 +562,15 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             .map(day_to_x)
             .unwrap_or(chart_left);
         out.push_str(&format!(
-            "<line class=\"gantt-separator\" data-gantt-separator=\"{}\" x1=\"{x}\" y1=\"{}\" x2=\"{x}\" y2=\"{}\" stroke=\"#7c3aed\" stroke-width=\"1.4\" stroke-dasharray=\"6 4\"/>",
-            escape_text(&separator.label),
-            chart_top - header_h,
-            chart_top + chart_h
+            "<line class=\"gantt-separator\" data-gantt-separator=\"{sep}\" x1=\"{x}\" y1=\"{y1}\" x2=\"{x}\" y2=\"{y2}\" stroke=\"#7c3aed\" stroke-width=\"1.4\" stroke-dasharray=\"6 4\"/>",
+            sep = escape_text(&separator.label),
+            y1 = chart_top - header_h,
+            y2 = chart_top + chart_h
         ));
         out.push_str(&format!(
-            "<text class=\"gantt-separator-label\" x=\"{}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#5b21b6\">{}</text>",
-            (x + 6).min(chart_right - 80),
-            escape_text(&separator.label)
+            "<text class=\"gantt-separator-label\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#5b21b6\">{label}</text>",
+            x = (x + 6).min(chart_right - 80),
+            label = escape_text(&separator.label)
         ));
     }
 
@@ -629,10 +629,10 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             let y1 = target_y;
             let y2 = subject_y;
             out.push_str(&format!(
-                "<line class=\"gantt-dependency gantt-dependency-{}\" data-gantt-from=\"{}\" data-gantt-to=\"{}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#64748b\" stroke-width=\"1.25\" stroke-dasharray=\"4 3\" marker-end=\"url(#gantt-arrow)\"/>",
-                escape_text(&constraint.kind),
-                escape_text(&normalized_target),
-                escape_text(&constraint.subject)
+                "<line class=\"gantt-dependency gantt-dependency-{kind}\" data-gantt-from=\"{from}\" data-gantt-to=\"{to}\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#64748b\" stroke-width=\"1.25\" stroke-dasharray=\"4 3\" marker-end=\"url(#gantt-arrow)\"/>",
+                kind = escape_text(&constraint.kind),
+                from = escape_text(&normalized_target),
+                to = escape_text(&constraint.subject)
             ));
         }
     }
@@ -668,7 +668,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         note_y += 14;
     }
 
-    // Named-date markers: vertical line + rotated label at the top of the chart
+    // Named-date markers: vertical dashed line + rotated label above the chart axis.
     for named in &document.named_dates {
         if named.day < min_day {
             continue;
@@ -678,18 +678,16 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             continue;
         }
         out.push_str(&format!(
-            "<line class=\"gantt-named-date\" data-gantt-date=\"{}\" x1=\"{x}\" y1=\"{}\" x2=\"{x}\" y2=\"{}\" stroke=\"#b45309\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\"/>",
-            escape_text(&named.date),
-            chart_top - header_h,
-            chart_top + chart_h
+            "<line class=\"gantt-named-date\" data-gantt-date=\"{date}\" x1=\"{x}\" y1=\"{y1}\" x2=\"{x}\" y2=\"{y2}\" stroke=\"#b45309\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\"/>",
+            date = escape_text(&named.date),
+            y1 = chart_top - header_h,
+            y2 = chart_top + chart_h
         ));
         out.push_str(&format!(
-            "<text class=\"gantt-named-date-label\" x=\"{}\" y=\"{}\" transform=\"rotate(-45,{},{})\" font-family=\"monospace\" font-size=\"10\" fill=\"#92400e\">{}</text>",
-            x + 3,
-            chart_top - header_h + 2,
-            x + 3,
-            chart_top - header_h + 2,
-            escape_text(&named.label)
+            "<text class=\"gantt-named-date-label\" x=\"{lx}\" y=\"{ly}\" transform=\"rotate(-45,{lx},{ly})\" font-family=\"monospace\" font-size=\"10\" fill=\"#92400e\">{label}</text>",
+            lx = x + 3,
+            ly = chart_top - header_h + 2,
+            label = escape_text(&named.label)
         ));
     }
 
@@ -697,12 +695,20 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     out
 }
 
+fn extract_bracketed_name(target: &str) -> Option<String> {
+    let start = target.find('[')?;
+    let end = target.rfind(']')?;
+    if end <= start + 1 {
+        return None;
+    }
+    Some(target[start + 1..end].trim().to_string())
+}
+
 fn resolve_gantt_task_colors(task: &TimelineTask) -> (String, String) {
     if let Some(color_spec) = &task.color {
         let fill_name = color_spec
-            .split('/')
-            .next()
-            .unwrap_or(color_spec)
+            .split_once('/')
+            .map_or(color_spec.as_str(), |(first, _)| first)
             .trim()
             .to_ascii_lowercase();
         let fill = plantuml_color_to_css(&fill_name);
@@ -738,13 +744,7 @@ fn plantuml_color_to_css(name: &str) -> String {
         "brown" => "#92400e",
         "gold" => "#f59e0b",
         "silver" => "#cbd5e1",
-        other => {
-            if other.starts_with('#') {
-                other.to_string()
-            } else {
-                other.to_string()
-            }
-        }
+        other => other,
     }
     .to_string()
 }
@@ -755,7 +755,7 @@ fn darken_plantuml_color(name: &str) -> String {
         "crimson" => "#7f1d1d",
         "blue" => "#1e40af",
         "green" => "#15803d",
-        "yellow" => "#92400e",
+        "yellow" => "#78350f",
         "orange" => "#9a3412",
         "purple" => "#7e22ce",
         "pink" => "#9d174d",
@@ -774,15 +774,6 @@ fn darken_plantuml_color(name: &str) -> String {
         _ => "#374151",
     }
     .to_string()
-}
-
-fn extract_bracketed_name(target: &str) -> Option<String> {
-    let start = target.find('[')?;
-    let end = target.rfind(']')?;
-    if end <= start + 1 {
-        return None;
-    }
-    Some(target[start + 1..end].trim().to_string())
 }
 
 fn resource_lane_label(task: &TimelineTask) -> String {
