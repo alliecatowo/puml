@@ -31,55 +31,6 @@ upstream is family-agnostic AST.
 
 ---
 
-## Gallery
-
-<table>
-  <tr>
-    <td align="center">
-      <a href="docs/examples/sequence/05_alt_opt_loop.puml">
-        <img src="docs/examples/sequence/05_alt_opt_loop.svg" alt="Sequence diagram with alt/opt/loop" width="300">
-      </a>
-      <br><sub><b>Sequence</b></sub>
-    </td>
-    <td align="center">
-      <a href="docs/examples/class/02_inheritance.puml">
-        <img src="docs/examples/class/02_inheritance.svg" alt="Class diagram with inheritance" width="300">
-      </a>
-      <br><sub><b>Class</b></sub>
-    </td>
-    <td align="center">
-      <a href="docs/examples/mindmap/03_with_colors.puml">
-        <img src="docs/examples/mindmap/03_with_colors.svg" alt="MindMap with colors" width="300">
-      </a>
-      <br><sub><b>MindMap</b></sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="docs/examples/gantt/05_multi_task.puml">
-        <img src="docs/examples/gantt/05_multi_task.svg" alt="Gantt chart with multiple tasks" width="300">
-      </a>
-      <br><sub><b>Gantt</b></sub>
-    </td>
-    <td align="center">
-      <a href="docs/examples/c4/03_containers.puml">
-        <img src="docs/examples/c4/03_containers.svg" alt="C4 container diagram" width="300">
-      </a>
-      <br><sub><b>C4 Container</b></sub>
-    </td>
-    <td align="center">
-      <a href="docs/examples/component/04_deployment_style.puml">
-        <img src="docs/examples/component/04_deployment_style.svg" alt="Component diagram in deployment style" width="300">
-      </a>
-      <br><sub><b>Component</b></sub>
-    </td>
-  </tr>
-</table>
-
-[Browse all 25+ diagram families in the examples gallery →](docs/examples/GALLERY.md)
-
----
-
 ## Quick start
 
 ```bash
@@ -101,6 +52,258 @@ puml --check hello.puml       # lint without writing
 ```
 
 Open `hello.svg` in any browser or SVG viewer. Done.
+
+**[Try it live in the browser →](https://alliecatowo.github.io/puml/editor)**
+
+---
+
+## Gallery
+
+puml renders **25+ diagram families** from a single `.puml` source. Here's a taste:
+
+### UML Core
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <a href="docs/examples/sequence/05_alt_opt_loop.puml">
+        <img src="docs/examples/sequence/05_alt_opt_loop.svg" alt="Sequence diagram with alt/opt/loop" width="300">
+      </a>
+      <br><b>Sequence</b>
+      <br><sub>Messages, alt/opt/loop, participants</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="docs/examples/class/10_full_domain.puml">
+        <img src="docs/examples/class/10_full_domain.svg" alt="Class diagram full domain model" width="300">
+      </a>
+      <br><b>Class</b>
+      <br><sub>Inheritance, composition, interfaces</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="docs/examples/state/08_full_machine.puml">
+        <img src="docs/examples/state/08_full_machine.svg" alt="State machine diagram" width="300">
+      </a>
+      <br><b>State Machine</b>
+      <br><sub>Composite states, transitions, history</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="docs/examples/activity/08_order_processing.puml">
+        <img src="docs/examples/activity/08_order_processing.svg" alt="Activity diagram with swimlanes" width="300">
+      </a>
+      <br><b>Activity</b>
+      <br><sub>Fork/join, partitions, swimlanes</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/usecase/05_actor_generalization_system_boundary.puml">
+        <img src="docs/examples/usecase/05_actor_generalization_system_boundary.svg" alt="Use case diagram" width="300">
+      </a>
+      <br><b>Use Case</b>
+      <br><sub>Actors, extend/include, system boundaries</sub>
+    </td>
+    <td align="center">
+      <a href="docs/examples/component/04_deployment_style.puml">
+        <img src="docs/examples/component/04_deployment_style.svg" alt="Component diagram" width="300">
+      </a>
+      <br><b>Component</b>
+      <br><sub>Interfaces, packages, dependencies</sub>
+    </td>
+  </tr>
+</table>
+
+### Architecture & Infrastructure
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <a href="docs/examples/deployment/06_kubernetes_pods_containers.puml">
+        <img src="docs/examples/deployment/06_kubernetes_pods_containers.svg" alt="Kubernetes deployment diagram" width="300">
+      </a>
+      <br><b>Deployment</b>
+      <br><sub>Kubernetes namespaces, pods, containers</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="docs/examples/c4/03_containers.puml">
+        <img src="docs/examples/c4/03_containers.svg" alt="C4 container diagram" width="300">
+      </a>
+      <br><b>C4 Container</b>
+      <br><sub>Context, containers, components, code</sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="docs/examples/nwdiag/02_multiple_nets.puml">
+        <img src="docs/examples/nwdiag/02_multiple_nets.svg" alt="Network diagram" width="300">
+      </a>
+      <br><b>Network (nwdiag)</b>
+      <br><sub>Hosts, subnets, device groups</sub>
+    </td>
+  </tr>
+</table>
+
+### Planning & Data
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <a href="docs/examples/gantt/05_multi_task.puml">
+        <img src="docs/examples/gantt/05_multi_task.svg" alt="Gantt chart" width="220">
+      </a>
+      <br><b>Gantt</b>
+      <br><sub>Tasks, dependencies, milestones</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="docs/examples/mindmap/03_with_colors.puml">
+        <img src="docs/examples/mindmap/03_with_colors.svg" alt="MindMap with colors" width="220">
+      </a>
+      <br><b>MindMap</b>
+      <br><sub>Hierarchies, colors, styling</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="docs/examples/wbs/04_multi_level.puml">
+        <img src="docs/examples/wbs/04_multi_level.svg" alt="Work breakdown structure" width="220">
+      </a>
+      <br><b>WBS</b>
+      <br><sub>Work breakdown structures</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="docs/examples/chart/04_multi_series.puml">
+        <img src="docs/examples/chart/04_multi_series.svg" alt="Multi-series chart" width="220">
+      </a>
+      <br><b>Charts</b>
+      <br><sub>Bar, line, pie, multi-series</sub>
+    </td>
+  </tr>
+</table>
+
+### Timing & Structured Data
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <a href="docs/examples/timing/05_concurrent_timelines_message_arrows.puml">
+        <img src="docs/examples/timing/05_concurrent_timelines_message_arrows.svg" alt="Timing diagram with concurrent timelines" width="380">
+      </a>
+      <br><b>Timing</b>
+      <br><sub>Concurrent timelines, signals, clocks</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="docs/examples/json/04_deep_nesting_arrays_of_objects.puml">
+        <img src="docs/examples/json/04_deep_nesting_arrays_of_objects.svg" alt="JSON diagram" width="380">
+      </a>
+      <br><b>JSON / YAML</b>
+      <br><sub>Visualize structured data inline</sub>
+    </td>
+  </tr>
+</table>
+
+[Browse the full gallery — all 25+ families with 280+ examples →](docs/examples/GALLERY.md)
+
+---
+
+## What the source looks like
+
+A few examples to show how compact `.puml` syntax is:
+
+<details>
+<summary><b>Sequence diagram</b></summary>
+
+```plantuml
+@startuml
+autonumber
+actor User
+participant "API Gateway" as GW
+participant AuthService
+participant Database
+
+User -> GW: POST /login
+GW -> AuthService: validateCredentials(user, pass)
+AuthService -> Database: SELECT * FROM users WHERE email=?
+Database --> AuthService: user row
+alt credentials valid
+  AuthService --> GW: JWT token
+  GW --> User: 200 OK { token }
+else invalid
+  AuthService --> GW: 401
+  GW --> User: 401 Unauthorized
+end
+@enduml
+```
+
+</details>
+
+<details>
+<summary><b>C4 Container diagram</b></summary>
+
+```plantuml
+@startuml
+!include <C4/C4_Container>
+
+Person(user, "Customer", "Uses the app")
+System_Boundary(app, "E-Commerce Platform") {
+  Container(web, "Web App", "React", "SPA served from CDN")
+  Container(api, "API", "Rust/Axum", "Business logic")
+  ContainerDb(db, "Database", "PostgreSQL", "Orders, products, users")
+  Container(cache, "Cache", "Redis", "Session + catalogue cache")
+}
+System_Ext(payment, "Stripe", "Payment processing")
+
+Rel(user, web, "Uses", "HTTPS")
+Rel(web, api, "Calls", "REST/JSON")
+Rel(api, db, "Reads/writes", "SQL")
+Rel(api, cache, "Reads/writes", "Redis protocol")
+Rel(api, payment, "Charges cards", "HTTPS")
+@enduml
+```
+
+</details>
+
+<details>
+<summary><b>Class diagram — design patterns</b></summary>
+
+```plantuml
+@startuml
+package "Observer Pattern" {
+  interface Subject {
+    +attach(o: Observer)
+    +detach(o: Observer)
+    +notify()
+  }
+  interface Observer {
+    +update(event: Event)
+  }
+  class EventBus implements Subject {
+    -observers: List<Observer>
+    +publish(event: Event)
+  }
+  class MetricsCollector implements Observer
+  class AuditLogger implements Observer
+  Subject <|.. EventBus
+  EventBus --> Observer
+}
+@enduml
+```
+
+</details>
+
+<details>
+<summary><b>Gantt chart</b></summary>
+
+```plantuml
+@startgantt
+Project starts 2025-06-01
+[Design] lasts 5 days
+[Backend API] lasts 8 days
+[Backend API] starts at [Design]'s end
+[Frontend] lasts 10 days
+[Frontend] starts at [Design]'s end
+[Integration] lasts 3 days
+[Integration] starts at [Backend API]'s end
+[Integration] starts at [Frontend]'s end
+[Release] happens at [Integration]'s end
+@endgantt
+```
+
+</details>
 
 ---
 
@@ -297,7 +500,7 @@ what is planned next.
 ---
 
 <details>
-<summary><b>How it works</b></summary>
+<summary><b>How it works — pipeline internals</b></summary>
 
 puml is structured as a three-layer pipeline:
 
