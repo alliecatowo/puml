@@ -187,13 +187,23 @@ Do not do these:
 
 | What you need | Where to find it |
 |---|---|
+| **PlantUML language reference (canonical)** | `docs/internal/spec/PlantUML_Language_Reference_Guide_v1.2025.0.pdf` — the upstream spec PDF; read this for any syntax question, color/icon example, or rendered-output comparison |
+| **PlantUML support matrix + audit** | `docs/internal/spec/plantuml-spec.md` — per-chapter ✅/🟡/❌ status with file:line evidence in `docs/internal/spec/audit/chXX-*.md` |
 | Agent runbook (deep) | `docs/internal/agents/codex-workflow.md` |
 | Autonomous workflow cookbook | `docs/internal/agents/autonomous-workflow-cookbook.md` |
 | Architecture + layout engine plan | `docs/internal/architecture/layout-engine-vision.md` |
 | Current visual audit notes | `docs/internal/visual-audit-<date>.md` |
-| PlantUML parity tracking | `docs/internal/parity/` |
 | Human + agent contribution guide | `CONTRIBUTING.md` |
 | Release checklist | `docs/release-checklist.md` |
+
+### Always check the spec before implementing
+
+Before touching parser, normalize, or render code for any diagram family, read:
+1. The matching chapter in **`docs/internal/spec/plantuml-spec.md`** for current support status + known gaps
+2. The matching section of the **upstream PDF** at `docs/internal/spec/PlantUML_Language_Reference_Guide_v1.2025.0.pdf` for canonical syntax and rendered-output examples
+3. The per-chapter audit file under `docs/internal/spec/audit/` for file:line evidence
+
+After landing a feature, bump the relevant audit entry from ❌→🟡 or 🟡→✅ and update the headline counts in `plantuml-spec.md`.
 
 ---
 
