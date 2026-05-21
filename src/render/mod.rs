@@ -4,7 +4,8 @@ pub(crate) use crate::model::{
     EbnfToken, FamilyDocument, FamilyNode, FamilyNodeKind, FamilyOrientation, JsonDocument,
     LegendHAlign, LegendVAlign, MathDocument, MindMapSide, NwdiagDocument, RegexDocument,
     RegexToken, RepeatKind, SdlDocument, SdlStateKind, StateDocument, StateNode, StateNodeKind,
-    TimelineChronologyEvent, TimelineDocument, TimelineMilestone, TimelineTask, WbsCheckbox,
+    TimelineChronologyEvent, TimelineDocument, TimelineMilestone, TimelineNamedDate, TimelineTask,
+    WbsCheckbox,
     YamlDocument,
 };
 pub(crate) use crate::theme::css3_color_to_hex;

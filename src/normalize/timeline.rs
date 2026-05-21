@@ -11,6 +11,7 @@ pub(super) fn normalize_timeline_baseline(
     let mut closed_weekdays = Vec::new();
     let mut closed_ranges = Vec::new();
     let mut open_ranges = Vec::new();
+    let mut named_dates: Vec<TimelineNamedDate> = Vec::new();
     let mut scale = None;
     let mut title = None;
     let mut header = None;
@@ -66,6 +67,7 @@ pub(super) fn normalize_timeline_baseline(
                         baseline_start_day: None,
                         baseline_duration_days: None,
                         is_critical: false,
+                        color: None,
                     });
                 }
             }
@@ -162,6 +164,18 @@ pub(super) fn normalize_timeline_baseline(
                             end_day,
                         });
                     }
+                }
+            }
+            StatementKind::GanttNamedDate { date, label } => {
+                if let Some(day) = parse_iso_date_day(&date) {
+                    if !named_dates.iter().any(|nd| nd.day == day) {
+                        named_dates.push(TimelineNamedDate { date, label, day });
+                    }
+                }
+            }
+            StatementKind::GanttTaskColor { subject, color } => {
+                if let Some(task) = tasks.iter_mut().find(|t| t.name == subject) {
+                    task.color = Some(color);
                 }
             }
             StatementKind::ChronologyHappensOn { subject, when } => {
@@ -269,6 +283,7 @@ pub(super) fn normalize_timeline_baseline(
         closed_weekdays,
         closed_ranges,
         open_ranges,
+        named_dates,
         scale,
         project_start,
         project_start_day,

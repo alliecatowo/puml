@@ -86,6 +86,14 @@ pub enum StatementKind {
         start_date: String,
         end_date: String,
     },
+    GanttNamedDate {
+        date: String,
+        label: String,
+    },
+    GanttTaskColor {
+        subject: String,
+        color: String,
+    },
     ChronologyHappensOn {
         subject: String,
         when: String,

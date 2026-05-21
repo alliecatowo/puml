@@ -436,6 +436,7 @@ pub struct TimelineDocument {
     pub closed_weekdays: Vec<String>,
     pub closed_ranges: Vec<TimelineClosedRange>,
     pub open_ranges: Vec<TimelineOpenRange>,
+    pub named_dates: Vec<TimelineNamedDate>,
     pub scale: Option<String>,
     pub project_start: Option<String>,
     pub project_start_day: Option<u32>,
@@ -458,6 +459,14 @@ pub struct TimelineTask {
     pub baseline_start_day: Option<u32>,
     pub baseline_duration_days: Option<u32>,
     pub is_critical: bool,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineNamedDate {
+    pub date: String,
+    pub label: String,
+    pub day: u32,
 }
 
 #[derive(Debug, Clone)]

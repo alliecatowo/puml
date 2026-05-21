@@ -710,6 +710,8 @@ pub(super) fn normalize_with_options(
             | StatementKind::GanttCalendarOpen { .. }
             | StatementKind::GanttCalendarClosedDateRange { .. }
             | StatementKind::GanttCalendarOpenDateRange { .. }
+            | StatementKind::GanttNamedDate { .. }
+            | StatementKind::GanttTaskColor { .. }
             | StatementKind::ChronologyHappensOn { .. }
             | StatementKind::ComponentDecl { .. }
             | StatementKind::ActivityStep(_)

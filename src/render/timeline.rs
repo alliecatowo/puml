@@ -482,16 +482,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         } else {
             ""
         };
-        let fill = if task.is_critical {
-            "#ef4444"
-        } else {
-            "#3b82f6"
-        };
-        let stroke = if task.is_critical {
-            "#991b1b"
-        } else {
-            "#1e40af"
-        };
+        let (fill, stroke) = resolve_gantt_task_colors(task);
         out.push_str(&format!(
             "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{}\" data-gantt-workload=\"{}\" data-gantt-duration=\"{}\" data-gantt-resources=\"{}\" data-gantt-load=\"{}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
             escape_text(&format_gantt_axis_label(task.start_day, min_day, date_axis)),
@@ -677,8 +668,112 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         note_y += 14;
     }
 
+    // Named-date markers: vertical line + rotated label at the top of the chart
+    for named in &document.named_dates {
+        if named.day < min_day {
+            continue;
+        }
+        let x = day_to_x(named.day);
+        if x < chart_left || x > chart_right {
+            continue;
+        }
+        out.push_str(&format!(
+            "<line class=\"gantt-named-date\" data-gantt-date=\"{}\" x1=\"{x}\" y1=\"{}\" x2=\"{x}\" y2=\"{}\" stroke=\"#b45309\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\"/>",
+            escape_text(&named.date),
+            chart_top - header_h,
+            chart_top + chart_h
+        ));
+        out.push_str(&format!(
+            "<text class=\"gantt-named-date-label\" x=\"{}\" y=\"{}\" transform=\"rotate(-45,{},{})\" font-family=\"monospace\" font-size=\"10\" fill=\"#92400e\">{}</text>",
+            x + 3,
+            chart_top - header_h + 2,
+            x + 3,
+            chart_top - header_h + 2,
+            escape_text(&named.label)
+        ));
+    }
+
     out.push_str("</svg>");
     out
+}
+
+fn resolve_gantt_task_colors(task: &TimelineTask) -> (String, String) {
+    if let Some(color_spec) = &task.color {
+        let fill_name = color_spec
+            .split('/')
+            .next()
+            .unwrap_or(color_spec)
+            .trim()
+            .to_ascii_lowercase();
+        let fill = plantuml_color_to_css(&fill_name);
+        let stroke = darken_plantuml_color(&fill_name);
+        return (fill, stroke);
+    }
+    if task.is_critical {
+        ("#ef4444".to_string(), "#991b1b".to_string())
+    } else {
+        ("#3b82f6".to_string(), "#1e40af".to_string())
+    }
+}
+
+fn plantuml_color_to_css(name: &str) -> String {
+    match name {
+        "red" => "#ef4444",
+        "crimson" => "#dc143c",
+        "blue" => "#3b82f6",
+        "green" => "#22c55e",
+        "yellow" => "#eab308",
+        "orange" => "#f97316",
+        "purple" => "#a855f7",
+        "pink" => "#ec4899",
+        "gray" | "grey" => "#9ca3af",
+        "black" => "#1f2937",
+        "white" => "#f8fafc",
+        "cyan" => "#06b6d4",
+        "magenta" => "#e879f9",
+        "lime" => "#84cc16",
+        "teal" => "#14b8a6",
+        "indigo" => "#6366f1",
+        "violet" => "#8b5cf6",
+        "brown" => "#92400e",
+        "gold" => "#f59e0b",
+        "silver" => "#cbd5e1",
+        other => {
+            if other.starts_with('#') {
+                other.to_string()
+            } else {
+                other.to_string()
+            }
+        }
+    }
+    .to_string()
+}
+
+fn darken_plantuml_color(name: &str) -> String {
+    match name {
+        "red" => "#991b1b",
+        "crimson" => "#7f1d1d",
+        "blue" => "#1e40af",
+        "green" => "#15803d",
+        "yellow" => "#92400e",
+        "orange" => "#9a3412",
+        "purple" => "#7e22ce",
+        "pink" => "#9d174d",
+        "gray" | "grey" => "#4b5563",
+        "black" => "#111827",
+        "white" => "#e2e8f0",
+        "cyan" => "#0e7490",
+        "magenta" => "#a21caf",
+        "lime" => "#4d7c0f",
+        "teal" => "#0f766e",
+        "indigo" => "#4338ca",
+        "violet" => "#6d28d9",
+        "brown" => "#451a03",
+        "gold" => "#b45309",
+        "silver" => "#94a3b8",
+        _ => "#374151",
+    }
+    .to_string()
 }
 
 fn extract_bracketed_name(target: &str) -> Option<String> {

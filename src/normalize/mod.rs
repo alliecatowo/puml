@@ -17,7 +17,7 @@ use crate::model::{
     SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequenceMessageStyle,
     SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction, StateNode,
     StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
-    TimelineClosedRange, TimelineConstraint, TimelineDocument, TimelineMilestone,
+    TimelineClosedRange, TimelineConstraint, TimelineDocument, TimelineMilestone, TimelineNamedDate,
     TimelineOpenRange, TimelineResourceAllocation, TimelineSeparator, TimelineTask,
     VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument,
     YamlTreeNode,
