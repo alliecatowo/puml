@@ -1,0 +1,32 @@
+@startnwdiag
+nwdiag {
+  internet [shape = cloud, description = "Internet"];
+  internet -- router;
+  router -- switch -- printer;
+
+  group dmz {
+    color = "#fef3c7"
+    router;
+    app;
+    db;
+  }
+
+  network edge {
+    width = full
+    address = "203.0.113.0/24"
+    router [address = "203.0.113.1", description = "Edge Router"];
+    app [address = "203.0.113.10, 2001:db8::10", description = "App Edge"];
+  }
+
+  network core {
+    address = "10.0.0.0/24"
+    app [address = "10.0.0.10"];
+    db [address = "10.0.0.20"];
+  }
+
+  network devices {
+    width = full
+    switch;
+  }
+}
+@endnwdiag
