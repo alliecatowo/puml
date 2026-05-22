@@ -128,6 +128,19 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     regions: Vec::new(),
                 });
             }
+            StatementKind::YamlProjection { alias, body } => {
+                projection_counter += 1;
+                let projection_name = format!("__state_yaml_{projection_counter:04}");
+                nodes.push(StateNode {
+                    name: projection_name,
+                    display: Some(format!("{}\n{}", alias.trim(), body.trim())),
+                    kind: StateNodeKind::JsonProjection,
+                    stereotype: Some("yaml".to_string()),
+                    style: Default::default(),
+                    internal_actions: Vec::new(),
+                    regions: Vec::new(),
+                });
+            }
             StatementKind::Title(v) => title = Some(v.clone()),
             StatementKind::Header(v) => header = Some(v.clone()),
             StatementKind::Footer(v) => footer = Some(v.clone()),
@@ -576,6 +589,21 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                         display: Some(format!("{}\n{}", alias.trim(), body.trim())),
                         kind: StateNodeKind::JsonProjection,
                         stereotype: Some("json".to_string()),
+                        style: Default::default(),
+                        internal_actions: Vec::new(),
+                        regions: Vec::new(),
+                    },
+                );
+            }
+            StatementKind::YamlProjection { alias, body } => {
+                let projection_name = format!("__state_yaml_in_{}_{child_idx:04}", decl.name);
+                upsert_region_state_node(
+                    &mut current_region,
+                    StateNode {
+                        name: projection_name,
+                        display: Some(format!("{}\n{}", alias.trim(), body.trim())),
+                        kind: StateNodeKind::JsonProjection,
+                        stereotype: Some("yaml".to_string()),
                         style: Default::default(),
                         internal_actions: Vec::new(),
                         regions: Vec::new(),

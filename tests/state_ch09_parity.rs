@@ -12,6 +12,10 @@ state Parent {
     "fruit": "Apple",
     "count": 3
   }
+  yaml $meta {
+    fruit: Apple
+    count: 3
+  }
 }
 state entry1 <<entryPoint>>
 state exit1 <<exitPoint>>
@@ -31,6 +35,10 @@ json $cfg {
   "outer": {
     "ok": true
   }
+}
+yaml $settings {
+  mode: ready
+  retries: 2
 }
 @enduml
 "##;
@@ -100,6 +108,15 @@ fn state_ch09_metadata_preserves_notes_ports_styles_and_json() {
                 .display
                 .as_deref()
                 .is_some_and(|text| text.contains("$cfg"))));
+    assert!(model
+        .nodes
+        .iter()
+        .any(|node| node.kind == StateNodeKind::JsonProjection
+            && node.stereotype.as_deref() == Some("yaml")
+            && node
+                .display
+                .as_deref()
+                .is_some_and(|text| text.contains("$settings"))));
     let parent = model
         .nodes
         .iter()
@@ -114,6 +131,14 @@ fn state_ch09_metadata_preserves_notes_ports_styles_and_json() {
                 .display
                 .as_deref()
                 .is_some_and(|text| text.contains("$payload"))));
+    assert!(parent.regions.iter().flatten().any(|node| {
+        node.kind == StateNodeKind::JsonProjection
+            && node.stereotype.as_deref() == Some("yaml")
+            && node
+                .display
+                .as_deref()
+                .is_some_and(|text| text.contains("$meta"))
+    }));
 }
 
 #[test]
@@ -131,7 +156,10 @@ fn state_ch09_render_emits_visual_shapes_styles_and_labels() {
     assert!(svg.contains(">attached note<"));
     assert!(svg.contains(">link note<"));
     assert!(svg.contains("class=\"state-json-projection\""));
-    assert!(svg.contains("&quot;fruit&quot;: &quot;Apple&quot;"));
+    assert!(svg.contains("data-state-projection-format=\"json\""));
+    assert!(svg.contains("data-state-projection-format=\"yaml\""));
+    assert!(svg.contains(">fruit: Apple<"));
+    assert!(svg.contains(">mode: ready<"));
     assert!(svg.contains("fill=\"pink\""));
     assert!(svg.contains("stroke=\"blue\""));
     assert!(svg.contains("stroke-dasharray=\"5 3\""));
