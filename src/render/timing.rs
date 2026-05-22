@@ -766,7 +766,6 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         &mut out,
         doc,
         &signal_row_mid,
-        row_h,
         axis_top,
         signals_top + rows_h,
         &time_to_x,
@@ -921,7 +920,6 @@ fn render_timing_relations(
     out: &mut String,
     doc: &FamilyDocument,
     signal_row_mid: &std::collections::BTreeMap<&str, i32>,
-    row_h: i32,
     axis_top: i32,
     chart_bottom: i32,
     time_to_x: &dyn Fn(i64) -> i32,
@@ -942,7 +940,7 @@ fn render_timing_relations(
         };
         let x1 = time_to_x(from_time);
         let x2 = time_to_x(to_time);
-        let lane_inset = (row_h / 4).max(10);
+        let lane_inset = 16;
         let (y1, y2) = if y2 > y1 {
             (y1 + lane_inset, y2 - lane_inset)
         } else if y2 < y1 {

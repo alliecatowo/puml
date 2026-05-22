@@ -1732,15 +1732,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             } => {
                 if matches!(kind, TimingDeclKind::Clock) {
                     let period = controls.iter().find_map(|control| {
-                        let Some(rest) = control.strip_prefix("period ") else {
-                            return None;
-                        };
+                        let rest = control.strip_prefix("period ")?;
                         rest.split_whitespace().next()?.parse::<i64>().ok()
                     });
                     let offset = controls.iter().find_map(|control| {
-                        let Some(rest) = control.strip_prefix("offset ") else {
-                            return None;
-                        };
+                        let rest = control.strip_prefix("offset ")?;
                         rest.split_whitespace().next()?.parse::<i64>().ok()
                     });
                     if let Some(period) = period {

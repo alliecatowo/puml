@@ -11,12 +11,16 @@ RX is Idle
 
 @clk*1 as :frame_start
 TX is Header
-TX -> RX@:frame_start+50 : hdr
+
+@:frame_start+25
+TX -> RX@:frame_start+50
 
 @clk*2
 RX is ReceiveHeader
 TX is Payload
-TX -> RX@:frame_start+100 : data
+
+@:frame_start+75
+TX -> RX@:frame_start+100
 
 @clk*3
 RX is ReceivePayload
