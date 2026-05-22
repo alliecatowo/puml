@@ -324,18 +324,24 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 target,
                 text,
                 position,
+                aligned,
             } => {
                 let (content_width, text_lines) = multiline_metrics(text);
                 let width_from_text =
                     content_width + (options.note_padding * 2) + NOTE_TEXT_WIDTH_GUARD_PX;
                 let width = options.note_width.max(width_from_text);
                 let height = (text_lines * TEXT_LINE_HEIGHT) + (options.note_padding * 2);
-                let y = note_vertical_position_y(
-                    position,
-                    events_top + (event_rows * options.message_row_height),
-                    height,
-                    events_top,
-                );
+                // For `/ note` (aligned), reuse the y of the most-recently placed note
+                // so that the two notes appear side-by-side at the same vertical level.
+                let base_y: i32 = if *aligned {
+                    notes
+                        .last()
+                        .map(|last_note: &NoteBox| last_note.y)
+                        .unwrap_or_else(|| events_top + (event_rows * options.message_row_height))
+                } else {
+                    events_top + (event_rows * options.message_row_height)
+                };
+                let y = note_vertical_position_y(position, base_y, height, events_top);
                 let (x, width) = note_horizontal_bounds(
                     position,
                     target.as_deref(),
@@ -355,7 +361,10 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     height,
                     text: text.clone(),
                 });
-                event_rows += row_units_for_height(height, options.message_row_height);
+                // Aligned notes don't advance the row counter.
+                if !aligned {
+                    event_rows += row_units_for_height(height, options.message_row_height);
+                }
             }
             SequenceEventKind::GroupStart { kind, label } => {
                 let y = events_top + (event_rows * options.message_row_height);
@@ -731,6 +740,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         legend_text: document.legend.clone(),
         legend_halign: document.legend_halign,
         legend_valign: document.legend_valign,
+        mainframe: document.mainframe.clone(),
     }
 }
 
