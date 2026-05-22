@@ -94,6 +94,9 @@ jobs:
           shared-key: pr-gate-ubuntu-stable
           cache-on-failure: true
 
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
       - name: Build puml CLI binary for artifact regen
         run: cargo build --release --bin puml
 
