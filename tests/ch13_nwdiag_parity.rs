@@ -94,7 +94,10 @@ nwdiag {
     let auto_width = network_bar_width(&svg, "auto");
     let full_width = network_bar_width(&svg, "full");
 
-    assert!(full_width > auto_width, "full-width busbar should extend farther");
+    assert!(
+        full_width > auto_width,
+        "full-width busbar should extend farther"
+    );
 }
 
 fn network_bar_width(svg: &str, mode: &str) -> i32 {

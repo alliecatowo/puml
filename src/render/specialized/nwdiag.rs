@@ -71,7 +71,11 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         next_x += column_widths.get(name).copied().unwrap_or(140) + gap;
     }
 
-    let peer_section_height = if document.peer_nodes.is_empty() { 0 } else { 72 };
+    let peer_section_height = if document.peer_nodes.is_empty() {
+        0
+    } else {
+        72
+    };
     let network_height = if document.networks.is_empty() {
         24
     } else {
@@ -128,13 +132,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     }
 
     for net in &document.networks {
-        let bar = network_bar_bounds(
-            &node_columns,
-            &column_x,
-            &column_widths,
-            Some(net),
-            false,
-        );
+        let bar = network_bar_bounds(&node_columns, &column_x, &column_widths, Some(net), false);
         network_bars.push(bar);
         let bar_y = scan_y + 24;
         let node_y = bar_y + 30;

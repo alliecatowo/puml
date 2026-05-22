@@ -197,7 +197,10 @@ fn ensure_peer_link_nodes(
 }
 
 fn merge_peer_node(peer_nodes: &mut Vec<NwdiagNode>, node: NwdiagNode) {
-    if let Some(existing) = peer_nodes.iter_mut().find(|existing| existing.name == node.name) {
+    if let Some(existing) = peer_nodes
+        .iter_mut()
+        .find(|existing| existing.name == node.name)
+    {
         if node.address.is_some() {
             existing.address = node.address;
             existing.addresses = node.addresses;
@@ -239,7 +242,11 @@ fn parse_peer_link_chain(entry: &str) -> Option<Vec<String>> {
         })
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>();
-    if nodes.len() >= 2 { Some(nodes) } else { None }
+    if nodes.len() >= 2 {
+        Some(nodes)
+    } else {
+        None
+    }
 }
 
 fn parse_nwdiag_assignment(line: &str) -> Option<(String, String)> {
