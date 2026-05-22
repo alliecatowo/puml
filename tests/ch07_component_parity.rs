@@ -360,3 +360,23 @@ note right on link: encrypted
         "on-link note should attach to the most recent relation target with dotted relation"
     );
 }
+
+#[test]
+fn component_multiline_bracket_description_renders_without_parse_error() {
+    let src = "\
+@startuml
+component comp1 [
+Line 1
+Line 2
+]
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(svg.contains("comp1"), "component name should render");
+    assert!(svg.contains("Line 1"), "first multiline description row should render");
+    assert!(svg.contains("Line 2"), "second multiline description row should render");
+    assert!(
+        !svg.contains("Line 1Line 2"),
+        "multiline bracket description should preserve line breaks"
+    );
+}
