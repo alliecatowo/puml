@@ -30,17 +30,21 @@ fn parse_activity_step(line: &str) -> Option<StatementKind> {
             Some(activity_style_label(label, color.as_deref())),
         ));
     }
-    // `:action;` or `:action` form
+    // `:action;` or `:action` form (including SDL terminator variants: |, <, >, /, \, ], })
     if let Some(rest) = trimmed.strip_prefix(':') {
-        let body = rest.trim_end_matches(';').trim();
-        return Some(activity_step_statement(
-            ActivityStepKind::Action,
+        let (body, sdl_shape) = parse_activity_action_terminator(rest);
+        let label = if let Some(shape) = sdl_shape {
             if body.is_empty() {
                 None
             } else {
-                Some(body.to_string())
-            },
-        ));
+                Some(format!("\x1fsdl:{shape}\x1f{body}"))
+            }
+        } else if body.is_empty() {
+            None
+        } else {
+            Some(body.to_string())
+        };
+        return Some(activity_step_statement(ActivityStepKind::Action, label));
     }
     if trimmed == "start" {
         return Some(activity_step_statement(ActivityStepKind::Start, None));
@@ -304,10 +308,18 @@ fn parse_activity_colored_action(line: &str) -> Option<(String, Option<String>)>
     if body.trim_start().starts_with('(') {
         return None;
     }
-    let label = body.trim().trim_end_matches(';').trim();
+    let (body_text, sdl_shape) = parse_activity_action_terminator(body.trim());
+    let label = if let Some(shape) = sdl_shape {
+        if body_text.is_empty() {
+            return None;
+        }
+        format!("\x1fsdl:{shape}\x1f{body_text}")
+    } else {
+        body_text.to_string()
+    };
     (!label.is_empty()).then(|| {
         (
-            label.to_string(),
+            label,
             Some(normalize_activity_color_token(_color)),
         )
     })
@@ -413,6 +425,36 @@ fn parse_activity_arrow_directive(line: &str) -> Option<String> {
         parts.push(format!("label:{tail}"));
     }
     Some(parts.join("\x1f"))
+}
+
+/// Parse an activity action body (after the leading `:`), extracting the SDL
+/// terminator character if present.
+///
+/// Returns `(body_text, Some("sdl_shape"))` or `(body_text, None)` for plain `;`.
+///
+/// PlantUML SDL terminators (final character before optional whitespace):
+///   `;`  → plain rounded rectangle (default, no marker)
+///   `|`  → horizontal bar / procedure
+///   `<`  → left-pointing chevron (receive)
+///   `>`  → right-pointing chevron (send)
+///   `/`  → parallelogram slanting right (input)
+///   `\`  → parallelogram slanting left (output)
+///   `]`  → right bracket / condition
+///   `}`  → closing brace / return
+fn parse_activity_action_terminator(rest: &str) -> (&str, Option<&'static str>) {
+    let raw = rest.trim_end();
+    let (stripped, terminator) = match raw.as_bytes().last() {
+        Some(b';') => (&raw[..raw.len() - 1], None),
+        Some(b'|') => (&raw[..raw.len() - 1], Some("bar")),
+        Some(b'<') => (&raw[..raw.len() - 1], Some("receive")),
+        Some(b'>') => (&raw[..raw.len() - 1], Some("send")),
+        Some(b'/') => (&raw[..raw.len() - 1], Some("input")),
+        Some(b'\\') => (&raw[..raw.len() - 1], Some("output")),
+        Some(b']') => (&raw[..raw.len() - 1], Some("bracket")),
+        Some(b'}') => (&raw[..raw.len() - 1], Some("brace")),
+        _ => (raw, None),
+    };
+    (stripped.trim(), terminator)
 }
 
 fn activity_style_label(label: impl Into<String>, fill_color: Option<&str>) -> String {
