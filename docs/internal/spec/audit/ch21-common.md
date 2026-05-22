@@ -14,12 +14,12 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 **Evidence:** `src/parser/blocks.rs:1-19` (`strip_inline_plantuml_comment`), used by `src/parser/core.rs:18`, `src/parser/family.rs:1531`, etc. Also `src/main.rs:1475`.
 **Notes:** Aware of quoted strings — won't strip `'` inside `"..."`. Trailing-comment form covered by tests at `src/parser/tests.rs:1786`.
 
-### 21.1.2 Block comment (`/' ... '/`) — ❌
+### 21.1.2 Block comment (`/' ... '/`) — ✅
 **Feature:** C-style block comments using `/'` ... `'/`, including same-line block comments.
 **Syntax example:** `/' multiline\ncomment '/`
-**Status:** ❌
-**Evidence:** No occurrences of `/'` block-comment handling in `src/parser/` or `src/preproc/`. Only `picouml_strip_block_comments` exists at `src/frontend/picouml.rs:57` and uses `[/* ... */]` (PicoUML frontend, not PlantUML syntax).
-**Notes:** Inline comment stripper at `src/parser/blocks.rs:1` treats `/` and `'` independently — would not span lines. Gap.
+**Status:** ✅
+**Evidence:** `src/preproc/control.rs` — `strip_block_comments` function strips `/' ... '/` spans, including multiline. Tests: `tests/ch21_common_parity.rs` (`block_comment_multiline_is_stripped`, `block_comment_single_line_is_stripped`, `block_comment_adjacent_to_content`, `block_comment_preserves_line_numbers_after_stripping`).
+**Notes:** Implemented in the preprocessor layer so it applies to all diagram families.
 
 ### 21.2 Zoom / scale — 🟡
 **Feature:** `scale 1.5`, `scale 2/3`, `scale 200 width`, `scale 200 height`, `scale 200*100`, `scale max 300*200`, `scale max 1024 width`, `scale max 800 height`.
@@ -108,14 +108,14 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 **Evidence:** No matches for `mainframe` in `src/parser/`, `src/normalize/`, `src/render/`, `src/ast.rs`.
 **Notes:** Section 21.11 of the spec relies on this; gap.
 
-### 21.x left to right direction / top to bottom direction — ❌ (not found)
-**Status:** ❌
-**Evidence:** No matches in `src/parser/` or `src/normalize/`.
-**Notes:** Layout-direction hint missing. Often affects activity/state/usecase rendering.
+### 21.x left to right direction / top to bottom direction — ✅
+**Status:** ✅
+**Evidence:** `src/normalize/family.rs` — `FamilyOrientation::LeftToRight` / `TopToBottom` set from `"left to right direction"` / `"top to bottom direction"` keywords. `src/render/family.rs` emits `data-orientation="LeftToRight"` attribute on the SVG root. Tests: `tests/ch21_common_parity.rs` (`left_to_right_direction_on_class_diagram`, `left_to_right_direction_on_usecase_diagram`, `left_to_right_direction_on_component_diagram`, `top_to_bottom_direction_is_default_on_class_diagram`).
+**Notes:** Layout engine honors orientation via graph_layout.rs.
 
-### 21.x monochrome / sepia — ❌
-**Status:** ❌
-**Evidence:** No matches for `monochrome` or `sepia` in source tree.
+### 21.x monochrome / sepia — ✅ (sepia) / 🟡 (monochrome)
+**Status:** ✅ sepia; 🟡 monochrome
+**Evidence:** `src/normalize/family.rs` and `src/normalize/sequence.rs` handle `skinparam sepia true/false` via `classify_sequence_skinparam`. SVG CSS filter `filter:sepia(1)` added to root element when enabled. `monochrome` skinparam parsed and stored in `SequenceStyle` but grayscale CSS filter not yet emitted. Tests: `tests/ch21_common_parity.rs` (`skinparam_sepia_true_adds_css_filter_on_class_diagram`, `skinparam_sepia_true_adds_css_filter_on_sequence`, `skinparam_sepia_false_does_not_add_css_filter_on_sequence`).
 
 ### 21.x backgroundColor (top-level skinparam) — 🟡
 **Status:** 🟡
@@ -127,6 +127,6 @@ Status legend: ✅ supported · 🟡 partial · ❌ not supported
 ---
 
 ## Tally — Chapter 21
-- ✅ Supported: 9 (`'` comment, title, caption, header/footer base, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local)
-- 🟡 Partial: 5 (scale, header/footer alignment qualifier, per-family render coverage, skinparam breadth, !theme remote)
-- ❌ Missing: 7 (`/' ... '/` block comments, `<style>` blocks, mainframe, left-to-right direction, monochrome, sepia, hide stereotype, top-level backgroundColor)
+- ✅ Supported: 12 (`'` comment, `/' '/` block comments, title, caption, header/footer base, legend (+ pos), skinparam, !pragma teoz, !include family, newpage, hide footbox, !theme local, left-to-right/top-to-bottom direction, sepia)
+- 🟡 Partial: 6 (scale, header/footer alignment qualifier, per-family render coverage, skinparam breadth, !theme remote, monochrome)
+- ❌ Missing: 4 (`<style>` blocks, mainframe, hide stereotype, top-level backgroundColor)
