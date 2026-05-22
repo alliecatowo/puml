@@ -123,16 +123,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
-        // Skinparam block form: `skinparam <prefix> { Key Value ... }`
-        // Expand to individual SkinParam statements with concatenated keys.
-        if let Some((skinparam_kinds, end_idx)) = parse_skinparam_block(&lines, i, line) {
-            for kind in skinparam_kinds {
-                statements.push(Statement { span, kind });
-            }
-            i = end_idx + 1;
-            continue;
-        }
-
         if let Some(kind) = parse_keyword(line) {
             let multiline_note_head =
                 matches!(&kind, StatementKind::Note(_)) && note_block_continues(&lines, i, line);
@@ -325,6 +315,17 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         if matches!(
             detected_kind,
             None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
+        ) {
+            if let Some(kind) = parse_family_page_break(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
+        if matches!(
+            detected_kind,
+            None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
         ) && !(detected_kind.is_none()
             && in_block
             && block_kind == Some(BlockKind::Uml)
@@ -413,6 +414,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         }
 
         if detected_kind.is_none() {
+            if looks_like_usecase_relation_line(line) {
+                if let Some(kind) = parse_family_relation(line, Some(DiagramKind::UseCase)) {
+                    detected_kind = Some(DiagramKind::UseCase);
+                    statements.push(Statement { span, kind });
+                    i += 1;
+                    continue;
+                }
+            }
             if let Some(kind) = detect_non_sequence_family(line) {
                 let ambiguous_sequence_participant = matches!(kind, DiagramKind::Deployment)
                     && component_decl_keyword(line).is_some_and(|(kw, _)| {
@@ -746,76 +755,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         statements,
     })
 }
-/// Parse a skinparam block: `skinparam <prefix> { Key Value ... }`.
-///
-/// Expands the block into individual `SkinParam` statements where the key is
-/// the concatenation of `prefix + innerKey`. For example:
-/// ```text
-/// skinparam class {
-///   BackgroundColor Yellow
-///   BorderColor<<Abstract>> Red
-/// }
-/// ```
-/// becomes:
-/// - `SkinParam { key: "classBackgroundColor", value: "Yellow" }`
-/// - `SkinParam { key: "classBackgroundColor<<Abstract>>", value: "Yellow" }` (if stereotype scoped)
-///
-/// Returns `None` if the line is not a block-form skinparam opener.
-fn parse_skinparam_block(
-    lines: &[(&str, Span)],
-    start_idx: usize,
-    line: &str,
-) -> Option<(Vec<StatementKind>, usize)> {
-    let lower = line.to_ascii_lowercase();
-    let rest = lower.strip_prefix("skinparam ")?;
-    // The block form ends with `{` (possibly separated by whitespace or not).
-    let rest_trimmed = rest.trim_end();
-    if !rest_trimmed.ends_with('{') {
-        return None;
-    }
-    // Extract the prefix: everything between "skinparam " and the final `{`.
-    let prefix_raw = rest_trimmed.trim_end_matches('{').trim();
-    if prefix_raw.is_empty() {
-        return None;
-    }
-    // Preserve original casing from the source line for the prefix.
-    let original_rest = line["skinparam ".len()..].trim_end();
-    let original_prefix = original_rest.trim_end_matches('{').trim();
-
-    // Scan for the closing `}`.
-    let mut kinds: Vec<StatementKind> = Vec::new();
-    let mut end_idx = start_idx;
-    for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
-        let inner = strip_inline_plantuml_comment(raw).trim();
-        if inner == "}" {
-            end_idx = idx;
-            break;
-        }
-        if inner.is_empty() {
-            continue;
-        }
-        // Each inner line is expected to be: `InnerKey Value` or just be ignored.
-        // Split on the first whitespace to get key and value parts.
-        let (inner_key, inner_value) = inner
-            .split_once(|c: char| c.is_whitespace())
-            .map(|(k, v)| (k.trim(), v.trim()))
-            .unwrap_or((inner, ""));
-        if inner_key.is_empty() {
-            continue;
-        }
-        // Combine prefix with inner key: "class" + "BackgroundColor" → "classBackgroundColor".
-        // Handle stereotype-scoped inner keys: "BackgroundColor<<Abstract>>" stays as-is after prefix.
-        let combined_key = format!("{original_prefix}{inner_key}");
-        kinds.push(StatementKind::SkinParam {
-            key: combined_key,
-            value: inner_value.to_string(),
-        });
-        // Track the last line we successfully read as end_idx
-        end_idx = idx;
-    }
-    Some((kinds, end_idx))
-}
-
 fn parse_sprite_statement(
     lines: &[(&str, Span)],
     start_idx: usize,

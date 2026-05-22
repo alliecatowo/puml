@@ -34,7 +34,25 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut last_relation: Option<(String, String)> = None;
     let mut orientation = FamilyOrientation::TopToBottom;
     let mut sepia = false;
-
+    let mut pages: Vec<crate::model::FamilyPage> = Vec::new();
+    let mut current_page_title: Option<String> = None;
+    let mut had_newpage = false;
+    let flush_page = |nodes: &mut Vec<FamilyNode>,
+                      relations: &mut Vec<ModelFamilyRelation>,
+                      groups: &mut Vec<FamilyGroup>,
+                      pages: &mut Vec<crate::model::FamilyPage>,
+                      title: &mut Option<String>| {
+        if nodes.is_empty() && relations.is_empty() && groups.is_empty() {
+            *title = None;
+            return;
+        }
+        pages.push(crate::model::FamilyPage {
+            title: title.take(),
+            nodes: std::mem::take(nodes),
+            relations: std::mem::take(relations),
+            groups: std::mem::take(groups),
+        });
+    };
     for stmt in document.statements {
         match stmt.kind {
             StatementKind::SpriteDef(sprite) => {
@@ -117,6 +135,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                                     .entry(stereotype)
                                     .or_default()
                                     .font_color = Some(c);
+                            }
+                            ClassSkinParamValue::ActorStyle(style) => {
+                                class_style.actor_style = style;
                             }
                         }
                     }
@@ -217,9 +238,24 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 // Detect and strip C4 stereotypes embedded in the alias
                 // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
                 let (clean_alias, c4_kind) = sequence::extract_c4_stereotype(decl.alias);
-                let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
                 let mut members = decl.members;
                 let fill_color = extract_family_node_fill_color(&mut members);
+                // Detect <<diamond>> and <<map>> markers inserted by the parser to
+                // promote nodes to Diamond / Map kinds in object diagrams.
+                let resolved_kind = if c4_kind.is_some() {
+                    c4_kind.unwrap()
+                } else if members
+                    .first()
+                    .is_some_and(|m| m.text.trim() == "<<diamond>>")
+                {
+                    members.remove(0);
+                    FamilyNodeKind::Diamond
+                } else if members.first().is_some_and(|m| m.text.trim() == "<<map>>") {
+                    members.remove(0);
+                    FamilyNodeKind::Map
+                } else {
+                    FamilyNodeKind::Object
+                };
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
@@ -245,6 +281,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 }
                 let mut members = decl.members;
                 let fill_color = extract_family_node_fill_color(&mut members);
+                let is_business = members.iter().any(|m| m.text.trim() == "<<business>>");
+                members.retain(|m| m.text.trim() != "<<business>>");
                 // An `actor` declaration becomes a UseCaseDecl with `<<actor>>` as its
                 // first member. Detect this and promote it to Actor kind so the renderer
                 // can draw a stick figure instead of an ellipse.
@@ -253,7 +291,13 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     .is_some_and(|m| m.text.trim() == "<<actor>>")
                 {
                     let _ = members.remove(0); // strip the marker — it was only for detection
-                    FamilyNodeKind::Actor
+                    if is_business {
+                        FamilyNodeKind::BusinessActor
+                    } else {
+                        FamilyNodeKind::Actor
+                    }
+                } else if is_business {
+                    FamilyNodeKind::BusinessUseCase
                 } else {
                     FamilyNodeKind::UseCase
                 };
@@ -425,6 +469,18 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::NewPage(title) => {
+                had_newpage = true;
+                flush_page(
+                    &mut nodes,
+                    &mut relations,
+                    &mut groups,
+                    &mut pages,
+                    &mut current_page_title,
+                );
+                current_page_title = title;
+            }
+            StatementKind::IgnoreNewPage => {}
             StatementKind::Theme(value) => {
                 class_style = class_style_from_sequence_theme(
                     &resolve_sequence_theme_preset(&value)
@@ -535,7 +591,16 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // Only applies to the stub/C4 path; the class/component paths keep separate
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
     apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
-    let relations = merge_duplicate_rel_labels(relations);
+    let mut relations = merge_duplicate_rel_labels(relations);
+    if had_newpage {
+        flush_page(
+            &mut nodes,
+            &mut relations,
+            &mut groups,
+            &mut pages,
+            &mut current_page_title,
+        );
+    }
     if let Some(mode) = class_monochrome_mode {
         apply_monochrome_to_class_style(&mut class_style, mode);
     }
@@ -545,6 +610,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         nodes,
         relations,
         groups,
+        pages,
         json_projections,
         hide_options,
         namespace_separator,
@@ -1279,6 +1345,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         list_sprites,
         warnings,
         groups: Vec::new(),
+        pages: Vec::new(),
         json_projections: Vec::new(),
         hide_options: std::collections::BTreeSet::new(),
         namespace_separator: None,
@@ -2350,6 +2417,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         list_sprites,
         warnings: ext_warnings,
         groups,
+        pages: Vec::new(),
         json_projections,
         hide_options,
         namespace_separator: None,

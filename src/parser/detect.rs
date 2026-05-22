@@ -1,4 +1,17 @@
 fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
+    if looks_like_usecase_relation_line(line) {
+        return Some(DiagramKind::UseCase);
+    }
+
+    if line.starts_with("usecase ")
+        || line.starts_with("usecase(")
+        || line.starts_with("usecase/")
+        || line.starts_with("actor/")
+        || (line.starts_with('(') && line.contains(')'))
+    {
+        return Some(DiagramKind::UseCase);
+    }
+
     if line.starts_with("component ")
         || line.starts_with("interface ")
         || line.starts_with("port ")
@@ -80,7 +93,7 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
 
     if line.starts_with("start")
         || line.starts_with("stop")
-        || line.starts_with(':')
+        || (line.starts_with(':') && !is_colon_actor_relation_line(line))
         || line.starts_with("(*)")
         || line.starts_with("if ")
         || line.starts_with("elseif ")
