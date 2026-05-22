@@ -405,6 +405,39 @@ fn normalize_family_accepts_wave1_implemented_families() {
 }
 
 #[test]
+fn normalize_wbs_parenthesized_aliases_and_cross_tree_relations() {
+    let src = fs::read_to_string(fixture("families/valid_wbs_alias_relations.puml"))
+        .expect("fixture should load");
+    let doc = parse(&src).expect("parse should succeed");
+    assert_eq!(doc.kind, puml::ast::DiagramKind::Wbs);
+    let normalized = normalize_family(doc).expect("wbs normalize should succeed");
+    match normalized {
+        NormalizedDocument::Family(model) => {
+            let build = model
+                .nodes
+                .iter()
+                .find(|n| n.name == "Build")
+                .expect("build node should exist");
+            let launch = model
+                .nodes
+                .iter()
+                .find(|n| n.name == "Launch")
+                .expect("launch node should exist");
+            assert_eq!(build.alias.as_deref(), Some("a"));
+            assert_eq!(launch.alias.as_deref(), Some("b"));
+            assert!(
+                model
+                    .relations
+                    .iter()
+                    .any(|rel| rel.from == "a" && rel.to == "b"),
+                "explicit cross-tree alias relation should be preserved"
+            );
+        }
+        other => panic!("expected family model, got {other:?}"),
+    }
+}
+
+#[test]
 fn normalize_family_accepts_gantt_and_chronology_timelines() {
     let cases = [
         (

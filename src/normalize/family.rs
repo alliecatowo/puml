@@ -1238,6 +1238,26 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     );
                 }
             }
+            StatementKind::FamilyRelation(rel) => {
+                relations.push(ModelFamilyRelation {
+                    from: rel.from,
+                    to: rel.to,
+                    arrow: rel.arrow,
+                    label: rel.label,
+                    stereotype: rel.stereotype,
+                    left_cardinality: rel.left_cardinality,
+                    right_cardinality: rel.right_cardinality,
+                    left_role: rel.left_role,
+                    right_role: rel.right_role,
+                    line_color: rel.line_color,
+                    dashed: rel.dashed,
+                    hidden: rel.hidden,
+                    thickness: rel.thickness,
+                    direction: rel.direction,
+                    left_lollipop: rel.left_lollipop,
+                    right_lollipop: rel.right_lollipop,
+                });
+            }
             StatementKind::Unknown(line) => {
                 if line.trim().is_empty() {
                     continue;
@@ -1297,6 +1317,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                                 kind,
                                 depth: node_info.depth,
                                 name: first.to_string(),
+                                alias: node_info.alias.clone(),
                                 side: node_info.side,
                                 checkbox: node_info.checkbox,
                                 fill_color: node_info.fill_color,
@@ -1308,7 +1329,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     nodes.push(FamilyNode {
                         kind,
                         name: node_info.name,
-                        alias: None,
+                        alias: node_info.alias,
                         members: Vec::new(),
                         depth: node_info.depth,
                         label: None,
@@ -1413,6 +1434,7 @@ struct MindmapMultilineDraft {
     kind: FamilyNodeKind,
     depth: usize,
     name: String,
+    alias: Option<String>,
     side: MindMapSide,
     checkbox: Option<WbsCheckbox>,
     fill_color: Option<String>,
@@ -1434,7 +1456,7 @@ impl MindmapMultilineDraft {
             return Some(FamilyNode {
                 kind: self.kind,
                 name: self.name.clone(),
-                alias: None,
+                alias: self.alias.clone(),
                 members: Vec::new(),
                 depth: self.depth,
                 label: None,
@@ -1650,6 +1672,7 @@ fn parse_family_orientation_directive(line: &str) -> Option<FamilyOrientation> {
 struct MindMapWbsNode {
     depth: usize,
     name: String,
+    alias: Option<String>,
     side: MindMapSide,
     checkbox: Option<WbsCheckbox>,
     fill_color: Option<String>,
@@ -1682,6 +1705,7 @@ fn parse_mindmap_or_wbs_node(line: &str) -> Option<MindMapWbsNode> {
     }
 
     let mut label = rest[star_prefix..].trim().to_string();
+    let alias = parse_mindmap_wbs_alias(&mut label);
     let fill_color = parse_mindmap_wbs_color_tag(&mut label);
     if label.is_empty() {
         return None;
@@ -1701,10 +1725,32 @@ fn parse_mindmap_or_wbs_node(line: &str) -> Option<MindMapWbsNode> {
     Some(MindMapWbsNode {
         depth,
         name: label,
+        alias,
         side,
         checkbox,
         fill_color,
     })
+}
+
+fn parse_mindmap_wbs_alias(label: &mut String) -> Option<String> {
+    let trimmed = label.trim_start();
+    if !trimmed.starts_with('(') {
+        return None;
+    }
+    let close = trimmed.find(')')?;
+    if close <= 1 {
+        return None;
+    }
+    let alias = trimmed[1..close].trim().to_string();
+    if alias.is_empty() {
+        return None;
+    }
+    let remainder = &trimmed[close + 1..];
+    if !remainder.is_empty() && !remainder.starts_with(char::is_whitespace) {
+        return None;
+    }
+    *label = remainder.trim_start().to_string();
+    Some(alias)
 }
 
 /// Parse a leading PlantUML color tag from MindMap/WBS labels.

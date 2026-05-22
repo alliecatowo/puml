@@ -839,6 +839,8 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         | Some(DiagramKind::Object)
         | Some(DiagramKind::UseCase)
         | Some(DiagramKind::Salt)
+        | Some(DiagramKind::MindMap)
+        | Some(DiagramKind::Wbs)
         | Some(DiagramKind::Component)
         | Some(DiagramKind::Deployment) => {}
         _ => return None,
