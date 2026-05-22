@@ -1612,6 +1612,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut timing_current_time: Option<String> = None;
     let mut timing_current_signal: Option<String> = None;
     let mut timing_anchors = std::collections::BTreeMap::new();
+    let mut timing_clock_scales = std::collections::BTreeMap::new();
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
     let mut timing_style = TimingStyle::default();
@@ -1729,6 +1730,23 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 label,
                 controls,
             } => {
+                if matches!(kind, TimingDeclKind::Clock) {
+                    let period = controls.iter().find_map(|control| {
+                        let Some(rest) = control.strip_prefix("period ") else {
+                            return None;
+                        };
+                        rest.split_whitespace().next()?.parse::<i64>().ok()
+                    });
+                    let offset = controls.iter().find_map(|control| {
+                        let Some(rest) = control.strip_prefix("offset ") else {
+                            return None;
+                        };
+                        rest.split_whitespace().next()?.parse::<i64>().ok()
+                    });
+                    if let Some(period) = period {
+                        timing_clock_scales.insert(name.clone(), (period, offset.unwrap_or(0)));
+                    }
+                }
                 let node_kind = timing_decl_node_kind(kind);
                 nodes.push(FamilyNode {
                     kind: node_kind,
@@ -1790,6 +1808,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         &time,
                         timing_current_time.as_deref(),
                         &timing_anchors,
+                        &timing_clock_scales,
                     );
                     if let Some(anchor) = note
                         .as_deref()
@@ -1844,10 +1863,19 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         &time,
                         timing_current_time.as_deref(),
                         &timing_anchors,
+                        &timing_clock_scales,
                     );
                     timing_current_time = Some(normalized_time.clone());
                     normalized_time
                 };
+                let note = note.map(|note| {
+                    normalize_timing_range_note(
+                        &note,
+                        timing_current_time.as_deref(),
+                        &timing_anchors,
+                        &timing_clock_scales,
+                    )
+                });
                 let display = match (&signal, &state, &note) {
                     (Some(s), Some(st), _) => format!("{s} is {st}"),
                     (None, None, Some(n)) => n.clone(),
@@ -1882,11 +1910,13 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                             &rel.from,
                             timing_current_time.as_deref(),
                             &timing_anchors,
+                            &timing_clock_scales,
                         ),
                         normalize_timing_endpoint(
                             &rel.to,
                             timing_current_time.as_deref(),
                             &timing_anchors,
+                            &timing_clock_scales,
                         ),
                     )
                 } else {
@@ -2499,14 +2529,17 @@ fn normalize_timing_time(
     raw: &str,
     current: Option<&str>,
     anchors: &std::collections::BTreeMap<String, String>,
+    clocks: &std::collections::BTreeMap<String, (i64, i64)>,
 ) -> String {
     let trimmed = raw.trim().trim_start_matches('@');
     if let Some(anchor_expr) = trimmed.strip_prefix(':') {
         return normalize_timing_anchor_expr(anchor_expr, current, anchors);
     }
-    if let Some((_, multiplier)) = trimmed.split_once('*') {
-        if let Ok(n) = multiplier.trim().parse::<i64>() {
-            return n.to_string();
+    if let Some((clock_name, multiplier)) = trimmed.split_once('*') {
+        if let Some((period, offset)) = clocks.get(clock_name.trim()) {
+            if let Ok(n) = multiplier.trim().parse::<i64>() {
+                return period.saturating_mul(n).saturating_add(*offset).to_string();
+            }
         }
     }
     if let Some(delta) = trimmed
@@ -2557,6 +2590,7 @@ fn normalize_timing_endpoint(
     raw: &str,
     current: Option<&str>,
     anchors: &std::collections::BTreeMap<String, String>,
+    clocks: &std::collections::BTreeMap<String, (i64, i64)>,
 ) -> String {
     let trimmed = raw.trim();
     let Some((signal, time)) = trimmed.split_once('@') else {
@@ -2565,8 +2599,26 @@ fn normalize_timing_endpoint(
             .map(|time| format!("{trimmed}@{time}"))
             .unwrap_or_else(|| trimmed.to_string());
     };
-    let normalized_time = normalize_timing_time(time, current, anchors);
+    let normalized_time = normalize_timing_time(time, current, anchors, clocks);
     format!("{}@{}", signal.trim(), normalized_time)
+}
+
+fn normalize_timing_range_note(
+    note: &str,
+    current: Option<&str>,
+    anchors: &std::collections::BTreeMap<String, String>,
+    clocks: &std::collections::BTreeMap<String, (i64, i64)>,
+) -> String {
+    let Some(rest) = note.strip_prefix("range:") else {
+        return note.to_string();
+    };
+    let (end, label) = rest.split_once(':').unwrap_or((rest, ""));
+    let normalized_end = normalize_timing_time(end, current, anchors, clocks);
+    if label.is_empty() {
+        format!("range:{normalized_end}")
+    } else {
+        format!("range:{normalized_end}:{label}")
+    }
 }
 
 fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {

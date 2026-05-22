@@ -262,12 +262,17 @@ fn parse_timing_anchor(after_time: &str) -> Option<String> {
 }
 
 fn parse_timing_relation(line: &str) -> Option<StatementKind> {
-    let (core, label) = line
-        .split_once(':')
-        .map(|(lhs, rhs)| (lhs.trim(), Some(rhs.trim().trim_matches('"').to_string())))
-        .unwrap_or((line.trim(), None));
     for arrow in ["<->", "-->", "<--", "->", "<-"] {
-        if let Some((from, to)) = core.split_once(arrow) {
+        if let Some((from, to_and_label)) = line.trim().split_once(arrow) {
+            let (to, label) = to_and_label
+                .rsplit_once(" : ")
+                .map(|(to, label)| {
+                    (
+                        to.trim(),
+                        Some(label.trim().trim_matches('"').to_string()),
+                    )
+                })
+                .unwrap_or((to_and_label.trim(), None));
             let from = from.trim();
             let to = to.trim();
             if from.is_empty() || to.is_empty() {

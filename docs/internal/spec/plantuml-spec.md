@@ -41,7 +41,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 7 | Component | 10 | 6 | 3 | [ch07-component.md](audit/ch07-component.md) |
 | 8 | Deployment | 14 kw + 5 sec | 10 sec | 15 kw + 2 sec | [ch08-deployment.md](audit/ch08-deployment.md) |
 | 9 | State | 7 | 7 | 11 | [ch09-state.md](audit/ch09-state.md) |
-| 10 | Timing | 1 | 9 | 19 | [ch10-timing.md](audit/ch10-timing.md) |
+| 10 | Timing | 3 | 11 | 15 | [ch10-timing.md](audit/ch10-timing.md) |
 | 11 | JSON | 7 | 4 | 3 | [ch11-json.md](audit/ch11-json.md) |
 | 12 | YAML | 3 | 1 | 4 | [ch12-yaml.md](audit/ch12-yaml.md) |
 | 13 | nwdiag | 11 | 4 | 2 | [ch13-nwdiag.md](audit/ch13-nwdiag.md) |
