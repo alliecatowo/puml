@@ -606,6 +606,8 @@ pub struct FamilyDocument {
     /// Family-specific style overrides (class/state/component/activity).
     pub family_style: Option<FamilyStyle>,
     pub text_overflow_policy: TextOverflowPolicy,
+    /// MindMap/WBS: auto word-wrap node labels at this pixel width (`skinparam MaximumWidth`).
+    pub maximum_width: Option<i32>,
     pub sprites: SpriteRegistry,
     pub list_sprites: bool,
     pub warnings: Vec<Diagnostic>,

@@ -382,6 +382,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         arrow_color: style.arrow_color.clone(),
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
+        actor_style: ActorStyleKind::default(),
         stereotype_styles: BTreeMap::new(),
     }
 }
@@ -1455,6 +1456,15 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
 
 // ─── Class-family skinparam support ─────────────────────────────────────────
 
+/// Stick figure vs PlantUML `skinparam actorStyle` variants (Chapter 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActorStyleKind {
+    #[default]
+    Stick,
+    Awesome,
+    Hollow,
+}
+
 /// Style overrides for class/object/usecase diagrams.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassStyle {
@@ -1466,6 +1476,7 @@ pub struct ClassStyle {
     pub arrow_color: String,
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
+    pub actor_style: ActorStyleKind,
     pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
 }
 
@@ -1488,8 +1499,18 @@ impl Default for ClassStyle {
             arrow_color: "#1e293b".to_string(),
             font_size: None,
             font_name: None,
+            actor_style: ActorStyleKind::default(),
             stereotype_styles: BTreeMap::new(),
         }
+    }
+}
+
+fn parse_actor_style_value(value: &str) -> Option<ActorStyleKind> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "stick" | "stickman" | "default" => Some(ActorStyleKind::Stick),
+        "awesome" => Some(ActorStyleKind::Awesome),
+        "hollow" => Some(ActorStyleKind::Hollow),
+        _ => None,
     }
 }
 
@@ -1508,6 +1529,7 @@ pub enum ClassSkinParamValue {
     StereotypeBorderColor(String, String),
     StereotypeHeaderBackgroundColor(String, String),
     StereotypeFontColor(String, String),
+    ActorStyle(ActorStyleKind),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2158,7 +2180,7 @@ pub fn classify_mindmap_skinparam(
             .map(|n| SkinParamSupport::SupportedWithValue(GenericSkinParamValue::FontSize(n)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
         "arrowcolor" | "mindmaparrowcolor" | "nodefontname" | "mindmapfontname" | "roundcorner"
-        | "mindmaproundcorner" => SkinParamSupport::SupportedNoop,
+        | "mindmaproundcorner" | "maximumwidth" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }

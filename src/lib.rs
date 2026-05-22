@@ -325,7 +325,10 @@ fn render_document_for_family(
         DiagramFamily::Class
         | DiagramFamily::Object
         | DiagramFamily::UseCase => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Family(family_doc) => Ok(vec![render_family_document_svg(&family_doc)]),
+            model::NormalizedDocument::Family(family_doc) => Ok(normalize::paginate_family(&family_doc)
+                .iter()
+                .map(render_family_document_svg)
+                .collect()),
             model::NormalizedDocument::Sequence(_)
             | model::NormalizedDocument::Timeline(_)
             | model::NormalizedDocument::State(_) => Err(Diagnostic::error(

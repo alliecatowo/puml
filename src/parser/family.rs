@@ -1,8 +1,83 @@
+pub(crate) fn parse_page_break_line(line: &str) -> Option<StatementKind> {
+    let lower = line.trim().to_ascii_lowercase();
+    if lower.starts_with("newpage") {
+        return Some(StatementKind::NewPage(
+            line[7..].trim().to_string().into(),
+        ));
+    }
+    if lower == "ignore newpage" {
+        return Some(StatementKind::IgnoreNewPage);
+    }
+    None
+}
+
 fn parse_family_declaration(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    if let Some(kind) = parse_colon_actor_usecase_decl(line) {
+        return Ok(Some((kind, start)));
+    }
+
+    for (keyword, marker, business) in [
+        ("usecase/", None, true),
+        ("actor/", Some("<<actor>>"), true),
+    ] {
+        let Some(decl) = parse_named_family_decl(line, keyword) else {
+            continue;
+        };
+        let FamilyDeclParts {
+            name,
+            alias,
+            has_block,
+            stereotypes,
+            fill_color,
+            ..
+        } = decl;
+        let mut stereotypes = stereotypes;
+        if business {
+            stereotypes.push("business".to_string());
+        }
+        let mut members = if has_block {
+            let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
+            if let Some(marker) = marker {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: marker.to_string(),
+                        modifier: None,
+                    },
+                );
+            }
+            for stereotype in stereotypes.iter().rev() {
+                members.insert(
+                    0,
+                    ClassMember {
+                        text: format!("<<{stereotype}>>"),
+                        modifier: None,
+                    },
+                );
+            }
+            members
+        } else {
+            declaration_marker_members(marker, stereotypes)
+        };
+        append_inline_fill_member(&mut members, fill_color);
+        return Ok(Some((
+            StatementKind::UseCaseDecl(UseCaseDecl {
+                name,
+                alias,
+                members,
+            }),
+            if has_block {
+                find_family_decl_end(lines, start)
+            } else {
+                start
+            },
+        )));
+    }
+
     for (keyword, marker) in [
         ("abstract class", Some("<<abstract class>>")),
         ("exception", Some("<<exception>>")),
@@ -171,10 +246,11 @@ fn parse_family_declaration(
             name,
             alias,
             has_block,
+            stereotypes,
             fill_color,
             ..
         } = decl;
-        let mut members = Vec::new();
+        let mut members = declaration_marker_members(None, stereotypes);
         append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -282,9 +358,12 @@ fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start:
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
         line.starts_with("usecase ")
+            || line.starts_with("usecase/")
             || line.starts_with("usecase(")
             || line.starts_with('(')
             || line.starts_with("actor ")
+            || line.starts_with("actor/")
+            || (line.starts_with(':') && line.ends_with(':'))
     })
 }
 
@@ -351,6 +430,45 @@ struct FamilyDeclParts {
 struct FamilyHeritage {
     arrow: String,
     target: String,
+}
+
+fn parse_colon_actor_usecase_decl(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    let (core, business) = if let Some(core) = trimmed.strip_suffix('/') {
+        let core = core.trim();
+        if !core.ends_with(':') {
+            return None;
+        }
+        (core, true)
+    } else if trimmed.starts_with(':') && trimmed.ends_with(':') {
+        (trimmed, false)
+    } else {
+        return None;
+    };
+    let inner = core.strip_prefix(':')?.strip_suffix(':')?.trim();
+    if inner.is_empty() || inner.contains(':') {
+        return None;
+    }
+    let (name_raw, alias_raw) = if let Some((lhs, rhs)) = inner.split_once(" as ") {
+        (lhs.trim(), Some(rhs.trim()))
+    } else {
+        (inner, None)
+    };
+    let name = clean_ident(name_raw);
+    if name.is_empty() {
+        return None;
+    }
+    let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
+    let mut stereotypes = Vec::new();
+    if business {
+        stereotypes.push("business".to_string());
+    }
+    let members = declaration_marker_members(Some("<<actor>>"), stereotypes);
+    Some(StatementKind::UseCaseDecl(UseCaseDecl {
+        name,
+        alias,
+        members,
+    }))
 }
 
 fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
@@ -651,7 +769,15 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         rest
     };
     let (rest, fill_color) = split_declaration_inline_fill(rest);
-    let rest = rest.trim();
+    let mut rest = rest.trim();
+    let mut stereotypes = Vec::new();
+    if rest == "/" {
+        stereotypes.push("business".to_string());
+        rest = "";
+    } else if let Some(after_slash) = rest.strip_prefix('/') {
+        stereotypes.push("business".to_string());
+        rest = after_slash.trim();
+    }
     let alias = rest
         .strip_prefix("as ")
         .map(str::trim)
@@ -661,7 +787,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         name: clean_ident(name_raw),
         alias,
         has_block,
-        stereotypes: Vec::new(),
+        stereotypes,
         fill_color,
         heritage: Vec::new(),
     })

@@ -337,6 +337,17 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             }
         }
 
+        if matches!(
+            detected_kind,
+            Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
+        ) {
+            if let Some(kind) = parse_page_break_line(line) {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+        }
+
         if let Some(kind) = parse_family_member_row(line, detected_kind) {
             statements.push(Statement { span, kind });
             i += 1;
