@@ -22,7 +22,10 @@ pub fn run_watch(cli: &Cli) -> WatchResult {
         .clone()
         .ok_or_else(|| "--watch requires an input file path".to_string())?;
 
-    eprintln!("watching {} for changes\u{2026} (Ctrl-C to stop)", path.display());
+    eprintln!(
+        "watching {} for changes\u{2026} (Ctrl-C to stop)",
+        path.display()
+    );
 
     // Note: we leak the file handle on Ctrl-C, but the OS will reap it.
     let mut last_mtime: Option<SystemTime> = None;
@@ -143,9 +146,7 @@ fn svg_to_output_bytes(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<
     match format {
         OutputFormat::Svg | OutputFormat::Html => Ok(svg.as_bytes().to_vec()),
 
-        OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => {
-            rasterize(svg, format, dpi)
-        }
+        OutputFormat::Png | OutputFormat::Jpg | OutputFormat::Webp => rasterize(svg, format, dpi),
 
         OutputFormat::Pdf => Err(
             "--watch does not yet support --format pdf; use --format svg or --format png"
@@ -190,12 +191,7 @@ fn rasterize(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<u8>, Strin
         OutputFormat::Png => {
             let mut buf = Vec::new();
             image::codecs::png::PngEncoder::new(&mut buf)
-                .write_image(
-                    pixmap.data(),
-                    width,
-                    height,
-                    image::ColorType::Rgba8.into(),
-                )
+                .write_image(pixmap.data(), width, height, image::ColorType::Rgba8.into())
                 .map_err(|e| format!("PNG encoding failed: {e}"))?;
             Ok(buf)
         }
@@ -218,12 +214,7 @@ fn rasterize(svg: &str, format: OutputFormat, dpi: f32) -> Result<Vec<u8>, Strin
         OutputFormat::Webp => {
             let mut buf = Vec::new();
             image::codecs::webp::WebPEncoder::new_lossless(&mut buf)
-                .write_image(
-                    pixmap.data(),
-                    width,
-                    height,
-                    image::ColorType::Rgba8.into(),
-                )
+                .write_image(pixmap.data(), width, height, image::ColorType::Rgba8.into())
                 .map_err(|e| format!("WebP encoding failed: {e}"))?;
             Ok(buf)
         }
