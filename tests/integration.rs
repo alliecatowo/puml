@@ -6530,6 +6530,78 @@ fn creole_plain_label_uses_fast_path_without_tspan_wrapper() {
 }
 
 #[test]
+fn unicode_escape_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("conformance/valid_unicode_escapes.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn unicode_escapes_render_decoded_text_and_preserve_invalid_forms() {
+    let src = fs::read_to_string(fixture("conformance/valid_unicode_escapes.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render unicode escapes");
+
+    for expected in ["∞", "☃", "📅", "😀", ":not_in_small_map:"] {
+        assert!(
+            svg.contains(expected),
+            "decoded output should contain {expected}: {svg}"
+        );
+    }
+
+    for removed in [
+        "&#8734;",
+        "&amp;#8734;",
+        "&#x2603;",
+        "&amp;#x2603;",
+        "<U+221E>",
+        "&lt;U+221E&gt;",
+        "<:calendar:>",
+        "&lt;:calendar:&gt;",
+        "<:1f600:>",
+        "&lt;:1f600:&gt;",
+    ] {
+        assert!(
+            !svg.contains(removed),
+            "decoded escape text should disappear: {removed}"
+        );
+    }
+
+    assert!(
+        svg.contains("&amp;#xZZ;"),
+        "invalid numeric reference should remain literal but XML-escaped"
+    );
+    assert!(
+        svg.contains("&lt;U+110000&gt;"),
+        "out-of-range codepoint tag should remain literal but XML-escaped"
+    );
+    assert!(
+        svg.contains("&lt;::&gt;"),
+        "empty emoji tag should remain literal but XML-escaped"
+    );
+}
+
+#[test]
+fn unicode_escapes_render_in_family_plain_text_labels() {
+    let src = "@startuml\nclass \"Box <U+221E> &#9731; <:heart:>\" as Box\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render family unicode escapes");
+
+    assert!(
+        svg.contains("Box ∞ ☃ ❤"),
+        "family label should decode unicode escapes: {svg}"
+    );
+    assert!(!svg.contains("&lt;U+221E&gt;"));
+    assert!(!svg.contains("&amp;#9731;"));
+    assert!(!svg.contains("&lt;:heart:&gt;"));
+}
+
+#[test]
 fn state_entry_exit_renders_italic_action_text() {
     let src = fs::read_to_string(fixture("families/valid_state_entry_exit.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("should render entry/exit state SVG");

@@ -1,4 +1,4 @@
-use crate::creole::{render_creole_to_svg_tspans, tokenize_creole};
+use crate::creole::{decode_unicode_escapes, render_creole_to_svg_tspans, tokenize_creole};
 
 pub(crate) fn creole_text(
     x: i32,
@@ -123,8 +123,9 @@ pub(crate) fn render_actor_stick_figure(out: &mut String, cx: i32, cy: i32, stro
 }
 
 pub(crate) fn escape_text(input: &str) -> String {
-    let mut escaped = String::with_capacity(input.len());
-    for ch in input.chars() {
+    let decoded = decode_unicode_escapes(input);
+    let mut escaped = String::with_capacity(decoded.len());
+    for ch in decoded.chars() {
         match ch {
             '&' => escaped.push_str("&amp;"),
             '<' => escaped.push_str("&lt;"),
