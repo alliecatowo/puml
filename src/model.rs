@@ -140,6 +140,7 @@ pub struct StateTransition {
 pub enum NormalizedDocument {
     Sequence(SequenceDocument),
     Family(FamilyDocument),
+    FamilyPages(Vec<FamilyDocument>),
     Timeline(TimelineDocument),
     State(StateDocument),
     Json(JsonDocument),

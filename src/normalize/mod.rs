@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::ast::{
     ActivityStepKind, ClassMember, ComponentNodeKind, DiagramKind, Document,
-    ParticipantRole as AstRole, StatementKind, TimingDeclKind,
+    ParticipantRole as AstRole, Statement, StatementKind, TimingDeclKind,
 };
 use crate::diagnostic::Diagnostic;
 use crate::model::FamilyStyle;
@@ -72,9 +72,10 @@ pub fn normalize_family_with_options(
         DiagramKind::Sequence => {
             sequence::normalize_with_options(document, options).map(NormalizedDocument::Sequence)
         }
-        DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase | DiagramKind::Salt => {
-            family::normalize_stub_family(document).map(NormalizedDocument::Family)
+        DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase => {
+            normalize_family_pages(document, family::normalize_stub_family)
         }
+        DiagramKind::Salt => family::normalize_stub_family(document).map(NormalizedDocument::Family),
         DiagramKind::Gantt | DiagramKind::Chronology => {
             timeline::normalize_timeline_baseline(document).map(NormalizedDocument::Timeline)
         }
@@ -104,6 +105,91 @@ pub fn normalize_family_with_options(
             "[E_FAMILY_UNKNOWN] unable to detect supported diagram family; expected sequence/class/object/usecase/gantt/chronology syntax",
         )),
     }
+}
+
+fn normalize_family_pages(
+    document: Document,
+    normalizer: fn(Document) -> Result<FamilyDocument, Diagnostic>,
+) -> Result<NormalizedDocument, Diagnostic> {
+    let pages = split_family_newpages(document);
+    if pages.len() == 1 {
+        return normalizer(pages.into_iter().next().expect("single page"))
+            .map(NormalizedDocument::Family);
+    }
+
+    pages
+        .into_iter()
+        .map(normalizer)
+        .collect::<Result<Vec<_>, _>>()
+        .map(NormalizedDocument::FamilyPages)
+}
+
+fn split_family_newpages(document: Document) -> Vec<Document> {
+    let kind = document.kind;
+    let mut ignore_newpage = false;
+    let mut common = Vec::new();
+    let mut current = Vec::new();
+    let mut pages = Vec::new();
+    let mut seen_page_break = false;
+
+    for stmt in document.statements {
+        match &stmt.kind {
+            StatementKind::IgnoreNewPage => {
+                ignore_newpage = true;
+                common.push(stmt);
+            }
+            StatementKind::NewPage(next_title) if !ignore_newpage => {
+                seen_page_break = true;
+                pages.push(Document {
+                    kind,
+                    statements: build_family_page_statements(&common, std::mem::take(&mut current)),
+                });
+                if let Some(title) = next_title.as_ref().filter(|title| !title.trim().is_empty()) {
+                    current.push(Statement {
+                        span: stmt.span,
+                        kind: StatementKind::Title(title.trim().to_string()),
+                    });
+                }
+            }
+            _ if !seen_page_break && is_family_page_common_statement(&stmt.kind) => {
+                common.push(stmt);
+            }
+            _ => current.push(stmt),
+        }
+    }
+
+    pages.push(Document {
+        kind,
+        statements: build_family_page_statements(&common, current),
+    });
+    pages
+}
+
+fn build_family_page_statements(common: &[Statement], mut page: Vec<Statement>) -> Vec<Statement> {
+    let mut statements = common.to_vec();
+    statements.append(&mut page);
+    statements
+}
+
+fn is_family_page_common_statement(kind: &StatementKind) -> bool {
+    matches!(
+        kind,
+        StatementKind::Title(_)
+            | StatementKind::Header(_)
+            | StatementKind::Footer(_)
+            | StatementKind::Caption(_)
+            | StatementKind::Legend(_)
+            | StatementKind::SkinParam { .. }
+            | StatementKind::Theme(_)
+            | StatementKind::Pragma(_)
+            | StatementKind::Footbox(_)
+            | StatementKind::Scale(_)
+            | StatementKind::LegendPos(_)
+            | StatementKind::SetOption { .. }
+            | StatementKind::HideOption(_)
+            | StatementKind::HideUnlinked
+            | StatementKind::Mainframe(_)
+    )
 }
 
 pub fn paginate(document: &SequenceDocument) -> Vec<SequencePage> {

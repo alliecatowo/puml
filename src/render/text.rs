@@ -41,6 +41,10 @@ pub fn render_text_pages(model: &NormalizedDocument, mode: TextOutputMode) -> Ve
             .map(|page| render_sequence_text(page, mode))
             .collect(),
         NormalizedDocument::Family(family) => vec![render_family_text(family, mode)],
+        NormalizedDocument::FamilyPages(pages) => pages
+            .iter()
+            .map(|family| render_family_text(family, mode))
+            .collect(),
         NormalizedDocument::Timeline(timeline) => vec![render_timeline_text(timeline, mode)],
         NormalizedDocument::State(state) => vec![render_state_text(state, mode)],
         NormalizedDocument::Json(doc) => vec![render_json_text(doc, mode)],

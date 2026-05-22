@@ -810,6 +810,10 @@ fn normalized_warnings(model: &NormalizedDocument) -> &[Diagnostic] {
     match model {
         NormalizedDocument::Sequence(sequence) => &sequence.warnings,
         NormalizedDocument::Family(family) => &family.warnings,
+        NormalizedDocument::FamilyPages(pages) => pages
+            .iter()
+            .find_map(|page| (!page.warnings.is_empty()).then_some(page.warnings.as_slice()))
+            .unwrap_or(&[]),
         NormalizedDocument::Timeline(timeline) => &timeline.warnings,
         NormalizedDocument::State(state) => &state.warnings,
         NormalizedDocument::Json(doc) => &doc.warnings,

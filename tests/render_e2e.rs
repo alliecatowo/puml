@@ -1052,6 +1052,36 @@ fn render_source_to_svgs_supports_newpage_with_title_override() {
 }
 
 #[test]
+fn render_source_to_svgs_supports_family_newpage() {
+    let src = "@startuml\nclass A\nnewpage Page Two\nclass B\n@enduml\n";
+    let pages = puml::render_source_to_svgs(src).expect("render should succeed");
+
+    assert_eq!(pages.len(), 2);
+    assert!(pages[0].contains(">A<"));
+    assert!(!pages[0].contains(">B<"));
+    assert!(pages[1].contains(">Page Two<"));
+    assert!(pages[1].contains(">B<"));
+    assert!(!pages[1].contains(">A<"));
+}
+
+#[test]
+fn render_source_to_svgs_supports_object_and_usecase_newpage() {
+    for src in [
+        "@startuml\nobject A\nnewpage Page Two\nobject B\n@enduml\n",
+        "@startuml\n(A)\nnewpage Page Two\n(B)\n@enduml\n",
+    ] {
+        let pages = puml::render_source_to_svgs(src).expect("render should succeed");
+
+        assert_eq!(pages.len(), 2);
+        assert!(pages[0].contains(">A<"));
+        assert!(!pages[0].contains(">B<"));
+        assert!(pages[1].contains(">Page Two<"));
+        assert!(pages[1].contains(">B<"));
+        assert!(!pages[1].contains(">A<"));
+    }
+}
+
+#[test]
 fn render_svg_sequence_header_footer_and_caption_have_visible_lifecycle() {
     let src = "@startuml\nheader Trace Header\ncaption\nAudit trail\npage 1\nend caption\nfooter Rendered Footer\nA -> B : hello\n@enduml\n";
     let ast = puml::parse(src).expect("parse should succeed");
