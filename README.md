@@ -229,6 +229,10 @@ puml --from-markdown --check notes.md    # lint all fenced puml blocks in a Mark
 puml --dump ast hello.puml
 puml --dump model hello.puml
 puml --dump scene hello.puml
+
+# Structural diff between two .puml files
+puml diff before.puml after.puml           # human-readable report (exit 1 = diffs found)
+puml diff --format json before.puml after.puml  # machine-readable JSON diff
 ```
 
 Full flag reference, dialect options, and exit codes: [CLI reference](https://alliecatowo.github.io/puml/guide/cli/)
