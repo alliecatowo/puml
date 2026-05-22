@@ -455,7 +455,9 @@ kill
     // the branch label "fast" still appears on the outgoing arrow.
     assert!(activity_svg.contains("fast"));
     assert!(activity_svg.contains("#ffeeaa"));
-    assert!(activity_svg.contains("kill"));
+    // kill now renders as an X-in-circle shape (data-activity-kind="Kill"),
+    // not as a text label.
+    assert!(activity_svg.contains("data-activity-kind=\"Kill\""));
 }
 
 #[test]
@@ -692,6 +694,8 @@ kill
     assert!(activity_svg.contains("data-activity-kind=\"Fork\""));
     assert!(activity_svg.contains("data-activity-kind=\"ForkAgain\""));
     assert!(activity_svg.contains("data-activity-kind=\"EndFork\""));
-    assert!(activity_svg.contains(">detach<"));
-    assert!(activity_svg.contains(">kill<"));
+    // detach now renders as a horizontal bar shape (data-activity-kind="Detach")
+    // kill now renders as an X-in-circle shape (data-activity-kind="Kill")
+    assert!(activity_svg.contains("data-activity-kind=\"Detach\""));
+    assert!(activity_svg.contains("data-activity-kind=\"Kill\""));
 }
