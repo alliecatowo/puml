@@ -112,6 +112,15 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("concise ")
         || line.starts_with("clock ")
         || line.starts_with("binary ")
+        || line.starts_with("analog ")
+        || line.starts_with("compact robust ")
+        || line.starts_with("compact concise ")
+        || line.starts_with("compact clock ")
+        || line.starts_with("compact binary ")
+        || line.starts_with("compact analog ")
+        || line == "hide time-axis"
+        || line == "mode compact"
+        || line == "manual time-axis"
         || line.starts_with('@')
         // Timing-specific scale syntax: "scale N as N" (maps clock units to pixels).
         // Plain "scale 1.5" / "scale 800*600" / "scale max N" is the output-scale
