@@ -90,6 +90,7 @@ pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
         }
         '*' => Some("arrow-diamond-filled"),
         'o' => Some("arrow-diamond-open"),
+        '0' | '(' | ')' => Some("arrow-open"),
         _ => None,
     });
     let end_marker = ie_end_marker.or(match tail {
@@ -102,6 +103,7 @@ pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
         }
         '*' => Some("arrow-diamond-filled"),
         'o' => Some("arrow-diamond-open"),
+        '0' | '(' | ')' | '@' | '^' | '#' | '+' => Some("arrow-open"),
         _ => None,
     });
     ArrowStyle {
