@@ -131,7 +131,7 @@ fn should_run_png_baselines() -> bool {
     cfg!(target_os = "linux") || env::var_os(RUN_PNG_BASELINES_ENV).is_some()
 }
 
-fn skip_png_baselines_on_this_platform(test_name: &str) -> bool {
+fn should_skip_png_baselines_on_this_platform(test_name: &str) -> bool {
     if should_run_png_baselines() {
         return false;
     }
@@ -896,7 +896,7 @@ fn run_png_sweep<'a>(label: &str, fixtures: impl IntoIterator<Item = &'a Fixture
 /// Compare every reviewed PNG baseline currently committed to git.
 #[test]
 fn png_regression_committed_baselines() {
-    if skip_png_baselines_on_this_platform("png_regression_committed_baselines") {
+    if should_skip_png_baselines_on_this_platform("png_regression_committed_baselines") {
         return;
     }
 
@@ -936,7 +936,7 @@ fn png_regression_committed_baselines() {
 /// fixture into a text-only manifest change once it has a documented reason.
 #[test]
 fn png_regression_all_fixtures() {
-    if skip_png_baselines_on_this_platform("png_regression_all_fixtures") {
+    if should_skip_png_baselines_on_this_platform("png_regression_all_fixtures") {
         return;
     }
 

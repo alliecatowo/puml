@@ -317,6 +317,8 @@ def render_source_text(src: str, puml_bin: Optional[Path] = None) -> Dict[str, A
                 check=False,
             )
         except FileNotFoundError:
+            # Alternate target dirs or concurrent cleanup can stale this path;
+            # rerun through Cargo so the harness still returns useful output.
             proc = run_puml(["-"], stdin_text=src)
     if proc.returncode != 0:
         return {
@@ -343,6 +345,8 @@ def render_source_file(source_ref: str, puml_bin: Path) -> Dict[str, Any]:
                 check=False,
             )
         except FileNotFoundError:
+            # Alternate target dirs or concurrent cleanup can stale this path;
+            # rerun through Cargo so the harness still returns useful output.
             proc = run_puml([source_ref, "-o", str(out_path)])
         if proc.returncode != 0:
             return {
