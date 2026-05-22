@@ -1,0 +1,11 @@
+@startuml
+skinparam actorStyle hollow
+(Business Process)/
+:Business Owner:/ as Owner
+actor/ Staff
+actor Client
+(Normal Task) as Task
+Client --> Task
+Owner --> (Business Process)
+Staff --> (Business Process)
+@enduml
