@@ -862,10 +862,17 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
     let (lhs_core, left_lollipop) = strip_lollipop_endpoint(&lhs_core);
     let (rhs_core, right_lollipop) = strip_lollipop_endpoint(&rhs_core);
+    // Component/Deployment diagrams use `[Name]` bracket syntax for nodes, so
+    // `looks_like_virtual_endpoint_syntax` (which rejects any `[`/`]`) must be
+    // skipped for those families.
+    let is_bracket_family = matches!(
+        family,
+        Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
+    );
     if normalize_virtual_endpoint(&lhs_core).is_some()
         || normalize_virtual_endpoint(&rhs_core).is_some()
-        || looks_like_virtual_endpoint_syntax(&lhs_core)
-        || looks_like_virtual_endpoint_syntax(&rhs_core)
+        || (!is_bracket_family && looks_like_virtual_endpoint_syntax(&lhs_core))
+        || (!is_bracket_family && looks_like_virtual_endpoint_syntax(&rhs_core))
     {
         return None;
     }
@@ -1017,10 +1024,36 @@ fn parse_family_visibility_control(
     line: &str,
     family: Option<DiagramKind>,
 ) -> Option<StatementKind> {
-    if !matches!(family, Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)) {
+    let lower = line.to_ascii_lowercase();
+    // `hide @unlinked` and `remove @unlinked` are component/deployment-specific
+    // but may appear before the diagram family is detected (family == None).
+    // Handle them before the family gate so they are not misinterpreted.
+    if lower == "hide @unlinked" || lower == "remove @unlinked" {
+        let is_component_family = matches!(
+            family,
+            None | Some(DiagramKind::Component | DiagramKind::Deployment)
+        );
+        if is_component_family {
+            let keyword = if lower.starts_with("hide") {
+                "hide @unlinked"
+            } else {
+                "remove @unlinked"
+            };
+            return Some(StatementKind::HideOption(keyword.to_string()));
+        }
+    }
+    if !matches!(
+        family,
+        Some(
+            DiagramKind::Class
+                | DiagramKind::Object
+                | DiagramKind::UseCase
+                | DiagramKind::Component
+                | DiagramKind::Deployment
+        )
+    ) {
         return None;
     }
-    let lower = line.to_ascii_lowercase();
     if lower.starts_with("hide ") {
         let rest = line.strip_prefix("hide ").unwrap_or("").trim();
         if rest.eq_ignore_ascii_case("@unlinked") {
