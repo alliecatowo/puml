@@ -2,8 +2,8 @@
 //!
 //! Spawns the binary in watch mode against a valid PlantUML fixture and
 //! verifies it can start up without crashing immediately.
-//! `.spawn().expect(...)` is the real assertion: if the binary is missing,
-//! not executable, or exits immediately with a startup error, the test fails.
+//! The child is killed and waited on before the test exits so the smoke test
+//! does not leave a watch process behind.
 
 use std::fs;
 use std::io::Write;
@@ -20,14 +20,17 @@ fn watch_loop_starts_without_crashing() {
     let puml_path = dir.path().join("watch_smoke.puml");
     write_temp_puml(&puml_path);
 
-    // Spawn the binary directly in watch mode.
-    // .spawn().expect(...) IS the assertion: spawn failure panics the test.
-    // No wait, no kill — the OS reaps the orphaned child when the test
-    // process exits.
-    std::process::Command::new(env!("CARGO_BIN_EXE_puml"))
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_puml"))
         .args(["--watch", puml_path.to_str().unwrap()])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("failed to spawn puml --watch");
+
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    if let Some(status) = child.try_wait().expect("poll puml --watch child") {
+        panic!("puml --watch exited during smoke window: {status}");
+    }
+    child.kill().expect("kill puml --watch child");
+    child.wait().expect("wait for puml --watch child");
 }
