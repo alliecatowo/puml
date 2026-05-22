@@ -34,8 +34,8 @@ use crate::theme::{
     classify_sequence_skinparam, classify_state_skinparam, classify_timing_skinparam,
     component_style_from_sequence_theme, resolve_sequence_theme_preset,
     state_style_from_sequence_theme, timing_style_from_sequence_theme, ActivityStyle, ChartStyle,
-    ClassStyle, ComponentStyle, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
-    SkinParamSupport, StateStyle, TimingStyle,
+    ClassStyle, ComponentStyle, MindMapDepthStyle, MindMapStyle, SequenceSkinParamSupport,
+    SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle, TimingStyle,
 };
 
 mod archimate;

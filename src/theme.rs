@@ -290,6 +290,18 @@ impl TextAlignment {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MindMapStyle {
+    pub depth_styles: BTreeMap<usize, MindMapDepthStyle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MindMapDepthStyle {
+    pub background_color: Option<String>,
+    pub font_color: Option<String>,
+    pub border_color: Option<String>,
+}
+
 impl Default for SequenceStyle {
     fn default() -> Self {
         Self {

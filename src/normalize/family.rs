@@ -995,6 +995,8 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     let mut monochrome_mode = None;
     let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
     let mut maximum_width: Option<i32> = None;
+    let mut mindmap_style = MindMapStyle::default();
+    let mut mindmap_style_block: Option<String> = None;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     // MindMap: track whether subsequent depth-1 nodes should go on the left side.
@@ -1237,6 +1239,15 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                 if line.trim().is_empty() {
                     continue;
                 }
+                if family_kind == DiagramKind::MindMap
+                    && collect_mindmap_style_line(
+                        &line,
+                        &mut mindmap_style_block,
+                        &mut mindmap_style,
+                    )
+                {
+                    continue;
+                }
                 if let Some(value) = parse_family_orientation_directive(&line) {
                     orientation = value;
                     continue;
@@ -1325,6 +1336,12 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     if let Some(mode) = monochrome_mode {
         apply_monochrome_to_sequence_style(&mut style, mode);
     }
+    let family_style =
+        if family_kind == DiagramKind::MindMap && !mindmap_style.depth_styles.is_empty() {
+            Some(FamilyStyle::MindMap(mindmap_style))
+        } else {
+            None
+        };
 
     Ok(FamilyDocument {
         kind: family_kind,
@@ -1337,7 +1354,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         legend,
         orientation,
         style,
-        family_style: None,
+        family_style,
         text_overflow_policy,
         maximum_width,
         sprites,
@@ -1455,6 +1472,121 @@ fn handle_mindmap_maximum_width_skinparam(
         ),
     }
     true
+}
+
+fn collect_mindmap_style_line(
+    line: &str,
+    block: &mut Option<String>,
+    style: &mut MindMapStyle,
+) -> bool {
+    let lower = line.trim_start().to_ascii_lowercase();
+    if let Some(source) = block {
+        if let Some((before_end, _)) = split_style_end(line) {
+            source.push('\n');
+            source.push_str(before_end);
+            parse_mindmap_style_source(source, style);
+            *block = None;
+        } else {
+            source.push('\n');
+            source.push_str(line);
+        }
+        return true;
+    }
+
+    if !lower.starts_with("<style") {
+        return false;
+    }
+
+    let after_start = line
+        .split_once('>')
+        .map(|(_, after)| after)
+        .unwrap_or_default();
+    if let Some((before_end, _)) = split_style_end(after_start) {
+        parse_mindmap_style_source(before_end, style);
+    } else {
+        *block = Some(after_start.to_string());
+    }
+    true
+}
+
+fn split_style_end(line: &str) -> Option<(&str, &str)> {
+    let lower = line.to_ascii_lowercase();
+    lower.find("</style>").map(|idx| {
+        let end = idx + "</style>".len();
+        (&line[..idx], &line[end..])
+    })
+}
+
+fn parse_mindmap_style_source(source: &str, style: &mut MindMapStyle) {
+    let prepared = source.replace('{', "\n{\n").replace('}', "\n}\n");
+    let mut stack: Vec<String> = Vec::new();
+    let mut pending_selector: Option<String> = None;
+    for raw in prepared.lines() {
+        let line = raw.trim().trim_end_matches(';').trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line == "{" {
+            if let Some(selector) = pending_selector.take() {
+                stack.push(selector);
+            }
+            continue;
+        }
+        if line == "}" {
+            stack.pop();
+            continue;
+        }
+        if apply_mindmap_style_property(line, &stack, style) {
+            continue;
+        }
+        pending_selector = Some(line.to_string());
+    }
+}
+
+fn apply_mindmap_style_property(line: &str, stack: &[String], style: &mut MindMapStyle) -> bool {
+    let mut parts = line.splitn(2, char::is_whitespace);
+    let Some(raw_key) = parts.next() else {
+        return false;
+    };
+    let key = raw_key.trim_end_matches(':').to_ascii_lowercase();
+    if !matches!(key.as_str(), "backgroundcolor" | "fontcolor" | "linecolor") {
+        return false;
+    }
+    let value = parts
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .trim_start_matches(':')
+        .trim()
+        .trim_end_matches(';')
+        .trim();
+    if value.is_empty() {
+        return true;
+    }
+
+    let in_mindmap = stack
+        .iter()
+        .any(|selector| selector.eq_ignore_ascii_case("mindmapDiagram"));
+    let depth = stack.iter().rev().find_map(|selector| {
+        let selector = selector.trim();
+        let inner = selector.strip_prefix(":depth(")?.strip_suffix(')')?;
+        inner.trim().parse::<usize>().ok()
+    });
+    if in_mindmap {
+        if let Some(depth) = depth {
+            apply_mindmap_depth_property(style.depth_styles.entry(depth).or_default(), &key, value);
+        }
+    }
+    true
+}
+
+fn apply_mindmap_depth_property(patch: &mut MindMapDepthStyle, key: &str, value: &str) {
+    match key {
+        "backgroundcolor" => patch.background_color = Some(value.to_string()),
+        "fontcolor" => patch.font_color = Some(value.to_string()),
+        "linecolor" => patch.border_color = Some(value.to_string()),
+        _ => {}
+    }
 }
 
 fn handle_family_overflow_skinparam(

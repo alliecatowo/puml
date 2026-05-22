@@ -6,7 +6,8 @@ use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
 use crate::sprites::SpriteRegistry;
 use crate::theme::{
-    ActivityStyle, ChartStyle, ClassStyle, ComponentStyle, SequenceStyle, StateStyle, TimingStyle,
+    ActivityStyle, ChartStyle, ClassStyle, ComponentStyle, MindMapStyle, SequenceStyle, StateStyle,
+    TimingStyle,
 };
 
 /// How to scale (or fix the size of) the output SVG.
@@ -588,6 +589,7 @@ pub enum FamilyStyle {
     Component(ComponentStyle),
     Activity(ActivityStyle),
     Timing(TimingStyle),
+    MindMap(MindMapStyle),
 }
 
 #[derive(Debug, Clone)]

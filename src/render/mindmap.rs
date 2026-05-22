@@ -21,6 +21,49 @@ fn family_node_fill<'a>(node: &'a crate::model::FamilyNode, fallback: &'a str) -
     node.fill_color.as_deref().unwrap_or(fallback)
 }
 
+fn mindmap_style(doc: &FamilyDocument) -> Option<&crate::theme::MindMapStyle> {
+    match &doc.family_style {
+        Some(crate::model::FamilyStyle::MindMap(style)) => Some(style),
+        _ => None,
+    }
+}
+
+fn mindmap_node_fill_resolved(
+    node: &crate::model::FamilyNode,
+    style: Option<&crate::theme::MindMapStyle>,
+) -> String {
+    node.fill_color
+        .clone()
+        .or_else(|| {
+            style
+                .and_then(|s| s.depth_styles.get(&node.depth))
+                .and_then(|s| s.background_color.clone())
+        })
+        .unwrap_or_else(|| mindmap_node_fill(node.depth).to_string())
+}
+
+fn mindmap_node_font_color<'a>(
+    depth: usize,
+    style: Option<&'a crate::theme::MindMapStyle>,
+    fallback: &'a str,
+) -> &'a str {
+    style
+        .and_then(|s| s.depth_styles.get(&depth))
+        .and_then(|s| s.font_color.as_deref())
+        .unwrap_or(fallback)
+}
+
+fn mindmap_node_border_color<'a>(
+    depth: usize,
+    style: Option<&'a crate::theme::MindMapStyle>,
+    fallback: &'a str,
+) -> &'a str {
+    style
+        .and_then(|s| s.depth_styles.get(&depth))
+        .and_then(|s| s.border_color.as_deref())
+        .unwrap_or(fallback)
+}
+
 fn mindmap_max_chars(maximum_width: Option<i32>) -> Option<usize> {
     let px = maximum_width.filter(|w| *w > 0)?;
     let inner = px.saturating_sub(MINDMAP_NODE_PAD_X);
@@ -183,6 +226,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     const NODE_PAD_X: i32 = 10;
 
     let maximum_width = doc.maximum_width;
+    let style = mindmap_style(doc);
     let display_names: Vec<String> = doc
         .nodes
         .iter()
@@ -449,11 +493,15 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     // Draw root node
     let rx = root_cx - root_w / 2;
     let ry = root_cy - NODE_H / 2;
+    let root_fill = mindmap_node_fill_resolved(&nodes[0], style);
+    let root_border = mindmap_node_border_color(0, style, "#92400e");
+    let root_font_color = mindmap_node_font_color(0, style, "#111827");
     out.push_str(&format!(
-        "<rect class=\"mindmap-node mindmap-root mindmap-branch\" data-mindmap-depth=\"0\" data-mindmap-child-count=\"{child_count}\" data-mindmap-fill=\"{fill}\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"#92400e\" stroke-width=\"1.5\"/>",
+        "<rect class=\"mindmap-node mindmap-root mindmap-branch\" data-mindmap-depth=\"0\" data-mindmap-child-count=\"{child_count}\" data-mindmap-fill=\"{fill}\" x=\"{rx}\" y=\"{ry}\" width=\"{rw}\" height=\"{h}\" rx=\"17\" ry=\"17\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
         rx = rx, ry = ry, rw = root_w, h = NODE_H,
         child_count = family_tree_child_indices(nodes, 0).len(),
-        fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
+        fill = escape_text(&root_fill),
+        stroke = escape_text(root_border)
     ));
     out.push_str(&render_mindmap_node_label(
         root_cx,
@@ -462,7 +510,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         13,
         "monospace",
         "600",
-        "#111827",
+        root_font_color,
     ));
 
     // Draw right-side branches.
@@ -481,6 +529,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             NODE_PAD_X,
             false, // left=false → right
             maximum_width,
+            style,
         );
     }
     // Draw left-side branches.
@@ -499,6 +548,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             NODE_PAD_X,
             true, // left=true
             maximum_width,
+            style,
         );
     }
 
@@ -611,6 +661,7 @@ fn draw_mindmap_subtree(
     node_pad_x: i32,
     is_left: bool,
     maximum_width: Option<i32>,
+    style: Option<&crate::theme::MindMapStyle>,
 ) {
     let node = &nodes[idx];
     let label = &display_names[idx];
@@ -654,16 +705,21 @@ fn draw_mindmap_subtree(
         "mindmap-branch"
     };
 
-    // Node rectangle (rounded, pastel by depth)
+    let fill = mindmap_node_fill_resolved(node, style);
+    let stroke = mindmap_node_border_color(node.depth, style, "#64748b");
+    let font_color = mindmap_node_font_color(node.depth, style, "#111827");
+
+    // Node rectangle (rounded, pastel by depth unless overridden by style)
     out.push_str(&format!(
-        "<rect class=\"mindmap-node mindmap-depth-{depth} {branch_class}\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" data-mindmap-child-count=\"{child_count}\" data-mindmap-sibling-index=\"{sibling_index}\" data-mindmap-fill=\"{fill}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"#64748b\" stroke-width=\"1\"/>",
+        "<rect class=\"mindmap-node mindmap-depth-{depth} {branch_class}\" data-mindmap-depth=\"{depth}\" data-mindmap-side=\"{side}\" data-mindmap-child-count=\"{child_count}\" data-mindmap-sibling-index=\"{sibling_index}\" data-mindmap-fill=\"{fill}\" x=\"{nx}\" y=\"{ny_top}\" width=\"{nw}\" height=\"{nh}\" rx=\"14\" ry=\"14\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
         depth = node.depth,
         branch_class = branch_class,
         side = if is_left { "left" } else { "right" },
         child_count = child_count,
         sibling_index = sibling_index,
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
-        fill = escape_text(family_node_fill(node, mindmap_node_fill(node.depth)))
+        fill = escape_text(&fill),
+        stroke = escape_text(stroke)
     ));
     out.push_str(&render_mindmap_node_label(
         nx + nw / 2,
@@ -672,7 +728,7 @@ fn draw_mindmap_subtree(
         12,
         "monospace",
         "400",
-        "#111827",
+        font_color,
     ));
 
     let next_x_center = if is_left {
@@ -696,6 +752,7 @@ fn draw_mindmap_subtree(
             node_pad_x,
             is_left,
             maximum_width,
+            style,
         );
     }
 }
