@@ -1,0 +1,58 @@
+name: Install Zola
+description: Download a pinned Zola release, cache the binary, and add it to PATH.
+
+inputs:
+  version:
+    description: Zola version to install without a leading v.
+    required: false
+    default: "0.19.2"
+
+runs:
+  using: composite
+  steps:
+    - name: Cache Zola
+      id: cache-zola
+      uses: actions/cache@v5
+      with:
+        path: ${{ runner.tool_cache }}/zola/${{ inputs.version }}
+        key: zola-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
+    - name: Install Zola
+      shell: bash
+      env:
+        ZOLA_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        ARCH="$(uname -m)"
+        case "${ARCH}" in
+          x86_64)
+            TRIPLE="x86_64-unknown-linux-gnu"
+            ;;
+          *)
+            echo "[install-zola] Unsupported architecture: ${ARCH}" >&2
+            exit 1
+            ;;
+        esac
+
+        INSTALL_DIR="${RUNNER_TOOL_CACHE}/zola/${ZOLA_VERSION}/${TRIPLE}"
+        BINARY_PATH="${INSTALL_DIR}/zola"
+        if [[ -x "${BINARY_PATH}" ]]; then
+          echo "${INSTALL_DIR}" >> "${GITHUB_PATH}"
+          echo "[install-zola] Restored: $(${BINARY_PATH} --version)"
+          exit 0
+        fi
+
+        TARBALL="zola-v${ZOLA_VERSION}-${TRIPLE}.tar.gz"
+        DOWNLOAD_URL="https://github.com/getzola/zola/releases/download/v${ZOLA_VERSION}/${TARBALL}"
+        TMP_DIR="${RUNNER_TEMP}/zola-${ZOLA_VERSION}-${TRIPLE}"
+        rm -rf "${TMP_DIR}"
+        mkdir -p "${TMP_DIR}" "${INSTALL_DIR}"
+
+        echo "[install-zola] Downloading Zola v${ZOLA_VERSION} (${TRIPLE})..."
+        curl -fsSL -o "${TMP_DIR}/${TARBALL}" "${DOWNLOAD_URL}"
+        tar -xzf "${TMP_DIR}/${TARBALL}" -C "${TMP_DIR}"
+        install -m 0755 "${TMP_DIR}/zola" "${BINARY_PATH}"
+        echo "${INSTALL_DIR}" >> "${GITHUB_PATH}"
+
+        echo "[install-zola] Installed: $(${BINARY_PATH} --version)"

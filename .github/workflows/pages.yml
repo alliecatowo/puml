@@ -47,20 +47,15 @@ jobs:
           node-version: '20'
 
       - name: Set up Rust (stable + wasm32 target)
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup target add wasm32-unknown-unknown
-
-      - name: Cache cargo build
-        uses: actions/cache@v5
+        uses: dtolnay/rust-toolchain@stable
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-pages-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-pages-
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pages-ubuntu-stable
+          cache-on-failure: true
 
       - name: Install wasm-pack
         uses: ./.github/actions/install-wasm-pack
@@ -69,13 +64,7 @@ jobs:
         run: wasm-pack build --release --target web --out-dir ../../site/static/wasm crates/puml-wasm
 
       - name: Install Zola
-        run: |
-          set -euo pipefail
-          ZOLA_VERSION=0.19.2
-          curl -fsSL -o /tmp/zola.tar.gz \
-            "https://github.com/getzola/zola/releases/download/v${ZOLA_VERSION}/zola-v${ZOLA_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
-          sudo tar -xzf /tmp/zola.tar.gz -C /usr/local/bin/
-          zola --version
+        uses: ./.github/actions/install-zola
 
       - name: Build puml CLI binary
         run: cargo build --release

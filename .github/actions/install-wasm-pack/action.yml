@@ -13,6 +13,13 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Cache wasm-pack
+      id: cache-wasm-pack
+      uses: actions/cache@v5
+      with:
+        path: ${{ runner.tool_cache }}/wasm-pack/${{ inputs.version }}
+        key: wasm-pack-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
     - name: Install wasm-pack (pinned, verified)
       shell: bash
       env:
@@ -43,9 +50,18 @@ runs:
 
         TARBALL="wasm-pack-v${WASM_PACK_VERSION}-${TRIPLE}.tar.gz"
         DOWNLOAD_URL="https://github.com/wasm-bindgen/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${TARBALL}"
-        INSTALL_DIR="${RUNNER_TEMP}/wasm-pack-${WASM_PACK_VERSION}"
-        mkdir -p "${INSTALL_DIR}"
-        TARBALL_PATH="${INSTALL_DIR}/${TARBALL}"
+        INSTALL_DIR="${RUNNER_TOOL_CACHE}/wasm-pack/${WASM_PACK_VERSION}/${TRIPLE}"
+        BINARY_PATH="${INSTALL_DIR}/wasm-pack"
+        if [[ -x "${BINARY_PATH}" ]]; then
+          echo "${INSTALL_DIR}" >> "${GITHUB_PATH}"
+          echo "[install-wasm-pack] Restored: $(${BINARY_PATH} --version)"
+          exit 0
+        fi
+
+        TMP_DIR="${RUNNER_TEMP}/wasm-pack-${WASM_PACK_VERSION}-${TRIPLE}"
+        rm -rf "${TMP_DIR}"
+        mkdir -p "${TMP_DIR}" "${INSTALL_DIR}"
+        TARBALL_PATH="${TMP_DIR}/${TARBALL}"
 
         echo "[install-wasm-pack] Downloading wasm-pack v${WASM_PACK_VERSION} (${TRIPLE})..."
         curl -fsSL "${DOWNLOAD_URL}" -o "${TARBALL_PATH}"
@@ -54,16 +70,15 @@ runs:
         echo "${EXPECTED_SHA256}  ${TARBALL_PATH}" | sha256sum --check --strict
         echo "[install-wasm-pack] SHA-256 verified."
 
-        tar -xzf "${TARBALL_PATH}" -C "${INSTALL_DIR}"
+        tar -xzf "${TARBALL_PATH}" -C "${TMP_DIR}"
 
         # The tarball extracts to a directory named after the triple; find the binary.
-        BINARY_PATH="$(find "${INSTALL_DIR}" -name "wasm-pack" -type f | head -n1)"
-        if [[ -z "${BINARY_PATH}" ]]; then
+        EXTRACTED_BINARY="$(find "${TMP_DIR}" -name "wasm-pack" -type f | head -n1)"
+        if [[ -z "${EXTRACTED_BINARY}" ]]; then
           echo "[install-wasm-pack] ERROR: wasm-pack binary not found after extraction." >&2
           exit 1
         fi
-        chmod +x "${BINARY_PATH}"
-        BIN_DIR="$(dirname "${BINARY_PATH}")"
-        echo "${BIN_DIR}" >> "${GITHUB_PATH}"
+        install -m 0755 "${EXTRACTED_BINARY}" "${BINARY_PATH}"
+        echo "${INSTALL_DIR}" >> "${GITHUB_PATH}"
 
         echo "[install-wasm-pack] Installed: $(${BINARY_PATH} --version)"
