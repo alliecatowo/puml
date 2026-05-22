@@ -316,3 +316,82 @@ fn timing_advanced_semantics_render_expected_svg_geometry() {
         "BUS polygon should span @0..@5 (x5≈{x5}, tol={tol})"
     );
 }
+
+#[test]
+fn timing_ch10_parity_model_preserves_anchors_options_messages_and_analog() {
+    let src = include_str!("fixtures/families/valid_timing_ch10_parity.puml");
+    let document = puml::parse(src).expect("parse timing fixture");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize timing fixture")
+    else {
+        panic!("timing fixture should normalize as family model");
+    };
+
+    assert!(model.nodes.iter().any(|node| {
+        node.kind == FamilyNodeKind::TimingEvent
+            && node.label.as_deref() == Some("__timing:hide-time-axis")
+    }));
+    assert!(model.nodes.iter().any(|node| {
+        node.kind == FamilyNodeKind::TimingEvent
+            && node.label.as_deref() == Some("__timing:scale:5 as 120 pixels")
+    }));
+    assert!(model.nodes.iter().any(|node| {
+        node.name == "V"
+            && node
+                .members
+                .iter()
+                .any(|member| member.text == "__timing:analog")
+            && node
+                .members
+                .iter()
+                .any(|member| member.text == "__timing:analog_between 0 6")
+    }));
+    assert!(model.nodes.iter().any(|node| {
+        node.name == "S"
+            && node
+                .members
+                .iter()
+                .any(|member| member.text == "__timing:compact")
+    }));
+    assert!(
+        model
+            .relations
+            .iter()
+            .any(|rel| rel.from == "C@5" && rel.to == "S@7" && rel.label.as_deref() == Some("GET")),
+        "C -> S@+2 should resolve through :start/:send anchors and current time"
+    );
+    assert!(
+        model.relations.iter().any(|rel| {
+            rel.from == "S@10" && rel.to == "C@10" && rel.label.as_deref() == Some("200 OK")
+        }),
+        "message without endpoint times should use the current timing cursor"
+    );
+}
+
+#[test]
+fn timing_ch10_parity_renders_messages_hidden_colors_axis_scale_and_analog() {
+    let src = include_str!("fixtures/families/valid_timing_ch10_parity.puml");
+    let svg = puml::render_source_to_svg(src).expect("render timing fixture");
+    let (view_w, view_h) = svg_viewbox(&svg).expect("timing svg should have viewBox");
+
+    assert!(
+        view_h < 390,
+        "mode compact should reduce the row stack height, got {view_h}"
+    );
+    assert!(
+        view_w < 760,
+        "scale 5 as 120 pixels should produce a narrower chart, got {view_w}"
+    );
+    assert!(
+        !svg.contains("class=\"timing-tick\""),
+        "hide time-axis should suppress tick labels"
+    );
+    assert!(svg.contains("class=\"timing-message\""));
+    assert!(svg.contains("GET"));
+    assert!(svg.contains("200 OK"));
+    assert!(svg.contains("class=\"timing-hidden-state\""));
+    assert!(svg.contains("fill=\"LightCyan\""));
+    assert!(svg.contains("stroke=\"Aqua\""));
+    assert!(svg.contains("class=\"timing-analog\""));
+    assert!(svg.contains("class=\"timing-analog-point\""));
+}

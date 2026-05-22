@@ -1,0 +1,30 @@
+@startuml
+concise "Client" as C
+title Chapter 10 timing parity
+hide time-axis
+scale 5 as 120 pixels
+mode compact
+compact robust "Server" as S
+binary "Ready" as R
+analog "Vcore" between 0 and 6 as V
+@0 as :start
+C is Idle #palegreen
+S is {Boot}
+R is low
+V is 0
+@:start+5 as :send
+C -> S@+2 : GET
+C is Waiting #LightCyan;line:Aqua
+S is {Busy} #Gold
+R is high
+V is 3
+@:send+5
+S -> C : 200 OK
+C is Done
+S is {hidden}
+R is {-}
+V is 6
+@:send+8
+V is 2
+C is {-}
+@enduml

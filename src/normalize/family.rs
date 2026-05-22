@@ -1090,6 +1090,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut activity_fork_branch: usize = 0;
     let mut timing_current_time: Option<String> = None;
     let mut timing_current_signal: Option<String> = None;
+    let mut timing_anchors = std::collections::BTreeMap::new();
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
     let mut timing_style = TimingStyle::default();
@@ -1204,6 +1205,39 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 state,
                 note,
             } => {
+                if family_kind == DiagramKind::Timing
+                    && signal.is_none()
+                    && state.is_none()
+                    && note.as_deref().is_some_and(|n| n.starts_with("__timing:"))
+                {
+                    let normalized_time = normalize_timing_time(
+                        &time,
+                        timing_current_time.as_deref(),
+                        &timing_anchors,
+                    );
+                    if let Some(anchor) = note
+                        .as_deref()
+                        .and_then(|n| n.strip_prefix("__timing:anchor:"))
+                    {
+                        if !normalized_time.is_empty() {
+                            timing_anchors.insert(anchor.to_string(), normalized_time.clone());
+                            timing_current_time = Some(normalized_time);
+                        }
+                        continue;
+                    }
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::TimingEvent,
+                        name: normalized_time,
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: note,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                    continue;
+                }
                 let mut signal = signal;
                 if family_kind == DiagramKind::Timing
                     && signal.is_none()
@@ -1230,8 +1264,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 {
                     timing_current_time.clone().unwrap_or_default()
                 } else {
-                    let normalized_time =
-                        normalize_timing_time(&time, timing_current_time.as_deref());
+                    let normalized_time = normalize_timing_time(
+                        &time,
+                        timing_current_time.as_deref(),
+                        &timing_anchors,
+                    );
                     timing_current_time = Some(normalized_time.clone());
                     normalized_time
                 };
@@ -1262,24 +1299,42 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     fill_color: None,
                 });
             }
-            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
-                from: rel.from,
-                to: rel.to,
-                arrow: rel.arrow,
-                label: rel.label,
-                stereotype: rel.stereotype,
-                left_cardinality: rel.left_cardinality,
-                right_cardinality: rel.right_cardinality,
-                left_role: rel.left_role,
-                right_role: rel.right_role,
-                line_color: rel.line_color,
-                dashed: rel.dashed,
-                hidden: rel.hidden,
-                thickness: rel.thickness,
-                direction: rel.direction,
-                left_lollipop: rel.left_lollipop,
-                right_lollipop: rel.right_lollipop,
-            }),
+            StatementKind::FamilyRelation(rel) => {
+                let (from, to) = if family_kind == DiagramKind::Timing {
+                    (
+                        normalize_timing_endpoint(
+                            &rel.from,
+                            timing_current_time.as_deref(),
+                            &timing_anchors,
+                        ),
+                        normalize_timing_endpoint(
+                            &rel.to,
+                            timing_current_time.as_deref(),
+                            &timing_anchors,
+                        ),
+                    )
+                } else {
+                    (rel.from, rel.to)
+                };
+                relations.push(ModelFamilyRelation {
+                    from,
+                    to,
+                    arrow: rel.arrow,
+                    label: rel.label,
+                    stereotype: rel.stereotype,
+                    left_cardinality: rel.left_cardinality,
+                    right_cardinality: rel.right_cardinality,
+                    left_role: rel.left_role,
+                    right_role: rel.right_role,
+                    line_color: rel.line_color,
+                    dashed: rel.dashed,
+                    hidden: rel.hidden,
+                    thickness: rel.thickness,
+                    direction: rel.direction,
+                    left_lollipop: rel.left_lollipop,
+                    right_lollipop: rel.right_lollipop,
+                });
+            }
             StatementKind::Note(note) => {
                 note_counter += 1;
                 nodes.push(family_note_node(note_counter, note));
@@ -1540,8 +1595,22 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_)
-            | StatementKind::Scale(_)
             | StatementKind::LegendPos(_) => {}
+            StatementKind::Scale(body) => {
+                if family_kind == DiagramKind::Timing && body.contains(" as ") {
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::TimingEvent,
+                        name: String::new(),
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: Some(format!("__timing:scale:{body}")),
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                }
+            }
             StatementKind::Unknown(line) => {
                 if family_kind == DiagramKind::Activity {
                     let trimmed = line.trim();
@@ -1678,8 +1747,15 @@ fn declaration_stereotype_members(stereotypes: Vec<String>) -> Vec<crate::ast::C
         .collect()
 }
 
-fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
+fn normalize_timing_time(
+    raw: &str,
+    current: Option<&str>,
+    anchors: &std::collections::BTreeMap<String, String>,
+) -> String {
     let trimmed = raw.trim().trim_start_matches('@');
+    if let Some(anchor_expr) = trimmed.strip_prefix(':') {
+        return normalize_timing_anchor_expr(anchor_expr, current, anchors);
+    }
     if let Some((_, multiplier)) = trimmed.split_once('*') {
         if let Ok(n) = multiplier.trim().parse::<i64>() {
             return n.to_string();
@@ -1700,6 +1776,49 @@ fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
         return base.saturating_sub(delta).to_string();
     }
     trimmed.to_string()
+}
+
+fn normalize_timing_anchor_expr(
+    raw: &str,
+    current: Option<&str>,
+    anchors: &std::collections::BTreeMap<String, String>,
+) -> String {
+    let trimmed = raw.trim();
+    let split_idx = trimmed
+        .char_indices()
+        .skip(1)
+        .find(|(_, ch)| *ch == '+' || *ch == '-')
+        .map(|(idx, _)| idx);
+    let (name, offset) = match split_idx {
+        Some(idx) => (&trimmed[..idx], Some(&trimmed[idx..])),
+        None => (trimmed, None),
+    };
+    let base = anchors
+        .get(name)
+        .cloned()
+        .unwrap_or_else(|| current.unwrap_or_default().to_string());
+    let Some(offset) = offset else {
+        return base;
+    };
+    let base_num = base.parse::<i64>().unwrap_or(0);
+    let delta = offset.parse::<i64>().unwrap_or(0);
+    base_num.saturating_add(delta).to_string()
+}
+
+fn normalize_timing_endpoint(
+    raw: &str,
+    current: Option<&str>,
+    anchors: &std::collections::BTreeMap<String, String>,
+) -> String {
+    let trimmed = raw.trim();
+    let Some((signal, time)) = trimmed.split_once('@') else {
+        return current
+            .filter(|time| !time.is_empty())
+            .map(|time| format!("{trimmed}@{time}"))
+            .unwrap_or_else(|| trimmed.to_string());
+    };
+    let normalized_time = normalize_timing_time(time, current, anchors);
+    format!("{}@{}", signal.trim(), normalized_time)
 }
 
 fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {
