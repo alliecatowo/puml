@@ -62,6 +62,46 @@ fn parse_family_declaration(
         )));
     }
 
+    if let Some(decl) = parse_named_family_decl(line, "entity") {
+        let FamilyDeclParts {
+            name,
+            alias,
+            has_block,
+            stereotypes,
+            fill_color,
+        } = decl;
+        if has_block || later_lines_contain_ie_family_context(lines, start) {
+            let mut members = if has_block {
+                let mut members = parse_family_decl_members(lines, start, "entity", &name)?;
+                for stereotype in stereotypes.iter().rev() {
+                    members.insert(
+                        0,
+                        ClassMember {
+                            text: format!("<<{stereotype}>>"),
+                            modifier: None,
+                        },
+                    );
+                }
+                members
+            } else {
+                declaration_marker_members(None, stereotypes)
+            };
+            append_inline_fill_member(&mut members, fill_color);
+            return Ok(Some((
+                StatementKind::ClassDecl(ClassDecl {
+                    name,
+                    alias,
+                    members,
+                }),
+                if has_block {
+                    find_family_decl_end(lines, start)
+                } else {
+                    start
+                },
+            )));
+        }
+    }
+
     for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
@@ -198,7 +238,24 @@ fn later_lines_contain_class_family_declaration(lines: &[(&str, Span)], start: u
             || line.starts_with("enum ")
             || line.starts_with("protocol ")
             || line.starts_with("struct ")
+            || (line.starts_with("entity ") && line.ends_with('{'))
     })
+}
+
+fn later_lines_contain_ie_family_context(lines: &[(&str, Span)], start: usize) -> bool {
+    lines.iter().skip(start + 1).any(|(raw, _)| {
+        let line = raw.trim();
+        line.starts_with("entity ") && line.ends_with('{') || line_contains_ie_relation_token(line)
+    })
+}
+
+fn line_contains_ie_relation_token(line: &str) -> bool {
+    [
+        "||--", "||..", "|o--", "|o..", "}o--", "}o..", "}|--", "}|..", "--||", "..||", "--o|",
+        "..o|", "--o{", "..o{", "--|{", "..|{",
+    ]
+    .iter()
+    .any(|token| line.contains(token))
 }
 
 fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start: usize) -> bool {
@@ -886,7 +943,7 @@ fn split_family_arrow_styled(
         if in_quote {
             continue;
         }
-        if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+' | '|') {
+        if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+' | '|' | '{' | '}') {
             continue;
         }
         let rest = &core[idx..];
@@ -1005,7 +1062,7 @@ fn family_arrow_token_len(s: &str) -> Option<usize> {
 
     let len = s
         .char_indices()
-        .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '*' | 'o' | '+'))
+        .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '*' | 'o' | '+' | '{' | '}'))
         .map(|(idx, ch)| idx + ch.len_utf8())
         .last()?;
     let token = &s[..len];
@@ -1034,7 +1091,7 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
                 let dir_len = after_with_optional_dir.len().saturating_sub(after.len());
                 let suffix_len = after
                     .char_indices()
-                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|'))
+                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '{' | '}' | 'o'))
                     .map(|(idx, ch)| idx + ch.len_utf8())
                     .last()
                     .unwrap_or(0);
@@ -1047,7 +1104,7 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
             if let Some(after_dir) = after_prefix.strip_prefix(dir) {
                 let suffix_len = after_dir
                     .char_indices()
-                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|'))
+                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '{' | '}' | 'o'))
                     .map(|(idx, ch)| idx + ch.len_utf8())
                     .last()
                     .unwrap_or(0);
@@ -1560,6 +1617,7 @@ fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_id
             || lower.starts_with("protocol ")
             || lower.starts_with("struct ")
             || lower.starts_with("class ")
+            || (lower.starts_with("entity ") && lower.ends_with('{'))
     })
 }
 

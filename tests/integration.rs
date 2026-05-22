@@ -6577,6 +6577,37 @@ fn class_hide_options_are_recorded_in_model() {
 }
 
 #[test]
+fn ie_entity_blocks_render_mandatory_markers_and_crows_feet() {
+    let src = fs::read_to_string(fixture("families/valid_ie_information_engineering.puml"))
+        .expect("fixture");
+    let svg = render_source_to_svg(&src).expect("rendered svg");
+    assert!(
+        svg.contains("data-uml-ie-mandatory=\"true\""),
+        "mandatory IE attributes should be marked in SVG"
+    );
+    assert!(
+        svg.contains("customer_id : number"),
+        "entity attribute text should render"
+    );
+    assert!(
+        svg.matches("<line x1=").count() >= 3,
+        "entity compartments should render separator lines"
+    );
+    assert!(
+        svg.contains("arrow-ie-one") && svg.contains("arrow-ie-zero-many"),
+        "IE relation marker definitions should render"
+    );
+    assert!(
+        svg.contains("data-uml-arrow=\"||--o{") && svg.contains("data-uml-arrow=\"||..|{"),
+        "crow's-foot relation glyphs should be preserved in relation metadata"
+    );
+    assert!(
+        svg.contains("stroke-dasharray=\"5 3\""),
+        "dotted IE relation should render dashed"
+    );
+}
+
+#[test]
 fn state_fork_join_choice_end_renders_stereotyped_shapes() {
     let src = fs::read_to_string(fixture("families/valid_state_fork_join.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("should render fork/join/choice/end SVG");

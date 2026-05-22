@@ -1320,6 +1320,68 @@ mod tests {
     }
 
     #[test]
+    fn parses_ie_entity_blocks_as_class_family_with_crows_feet() {
+        let doc = parse_with_options(
+            "skinparam linetype ortho\nentity CUSTOMER {\n  *customer_id : number <<generated>>\n  --\n  *name : text\n}\nentity ORDER {\n  *order_id : number <<generated>>\n}\nCUSTOMER ||--o{ ORDER : places\nORDER }|..|| CUSTOMER : owned by\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::SkinParam { .. }
+        ));
+        match &doc.statements[1].kind {
+            StatementKind::ClassDecl(decl) => {
+                assert_eq!(decl.name, "CUSTOMER");
+                assert_eq!(decl.members[0].text, "*customer_id : number <<generated>>");
+                assert_eq!(decl.members[1].text, "--");
+                assert_eq!(decl.members[2].text, "*name : text");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[3].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "CUSTOMER");
+                assert_eq!(rel.to, "ORDER");
+                assert_eq!(rel.arrow, "||--o{");
+                assert_eq!(rel.label.as_deref(), Some("places"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[4].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "ORDER");
+                assert_eq!(rel.to, "CUSTOMER");
+                assert_eq!(rel.arrow, "}|..||");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_ie_endpoint_pairs_and_dotted_variants() {
+        let doc = parse_with_options(
+            "entity A {\n}\nentity B {\n}\nA |o--|| B\nA ||..|| B\nA }o--|| B\nA }|..|| B\nB ||--o{ A\nB ||..|{ A\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        let arrows: Vec<&str> = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::FamilyRelation(rel) => Some(rel.arrow.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            arrows,
+            vec!["|o--||", "||..||", "}o--||", "}|..||", "||--o{", "||..|{"]
+        );
+    }
+
+    #[test]
     fn parses_component_namespace_groups_and_lollipop_endpoint_cleanup() {
         let doc = parse_with_options(
             "@startuml\nnamespace Edge {\n  component API\n  interface \"Orders\" as Orders\n}\nAPI --() Orders: provides\n@enduml\n",

@@ -1418,6 +1418,7 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
         | "objectstereotypefontcolor"
         | "usecasestereotypefontcolor"
         | "actorstereotypefontcolor"
+        | "linetype"
         | "roundcorner"
         | "shadowing" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
