@@ -1,10 +1,12 @@
 @startnwdiag
 nwdiag {
   network public {
+    width = full
     address = "10.0.0.x"
     lb;
   }
   network private {
+    width = full
     address = "192.168.1.x"
     lb;
     app1;

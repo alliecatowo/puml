@@ -24,6 +24,17 @@ nwdiag {
     assert!(svg.contains("#e0f2fe"));
     assert!(svg.contains("class=\"nwdiag-connector\""));
     assert!(svg.contains("class=\"nwdiag-address\""));
+
+    let group_height =
+        svg_rect_attr_before_text(&svg, "class=\"nwdiag-group\"", "group frontend", "height")
+            .expect("group height");
+    let group_y = svg_rect_attr_before_text(&svg, "class=\"nwdiag-group\"", "group frontend", "y")
+        .expect("group y");
+    let label_y = svg_text_attr(&svg, "group frontend", "y").expect("group label y");
+    assert!(
+        group_y + group_height - label_y >= 6,
+        "group label should sit inside a dedicated bottom band instead of clipping against the border"
+    );
 }
 
 #[test]
@@ -359,4 +370,32 @@ manifests --> artifact
     assert!(deployment_svg.contains("data-uml-direction=\"right\""));
     assert!(deployment_svg.contains("stroke=\"#2563eb\""));
     assert!(deployment_svg.contains("stroke-width=\"3\""));
+}
+
+fn svg_rect_attr_before_text(
+    svg: &str,
+    rect_needle: &str,
+    following_text: &str,
+    attr: &str,
+) -> Option<i32> {
+    let text_ix = svg.find(following_text)?;
+    let before_text = &svg[..text_ix];
+    let rect_ix = before_text.rfind(rect_needle)?;
+    let tag = before_text[rect_ix..].split_once('>')?.0;
+    svg_attr_i32(tag, attr)
+}
+
+fn svg_text_attr(svg: &str, text: &str, attr: &str) -> Option<i32> {
+    let marker = format!(">{text}</text>");
+    let text_ix = svg.find(&marker)?;
+    let tag_ix = svg[..text_ix].rfind("<text ")?;
+    let tag = svg[tag_ix..].split_once('>')?.0;
+    svg_attr_i32(tag, attr)
+}
+
+fn svg_attr_i32(tag: &str, attr: &str) -> Option<i32> {
+    let needle = format!("{attr}=\"");
+    let rest = tag.split_once(&needle)?.1;
+    let value = rest.split_once('"')?.0;
+    value.parse().ok()
 }
