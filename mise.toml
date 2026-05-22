@@ -1,2 +1,42 @@
 [tools]
 rust = "stable"
+
+[tasks.fmt]
+description = "Format the Rust workspace"
+run = "cargo fmt"
+
+[tasks.fmt-check]
+description = "Verify Rust formatting"
+run = "cargo fmt --check"
+
+[tasks.clippy]
+description = "Lint with clippy"
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks.test]
+description = "Run the fast test suite with nextest"
+run = "cargo nextest run"
+
+[tasks.test-doc]
+description = "Run doctests"
+run = "cargo test --doc"
+
+[tasks.dev]
+description = "Run the fast local developer loop"
+file = "scripts/dev.sh"
+
+[tasks.gate]
+description = "Run the full quality gate"
+file = "scripts/check-all.sh"
+
+[tasks.gate-quick]
+description = "Run the quick quality gate"
+run = "./scripts/check-all.sh --quick"
+
+[tasks.local-gate]
+description = "Run the local strict gate"
+run = "./scripts/local-gate.sh strict"
+
+[tasks.regen]
+description = "Regenerate committed diagram artifacts"
+run = "./scripts/regen-artifacts.sh --force"

@@ -57,8 +57,17 @@ cargo fmt --check
 echo "[gate] cargo clippy --all-targets --all-features -- -D warnings"
 cargo clippy --all-targets --all-features -- -D warnings
 
-echo "[gate] cargo test"
-cargo test
+if ! cargo nextest --version >/dev/null 2>&1; then
+  echo "[gate] cargo-nextest is required for the quality gate." >&2
+  echo "[gate] run ./scripts/setup.sh or: cargo install cargo-nextest --locked" >&2
+  exit 1
+fi
+
+echo "[gate] cargo nextest run"
+cargo nextest run
+
+echo "[gate] cargo test --doc"
+cargo test --doc
 
 if [[ "$MODE" == "full" ]]; then
   if ! cargo llvm-cov --version >/dev/null 2>&1; then

@@ -33,7 +33,7 @@ pre-push:
       fail_text: |
         clippy found warnings. Fix them before pushing (warnings are errors in CI).
     test-lib:
-      name: cargo test --lib
-      run: cargo test --lib --quiet
+      name: cargo nextest run --lib
+      run: cargo nextest run --lib
       fail_text: |
-        Library unit tests failed. Fix the failures before pushing.
+        Library test failures detected. Fix them before pushing.

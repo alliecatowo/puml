@@ -55,6 +55,8 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
       RUST_BACKTRACE: 1
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
       # Pinned PlantUML version — bump intentionally, never use "latest".
       PLANTUML_VERSION: "1.2026.3"
       PLANTUML_JAR: plantuml-1.2026.3.jar
@@ -176,6 +178,14 @@ jobs:
           shared-key: oracle-ubuntu-stable
           cache-on-failure: true
 
+      - name: Set up sccache
+        if: steps.changes.outputs.run_oracle == 'true'
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Install cargo-nextest
+        if: steps.changes.outputs.run_oracle_smoke == 'true'
+        uses: taiki-e/install-action@nextest
+
       - name: Build release binary
         if: steps.changes.outputs.run_oracle == 'true'
         run: cargo build --release
@@ -272,14 +282,14 @@ jobs:
       # verify skip-by-default behavior and schema contracts without Java.
       # continue-on-error: true so sentinel test failures do not block the PR
       # — the oracle.sh step above is the hard gate.
-      - name: Run oracle_smoke sentinel tests (cargo test --test oracle_smoke)
+      - name: Run oracle_smoke sentinel tests (cargo nextest run --test oracle_smoke)
         if: steps.changes.outputs.run_oracle == 'true' && steps.changes.outputs.run_oracle_smoke == 'true'
         id: cargo-oracle-smoke
         continue-on-error: true
         env:
           PUML_ORACLE_JAR: ${{ github.workspace }}/${{ env.PLANTUML_JAR }}
         run: |
-          cargo test --test oracle_smoke 2>&1 | tee /tmp/oracle_smoke_test.log
+          cargo nextest run --test oracle_smoke 2>&1 | tee /tmp/oracle_smoke_test.log
           echo "cargo_exit_code=${PIPESTATUS[0]}" >> "${GITHUB_OUTPUT}"
 
       # Upload artifacts: oracle_report.json, plus the smoke log when run.

@@ -27,9 +27,15 @@ cargo fmt --check
 echo "[local-gate] cargo clippy --all-targets --all-features -- -D warnings"
 cargo clippy --all-targets --all-features -- -D warnings
 
+if ! cargo nextest --version >/dev/null 2>&1; then
+  echo "[local-gate] cargo-nextest is required." >&2
+  echo "[local-gate] run ./scripts/setup.sh or: cargo install cargo-nextest --locked" >&2
+  exit 1
+fi
+
 if [[ "$MODE" == "quick" ]]; then
-  echo "[local-gate] cargo test --lib --quiet"
-  cargo test --lib --quiet
+  echo "[local-gate] cargo nextest run --lib"
+  cargo nextest run --lib
   exit 0
 fi
 
@@ -38,8 +44,11 @@ if [[ "$MODE" != "strict" ]]; then
   exit 1
 fi
 
-echo "[local-gate] cargo test"
-cargo test
+echo "[local-gate] cargo nextest run"
+cargo nextest run
+
+echo "[local-gate] cargo test --doc"
+cargo test --doc
 
 echo "[local-gate] changed-file coverage gate"
 ./scripts/coverage-changed.sh
@@ -52,4 +61,3 @@ else
 fi
 
 echo "[local-gate] strict gate complete"
-
