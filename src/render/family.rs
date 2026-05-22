@@ -2202,6 +2202,7 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
     match kind {
         FamilyNodeKind::Class => "class",
         FamilyNodeKind::Object => "object",
+        FamilyNodeKind::Diamond => "diamond",
         FamilyNodeKind::UseCase => "usecase",
         FamilyNodeKind::Salt => "widget",
         FamilyNodeKind::MindMap => "mindmap",
@@ -2359,6 +2360,25 @@ fn render_class_node(
 
     if node.kind == FamilyNodeKind::Note {
         render_note_card(out, x, y, w, h, node.label.as_deref().unwrap_or(&node.name));
+        return;
+    }
+    if node.kind == FamilyNodeKind::Diamond {
+        let cx = x + w / 2;
+        let cy = y + h / 2;
+        let top = format!("{cx},{}", y + 6);
+        let right = format!("{},{}", x + w - 6, cy);
+        let bottom = format!("{cx},{}", y + h - 6);
+        let left = format!("{},{}", x + 6, cy);
+        out.push_str(&format!(
+            "<polygon class=\"uml-diamond\" points=\"{} {} {} {}\" fill=\"#fef3c7\" stroke=\"#334155\" stroke-width=\"1.5\"/>",
+            top, right, bottom, left
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
+            cx,
+            cy + 4,
+            escape_text(&node.name)
+        ));
         return;
     }
 
@@ -2687,7 +2707,61 @@ fn render_class_node(
         let modifier_attr = member_modifier_name(member.modifier.as_ref())
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();
-        if let Some(required_text) = display_text.strip_prefix('*') {
+        let is_map_node = matches!(node.kind, FamilyNodeKind::Object)
+            && node
+                .members
+                .iter()
+                .any(|m| m.text.trim().eq_ignore_ascii_case("<<map>>"));
+        if is_map_node
+            && (display_text.contains("<=>") || display_text.contains("=>"))
+            && !display_text.starts_with("<<")
+        {
+            let split = if display_text.contains("<=>") {
+                display_text.split_once("<=>")
+            } else {
+                display_text.split_once("=>")
+            };
+            if let Some((lhs, rhs)) = split {
+                let row_top = my - 12;
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.7\"/>",
+                    x + 1,
+                    row_top,
+                    x + w - 1,
+                    row_top,
+                    stroke
+                ));
+                let divider_x = x + (w / 2);
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.7\"/>",
+                    divider_x,
+                    row_top,
+                    divider_x,
+                    row_top + 16,
+                    stroke
+                ));
+                out.push_str(&format!(
+                    "<text class=\"uml-member\" x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\">{}</text>",
+                    x + 10,
+                    my,
+                    escape_text(font_family),
+                    member_font_size,
+                    effective_color,
+                    escape_text(lhs.trim())
+                ));
+                out.push_str(&format!(
+                    "<text class=\"uml-member\" x=\"{}\" y=\"{}\" text-anchor=\"start\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\">{}</text>",
+                    divider_x + 8,
+                    my,
+                    escape_text(font_family),
+                    member_font_size,
+                    effective_color,
+                    escape_text(rhs.trim())
+                ));
+                my += 16;
+                continue;
+            }
+        } else if let Some(required_text) = display_text.strip_prefix('*') {
             out.push_str(&format!(
                 "<text class=\"uml-member uml-ie-member\" data-uml-ie-mandatory=\"true\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>\
                  <tspan font-weight=\"700\">*</tspan><tspan dx=\"4\">{m}</tspan></text>",

@@ -14,7 +14,6 @@ fn parse_family_declaration(
         ("protocol", Some("<<protocol>>")),
         ("struct", Some("<<struct>>")),
         ("circle", Some("<<circle>>")),
-        ("diamond", Some("<<diamond>>")),
         ("abstract", Some("<<abstract>>")),
         ("class", None),
     ] {
@@ -111,7 +110,11 @@ fn parse_family_declaration(
         }
     }
 
-    for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
+    for (keyword, marker) in [
+        ("diamond", Some("<<diamond>>")),
+        ("map", Some("<<map>>")),
+        ("object", None),
+    ] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };

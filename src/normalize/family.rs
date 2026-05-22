@@ -217,8 +217,20 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 // Detect and strip C4 stereotypes embedded in the alias
                 // (e.g. `u <<person>>` → alias `u`, kind `C4Person`).
                 let (clean_alias, c4_kind) = sequence::extract_c4_stereotype(decl.alias);
-                let resolved_kind = c4_kind.unwrap_or(FamilyNodeKind::Object);
                 let mut members = decl.members;
+                let diamond_marker_idx = members
+                    .iter()
+                    .position(|member| member.text.trim().eq_ignore_ascii_case("<<diamond>>"));
+                let resolved_kind = if c4_kind.is_some() {
+                    c4_kind.unwrap_or(FamilyNodeKind::Object)
+                } else if diamond_marker_idx.is_some() {
+                    if let Some(idx) = diamond_marker_idx {
+                        let _ = members.remove(idx);
+                    }
+                    FamilyNodeKind::Diamond
+                } else {
+                    FamilyNodeKind::Object
+                };
                 let fill_color = extract_family_node_fill_color(&mut members);
                 upsert_family_node(
                     &mut nodes,
