@@ -23,6 +23,7 @@ expression: json
   "kind": "Chronology",
   "legend": null,
   "milestones": [],
+  "named_dates": [],
   "open_ranges": [],
   "project_start": null,
   "project_start_day": null,
