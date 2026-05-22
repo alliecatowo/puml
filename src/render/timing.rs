@@ -540,6 +540,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             FamilyNodeKind::TimingClock => {
                 // Clock: square wave. If edge events exist for this signal, use
                 // their spacing as the period baseline; otherwise fallback.
+                let clock_swing = (wave_h / 4).max(8);
+                let clock_y_hi = wave_mid - clock_swing;
+                let clock_y_lo = wave_mid + clock_swing;
                 let controlled_period = timing_control_i64(signal, "period");
                 let controlled_pulse = timing_control_i64(signal, "pulse");
                 let controlled_offset = timing_control_i64(signal, "offset").unwrap_or(0);
@@ -573,17 +576,17 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 // half-periods never bleed outside the viewBox.
                 let x_max = width;
                 let x0 = time_to_x(cur_t).min(x_max);
-                let y0 = if cur_hi { wave_y_hi } else { wave_y_lo };
+                let y0 = if cur_hi { clock_y_hi } else { clock_y_lo };
                 path_pts.push_str(&format!("{x0},{y0}"));
                 while cur_t < t_end {
                     let next_t = cur_t + half;
                     let x1 = time_to_x(next_t).min(x_max);
                     // Horizontal segment
-                    let cur_y = if cur_hi { wave_y_hi } else { wave_y_lo };
+                    let cur_y = if cur_hi { clock_y_hi } else { clock_y_lo };
                     path_pts.push_str(&format!(" {x1},{cur_y}"));
                     // Vertical transition
                     cur_hi = !cur_hi;
-                    let next_y = if cur_hi { wave_y_hi } else { wave_y_lo };
+                    let next_y = if cur_hi { clock_y_hi } else { clock_y_lo };
                     path_pts.push_str(&format!(" {x1},{next_y}"));
                     cur_t = next_t;
                     if x1 >= x_max {
@@ -598,7 +601,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 out.push_str(&format!(
                     "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"10\" fill=\"#64748b\">clk</text>",
                     x = time_to_x(t_min) + 4,
-                    ty = wave_y_hi - 4
+                    ty = clock_y_hi - 4
                 ));
             }
 
@@ -763,6 +766,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         &mut out,
         doc,
         &signal_row_mid,
+        row_h,
         axis_top,
         signals_top + rows_h,
         &time_to_x,
@@ -917,6 +921,7 @@ fn render_timing_relations(
     out: &mut String,
     doc: &FamilyDocument,
     signal_row_mid: &std::collections::BTreeMap<&str, i32>,
+    row_h: i32,
     axis_top: i32,
     chart_bottom: i32,
     time_to_x: &dyn Fn(i64) -> i32,
@@ -937,6 +942,14 @@ fn render_timing_relations(
         };
         let x1 = time_to_x(from_time);
         let x2 = time_to_x(to_time);
+        let lane_inset = (row_h / 4).max(10);
+        let (y1, y2) = if y2 > y1 {
+            (y1 + lane_inset, y2 - lane_inset)
+        } else if y2 < y1 {
+            (y1 - lane_inset, y2 + lane_inset)
+        } else {
+            (y1, y2)
+        };
         let color = relation.line_color.as_deref().unwrap_or(&style.arrow_color);
         let dash = if relation.dashed {
             " stroke-dasharray=\"6 4\""
