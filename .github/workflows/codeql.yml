@@ -40,7 +40,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rust-src
+          components: rust-src, rust-analyzer
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -57,6 +57,18 @@ jobs:
         run: |
           echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
           echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
+
+      - name: Configure Rust proc macro server for CodeQL
+        run: |
+          set -euo pipefail
+          sysroot="$(rustc --print sysroot)"
+          proc_macro_server="$(find "${sysroot}" -name rust-analyzer-proc-macro-srv -type f | head -n1)"
+          if [[ -z "${proc_macro_server}" || ! -x "${proc_macro_server}" ]]; then
+            echo "rust-analyzer proc macro server not found under ${sysroot}" >&2
+            exit 1
+          fi
+          echo "CODEQL_EXTRACTOR_RUST_OPTION_PROC_MACRO_SERVER=${proc_macro_server}" >> "${GITHUB_ENV}"
+          echo "Using proc macro server: ${proc_macro_server}"
 
       - name: Prepare Rust workspace
         run: |
