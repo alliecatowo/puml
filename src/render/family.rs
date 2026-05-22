@@ -2328,13 +2328,17 @@ fn count_header_stereotype_members(members: &[crate::ast::ClassMember]) -> usize
 fn first_user_stereotype_key(node: &crate::model::FamilyNode) -> Option<String> {
     node.members.iter().find_map(|member| {
         let text = member.text.trim();
-        is_user_stereotype(text).then(|| {
+        (is_user_stereotype(text) && !is_internal_map_marker(text)).then(|| {
             text.trim_start_matches("<<")
                 .trim_end_matches(">>")
                 .trim()
                 .to_ascii_lowercase()
         })
     })
+}
+
+fn is_internal_map_marker(text: &str) -> bool {
+    text.trim().eq_ignore_ascii_case("<<map>>")
 }
 
 fn render_class_node(
@@ -2362,25 +2366,6 @@ fn render_class_node(
         render_note_card(out, x, y, w, h, node.label.as_deref().unwrap_or(&node.name));
         return;
     }
-    if node.kind == FamilyNodeKind::Diamond {
-        let cx = x + w / 2;
-        let cy = y + h / 2;
-        let top = format!("{cx},{}", y + 6);
-        let right = format!("{},{}", x + w - 6, cy);
-        let bottom = format!("{cx},{}", y + h - 6);
-        let left = format!("{},{}", x + 6, cy);
-        out.push_str(&format!(
-            "<polygon class=\"uml-diamond\" points=\"{} {} {} {}\" fill=\"#fef3c7\" stroke=\"#334155\" stroke-width=\"1.5\"/>",
-            top, right, bottom, left
-        ));
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#0f172a\">{}</text>",
-            cx,
-            cy + 4,
-            escape_text(&node.name)
-        ));
-        return;
-    }
 
     let scoped_style =
         first_user_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
@@ -2397,6 +2382,33 @@ fn render_class_node(
         .filter(|color| !color.is_empty());
     let font_color = scoped_font_color.unwrap_or(&class_style.font_color);
     let member_color = scoped_font_color.unwrap_or(class_style.member_color.as_str());
+
+    if node.kind == FamilyNodeKind::Diamond {
+        let cx = x + w / 2;
+        let cy = y + h / 2;
+        let top = format!("{cx},{}", y + 6);
+        let right = format!("{},{}", x + w - 6, cy);
+        let bottom = format!("{cx},{}", y + h - 6);
+        let left = format!("{},{}", x + 6, cy);
+        out.push_str(&format!(
+            "<polygon class=\"uml-diamond\" points=\"{} {} {} {}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            top,
+            right,
+            bottom,
+            left,
+            escape_text(fill),
+            escape_text(stroke)
+        ));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+            cx,
+            cy + 4,
+            escape_text(font_color),
+            escape_text(&node.name)
+        ));
+        return;
+    }
+
     let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
     let title_font_size = class_style.font_size.unwrap_or(13);
     let member_font_size = title_font_size.saturating_sub(2).max(9);
@@ -2524,6 +2536,9 @@ fn render_class_node(
     // Build the list of guillemet labels to show in the header (top → bottom).
     let mut header_stereotype_labels: Vec<String> = Vec::new();
     for m in &node.members[..header_skip] {
+        if is_internal_map_marker(&m.text) {
+            continue;
+        }
         if let Some(builtin) = builtin_type_stereotype_label(&m.text) {
             header_stereotype_labels.push(builtin.to_string());
         } else if is_user_stereotype(&m.text) {
@@ -2534,6 +2549,8 @@ fn render_class_node(
     }
     // Members to display: skip all header stereotype members
     let display_members = &node.members[header_skip..];
+    let is_map_node = matches!(node.kind, FamilyNodeKind::Object)
+        && node.members.iter().any(|m| is_internal_map_marker(&m.text));
 
     // Outer rect
     out.push_str(&format!(
@@ -2707,11 +2724,6 @@ fn render_class_node(
         let modifier_attr = member_modifier_name(member.modifier.as_ref())
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();
-        let is_map_node = matches!(node.kind, FamilyNodeKind::Object)
-            && node
-                .members
-                .iter()
-                .any(|m| m.text.trim().eq_ignore_ascii_case("<<map>>"));
         if is_map_node
             && (display_text.contains("<=>") || display_text.contains("=>"))
             && !display_text.starts_with("<<")

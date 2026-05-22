@@ -29,6 +29,10 @@ map CapitalCity {
     assert!(svg.contains(">London<"));
     assert!(svg.contains(">USA<"));
     assert!(svg.contains(">Washington<"));
+    assert!(
+        !svg.contains("map\u{bb}") && !svg.contains("&lt;&lt;map&gt;&gt;"),
+        "internal map marker should not be rendered"
+    );
 }
 
 #[test]
@@ -42,5 +46,20 @@ object Service
     assert!(
         svg.contains("#add8e6"),
         "expected resolved LightBlue fill in object node"
+    );
+}
+
+#[test]
+fn diamond_uses_object_background_skinparam() {
+    let src = "@startuml
+skinparam objectBackgroundColor LightBlue
+diamond dia
+@enduml
+";
+    let svg = render_source_to_svg(src).expect("diamond style render should succeed");
+    assert!(svg.contains("class=\"uml-diamond\""));
+    assert!(
+        svg.contains("fill=\"#add8e6\""),
+        "expected resolved object background fill on diamond"
     );
 }
