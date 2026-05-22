@@ -8,7 +8,7 @@ use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
 };
-use crate::theme::{ClassStyle, ComponentStyle, ComponentStyleMode};
+use crate::theme::{ActorStyle, ClassStyle, ComponentStyle, ComponentStyleMode};
 
 /// Emit a centered SVG `<text>` element for a relation label.
 ///
@@ -2815,14 +2815,23 @@ fn render_class_node(
     }
 
     if matches!(node.kind, FamilyNodeKind::Actor) {
-        // Canonical stick-figure rendering for actors (issue #715).
-        // Proportions are shared with the sequence renderer via render_actor_stick_figure.
-        // The figure centre cy is placed at y + 21 so the head top sits at y + 0.
         let cx = x + w / 2;
-        let fig_cy = y + 21; // centre of figure; head top = fig_cy - 21
-        render_actor_stick_figure(out, cx, fig_cy, stroke);
-        // Name below the figure: feet end at fig_cy + 23, add 4 px gap.
-        let name_y = fig_cy + 27;
+        let fig_cy = y + 21;
+        match class_style.actor_style {
+            ActorStyle::Stick => {
+                // Canonical stick-figure rendering for actors (issue #715).
+                // Proportions are shared with the sequence renderer via render_actor_stick_figure.
+                render_actor_stick_figure(out, cx, fig_cy, stroke);
+            }
+            ActorStyle::Awesome => render_actor_awesome_figure(out, cx, fig_cy, stroke),
+            ActorStyle::Hollow => render_actor_hollow_figure(out, cx, fig_cy, stroke),
+        }
+        let name_y = match class_style.actor_style {
+            // Stick-figure feet end at fig_cy + 23; keep the historical 4px gap.
+            ActorStyle::Stick => fig_cy + 27,
+            // The alternative PlantUML actor glyphs are bulkier silhouettes.
+            ActorStyle::Awesome | ActorStyle::Hollow => fig_cy + 42,
+        };
         out.push_str(&format!(
             "<text x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
@@ -3157,6 +3166,66 @@ fn render_class_node(
         }
         my += 16;
     }
+}
+
+fn render_actor_awesome_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
+    let head_cy = cy - 15;
+    out.push_str(&format!(
+        "<circle class=\"uml-actor-glyph\" data-uml-actor-style=\"awesome\" cx=\"{cx}\" cy=\"{head_cy}\" r=\"7\" fill=\"{stroke}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+    let shoulder_y = head_cy + 11;
+    let body_top = head_cy + 16;
+    let body_bottom = head_cy + 37;
+    out.push_str(&format!(
+        "<path class=\"uml-actor-glyph\" data-uml-actor-style=\"awesome\" d=\"M{} {} Q{} {} {} {} L{} {} Q{} {} {} {} L{} {} Q{} {} {} {} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx - 15,
+        body_bottom,
+        cx - 13,
+        shoulder_y,
+        cx,
+        body_top,
+        cx + 15,
+        body_bottom,
+        cx + 8,
+        body_bottom + 4,
+        cx,
+        body_bottom + 4,
+        cx - 8,
+        body_bottom + 4,
+        cx - 15,
+        body_bottom,
+        cx - 15,
+        body_bottom,
+        stroke,
+        stroke
+    ));
+}
+
+fn render_actor_hollow_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
+    let head_cy = cy - 15;
+    out.push_str(&format!(
+        "<circle class=\"uml-actor-glyph\" data-uml-actor-style=\"hollow\" cx=\"{cx}\" cy=\"{head_cy}\" r=\"7\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.8\"/>"
+    ));
+    let shoulder_y = head_cy + 11;
+    let body_bottom = head_cy + 38;
+    out.push_str(&format!(
+        "<path class=\"uml-actor-glyph\" data-uml-actor-style=\"hollow\" d=\"M{} {} Q{} {} {} {} Q{} {} {} {} Q{} {} {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+        cx - 16,
+        body_bottom,
+        cx - 13,
+        shoulder_y,
+        cx,
+        shoulder_y,
+        cx + 13,
+        shoulder_y,
+        cx + 16,
+        body_bottom,
+        cx,
+        body_bottom + 6,
+        cx - 16,
+        body_bottom,
+        stroke
+    ));
 }
 
 /// Ensure C4 and Actor nodes have enough minimum height to render their visual elements.

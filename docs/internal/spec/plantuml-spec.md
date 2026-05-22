@@ -33,7 +33,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | # | Chapter | ✅ | 🟡 | ❌ | Audit |
 |---|---------|----|----|----|-------|
 | 1 | Sequence Diagram | 28 | 14 | 6 | [ch01-sequence.md](audit/ch01-sequence.md) |
-| 2 | Use Case Diagram | 10 | 4 | 3 | [ch02-usecase.md](audit/ch02-usecase.md) |
+| 2 | Use Case Diagram | 11 | 4 | 2 | [ch02-usecase.md](audit/ch02-usecase.md) |
 | 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
 | 4 | Object Diagram | 5 | 2 | 1 | [ch04-object.md](audit/ch04-object.md) |
 | 5 | Activity (legacy) | 0 | 2 | 10 | [ch05-activity-legacy.md](audit/ch05-activity-legacy.md) |
@@ -71,7 +71,7 @@ closing implementation work from these notes.
 2. **Preprocessing** — 18✅/28 (64%). The repo's strongest large area: full `!if/!elseif/!ifdef/!while/!foreach/!function/!procedure` with `!local/!global/!unquoted`, broad builtin set, `!include/_many/_once/url/import`.
 3. **MindMap** — 9✅/14 (64%).
 4. **Math** — 3✅/5 (60%).
-5. **Use Case** — 10✅/17 (59%).
+5. **Use Case** — 11✅/17 (65%).
 6. **JSON** — 7✅/14 (50%). serde_json + block parsing both solid.
 7. **WBS** — 6✅/12 (50%).
 8. **nwdiag** — 11✅/17 (65%). Networks/groups/addresses/peer links solid; global styling and full shape parity still lag.
