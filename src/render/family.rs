@@ -2294,6 +2294,18 @@ fn count_header_stereotype_members(members: &[crate::ast::ClassMember]) -> usize
     skip
 }
 
+fn first_user_stereotype_key(node: &crate::model::FamilyNode) -> Option<String> {
+    node.members.iter().find_map(|member| {
+        let text = member.text.trim();
+        is_user_stereotype(text).then(|| {
+            text.trim_start_matches("<<")
+                .trim_end_matches(">>")
+                .trim()
+                .to_ascii_lowercase()
+        })
+    })
+}
+
 fn render_class_node(
     out: &mut String,
     node: &crate::model::FamilyNode,
@@ -2320,11 +2332,21 @@ fn render_class_node(
         return;
     }
 
+    let scoped_style =
+        first_user_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
     let fill = node
         .fill_color
         .as_deref()
+        .or_else(|| scoped_style.and_then(|style| style.background_color.as_deref()))
         .unwrap_or(&class_style.background_color);
-    let stroke = &class_style.border_color;
+    let stroke = scoped_style
+        .and_then(|style| style.border_color.as_deref())
+        .unwrap_or(&class_style.border_color);
+    let scoped_font_color = scoped_style
+        .and_then(|style| style.font_color.as_deref())
+        .filter(|color| !color.is_empty());
+    let font_color = scoped_font_color.unwrap_or(&class_style.font_color);
+    let member_color = scoped_font_color.unwrap_or(class_style.member_color.as_str());
     let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
     let title_font_size = class_style.font_size.unwrap_or(13);
     let member_font_size = title_font_size.saturating_sub(2).max(9);
@@ -2341,7 +2363,9 @@ fn render_class_node(
             Some("\u{ab}annotation\u{bb}") => "#fff0cc",  // warm amber for @annotation
             Some("\u{ab}interface\u{bb}") => "#dae8fc",   // light blue for interface
             Some("\u{ab}abstract\u{bb}") => "#f0e6ff",    // light lavender for abstract
-            _ => class_style.header_color.as_str(),
+            _ => scoped_style
+                .and_then(|style| style.header_color.as_deref())
+                .unwrap_or(class_style.header_color.as_str()),
         },
         FamilyNodeKind::Object => "#fef3c7",
         FamilyNodeKind::UseCase => "#dcfce7",
@@ -2361,7 +2385,7 @@ fn render_class_node(
             "<text x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
             title_font_size,
-            escape_text(&class_style.font_color),
+            escape_text(font_color),
             name = escape_text(&node.name)
         ));
         // Stereotype / extra members below name
@@ -2372,8 +2396,9 @@ fn render_class_node(
                 continue;
             }
             out.push_str(&format!(
-                "<text x=\"{cx}\" y=\"{member_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                "<text x=\"{cx}\" y=\"{member_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
                 escape_text(font_family),
+                escape_text(member_color),
                 escape_text(text)
             ));
             member_y += 14;
@@ -2422,7 +2447,7 @@ fn render_class_node(
             "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
             title_font_size,
-            escape_text(&class_style.font_color),
+            escape_text(font_color),
             ty = cy + 4,
             name = escape_text(uc_display_name)
         ));
@@ -2434,7 +2459,7 @@ fn render_class_node(
                 escape_text(font_family),
                 member_font_size,
                 tx = x + w / 2,
-                mc = class_style.member_color,
+                mc = member_color,
                 m = escape_text(&member.text)
             ));
             my += 14;
@@ -2485,7 +2510,7 @@ fn render_class_node(
             tx = x + w / 2,
             ty = y + 13 + (i as i32) * 14,
             ff = escape_text(font_family),
-            fc = escape_text(&class_style.font_color),
+            fc = escape_text(font_color),
             lbl = escape_text(label)
         ));
     }
@@ -2519,7 +2544,7 @@ fn render_class_node(
         "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
         ff = escape_text(font_family),
         fs = title_font_size,
-        fc = escape_text(&class_style.font_color),
+        fc = escape_text(font_color),
         tx = x + w / 2,
         ty = name_ty,
         td = text_decoration,
@@ -2617,7 +2642,7 @@ fn render_class_node(
         let effective_color = if vis_sym.is_some() {
             vis_color
         } else {
-            class_style.member_color.as_str()
+            member_color
         };
         // Reconstruct display text: keep visibility prefix + remaining text
         let display_text = if vis_sym.is_some() {

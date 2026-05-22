@@ -1,0 +1,11 @@
+@startuml
+skinparam monochrome reverse
+skinparam handwritten true
+skinparam sequenceMessageAlign reverseDirection
+skinparam participantBackgroundColor #dbeafe
+skinparam arrowColor #2563eb
+title Chapter 24 Skinparam
+Alice -> Bob : request
+note over Bob: rendered in reverse monochrome
+Bob --> Alice : response
+@enduml

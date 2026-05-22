@@ -8505,6 +8505,97 @@ fn skinparam_class_background_color_appears_in_svg() {
 }
 
 #[test]
+fn skinparam_ch24_sequence_keys_are_accepted_and_rendered() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_ch24_sequence.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_ch24_sequence.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("ch24 sequence skinparam svg should render");
+    assert!(
+        svg.contains("id=\"sketch\""),
+        "handwritten true should enable the sketch filter"
+    );
+    assert!(
+        svg.contains("stroke=\"#000000\""),
+        "monochrome true should force strokes to black"
+    );
+    assert!(
+        svg.contains("fill=\"#ffffff\""),
+        "monochrome true should force fills/background to white"
+    );
+    assert!(
+        svg.contains("text-anchor=\"start\""),
+        "sequenceMessageAlign direction should behave like left/start"
+    );
+    assert!(
+        !svg.contains("#334155"),
+        "monochrome should override explicit participant font color"
+    );
+}
+
+#[test]
+fn skinparam_ch24_reverse_monochrome_and_reverse_direction_render() {
+    let src = "@startuml\nskinparam monochrome reverse\nskinparam sequenceMessageAlign reverseDirection\nAlice -> Bob : dark mode\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("reverse monochrome sequence should render");
+    assert!(
+        svg.contains("<rect width=\"100%\" height=\"100%\" fill=\"#000000\""),
+        "monochrome reverse should force a black background"
+    );
+    assert!(
+        svg.contains("stroke=\"#ffffff\""),
+        "monochrome reverse should force strokes to white"
+    );
+    assert!(
+        svg.contains("text-anchor=\"end\""),
+        "sequenceMessageAlign reverseDirection should behave like right/end"
+    );
+}
+
+#[test]
+fn skinparam_ch24_class_stereotype_scope_renders() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_ch24_stereotype_class.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let src = fs::read_to_string(fixture(
+        "styling/valid_skinparam_ch24_stereotype_class.puml",
+    ))
+    .unwrap();
+    let svg = render_source_to_svg(&src).expect("class stereotype skinparam svg should render");
+    assert!(
+        svg.contains("fill=\"#fee2e2\""),
+        "stereotype-scoped class background should render"
+    );
+    assert!(
+        svg.contains("stroke=\"#b91c1c\""),
+        "stereotype-scoped class border should render"
+    );
+    assert!(
+        svg.contains("fill=\"#fecaca\""),
+        "stereotype-scoped class header should render"
+    );
+    assert!(
+        svg.contains("fill=\"#7f1d1d\""),
+        "stereotype-scoped class font color should render"
+    );
+}
+
+#[test]
 fn skinparam_state_keys_accepted_without_warnings() {
     Command::cargo_bin("puml")
         .expect("binary")

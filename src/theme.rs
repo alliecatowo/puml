@@ -1,4 +1,5 @@
 use crate::scene::TextOverflowPolicy;
+use std::collections::BTreeMap;
 
 /// Return the canonical lowercase hex value (`#rrggbb`) for a CSS3 named color.
 pub fn css3_color_to_hex(name: &str) -> Option<&'static str> {
@@ -242,6 +243,28 @@ pub enum GroupHeaderFontStyle {
     Italic,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MonochromeMode {
+    True,
+    Reverse,
+}
+
+impl MonochromeMode {
+    const fn ink(self) -> &'static str {
+        match self {
+            Self::True => "#000000",
+            Self::Reverse => "#ffffff",
+        }
+    }
+
+    const fn paper(self) -> &'static str {
+        match self {
+            Self::True => "#ffffff",
+            Self::Reverse => "#000000",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextAlignment {
     #[default]
@@ -359,6 +382,7 @@ pub fn class_style_from_sequence_theme(style: &SequenceStyle) -> ClassStyle {
         arrow_color: style.arrow_color.clone(),
         font_size: style.default_font_size,
         font_name: style.default_font_name.clone(),
+        stereotype_styles: BTreeMap::new(),
     }
 }
 
@@ -423,6 +447,94 @@ pub fn chart_style_from_sequence_theme(style: &SequenceStyle) -> ChartStyle {
         pie_border_color: style.group_border_color.clone(),
         font_color: style.arrow_color.clone(),
     }
+}
+
+pub fn apply_monochrome_to_sequence_style(style: &mut SequenceStyle, mode: MonochromeMode) {
+    let ink = mode.ink().to_string();
+    let paper = mode.paper().to_string();
+    style.arrow_color = ink.clone();
+    style.lifeline_border_color = ink.clone();
+    style.participant_background_color = paper.clone();
+    style.participant_border_color = ink.clone();
+    style.participant_font_color = Some(ink.clone());
+    style.note_background_color = paper.clone();
+    style.note_border_color = ink.clone();
+    style.group_background_color = paper.clone();
+    style.group_border_color = ink.clone();
+    style.background_color = Some(paper.clone());
+    style.message_line_color = Some(ink.clone());
+    style.reference_background_color = Some(paper.clone());
+    style.reference_border_color = Some(ink.clone());
+    style.group_header_font_color = Some(ink);
+    style.shadowing = false;
+}
+
+pub fn apply_monochrome_to_class_style(style: &mut ClassStyle, mode: MonochromeMode) {
+    let ink = mode.ink().to_string();
+    let paper = mode.paper().to_string();
+    style.background_color = paper.clone();
+    style.border_color = ink.clone();
+    style.header_color = paper.clone();
+    style.member_color = ink.clone();
+    style.font_color = ink.clone();
+    style.arrow_color = ink;
+    style.stereotype_styles.clear();
+}
+
+pub fn apply_monochrome_to_state_style(style: &mut StateStyle, mode: MonochromeMode) {
+    let ink = mode.ink().to_string();
+    let paper = mode.paper().to_string();
+    style.background_color = paper;
+    style.border_color = ink.clone();
+    style.arrow_color = ink.clone();
+    style.start_color = ink.clone();
+    style.font_color = ink;
+}
+
+pub fn apply_monochrome_to_component_style(style: &mut ComponentStyle, mode: MonochromeMode) {
+    let ink = mode.ink().to_string();
+    let paper = mode.paper().to_string();
+    style.background_color = paper.clone();
+    style.border_color = ink.clone();
+    style.interface_color = paper;
+    style.font_color = ink.clone();
+    style.arrow_color = ink;
+}
+
+pub fn apply_monochrome_to_activity_style(style: &mut ActivityStyle, mode: MonochromeMode) {
+    let ink = mode.ink().to_string();
+    let paper = mode.paper().to_string();
+    style.background_color = paper.clone();
+    style.border_color = ink.clone();
+    style.diamond_color = paper;
+    style.fork_color = ink.clone();
+    style.font_color = ink.clone();
+    style.arrow_color = ink;
+}
+
+pub fn apply_monochrome_to_timing_style(style: &mut TimingStyle, mode: MonochromeMode) {
+    let ink = mode.ink().to_string();
+    let paper = mode.paper().to_string();
+    style.background_color = paper.clone();
+    style.axis_color = ink.clone();
+    style.grid_color = ink.clone();
+    style.signal_background_color = paper.clone();
+    style.signal_border_color = ink.clone();
+    style.arrow_color = ink.clone();
+    style.font_color = ink;
+}
+
+pub fn apply_monochrome_to_chart_style(style: &mut ChartStyle, mode: MonochromeMode) {
+    let ink = mode.ink().to_string();
+    let paper = mode.paper().to_string();
+    style.background_color = paper;
+    style.axis_color = ink.clone();
+    style.grid_color = ink.clone();
+    style.series_color = ink.clone();
+    style.bar_color = ink.clone();
+    style.line_color = ink.clone();
+    style.pie_border_color = ink.clone();
+    style.font_color = ink;
 }
 
 pub const LOCAL_SEQUENCE_THEME_CATALOG: &[&str] = &[
@@ -1065,6 +1177,7 @@ pub enum SequenceSkinParamValue {
     LifelineBorderColor(String),
     ParticipantBackgroundColor(String),
     ParticipantBorderColor(String),
+    ParticipantFontColor(String),
     NoteBackgroundColor(String),
     NoteBorderColor(String),
     GroupBackgroundColor(String),
@@ -1086,6 +1199,8 @@ pub enum SequenceSkinParamValue {
     ReferenceBorderColor(String),
     GroupHeaderFontColor(String),
     GroupHeaderFontStyle(GroupHeaderFontStyle),
+    Monochrome(MonochromeMode),
+    Handwritten(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1133,6 +1248,13 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
                 )
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "participantfontcolor" | "sequenceparticipantfontcolor" => parse_color_value(value)
+            .map(|color| {
+                SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::ParticipantFontColor(color),
+                )
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "notebackgroundcolor" | "sequencenotebackgroundcolor" => parse_color_value(value)
             .map(|color| {
                 SequenceSkinParamSupport::SupportedWithValue(
@@ -1169,15 +1291,26 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
             }
         }
         "shadowing" => {
-            let lower = value.trim().to_ascii_lowercase();
-            let enabled = match lower.as_str() {
-                "true" | "yes" | "on" => true,
-                "false" | "no" | "off" => false,
-                _ => return SequenceSkinParamSupport::UnsupportedValue,
+            let Some(enabled) = parse_bool_value(value) else {
+                return SequenceSkinParamSupport::UnsupportedValue;
             };
             SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::Shadowing(enabled))
         }
-        "defaultfontname" => {
+        "monochrome" => match parse_monochrome_value(value) {
+            Some(Some(mode)) => SequenceSkinParamSupport::SupportedWithValue(
+                SequenceSkinParamValue::Monochrome(mode),
+            ),
+            Some(None) => SequenceSkinParamSupport::SupportedNoop,
+            None => SequenceSkinParamSupport::UnsupportedValue,
+        },
+        "handwritten" => parse_bool_value(value)
+            .map(|enabled| {
+                SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::Handwritten(
+                    enabled,
+                ))
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "defaultfontname" | "participantfontname" | "sequenceparticipantfontname" => {
             let name = value.trim();
             if name.is_empty() {
                 SequenceSkinParamSupport::UnsupportedValue
@@ -1187,7 +1320,7 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
                 )
             }
         }
-        "defaultfontsize" => {
+        "defaultfontsize" | "participantfontsize" | "sequenceparticipantfontsize" => {
             if let Ok(n) = value.trim().parse::<u32>() {
                 SequenceSkinParamSupport::SupportedWithValue(
                     SequenceSkinParamValue::DefaultFontSize(n),
@@ -1235,14 +1368,26 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
         "sequencemessagealign" => {
             let lower = value.trim().to_ascii_lowercase();
             let align = match lower.as_str() {
-                "left" => MessageAlign::Left,
+                "left" | "direction" => MessageAlign::Left,
                 "center" => MessageAlign::Center,
-                "right" => MessageAlign::Right,
+                "right" | "reversedirection" | "reverse_direction" | "reverse-direction" => {
+                    MessageAlign::Right
+                }
                 _ => return SequenceSkinParamSupport::UnsupportedValue,
             };
             SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::MessageAlign(
                 align,
             ))
+        }
+        "sequencereferencealign" => {
+            let lower = value.trim().to_ascii_lowercase();
+            match lower.as_str() {
+                "left" | "center" | "right" | "direction" | "reversedirection"
+                | "reverse_direction" | "reverse-direction" => {
+                    SequenceSkinParamSupport::SupportedNoop
+                }
+                _ => SequenceSkinParamSupport::UnsupportedValue,
+            }
         }
         "responsemessagebelowarrow" | "sequenceresponsemessagebelowarrow" => {
             let lower = value.trim().to_ascii_lowercase();
@@ -1321,6 +1466,15 @@ pub struct ClassStyle {
     pub arrow_color: String,
     pub font_size: Option<u32>,
     pub font_name: Option<String>,
+    pub stereotype_styles: BTreeMap<String, ClassStereotypeStyle>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClassStereotypeStyle {
+    pub background_color: Option<String>,
+    pub border_color: Option<String>,
+    pub header_color: Option<String>,
+    pub font_color: Option<String>,
 }
 
 impl Default for ClassStyle {
@@ -1334,6 +1488,7 @@ impl Default for ClassStyle {
             arrow_color: "#1e293b".to_string(),
             font_size: None,
             font_name: None,
+            stereotype_styles: BTreeMap::new(),
         }
     }
 }
@@ -1348,6 +1503,11 @@ pub enum ClassSkinParamValue {
     ArrowColor(String),
     FontSize(u32),
     FontName(String),
+    Monochrome(MonochromeMode),
+    StereotypeBackgroundColor(String, String),
+    StereotypeBorderColor(String, String),
+    StereotypeHeaderBackgroundColor(String, String),
+    StereotypeFontColor(String, String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1359,7 +1519,65 @@ pub enum SkinParamSupport<V> {
 }
 
 pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<ClassSkinParamValue> {
-    let normalized = key.trim().to_ascii_lowercase();
+    let (normalized, stereotype_scope) = split_stereotype_scope(key);
+    if let Some(stereotype) = stereotype_scope {
+        return match normalized.as_str() {
+            "backgroundcolor"
+            | "classbackgroundcolor"
+            | "objectbackgroundcolor"
+            | "usecasebackgroundcolor"
+            | "actorbackgroundcolor" => parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(
+                        ClassSkinParamValue::StereotypeBackgroundColor(stereotype, c),
+                    )
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue),
+            "bordercolor" | "classbordercolor" | "objectbordercolor" | "usecasebordercolor"
+            | "actorbordercolor" => parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(
+                        ClassSkinParamValue::StereotypeBorderColor(stereotype, c),
+                    )
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue),
+            "classheaderbackgroundcolor" => parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(
+                        ClassSkinParamValue::StereotypeHeaderBackgroundColor(stereotype, c),
+                    )
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue),
+            "fontcolor" | "classfontcolor" | "objectfontcolor" | "usecasefontcolor"
+            | "actorfontcolor" => parse_color_value(value)
+                .map(|c| {
+                    SkinParamSupport::SupportedWithValue(ClassSkinParamValue::StereotypeFontColor(
+                        stereotype, c,
+                    ))
+                })
+                .unwrap_or(SkinParamSupport::UnsupportedValue),
+            "shadowing" => {
+                if parse_bool_value(value).is_some() {
+                    SkinParamSupport::SupportedNoop
+                } else {
+                    SkinParamSupport::UnsupportedValue
+                }
+            }
+            "fontsize"
+            | "classfontsize"
+            | "objectfontsize"
+            | "usecasefontsize"
+            | "actorfontsize"
+            | "classfontname"
+            | "objectfontname"
+            | "usecasefontname"
+            | "actorfontname"
+            | "classstereotypefontcolor"
+            | "classstereotypefontsize"
+            | "classstereotypefontname" => SkinParamSupport::SupportedNoop,
+            _ => SkinParamSupport::UnsupportedKey,
+        };
+    }
     match normalized.as_str() {
         "backgroundcolor"
         | "classbackgroundcolor"
@@ -1400,7 +1618,7 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 SkinParamSupport::UnsupportedValue
             }
         }
-        "classfontname" | "objectfontname" | "usecasefontname" | "actorfontname" => {
+        "fontname" | "classfontname" | "objectfontname" | "usecasefontname" | "actorfontname" => {
             let name = value.trim();
             if name.is_empty() {
                 SkinParamSupport::UnsupportedValue
@@ -1408,6 +1626,20 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
                 SkinParamSupport::SupportedWithValue(ClassSkinParamValue::FontName(
                     name.to_string(),
                 ))
+            }
+        }
+        "monochrome" => match parse_monochrome_value(value) {
+            Some(Some(mode)) => {
+                SkinParamSupport::SupportedWithValue(ClassSkinParamValue::Monochrome(mode))
+            }
+            Some(None) => SkinParamSupport::SupportedNoop,
+            None => SkinParamSupport::UnsupportedValue,
+        },
+        "handwritten" => {
+            if parse_bool_value(value).is_some() {
+                SkinParamSupport::SupportedNoop
+            } else {
+                SkinParamSupport::UnsupportedValue
             }
         }
         "classstereotypefontcolor"
@@ -2160,6 +2392,39 @@ fn parse_footbox_value(value: &str) -> Option<SequenceSkinParamValue> {
         _ => return None,
     };
     Some(SequenceSkinParamValue::FootboxVisible(visible))
+}
+
+fn parse_bool_value(value: &str) -> Option<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" | "yes" | "on" => Some(true),
+        "false" | "no" | "off" => Some(false),
+        _ => None,
+    }
+}
+
+fn parse_monochrome_value(value: &str) -> Option<Option<MonochromeMode>> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" | "yes" | "on" => Some(Some(MonochromeMode::True)),
+        "reverse" => Some(Some(MonochromeMode::Reverse)),
+        "false" | "no" | "off" => Some(None),
+        _ => None,
+    }
+}
+
+fn split_stereotype_scope(key: &str) -> (String, Option<String>) {
+    let trimmed = key.trim();
+    let Some(prefix) = trimmed.strip_suffix(">>") else {
+        return (trimmed.to_ascii_lowercase(), None);
+    };
+    let Some(start) = prefix.rfind("<<") else {
+        return (trimmed.to_ascii_lowercase(), None);
+    };
+    let base = prefix[..start].trim().to_ascii_lowercase();
+    let stereotype = prefix[start + 2..].trim();
+    if base.is_empty() || stereotype.is_empty() {
+        return (trimmed.to_ascii_lowercase(), None);
+    }
+    (base, Some(stereotype.to_ascii_lowercase()))
 }
 
 fn parse_color_value(value: &str) -> Option<String> {

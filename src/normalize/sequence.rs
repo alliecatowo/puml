@@ -91,6 +91,7 @@ pub(super) fn normalize_with_options(
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
     let mut style = SequenceStyle::default();
+    let mut monochrome_mode = None;
     let mut scale: Option<ScaleSpec> = None;
     let mut legend_halign = LegendHAlign::default();
     let mut legend_valign = LegendVAlign::default();
@@ -405,6 +406,9 @@ pub(super) fn normalize_with_options(
                         SequenceSkinParamValue::ParticipantBorderColor(color),
                     ) => style.participant_border_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantFontColor(color),
+                    ) => style.participant_font_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::NoteBackgroundColor(color),
                     ) => style.note_background_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
@@ -464,6 +468,12 @@ pub(super) fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::GroupHeaderFontStyle(fs),
                     ) => style.group_header_font_style = fs,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Monochrome(mode),
+                    ) => monochrome_mode = Some(mode),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Handwritten(enabled),
+                    ) => style.hand_drawn = enabled,
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -868,6 +878,10 @@ pub(super) fn normalize_with_options(
         let sb = b.span.map(|s| s.start).unwrap_or_default();
         (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
     });
+
+    if let Some(mode) = monochrome_mode {
+        apply_monochrome_to_sequence_style(&mut style, mode);
+    }
 
     Ok(SequenceDocument {
         participants,
