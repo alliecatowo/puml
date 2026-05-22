@@ -16,6 +16,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - name: Checkout
@@ -28,6 +30,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: release-ubuntu-stable
+
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Build release binary
         run: cargo build --release --locked
@@ -49,6 +54,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - name: Checkout
@@ -63,6 +70,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: release-macos-stable
+
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Build release binary
         run: cargo build --release --locked --target x86_64-apple-darwin

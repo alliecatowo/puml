@@ -24,6 +24,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - name: Checkout
@@ -89,6 +91,10 @@ jobs:
         with:
           shared-key: oracle-smoke-ubuntu-stable
           cache-on-failure: true
+
+      - name: Set up sccache
+        if: steps.changes.outputs.run_diff_oracle_smoke == 'true'
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install PlantUML oracle runtime
         if: steps.changes.outputs.run_diff_oracle_smoke == 'true'

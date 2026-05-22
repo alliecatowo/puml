@@ -44,6 +44,14 @@ ensure_component llvm-tools-preview
 
 echo "[setup] preparing cargo tooling"
 ensure_cargo_tool llvm-cov cargo-llvm-cov
+ensure_cargo_tool nextest cargo-nextest
+
+if command -v sccache >/dev/null 2>&1; then
+  echo "[setup] sccache already installed"
+else
+  echo "[setup] installing sccache"
+  cargo install sccache --locked
+fi
 
 echo "[setup] fetching and building workspace"
 cargo fetch
