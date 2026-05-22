@@ -475,6 +475,7 @@ pub struct TimelineDocument {
     pub open_ranges: Vec<TimelineOpenRange>,
     pub day_markers: Vec<TimelineDayMarker>,
     pub resource_off_ranges: Vec<TimelineResourceOffRange>,
+    pub named_dates: Vec<TimelineNamedDate>,
     pub scale: Option<String>,
     pub scale_options: Vec<String>,
     pub project_start: Option<String>,
@@ -507,6 +508,13 @@ pub struct TimelineTask {
     pub stroke_color: Option<String>,
     pub completion_percent: Option<u32>,
     pub is_deleted: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineNamedDate {
+    pub date: String,
+    pub label: String,
+    pub day: u32,
 }
 
 #[derive(Debug, Clone)]

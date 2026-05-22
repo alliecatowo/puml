@@ -30,6 +30,7 @@ expression: json
       "name": "Kickoff"
     }
   ],
+  "named_dates": [],
   "open_ranges": [],
   "project_start": null,
   "project_start_day": null,

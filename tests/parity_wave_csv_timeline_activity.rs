@@ -504,6 +504,42 @@ Separator just 1 day before [Build]'s start
 }
 
 #[test]
+fn gantt_issue_779_named_date_marker_and_task_color_render() {
+    let src = r#"@startgantt
+Project starts 2026-06-18
+2026-06-19 is named [Juneteenth]
+2026-06-19 is closed
+[Task] starts 2026-06-18 and requires 3 days
+[Task] is colored in Crimson/Red
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains(r#"class="gantt-named-date""#));
+    assert!(svg.contains(r#"data-gantt-date="2026-06-19""#));
+    assert!(svg.contains(r#"class="gantt-named-date-label""#));
+    assert!(svg.contains("Juneteenth"));
+    assert!(svg.contains(r#"fill="Crimson""#));
+    assert!(svg.contains(r#"stroke="Red""#));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.named_dates.len(), 1);
+    assert_eq!(model.named_dates[0].date, "2026-06-19");
+    assert_eq!(model.named_dates[0].label, "Juneteenth");
+    assert_eq!(model.closed_ranges[0].start_date, "2026-06-19");
+    let task = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Task")
+        .expect("task should normalize");
+    assert_eq!(task.fill_color.as_deref(), Some("Crimson"));
+    assert_eq!(task.stroke_color.as_deref(), Some("Red"));
+}
+
+#[test]
 fn gantt_ch16_verbal_slash_relative_dates_then_and_working_lag_render() {
     let src = r#"@startgantt
 Project starts the 20th of september 2020

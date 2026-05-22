@@ -45,6 +45,9 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             target: color,
         });
     }
+    if let Some(kind) = parse_gantt_named_date(trimmed) {
+        return Some(kind);
+    }
     if let Some((start_date, end_date, label)) = parse_gantt_day_name(trimmed) {
         return Some(StatementKind::GanttConstraint {
             subject: format!("__day::{start_date}::{end_date}"),
@@ -739,6 +742,25 @@ fn parse_month_name(raw: &str) -> Option<u32> {
         "dec" | "december" => Some(12),
         _ => None,
     }
+}
+
+fn parse_gantt_named_date(line: &str) -> Option<StatementKind> {
+    let lower = line.to_ascii_lowercase();
+    let is_named_idx = lower.find(" is named [")?;
+    let date = line[..is_named_idx].trim();
+    if !is_iso_date_literal(date) {
+        return None;
+    }
+    let after_bracket = is_named_idx + " is named [".len();
+    let close = line[after_bracket..].find(']')?;
+    let label = line[after_bracket..after_bracket + close].trim().to_string();
+    if label.is_empty() {
+        return None;
+    }
+    Some(StatementKind::GanttNamedDate {
+        date: date.to_string(),
+        label,
+    })
 }
 
 fn is_iso_date_literal(raw: &str) -> bool {

@@ -13,6 +13,7 @@ pub(super) fn normalize_timeline_baseline(
     let mut open_ranges = Vec::new();
     let mut day_markers = Vec::new();
     let mut resource_off_ranges = Vec::new();
+    let mut named_dates: Vec<TimelineNamedDate> = Vec::new();
     let mut scale = None;
     let mut scale_options = Vec::new();
     let mut title = None;
@@ -188,6 +189,13 @@ pub(super) fn normalize_timeline_baseline(
                     }
                 }
             }
+            StatementKind::GanttNamedDate { date, label } => {
+                if let Some(day) = parse_iso_date_day(&date) {
+                    if !named_dates.iter().any(|nd| nd.day == day) {
+                        named_dates.push(TimelineNamedDate { date, label, day });
+                    }
+                }
+            }
             StatementKind::ChronologyHappensOn { subject, when } => {
                 chronology_events.push(TimelineChronologyEvent { subject, when })
             }
@@ -310,6 +318,7 @@ pub(super) fn normalize_timeline_baseline(
         open_ranges,
         day_markers,
         resource_off_ranges,
+        named_dates,
         scale,
         scale_options,
         project_start,

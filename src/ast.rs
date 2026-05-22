@@ -95,6 +95,10 @@ pub enum StatementKind {
         start_date: String,
         end_date: String,
     },
+    GanttNamedDate {
+        date: String,
+        label: String,
+    },
     ChronologyHappensOn {
         subject: String,
         when: String,

@@ -755,6 +755,7 @@ pub(super) fn normalize_with_options(
             | StatementKind::GanttCalendarOpen { .. }
             | StatementKind::GanttCalendarClosedDateRange { .. }
             | StatementKind::GanttCalendarOpenDateRange { .. }
+            | StatementKind::GanttNamedDate { .. }
             | StatementKind::ChronologyHappensOn { .. }
             | StatementKind::ComponentDecl { .. }
             | StatementKind::ActivityStep(_)
