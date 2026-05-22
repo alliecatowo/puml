@@ -218,6 +218,16 @@ fn ast_virtual_endpoint_from_id(id: &str, is_from: bool) -> Option<VirtualEndpoi
             },
             VirtualEndpointKind::Filled,
         ),
+        // `?` short-arrow endpoints (feature 1.30): same side as `[`/`]` but
+        // rendered as a stub from the diagram edge rather than a full endpoint.
+        "?" => (
+            if is_from {
+                VirtualEndpointSide::Left
+            } else {
+                VirtualEndpointSide::Right
+            },
+            VirtualEndpointKind::Short,
+        ),
         _ => return None,
     };
     Some(VirtualEndpoint { side, kind })
@@ -270,6 +280,12 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         return Some(StatementKind::HideUnlinked);
     }
 
+    // `mainframe <title>` — UML mainframe border around the whole diagram (feature 1.43).
+    if lower.starts_with("mainframe") {
+        let text = line["mainframe".len()..].trim().to_string();
+        return Some(StatementKind::Mainframe(text));
+    }
+
     // scale directive: "scale <factor>", "scale <w>*<h>", "scale max <n>"
     if lower.starts_with("scale ") {
         let body = line[6..].trim();
@@ -318,17 +334,32 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         });
     }
 
-    let note_kw = if lower.starts_with("note ") {
+    // Leading `/` before a note keyword marks it as "aligned" at the same
+    // vertical level as the preceding note (PlantUML feature 1.18).
+    let (aligned_note, note_line, note_lower) = if lower.starts_with("/ note ")
+        || lower.starts_with("/ hnote ")
+        || lower.starts_with("/ rnote ")
+        || lower == "/ note"
+        || lower == "/ hnote"
+        || lower == "/ rnote"
+    {
+        let rest = line.trim_start_matches('/').trim();
+        (true, rest, rest.to_ascii_lowercase())
+    } else {
+        (false, line, lower.clone())
+    };
+
+    let note_kw = if note_lower.starts_with("note ") || note_lower == "note" {
         Some("note")
-    } else if lower.starts_with("hnote ") {
+    } else if note_lower.starts_with("hnote ") || note_lower == "hnote" {
         Some("hnote")
-    } else if lower.starts_with("rnote ") {
+    } else if note_lower.starts_with("rnote ") || note_lower == "rnote" {
         Some("rnote")
     } else {
         None
     };
     if let Some(note_kw) = note_kw {
-        let tail = line[note_kw.len()..].trim();
+        let tail = note_line[note_kw.len()..].trim();
         if tail.is_empty() {
             return Some(StatementKind::Unknown(
                 "[E_NOTE_INVALID] malformed note syntax: missing note head".to_string(),
@@ -343,7 +374,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
         if pos.eq_ignore_ascii_case("of") || !is_valid_note_position(&pos) {
             return Some(StatementKind::Unknown(format!(
                 "[E_NOTE_INVALID] malformed note syntax: `{}`",
-                line
+                note_line
             )));
         }
         return Some(StatementKind::Note(Note {
@@ -351,6 +382,7 @@ fn parse_keyword(line: &str) -> Option<StatementKind> {
             position: pos,
             target,
             text: text.trim().to_string(),
+            aligned: aligned_note,
         }));
     }
     if lower.starts_with("ref ") {
@@ -967,13 +999,16 @@ fn normalize_virtual_endpoint(raw: &str) -> Option<String> {
         "o]" | "]o" => Some("o]".to_string()),
         "[x" | "x[" => Some("[x".to_string()),
         "x]" | "]x" => Some("x]".to_string()),
+        // Short arrow endpoints: `?` on the from side = left edge short;
+        // `?` on the to side = right edge short (feature 1.30 / 1.39.6-8).
+        "?" => Some("?".to_string()),
         _ => None,
     }
 }
 
 fn looks_like_virtual_endpoint_syntax(raw: &str) -> bool {
     let t = raw.trim().trim_matches('"').to_ascii_lowercase();
-    t.contains('[') || t.contains(']')
+    t.contains('[') || t.contains(']') || t == "?"
 }
 
 fn looks_like_arrow_syntax(line: &str) -> bool {
@@ -1017,7 +1052,13 @@ fn is_sequence_keyword(kind: &StatementKind) -> bool {
 }
 
 fn note_block_continues(lines: &[(&str, Span)], idx: usize, line: &str) -> bool {
-    let lower = line.trim().to_ascii_lowercase();
+    // Strip leading `/ ` prefix for aligned note form (feature 1.18).
+    let stripped = if line.trim_start().starts_with("/ ") {
+        line.trim_start().trim_start_matches('/').trim_start()
+    } else {
+        line.trim()
+    };
+    let lower = stripped.to_ascii_lowercase();
     if !(lower.starts_with("note ") || lower.starts_with("hnote ") || lower.starts_with("rnote ")) {
         return false;
     }

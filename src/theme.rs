@@ -223,6 +223,10 @@ pub struct SequenceStyle {
     /// straight. Set automatically for the `sketchy` and `sketchy-outline`
     /// themes.
     pub hand_drawn: bool,
+    /// When `true`, lifelines use `nosolid` strategy: the participant head box
+    /// is shown but there is no solid activation box drawn on the lifeline.
+    /// Corresponds to `skinparam lifelineStrategy nosolid` (feature 1.40.2).
+    pub lifeline_nosolid: bool,
     /// When `true`, the entire diagram is rendered with a sepia CSS filter
     /// (`filter:sepia(1)`). Controlled by `skinparam sepia true/false`.
     pub sepia: bool,
@@ -316,6 +320,7 @@ impl Default for SequenceStyle {
             group_header_font_style: GroupHeaderFontStyle::Normal,
             sequence_message_span: false,
             hand_drawn: false,
+            lifeline_nosolid: false,
             sepia: false,
         }
     }
@@ -1206,6 +1211,8 @@ pub enum SequenceSkinParamValue {
     GroupHeaderFontStyle(GroupHeaderFontStyle),
     Monochrome(MonochromeMode),
     Handwritten(bool),
+    /// `skinparam lifelineStrategy nosolid|solid`
+    LifelineNoSolid(bool),
     Sepia(bool),
 }
 
@@ -1459,6 +1466,18 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
             SequenceSkinParamSupport::SupportedWithValue(
                 SequenceSkinParamValue::GroupHeaderFontStyle(style),
             )
+        }
+        "lifelinestrategy" => {
+            let lower = value.trim().to_ascii_lowercase();
+            match lower.as_str() {
+                "nosolid" => SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::LifelineNoSolid(true),
+                ),
+                "solid" | "" => SequenceSkinParamSupport::SupportedWithValue(
+                    SequenceSkinParamValue::LifelineNoSolid(false),
+                ),
+                _ => SequenceSkinParamSupport::UnsupportedValue,
+            }
         }
         _ => SequenceSkinParamSupport::UnsupportedKey,
     }

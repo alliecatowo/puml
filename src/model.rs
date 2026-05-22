@@ -804,6 +804,8 @@ pub struct SequenceDocument {
     pub hidden_participants: Vec<String>,
     pub sprites: SpriteRegistry,
     pub list_sprites: bool,
+    /// Optional mainframe title (`mainframe <text>` keyword — feature 1.43).
+    pub mainframe: Option<String>,
 }
 
 impl Default for SequenceDocument {
@@ -829,6 +831,7 @@ impl Default for SequenceDocument {
             hidden_participants: Vec::new(),
             sprites: SpriteRegistry::new(),
             list_sprites: false,
+            mainframe: None,
         }
     }
 }
@@ -857,6 +860,8 @@ pub struct SequencePage {
     pub hidden_participants: Vec<String>,
     pub sprites: SpriteRegistry,
     pub list_sprites: bool,
+    /// Optional mainframe title (`mainframe <text>` keyword — feature 1.43).
+    pub mainframe: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -908,6 +913,8 @@ pub enum SequenceEventKind {
         position: String,
         target: Option<String>,
         text: String,
+        /// When `true`, align this note at the same y level as the preceding note.
+        aligned: bool,
     },
     GroupStart {
         kind: String,
@@ -965,4 +972,6 @@ pub enum VirtualEndpointKind {
     Circle,
     Cross,
     Filled,
+    /// Short arrow (`?->` / `->?`) — stub from the diagram edge (feature 1.30).
+    Short,
 }
