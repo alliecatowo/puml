@@ -1063,7 +1063,6 @@ fn route_edges(
     // channel (e.g. K2,2 backend edges), spread their endpoint x positions
     // across a small horizontal fan so each edge leaves/arrives at a distinct
     // lane and port.
-    let mut edge_src_port_dx: BTreeMap<String, f64> = BTreeMap::new();
     let mut edge_tgt_port_dx: BTreeMap<String, f64> = BTreeMap::new();
     {
         let mut src_groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>> = BTreeMap::new();
@@ -1141,7 +1140,6 @@ fn route_edges(
                 }
             }
         };
-        assign_fan_offsets(src_groups, &mut edge_src_port_dx, &tgt_group_size_by_edge);
         assign_fan_offsets(tgt_groups, &mut edge_tgt_port_dx, &src_group_size_by_edge);
     }
 
@@ -1378,7 +1376,6 @@ fn route_edges(
             let mut pts: Vec<(f64, f64)> = Vec::new();
             pts.push((src_port_x, src_port_y));
 
-            let src_port_x = src_port_x + edge_src_port_dx.get(&ei.edge_id).copied().unwrap_or(0.0);
             let tgt_port_x = tgt_port_x + edge_tgt_port_dx.get(&ei.edge_id).copied().unwrap_or(0.0);
 
             // Column-align shortcut: when source and target ports are within
