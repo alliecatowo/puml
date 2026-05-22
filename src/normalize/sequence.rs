@@ -295,6 +295,14 @@ pub(super) fn normalize_with_options(
                         span: stmt.span,
                         kind: SequenceEventKind::GroupEnd,
                     });
+                    if open.kind == "par" {
+                        // Reserve one extra row after `par` so the first
+                        // trailing message does not sit on the frame footer.
+                        events.push(SequenceEvent {
+                            span: stmt.span,
+                            kind: SequenceEventKind::Spacer(Some(1)),
+                        });
+                    }
                 } else if g.kind == "else" || g.kind == "also" {
                     // `also` is the parallel-branch continuation keyword for `par`
                     // blocks; it behaves like `else` inside `alt` (fixes #780).

@@ -498,7 +498,8 @@ fn render_sequence_self_call_keeps_visible_arrowhead_after_groups_and_dividers()
             svg.contains("<polygon points=\"244,300 252,295 252,305\"")
                 || svg.contains("<polygon points=\"84,300 92,295 92,305\"")
                 || svg.contains("<polygon points=\"84,980 92,975 92,985\"")
-                || svg.contains("<polygon points=\"84,460 92,455 92,465\""),
+                || svg.contains("<polygon points=\"84,460 92,455 92,465\"")
+                || svg.contains("<polygon points=\"84,1020 92,1015 92,1025\""),
             "self-call arrowhead should remain visible in {fixture_name}"
         );
     }
@@ -1400,17 +1401,16 @@ fn render_svg_sequence_all_group_types_fixture_uses_fragment_notches() {
         ),
         (
             "critical critical section",
-            "<polygon points=\"24,788 215,788 215,802 209,808 24,808\"",
+            "<polygon points=\"24,828 215,828 215,842 209,848 24,848\"",
         ),
         (
             "break on error",
-            "<polygon points=\"24,908 138,908 138,922 132,928 24,928\"",
+            "<polygon points=\"24,948 138,948 138,962 132,968 24,968\"",
         ),
         (
             "group custom label",
-            // y shifted from 1028 to 1068 after #731 fix: self-loop in break now
-            // allocates 2 rows instead of 1 to prevent overlap with following messages.
-            "<polygon points=\"24,1068 166,1068 166,1082 160,1088 24,1088\"",
+            // y shifted after #764: post-`par` spacer reserves an extra row.
+            "<polygon points=\"24,1108 166,1108 166,1122 160,1128 24,1128\"",
         ),
     ] {
         assert!(

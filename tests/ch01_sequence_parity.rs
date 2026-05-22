@@ -248,3 +248,58 @@ A -> B: ping
         "expected hex box color to render unchanged"
     );
 }
+
+#[test]
+fn par_trailing_message_renders_below_group_footer() {
+    let svg = svg_of(
+        r#"@startuml
+Alice -> Bob: start parallel work
+par fetch data
+  Bob -> DB: query
+  DB --> Bob: rows
+else send email
+  Bob -> Mail: notify
+  Mail --> Bob: sent
+end
+Bob --> Alice: done
+@enduml"#,
+    );
+
+    let group_rect_ix = svg
+        .find("<rect x=\"24\" y=\"120\"")
+        .expect("expected par group frame rect");
+    let group_tail = &svg[group_rect_ix..];
+    let height_attr_ix = group_tail
+        .find("height=\"")
+        .expect("expected group frame height attribute");
+    let height_start = group_rect_ix + height_attr_ix + "height=\"".len();
+    let height_end = svg[height_start..]
+        .find('"')
+        .map(|ix| height_start + ix)
+        .expect("expected closing quote for group frame height");
+    let group_height: i32 = svg[height_start..height_end]
+        .parse()
+        .expect("expected integer group frame height");
+    let group_bottom = 120 + group_height;
+
+    let done_line_ix = svg
+        .find("done</text>")
+        .expect("expected trailing done message text");
+    let done_line_head = &svg[..done_line_ix];
+    let y_attr_ix = done_line_head
+        .rfind(" y1=\"")
+        .expect("expected done message y1 attribute");
+    let y_start = y_attr_ix + " y1=\"".len();
+    let y_end = done_line_head[y_start..]
+        .find('"')
+        .map(|ix| y_start + ix)
+        .expect("expected closing quote for done y1");
+    let done_y: i32 = done_line_head[y_start..y_end]
+        .parse()
+        .expect("expected integer done y1");
+
+    assert!(
+        done_y > group_bottom,
+        "expected trailing done message y ({done_y}) to be below par group bottom ({group_bottom})"
+    );
+}
