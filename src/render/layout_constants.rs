@@ -49,6 +49,16 @@ pub const DEFAULT_CANVAS_MARGIN: f64 = 40.0;
 /// apart; decreasing it may cause adjacent horizontal segments to overlap.
 pub const TRACK_SPACING: f64 = 8.0;
 
+/// Horizontal spacing between adjacent endpoint port slots when multiple
+/// adjacent-rank cross edges share the same node endpoint (top or bottom) in
+/// one channel. Keeps K2,2-style backend edges from collapsing into one
+/// ambiguous center port.
+pub const EDGE_PORT_FAN_SPACING: f64 = 18.0;
+
+/// Maximum absolute horizontal shift applied by endpoint port fanning, in user
+/// units. Caps fan-out to avoid overcorrection on dense hubs.
+pub const EDGE_PORT_FAN_MAX_SHIFT: f64 = 34.0;
+
 /// Soft upper bound on the number of edge tracks allocated per routing channel
 /// before track indices wrap (greedy assignment; wrapping is safe — it just
 /// means two edges may share a track in extreme graphs).

@@ -11,9 +11,9 @@
 
 use super::layout_constants::{
     COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, DEFAULT_CANVAS_MARGIN, DEFAULT_GROUP_PADDING,
-    DEFAULT_NODE_SEPARATION, DEFAULT_RANK_SEPARATION, GROUP_COLLISION_MAX_PASSES,
-    GROUP_COLLISION_MIN_GAP, MAX_TRACKS, PKG_HEADER_ROUTING_CLEARANCE, PKG_TAB_HEIGHT,
-    TRACK_SPACING,
+    DEFAULT_NODE_SEPARATION, DEFAULT_RANK_SEPARATION, EDGE_PORT_FAN_MAX_SHIFT,
+    EDGE_PORT_FAN_SPACING, GROUP_COLLISION_MAX_PASSES, GROUP_COLLISION_MIN_GAP, MAX_TRACKS,
+    PKG_HEADER_ROUTING_CLEARANCE, PKG_TAB_HEIGHT, TRACK_SPACING,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -1057,6 +1057,73 @@ fn route_edges(
             .then_with(|| a.edge_id.cmp(&b.edge_id))
     });
 
+    // ── Endpoint port fan (adjacent-rank only) ───────────────────────────────
+    //
+    // When multiple edges share the same endpoint port in one inter-rank
+    // channel (e.g. K2,2 backend edges), spread their endpoint x positions
+    // across a small horizontal fan so each edge leaves/arrives at a distinct
+    // lane and port.
+    let mut edge_src_port_dx: BTreeMap<String, f64> = BTreeMap::new();
+    let mut edge_tgt_port_dx: BTreeMap<String, f64> = BTreeMap::new();
+    {
+        let mut src_groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>> = BTreeMap::new();
+        let mut tgt_groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>> = BTreeMap::new();
+        for ei in &edge_infos {
+            if ei.src_rank == ei.tgt_rank {
+                continue;
+            }
+            let (min_r, max_r) = if ei.src_rank < ei.tgt_rank {
+                (ei.src_rank, ei.tgt_rank)
+            } else {
+                (ei.tgt_rank, ei.src_rank)
+            };
+            // Only adjacent ranks: broader spans keep centered ports to avoid
+            // large visual detours.
+            if max_r - min_r != 1 {
+                continue;
+            }
+            let src_counterpart_x = positions
+                .get(ei.tgt_id.as_str())
+                .map(|(x, _)| *x)
+                .unwrap_or(0.0);
+            let tgt_counterpart_x = positions
+                .get(ei.src_id.as_str())
+                .map(|(x, _)| *x)
+                .unwrap_or(0.0);
+            src_groups
+                .entry((ei.src_id.clone(), min_r))
+                .or_default()
+                .push((ei, src_counterpart_x));
+            tgt_groups
+                .entry((ei.tgt_id.clone(), min_r))
+                .or_default()
+                .push((ei, tgt_counterpart_x));
+        }
+
+        let assign_fan_offsets = |groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>>,
+                                  out: &mut BTreeMap<String, f64>| {
+            for (_, mut group) in groups {
+                if group.len() <= 1 {
+                    continue;
+                }
+                group.sort_by(|(ea, xa), (eb, xb)| {
+                    xa.partial_cmp(xb)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| ea.edge_id.cmp(&eb.edge_id))
+                });
+                let n = group.len() as f64;
+                for (idx, (ei, _)) in group.iter().enumerate() {
+                    let lane = idx as f64 - (n - 1.0) / 2.0;
+                    let dx = (lane * EDGE_PORT_FAN_SPACING)
+                        .clamp(-EDGE_PORT_FAN_MAX_SHIFT, EDGE_PORT_FAN_MAX_SHIFT);
+                    out.insert(ei.edge_id.clone(), dx);
+                }
+            }
+        };
+        assign_fan_offsets(src_groups, &mut edge_src_port_dx);
+        assign_fan_offsets(tgt_groups, &mut edge_tgt_port_dx);
+    }
+
     // channel_next_track[upper_rank] = next available track index
     let mut channel_next_track: BTreeMap<usize, usize> = BTreeMap::new();
     // edge_track[edge_id] = track index (shared across all channels that edge uses)
@@ -1289,6 +1356,9 @@ fn route_edges(
             //   vertical to channel(R0+1) midpoint ... → tgt_port
             let mut pts: Vec<(f64, f64)> = Vec::new();
             pts.push((src_port_x, src_port_y));
+
+            let src_port_x = src_port_x + edge_src_port_dx.get(&ei.edge_id).copied().unwrap_or(0.0);
+            let tgt_port_x = tgt_port_x + edge_tgt_port_dx.get(&ei.edge_id).copied().unwrap_or(0.0);
 
             // Column-align shortcut: when source and target ports are within
             // 4 px of each other horizontally, emit a clean straight vertical
