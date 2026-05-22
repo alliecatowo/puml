@@ -39,6 +39,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rust-src
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -61,24 +63,13 @@ jobs:
           set -euo pipefail
           rustup show
           cargo metadata --format-version 1
-          cargo check --workspace --all-features
-
-      - name: Hide test-only Rust targets from CodeQL extraction
-        run: |
-          set -euo pipefail
-          if [[ -d tests ]]; then
-            mv tests "${RUNNER_TEMP}/codeql-skipped-tests"
-          fi
+          cargo check --workspace --all-features --all-targets
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: rust
           build-mode: none
-          config: |
-            paths:
-              - src
-              - crates
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
