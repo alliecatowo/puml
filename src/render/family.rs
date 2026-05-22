@@ -8,7 +8,7 @@ use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
 };
-use crate::theme::{ClassStyle, ComponentStyle};
+use crate::theme::{ClassStyle, ComponentStyle, ComponentStyleMode};
 
 /// Emit a centered SVG `<text>` element for a relation label.
 ///
@@ -1241,10 +1241,18 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let nodes_bottom = canvas.nodes_bottom;
     // gl_canvas_right / gl_canvas_bottom consumed by class_compute_canvas
     let mut out = String::new();
+    let sepia_attr = if document.style.sepia {
+        " style=\"filter:sepia(1)\""
+    } else {
+        ""
+    };
+    let orientation_attr = format!(" data-orientation=\"{}\"", document.orientation.as_str());
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{orientation}{sepia}>",
         w = svg_width,
-        h = svg_height
+        h = svg_height,
+        orientation = orientation_attr,
+        sepia = sepia_attr,
     ));
     out.push_str(&format!(
         "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
@@ -1901,9 +1909,16 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
     let width = (max_x + MARGIN).max(760);
     let height = (max_y + MARGIN).max(180);
 
+    let sepia_attr = if document.style.sepia {
+        " style=\"filter:sepia(1)\""
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        width, height, width, height
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{sepia}>",
+        w = width,
+        h = height,
+        sepia = sepia_attr,
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
@@ -4109,9 +4124,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Start SVG output
     // ─────────────────────────────────────────────────────────────────────────
     let mut out = String::new();
+    let sepia_attr = if doc.style.sepia {
+        " style=\"filter:sepia(1)\""
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        svg_width, svg_height, svg_width, svg_height
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{sepia}>",
+        w = svg_width,
+        h = svg_height,
+        sepia = sepia_attr,
     ));
     out.push_str(&format!(
         "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
@@ -5090,19 +5112,46 @@ fn render_family_node_shape_styled(
                 .fill_color
                 .as_deref()
                 .unwrap_or(&comp_style.background_color);
-            out.push_str(&format!(
-                "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x, y, w, h, fill, comp_style.border_color
-            ));
-            // component badges (two small rectangles on the left edge)
-            out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x - 4, y + 12, fill, comp_style.border_color
-            ));
-            out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x - 4, y + h - 20, fill, comp_style.border_color
-            ));
+            match comp_style.component_style_mode {
+                ComponentStyleMode::Rectangle => {
+                    // Rectangle style: plain rect, no component icon
+                    out.push_str(&format!(
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"rectangle\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y, w, h, fill, comp_style.border_color
+                    ));
+                }
+                ComponentStyleMode::Uml1 => {
+                    // UML1: rectangle with component icon badges in the top-right corner
+                    out.push_str(&format!(
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"uml1\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y, w, h, fill, comp_style.border_color
+                    ));
+                    let bx = x + w - 18;
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        bx, y + 8, fill, comp_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        bx, y + 20, fill, comp_style.border_color
+                    ));
+                }
+                ComponentStyleMode::Uml2 => {
+                    // UML2 (default): rectangle with badge rects on the left edge
+                    out.push_str(&format!(
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y, w, h, fill, comp_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x - 4, y + 12, fill, comp_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x - 4, y + h - 20, fill, comp_style.border_color
+                    ));
+                }
+            }
         }
         FamilyNodeKind::Action
         | FamilyNodeKind::Agent
@@ -5389,13 +5438,16 @@ fn render_family_node_shape_styled(
         _ => y + 14,
     };
     // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525).
+    // For `componentStyle rectangle`, suppress the stereotype text entirely.
     // For Package and Rectangle container nodes, suppress the kind-tag entirely — these
     // shapes display their label in a tab/header already (fix #549).
     let is_package_container = matches!(
         node.kind,
         FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
     );
-    if !is_package_container {
+    let is_rectangle_style_component = node.kind == FamilyNodeKind::Component
+        && comp_style.component_style_mode == ComponentStyleMode::Rectangle;
+    if !is_package_container && !is_rectangle_style_component {
         let kind_tag_text: std::borrow::Cow<str> = match node.kind {
             FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
             FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),

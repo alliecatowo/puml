@@ -223,6 +223,9 @@ pub struct SequenceStyle {
     /// straight. Set automatically for the `sketchy` and `sketchy-outline`
     /// themes.
     pub hand_drawn: bool,
+    /// When `true`, the entire diagram is rendered with a sepia CSS filter
+    /// (`filter:sepia(1)`). Controlled by `skinparam sepia true/false`.
+    pub sepia: bool,
 }
 
 /// Alignment of sequence message labels.
@@ -313,6 +316,7 @@ impl Default for SequenceStyle {
             group_header_font_style: GroupHeaderFontStyle::Normal,
             sequence_message_span: false,
             hand_drawn: false,
+            sepia: false,
         }
     }
 }
@@ -404,6 +408,7 @@ pub fn component_style_from_sequence_theme(style: &SequenceStyle) -> ComponentSt
         interface_color: style.note_background_color.clone(),
         font_color: style.arrow_color.clone(),
         arrow_color: style.arrow_color.clone(),
+        component_style_mode: ComponentStyleMode::Uml2,
     }
 }
 
@@ -1201,6 +1206,7 @@ pub enum SequenceSkinParamValue {
     GroupHeaderFontStyle(GroupHeaderFontStyle),
     Monochrome(MonochromeMode),
     Handwritten(bool),
+    Sepia(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1308,6 +1314,11 @@ pub fn classify_sequence_skinparam(key: &str, value: &str) -> SequenceSkinParamS
                 SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::Handwritten(
                     enabled,
                 ))
+            })
+            .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
+        "sepia" => parse_bool_value(value)
+            .map(|enabled| {
+                SequenceSkinParamSupport::SupportedWithValue(SequenceSkinParamValue::Sepia(enabled))
             })
             .unwrap_or(SequenceSkinParamSupport::UnsupportedValue),
         "defaultfontname" | "participantfontname" | "sequenceparticipantfontname" => {
@@ -1731,6 +1742,19 @@ pub fn classify_state_skinparam(key: &str, value: &str) -> SkinParamSupport<Stat
 
 // ─── Component-family skinparam support ──────────────────────────────────────
 
+/// Controls component-node rendering style (set via `skinparam componentStyle`).
+///
+/// - `Uml2` (default): UML2 icon — two badge rectangles on the left edge.
+/// - `Uml1`: UML1 style — badge icon in the top-right corner.
+/// - `Rectangle`: bare rectangle with no component icon or stereotype.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ComponentStyleMode {
+    #[default]
+    Uml2,
+    Uml1,
+    Rectangle,
+}
+
 /// Style overrides for component/deployment diagrams.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentStyle {
@@ -1739,6 +1763,8 @@ pub struct ComponentStyle {
     pub interface_color: String,
     pub font_color: String,
     pub arrow_color: String,
+    /// Controls UML1 / UML2 / Rectangle rendering for component nodes.
+    pub component_style_mode: ComponentStyleMode,
 }
 
 impl Default for ComponentStyle {
@@ -1749,6 +1775,7 @@ impl Default for ComponentStyle {
             interface_color: "#e2e8f0".to_string(),
             font_color: "#0f172a".to_string(),
             arrow_color: "#1e293b".to_string(),
+            component_style_mode: ComponentStyleMode::Uml2,
         }
     }
 }
@@ -1760,6 +1787,7 @@ pub enum ComponentSkinParamValue {
     InterfaceColor(String),
     FontColor(String),
     ArrowColor(String),
+    StyleMode(ComponentStyleMode),
 }
 
 pub fn classify_component_skinparam(
@@ -1811,6 +1839,15 @@ pub fn classify_component_skinparam(
         "arrowcolor" | "componentarrowcolor" | "deploymentarrowcolor" => parse_color_value(value)
             .map(|c| SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::ArrowColor(c)))
             .unwrap_or(SkinParamSupport::UnsupportedValue),
+        "componentstyle" => {
+            let mode = match value.trim().to_ascii_lowercase().as_str() {
+                "uml1" => ComponentStyleMode::Uml1,
+                "rectangle" => ComponentStyleMode::Rectangle,
+                "uml2" | "" => ComponentStyleMode::Uml2,
+                _ => return SkinParamSupport::UnsupportedValue,
+            };
+            SkinParamSupport::SupportedWithValue(ComponentSkinParamValue::StyleMode(mode))
+        }
         "componentfontsize"
         | "deploymentfontsize"
         | "componentfontname"
@@ -1821,7 +1858,6 @@ pub fn classify_component_skinparam(
         | "artifactfontname"
         | "databasefontsize"
         | "databasefontname"
-        | "componentstyle"
         | "componentstereotypefontcolor"
         | "componentstereotypefontsize"
         | "componentstereotypefontname"
