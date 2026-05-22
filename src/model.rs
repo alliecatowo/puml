@@ -577,6 +577,15 @@ pub struct JsonProjection {
     pub format: String,
 }
 
+/// MindMap `<style>mindmapDiagram { ... }</style>` overrides (ch17.11).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MindmapStyle {
+    /// `node { BackgroundColor ... }` default for depths without `:depth(N)`.
+    pub node_background: Option<String>,
+    /// `:depth(N) { BackGroundColor ... }` per-depth fills.
+    pub depth_background: std::collections::BTreeMap<usize, String>,
+}
+
 /// Per-family style overrides carried through the model.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FamilyStyle {
@@ -587,12 +596,23 @@ pub enum FamilyStyle {
     Timing(TimingStyle),
 }
 
+/// One page of a class/object/usecase diagram after a `newpage` directive.
+#[derive(Debug, Clone)]
+pub struct FamilyPage {
+    pub title: Option<String>,
+    pub nodes: Vec<FamilyNode>,
+    pub relations: Vec<FamilyRelation>,
+    pub groups: Vec<FamilyGroup>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FamilyDocument {
     pub kind: DiagramKind,
     pub nodes: Vec<FamilyNode>,
     pub relations: Vec<FamilyRelation>,
     pub groups: Vec<FamilyGroup>,
+    /// Populated when `newpage` splits the diagram; each entry becomes its own SVG.
+    pub pages: Vec<FamilyPage>,
     pub json_projections: Vec<JsonProjection>,
     pub hide_options: BTreeSet<String>,
     pub namespace_separator: Option<String>,

@@ -32,6 +32,25 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut last_relation: Option<(String, String)> = None;
+    let mut pages: Vec<crate::model::FamilyPage> = Vec::new();
+    let mut current_page_title: Option<String> = None;
+
+    let mut flush_page = |nodes: &mut Vec<FamilyNode>,
+                          relations: &mut Vec<ModelFamilyRelation>,
+                          groups: &mut Vec<FamilyGroup>,
+                          pages: &mut Vec<crate::model::FamilyPage>,
+                          title: &mut Option<String>| {
+        if nodes.is_empty() && relations.is_empty() && groups.is_empty() {
+            *title = None;
+            return;
+        }
+        pages.push(crate::model::FamilyPage {
+            title: title.take(),
+            nodes: std::mem::take(nodes),
+            relations: std::mem::take(relations),
+            groups: std::mem::take(groups),
+        });
+    };
 
     for stmt in document.statements {
         match stmt.kind {
@@ -115,6 +134,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                                     .entry(stereotype)
                                     .or_default()
                                     .font_color = Some(c);
+                            }
+                            ClassSkinParamValue::ActorStyle(style) => {
+                                class_style.actor_style = style;
                             }
                         }
                     }
@@ -236,12 +258,20 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 // An `actor` declaration becomes a UseCaseDecl with `<<actor>>` as its
                 // first member. Detect this and promote it to Actor kind so the renderer
                 // can draw a stick figure instead of an ellipse.
+                let is_business = members.iter().any(|m| m.text.trim() == "<<business>>");
+                members.retain(|m| m.text.trim() != "<<business>>");
                 let resolved_kind = if members
                     .first()
                     .is_some_and(|m| m.text.trim() == "<<actor>>")
                 {
                     let _ = members.remove(0); // strip the marker — it was only for detection
-                    FamilyNodeKind::Actor
+                    if is_business {
+                        FamilyNodeKind::BusinessActor
+                    } else {
+                        FamilyNodeKind::Actor
+                    }
+                } else if is_business {
+                    FamilyNodeKind::BusinessUseCase
                 } else {
                     FamilyNodeKind::UseCase
                 };
@@ -413,6 +443,17 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             StatementKind::Footer(v) => footer = Some(v),
             StatementKind::Caption(v) => caption = Some(v),
             StatementKind::Legend(v) => legend = Some(v),
+            StatementKind::NewPage(title) => {
+                flush_page(
+                    &mut nodes,
+                    &mut relations,
+                    &mut groups,
+                    &mut pages,
+                    &mut current_page_title,
+                );
+                current_page_title = title;
+            }
+            StatementKind::IgnoreNewPage => {}
             StatementKind::Theme(value) => {
                 class_style = class_style_from_sequence_theme(
                     &resolve_sequence_theme_preset(&value)
@@ -519,6 +560,13 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
     apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
+    flush_page(
+        &mut nodes,
+        &mut relations,
+        &mut groups,
+        &mut pages,
+        &mut current_page_title,
+    );
     if let Some(mode) = class_monochrome_mode {
         apply_monochrome_to_class_style(&mut class_style, mode);
     }
@@ -528,6 +576,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         nodes,
         relations,
         groups,
+        pages,
         json_projections,
         hide_options,
         namespace_separator,
@@ -541,6 +590,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         family_style: Some(FamilyStyle::Class(class_style)),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         maximum_width: None,
+        mindmap_style: None,
         sprites,
         list_sprites,
         warnings,
@@ -1365,6 +1415,86 @@ fn handle_mindmap_maximum_width_skinparam(
         ),
     }
     true
+}
+
+/// Parse `mindmapDiagram { :depth(N) { BackGroundColor X } node { ... } }` style blocks.
+fn parse_mindmap_style_block(source: &str) -> crate::model::MindmapStyle {
+    let mut style = crate::model::MindmapStyle::default();
+    let mut active_depth: Option<usize> = None;
+    let mut in_node_block = false;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let lower = trimmed.to_ascii_lowercase();
+        if lower == "}" {
+            active_depth = None;
+            in_node_block = false;
+            continue;
+        }
+        if lower.contains("mindmapdiagram") && !lower.contains(':') && !lower.contains('{') {
+            continue;
+        }
+        if let Some(depth) = parse_mindmap_style_depth_selector(trimmed) {
+            active_depth = Some(depth);
+            in_node_block = false;
+            if let Some(color) = parse_mindmap_style_background_color(trimmed) {
+                style.depth_background.insert(depth, color);
+            }
+            continue;
+        }
+        if lower.starts_with("node") {
+            active_depth = None;
+            in_node_block = true;
+            if let Some(color) = parse_mindmap_style_background_color(trimmed) {
+                style.node_background = Some(color);
+            }
+            continue;
+        }
+        if let Some(color) = parse_mindmap_style_background_color(trimmed) {
+            if let Some(depth) = active_depth {
+                style.depth_background.insert(depth, color);
+            } else if in_node_block {
+                style.node_background = Some(color);
+            }
+        }
+    }
+    style
+}
+
+fn parse_mindmap_style_depth_selector(line: &str) -> Option<usize> {
+    let lower = line.to_ascii_lowercase();
+    let start = lower.find(":depth(")?;
+    let rest = &lower[start + ":depth(".len()..];
+    let end = rest.find(')')?;
+    rest[..end].trim().parse::<usize>().ok()
+}
+
+fn parse_mindmap_style_background_color(line: &str) -> Option<String> {
+    let mut tokens = line.split_whitespace();
+    let key = tokens.next()?.to_ascii_lowercase();
+    if key != "backgroundcolor" {
+        return None;
+    }
+    let value = tokens.collect::<Vec<_>>().join(" ");
+    normalize_mindmap_style_color(&value)
+}
+
+fn normalize_mindmap_style_color(raw: &str) -> Option<String> {
+    let value = raw.trim().trim_end_matches(';').trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(hex) = value.strip_prefix('#') {
+        let hex = hex.trim();
+        if hex.is_empty() {
+            return None;
+        }
+        return Some(format!("#{hex}"));
+    }
+    Some(value.to_string())
 }
 
 fn handle_family_overflow_skinparam(
@@ -2244,6 +2374,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
         maximum_width: None,
+        mindmap_style: None,
         sprites,
         list_sprites,
         warnings: ext_warnings,

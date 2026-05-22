@@ -1,6 +1,6 @@
 # Chapter 17 — MindMap Audit
 
-Tally: 10 ✅ / 3 🟡 / 0 ❌
+Tally: 11 ✅ / 2 🟡 / 0 ❌
 
 ### 17.1 OrgMode `*` indent — ✅
 **Feature:** `* Root` / `** Child` / `*** Grandchild` depth-by-star count
@@ -59,10 +59,11 @@ Tally: 10 ✅ / 3 🟡 / 0 ❌
 **Status:** 🟡
 **Evidence:** caption/title/legend wired (family.rs:594, mindmap.rs:366-369,889-892). Sprite refs `<&flag>` likely rendered as literal text — no openiconic sprite registry found.
 
-### 17.11.1 Style: node / :depth(N) — 🟡
+### 17.11.1 Style: node / :depth(N) — ✅
 **Feature:** Per-depth styling via `:depth(1) { BackGroundColor white }`
-**Status:** 🟡
-**Evidence:** mindmap render uses depth-derived pastel palette (render/mindmap.rs:509). Custom :depth() selectors are NOT applied.
+**Status:** ✅
+**Evidence:** src/normalize/family.rs parse_mindmap_style_block + `<style>` capture; src/render/mindmap.rs mindmap_fill; tests/ch17_mindmap_parity.rs
+**Notes:** `node { BackgroundColor ... }` default block parsed; stereotype `<<class>>` style classes still not wired (see 17.6.2).
 
 ### 17.11.2 boxless style class — ✅
 **Feature:** `boxless { FontColor darkgreen }` styles `_`-suffixed nodes
