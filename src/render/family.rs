@@ -3,7 +3,7 @@ use super::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
     render_relation_marker_defs, usecase_dependency_label,
 };
-use super::svg::{creole_text, escape_text, render_actor_stick_figure};
+use super::svg::{creole_text, escape_text, render_actor_figure};
 use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
@@ -2202,6 +2202,8 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
     match kind {
         FamilyNodeKind::Class => "class",
         FamilyNodeKind::Object => "object",
+        FamilyNodeKind::Diamond => "diamond",
+        FamilyNodeKind::Map => "map",
         FamilyNodeKind::UseCase => "usecase",
         FamilyNodeKind::Salt => "widget",
         FamilyNodeKind::MindMap => "mindmap",
@@ -2228,7 +2230,8 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::Folder => "folder",
         FamilyNodeKind::File => "file",
         FamilyNodeKind::Card => "card",
-        FamilyNodeKind::Actor => "actor",
+        FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor => "actor",
+        FamilyNodeKind::BusinessUseCase => "business_usecase",
         FamilyNodeKind::Hexagon => "hexagon",
         FamilyNodeKind::Label => "label",
         FamilyNodeKind::Person => "person",
@@ -2398,17 +2401,15 @@ fn render_class_node(
                 .unwrap_or(class_style.header_color.as_str()),
         },
         FamilyNodeKind::Object => "#fef3c7",
-        FamilyNodeKind::UseCase => "#dcfce7",
+        FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase => "#dcfce7",
         _ => "#f1f5f9",
     };
 
-    if matches!(node.kind, FamilyNodeKind::Actor) {
-        // Canonical stick-figure rendering for actors (issue #715).
-        // Proportions are shared with the sequence renderer via render_actor_stick_figure.
-        // The figure centre cy is placed at y + 21 so the head top sits at y + 0.
+    if matches!(node.kind, FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor) {
         let cx = x + w / 2;
-        let fig_cy = y + 21; // centre of figure; head top = fig_cy - 21
-        render_actor_stick_figure(out, cx, fig_cy, stroke);
+        let fig_cy = y + 21;
+        let business = matches!(node.kind, FamilyNodeKind::BusinessActor);
+        render_actor_figure(out, cx, fig_cy, stroke, fill, class_style.actor_style, business);
         // Name below the figure: feet end at fig_cy + 23, add 4 px gap.
         let name_y = fig_cy + 27;
         out.push_str(&format!(
@@ -2436,15 +2437,20 @@ fn render_class_node(
         return;
     }
 
-    if matches!(node.kind, FamilyNodeKind::UseCase) {
-        // Ellipse rendering for use cases
+    if matches!(node.kind, FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase) {
         let cx = x + w / 2;
         let cy = y + h / 2;
         let rx = w / 2;
         let ry = h / 2;
-        out.push_str(&format!(
-            "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
-        ));
+        if matches!(node.kind, FamilyNodeKind::BusinessUseCase) {
+            out.push_str(&format!(
+                "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" rx=\"12\" ry=\"12\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        } else {
+            out.push_str(&format!(
+                "<ellipse cx=\"{cx}\" cy=\"{cy}\" rx=\"{rx}\" ry=\"{ry}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+            ));
+        }
         // Resolve display name: namespace-qualified nodes (e.g. "Package::MP") encode
         // the human-readable label as members[0] when the parser embeds `as DisplayName`
         // inside a group. Detect this by checking that members[0] is plain text (not a

@@ -4,6 +4,7 @@ use crate::creole::{decode_unicode_escapes, render_creole_to_svg_tspans, tokeniz
 use crate::sprites::{
     parse_sprite_ref_at, render_sprite, SpriteDefinition, SpriteRef, SpriteRegistry,
 };
+use crate::theme::ActorStyle;
 
 thread_local! {
     static ACTIVE_SPRITES: RefCell<SpriteRegistry> = const { RefCell::new(SpriteRegistry::new()) };
@@ -292,35 +293,91 @@ fn estimate_text_width(text: &str) -> f32 {
 /// `cx`, `cy` are the **centre** of the figure. The full figure spans roughly
 /// 44 px in height: from `cy - 21` (top of head) to `cy + 23` (feet).
 /// `stroke` is the SVG stroke colour string (e.g. `"#334155"`).
-pub(crate) fn render_actor_stick_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
-    // Head: centre at (cx, cy - 15) -> top of figure is cy - 21
+/// Actor glyph for use-case/class diagrams (stick, awesome, hollow, or business suit).
+pub(crate) fn render_actor_figure(
+    out: &mut String,
+    cx: i32,
+    cy: i32,
+    stroke: &str,
+    fill: &str,
+    style: ActorStyle,
+    business: bool,
+) {
+    if business {
+        render_business_actor_figure(out, cx, cy, stroke, fill);
+        return;
+    }
+    match style {
+        ActorStyle::Stick => render_actor_stick_figure(out, cx, cy, stroke),
+        ActorStyle::Hollow => render_actor_hollow_figure(out, cx, cy, stroke),
+        ActorStyle::Awesome => render_actor_awesome_figure(out, cx, cy, stroke, fill),
+    }
+}
+
+fn render_business_actor_figure(out: &mut String, cx: i32, cy: i32, stroke: &str, fill: &str) {
+    let top = cy - 18;
+    let w = 28i32;
+    let h = 36i32;
+    let x = cx - w / 2;
+    out.push_str(&format!(
+        "<rect x=\"{x}\" y=\"{top}\" width=\"{w}\" height=\"{h}\" rx=\"4\" ry=\"4\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+    let p1x = cx - 6;
+    let p1y = top + 10;
+    let p2x = cx + 6;
+    let p2y = top + 10;
+    let p3x = cx;
+    let p3y = top + 18;
+    out.push_str(&format!(
+        "<polygon points=\"{p1x},{p1y},{p2x},{p2y},{p3x},{p3y}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+}
+
+fn render_actor_hollow_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
     let head_cy = cy - 15;
     out.push_str(&format!(
-        "<circle cx=\"{cx}\" cy=\"{head_cy}\" r=\"6\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+        "<circle cx=\"{cx}\" cy=\"{head_cy}\" r=\"6\" fill=\"#ffffff\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
     ));
-    // Body: from neck (head_cy + 6) to hip (head_cy + 20)
+    render_actor_stick_body(out, cx, head_cy, stroke);
+}
+
+fn render_actor_awesome_figure(out: &mut String, cx: i32, cy: i32, stroke: &str, fill: &str) {
+    let head_cy = cy - 15;
+    out.push_str(&format!(
+        "<circle cx=\"{cx}\" cy=\"{head_cy}\" r=\"6\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+    render_actor_stick_body(out, cx, head_cy, stroke);
+}
+
+fn render_actor_stick_body(out: &mut String, cx: i32, head_cy: i32, stroke: &str) {
     let neck_y = head_cy + 6;
     let hip_y = head_cy + 20;
     out.push_str(&format!(
         "<line x1=\"{cx}\" y1=\"{neck_y}\" x2=\"{cx}\" y2=\"{hip_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
     ));
-    // Arms: centred on body at shoulder (neck_y + 4), spanning cx±10
     let arm_y = neck_y + 4;
-    let arm_x1 = cx - 10;
-    let arm_x2 = cx + 10;
     out.push_str(&format!(
-        "<line x1=\"{arm_x1}\" y1=\"{arm_y}\" x2=\"{arm_x2}\" y2=\"{arm_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+        "<line x1=\"{}\" y1=\"{arm_y}\" x2=\"{}\" y2=\"{arm_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        cx - 10,
+        cx + 10
     ));
-    // Legs: from hip, spread cx±8
-    let leg_x_left = cx - 8;
-    let leg_x_right = cx + 8;
     let leg_end_y = hip_y + 16;
     out.push_str(&format!(
-        "<line x1=\"{cx}\" y1=\"{hip_y}\" x2=\"{leg_x_left}\" y2=\"{leg_end_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+        "<line x1=\"{cx}\" y1=\"{hip_y}\" x2=\"{}\" y2=\"{leg_end_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        cx - 8
     ));
     out.push_str(&format!(
-        "<line x1=\"{cx}\" y1=\"{hip_y}\" x2=\"{leg_x_right}\" y2=\"{leg_end_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+        "<line x1=\"{cx}\" y1=\"{hip_y}\" x2=\"{}\" y2=\"{leg_end_y}\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>",
+        cx + 8
     ));
+}
+
+pub(crate) fn render_actor_stick_figure(out: &mut String, cx: i32, cy: i32, stroke: &str) {
+    let head_cy = cy - 15;
+    out.push_str(&format!(
+        "<circle cx=\"{cx}\" cy=\"{head_cy}\" r=\"6\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.5\"/>"
+    ));
+    render_actor_stick_body(out, cx, head_cy, stroke);
 }
 
 pub(crate) fn escape_text(input: &str) -> String {

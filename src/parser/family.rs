@@ -1,8 +1,104 @@
+/// `:Actor:` endpoint on a family relation line (use case diagram, not activity `:` step).
+fn is_colon_actor_relation_line(line: &str) -> bool {
+    let t = line.trim();
+    if !t.starts_with(':') {
+        return false;
+    }
+    let rest = t[1..].trim_start();
+    let Some((name, tail)) = rest.split_once(':') else {
+        return false;
+    };
+    if name.trim().is_empty() {
+        return false;
+    }
+    let tail = tail.trim_start();
+    tail.starts_with('-') || tail.starts_with('.') || tail.starts_with('<')
+}
+
+fn looks_like_usecase_relation_line(line: &str) -> bool {
+    let t = line.trim();
+    if is_colon_actor_relation_line(t) {
+        return true;
+    }
+    t.contains('(')
+        && t.contains(')')
+        && (t.contains("-->") || t.contains("..>") || t.contains("<--") || t.contains(".>"))
+}
+
+pub(super) fn parse_family_page_break(line: &str) -> Option<StatementKind> {
+    let lower = line.trim().to_ascii_lowercase();
+    if lower.starts_with("newpage") {
+        let title = line.trim()[7..].trim();
+        return Some(StatementKind::NewPage(if title.is_empty() {
+            None
+        } else {
+            Some(title.to_string())
+        }));
+    }
+    if lower == "ignore newpage" {
+        return Some(StatementKind::IgnoreNewPage);
+    }
+    None
+}
+
+fn business_marker_member() -> ClassMember {
+    ClassMember {
+        text: "<<business>>".to_string(),
+        modifier: None,
+    }
+}
+
+fn parse_colon_actor_usecase_decl(line: &str) -> Option<UseCaseDecl> {
+    let mut trimmed = line.trim();
+    let business = trimmed.ends_with('/');
+    if business {
+        trimmed = trimmed.trim_end_matches('/').trim();
+    }
+    if !trimmed.starts_with(':') || !trimmed.ends_with(':') {
+        return None;
+    }
+    let inner = trimmed[1..trimmed.len() - 1].trim();
+    if inner.is_empty() || inner.contains(':') {
+        return None;
+    }
+    let (name_raw, alias_raw) = if let Some((lhs, rhs)) = inner.split_once(" as ") {
+        (lhs.trim(), Some(rhs.trim()))
+    } else {
+        (inner, None)
+    };
+    let name = clean_ident(name_raw);
+    if name.is_empty() {
+        return None;
+    }
+    let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
+    let mut members = vec![ClassMember {
+        text: "<<actor>>".to_string(),
+        modifier: None,
+    }];
+    if business {
+        members.push(business_marker_member());
+    }
+    Some(UseCaseDecl {
+        name,
+        alias,
+        members,
+    })
+}
+
 fn parse_family_declaration(
     lines: &[(&str, Span)],
     start: usize,
     line: &str,
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    if let Some(kind) = parse_family_page_break(line) {
+        return Ok(Some((kind, start)));
+    }
+    if let Some(decl) = parse_colon_actor_usecase_decl(line) {
+        return Ok(Some((
+            StatementKind::UseCaseDecl(decl),
+            start,
+        )));
+    }
     for (keyword, marker) in [
         ("abstract class", Some("<<abstract class>>")),
         ("exception", Some("<<exception>>")),
@@ -172,9 +268,10 @@ fn parse_family_declaration(
             alias,
             has_block,
             fill_color,
+            stereotypes,
             ..
         } = decl;
-        let mut members = Vec::new();
+        let mut members = declaration_marker_members(None, stereotypes);
         append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -190,7 +287,12 @@ fn parse_family_declaration(
         )));
     }
 
-    for (keyword, marker) in [("actor", Some("<<actor>>")), ("usecase", None)] {
+    for (keyword, marker, business) in [
+        ("actor", Some("<<actor>>"), false),
+        ("actor/", Some("<<actor>>"), true),
+        ("usecase", None, false),
+        ("usecase/", None, true),
+    ] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
         };
@@ -226,6 +328,9 @@ fn parse_family_declaration(
         } else {
             declaration_marker_members(marker, stereotypes)
         };
+        if business {
+            members.push(business_marker_member());
+        }
         append_inline_fill_member(&mut members, fill_color);
         return Ok(Some((
             StatementKind::UseCaseDecl(UseCaseDecl {
@@ -283,8 +388,12 @@ fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start:
         let line = raw.trim();
         line.starts_with("usecase ")
             || line.starts_with("usecase(")
+            || line.starts_with("usecase/")
+            || line.starts_with("actor/")
             || line.starts_with('(')
             || line.starts_with("actor ")
+            || looks_like_usecase_relation_line(line)
+            || line.to_ascii_lowercase().starts_with("newpage")
     })
 }
 
@@ -643,7 +752,11 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     if name_raw.is_empty() {
         return None;
     }
-    let rest = trimmed[close + 1..].trim();
+    let mut rest = trimmed[close + 1..].trim();
+    let business = rest.starts_with('/');
+    if business {
+        rest = rest[1..].trim();
+    }
     let has_block = rest.ends_with('{');
     let rest = if has_block {
         rest.trim_end_matches('{').trim()
@@ -657,11 +770,15 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         .map(str::trim)
         .map(clean_ident)
         .filter(|v| !v.is_empty());
+    let mut stereotypes = Vec::new();
+    if business {
+        stereotypes.push("business".to_string());
+    }
     Some(FamilyDeclParts {
         name: clean_ident(name_raw),
         alias,
         has_block,
-        stereotypes: Vec::new(),
+        stereotypes,
         fill_color,
         heritage: Vec::new(),
     })
@@ -831,6 +948,13 @@ fn find_family_decl_end(lines: &[(&str, Span)], start: usize) -> usize {
 }
 
 fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<StatementKind> {
+    let family = family.or_else(|| {
+        if looks_like_usecase_relation_line(line) {
+            Some(DiagramKind::UseCase)
+        } else {
+            None
+        }
+    });
     match family {
         Some(DiagramKind::Class)
         | Some(DiagramKind::Object)
@@ -1065,11 +1189,6 @@ fn parse_family_visibility_control(
     }
     if lower.starts_with("remove ") {
         let rest = line.strip_prefix("remove ").unwrap_or("").trim();
-        if rest.eq_ignore_ascii_case("@unlinked") {
-            // `remove @unlinked` is synonymous with `hide @unlinked` — both drop
-            // all nodes that have no relation edges.
-            return Some(StatementKind::HideOption("hide @unlinked".to_string()));
-        }
         if !rest.is_empty() {
             return Some(StatementKind::HideOption(format!("remove node {rest}")));
         }
