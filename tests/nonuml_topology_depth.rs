@@ -33,7 +33,7 @@ nwdiag {
     let label_y = svg_text_attr(&svg, "group frontend", "y").expect("group label y");
     assert!(
         group_y + group_height - label_y >= 6,
-        "group label should sit inside a dedicated bottom band instead of clipping against the border"
+        "group label should sit inside a dedicated header lane instead of clipping against the border"
     );
 }
 
