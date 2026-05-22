@@ -23,21 +23,22 @@ pub charset: String,
 Assertion at `src/cli.rs:281` confirms default.
 **Notes:** Non-UTF-8 inputs are not transcoded; this is a deliberate simplification.
 
-### 26.3 Special characters `&#XXXX;` — ❌
+### 26.3 Special characters `&#XXXX;` — ✅
 **Feature:** HTML-style numeric entity `&#1234;` decoded to the corresponding Unicode codepoint.
-**Status:** ❌
-**Evidence:** Grep for `&#[0-9]|&#x` in render/normalize layers turns up only one match in `src/creole.rs:478` which is the **output-side** escaping of `'` to `&#39;` — not an **input-side** entity decoder. No general numeric character reference parser found.
-**Notes:** Effect: `&#9728;` (☀) will likely appear as the literal seven characters in output.
+**Status:** ✅
+**Evidence:** `decode_unicode_escapes` handles decimal and hex numeric references (`src/creole.rs:23-32`, `src/creole.rs:503-523`), and `escape_text` runs that decoder before XML escaping (`src/render/svg.rs:125-138`). Integration coverage checks `&#8734;` and `&#x2603;` decode and disappear as literal escape text (`tests/integration.rs:6547-6574`).
+**Notes:** Invalid numeric references stay literal and XML-escaped (`tests/integration.rs:6576-6579`).
 
-### 26.3 `<U+XXXX>` form — ❌
+### 26.3 `<U+XXXX>` form — ✅
 **Feature:** Inline a codepoint via `<U+2603>` (snowman).
-**Status:** ❌
-**Evidence:** Grep for `U\+|U\\+` in src/ returns no matches. The spec example explicitly uses `<U+0025>` as a percent-sign escape; PUML does not interpret this — it will appear literally.
+**Status:** ✅
+**Evidence:** `decode_codepoint_tag` handles case-insensitive `<U+...>` tags with 1-6 hex digits and rejects invalid/out-of-range values (`src/creole.rs:525-542`, `src/creole.rs:588-590`). Tests cover `<U+221E>` decoding in sequence labels and family plain labels (`tests/integration.rs:6547-6574`, `tests/integration.rs:6591-6601`).
 
-### 26.3 Emoji `<:NameOfEmoji:>` / `<:XXXXX:>` — ❌
+### 26.3 Emoji `<:NameOfEmoji:>` / `<:XXXXX:>` — 🟡
 **Feature:** Inline a named emoji (e.g. `<:smile:>`) — PlantUML ships with an emoji catalogue.
-**Status:** ❌
-**Evidence:** Grep for `<:` in src/ returns nothing. No emoji catalogue, no `<:name:>` lexer.
+**Status:** 🟡
+**Evidence:** `decode_emoji_tag` recognizes `<:...:>` tags, supports hex codepoint emoji (`<:1f600:>`), and maps a small deterministic named subset (`calendar`, `check`, `smile`, `heart`, `sun`, etc.) in `src/creole.rs:544-586`. Tests assert `<:calendar:>` and `<:1f600:>` render decoded while unknown safe names degrade to `:name:` (`tests/integration.rs:6547-6556`).
+**Notes:** This is not full PlantUML emoji-catalogue parity; unknown names are not looked up from a bundled emoji list.
 
 ---
 
@@ -47,8 +48,8 @@ Assertion at `src/cli.rs:281` confirms default.
 |---|---|
 | UTF-8 identifiers / labels | ✅ |
 | `-charset` CLI flag | 🟡 (no-op, UTF-8 only) |
-| `&#XXXX;` numeric entity | ❌ |
-| `<U+XXXX>` codepoint escape | ❌ |
-| `<:emoji:>` named emoji | ❌ |
+| `&#XXXX;` numeric entity | ✅ |
+| `<U+XXXX>` codepoint escape | ✅ |
+| `<:emoji:>` named emoji | 🟡 (small built-in subset + hex codepoints) |
 
-**Score:** 1 ✅ · 1 🟡 · 3 ❌ out of 5. Native UTF-8 works because Rust strings are UTF-8; **all three special-character escape forms are missing**, including the spec's own preferred `<U+0025>` form for percent-sign.
+**Score:** 3 ✅ · 2 🟡 · 0 ❌ out of 5. Native UTF-8 works because Rust strings are UTF-8; numeric references and `<U+...>` are decoded across regular SVG text, while `-charset` remains UTF-8-only and emoji support is a small deterministic subset rather than PlantUML's full catalogue.
