@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# puml-lsp — wrapper that resolves and executes the puml Language Server.
+#
+# Resolution order:
+#   1. PUML_LSP_BIN env var
+#   2. target/release/puml-lsp (pre-built release binary in source checkout)
+#   3. target/debug/puml-lsp (pre-built debug binary in source checkout)
+#   4. cargo run --bin puml-lsp (source checkout live-build fallback)
+#
+# In release bundles this script is replaced with the compiled binary directly.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+if [ -n "${PUML_LSP_BIN:-}" ]; then
+  exec "$PUML_LSP_BIN" "$@"
+fi
+
+RELEASE_BIN="$ROOT/target/release/puml-lsp"
+if [ -x "$RELEASE_BIN" ]; then
+  exec "$RELEASE_BIN" "$@"
+fi
+
+DEBUG_BIN="$ROOT/target/debug/puml-lsp"
+if [ -x "$DEBUG_BIN" ]; then
+  exec "$DEBUG_BIN" "$@"
+fi
+
+if [ -f "$ROOT/Cargo.toml" ]; then
+  exec cargo run --bin puml-lsp --quiet -- "$@"
+fi
+
+printf 'puml-lsp: binary not found; run "cargo build --release" or set PUML_LSP_BIN\n' >&2
+exit 1

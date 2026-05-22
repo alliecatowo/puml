@@ -1,9 +1,9 @@
 {
   "slug": "puml-diagrams",
   "display_name": "puml Diagrams",
-  "short_description": "Author and review sequence diagrams with deterministic checks.",
+  "short_description": "Author and review PlantUML-compatible diagrams with LSP, MCP tools, and diagram-family skills.",
   "categories": ["developer-tools", "documentation"],
-  "tags": ["puml", "sequence-diagrams", "mcp"],
+  "tags": ["puml", "plantuml", "sequence-diagrams", "class-diagrams", "uml", "mcp", "lsp"],
   "publisher": "puml",
   "visibility": "public"
 }

@@ -1,19 +1,17 @@
 # puml-agent-pack
 
-Codex + Claude plugin bundle for deterministic `puml` sequence diagram authoring.
+Codex + Claude Code plugin bundle for deterministic `puml` diagram authoring across all diagram families.
 
 ## Included
-- `.codex-plugin/plugin.json`
-- `.claude-plugin/plugin.json`
+- `.codex-plugin/plugin.json` — Codex plugin manifest
+- `.claude-plugin/plugin.json` — Claude Code plugin manifest (v0.1.0)
 - marketplace metadata for both hosts
-- `.mcp.json` tool contract
-- `.lsp.json` LSP contract
-- `bin/puml-mcp` executable MCP-style tool bridge
-- author/reviewer skills and agent profiles
-
-## v0.0.1 limitations
-- `.lsp.json` declares the expected LSP command and capabilities, but release archives
-  may still depend on the host to provide or map `bin/puml-lsp`.
+- `.mcp.json` tool contract (5 tools including `puml_render_png`)
+- `.lsp.json` LSP contract (full capability list)
+- `bin/puml-mcp` — MCP server (Python, JSON-RPC 2.0 + legacy)
+- `bin/puml-lsp` — LSP server wrapper (shell script, resolves compiled binary)
+- Skills: `puml-sequence-author`, `puml-sequence-reviewer`, `puml-class-author`, `puml-writing-guide`
+- Agents: `puml-diagram-designer`, `puml-diagram-reviewer`
 
 ## Runtime resolution
 `agent-pack/bin/puml-mcp` resolves the compiler in this order:
@@ -22,6 +20,13 @@ Codex + Claude plugin bundle for deterministic `puml` sequence diagram authoring
 2. bundled `agent-pack/bin/puml`
 3. `puml` on `PATH`
 4. `cargo run --quiet --` only inside a source checkout for local development
+
+`agent-pack/bin/puml-lsp` resolves the LSP server in this order:
+
+1. `PUML_LSP_BIN` env var
+2. `target/release/puml-lsp` (pre-built release binary)
+3. `target/debug/puml-lsp` (pre-built debug binary)
+4. `cargo run --bin puml-lsp --` only inside a source checkout
 
 ## Local smoke test
 ```bash
@@ -39,6 +44,10 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | agent-pa
 Structured diagnostics are available through `tools/call` with
 `name: "puml_diagnostics"`. The text content is JSON shaped as
 `schema: "puml.diagnostics"` with `schema_version: 1`.
+
+### PNG rendering
+`puml_render_png` returns a `png_base64` field with the base64-encoded PNG.
+Pass `output_path` to also save the file to a workspace path.
 
 ## Codex/Claude Harness Runbook
 ```bash

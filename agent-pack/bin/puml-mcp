@@ -9,12 +9,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_PACK = ROOT / "agent-pack"
-SERVER_INFO = {"name": "puml-mcp", "version": "0.0.1"}
+SERVER_INFO = {"name": "puml-mcp", "version": "0.1.0"}
 
 
 def _safe_rel(path: str) -> Path:
     p = (ROOT / path).resolve()
-    if not str(p).startswith(str(ROOT)):
+    try:
+        p.relative_to(ROOT)
+    except ValueError:
         raise ValueError("path escapes workspace root")
     return p
 
@@ -177,11 +179,66 @@ def puml_render_file(params):
     }
 
 
+def puml_render_png(params):
+    text, path = _validate_one_source(params)
+    include_root = params.get("include_root")
+    output_path = params.get("output_path")
+    dpi = params.get("dpi", 96)
+
+    import base64
+    import os
+    import tempfile
+
+    if output_path:
+        out_abs = _safe_rel(output_path)
+        out_abs.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = out_abs
+        cleanup = False
+    else:
+        tmp_fd, tmp_name = tempfile.mkstemp(suffix=".png")
+        os.close(tmp_fd)
+        tmp_path = Path(tmp_name)
+        cleanup = True
+
+    try:
+        args = ["--format", "png", "--dpi", str(int(dpi)), "-o", str(tmp_path)]
+        if not params.get("allow_url_includes", False):
+            args = ["--no-url-includes"] + args
+        if include_root:
+            args = ["--include-root", include_root] + args
+        if path:
+            args = [str(_safe_rel(path))] + args
+            code, _out, err = _run_puml(args)
+        else:
+            args = ["-"] + args
+            code, _out, err = _run_puml(args, stdin_text=text)
+
+        ok = code == 0 and tmp_path.exists()
+        png_base64 = None
+        if ok:
+            with open(tmp_path, "rb") as f:
+                png_base64 = base64.b64encode(f.read()).decode()
+    finally:
+        if cleanup:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+    return {
+        "ok": ok,
+        "png_base64": png_base64,
+        "output_path": str(out_abs.relative_to(ROOT)) if output_path else None,
+        "diagnostics": _diag(err),
+    }
+
+
 TOOLS = {
     "puml_check": puml_check,
     "puml_diagnostics": puml_diagnostics,
     "puml_render_svg": puml_render_svg,
     "puml_render_file": puml_render_file,
+    "puml_render_png": puml_render_png,
 }
 
 TOOL_LIST = [
@@ -237,6 +294,22 @@ TOOL_LIST = [
                 "path": {"type": "string"},
                 "text": {"type": "string"},
                 "output_path": {"type": "string"},
+                "include_root": {"type": "string"},
+                "allow_url_includes": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "puml_render_png",
+        "description": "Render puml source to PNG and return base64-encoded image data. Use this to visually verify a diagram. Optionally save to a workspace file by providing output_path.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "text": {"type": "string"},
+                "output_path": {"type": "string"},
+                "dpi": {"type": "number"},
                 "include_root": {"type": "string"},
                 "allow_url_includes": {"type": "boolean"},
             },

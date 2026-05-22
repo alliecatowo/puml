@@ -1,6 +1,6 @@
 {
   "name": "puml-lsp",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "transport": "stdio",
   "command": "bin/puml-lsp",
   "languages": [
@@ -11,7 +11,24 @@
   ],
   "capabilities": [
     "textDocument/publishDiagnostics",
+    "textDocument/completion",
+    "completionItem/resolve",
+    "textDocument/hover",
+    "textDocument/definition",
+    "textDocument/references",
+    "textDocument/prepareRename",
+    "textDocument/rename",
+    "textDocument/documentSymbol",
+    "workspace/symbol",
     "textDocument/semanticTokens/full",
+    "textDocument/formatting",
+    "textDocument/rangeFormatting",
+    "textDocument/foldingRange",
+    "textDocument/selectionRange",
+    "textDocument/documentLink",
+    "textDocument/documentColor",
+    "textDocument/colorPresentation",
+    "textDocument/codeAction",
     "workspace/executeCommand"
   ],
   "commands": ["puml.applyFormat", "puml.renderSvg"]
