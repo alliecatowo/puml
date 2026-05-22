@@ -965,8 +965,8 @@ fn parse_sequence_box_color(token: &str) -> Option<String> {
         return None;
     }
 
-    let is_hex = matches!(value.len(), 3 | 4 | 6 | 8)
-        && value.bytes().all(|b| b.is_ascii_hexdigit());
+    let is_hex =
+        matches!(value.len(), 3 | 4 | 6 | 8) && value.bytes().all(|b| b.is_ascii_hexdigit());
     if is_hex {
         return Some(format!("#{}", value.to_ascii_lowercase()));
     }
