@@ -293,6 +293,49 @@ fn activity_ch06_render_applies_arrow_color_note_connector_and_detach() {
 }
 
 #[test]
+fn activity_ch06_fork_branch_connector_arrows_do_not_point_upward() {
+    let svg = puml::render_source_to_svg(
+        r#"@startuml
+start
+fork
+  :branch A;
+fork again
+  :branch B;
+end fork
+stop
+@enduml
+"#,
+    )
+    .expect("render fork branch arrow directions");
+
+    for segment in svg.split("<polygon points=\"").skip(1) {
+        let Some(points) = segment.split('"').next() else {
+            continue;
+        };
+        let mut coords = points.split_whitespace().filter_map(|pair| {
+            let mut it = pair.split(',');
+            let _x = it.next()?.parse::<i32>().ok()?;
+            let y = it.next()?.parse::<i32>().ok()?;
+            Some(y)
+        });
+        let Some(tip_y) = coords.next() else {
+            continue;
+        };
+        let Some(base_left_y) = coords.next() else {
+            continue;
+        };
+        let Some(base_right_y) = coords.next() else {
+            continue;
+        };
+        // Arrowheads in activity flow should point down: tip y is below base y.
+        assert!(
+            tip_y >= base_left_y && tip_y >= base_right_y,
+            "found upward-pointing arrowhead polygon points={points}"
+        );
+    }
+}
+
+#[test]
 fn activity_inline_note_renders_payload_without_directive_prefix() {
     let src = include_str!("fixtures/non_sequence/valid_activity_inline_note_text.puml");
 
