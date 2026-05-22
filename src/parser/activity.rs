@@ -233,6 +233,11 @@ fn parse_activity_old_style_flow(line: &str) -> Option<Vec<StatementKind>> {
     if let Some(target) = parse_old_activity_arrow_target(rhs) {
         if target == "(*)" {
             steps.push(activity_step_statement(ActivityStepKind::Stop, None));
+        } else if target.eq_ignore_ascii_case("detach") {
+            steps.push(activity_step_statement(
+                ActivityStepKind::Detach,
+                Some("detach".to_string()),
+            ));
         } else {
             steps.push(activity_step_statement(
                 ActivityStepKind::Action,

@@ -3,7 +3,6 @@
 (*) --> "Init"
 #gold:Compile;
 -->[next] right of "Test"
-"Test" --> (*)
-detach
+"Test" --> detach
 note right: baseline note
 @enduml
