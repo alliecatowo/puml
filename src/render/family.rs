@@ -2405,11 +2405,22 @@ fn render_class_node(
         _ => "#f1f5f9",
     };
 
-    if matches!(node.kind, FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor) {
+    if matches!(
+        node.kind,
+        FamilyNodeKind::Actor | FamilyNodeKind::BusinessActor
+    ) {
         let cx = x + w / 2;
         let fig_cy = y + 21;
         let business = matches!(node.kind, FamilyNodeKind::BusinessActor);
-        render_actor_figure(out, cx, fig_cy, stroke, fill, class_style.actor_style, business);
+        render_actor_figure(
+            out,
+            cx,
+            fig_cy,
+            stroke,
+            fill,
+            class_style.actor_style,
+            business,
+        );
         // Name below the figure: feet end at fig_cy + 23, add 4 px gap.
         let name_y = fig_cy + 27;
         out.push_str(&format!(
@@ -2437,7 +2448,10 @@ fn render_class_node(
         return;
     }
 
-    if matches!(node.kind, FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase) {
+    if matches!(
+        node.kind,
+        FamilyNodeKind::UseCase | FamilyNodeKind::BusinessUseCase
+    ) {
         let cx = x + w / 2;
         let cy = y + h / 2;
         let rx = w / 2;

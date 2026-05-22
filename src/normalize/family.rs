@@ -242,8 +242,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 let fill_color = extract_family_node_fill_color(&mut members);
                 // Detect <<diamond>> and <<map>> markers inserted by the parser to
                 // promote nodes to Diamond / Map kinds in object diagrams.
-                let resolved_kind = if c4_kind.is_some() {
-                    c4_kind.unwrap()
+                let resolved_kind = if let Some(kind) = c4_kind {
+                    kind
                 } else if members
                     .first()
                     .is_some_and(|m| m.text.trim() == "<<diamond>>")
@@ -317,8 +317,18 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 );
             }
             StatementKind::FamilyRelation(rel) => {
-                last_relation = Some((rel.from.clone(), rel.to.clone()));
-                relations.push(model_relation_from_ast(rel));
+                if family_kind == DiagramKind::UseCase {
+                    ensure_usecase_relation_endpoint(&mut nodes, &rel.from);
+                    ensure_usecase_relation_endpoint(&mut nodes, &rel.to);
+                    let mut rel = rel;
+                    rel.from = clean_usecase_relation_endpoint(&rel.from);
+                    rel.to = clean_usecase_relation_endpoint(&rel.to);
+                    last_relation = Some((rel.from.clone(), rel.to.clone()));
+                    relations.push(model_relation_from_ast(rel));
+                } else {
+                    last_relation = Some((rel.from.clone(), rel.to.clone()));
+                    relations.push(model_relation_from_ast(rel));
+                }
             }
             StatementKind::AssociationClass {
                 left,
@@ -689,6 +699,64 @@ fn merge_duplicate_rel_labels(relations: Vec<ModelFamilyRelation>) -> Vec<ModelF
         }
     }
     out
+}
+
+fn clean_usecase_relation_endpoint(endpoint: &str) -> String {
+    usecase_endpoint_node_spec(endpoint).0
+}
+
+fn ensure_usecase_relation_endpoint(nodes: &mut Vec<FamilyNode>, endpoint: &str) {
+    let trimmed = endpoint.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if nodes
+        .iter()
+        .any(|node| usecase_endpoint_matches_node(trimmed, node))
+    {
+        return;
+    }
+    let (name, kind) = usecase_endpoint_node_spec(trimmed);
+    if name.is_empty() {
+        return;
+    }
+    upsert_family_node(
+        nodes,
+        FamilyNode {
+            kind,
+            name,
+            alias: None,
+            members: Vec::new(),
+            depth: 0,
+            label: None,
+            mindmap_side: MindMapSide::Right,
+            wbs_checkbox: None,
+            fill_color: None,
+        },
+    );
+}
+
+fn usecase_endpoint_matches_node(endpoint: &str, node: &FamilyNode) -> bool {
+    let trimmed = endpoint.trim();
+    if node.name == trimmed || node.alias.as_deref() == Some(trimmed) {
+        return true;
+    }
+    let (name, _) = usecase_endpoint_node_spec(trimmed);
+    node.name == name || node.alias.as_deref() == Some(name.as_str())
+}
+
+fn usecase_endpoint_node_spec(endpoint: &str) -> (String, FamilyNodeKind) {
+    let trimmed = endpoint.trim().trim_matches('"');
+    if trimmed.starts_with(':') && trimmed.ends_with(':') {
+        let inner = trimmed[1..trimmed.len() - 1].trim();
+        return (inner.to_string(), FamilyNodeKind::Actor);
+    }
+    if trimmed.starts_with('(') && trimmed.ends_with(')') {
+        let inner = trimmed[1..trimmed.len() - 1].trim();
+        let inner = inner.strip_prefix("usecase ").unwrap_or(inner).trim();
+        return (inner.to_string(), FamilyNodeKind::UseCase);
+    }
+    (trimmed.to_string(), FamilyNodeKind::UseCase)
 }
 
 fn upsert_family_node(nodes: &mut Vec<FamilyNode>, mut node: FamilyNode) {

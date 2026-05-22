@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-22T04:01:58Z",
+  "generated_at_utc": "2026-05-22T15:06:03Z",
   "summary": {
-    "total": 294,
-    "passed": 291,
+    "total": 297,
+    "passed": 294,
     "excluded": 3,
     "failed": 0
   },
@@ -1037,6 +1037,28 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/component/08_cloud_db_queue_stereotypes.puml",
       "artifact_svg": "docs/examples/component/08_cloud_db_queue_stereotypes.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/component/09_style_uml2.puml",
+      "artifact_svg": "docs/examples/component/09_style_uml2.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/component/10_style_rectangle.puml",
+      "artifact_svg": "docs/examples/component/10_style_rectangle.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
@@ -3120,6 +3142,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/usecase/06_multi_system_boundary.puml",
       "artifact_svg": "docs/examples/usecase/06_multi_system_boundary.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/usecase/07_ch02_parity.puml",
+      "artifact_svg": "docs/examples/usecase/07_ch02_parity.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

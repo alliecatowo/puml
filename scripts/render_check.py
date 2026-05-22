@@ -139,11 +139,23 @@ def render_source_file(source_ref: str, puml_bin: Path) -> Dict[str, Any]:
                 "stderr": proc.stderr.strip(),
                 "svg": None,
             }
+        svg_path = out_path
+        if not svg_path.exists():
+            page_one = out_path.with_name(f"{out_path.stem}-1{out_path.suffix}")
+            if page_one.exists():
+                svg_path = page_one
+            else:
+                return {
+                    "ok": False,
+                    "exit_code": proc.returncode,
+                    "stderr": "render succeeded but no SVG output was written",
+                    "svg": None,
+                }
         return {
             "ok": True,
             "exit_code": 0,
             "stderr": "",
-            "svg": out_path.read_text(encoding="utf-8"),
+            "svg": svg_path.read_text(encoding="utf-8"),
         }
 
 

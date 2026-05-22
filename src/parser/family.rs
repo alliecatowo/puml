@@ -749,6 +749,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
     }
     let close = trimmed.find(')')?;
     let name_raw = trimmed[1..close].trim();
+    let name_raw = name_raw.strip_prefix("usecase ").unwrap_or(name_raw).trim();
     if name_raw.is_empty() {
         return None;
     }

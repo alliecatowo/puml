@@ -494,7 +494,7 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
                 }
             })
         }
-        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
+        NormalizedDocument::Family(family) => render_family_document_svgs(family),
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
         NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
         NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],

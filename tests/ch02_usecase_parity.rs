@@ -55,3 +55,18 @@ actor2 --> (Usecase2)
     assert!(pages[0].contains("Usecase1") || pages[0].contains("actor1"));
     assert!(pages[1].contains("Usecase2") || pages[1].contains("actor2"));
 }
+
+#[test]
+fn ch02_example_fixture_has_visible_nodes_on_both_pages() {
+    let src = include_str!("../docs/examples/usecase/07_ch02_parity.puml");
+    let pages = render_source_to_svgs(src).expect("render");
+    assert_eq!(pages.len(), 2, "example should split into two pages");
+    for (i, svg) in pages.iter().enumerate() {
+        assert!(
+            svg.contains("<text") || svg.contains("<circle") || svg.contains("<ellipse"),
+            "page {i} should contain visible diagram content, got {} bytes",
+            svg.len()
+        );
+        assert!(svg.len() > 1500, "page {i} svg too small ({})", svg.len());
+    }
+}

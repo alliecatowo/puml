@@ -105,6 +105,11 @@ find "${REPO_ROOT}/docs/examples" -name "*.puml" | sort | while read -r puml_fil
   base="${puml_file%.puml}"
   echo "  → ${puml_file#"${REPO_ROOT}/"}"
   "${PUML_BIN}" "${puml_file}" -o "${base}.svg"
+  # Multi-page diagrams emit `<stem>-<n>.svg`; keep page 1 as the committed artifact.
+  if [[ -f "${base}-1.svg" ]]; then
+    cp "${base}-1.svg" "${base}.svg"
+    rm -f "${base}-"*.svg
+  fi
 done
 
 # ---------------------------------------------------------------------------
