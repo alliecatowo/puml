@@ -143,8 +143,9 @@ When you receive an issue number, execute these steps in order:
 - One-off render:
   `./target/release/puml --format png <file>.puml -o /tmp/v.png`
   Then `Read /tmp/v.png`.
-- The visual audit notes for the current cycle live at
-  `docs/internal/visual-audit-<date>.md`.
+- Visual audit findings should become live GitHub issues, regression fixtures,
+  visual baselines, or updates to the spec audits. Do not keep dated wave logs
+  around after triage; stale visual-audit notes are pre-v1 clutter.
 
 ---
 
@@ -192,7 +193,7 @@ Do not do these:
 | Agent runbook (deep) | `docs/internal/agents/codex-workflow.md` |
 | Autonomous workflow cookbook | `docs/internal/agents/autonomous-workflow-cookbook.md` |
 | Architecture + layout engine plan | `docs/internal/architecture/layout-engine-vision.md` |
-| Current visual audit notes | `docs/internal/visual-audit-<date>.md` |
+| Visual audit pipeline | `docs/internal/visual-audit-pipeline.md` |
 | Human + agent contribution guide | `CONTRIBUTING.md` |
 | Release checklist | `docs/release-checklist.md` |
 
@@ -371,11 +372,13 @@ every swarm wave" directive.
 1. Regenerate PNG corpus: `python3 scripts/render_corpus.py --force`
 2. Multimodal audit: spawn 3-4 Sonnet agents, each reads ~25 PNGs, files GH issues per
    visual flaw found
-3. Synthesize findings into a wave plan
+3. Convert confirmed findings into live GitHub issues, regression fixtures, or
+   spec-audit updates
 4. Fire implementer wave (Flow B), grouped by file locality
 5. After merges land, regenerate corpus, re-audit, loop until pixel-perfect
 
-Audit notes live at: `docs/internal/visual-audit-<date>.md`
+Do not retain dated wave-log notes after triage. They go stale quickly; the live
+board, visual regression manifest, and spec audits are the source of truth.
 
 ---
 
@@ -425,9 +428,9 @@ Diagnose with coords, then re-verify the fix with PNG Read.
 ## 13. Memory and persistent notes
 
 - Orchestrator memory: `/home/Allie/.claude/projects/-home-Allie-develop-puml/memory/`
-- Running visual audit notes: `docs/internal/visual-audit-<date>.md`
-- **Agents append to existing notes files; do not create a new file for the same audit
-  cycle**
+- Visual audit findings belong in GitHub issues, focused fixtures, blessed visual
+  baselines, or spec-audit updates. Avoid persistent dated wave logs unless the
+  orchestrator explicitly asks for a short-lived scratch note.
 - Per-agent memory links are in `memory/MEMORY.md`; read before spawning subagents
 
 ---
