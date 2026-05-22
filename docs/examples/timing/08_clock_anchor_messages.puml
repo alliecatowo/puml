@@ -1,5 +1,6 @@
 @startuml
 title Clock ticks and anchored messages
+scale 25 as 140 pixels
 clock "Bus clock" as clk with period 50
 concise "Producer" as TX
 concise "Consumer" as RX
@@ -9,16 +10,18 @@ TX is Idle
 RX is Idle
 
 @clk*1 as :frame_start
-TX is SendHeader
-TX -> RX@:frame_start+25 : header
+TX is Header
+TX -> RX@:frame_start+50 : hdr
 
 @clk*2
 RX is ReceiveHeader
+TX is Payload
+TX -> RX@:frame_start+100 : data
 
-@:frame_start+50
-TX is SendPayload
-TX -> RX@:frame_start+75 : payload
+@clk*3
+RX is ReceivePayload
+TX is Done
 
 @clk*4
-RX is ReceivePayload
+RX is Done
 @enduml
