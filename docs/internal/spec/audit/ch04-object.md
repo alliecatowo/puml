@@ -19,12 +19,12 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** Relation arrowhead recognition in `src/render/relation.rs:89-102` (`*` → `arrow-diamond-filled`, `o` → `arrow-diamond-open`). Marker SVG at `src/render/family.rs:1246-1252`. Cardinality/label parsed by `parse_family_relation` (`src/parser/family.rs:598`).
 **Notes:** Same edge code path as class/usecase — feature-complete.
 
-### 4.3 Associations objects (`diamond` keyword) — ❌
+### 4.3 Associations objects (`diamond` keyword) — ✅
 **Feature:** A `diamond` node acts as an association point that multiple objects connect to (n-ary association).
 **Syntax example:** `diamond dia \n o1 --> dia \n o2 --> dia`
-**Status:** ❌ Missing
-**Evidence:** No `diamond` keyword in the family parser keyword tables (`src/parser/family.rs:65,139,1326-1329,1398-1401`). `FamilyNodeKind` enum (`src/model.rs:613-650`) has no `Diamond` variant. Existing diamond markers are arrowheads only.
-**Notes:** Line beginning with `diamond dia` will fail family decl detection and likely fall through to an error or be ignored.
+**Status:** ✅ Supported
+**Evidence:** `diamond` parses through the object-family declaration path in `src/parser/family.rs`; normalization promotes the marker to `FamilyNodeKind::Diamond` in `src/normalize/family.rs`; `src/render/family.rs` renders a `uml-diamond` polygon node with normal relation endpoints. Covered by `tests/ch04_object_parity.rs`.
+**Notes:** Object-diagram diamond hubs are distinct from relation diamond arrowhead markers.
 
 ### 4.4 Adding fields (`object : key = value` and `object { key = value }` block) — ✅
 **Feature:** Add fields to an object using the `:` field syntax or a brace block.
@@ -40,19 +40,19 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 **Evidence:** `hide` options recognized at `src/normalize/family.rs:256` (`hide_options.contains("stereotype")` etc.). Notes per 4.8. Packages per Chapter 2 §2.5. Skin: `objectbackgroundcolor`/`objectbordercolor`/`objectfontcolor`/`objectarrowcolor`/`objectfontsize`/`objectfontname` at `src/theme.rs:1367-1403`.
 **Notes:** `hide stereotype` confirmed; specific `hide attributes`/`hide methods` for objects partially mirrors class behavior — verify on a fixture.
 
-### 4.6 Map table or associative array (`map` keyword, `key => value`, `Bar::abc` qualified IDs, links) — 🟡
+### 4.6 Map table or associative array (`map` keyword, `key => value`, `Bar::abc` qualified IDs, links) — ✅
 **Feature:** `map Name { key => value }` renders an associative-array table; entries can be link targets via `Name::key`; links into rows with `*->`.
 **Syntax example:** `map CapitalCity { UK => London \n USA => Washington }` then `NewYork --> CapitalCity::USA`
-**Status:** 🟡 Partial
-**Evidence:** `map` keyword recognised at `src/parser/family.rs:65` (`("map", Some("<<map>>"))`), `:1327,1399`. Parses as an object-like node with `<<map>>` stereotype member. No dedicated `Map` variant in `FamilyNodeKind` (`src/model.rs:613`); no `=>` separator parsing distinct from `=` field assignment found; no `Name::key` qualified-anchor edge routing in `src/render/family.rs` or `src/render/relation.rs`.
-**Notes:** Map likely renders as a generic object box with stereotype `<<map>>`. The `=>` row layout (two-column key→value rendering) and `Bar::abc` row-level link anchors are not implemented. Entries collapse to plain member rows.
+**Status:** ✅ Supported
+**Evidence:** `map` declarations normalize to `FamilyNodeKind::Map`; renderer splits `=>`/`<=>` rows and common row-link arrows into key/value columns in `src/render/family.rs`; qualified endpoints such as `CapitalCity::USA` are preserved on relations and snap to the matching row anchor. Covered by `tests/ch04_object_parity.rs` and `docs/examples/object/06_map_qualified_anchor.puml`.
+**Notes:** Row-level links render with row-target fidelity while retaining the original qualified endpoint metadata in SVG.
 
 ### 4.7 PERT with map (`title`, `left to right direction`, chains of maps) — 🟡
 **Feature:** Use maps to build PERT charts with sequential map-to-map dependencies and labelled edges.
 **Syntax example:** `map Kick.Off { } \n map task.1 { Start => End } \n Kick.Off --> task.1 : Label 1`
 **Status:** 🟡 Partial
-**Evidence:** `title`, `left to right direction`, and edges between named nodes all supported (§2.12 above; `src/normalize/family.rs:952`). But because `map` rendering is degraded (§4.6) and `Name.Part` dotted aliases aren't specifically handled, the resulting layout will not match the PERT-style 2-column row layout.
-**Notes:** Edges between map-nodes will route, but rows will not show as `Start | End` cells. Visually degraded PERT.
+**Evidence:** `title`, `left to right direction`, edges between named nodes, and map row rendering are supported (§4.6). Remaining risk is visual-layout parity for larger PERT chains, especially dotted aliases such as `task.1`.
+**Notes:** Edges between map nodes route and rows render as two-column cells, but full PERT layout parity still needs a dedicated fixture/oracle comparison.
 
 ### 4.8 Display JSON Data (class + object + json mixed) — ❌
 **Feature:** Mix `class`, `object`, and `json` blocks in one diagram.
@@ -64,6 +64,6 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 ---
 
 ## Tally — Chapter 4
-- ✅ Supported: **3** (4.1, 4.2, 4.4)
-- 🟡 Partial: **3** (4.5, 4.6, 4.7)
-- ❌ Missing: **2** (4.3, 4.8)
+- ✅ Supported: **5** (4.1, 4.2, 4.3, 4.4, 4.6)
+- 🟡 Partial: **2** (4.5, 4.7)
+- ❌ Missing: **1** (4.8)

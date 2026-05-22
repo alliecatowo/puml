@@ -253,9 +253,10 @@ fn class_run_layout(
                 .get(&key)
                 .or_else(|| node_to_gl_group.get(&node.name))
                 .cloned();
+            let width = class_node_width(node.kind, node_width);
             GlNodeSize {
                 id: key,
-                width: node_width as f64,
+                width: width as f64,
                 height: *h as f64,
                 parent,
             }
@@ -356,10 +357,11 @@ fn class_run_layout(
                 .unwrap_or(margin_top + title_block_height);
             (fx, fy)
         };
+        let width = class_node_width(node.kind, node_width);
         let nb = ClassNodeBox {
             x: nx,
             y: ny,
-            w: node_width,
+            w: width,
             h: *h,
             header_h: header_height,
         };
@@ -533,7 +535,7 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 style.end_marker = Some("arrow-open");
             }
         }
-        let (x1, y1, x2, y2) = if relation.direction.is_some() {
+        let (mut x1, mut y1, mut x2, mut y2) = if relation.direction.is_some() {
             compute_edge_anchors_for_direction(
                 (from.x, from.y, from.w, from.h),
                 (to.x, to.y, to.w, to.h),
@@ -542,6 +544,14 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         } else {
             pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
+        if let Some((qx, qy)) = qualified_row_anchor(&from_name, ctx.nodes, ctx.node_boxes, to) {
+            x1 = qx;
+            y1 = qy;
+        }
+        if let Some((qx, qy)) = qualified_row_anchor(&to_name, ctx.nodes, ctx.node_boxes, from) {
+            x2 = qx;
+            y2 = qy;
+        }
 
         let lat_offset = ctx.parallel_offset.get(&rel_idx).copied().unwrap_or(0);
         let edge_dx_raw = x2 - x1;
@@ -1100,6 +1110,13 @@ fn resolve_relation_endpoint_key(
     endpoint.to_string()
 }
 
+fn class_node_width(kind: FamilyNodeKind, default_width: i32) -> i32 {
+    match kind {
+        FamilyNodeKind::Diamond => 44,
+        _ => default_width,
+    }
+}
+
 /// Render Class/Object/UseCase documents as a real SVG with boxed nodes
 /// (header + member compartment) laid out in a simple grid, plus arrows
 /// for the document's relations.
@@ -1199,6 +1216,17 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
                     .count()
                     .max(1) as i32;
                 lines * 16 + 20
+            } else if node.kind == FamilyNodeKind::Map {
+                let rows = node
+                    .members
+                    .iter()
+                    .filter(|member| parse_map_row(&member.text).is_some())
+                    .count() as i32;
+                if rows == 0 {
+                    empty_member_pad
+                } else {
+                    rows * 18
+                }
             } else if display_member_count == 0 {
                 empty_member_pad
             } else {
@@ -2202,6 +2230,8 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
     match kind {
         FamilyNodeKind::Class => "class",
         FamilyNodeKind::Object => "object",
+        FamilyNodeKind::Map => "map",
+        FamilyNodeKind::Diamond => "diamond",
         FamilyNodeKind::UseCase => "usecase",
         FamilyNodeKind::Salt => "widget",
         FamilyNodeKind::MindMap => "mindmap",
@@ -2336,6 +2366,157 @@ fn first_user_stereotype_key(node: &crate::model::FamilyNode) -> Option<String> 
     })
 }
 
+#[derive(Debug, Clone, Copy)]
+struct MapRow<'a> {
+    key: &'a str,
+    value: &'a str,
+}
+
+fn parse_map_row(text: &str) -> Option<MapRow<'_>> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    for sep in ["<=>", "=>"] {
+        if let Some((key, value)) = trimmed.split_once(sep) {
+            return Some(MapRow {
+                key: key.trim(),
+                value: value.trim(),
+            });
+        }
+    }
+    for marker in ["*-->", "*--", "*->", "-->", "--", "..>", ".."] {
+        if let Some((lhs, rhs)) = trimmed.split_once(marker) {
+            return Some(MapRow {
+                key: lhs.trim(),
+                value: rhs.trim(),
+            });
+        }
+    }
+    Some(MapRow {
+        key: trimmed,
+        value: "",
+    })
+}
+
+fn map_row_anchor_y(
+    node: &crate::model::FamilyNode,
+    key: &str,
+    y: i32,
+    header_h: i32,
+) -> Option<i32> {
+    let key = key.trim();
+    if key.is_empty() {
+        return None;
+    }
+    let mut row_idx = 0;
+    for member in &node.members {
+        let Some(row) = parse_map_row(&member.text) else {
+            continue;
+        };
+        if row.key == key {
+            return Some(y + header_h + 12 + row_idx * 18);
+        }
+        row_idx += 1;
+    }
+    None
+}
+
+fn qualified_row_anchor(
+    endpoint: &str,
+    nodes: &[crate::model::FamilyNode],
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+    other: &ClassNodeBox,
+) -> Option<(i32, i32)> {
+    let (owner, row_key) = endpoint.rsplit_once("::")?;
+    let owner_key = resolve_relation_endpoint_key(owner, node_boxes);
+    let owner_box = node_boxes.get(&owner_key)?;
+    let owner_node = nodes.iter().find(|node| {
+        node.name == owner
+            || node.alias.as_deref() == Some(owner)
+            || node.name == owner_key
+            || node.alias.as_deref() == Some(owner_key.as_str())
+    })?;
+    if owner_node.kind != FamilyNodeKind::Map {
+        return None;
+    }
+    let y = map_row_anchor_y(owner_node, row_key, owner_box.y, owner_box.header_h)?;
+    let owner_cx = owner_box.x + owner_box.w / 2;
+    let other_cx = other.x + other.w / 2;
+    let x = if other_cx < owner_cx {
+        owner_box.x
+    } else {
+        owner_box.x + owner_box.w
+    };
+    Some((x, y))
+}
+
+struct MapRenderCtx<'a> {
+    font_family: &'a str,
+    member_font_size: u32,
+    member_color: &'a str,
+    stroke: &'a str,
+}
+
+fn render_map_rows(
+    out: &mut String,
+    node: &crate::model::FamilyNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    header_h: i32,
+    ctx: &MapRenderCtx<'_>,
+) {
+    let divider_x = x + (w * 45 / 100);
+    let rows: Vec<_> = node
+        .members
+        .iter()
+        .filter_map(|member| parse_map_row(&member.text))
+        .collect();
+    if rows.is_empty() {
+        return;
+    }
+    out.push_str(&format!(
+        "<line class=\"uml-map-divider\" x1=\"{divider_x}\" y1=\"{}\" x2=\"{divider_x}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        y + header_h,
+        y + header_h + rows.len() as i32 * 18,
+        ctx.stroke
+    ));
+    for (idx, row) in rows.iter().enumerate() {
+        let row_top = y + header_h + idx as i32 * 18;
+        let text_y = row_top + 12;
+        if idx > 0 {
+            out.push_str(&format!(
+                "<line class=\"uml-map-row\" x1=\"{x}\" y1=\"{row_top}\" x2=\"{}\" y2=\"{row_top}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + w,
+                ctx.stroke
+            ));
+        }
+        let anchor = format!(
+            "{}::{}",
+            node.alias.as_deref().unwrap_or(&node.name),
+            row.key
+        );
+        out.push_str(&format!(
+            "<text class=\"uml-map-key\" data-uml-anchor=\"{}\" x=\"{}\" y=\"{text_y}\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\">{}</text>",
+            escape_text(&anchor),
+            x + 10,
+            escape_text(ctx.font_family),
+            ctx.member_font_size,
+            escape_text(ctx.member_color),
+            escape_text(row.key)
+        ));
+        out.push_str(&format!(
+            "<text class=\"uml-map-value\" x=\"{}\" y=\"{text_y}\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\">{}</text>",
+            divider_x + 10,
+            escape_text(ctx.font_family),
+            ctx.member_font_size,
+            escape_text(ctx.member_color),
+            escape_text(row.value)
+        ));
+    }
+}
+
 fn render_class_node(
     out: &mut String,
     node: &crate::model::FamilyNode,
@@ -2398,9 +2579,31 @@ fn render_class_node(
                 .unwrap_or(class_style.header_color.as_str()),
         },
         FamilyNodeKind::Object => "#fef3c7",
+        FamilyNodeKind::Map => "#fef3c7",
         FamilyNodeKind::UseCase => "#dcfce7",
         _ => "#f1f5f9",
     };
+
+    if matches!(node.kind, FamilyNodeKind::Diamond) {
+        let cx = x + w / 2;
+        let cy = y + h / 2;
+        let r = (w.min(h) / 2).saturating_sub(3).max(12);
+        out.push_str(&format!(
+            "<polygon class=\"uml-node uml-diamond\" data-uml-kind=\"diamond\" data-uml-id=\"{}\" points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+            escape_text(node.alias.as_deref().unwrap_or(&node.name)),
+            cx,
+            cy - r,
+            cx + r,
+            cy,
+            cx,
+            cy + r,
+            cx - r,
+            cy,
+            fill,
+            stroke
+        ));
+        return;
+    }
 
     if matches!(node.kind, FamilyNodeKind::Actor) {
         // Canonical stick-figure rendering for actors (issue #715).
@@ -2582,6 +2785,24 @@ fn render_class_node(
         txt = escape_text(&header_text)
     ));
 
+    if matches!(node.kind, FamilyNodeKind::Map) {
+        render_map_rows(
+            out,
+            node,
+            x,
+            y,
+            w,
+            effective_header_h,
+            &MapRenderCtx {
+                font_family,
+                member_font_size,
+                member_color,
+                stroke,
+            },
+        );
+        return;
+    }
+
     // Members — split by `--` / `..` divider tokens to draw compartment lines (fix #468).
     // We also auto-insert a divider between the last attribute and the first operation
     // when there is no explicit divider in the source (fix #468 second compartment).
@@ -2738,6 +2959,7 @@ fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
         k if is_c4_kind(k) => computed.max(60),
         // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
         FamilyNodeKind::Actor | FamilyNodeKind::Person => computed.max(64),
+        FamilyNodeKind::Diamond => 44,
         _ => computed,
     }
 }

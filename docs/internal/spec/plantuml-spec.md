@@ -35,7 +35,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 1 | Sequence Diagram | 28 | 14 | 6 | [ch01-sequence.md](audit/ch01-sequence.md) |
 | 2 | Use Case Diagram | 10 | 4 | 3 | [ch02-usecase.md](audit/ch02-usecase.md) |
 | 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
-| 4 | Object Diagram | 3 | 3 | 2 | [ch04-object.md](audit/ch04-object.md) |
+| 4 | Object Diagram | 5 | 2 | 1 | [ch04-object.md](audit/ch04-object.md) |
 | 5 | Activity (legacy) | 0 | 2 | 10 | [ch05-activity-legacy.md](audit/ch05-activity-legacy.md) |
 | 6 | Activity (new) | 6 | 12 | 12 | [ch06-activity-new.md](audit/ch06-activity-new.md) |
 | 7 | Component | 10 | 6 | 3 | [ch07-component.md](audit/ch07-component.md) |

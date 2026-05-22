@@ -693,7 +693,11 @@ fn split_family_relation_label(line: &str) -> (&str, Option<String>) {
             in_quote = !in_quote;
             continue;
         }
-        if !in_quote && ch == ':' {
+        if !in_quote
+            && ch == ':'
+            && !line[..idx].ends_with(':')
+            && !line[idx + ch.len_utf8()..].starts_with(':')
+        {
             last_colon = Some(idx);
         }
     }
