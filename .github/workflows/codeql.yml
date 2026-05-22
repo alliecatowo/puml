@@ -26,6 +26,8 @@ env:
   RUST_BACKTRACE: 1
   CARGO_TARGET_DIR: ${{ github.workspace }}/target/codeql
   CODEQL_EXTRACTOR_RUST_OPTION_CARGO_TARGET_DIR: ${{ github.workspace }}/target/codeql
+  CODEQL_EXTRACTOR_RUST_OPTION_CARGO_ALL_TARGETS: "true"
+  CODEQL_EXTRACTOR_RUST_OPTION_EXTRACT_DEPENDENCIES_AS_SOURCE: "true"
 
 jobs:
   analyze:
@@ -58,10 +60,25 @@ jobs:
           echo "SCCACHE_GHA_ENABLED=true" >> "${GITHUB_ENV}"
           echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
 
-      - name: Configure Rust proc macro server for CodeQL
+      - name: Configure Rust extractor paths for CodeQL
         run: |
           set -euo pipefail
           sysroot="$(rustc --print sysroot)"
+          echo "CODEQL_EXTRACTOR_RUST_OPTION_SYSROOT=${sysroot}" >> "${GITHUB_ENV}"
+
+          sysroot_src="${sysroot}/lib/rustlib/src/rust/library"
+          if [[ -d "${sysroot_src}" ]]; then
+            echo "CODEQL_EXTRACTOR_RUST_OPTION_SYSROOT_SRC=${sysroot_src}" >> "${GITHUB_ENV}"
+            echo "RUST_SRC_PATH=${sysroot_src}" >> "${GITHUB_ENV}"
+            echo "Using sysroot source: ${sysroot_src}"
+          fi
+
+          rustc_src="${sysroot}/lib/rustlib/src/rust/compiler/rustc"
+          if [[ -d "${rustc_src}" ]]; then
+            echo "CODEQL_EXTRACTOR_RUST_OPTION_RUSTC_SRC=${rustc_src}" >> "${GITHUB_ENV}"
+            echo "Using rustc source: ${rustc_src}"
+          fi
+
           proc_macro_server="$(find "${sysroot}" -name rust-analyzer-proc-macro-srv -type f | head -n1)"
           if [[ -z "${proc_macro_server}" || ! -x "${proc_macro_server}" ]]; then
             echo "rust-analyzer proc macro server not found under ${sysroot}" >&2
