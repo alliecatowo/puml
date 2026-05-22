@@ -2054,8 +2054,20 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::StateRegionDivider => json!("StateRegionDivider"),
         StatementKind::StateHistory { deep } => json!({"StateHistory": {"deep": deep}}),
         StatementKind::GanttTaskDecl {
-            name, resources, ..
-        } => json!({"GanttTaskDecl": {"name": name, "resources": resources}}),
+            name,
+            alias,
+            resources,
+            ..
+        } => json!({"GanttTaskDecl": {"name": name, "alias": alias, "resources": resources}}),
+        StatementKind::GanttCompound {
+            name,
+            alias,
+            resources,
+            clauses,
+            after_previous,
+        } => {
+            json!({"GanttCompound": {"name": name, "alias": alias, "resources": resources, "clauses": clauses, "after_previous": after_previous}})
+        }
         StatementKind::GanttMilestoneDecl { name, happens_on } => {
             json!({"GanttMilestoneDecl": {"name": name, "happens_on": happens_on}})
         }

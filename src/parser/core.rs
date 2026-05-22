@@ -136,6 +136,8 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             ) && text_block_continues(&lines, i, line);
             if detected_kind.is_some()
                 && is_family_common_keyword(&kind)
+                && !(matches!(detected_kind, Some(DiagramKind::Gantt))
+                    && matches!(&kind, StatementKind::Note(_)))
                 && !multiline_note_head
                 && !multiline_text_head
             {
@@ -433,6 +435,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i = end_idx + 1;
                 continue;
             }
+            if let Some((kind, end_idx)) = parse_multiline_note_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
             if let Some(kind) = parse_keyword(line) {
                 if is_timeline_metadata_statement(&kind) {
                     statements.push(Statement { span, kind });
@@ -636,7 +646,6 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         statements,
     })
 }
-
 fn parse_sprite_statement(
     lines: &[(&str, Span)],
     start_idx: usize,

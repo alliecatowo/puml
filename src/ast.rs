@@ -59,10 +59,18 @@ pub enum StatementKind {
     },
     GanttTaskDecl {
         name: String,
+        alias: Option<String>,
         start_date: Option<String>,
         duration_days: Option<u32>,
         depends_on: Vec<String>,
         resources: Vec<String>,
+    },
+    GanttCompound {
+        name: String,
+        alias: Option<String>,
+        resources: Vec<String>,
+        clauses: String,
+        after_previous: bool,
     },
     GanttMilestoneDecl {
         name: String,
