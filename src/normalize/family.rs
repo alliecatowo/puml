@@ -231,6 +231,10 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     c4_kind.unwrap_or(FamilyNodeKind::Object)
                 };
                 let fill_color = extract_family_node_fill_color(&mut members);
+                let node_id = clean_alias.as_deref().unwrap_or(&decl.name).to_string();
+                if resolved_kind == FamilyNodeKind::Map {
+                    relations.extend(extract_map_row_relations(&members, &node_id));
+                }
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
@@ -726,6 +730,35 @@ fn extract_family_heritage_relations(
         false
     });
     out
+}
+
+fn extract_map_row_relations(members: &[ClassMember], source_id: &str) -> Vec<ModelFamilyRelation> {
+    members
+        .iter()
+        .filter_map(|member| parse_map_row_relation(&member.text, source_id))
+        .collect()
+}
+
+fn parse_map_row_relation(row: &str, source_id: &str) -> Option<ModelFamilyRelation> {
+    let trimmed = row.trim();
+    for marker in [
+        "*--->", "*-->", "*---", "*--", "*->", "-->", "---", "--", "..>", "...", "..",
+    ] {
+        let Some((key, target)) = trimmed.split_once(marker) else {
+            continue;
+        };
+        let key = key.trim();
+        let target = target.trim();
+        if key.is_empty() || target.is_empty() {
+            return None;
+        }
+        return Some(simple_family_relation(
+            format!("{source_id}::{key}"),
+            target.to_string(),
+            marker.to_string(),
+        ));
+    }
+    None
 }
 
 fn model_relation_from_ast(rel: crate::ast::FamilyRelation) -> ModelFamilyRelation {

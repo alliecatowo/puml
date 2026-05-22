@@ -1,0 +1,20 @@
+@startsalt
+{
+{* File | Edit | View | Window | Help}
+{/ General | **Security** | Integrations}
+{T
++ Workspace
+++ Profile
+++ Security
+}
+{#
+= Setting | = Control | = Notes
+Owner | "//Allie// <&person>" | **Primary** approver
+Theme | ^Workspace^^System default^^Light^^Dark^ | [] Sync across devices
+Action | [Reset access] | <color:blue>Requires</color> restart
+}
+{SI
+<&person> Review access rules before inviting guests
+}
+}
+@endsalt

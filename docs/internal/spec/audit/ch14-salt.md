@@ -19,12 +19,11 @@ Source: `/tmp/puml-spec/ch14-salt-wireframe.txt`.
 **Status:** ✅
 **Evidence:** `src/render/salt.rs:593-601` `{+` enters text-area mode; `:625-632` dot/blank fillers; `:653-660` `parse_salt_scroll_container` for `{S`, `{SI`, `{S-`.
 
-### 14.3 Open/closed droplist (`^X^^item^^item^`) — 🟡
+### 14.3 Open/closed droplist (`^X^^item^^item^`) — ✅
 **Feature:** Droplist that "opens" by chaining `^...^^item^^item^`.
 **Syntax example:** `^This is an open droplist^^ item 1^^ item 2^`
-**Status:** 🟡
-**Evidence:** `SaltCell::Combo` exists (`src/ast.rs:189-190`) and `SaltCellRender::Combo` renders a single dropdown. The expanded-list visual (showing items below the field) is not in `SaltCellRender` — only the closed-droplist representation found.
-**Notes:** Inputs parse but rendering shows only the field label; the item-list popover is not painted.
+**Status:** ✅
+**Evidence:** `src/parser/projection_salt.rs:172-198` preserves whole-line droplists as Salt rows; `src/render/salt.rs:720-721,759-764,931-949` detects expanded droplist payloads both as standalone rows and table cells; `src/render/salt.rs:1289-1361` paints the open list popover; `tests/ch14_salt_parity.rs:15-25` verifies the expanded-list SVG markers and items.
 
 ### 14.4 Grid `{`, `{|`, `{#`, `{!`, `{-`, `{+` (grid markers) — ✅
 **Feature:** Grid frame markers controlling visible grid lines.
@@ -59,8 +58,8 @@ Source: `/tmp/puml-spec/ch14-salt-wireframe.txt`.
 **Feature:** Nested `{}` to group sub-cells inside one cell.
 **Syntax example:** `Modifiers: | { (X) public | () default }`
 **Status:** 🟡
-**Evidence:** `src/render/salt.rs:572-580` handles bare `{`/`}` as scope toggles for tree/text-area/sprite state, not as inline grouping. The inline-nested grid case (`| { ... }`) is not specifically parsed in the salt cell decoder.
-**Notes:** Sub-cell rendering likely lossy — produces flattened cells.
+**Evidence:** `src/render/salt.rs:626-633` handles bare `{`/`}` only as scope toggles for tree/text-area/sprite state, not as inline grouping. The inline-nested grid case (`| { ... }`) is not specifically parsed in the salt cell decoder.
+**Notes:** Limitation still active: nested widgets inside a single table cell, including inline tree/table composition, flatten or leak structural tokens rather than forming a true sublayout.
 
 ### 14.10 Tabs `{/ Tab1 | Tab2 }` (incl. vertical orientation) — ✅
 **Feature:** Tab bar with optional active indicator (`<b>` or `**...**`).
@@ -84,17 +83,16 @@ Source: `/tmp/puml-spec/ch14-salt-wireframe.txt`.
 **Status:** ✅
 **Evidence:** `parse_salt_scroll_container` at `src/render/salt.rs:653-660`; sets `scroll_vertical`/`scroll_horizontal` flags on text-area lines.
 
-### 14.14 Colors (`<color:Blue>...`, `<color:#9a9a9a>`) — 🟡
+### 14.14 Colors (`<color:Blue>...`, `<color:#9a9a9a>`) — ✅
 **Feature:** Per-widget text-color overrides via inline `<color:...>` tags.
-**Status:** 🟡
-**Evidence:** No inline-color pipeline found in `src/render/salt.rs` for the cell label rendering — labels are emitted via standard text escaping. Style scope (`<style> saltDiagram { ... }`) IS partially handled (`:537-559`, `:282-311` color setters).
-**Notes:** Per-label `<color:...>` runs likely appear as literal text in output. Diagram-wide colors via `<style>` partially work.
+**Status:** ✅
+**Evidence:** `src/render/salt.rs:1010-1023` routes Salt cell labels through `creole_text(...)`; `tests/ch14_salt_parity.rs:27-38` verifies inline `<color:blue>` renders as styled Salt text rather than literal markup.
 
 ### 14.15 Creole on Salt (`**bold**`, `<color:>`, `<U+221E>`, `<&icon>`, `<img:>`) — 🟡
 **Feature:** Full Creole + HTML Creole inside salt cells.
 **Status:** 🟡
-**Evidence:** No Creole inline-run renderer hook in salt SVG path; cell text emitted via `escape_text` style helper. OpenIconic via `<&icon>` not substituted in salt-specific path.
-**Notes:** Most Creole tags render as literal text.
+**Evidence:** `src/render/salt.rs:495-563,980-1023` now sizes Salt cells from tokenized Creole text and renders labels through `creole_text(...)`; `tests/ch14_salt_parity.rs:27-57` verifies multiline Creole growth, inline color, and composed widget coverage.
+**Notes:** Limitation remains: inline Creole text works for styling/layout, but block-level Creole constructs and true icon glyph substitution are still partial.
 
 ### 14.16 Pseudo-sprite `<<name ...XXXX... >>` — ✅
 **Feature:** Inline ASCII-art sprite definitions + `<<name>>` references.
@@ -141,4 +139,4 @@ Source: `/tmp/puml-spec/ch14-salt-wireframe.txt`.
 
 ---
 
-**Tally ch14 (24 subsections audited):** ✅ 10 · 🟡 11 · ❌ 3
+**Tally ch14 (24 subsections audited):** ✅ 12 · 🟡 9 · ❌ 3

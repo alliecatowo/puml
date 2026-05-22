@@ -576,28 +576,31 @@ impl SaltCellRender {
 
     fn intrinsic_width(&self) -> i32 {
         match self {
-            Self::Input(text) => estimate_text_width(text) + 29,
-            Self::Button(text) => (estimate_text_width(text) + 16).max(36),
-            Self::Combo(text) => estimate_text_width(text) + 23,
+            Self::Input(text) => estimate_salt_text_width(text) + 29,
+            Self::Button(text) => (estimate_salt_text_width(text) + 16).max(36),
+            Self::Combo(text) => estimate_salt_text_width(text) + 23,
             Self::OpenCombo { label, items } => {
-                let label_w = estimate_text_width(label) + 23;
+                let label_w = estimate_salt_text_width(label) + 23;
                 let items_w = items
                     .iter()
-                    .map(|i| estimate_text_width(i) + 16)
+                    .map(|i| estimate_salt_text_width(i) + 16)
                     .max()
                     .unwrap_or(0);
                 label_w.max(items_w)
             }
             Self::ProgressBar { .. } => 100,
             Self::CheckboxChecked(text) | Self::CheckboxUnchecked(text) => {
-                20 + estimate_text_width(text)
+                20 + estimate_salt_text_width(text)
             }
-            Self::RadioOn(text) | Self::RadioOff(text) => 20 + estimate_text_width(text),
+            Self::RadioOn(text) | Self::RadioOff(text) => 20 + estimate_salt_text_width(text),
             Self::MenuBar(items) => items
                 .iter()
-                .map(|item| estimate_text_width(item) + 24)
+                .map(|item| estimate_salt_text_width(item) + 24)
                 .sum(),
-            Self::TabBar { tabs, .. } => tabs.iter().map(|tab| estimate_text_width(tab) + 24).sum(),
+            Self::TabBar { tabs, .. } => tabs
+                .iter()
+                .map(|tab| estimate_salt_text_width(tab) + 24)
+                .sum(),
             Self::ScrollBar { vertical, .. } => {
                 if *vertical {
                     24
@@ -608,7 +611,7 @@ impl SaltCellRender {
             Self::SpriteRef(_) => 48,
             Self::TableEmpty => 24,
             Self::TableSpan => 42,
-            _ => estimate_text_width(self.text()) + 20,
+            _ => estimate_salt_text_width(self.text()) + 20,
         }
     }
 
@@ -622,6 +625,25 @@ impl SaltCellRender {
             Self::OpenCombo { items, .. } => {
                 // Header combo (19px) + padding (2+2) + items list (16px * n) + 4px margin.
                 23 + (items.len() as i32) * 16 + 4
+            }
+            Self::Label(text)
+            | Self::Header(text)
+            | Self::Input(text)
+            | Self::Button(text)
+            | Self::Combo(text)
+            | Self::CheckboxChecked(text)
+            | Self::CheckboxUnchecked(text)
+            | Self::RadioOn(text)
+            | Self::RadioOff(text)
+            | Self::TreeItem { label: text, .. }
+            | Self::TextAreaLine { text, .. }
+            | Self::GroupBox(text) => {
+                let line_count = salt_text_line_count(text);
+                if line_count <= 1 {
+                    20
+                } else {
+                    8 + (line_count as i32 * 14)
+                }
             }
             _ => 20,
         }
@@ -836,6 +858,13 @@ fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool) -> SaltCell
                 promote_salt_header_cell(SaltCellRender::Label(text))
             }
         }
+        SaltCellRender::Combo(text) => {
+            if let Some((label, items)) = parse_salt_open_combo_payload(&text) {
+                SaltCellRender::OpenCombo { label, items }
+            } else {
+                SaltCellRender::Combo(text)
+            }
+        }
         other => other,
     }
 }
@@ -1009,19 +1038,21 @@ fn parse_salt_open_combo(line: &str) -> Option<(String, Vec<String>)> {
     if !trimmed.starts_with('^') {
         return None;
     }
-    // Split on `^^` — gives `["", "item1", "item2", ...]` for `^label^^item1^^item2^`
-    // but also gives `["label"]` for `^label^`.
-    let parts: Vec<&str> = trimmed.split("^^").collect();
-    if parts.len() < 2 {
-        // Just `^label^` — plain combo handled elsewhere.
+    parse_salt_open_combo_payload(trimmed.trim_start_matches('^').trim_end_matches('^'))
+}
+
+fn parse_salt_open_combo_payload(inner: &str) -> Option<(String, Vec<String>)> {
+    let (label, raw_items) = inner.split_once("^^")?;
+    let label = label.trim().to_string();
+    let items: Vec<String> = raw_items
+        .split("^^")
+        .map(|part| part.trim())
+        .filter(|item| !item.is_empty())
+        .map(ToString::to_string)
+        .collect();
+    if label.is_empty() || items.is_empty() {
         return None;
     }
-    let label = parts[0].trim_start_matches('^').to_string();
-    let items: Vec<String> = parts[1..]
-        .iter()
-        .map(|p| p.trim_end_matches('^').to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
     Some((label, items))
 }
 
@@ -1072,6 +1103,24 @@ fn decode_salt_cell(s: &str) -> SaltCellRender {
 /// Estimate text width in monospace pixels (approx 7px per char at 12px font).
 fn estimate_text_width(text: &str) -> i32 {
     (text.chars().count() as i32) * 7
+}
+
+fn estimate_salt_text_width(text: &str) -> i32 {
+    let lines = crate::creole::tokenize_creole(text);
+    let max_chars = lines
+        .iter()
+        .map(|line| {
+            line.iter()
+                .map(|span| span.text.chars().count() as i32)
+                .sum()
+        })
+        .max()
+        .unwrap_or(0);
+    max_chars * 7
+}
+
+fn salt_text_line_count(text: &str) -> usize {
+    crate::creole::tokenize_creole(text).len().max(1)
 }
 
 fn salt_input_width(text: &str) -> i32 {
