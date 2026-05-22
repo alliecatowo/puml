@@ -94,7 +94,7 @@ The PR gate runs all of the above automatically, so don't sweat it if you forget
 |---|---|
 | **[Open issues with `agent-ready`](https://github.com/alliecatowo/puml/issues?q=is%3Aopen+label%3Aagent-ready)** | Triaged with enough context to act on |
 | **[P0 issues](https://github.com/alliecatowo/puml/issues?q=is%3Aopen+label%3AP0)** | Critical correctness or visual bugs |
-| **[The visual audit notes](docs/internal/visual-audit-2026-05-18.md)** | Per-PNG findings from the last multimodal sweep |
+| **[Visual audit pipeline](docs/internal/visual-audit-pipeline.md)** | How visual findings become issues, fixtures, baselines, or spec audit updates |
 | **[Layout engine epic #590](https://github.com/alliecatowo/puml/issues/590)** | The biggest architectural lift — stages 1-4 are filed as children |
 | **[`docs/internal/parity/`](docs/internal/parity/)** | PlantUML parity tracking — find a gap, fill it |
 
