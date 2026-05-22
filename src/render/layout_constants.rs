@@ -99,8 +99,10 @@ pub const COMPONENT_BOX_WIDTH: i32 = 200;
 pub const COMPONENT_BOX_HEIGHT: i32 = 80;
 
 /// Canvas margin used in the component/deployment renderer, in user units.
-/// Titles and package-label tabs are drawn inside this margin.
-pub const COMPONENT_CANVAS_MARGIN: i32 = 40;
+/// Titles and package-label tabs are drawn inside this margin. Derived from
+/// `DEFAULT_CANVAS_MARGIN` so the component renderer and graph layout keep the
+/// same outer gutter.
+pub const COMPONENT_CANVAS_MARGIN: i32 = DEFAULT_CANVAS_MARGIN as i32;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sequence diagram geometry (sequence.rs)
