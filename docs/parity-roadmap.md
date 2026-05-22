@@ -1,12 +1,18 @@
 # Parity Roadmap
 
+> **Superseded as the support scoreboard.** The canonical PlantUML support matrix is
+> now [`docs/internal/spec/plantuml-spec.md`](internal/spec/plantuml-spec.md) with
+> per-chapter audits under [`docs/internal/spec/audit/`](internal/spec/audit/). This
+> roadmap is retained for execution planning, historical closure notes, and the
+> fixture-reference contract enforced by `tests/ecosystem_rollout_contract_audit.rs`.
+
 Date: 2026-05-17
 
 ## Reading This Roadmap
 
 This file records the parity mission, historical closure notes, and future
 execution slices. It is not the measured parity scoreboard. Current support
-status lives in `docs/internal/parity/plantuml_parity_source_of_truth.md`, and measured
+status lives in `docs/internal/spec/plantuml-spec.md` (canonical) and measured
 oracle evidence comes from JAR-backed `oracle-report-<run>` CI artifacts or a
 fresh local `PUML_ORACLE_JAR` run.
 
@@ -28,7 +34,7 @@ Product language policy baseline:
 
 ## Source Inputs
 
-- Current parity research: `docs/internal/research/parity-research-chunk-g-sequence.md`
+- Canonical PlantUML support matrix: `docs/internal/spec/plantuml-spec.md` (and per-chapter audits under `docs/internal/spec/audit/`)
 - Frontend conformance contract matrix: `docs/internal/parity/plantuml_frontend_conformance_matrix.md`
 - Contract decisions: `docs/internal/architecture-decisions.md`
 - Coverage and test signals: `docs/internal/coverage-status.md`, `tests/**`

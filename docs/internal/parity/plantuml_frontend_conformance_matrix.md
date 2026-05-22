@@ -1,5 +1,12 @@
 # PlantUML Frontend Conformance Matrix
 
+> **Scope-narrowed.** Broad PlantUML language support is now tracked in
+> [`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md) and
+> [`docs/internal/spec/audit/`](../spec/audit/). This matrix is retained as a
+> deterministic runtime contract for the implemented frontend slice (block
+> boundaries, directives, comments, multi-block extraction) and is enforced by
+> `tests/plantuml_frontend_conformance_audit.rs`.
+
 Issue lane: #130  
 Last updated: 2026-05-17 (America/Los_Angeles)
 

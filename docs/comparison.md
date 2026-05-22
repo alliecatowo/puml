@@ -2,6 +2,9 @@
 
 An objective look at where each tool wins, where it doesn't, and how to choose.
 
+> For per-feature PlantUML support detail, see the canonical support matrix at
+> [`docs/internal/spec/plantuml-spec.md`](internal/spec/plantuml-spec.md).
+
 ---
 
 ## Feature matrix

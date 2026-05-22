@@ -1,7 +1,13 @@
 # PlantUML Parity Source of Truth
 
+> **Superseded as the canonical status surface.** The new canonical PlantUML support
+> matrix is [`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md), backed
+> by 27 per-chapter audits under [`docs/internal/spec/audit/`](../spec/audit/). This
+> file is retained because `tests/parity_csv_audit.rs` parses its markdown table
+> rows; treat the new spec as authoritative when status disagrees.
+
 Status date: 2026-05-17  
-Canonical status artifact for machine/human parity review.
+Legacy machine-readable parity table (kept for tooling/test compatibility).
 
 ## Contract
 
