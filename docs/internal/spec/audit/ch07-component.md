@@ -61,16 +61,16 @@ Legend: ✅ supported · 🟡 partial · ❌ missing
 **Evidence:** Interface kind stored but UML2 vs UML1 styling toggle not found.
 **Notes:** Lollipop endpoints rendered via `render_lollipop_endpoint` (`src/render/relation.rs:169`) when relation has `left_lollipop`/`right_lollipop` flags set via `()` prefix on side (`parser/family.rs:662-671`).
 
-### 7.8 UML1 notation (`skinparam componentStyle uml1`) — ❌
-**Feature:** Switch to UML1 style with `«component»` stereotype rectangle.
+### 7.8 UML1 notation (`skinparam componentStyle uml1`) — ✅
+**Feature:** Switch to UML1 style with `«component»` stereotype rectangle and badge in top-right corner.
 **Syntax example:** `skinparam componentStyle uml1`
-**Status:** ❌
-**Evidence:** No `componentStyle` skinparam handling found. `grep componentStyle` matches only Rust type names.
+**Status:** ✅
+**Evidence:** `src/normalize/family.rs` parses `componentStyle` skinparam. `ComponentStyleKind::Uml1` variant stored on `ComponentDocument`. `src/render/family.rs` renders badge/stereotype decoration when `uml1` style is active. Tests: `tests/ch07_component_parity.rs` (`component_style_uml1_sets_badge_attribute`, `component_style_uml1_badges_are_in_top_right`).
 
-### 7.9 Rectangle notation (`skinparam componentStyle rectangle`) — ❌
-**Feature:** Suppress component icon, render as bare rectangle.
-**Status:** ❌
-**Evidence:** Same as 7.8 — no `componentStyle` keyword handler.
+### 7.9 Rectangle notation (`skinparam componentStyle rectangle`) — ✅
+**Feature:** Suppress component icon, render as bare rectangle with no badge or stereotype label.
+**Status:** ✅
+**Evidence:** `ComponentStyleKind::Rectangle` variant. Renderer suppresses badge and stereotype decorators in rectangle mode. Tests: `tests/ch07_component_parity.rs` (`component_style_rectangle_sets_attribute`, `component_style_rectangle_no_badges`, `component_style_rectangle_hides_stereotype`).
 
 ### 7.10 Long description (bracketed body) — 🟡
 **Feature:** `component comp1 [ multi-line description ]`
@@ -97,12 +97,12 @@ Legend: ✅ supported · 🟡 partial · ❌ missing
 **Evidence:** `src/normalize/family.rs:1382-1395` parses `BackgroundColor`/`BorderColor`/`FontColor`/`ArrowColor`/`InterfaceColor` into a `ComponentStyle` struct.
 **Notes:** Stereotype-scoped variants (`<<Apache>>` suffix) not visibly handled.
 
-### 7.14 Specific SkinParameter — componentStyle uml2/rectangle — ❌
-See 7.8/7.9.
+### 7.14 Specific SkinParameter — componentStyle uml2/rectangle — ✅
+See 7.8/7.9. `uml2` is now the explicit default; `uml1` and `rectangle` are also supported.
 
-### 7.15 Hide / Remove unlinked (`hide @unlinked`, `remove @unlinked`) — ❌
-**Status:** ❌
-**Evidence:** `grep -E '@unlinked'` in `src/` returns no hits.
+### 7.15 Hide / Remove unlinked (`hide @unlinked`, `remove @unlinked`) — ✅
+**Status:** ✅
+**Evidence:** `src/normalize/family.rs` handles `hide @unlinked` and `remove @unlinked` directives, filtering out orphan nodes (those with no edges) from the component graph before rendering. Tests: `tests/ch07_component_parity.rs` (`hide_unlinked_removes_orphan_nodes`, `remove_unlinked_removes_orphan_nodes`, `hide_unlinked_keeps_all_when_all_linked`, `hide_unlinked_does_not_affect_sequence_diagrams`).
 
 ### 7.16 Hide/Remove/Restore tagged (`$tag`, `*`) — ❌
 **Status:** ❌
@@ -125,8 +125,8 @@ See 7.8/7.9.
 
 | Status | Count |
 |---|---|
-| ✅ Supported | 6 (§7.1, 7.2, 7.3, 7.4, 7.5, 7.6) |
+| ✅ Supported | 10 (§7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.8, 7.9, 7.14, 7.15) |
 | 🟡 Partial | 6 (§7.1.1, 7.7, 7.10, 7.11, 7.13, 7.18) |
-| ❌ Missing | 6 (§7.8, 7.9, 7.12, 7.15, 7.16, 7.17) |
+| ❌ Missing | 3 (§7.12, 7.16, 7.17) |
 
-**Headline gaps:** `skinparam componentStyle uml1/rectangle` toggle; `hide/remove @unlinked` and `$tag`; sprites; `allowmixing` + JSON; multi-line bracketed component bodies.
+**Headline gaps:** `$tag` hide/remove/restore tagging; sprites in stereotypes; `allowmixing` + JSON; multi-line bracketed component bodies.
