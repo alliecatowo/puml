@@ -5208,10 +5208,20 @@ fn render_centered_multiline_text(
         font_weight,
         fill.map_or(String::new(), |value| format!(" fill=\"{}\"", value))
     ));
-    out.push_str(&format!("<tspan x=\"{}\" y=\"{}\">{}</tspan>", x, start_y, escape_text(lines[0])));
+    out.push_str(&format!(
+        "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
+        x,
+        start_y,
+        escape_text(lines[0])
+    ));
     for (idx, line) in lines.iter().enumerate().skip(1) {
         let y = start_y + (idx as i32 * line_height);
-        out.push_str(&format!("<tspan x=\"{}\" y=\"{}\">{}</tspan>", x, y, escape_text(line)));
+        out.push_str(&format!(
+            "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
+            x,
+            y,
+            escape_text(line)
+        ));
     }
     out.push_str("</text>");
     start_y + ((lines.len() as i32 - 1) * line_height)

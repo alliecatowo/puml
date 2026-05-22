@@ -373,8 +373,14 @@ Line 2
 ";
     let svg = render_svg(src);
     assert!(svg.contains("comp1"), "component name should render");
-    assert!(svg.contains("Line 1"), "first multiline description row should render");
-    assert!(svg.contains("Line 2"), "second multiline description row should render");
+    assert!(
+        svg.contains("Line 1"),
+        "first multiline description row should render"
+    );
+    assert!(
+        svg.contains("Line 2"),
+        "second multiline description row should render"
+    );
     assert!(
         !svg.contains("Line 1Line 2"),
         "multiline bracket description should preserve line breaks"
