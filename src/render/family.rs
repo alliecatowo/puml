@@ -100,6 +100,14 @@ fn relation_pair_label_lane_map(
 fn relation_source_label_lane_map(
     document: &FamilyDocument,
 ) -> std::collections::BTreeMap<usize, i32> {
+    let mut kind_by_key: std::collections::BTreeMap<String, FamilyNodeKind> =
+        std::collections::BTreeMap::new();
+    for node in &document.nodes {
+        kind_by_key.insert(node.name.clone(), node.kind);
+        if let Some(alias) = &node.alias {
+            kind_by_key.insert(alias.clone(), node.kind);
+        }
+    }
     let mut source_labeled_indices: std::collections::BTreeMap<String, Vec<usize>> =
         std::collections::BTreeMap::new();
     let mut lanes = std::collections::BTreeMap::new();
@@ -113,7 +121,12 @@ fn relation_source_label_lane_map(
                 .stereotype
                 .as_deref()
                 .is_some_and(|label| !label.trim().is_empty());
-        if has_label {
+        if has_label
+            && kind_by_key
+                .get(&relation.from)
+                .copied()
+                .is_some_and(is_c4_component_kind)
+        {
             source_labeled_indices
                 .entry(relation.from.clone())
                 .or_default()
@@ -125,9 +138,7 @@ fn relation_source_label_lane_map(
         if indices.len() <= 1 {
             continue;
         }
-        let count = indices.len() as i32;
         for (slot, rel_idx) in indices.iter().enumerate() {
-            let _ = count; // keep shape explicit for future non-linear spacing.
             lanes.insert(*rel_idx, (slot as i32) * 20);
         }
     }
@@ -1234,7 +1245,6 @@ fn class_build_label_overrides(
         let mut sorted = group.clone();
         sorted.sort_unstable();
         let count = sorted.len();
-        let mut tentative: Vec<(usize, i32, i32, i32)> = Vec::with_capacity(count);
         for (slot, &raw_idx) in sorted.iter().enumerate() {
             let rl = &raw_labels[raw_idx];
             let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
@@ -1248,28 +1258,8 @@ fn class_build_label_overrides(
                 (lx, ly - 2)
             };
             let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
-            tentative.push((rl.rel_idx, lx, ly, label_half_w));
-        }
-
-        // Only introduce extra lane spacing when sibling labels from the same
-        // source would actually overlap, so we avoid broad overcorrection.
-        let has_overlap = tentative.iter().enumerate().any(|(i, (_, _lx_i, ly_i, _hw_i))| {
-            tentative.iter().skip(i + 1).any(|(_, _lx_j, ly_j, _hw_j)| {
-                // Treat near-stacked labels as a collision even when x-ranges
-                // only partially overlap, because forked C4 edges can still
-                // read as "overlapped" at split points.
-                (ly_i - ly_j).abs() < 28
-            })
-        });
-
-        for (slot, (rel_idx, lx, ly, label_half_w)) in tentative.into_iter().enumerate() {
-            let lane_offset = if has_overlap {
-                ((slot as i32) * 2 - (count as i32 - 1)) * 10
-            } else {
-                0
-            };
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, node_boxes);
-            label_override.insert(rel_idx, (lx, ly + lane_offset));
+            label_override.insert(rl.rel_idx, (lx, ly));
         }
     }
 
@@ -3334,6 +3324,16 @@ fn is_c4_kind(kind: FamilyNodeKind) -> bool {
             | FamilyNodeKind::C4ComponentDb
             | FamilyNodeKind::C4ComponentQueue
             | FamilyNodeKind::C4Boundary
+    )
+}
+
+fn is_c4_component_kind(kind: FamilyNodeKind) -> bool {
+    matches!(
+        kind,
+        FamilyNodeKind::C4Component
+            | FamilyNodeKind::C4ComponentExt
+            | FamilyNodeKind::C4ComponentDb
+            | FamilyNodeKind::C4ComponentQueue
     )
 }
 
