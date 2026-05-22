@@ -193,6 +193,8 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Count normalized diagram nodes and edges.
+    Count(CountArgs),
     /// Format PlantUML-compatible source files in place, or verify/print formatting changes.
     Format(FormatArgs),
     /// Parse and normalize a .puml file and emit diagnostics without rendering.
@@ -200,6 +202,17 @@ pub enum Command {
     /// Useful as a fast pre-commit check. Exits 0 when no errors are found,
     /// 1 when any diagnostic errors are emitted, and 2 on I/O failure.
     Lint(LintArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct CountArgs {
+    /// PlantUML source file to count.
+    #[arg(value_name = "FILE", required = true)]
+    pub file: PathBuf,
+
+    /// Print a per-kind node breakdown.
+    #[arg(long, action = ArgAction::SetTrue)]
+    pub by_kind: bool,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -387,6 +400,21 @@ mod tests {
                     vec![PathBuf::from("a.puml"), PathBuf::from("b.puml")]
                 );
             }
+            Command::Count(_) => panic!("unexpected count command"),
+            Command::Lint(_) => panic!("unexpected lint command"),
+        }
+    }
+
+    #[test]
+    fn count_subcommand_parses_file_and_flags() {
+        let cli = Cli::try_parse_from(["puml", "count", "--by-kind", "diag.puml"])
+            .expect("count subcommand should parse");
+        match cli.command.expect("count command should be present") {
+            Command::Count(args) => {
+                assert_eq!(args.file, PathBuf::from("diag.puml"));
+                assert!(args.by_kind);
+            }
+            Command::Format(_) => panic!("unexpected format command"),
             Command::Lint(_) => panic!("unexpected lint command"),
         }
     }
@@ -401,6 +429,7 @@ mod tests {
                 assert_eq!(args.format, LintFormat::Json);
                 assert!(args.quiet);
             }
+            Command::Count(_) => panic!("unexpected count command"),
             Command::Format(_) => panic!("unexpected format command"),
         }
     }
@@ -414,6 +443,7 @@ mod tests {
                 assert_eq!(args.format, LintFormat::Human);
                 assert!(!args.quiet);
             }
+            Command::Count(_) => panic!("unexpected count command"),
             Command::Format(_) => panic!("unexpected format command"),
         }
     }

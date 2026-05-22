@@ -1,4 +1,5 @@
 mod cli;
+mod cli_count;
 mod cli_watch;
 
 use clap::{CommandFactory, FromArgMatches};
@@ -273,6 +274,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     };
     if let Some(command) = cli.command.take() {
         return match command {
+            CliCommand::Count(args) => cli_count::run_count(&args)
+                .map(|_| ())
+                .map_err(|(code, msg)| (code as u8, msg)),
             CliCommand::Format(args) => run_format_command(args),
             CliCommand::Lint(args) => run_lint_subcommand(args, lint_context),
         };
