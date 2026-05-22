@@ -1789,6 +1789,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut timing_monochrome_mode = None;
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
+    let mut last_relation: Option<(String, String)> = None;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     let mut orientation = FamilyOrientation::TopToBottom;
@@ -2086,6 +2087,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 } else {
                     (rel.from, rel.to)
                 };
+                last_relation = Some((from.clone(), to.clone()));
                 // Component/Deployment: auto-create nodes for relation endpoints
                 // declared only via bracket shorthand (e.g. `[WebServer] --> [DB]`).
                 if matches!(
@@ -2162,7 +2164,27 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                         fill_color: None,
                     });
                 } else {
-                    nodes.push(family_note_node(note_counter, note));
+                    let target = note.target.clone();
+                    let note_node = family_note_node(note_counter, note);
+                    let note_name = note_node.name.clone();
+                    nodes.push(note_node);
+                    if let Some(target) = target {
+                        let target = if target.eq_ignore_ascii_case("on link") {
+                            last_relation
+                                .as_ref()
+                                .map(|(_, to)| to.clone())
+                                .unwrap_or_default()
+                        } else {
+                            target
+                        };
+                        if !target.is_empty() {
+                            relations.push(simple_family_relation(
+                                relation_node_endpoint(&target),
+                                note_name,
+                                "..".to_string(),
+                            ));
+                        }
+                    }
                 }
             }
             StatementKind::ClassGroup {

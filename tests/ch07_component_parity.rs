@@ -330,3 +330,33 @@ fn component_tags_do_not_render_as_member_text() {
         "component tag metadata should not render as visible text"
     );
 }
+
+#[test]
+fn component_note_is_visible_and_connected() {
+    let src = "\
+@startuml
+[API]
+[DB]
+API --> DB : query
+note right of API: public facade
+note right on link: encrypted
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("public facade"),
+        "component note text should render as a note node"
+    );
+    assert!(
+        svg.contains("encrypted"),
+        "on-link note text should render as a note node"
+    );
+    assert!(
+        svg.contains("data-uml-from=\"API\"") && svg.contains("data-uml-arrow=\"..\""),
+        "note attachment edge should connect API to a note with dotted relation"
+    );
+    assert!(
+        svg.contains("data-uml-from=\"DB\"") && svg.matches("data-uml-arrow=\"..\"").count() >= 2,
+        "on-link note should attach to the most recent relation target with dotted relation"
+    );
+}
