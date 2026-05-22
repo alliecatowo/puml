@@ -405,7 +405,12 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      statuses: write
     env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       RUN_FULL_GATE: ${{ needs.changes.outputs.run_full_gate }}
       RUN_DOCS_EXAMPLES_DRIFT: ${{ needs.changes.outputs.run_docs_examples_drift }}
       RUN_WASM_CHECK: ${{ needs.changes.outputs.run_wasm_check }}
@@ -424,6 +429,7 @@ jobs:
 
     steps:
       - name: Summarize PR gate shards
+        id: summarize
         shell: bash
         run: |
           set -euo pipefail
@@ -457,8 +463,11 @@ jobs:
 
           if [[ "${REGEN_PUSHED}" == "true" ]]; then
             require_success "artifact regen" "${ARTIFACT_REGEN_RESULT}"
-            echo "Artifact regeneration pushed a follow-up commit; a workflow_dispatch rerun has been queued for the updated head SHA."
-            exit 0
+            if (( ${#failures[@]} == 0 )); then
+              echo "state=success" >> "${GITHUB_OUTPUT}"
+              echo "description=Artifact regeneration pushed a follow-up commit; rerun queued for updated head SHA." >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
           fi
 
           if [[ "${RUN_FULL_GATE}" == "true" ]]; then
@@ -483,9 +492,34 @@ jobs:
           fi
 
           if (( ${#failures[@]} > 0 )); then
-            printf 'PR gate failed:\n' >&2
-            printf '  - %s\n' "${failures[@]}" >&2
-            exit 1
+            echo "state=failure" >> "${GITHUB_OUTPUT}"
+            echo "description=PR gate failed; inspect workflow summary." >> "${GITHUB_OUTPUT}"
+          else
+            echo "state=success" >> "${GITHUB_OUTPUT}"
+            echo "description=PR gate passed." >> "${GITHUB_OUTPUT}"
           fi
 
-          echo "PR gate passed."
+      - name: Publish required status context
+        shell: bash
+        env:
+          STATUS_STATE: ${{ steps.summarize.outputs.state }}
+          STATUS_DESCRIPTION: ${{ steps.summarize.outputs.description }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            --method POST \
+            "repos/${{ github.repository }}/statuses/${TARGET_SHA}" \
+            -f state="${STATUS_STATE}" \
+            -f context="fmt-clippy-test-coverage-quick" \
+            -f description="${STATUS_DESCRIPTION}" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Fail when any required shard failed
+        if: steps.summarize.outputs.state != 'success'
+        shell: bash
+        env:
+          STATUS_DESCRIPTION: ${{ steps.summarize.outputs.description }}
+        run: |
+          printf 'PR gate failed:\n  - %s\n' "${STATUS_DESCRIPTION}" >&2
+          exit 1
