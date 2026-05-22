@@ -437,7 +437,7 @@ fn split_highlight_end_label(after: &str) -> (&str, &str) {
             // Check it's not `line:` within colour spec
             let rest = &after[i..];
             let trimmed = rest.trim_start_matches(':').trim_start();
-            return (&after[..i].trim_end(), trimmed);
+            return (after[..i].trim_end(), trimmed);
         }
         i += 1;
     }
