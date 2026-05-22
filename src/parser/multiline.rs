@@ -86,7 +86,13 @@ fn parse_multiline_note_block(
     start: usize,
     line: &str,
 ) -> Option<(StatementKind, usize)> {
-    let lower = line.to_ascii_lowercase();
+    // Strip leading `/ ` aligned prefix (feature 1.18) before matching the note keyword.
+    let (aligned, effective_line) = if line.trim_start().starts_with("/ ") {
+        (true, line.trim_start().trim_start_matches('/').trim_start())
+    } else {
+        (false, line)
+    };
+    let lower = effective_line.to_ascii_lowercase();
     let note_kw = if lower.starts_with("note ") {
         "note"
     } else if lower.starts_with("hnote ") {
@@ -97,7 +103,7 @@ fn parse_multiline_note_block(
         return None;
     };
 
-    let tail = line[note_kw.len()..].trim();
+    let tail = effective_line[note_kw.len()..].trim();
     if tail.is_empty() {
         return None;
     }
@@ -120,6 +126,7 @@ fn parse_multiline_note_block(
                     position,
                     target,
                     text: body.join("\n"),
+                    aligned,
                 }),
                 idx,
             ));
@@ -131,6 +138,7 @@ fn parse_multiline_note_block(
                     position,
                     target,
                     text: body.join("\n"),
+                    aligned,
                 }),
                 idx,
             ));

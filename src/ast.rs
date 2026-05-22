@@ -173,6 +173,8 @@ pub enum StatementKind {
     },
     HideOption(String),
     HideUnlinked,
+    /// `mainframe <title>` — draws a UML mainframe border around the whole diagram.
+    Mainframe(String),
     /// `json $alias { ... }` inline block inside a `@startuml`/`@enduml` block.
     /// The body is the raw JSON text (everything between the outer braces).
     JsonProjection {
@@ -450,6 +452,8 @@ pub enum VirtualEndpointKind {
     Circle,
     Cross,
     Filled,
+    /// Short arrow (`?->` / `->?`) — stub from the diagram edge (feature 1.30).
+    Short,
 }
 
 #[derive(Debug, Clone)]
@@ -458,6 +462,9 @@ pub struct Note {
     pub position: String,
     pub target: Option<String>,
     pub text: String,
+    /// When `true`, the note is rendered aligned with the previous note at the
+    /// same vertical level (PlantUML `/ note` syntax — feature 1.18).
+    pub aligned: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

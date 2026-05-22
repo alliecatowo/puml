@@ -1095,6 +1095,11 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     ) => {
                         style.hand_drawn = enabled;
                     }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineNoSolid(nosolid),
+                    ) => {
+                        style.lifeline_nosolid = nosolid;
+                    }
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(

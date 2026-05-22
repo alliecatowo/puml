@@ -117,19 +117,22 @@ pub fn render_svg(scene: &Scene) -> String {
         out.push_str("</g>");
     }
 
-    for a in &scene.activations {
-        let offset = (a.depth as i32) * 6;
-        let x = a.x + offset - 5;
-        let y = a.y1.min(a.y2);
-        let height = (a.y2 - a.y1).abs().max(12);
-        out.push_str(&format!(
-            "<rect class=\"sequence-activation\" data-participant=\"{}\" x=\"{}\" y=\"{}\" width=\"10\" height=\"{}\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1\"/>",
-            escape_text(&a.participant_id),
-            x,
-            y,
-            height,
-            scene.style.lifeline_border_color
-        ));
+    // `lifelineStrategy nosolid` suppresses activation boxes on the lifeline.
+    if !scene.style.lifeline_nosolid {
+        for a in &scene.activations {
+            let offset = (a.depth as i32) * 6;
+            let x = a.x + offset - 5;
+            let y = a.y1.min(a.y2);
+            let height = (a.y2 - a.y1).abs().max(12);
+            out.push_str(&format!(
+                "<rect class=\"sequence-activation\" data-participant=\"{}\" x=\"{}\" y=\"{}\" width=\"10\" height=\"{}\" fill=\"#ffffff\" stroke=\"{}\" stroke-width=\"1\"/>",
+                escape_text(&a.participant_id),
+                x,
+                y,
+                height,
+                scene.style.lifeline_border_color
+            ));
+        }
     }
 
     for g in &scene.groups {
@@ -598,8 +601,55 @@ pub fn render_svg(scene: &Scene) -> String {
         render_legend(&mut out, legend_text, scene);
     }
 
+    // Render mainframe border last so it overlays everything (feature 1.43).
+    if let Some(mainframe_title) = &scene.mainframe {
+        render_mainframe(&mut out, mainframe_title, scene);
+    }
+
     out.push_str("</svg>");
     out
+}
+
+/// Render a UML mainframe border around the whole diagram.
+/// The mainframe is a rectangle inset by a small margin with a notched
+/// title label in the top-left corner — matching PlantUML's visual output.
+fn render_mainframe(out: &mut String, title: &str, scene: &Scene) {
+    const INSET: i32 = 4;
+    const NOTCH_H: i32 = 20;
+    const NOTCH_CUT: i32 = 6;
+    let char_w = 7_i32;
+    let notch_w = (title.chars().count() as i32 * char_w + 16).clamp(32, scene.width - 2 * INSET);
+
+    let x = INSET;
+    let y = INSET;
+    let w = scene.width - 2 * INSET;
+    let h = scene.height - 2 * INSET;
+
+    // Outer rectangle.
+    out.push_str(&format!(
+        "<rect class=\"uml-mainframe\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        x, y, w, h,
+        scene.style.arrow_color
+    ));
+    // Title notch (pentagon at top-left).
+    out.push_str(&format!(
+        "<polygon points=\"{},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        x, y,
+        x + notch_w, y,
+        x + notch_w, y + NOTCH_H - NOTCH_CUT,
+        x + notch_w - NOTCH_CUT, y + NOTCH_H,
+        x, y + NOTCH_H,
+        scene.style.participant_background_color,
+        scene.style.arrow_color
+    ));
+    // Title text.
+    out.push_str(&creole_text(
+        x + 8,
+        y + 14,
+        "font-family=\"monospace\" font-size=\"12\" font-weight=\"600\"",
+        title,
+        &scene.style.arrow_color,
+    ));
 }
 
 fn render_participant_group_box(out: &mut String, group: &crate::scene::GroupBox, scene: &Scene) {
@@ -1254,6 +1304,17 @@ fn render_virtual_endpoint_marker(out: &mut String, x: i32, y: i32, kind: Virtua
             out.push_str(&format!(
                 "<circle cx=\"{}\" cy=\"{}\" r=\"4\" fill=\"#111\" stroke=\"#111\" stroke-width=\"1.5\"/>",
                 x, y
+            ));
+        }
+        // Short arrow stub (`?->` / `->?`): render a short horizontal tick mark
+        // to indicate the message comes from / goes off the diagram edge.
+        VirtualEndpointKind::Short => {
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#111\" stroke-width=\"1.5\" stroke-dasharray=\"3 2\"/>",
+                x - 6,
+                y,
+                x + 6,
+                y
             ));
         }
     }
