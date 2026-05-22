@@ -63,17 +63,17 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 **Status:** 🟡
 **Evidence:** `src/render/specialized/nwdiag.rs` lays out nodes in columns per name (col widths logic at `:21-46`). Whether multi-network jump lines render correctly across 3+ networks is unverified — needs visual gate.
 
-### 13.8 Peer networks (`inet -- router`) — ❌
+### 13.8 Peer networks (`inet -- router`) — ✅
 **Feature:** Direct node-to-node connection outside a busbar network.
 **Syntax example:** `inet [shape = cloud]; inet -- router;`
-**Status:** ❌
-**Evidence:** `src/normalize/nwdiag.rs:9-125` only recognizes lines starting with `network`, `group`, `address`, `}`, or assignments inside a current network/group. The bare `inet [shape = cloud];` outside any network and the `inet -- router;` peer link are not parsed — they fall through the match arms with no handler.
-**Notes:** No `peer_links: Vec<(String, String)>` field on `NwdiagDocument` (`src/model.rs:151-157`). Critical gap for ch13.8 + 13.9.
+**Status:** ✅
+**Evidence:** `src/normalize/nwdiag.rs` now parses standalone node entries and `a -- b` peer links outside `network {}` blocks, storing them on `NwdiagDocument.peer_nodes` / `peer_links` in `src/model.rs`. `src/render/specialized/nwdiag.rs` renders these as standalone node boxes plus `class="nwdiag-peer-link"` SVG lines.
+**Notes:** Standalone nodes can be declared explicitly (`inet [shape = cloud]`) or created implicitly from a peer-link endpoint.
 
-### 13.9 Peer networks combined with groups — ❌
+### 13.9 Peer networks combined with groups — ✅
 **Feature:** Peer links + groups together.
-**Status:** ❌
-**Evidence:** Blocked by 13.8 — peer-link parsing missing.
+**Status:** ✅
+**Evidence:** `src/render/specialized/nwdiag.rs` computes node rectangles across both peer-node and network/group layouts, then renders group overlays and peer-link lines in the same scene. Targeted coverage lives in `tests/ch13_nwdiag_parity.rs`.
 
 ### 13.10 Title / header / footer / legend / caption — 🟡
 **Feature:** `title`, `header`, `footer`, `legend ... end legend`, `caption` on nwdiag.
@@ -87,17 +87,17 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 **Evidence:** `src/render/specialized/nwdiag.rs` has no style-engine integration visible for shadowing toggles.
 **Notes:** Default appears to be no shadowing.
 
-### 13.12 Network `width = full` — ❌
+### 13.12 Network `width = full` — ✅
 **Feature:** Per-network `width = full` to extend the busbar to common width.
-**Status:** ❌
-**Evidence:** `NwdiagNetwork` struct (`src/model.rs:159-168`) has no `width` field; the assignment parser at `src/normalize/nwdiag.rs:85-93` only handles `color`/`description`/`label`/`shape`/`style`. `width = full` is silently dropped.
-**Notes:** Node-level `width` (numeric) IS supported (`src/normalize/nwdiag.rs:194`), but network-level `width = full` is not.
+**Status:** ✅
+**Evidence:** `src/model.rs` adds `NwdiagNetwork.width_full`, `src/normalize/nwdiag.rs` maps `width = full` onto that field, and `src/render/specialized/nwdiag.rs` widens those busbars to the shared topology span while emitting `data-nwdiag-width-mode="full"` for verification.
+**Notes:** Node-level numeric `width = N` remains separate from the network-level `width = full` mode.
 
-### 13.13 Other internal networks (TCP/IP/USB/SERIAL via `switch -- equip` chain) — ❌
+### 13.13 Other internal networks (TCP/IP/USB/SERIAL via `switch -- equip` chain) — ✅
 **Feature:** Chained peer link statements outside `network { }` blocks.
 **Syntax example:** `switch -- equip; equip -- printer;`
-**Status:** ❌
-**Evidence:** Blocked by 13.8 — same peer-link parsing gap.
+**Status:** ✅
+**Evidence:** `src/normalize/nwdiag.rs` parses `a -- b -- c` chains into multiple peer links, and `tests/ch13_nwdiag_parity.rs` asserts that the chain renders as multiple `nwdiag-peer-link` segments in one diagram.
 
 ### 13.14 Global style (`<style> nwdiagDiagram { network { ... } server { ... } arrow { ... } group { ... } }`) — ❌
 **Feature:** Per-scope skinning (network, server, arrow, group) via `<style>`.
@@ -113,4 +113,4 @@ Source: `/tmp/puml-spec/ch13-network-diagram-with-nwdiag.txt`.
 
 ---
 
-**Tally ch13 (17 subsections audited):** ✅ 8 · 🟡 4 · ❌ 5
+**Tally ch13 (17 subsections audited):** ✅ 12 · 🟡 4 · ❌ 1

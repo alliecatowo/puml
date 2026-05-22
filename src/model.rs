@@ -176,6 +176,8 @@ pub struct YamlTreeNode {
 pub struct NwdiagDocument {
     pub networks: Vec<NwdiagNetwork>,
     pub groups: Vec<NwdiagGroup>,
+    pub peer_nodes: Vec<NwdiagNode>,
+    pub peer_links: Vec<NwdiagPeerLink>,
     pub title: Option<String>,
     pub warnings: Vec<Diagnostic>,
 }
@@ -188,6 +190,7 @@ pub struct NwdiagNetwork {
     pub color: Option<String>,
     pub shape: Option<String>,
     pub style: Option<String>,
+    pub width_full: bool,
     pub nodes: Vec<NwdiagNode>,
 }
 
@@ -211,6 +214,12 @@ pub struct NwdiagGroup {
     pub shape: Option<String>,
     pub style: Option<String>,
     pub nodes: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NwdiagPeerLink {
+    pub from: String,
+    pub to: String,
 }
 
 #[derive(Debug, Clone)]
