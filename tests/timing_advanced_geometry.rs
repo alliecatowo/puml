@@ -489,6 +489,33 @@ fn timing_distributed_trace_fixture_renders_cross_lane_messages_and_cache_window
 }
 
 #[test]
+fn timing_messages_can_target_lanes_by_display_label() {
+    let src = r#"@startuml
+concise "CPU lane" as cpu
+concise "Memory lane" as mem
+@10
+cpu is run
+mem is idle
+CPU lane -> Memory lane : load
+@12
+Memory lane -> CPU lane : ack
+@14
+cpu -> mem : done
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("render timing lane label message fixture");
+
+    let message_count = svg.matches("class=\"timing-message\"").count();
+    assert_eq!(
+        message_count, 3,
+        "expected all lane-label and alias-based messages to render"
+    );
+    assert!(svg.contains(">load</text>"));
+    assert!(svg.contains(">ack</text>"));
+    assert!(svg.contains(">done</text>"));
+}
+
+#[test]
 fn timing_date_axis_values_render_as_ticks_and_states() {
     let src = r#"@startuml
 robust "Web Browser" as WB
