@@ -1449,6 +1449,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 let name = format!("__act_{activity_step_counter:04}");
                 let mut label = step.label;
                 let fill_color = extract_activity_inline_fill(&mut label);
+                let is_activity_note_step = matches!(step.kind, ActivityStepKind::Note);
                 match step.kind {
                     ActivityStepKind::PartitionStart => {
                         activity_active_partition = label.clone();
@@ -1469,9 +1470,13 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     }
                     _ => {}
                 }
-                let lane = activity_active_partition
-                    .clone()
-                    .unwrap_or_else(|| "default".to_string());
+                let lane = if is_activity_note_step {
+                    "default".to_string()
+                } else {
+                    activity_active_partition
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string())
+                };
                 let alias = format!(
                     "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
                     step.kind, lane, activity_fork_depth, activity_fork_branch
@@ -1653,22 +1658,19 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 note_counter += 1;
                 if family_kind == DiagramKind::Activity {
                     activity_step_counter += 1;
-                    let lane = activity_active_partition
-                        .clone()
-                        .unwrap_or_else(|| "default".to_string());
                     let position = note.position.trim().to_string();
                     let text = note.text.trim();
                     let label = if text.is_empty() {
-                        format!("note {position}")
+                        "note".to_string()
                     } else {
-                        format!("note {position}: {text}")
+                        text.to_string()
                     };
                     nodes.push(FamilyNode {
                         kind: FamilyNodeKind::Note,
                         name: format!("__act_{activity_step_counter:04}"),
                         alias: Some(format!(
-                            "activity::Note|lane={}|fork_depth={}|fork_branch={}",
-                            lane, activity_fork_depth, activity_fork_branch
+                            "activity::Note|position={}|lane={}|fork_depth={}|fork_branch={}",
+                            position, "default", activity_fork_depth, activity_fork_branch
                         )),
                         members: Vec::new(),
                         depth: 0,

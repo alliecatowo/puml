@@ -468,11 +468,10 @@ fn parse_activity_note_step(line: &str) -> Option<String> {
         .trim_start_matches(':')
         .trim_end_matches(';')
         .trim();
-    let display_prefix = prefix.replace("floating ", "");
     Some(if rest.is_empty() {
-        display_prefix
+        "note".to_string()
     } else {
-        format!("{display_prefix}: {rest}")
+        rest.to_string()
     })
 }
 
