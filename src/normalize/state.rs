@@ -11,6 +11,9 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
     let mut state_style = StateStyle::default();
     let mut monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
+    let mut note_counter = 0usize;
+    let mut projection_counter = 0usize;
+    let mut last_transition_target: Option<String> = None;
 
     for stmt in &document.statements {
         match &stmt.kind {
@@ -34,6 +37,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     thickness: t.thickness,
                     direction: t.direction.clone(),
                 });
+                last_transition_target = Some(t.to.clone());
             }
             StatementKind::StateInternalAction(a) => {
                 ensure_state_node(&mut nodes, &a.state);
@@ -66,10 +70,63 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                         }),
                         kind,
                         stereotype: None,
+                        style: Default::default(),
                         internal_actions: Vec::new(),
                         regions: Vec::new(),
                     },
                 );
+            }
+            StatementKind::Note(note) => {
+                note_counter += 1;
+                let note_name = format!("__state_note_{note_counter:04}");
+                let note_text = if note.text.trim().is_empty() {
+                    "note".to_string()
+                } else {
+                    note.text.trim().to_string()
+                };
+                nodes.push(StateNode {
+                    name: note_name.clone(),
+                    display: Some(note_text),
+                    kind: StateNodeKind::Note,
+                    stereotype: Some(note.position.clone()),
+                    style: Default::default(),
+                    internal_actions: Vec::new(),
+                    regions: Vec::new(),
+                });
+
+                let target = note.target.as_ref().and_then(|target| {
+                    if target.eq_ignore_ascii_case("on link") {
+                        last_transition_target.clone()
+                    } else {
+                        Some(target.clone())
+                    }
+                });
+                if let Some(target) = target {
+                    ensure_state_node(&mut nodes, &target);
+                    transitions.push(ModelStateTransition {
+                        from: target,
+                        to: note_name,
+                        label: None,
+                        line_color: Some("#6b7280".to_string()),
+                        dashed: true,
+                        hidden: false,
+                        thickness: Some(1),
+                        direction: Some(note.position.clone()),
+                    });
+                }
+            }
+            StatementKind::JsonProjection { alias, body } => {
+                projection_counter += 1;
+                let projection_name = format!("__state_json_{projection_counter:04}");
+                nodes.push(StateNode {
+                    name: projection_name,
+                    display: Some(format!("{}\n{}", alias.trim(), body.trim())),
+                    kind: StateNodeKind::JsonProjection,
+                    stereotype: Some("json".to_string()),
+                    style: Default::default(),
+                    internal_actions: Vec::new(),
+                    regions: Vec::new(),
+                });
             }
             StatementKind::Title(v) => title = Some(v.clone()),
             StatementKind::Header(v) => header = Some(v.clone()),
@@ -199,6 +256,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                 display: None,
                 kind: StateNodeKind::End,
                 stereotype: None,
+                style: Default::default(),
                 internal_actions: Vec::new(),
                 regions: Vec::new(),
             };
@@ -280,15 +338,34 @@ fn merge_state_node(existing: &mut StateNode, node: StateNode) {
     if node.display.is_some() && existing.display.is_none() {
         existing.display = node.display;
     }
+    merge_state_node_style(&mut existing.style, node.style);
+}
+
+fn merge_state_node_style(existing: &mut StateNodeStyle, incoming: StateNodeStyle) {
+    if incoming.fill_color.is_some() && existing.fill_color.is_none() {
+        existing.fill_color = incoming.fill_color;
+    }
+    if incoming.border_color.is_some() && existing.border_color.is_none() {
+        existing.border_color = incoming.border_color;
+    }
+    if incoming.border_dashed {
+        existing.border_dashed = true;
+    }
+    if incoming.border_thickness.is_some() && existing.border_thickness.is_none() {
+        existing.border_thickness = incoming.border_thickness;
+    }
+    if incoming.text_color.is_some() && existing.text_color.is_none() {
+        existing.text_color = incoming.text_color;
+    }
 }
 
 fn placeholder_state_node(name: &str) -> StateNode {
     let kind = if name == "[*]" {
         StateNodeKind::StartEnd
-    } else if name == "[H]" {
-        StateNodeKind::HistoryShallow
-    } else if name == "[H*]" {
+    } else if name.ends_with("[H*]") {
         StateNodeKind::HistoryDeep
+    } else if name.ends_with("[H]") {
+        StateNodeKind::HistoryShallow
     } else if name.starts_with("[*]__in__") {
         StateNodeKind::StartEnd
     } else if name.starts_with("[*]__end__") {
@@ -296,16 +373,19 @@ fn placeholder_state_node(name: &str) -> StateNode {
     } else {
         StateNodeKind::Normal
     };
-    let display = match name {
-        "[H]" => Some("H".to_string()),
-        "[H*]" => Some("H*".to_string()),
-        _ => None,
+    let display = if name.ends_with("[H*]") {
+        Some("H*".to_string())
+    } else if name.ends_with("[H]") {
+        Some("H".to_string())
+    } else {
+        None
     };
     StateNode {
         name: name.to_string(),
         display,
         kind,
         stereotype: None,
+        style: Default::default(),
         internal_actions: Vec::new(),
         regions: Vec::new(),
     }
@@ -393,12 +473,12 @@ fn scope_pseudo_star_region(
 }
 
 fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
-    let kind = match decl.stereotype.as_deref() {
-        Some("fork") => StateNodeKind::Fork,
-        Some("join") => StateNodeKind::Join,
-        Some("choice") => StateNodeKind::Choice,
-        Some("end") => StateNodeKind::End,
-        _ => StateNodeKind::Normal,
+    let kind = if decl.name.ends_with("[H*]") {
+        StateNodeKind::HistoryDeep
+    } else if decl.name.ends_with("[H]") {
+        StateNodeKind::HistoryShallow
+    } else {
+        state_kind_from_stereotype(decl.stereotype.as_deref())
     };
 
     // Parse children into regions separated by region_dividers
@@ -436,6 +516,7 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                             StateNodeKind::HistoryShallow
                         },
                         stereotype: None,
+                        style: Default::default(),
                         internal_actions: Vec::new(),
                         regions: Vec::new(),
                     },
@@ -467,6 +548,40 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                 // Apply to parent node's internal actions (will be collected below)
                 let _ = a;
             }
+            StatementKind::Note(note) => {
+                let note_name = format!("__state_note_in_{}_{child_idx:04}", decl.name);
+                upsert_region_state_node(
+                    &mut current_region,
+                    StateNode {
+                        name: note_name,
+                        display: Some(if note.text.trim().is_empty() {
+                            "note".to_string()
+                        } else {
+                            note.text.trim().to_string()
+                        }),
+                        kind: StateNodeKind::Note,
+                        stereotype: Some(note.position.clone()),
+                        style: Default::default(),
+                        internal_actions: Vec::new(),
+                        regions: Vec::new(),
+                    },
+                );
+            }
+            StatementKind::JsonProjection { alias, body } => {
+                let projection_name = format!("__state_json_in_{}_{child_idx:04}", decl.name);
+                upsert_region_state_node(
+                    &mut current_region,
+                    StateNode {
+                        name: projection_name,
+                        display: Some(format!("{}\n{}", alias.trim(), body.trim())),
+                        kind: StateNodeKind::JsonProjection,
+                        stereotype: Some("json".to_string()),
+                        style: Default::default(),
+                        internal_actions: Vec::new(),
+                        regions: Vec::new(),
+                    },
+                );
+            }
             _ => {}
         }
     }
@@ -488,11 +603,51 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
 
     StateNode {
         name: decl.alias.clone().unwrap_or_else(|| decl.name.clone()),
-        display: Some(decl.name.clone()),
+        display: state_decl_display(decl),
         kind,
         stereotype: decl.stereotype.clone(),
+        style: state_style_from_decl(&decl.style),
         internal_actions,
         regions,
+    }
+}
+
+fn state_decl_display(decl: &crate::ast::StateDecl) -> Option<String> {
+    if decl.name.ends_with("[H*]") {
+        Some("H*".to_string())
+    } else if decl.name.ends_with("[H]") {
+        Some("H".to_string())
+    } else {
+        Some(decl.name.clone())
+    }
+}
+
+fn state_kind_from_stereotype(stereotype: Option<&str>) -> StateNodeKind {
+    match stereotype.unwrap_or_default().to_ascii_lowercase().as_str() {
+        "start" => StateNodeKind::StartEnd,
+        "fork" => StateNodeKind::Fork,
+        "join" => StateNodeKind::Join,
+        "choice" => StateNodeKind::Choice,
+        "end" => StateNodeKind::End,
+        "history" => StateNodeKind::HistoryShallow,
+        "history*" => StateNodeKind::HistoryDeep,
+        "entrypoint" => StateNodeKind::EntryPoint,
+        "exitpoint" => StateNodeKind::ExitPoint,
+        "inputpin" => StateNodeKind::InputPin,
+        "outputpin" => StateNodeKind::OutputPin,
+        "expansioninput" => StateNodeKind::ExpansionInput,
+        "expansionoutput" => StateNodeKind::ExpansionOutput,
+        _ => StateNodeKind::Normal,
+    }
+}
+
+fn state_style_from_decl(style: &crate::ast::StateDeclStyle) -> StateNodeStyle {
+    StateNodeStyle {
+        fill_color: style.fill_color.clone(),
+        border_color: style.border_color.clone(),
+        border_dashed: style.border_dashed,
+        border_thickness: style.border_thickness,
+        text_color: style.text_color.clone(),
     }
 }
 

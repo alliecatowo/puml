@@ -16,11 +16,12 @@ use crate::model::{
     RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind,
     SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequenceMessageStyle,
     SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction, StateNode,
-    StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
-    TimelineClosedRange, TimelineConstraint, TimelineDayMarker, TimelineDocument,
-    TimelineMilestone, TimelineNote, TimelineOpenRange, TimelineResourceAllocation,
-    TimelineResourceOffRange, TimelineSeparator, TimelineTask, VirtualEndpoint,
-    VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument, YamlTreeNode,
+    StateNodeKind, StateNodeStyle, StateTransition as ModelStateTransition,
+    TimelineChronologyEvent, TimelineClosedRange, TimelineConstraint, TimelineDayMarker,
+    TimelineDocument, TimelineMilestone, TimelineNote, TimelineOpenRange,
+    TimelineResourceAllocation, TimelineResourceOffRange, TimelineSeparator, TimelineTask,
+    VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument,
+    YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
