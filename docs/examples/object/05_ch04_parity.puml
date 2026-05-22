@@ -1,0 +1,18 @@
+@startuml
+' Chapter 4 object diagram parity: diamond hub, map table, qualified links
+
+object o1
+object o2
+diamond dia
+
+o1 --> dia
+o2 --> dia
+
+map CapitalCity {
+  UK => London
+  USA => Washington
+}
+
+object NewYork
+NewYork --> CapitalCity::USA
+@enduml
