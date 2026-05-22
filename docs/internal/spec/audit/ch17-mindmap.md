@@ -1,6 +1,6 @@
 # Chapter 17 — MindMap Audit
 
-Tally: 9 ✅ / 4 🟡 / 1 ❌
+Tally: 10 ✅ / 3 🟡 / 0 ❌
 
 ### 17.1 OrgMode `*` indent — ✅
 **Feature:** `* Root` / `** Child` / `*** Grandchild` depth-by-star count
@@ -19,11 +19,10 @@ Tally: 9 ✅ / 4 🟡 / 1 ❌
 **Status:** ✅
 **Evidence:** family.rs:982-1010 (`+`→Right, `-`→Left); :808-815 honors explicit side
 
-### 17.4 Multilines via `:` ... `;` — 🟡
+### 17.4 Multilines via `:` ... `;` — ✅
 **Feature:** `**:Multi\nLine\n;` block node label
-**Status:** 🟡
-**Evidence:** No `:` / `;` multiline block parser visible in family.rs node parser
-**Notes:** Likely treated as a single-line node containing literal `:`; multiline body lost.
+**Status:** ✅
+**Evidence:** src/normalize/family.rs MindmapMultilineDraft + `:` opener in parse_mindmap_or_wbs_node path; tests/ch17_mindmap_parity.rs
 
 ### 17.5 Multiroot mindmap — ✅
 **Feature:** Multiple sibling depth-1 nodes treated as multiple roots
@@ -71,13 +70,13 @@ Tally: 9 ✅ / 4 🟡 / 1 ❌
 **Evidence:** boxless rendering path in render/mindmap.rs (paired with node `_` flag)
 **Notes:** Custom color override likely not picked up; presence/absence of box honored.
 
-### 17.12 Word Wrap (MaximumWidth) — ❌
+### 17.12 Word Wrap (MaximumWidth) — ✅
 **Feature:** Auto wrap node text at pixel width via `MaximumWidth 100`
-**Status:** ❌
-**Evidence:** No MaximumWidth parsing in mindmap render; text rendered single-line with explicit `\n` split only.
+**Status:** ✅
+**Evidence:** src/normalize/family.rs handle_mindmap_maximum_width_skinparam; src/render/mindmap.rs prepare_mindmap_label/wrap; tests/ch17_mindmap_parity.rs
 
-### 17.13 Creole/HTML markup in nodes — 🟡
+### 17.13 Creole/HTML markup in nodes — ✅
 **Feature:** `**bold**`, `//italics//`, `<color:blue>`, `<u>`, `<size:N>` etc.
-**Status:** 🟡
-**Evidence:** src/creole.rs handles basic creole; not all spec inline tags wired through mindmap render (which uses escape_text in mindmap.rs:369).
-**Notes:** Creole likely loses formatting because mindmap uses literal text escape.
+**Status:** ✅
+**Evidence:** src/render/mindmap.rs render_mindmap_node_label → creole_text/tokenize_creole; tests/ch17_mindmap_parity.rs (bold/italic/color)
+**Notes:** Advanced tags (`<u>`, `<size:N>`) follow shared creole.rs support; not mindmap-specific.

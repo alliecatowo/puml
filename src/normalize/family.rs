@@ -540,6 +540,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         style: SequenceStyle::default(),
         family_style: Some(FamilyStyle::Class(class_style)),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        maximum_width: None,
         sprites,
         list_sprites,
         warnings,
@@ -913,10 +914,12 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     let mut style = SequenceStyle::default();
     let mut monochrome_mode = None;
     let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
+    let mut maximum_width: Option<i32> = None;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
     // MindMap: track whether subsequent depth-1 nodes should go on the left side.
     let mut mindmap_left_side_mode = false;
+    let mut mindmap_multiline: Option<MindmapMultilineDraft> = None;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -939,6 +942,17 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     &mut warnings,
                     stmt.span,
                 ) {
+                    continue;
+                }
+                if family_kind == DiagramKind::MindMap
+                    && handle_mindmap_maximum_width_skinparam(
+                        &key,
+                        &value,
+                        &mut maximum_width,
+                        &mut warnings,
+                        stmt.span,
+                    )
+                {
                     continue;
                 }
                 match classify_sequence_skinparam(&key, &value) {
@@ -1149,6 +1163,13 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                         continue;
                     }
                 }
+                if let Some(ref mut draft) = mindmap_multiline {
+                    if let Some(node) = draft.append_line(&line) {
+                        nodes.push(node);
+                        mindmap_multiline = None;
+                    }
+                    continue;
+                }
                 if let Some(mut node_info) = parse_mindmap_or_wbs_node(&line) {
                     let kind = match family_kind {
                         DiagramKind::MindMap => FamilyNodeKind::MindMap,
@@ -1164,6 +1185,21 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                         if !has_explicit && mindmap_left_side_mode {
                             node_info.side = MindMapSide::Left;
                         }
+                    }
+                    if let Some(body) = node_info.name.strip_prefix(':') {
+                        let first = body.trim_start();
+                        if !first.contains(';') {
+                            mindmap_multiline = Some(MindmapMultilineDraft {
+                                kind,
+                                depth: node_info.depth,
+                                name: first.to_string(),
+                                side: node_info.side,
+                                checkbox: node_info.checkbox,
+                                fill_color: node_info.fill_color,
+                            });
+                            continue;
+                        }
+                        node_info.name = first.trim_end_matches(';').trim_end().to_string();
                     }
                     nodes.push(FamilyNode {
                         kind,
@@ -1213,6 +1249,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         style,
         family_style: None,
         text_overflow_policy,
+        maximum_width,
         sprites,
         list_sprites,
         warnings,
@@ -1260,6 +1297,74 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
         }
         parents.push(idx);
     }
+}
+
+struct MindmapMultilineDraft {
+    kind: FamilyNodeKind,
+    depth: usize,
+    name: String,
+    side: MindMapSide,
+    checkbox: Option<WbsCheckbox>,
+    fill_color: Option<String>,
+}
+
+impl MindmapMultilineDraft {
+    /// Append `line` to the in-progress multiline body. Returns `Some(node)` when the
+    /// block ends on a line containing `;` (PlantUML ch17.4 / ch18.4).
+    fn append_line(&mut self, line: &str) -> Option<FamilyNode> {
+        let trimmed_end = line.trim_end();
+        if trimmed_end.ends_with(';') {
+            let tail = trimmed_end.trim_end_matches(';').trim_end();
+            if !tail.is_empty() {
+                if !self.name.is_empty() {
+                    self.name.push('\n');
+                }
+                self.name.push_str(tail);
+            }
+            return Some(FamilyNode {
+                kind: self.kind,
+                name: self.name.clone(),
+                alias: None,
+                members: Vec::new(),
+                depth: self.depth,
+                label: None,
+                mindmap_side: self.side,
+                wbs_checkbox: self.checkbox.clone(),
+                fill_color: self.fill_color.clone(),
+            });
+        }
+        let piece = line.trim();
+        if !piece.is_empty() {
+            if !self.name.is_empty() {
+                self.name.push('\n');
+            }
+            self.name.push_str(piece);
+        }
+        None
+    }
+}
+
+fn handle_mindmap_maximum_width_skinparam(
+    key: &str,
+    value: &str,
+    maximum_width: &mut Option<i32>,
+    warnings: &mut Vec<Diagnostic>,
+    span: crate::source::Span,
+) -> bool {
+    if !key.trim().eq_ignore_ascii_case("maximumwidth") {
+        return false;
+    }
+    match value.trim().parse::<i32>() {
+        Ok(n) if n > 0 => *maximum_width = Some(n),
+        _ => warnings.push(
+            Diagnostic::warning(format!(
+                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                value, key
+            ))
+            .with_span(span),
+        ),
+    }
+    true
 }
 
 fn handle_family_overflow_skinparam(
@@ -2138,6 +2243,7 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         style: SequenceStyle::default(),
         family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        maximum_width: None,
         sprites,
         list_sprites,
         warnings: ext_warnings,
