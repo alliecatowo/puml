@@ -73,21 +73,42 @@ pub(super) fn render_node(
             }
         }
         FamilyNodeKind::ActivityAction => {
-            out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"18\" ry=\"18\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                cx - box_w / 2,
-                y + 4,
-                box_w,
-                act_style.background_color,
-                act_style.border_color
-            ));
-            out.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
-                cx,
-                y + 27,
-                escape_text(&act_style.font_color),
-                escape_text(&label)
-            ));
+            let fill = node
+                .fill_color
+                .as_deref()
+                .unwrap_or(&act_style.background_color);
+            if step_kind == "Connector" {
+                out.push_str(&format!(
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"16\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    cx,
+                    y + 22,
+                    escape_text(fill),
+                    escape_text(&act_style.border_color)
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
+                    cx,
+                    y + 26,
+                    escape_text(&act_style.font_color),
+                    escape_text(&label)
+                ));
+            } else {
+                out.push_str(&format!(
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"36\" rx=\"18\" ry=\"18\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                    cx - box_w / 2,
+                    y + 4,
+                    box_w,
+                    escape_text(fill),
+                    escape_text(&act_style.border_color)
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"12\" fill=\"{}\">{}</text>",
+                    cx,
+                    y + 27,
+                    escape_text(&act_style.font_color),
+                    escape_text(&label)
+                ));
+            }
         }
         FamilyNodeKind::Note => {
             crate::render::family::render_note_card(out, cx - box_w / 2, y + 2, box_w, 44, &label);
@@ -216,6 +237,7 @@ pub(super) fn emit_predecessor_arrow(
         let is_invisible_control = (matches!(prev_kind, FamilyNodeKind::ActivityPartition)
             && (prev_step == "PartitionStart"
                 || prev_step == "PartitionEnd"
+                || prev_step == "Arrow"
                 || prev_step == "OldStyle"))
             || prev_step == "RepeatStart";
         if !is_invisible_control {
@@ -224,17 +246,40 @@ pub(super) fn emit_predecessor_arrow(
         prev_idx -= 1;
     }
 
+    if matches!(
+        metas[prev_idx].step_kind.as_str(),
+        "Stop" | "End" | "Kill" | "Detach"
+    ) {
+        return;
+    }
+
+    let arrow_style = (prev_idx + 1..i)
+        .rev()
+        .find_map(|idx| metas[idx].arrow_style.as_ref());
     let prev = &node_layouts[prev_idx];
     // Skip zero-length arrows (same src and dst)
     if prev.cx != cx || prev.arrow_out_y != y {
-        emit_activity_arrow(
-            out,
-            prev.cx,
-            prev.arrow_out_y,
-            cx,
-            y,
-            &act_style.arrow_color,
-            bboxes,
-        );
+        if let Some(style) = arrow_style {
+            super::arrows::emit_activity_arrow_with_style(
+                out,
+                prev.cx,
+                prev.arrow_out_y,
+                cx,
+                y,
+                &act_style.arrow_color,
+                style,
+                bboxes,
+            );
+        } else {
+            emit_activity_arrow(
+                out,
+                prev.cx,
+                prev.arrow_out_y,
+                cx,
+                y,
+                &act_style.arrow_color,
+                bboxes,
+            );
+        }
     }
 }

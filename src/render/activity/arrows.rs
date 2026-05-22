@@ -29,6 +29,16 @@ pub(super) struct NodeBbox {
     pub bottom: i32,
 }
 
+#[derive(Clone, Debug, Default)]
+pub(super) struct ActivityArrowStyle {
+    pub color: Option<String>,
+    pub label: Option<String>,
+    pub dashed: bool,
+    pub hidden: bool,
+    pub bold: bool,
+    pub no_head: bool,
+}
+
 /// Return true when a horizontal line at `y` would pass through `bbox` in the
 /// x corridor `[x_min, x_max]`.  A small margin prevents treating edge-touching
 /// as a collision.
@@ -159,6 +169,40 @@ pub(crate) fn emit_activity_arrow(
     color: &str,
     bboxes: &[NodeBbox],
 ) {
+    emit_activity_arrow_with_style(
+        out,
+        x1,
+        y1,
+        x2,
+        y2,
+        color,
+        &ActivityArrowStyle::default(),
+        bboxes,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_activity_arrow_with_style(
+    out: &mut String,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    default_color: &str,
+    style: &ActivityArrowStyle,
+    bboxes: &[NodeBbox],
+) {
+    if style.hidden {
+        return;
+    }
+    let color = style.color.as_deref().unwrap_or(default_color);
+    let stroke_width = if style.bold { "2.5" } else { "1.5" };
+    let dash = if style.dashed {
+        " stroke-dasharray=\"6 4\""
+    } else {
+        ""
+    };
+    let label_pos: (i32, i32);
     if x1 == x2 {
         // Vertical arrow.  Check whether it passes through any node bbox;
         // if so, route as a 5-segment bypass: out → up/down → back (#734).
@@ -166,37 +210,41 @@ pub(crate) fn emit_activity_arrow(
             // 5-segment path: (x1,y1) → (side_x,y1) → (side_x,y2) → (x2,y2)
             // implemented as 3 line segments with the arrowhead at (x2,y2).
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, side_x, y1, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                x1, y1, side_x, y1, color, stroke_width, dash
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                side_x, y1, side_x, y2, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                side_x, y1, side_x, y2, color, stroke_width, dash
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                side_x, y2, x2, y2, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                side_x, y2, x2, y2, color, stroke_width, dash
             ));
+            label_pos = (side_x + 6, y1 + (y2 - y1) / 2);
         } else {
             // Straight vertical arrow -- no routing needed.
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, x2, y2, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                x1, y1, x2, y2, color, stroke_width, dash
             ));
+            label_pos = (x1 + 6, y1 + (y2 - y1) / 2);
         }
         // Arrowhead pointing downward (or upward for back-edges).
-        let uy = if y2 >= y1 { 1.0f64 } else { -1.0f64 };
-        let base_y = y2 as f64 - uy * 8.0;
-        out.push_str(&format!(
-            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-            x2,
-            y2,
-            x2 - 4,
-            base_y.round() as i32,
-            x2 + 4,
-            base_y.round() as i32,
-            color
-        ));
+        if !style.no_head {
+            let uy = if y2 >= y1 { 1.0f64 } else { -1.0f64 };
+            let base_y = y2 as f64 - uy * 8.0;
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+                x2,
+                y2,
+                x2 - 4,
+                base_y.round() as i32,
+                x2 + 4,
+                base_y.round() as i32,
+                color
+            ));
+        }
     } else {
         // L-shaped orthogonal routing: down -> across -> down.
         // mid_y is chosen to avoid obstacle node bboxes in the x corridor.
@@ -209,52 +257,65 @@ pub(crate) fn emit_activity_arrow(
         if let Some(bypass_x) = choose_vert_bypass_x(x1, y1, mid_y, bboxes) {
             // 5-segment: (x1,y1)→(bypass,y1)→(bypass,mid_y)→(x2,mid_y)→(x2,y2)
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, bypass_x, y1, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                x1, y1, bypass_x, y1, color, stroke_width, dash
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                bypass_x, y1, bypass_x, mid_y, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                bypass_x, y1, bypass_x, mid_y, color, stroke_width, dash
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                bypass_x, mid_y, x2, mid_y, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                bypass_x, mid_y, x2, mid_y, color, stroke_width, dash
             ));
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x2, mid_y, x2, y2, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                x2, mid_y, x2, y2, color, stroke_width, dash
             ));
         } else {
             // Normal 3-segment L-bend.
             // Segment 1: x1, y1 -> x1, mid_y
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, y1, x1, mid_y, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                x1, y1, x1, mid_y, color, stroke_width, dash
             ));
             // Segment 2: x1, mid_y -> x2, mid_y
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x1, mid_y, x2, mid_y, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                x1, mid_y, x2, mid_y, color, stroke_width, dash
             ));
             // Segment 3: x2, mid_y -> x2, y2
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                x2, mid_y, x2, y2, color
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                x2, mid_y, x2, y2, color, stroke_width, dash
             ));
         }
+        label_pos = (x1 + (x2 - x1) / 2 + 4, mid_y - 4);
         // Arrowhead at (x2, y2) pointing vertically (downward or upward).
-        let dy = y2 - mid_y;
-        let uy = if dy >= 0 { 1.0f64 } else { -1.0f64 };
-        let base_y = y2 as f64 - uy * 8.0;
+        if !style.no_head {
+            let dy = y2 - mid_y;
+            let uy = if dy >= 0 { 1.0f64 } else { -1.0f64 };
+            let base_y = y2 as f64 - uy * 8.0;
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
+                x2,
+                y2,
+                x2 - 4,
+                base_y.round() as i32,
+                x2 + 4,
+                base_y.round() as i32,
+                color
+            ));
+        }
+    }
+    if let Some(label) = &style.label {
+        let (label_x, label_y) = label_pos;
         out.push_str(&format!(
-            "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\"/>",
-            x2,
-            y2,
-            x2 - 4,
-            base_y.round() as i32,
-            x2 + 4,
-            base_y.round() as i32,
-            color
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"{}\">{}</text>",
+            label_x,
+            label_y,
+            color,
+            crate::render::svg::escape_text(label)
         ));
     }
 }
