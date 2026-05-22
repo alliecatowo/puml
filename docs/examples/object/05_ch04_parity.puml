@@ -1,0 +1,23 @@
+@startuml
+title Chapter 4 object parity slice
+
+object o1
+object o2
+diamond dia
+o1 --> dia
+o2 --> dia
+
+map CapitalCity {
+  UK => London
+  USA => Washington
+}
+object NewYork
+NewYork --> CapitalCity::USA
+
+map Kick.Off {
+}
+map task.1 {
+  Start => End
+}
+Kick.Off --> task.1 : PERT edge
+@enduml
