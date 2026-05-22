@@ -455,3 +455,38 @@ fn wbs_alias_cross_tree_relation_renders_relation_edge() {
         "cross-tree relation arrowhead should render"
     );
 }
+
+#[test]
+fn wbs_deep_top_to_bottom_layout_is_compact_and_keeps_padding() {
+    let src = std::fs::read_to_string(format!(
+        "{}/docs/examples/wbs/05_four_levels_deep.puml",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("deep WBS doc example should be readable");
+    let svg = render_source_to_svg(&src).expect("deep WBS doc example should render");
+    let svg_width = svg_attr(&svg, "width")
+        .parse::<i32>()
+        .expect("svg width should be numeric");
+
+    assert!(
+        svg_width < 4448,
+        "deep WBS should avoid the old fixed-slot width stretch: {svg_width}"
+    );
+
+    let wbs_nodes = rects(&svg)
+        .into_iter()
+        .filter(|rect| rect.class_contains("wbs-node"))
+        .collect::<Vec<_>>();
+    assert!(!wbs_nodes.is_empty(), "deep WBS should render nodes");
+
+    for rect in wbs_nodes {
+        assert!(
+            rect.attr_i32("x") >= 8,
+            "WBS node should keep at least 8px left padding: {rect:?}"
+        );
+        assert!(
+            rect.attr_i32("x") + rect.attr_i32("width") <= svg_width - 8,
+            "WBS node should keep at least 8px right padding: {rect:?}"
+        );
+    }
+}

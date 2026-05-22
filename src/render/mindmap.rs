@@ -784,6 +784,7 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
     const NODE_H: i32 = 36;
     const MARGIN: i32 = 24;
     const NODE_PAD: i32 = 10;
+    const SIBLING_GAP: i32 = 20;
 
     let nodes = &doc.nodes;
     if nodes.is_empty() {
@@ -809,14 +810,66 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         children.iter().map(|&c| wbs_leaf_count(nodes, c)).sum()
     }
 
+    // Build child adjacency once so depth and width passes stay in sync.
+    let mut children_of = vec![Vec::<usize>::new(); n];
+    {
+        let mut stack: Vec<usize> = Vec::new();
+        for (i, node) in nodes.iter().enumerate() {
+            let depth = node.depth;
+            while stack.len() > depth {
+                stack.pop();
+            }
+            if let Some(&p) = stack.last() {
+                children_of[p].push(i);
+            }
+            stack.push(i);
+        }
+    }
+
     let total_leaves = wbs_leaf_count(nodes, 0);
     let max_depth = nodes.iter().map(|n| n.depth).max().unwrap_or(0);
     let vertical = matches!(
         doc.orientation,
         FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop
     );
+    let use_compact_vertical_layout = vertical && total_leaves >= 16 && max_depth >= 3;
+    let mut subtree_span = vec![0i32; n];
+
+    fn compute_wbs_subtree_span(
+        idx: usize,
+        children_of: &[Vec<usize>],
+        nodes: &[crate::model::FamilyNode],
+        sibling_gap: i32,
+        subtree_span: &mut [i32],
+    ) -> i32 {
+        let node_w = wbs_node_width(&nodes[idx]);
+        let children = &children_of[idx];
+        if children.is_empty() {
+            subtree_span[idx] = node_w;
+            return node_w;
+        }
+        let mut total_children = 0;
+        for (k, child) in children.iter().enumerate() {
+            total_children +=
+                compute_wbs_subtree_span(*child, children_of, nodes, sibling_gap, subtree_span);
+            if k > 0 {
+                total_children += sibling_gap;
+            }
+        }
+        let span = node_w.max(total_children);
+        subtree_span[idx] = span;
+        span
+    }
+
+    let root_span =
+        compute_wbs_subtree_span(0, &children_of, nodes, SIBLING_GAP, &mut subtree_span);
+
     let canvas_w = if vertical {
-        (total_leaves as i32) * X_STEP + 2 * MARGIN
+        if use_compact_vertical_layout {
+            root_span + 2 * MARGIN
+        } else {
+            (total_leaves as i32) * X_STEP + 2 * MARGIN
+        }
     } else {
         (max_depth as i32 + 1) * X_STEP + 2 * MARGIN + 120
     };
@@ -841,11 +894,14 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         y_step: i32,
         orientation: FamilyOrientation,
         max_depth: usize,
+        use_compact_vertical_layout: bool,
+        subtree_span: &[i32],
+        children_of: &[Vec<usize>],
+        sibling_gap: i32,
         x_positions: &mut [i32],
         y_positions: &mut [i32],
     ) {
         let depth = nodes[idx].depth;
-        let leaves = wbs_leaf_count(nodes, idx);
         let vertical = matches!(
             orientation,
             FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop
@@ -857,22 +913,38 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
             }
         };
         if vertical {
-            let cx = x_start + (leaves as i32 * x_step) / 2;
+            let cx = if use_compact_vertical_layout {
+                let span = subtree_span[idx];
+                x_start + span / 2
+            } else {
+                let leaves = wbs_leaf_count(nodes, idx);
+                x_start + (leaves as i32 * x_step) / 2
+            };
             x_positions[idx] = cx;
             y_positions[idx] = margin + (display_depth as i32) * y_step + node_h / 2;
         } else {
+            let leaves = wbs_leaf_count(nodes, idx);
             let cy = x_start + (leaves as i32 * y_step) / 2;
             x_positions[idx] = margin + (display_depth as i32) * x_step + 80;
             y_positions[idx] = cy;
         }
-
-        let children: Vec<usize> = (idx + 1..nodes.len())
-            .take_while(|&j| nodes[j].depth > depth)
-            .filter(|&j| nodes[j].depth == depth + 1)
-            .collect();
-        let mut child_x = x_start;
-        let leaf_step = if vertical { x_step } else { y_step };
-        for &c in &children {
+        let children = &children_of[idx];
+        let mut child_x = if vertical {
+            if use_compact_vertical_layout {
+                let total_children_span = children
+                    .iter()
+                    .enumerate()
+                    .map(|(k, c)| subtree_span[*c] + if k == 0 { 0 } else { sibling_gap })
+                    .sum::<i32>();
+                x_start + (subtree_span[idx] - total_children_span) / 2
+            } else {
+                x_start
+            }
+        } else {
+            x_start
+        };
+        let leaf_step = y_step;
+        for &c in children {
             assign_wbs_positions(
                 nodes,
                 c,
@@ -883,10 +955,22 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
                 y_step,
                 orientation,
                 max_depth,
+                use_compact_vertical_layout,
+                subtree_span,
+                children_of,
+                sibling_gap,
                 x_positions,
                 y_positions,
             );
-            child_x += wbs_leaf_count(nodes, c) as i32 * leaf_step;
+            child_x += if vertical {
+                if use_compact_vertical_layout {
+                    subtree_span[c] + sibling_gap
+                } else {
+                    wbs_leaf_count(nodes, c) as i32 * x_step
+                }
+            } else {
+                wbs_leaf_count(nodes, c) as i32 * leaf_step
+            };
         }
     }
 
@@ -900,6 +984,10 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         Y_STEP,
         doc.orientation,
         max_depth,
+        use_compact_vertical_layout,
+        &subtree_span,
+        &children_of,
+        SIBLING_GAP,
         &mut x_positions,
         &mut y_positions,
     );
@@ -930,17 +1018,9 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
 
     // Build parent lookup.
     let mut parent_of = vec![None::<usize>; n];
-    {
-        let mut stack: Vec<usize> = Vec::new();
-        for i in 0..n {
-            let depth = nodes[i].depth;
-            while stack.len() > depth {
-                stack.pop();
-            }
-            if let Some(&p) = stack.last() {
-                parent_of[i] = Some(p);
-            }
-            stack.push(i);
+    for (p, children) in children_of.iter().enumerate() {
+        for &c in children {
+            parent_of[c] = Some(p);
         }
     }
 
