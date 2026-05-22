@@ -1,7 +1,7 @@
 use super::*;
 
 pub fn render_salt_svg(document: &FamilyDocument) -> String {
-    const CELL_H: i32 = 20;
+    const DEFAULT_CELL_H: i32 = 20;
     const CELL_PAD_X: i32 = 10;
     const MARGIN: i32 = 6;
     const MIN_CELL_W: i32 = 80;
@@ -28,6 +28,17 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     let col_count = rows.iter().map(|r| r.len()).max().unwrap_or(1);
     let table_like = rows.iter().flatten().any(SaltCellRender::is_table_like);
 
+    // Per-row heights (support variable-height cells like open combos).
+    let row_heights: Vec<i32> = rows
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(SaltCellRender::intrinsic_height)
+                .max()
+                .unwrap_or(DEFAULT_CELL_H)
+        })
+        .collect();
+
     // First pass: compute per-column minimum widths based on text content.
     let mut col_widths: Vec<i32> = vec![MIN_CELL_W; col_count];
     for row in &rows {
@@ -42,11 +53,17 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     }
 
     let total_w = col_widths.iter().sum::<i32>() + MARGIN * 2;
-    let total_h = (rows.len() as i32) * CELL_H + MARGIN * 2;
+    let total_h = row_heights.iter().sum::<i32>() + MARGIN * 2;
 
-    // Title height
-    let title_h = document.title.as_deref().map(|_| 28i32).unwrap_or(0);
-    let svg_h = total_h + title_h;
+    // Header/footer/title heights.
+    let header_h = document.header.as_deref().map(|_| 20i32).unwrap_or(0);
+    let title_h = document.title.as_deref().map(|_| 22i32).unwrap_or(0);
+    let footer_h = document.footer.as_deref().map(|_| 20i32).unwrap_or(0);
+    let caption_h = document.caption.as_deref().map(|_| 18i32).unwrap_or(0);
+    let legend_h = document.legend.as_deref().map(|_| 18i32).unwrap_or(0);
+    let top_extra = header_h + title_h;
+    let bottom_extra = footer_h + caption_h + legend_h;
+    let svg_h = total_h + top_extra + bottom_extra;
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -63,7 +80,7 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         out.push_str(&format!(
             "<rect data-salt-style=\"panel\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
             MARGIN,
-            MARGIN + title_h,
+            MARGIN + top_extra,
             total_w - MARGIN * 2,
             total_h - MARGIN * 2,
             style.panel_fill,
@@ -71,11 +88,28 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         ));
     }
 
-    if let Some(title) = &document.title {
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"13\" font-weight=\"600\" fill=\"{}\">{}</text>",
+    // Header (top of diagram, above title).
+    if let Some(header) = &document.header {
+        salt_text(
+            &mut out,
             MARGIN,
-            MARGIN - 6,
+            MARGIN + 14,
+            &format!(
+                "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                style.font_family, style.muted_text_color
+            ),
+            header,
+            &style.muted_text_color,
+        );
+    }
+
+    // Title (below header, above content).
+    if let Some(title) = &document.title {
+        let ty = MARGIN + header_h + 16;
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"13\" font-weight=\"600\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
+            total_w / 2,
+            ty,
             style.font_family,
             style.text_color,
             escape_text(title)
@@ -83,15 +117,19 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     }
 
     // Draw rows and cells.
+    let mut current_y = MARGIN + top_extra;
     for (row_idx, cells) in rows.iter().enumerate() {
-        let row_y = MARGIN + title_h + (row_idx as i32) * CELL_H;
+        let row_h = row_heights[row_idx];
+        let row_y = current_y;
+        current_y += row_h;
+
         if is_salt_separator_row(cells) {
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 MARGIN + 4,
-                row_y + CELL_H / 2,
+                row_y + row_h / 2,
                 total_w - MARGIN - 4,
-                row_y + CELL_H / 2,
+                row_y + row_h / 2,
                 style.border_color
             ));
             continue;
@@ -107,7 +145,7 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
                     x: col_x,
                     y: row_y,
                     w: cell.width,
-                    h: CELL_H,
+                    h: row_h,
                 },
                 cell.colspan,
                 &style,
@@ -115,20 +153,20 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
             col_x += cell.width;
         }
 
-        // Row separator line (skip the last row)
+        // Row separator line (skip the last row).
         if table_like && row_idx + 1 < rows.len() {
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                 MARGIN,
-                row_y + CELL_H,
+                current_y,
                 total_w - MARGIN,
-                row_y + CELL_H,
+                current_y,
                 style.grid_color
             ));
         }
     }
 
-    // Column separator lines
+    // Column separator lines.
     if table_like {
         let mut col_x = MARGIN;
         for (col_idx, w) in col_widths.iter().enumerate() {
@@ -137,13 +175,61 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
                 out.push_str(&format!(
                     "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                     col_x,
-                    MARGIN + title_h,
+                    MARGIN + top_extra,
                     col_x,
-                    MARGIN + title_h + total_h - MARGIN * 2,
+                    MARGIN + top_extra + total_h - MARGIN * 2,
                     style.grid_color
                 ));
             }
         }
+    }
+
+    // Footer (below content).
+    let footer_y = MARGIN + top_extra + total_h;
+    if let Some(footer) = &document.footer {
+        salt_text(
+            &mut out,
+            MARGIN,
+            footer_y + 14,
+            &format!(
+                "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                style.font_family, style.muted_text_color
+            ),
+            footer,
+            &style.muted_text_color,
+        );
+    }
+
+    // Caption (below footer).
+    if let Some(caption) = &document.caption {
+        let cy = footer_y + footer_h + 14;
+        salt_text(
+            &mut out,
+            total_w / 2,
+            cy,
+            &format!(
+                "font-family=\"{}\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\"",
+                style.font_family, style.muted_text_color
+            ),
+            caption,
+            &style.muted_text_color,
+        );
+    }
+
+    // Legend (below caption).
+    if let Some(legend) = &document.legend {
+        let ly = footer_y + footer_h + caption_h + 14;
+        salt_text(
+            &mut out,
+            MARGIN,
+            ly,
+            &format!(
+                "font-family=\"{}\" font-size=\"11\" font-style=\"italic\" fill=\"{}\"",
+                style.font_family, style.muted_text_color
+            ),
+            legend,
+            &style.muted_text_color,
+        );
     }
 
     out.push_str("</svg>");
@@ -427,6 +513,16 @@ enum SaltCellRender {
     Input(String),
     Button(String),
     Combo(String),
+    /// Expanded combo/droplist showing a list of items below the field.
+    /// `label` is the selected/header value; `items` are the dropdown entries.
+    OpenCombo {
+        label: String,
+        items: Vec<String>,
+    },
+    /// Progress bar: `[=====   ]` style. `fill_ratio` in [0.0, 1.0].
+    ProgressBar {
+        fill_ratio: f32,
+    },
     CheckboxChecked(String),
     CheckboxUnchecked(String),
     RadioOn(String),
@@ -473,6 +569,8 @@ impl SaltCellRender {
             Self::MenuBar(items) => items.first().map(String::as_str).unwrap_or("menu"),
             Self::TabBar { tabs, .. } => tabs.first().map(String::as_str).unwrap_or("tab"),
             Self::ScrollBar { .. } => "scrollbar",
+            Self::OpenCombo { label, .. } => label,
+            Self::ProgressBar { .. } => "",
         }
     }
 
@@ -481,6 +579,16 @@ impl SaltCellRender {
             Self::Input(text) => estimate_text_width(text) + 29,
             Self::Button(text) => (estimate_text_width(text) + 16).max(36),
             Self::Combo(text) => estimate_text_width(text) + 23,
+            Self::OpenCombo { label, items } => {
+                let label_w = estimate_text_width(label) + 23;
+                let items_w = items
+                    .iter()
+                    .map(|i| estimate_text_width(i) + 16)
+                    .max()
+                    .unwrap_or(0);
+                label_w.max(items_w)
+            }
+            Self::ProgressBar { .. } => 100,
             Self::CheckboxChecked(text) | Self::CheckboxUnchecked(text) => {
                 20 + estimate_text_width(text)
             }
@@ -506,6 +614,17 @@ impl SaltCellRender {
 
     fn is_table_like(&self) -> bool {
         matches!(self, Self::Header(_) | Self::TableEmpty | Self::TableSpan)
+    }
+
+    /// Return the minimum row height required for this cell (normally 20px).
+    fn intrinsic_height(&self) -> i32 {
+        match self {
+            Self::OpenCombo { items, .. } => {
+                // Header combo (19px) + padding (2+2) + items list (16px * n) + 4px margin.
+                23 + (items.len() as i32) * 16 + 4
+            }
+            _ => 20,
+        }
     }
 }
 
@@ -663,6 +782,22 @@ fn transform_salt_row(
         return Some(vec![SaltCellRender::ScrollBar { vertical, percent }]);
     }
 
+    // Standalone open droplist `^label^^item1^^item2^`.
+    if let Some((label, items)) = parse_salt_open_combo(trimmed) {
+        return Some(vec![SaltCellRender::OpenCombo { label, items }]);
+    }
+
+    // Standalone closed combo `^label^` (no `|`-delimited context).
+    if trimmed.starts_with('^') && trimmed.ends_with('^') && trimmed.len() >= 3 {
+        let inner = trimmed[1..trimmed.len() - 1].to_string();
+        return Some(vec![SaltCellRender::Combo(inner)]);
+    }
+
+    // Progress bar `[=====   ]`.
+    if let Some(fill_ratio) = parse_salt_progress_bar(trimmed) {
+        return Some(vec![SaltCellRender::ProgressBar { fill_ratio }]);
+    }
+
     if state.in_tree {
         state.in_tree = false;
     }
@@ -692,6 +827,9 @@ fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool) -> SaltCell
                 SaltCellRender::TableSpan
             } else if let Some(name) = parse_salt_sprite_ref(trimmed) {
                 SaltCellRender::SpriteRef(name)
+            } else if let Some(fill_ratio) = parse_salt_progress_bar(trimmed) {
+                // Progress bars in table cells
+                SaltCellRender::ProgressBar { fill_ratio }
             } else if header_row {
                 SaltCellRender::Header(trimmed.trim_start_matches('=').trim().to_string())
             } else {
@@ -861,6 +999,51 @@ fn parse_salt_scroll_container(line: &str) -> Option<(bool, bool)> {
     } else {
         Some((true, true))
     }
+}
+
+/// Parse `^label^^item1^^item2^` (open / expanded droplist).
+/// Returns `(label, items)` if the pattern matches a multi-item droplist,
+/// or `None` for a plain closed `^label^` combo or a non-combo string.
+fn parse_salt_open_combo(line: &str) -> Option<(String, Vec<String>)> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('^') {
+        return None;
+    }
+    // Split on `^^` — gives `["", "item1", "item2", ...]` for `^label^^item1^^item2^`
+    // but also gives `["label"]` for `^label^`.
+    let parts: Vec<&str> = trimmed.split("^^").collect();
+    if parts.len() < 2 {
+        // Just `^label^` — plain combo handled elsewhere.
+        return None;
+    }
+    let label = parts[0].trim_start_matches('^').to_string();
+    let items: Vec<String> = parts[1..]
+        .iter()
+        .map(|p| p.trim_end_matches('^').to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    Some((label, items))
+}
+
+/// Parse a progress bar: `[=====   ]` or `[========]`.
+/// Returns fill ratio [0.0, 1.0] if the cell looks like a progress bar.
+fn parse_salt_progress_bar(line: &str) -> Option<f32> {
+    let trimmed = line.trim();
+    // Must be enclosed in `[...]`
+    let inner = trimmed.strip_prefix('[')?.strip_suffix(']')?;
+    if inner.is_empty() {
+        return None;
+    }
+    // Content must consist only of `=` and space characters (at least one `=`).
+    if !inner.chars().all(|c| c == '=' || c == ' ') {
+        return None;
+    }
+    let filled = inner.chars().filter(|&c| c == '=').count();
+    let total = inner.len();
+    if total == 0 {
+        return None;
+    }
+    Some(filled as f32 / total as f32)
 }
 
 /// Decode a salt cell from the encoded string `"X:text"`.
@@ -1530,6 +1713,96 @@ fn render_salt_cell_svg(
                     thumb_w.max(12).min(track_w - 4),
                     track_h - 4,
                     style.border_color
+                ));
+            }
+        }
+        SaltCellRender::OpenCombo { label, items } => {
+            // Draw the closed-combo header at the top, then list items below.
+            let combo_w = salt_combo_width(label).min(w - pad * 2).max(28);
+            let combo_h = 19;
+            // Combo field at the top of the cell.
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"open-combo\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x + pad,
+                y + 2,
+                combo_w,
+                combo_h,
+                style.input_fill,
+                style.border_color
+            ));
+            salt_text(
+                out,
+                x + pad + 2,
+                y + 2 + 14,
+                &format!(
+                    "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                    style.font_family, style.input_text_color
+                ),
+                label,
+                &style.input_text_color,
+            );
+            // Arrow indicator (pointing up = open).
+            let divider_x = x + pad + combo_w - 11;
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                divider_x,
+                y + 2,
+                divider_x,
+                y + 2 + combo_h,
+                style.border_color
+            ));
+            out.push_str(&format!(
+                "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                divider_x + 3, y + 2 + combo_h - 6,
+                divider_x + 9, y + 2 + combo_h - 6,
+                divider_x + 6, y + 2 + 5,
+                style.border_color, style.border_color
+            ));
+            // Drop-down item list below the combo field.
+            let item_h = 16i32;
+            let list_y = y + 2 + combo_h;
+            let list_h = (items.len() as i32) * item_h;
+            if !items.is_empty() {
+                out.push_str(&format!(
+                    "<rect data-salt-widget=\"open-combo-list\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    x + pad,
+                    list_y,
+                    combo_w,
+                    list_h,
+                    style.input_fill,
+                    style.border_color
+                ));
+                for (i, item) in items.iter().enumerate() {
+                    let iy = list_y + (i as i32) * item_h + 12;
+                    salt_text(
+                        out,
+                        x + pad + 4,
+                        iy,
+                        &format!(
+                            "font-family=\"{}\" font-size=\"11\" fill=\"{}\"",
+                            style.font_family, style.text_color
+                        ),
+                        item,
+                        &style.text_color,
+                    );
+                }
+            }
+        }
+        SaltCellRender::ProgressBar { fill_ratio } => {
+            let bar_h = 10;
+            let bar_y = y + (h - bar_h) / 2;
+            let bar_w = (w - pad * 2).max(20);
+            let filled_w = ((bar_w as f32) * fill_ratio.clamp(0.0, 1.0)).round() as i32;
+            // Track (empty) background.
+            out.push_str(&format!(
+                "<rect data-salt-widget=\"progress\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\" rx=\"3\" ry=\"3\"/>",
+                x + pad, bar_y, bar_w, bar_h, style.panel_fill, style.border_color
+            ));
+            // Filled portion.
+            if filled_w > 0 {
+                out.push_str(&format!(
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" rx=\"3\" ry=\"3\"/>",
+                    x + pad, bar_y, filled_w, bar_h, style.accent_fill
                 ));
             }
         }

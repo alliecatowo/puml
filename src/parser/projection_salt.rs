@@ -172,6 +172,16 @@ fn dedent_projection_body(lines: &[&str]) -> String {
 fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
     let lower = trimmed.to_ascii_lowercase();
+    // `^combo^` or `^open^^item1^^item2^` patterns are whole-line combo/droplist widgets.
+    let is_combo_line = trimmed.starts_with('^') && trimmed.ends_with('^') && trimmed.len() >= 3;
+    // `[====  ]` progress bar — must only contain `=` and spaces inside `[...]`.
+    let is_progress_bar = trimmed.starts_with('[')
+        && trimmed.ends_with(']')
+        && trimmed.len() >= 3
+        && {
+            let inner = &trimmed[1..trimmed.len() - 1];
+            !inner.is_empty() && inner.chars().all(|c| c == '=' || c == ' ') && inner.contains('=')
+        };
     let whole_line_widget = lower.starts_with("{*")
         || lower.starts_with("{/")
         || lower.starts_with("{s")
@@ -189,7 +199,9 @@ fn parse_salt_grid_row(line: &str) -> Option<StatementKind> {
         || lower == "tabs"
         || lower.starts_with("tabs ")
         || lower.starts_with("scroll")
-        || lower.contains("scrollbar");
+        || lower.contains("scrollbar")
+        || is_combo_line
+        || is_progress_bar;
     if whole_line_widget {
         return Some(StatementKind::SaltGridRow {
             cells: vec![SaltCell::Label(trimmed.to_string())],
@@ -242,6 +254,14 @@ fn parse_salt_cell(text: &str) -> SaltCell {
     }
     if let Some(rest) = text.strip_prefix("()") {
         return SaltCell::RadioOff(rest.trim().to_string());
+    }
+    // `[====  ]` / `[========]` → progress bar (before button check to avoid clash)
+    if text.starts_with('[') && text.ends_with(']') && text.len() >= 3 {
+        let inner = &text[1..text.len() - 1];
+        if !inner.is_empty() && inner.chars().all(|c| c == '=' || c == ' ') && inner.contains('=') {
+            // Encode as a special label token; the renderer will decode it.
+            return SaltCell::Label(text.to_string());
+        }
     }
     // `[button text]` → Button
     if text.starts_with('[') && text.ends_with(']') && text.len() >= 2 {
