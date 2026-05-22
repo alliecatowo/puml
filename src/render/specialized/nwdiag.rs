@@ -148,6 +148,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
 
     // ── Compute group overlay bounding boxes ─────────────────────────────────
     let group_pad = 8i32;
+    let group_label_band = 22i32;
     struct GroupOverlay {
         x: i32,
         y: i32,
@@ -181,7 +182,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             x: min_x - group_pad,
             y: min_y - group_pad,
             w: (max_x - min_x) + group_pad * 2,
-            h: (max_y - min_y) + group_pad * 2,
+            h: (max_y - min_y) + group_pad * 2 + group_label_band,
             color: group.color.clone().unwrap_or_else(|| "#fef3c7".to_string()),
             style: group.style.clone().unwrap_or_else(|| "solid".to_string()),
             label: group.label.clone().unwrap_or_else(|| group.name.clone()),
@@ -216,7 +217,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         out.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-weight=\"600\" fill=\"#92400e\">group {}</text>",
             overlay.x + 4,
-            overlay.y + overlay.h - 4,
+            overlay.y + overlay.h - 12,
             escape_text(&overlay.label)
         ));
     }
