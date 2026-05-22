@@ -1,0 +1,24 @@
+@startuml
+title Clock ticks and anchored messages
+clock "Bus clock" as clk with period 50
+concise "Producer" as TX
+concise "Consumer" as RX
+
+@0 as :boot
+TX is Idle
+RX is Idle
+
+@clk*1 as :frame_start
+TX is SendHeader
+TX -> RX@:frame_start+25 : header
+
+@clk*2
+RX is ReceiveHeader
+
+@:frame_start+50
+TX is SendPayload
+TX -> RX@:frame_start+75 : payload
+
+@clk*4
+RX is ReceivePayload
+@enduml
