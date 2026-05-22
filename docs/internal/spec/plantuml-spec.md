@@ -25,7 +25,6 @@ Across the 27 chapters the audits scored roughly:
 
 | # | Chapter | ✅ | 🟡 | ❌ | Audit |
 |---|---------|----|----|----|-------|
-<<<<<<< HEAD
 | 1 | Sequence Diagram | 28 | 14 | 6 | [ch01-sequence.md](audit/ch01-sequence.md) |
 | 2 | Use Case Diagram | 13 | 3 | 0 | [ch02-usecase.md](audit/ch02-usecase.md) |
 | 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
