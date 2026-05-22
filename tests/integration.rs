@@ -5762,6 +5762,24 @@ fn component_arrow_labels_fan_apart_and_stay_inside_viewbox() {
 }
 
 #[test]
+fn component_same_source_labels_keep_branch_midpoints_when_not_overlapping() {
+    let svg = render_source_to_svg(
+        &fs::read_to_string(example("component/04_deployment_style.puml")).unwrap(),
+    )
+    .expect("component deployment-style example should render");
+    let routes = svg_text_positions(&svg, "routes");
+    assert_eq!(routes.len(), 2, "expected two route labels");
+    assert!(
+        routes.iter().any(|&(x, _)| (250..=310).contains(&x)),
+        "left branch label should stay near the horizontal branch midpoint: {routes:?}"
+    );
+    assert!(
+        routes.iter().any(|&(x, _)| (395..=445).contains(&x)),
+        "right branch label should stay near the horizontal branch midpoint: {routes:?}"
+    );
+}
+
+#[test]
 fn usecase_relation_labels_clear_arrowheads_and_each_other() {
     let overlap_svg = render_source_to_svg(
         &fs::read_to_string(example("usecase/03_extends_includes.puml")).unwrap(),
