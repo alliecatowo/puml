@@ -5,4 +5,10 @@ Active --> [H]
 [H*] --> Paused
 Running --> Paused : pause
 Paused --> Running : resume
+state Session {
+  [*] --> Idle
+  Idle --> Busy
+}
+Running --> Session[H] : reopen
+Session[H*] --> Active : recover
 @enduml

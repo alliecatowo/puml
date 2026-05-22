@@ -297,6 +297,8 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         apply_monochrome_to_state_style(&mut state_style, mode);
     }
 
+    attach_scoped_history_endpoints(&mut nodes, &transitions);
+
     Ok(StateDocument {
         kind: document.kind,
         nodes,
@@ -309,6 +311,49 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         state_style,
         warnings,
     })
+}
+
+fn parse_scoped_history_endpoint(name: &str) -> Option<(&str, bool)> {
+    if let Some(owner) = name.strip_suffix("[H*]") {
+        let owner = owner.trim();
+        if !owner.is_empty() {
+            return Some((owner, true));
+        }
+    }
+    if let Some(owner) = name.strip_suffix("[H]") {
+        let owner = owner.trim();
+        if !owner.is_empty() {
+            return Some((owner, false));
+        }
+    }
+    None
+}
+
+fn attach_scoped_history_endpoints(nodes: &mut [StateNode], transitions: &[ModelStateTransition]) {
+    let endpoint_names: std::collections::BTreeSet<String> = transitions
+        .iter()
+        .flat_map(|t| [t.from.as_str(), t.to.as_str()])
+        .filter(|name| parse_scoped_history_endpoint(name).is_some())
+        .map(|name| name.to_string())
+        .collect();
+
+    for endpoint in endpoint_names {
+        let Some((owner_name, _deep)) = parse_scoped_history_endpoint(endpoint.as_str()) else {
+            continue;
+        };
+        let Some(owner_idx) = nodes.iter().position(|node| node.name == owner_name) else {
+            continue;
+        };
+        let owner = &mut nodes[owner_idx];
+        let has_regions = owner.regions.iter().any(|region| !region.is_empty());
+        if !has_regions {
+            continue;
+        }
+        if owner.regions.is_empty() {
+            owner.regions.push(Vec::new());
+        }
+        ensure_region_state_node(&mut owner.regions[0], endpoint.as_str());
+    }
 }
 
 /// Recursively collect all `StateTransition` statements nested inside a composite state
