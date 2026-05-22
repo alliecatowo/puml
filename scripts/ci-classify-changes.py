@@ -68,6 +68,21 @@ DOCS_EXAMPLES_DRIFT_PREFIXES = (
     "stdlib/",
 )
 
+ARTIFACT_REGEN_EXACT = {
+    "Cargo.toml",
+    "Cargo.lock",
+    "scripts/ci-classify-changes.py",
+    "scripts/regen-artifacts.sh",
+    ".github/workflows/pr-gate.yml",
+}
+
+ARTIFACT_REGEN_PREFIXES = (
+    "src/",
+    "stdlib/",
+    "docs/examples/",
+    "docs/diagrams/",
+)
+
 # Paths that trigger the full oracle conformance run (oracle.yml).
 ORACLE_EXACT = {
     "Cargo.toml",
@@ -120,6 +135,7 @@ def classify(paths: list[str]) -> dict[str, bool]:
     run_full_gate = False
     docs_examples_changed = False
     run_docs_examples_drift = False
+    run_artifact_regen = False
     run_wasm_check = False
     run_site_smoke = False
     run_wasm_site_smoke = False
@@ -136,6 +152,9 @@ def classify(paths: list[str]) -> dict[str, bool]:
 
         if path in DOCS_EXAMPLES_DRIFT_EXACT or path.startswith(DOCS_EXAMPLES_DRIFT_PREFIXES):
             run_docs_examples_drift = True
+
+        if path in ARTIFACT_REGEN_EXACT or path.startswith(ARTIFACT_REGEN_PREFIXES):
+            run_artifact_regen = True
 
         if path in ORACLE_EXACT or path.startswith(ORACLE_PREFIXES):
             run_oracle = True
@@ -180,6 +199,7 @@ def classify(paths: list[str]) -> dict[str, bool]:
     if not paths:
         run_full_gate = True
         run_docs_examples_drift = True
+        run_artifact_regen = True
         run_wasm_check = True
         run_site_smoke = True
         run_oracle = True
@@ -190,6 +210,7 @@ def classify(paths: list[str]) -> dict[str, bool]:
         "run_full_gate": run_full_gate,
         "docs_examples_changed": docs_examples_changed,
         "run_docs_examples_drift": run_docs_examples_drift,
+        "run_artifact_regen": run_artifact_regen,
         "run_wasm_check": run_wasm_check,
         "run_site_smoke": run_site_smoke,
         "run_wasm_site_smoke": run_wasm_site_smoke,
