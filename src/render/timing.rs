@@ -87,7 +87,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             }
         })
         .collect();
-    let timing_ranges: Vec<(i64, i64, String)> = events
+    // timing_ranges: (start, end, display_label, optional_fill_color)
+    let timing_ranges: Vec<(i64, i64, String, Option<String>)> = events
         .iter()
         .filter_map(|e| {
             if e.alias.is_some() {
@@ -99,8 +100,14 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 .clone()
                 .or_else(|| e.members.first().map(|m| m.text.clone()))
                 .unwrap_or_default();
-            let (end, label) = parse_timing_range_note(&txt)?;
-            Some((start, end, label))
+            let (end, label_raw) = parse_timing_range_note(&txt)?;
+            // §10.16: colour spec encoded as `label\x00#color` by the parser.
+            let (label, color) = if let Some((lbl, clr)) = label_raw.split_once('\x00') {
+                (lbl.to_string(), Some(timing_svg_color(clr)))
+            } else {
+                (label_raw, None)
+            };
+            Some((start, end, label, color))
         })
         .collect();
 
@@ -110,7 +117,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         .iter()
         .filter_map(|e| e.name.parse::<i64>().ok())
         .collect();
-    time_vals.extend(timing_ranges.iter().map(|(_, end, _)| *end));
+    time_vals.extend(timing_ranges.iter().map(|(_, end, _, _)| *end));
     for relation in &doc.relations {
         time_vals.extend(timing_relation_time(&relation.from));
         time_vals.extend(timing_relation_time(&relation.to));
@@ -160,9 +167,27 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         .unwrap_or(0)
         + 14; // subtitle line
 
+    // Header/footer/caption add vertical space above and below the diagram body.
+    let header_h: i32 = doc
+        .header
+        .as_deref()
+        .map(|h| h.lines().count() as i32 * 16 + 8)
+        .unwrap_or(0);
+    let footer_h: i32 = doc
+        .footer
+        .as_deref()
+        .map(|f| f.lines().count() as i32 * 16 + 8)
+        .unwrap_or(0);
+    let caption_h: i32 = doc
+        .caption
+        .as_deref()
+        .map(|c| c.lines().count() as i32 * 16 + 8)
+        .unwrap_or(0);
+
     let n_signals = signals.len().max(1) as i32;
     let axis_h_effective = if hide_time_axis { 10 } else { axis_h };
-    let height: i32 = title_h + axis_h_effective + n_signals * row_h + 32;
+    let height: i32 =
+        header_h + title_h + axis_h_effective + n_signals * row_h + 32 + footer_h + caption_h;
 
     // Map a time value to an x coordinate in the chart area.
     let time_to_x =
@@ -187,8 +212,23 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         escape_text(&style.font_color)
     ));
 
+    // ── Header ────────────────────────────────────────────────────────────────
+    let mut ty = 14i32;
+    if let Some(header) = &doc.header {
+        for line in header.lines() {
+            out.push_str(&format!(
+                "<text class=\"timing-header\" x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\">{}</text>",
+                escape_text(&style.font_color),
+                escape_text(line),
+                x = width / 2
+            ));
+            ty += 16;
+        }
+        ty += 4; // padding after header
+    }
+
     // ── Title ─────────────────────────────────────────────────────────────────
-    let mut ty = 22i32;
+    ty += 8; // base offset from top
     if let Some(title) = &doc.title {
         for line in title.lines() {
             out.push_str(&format!(
@@ -222,18 +262,25 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
     // Major ticks at each @N position
     let rows_h = n_signals * row_h;
-    for (start, end, label) in &timing_ranges {
+    for (start, end, label, fill_color) in &timing_ranges {
         let x1 = time_to_x((*start).min(*end));
         let x2 = time_to_x((*start).max(*end));
         let w = (x2 - x1).max(2);
+        // §10.16: use the parsed fill color if present; fall back to default amber/yellow.
+        let (fill, stroke, text_fill) = if let Some(clr) = fill_color.as_deref() {
+            // Build a lighter stroke from the fill name by appending some opacity.
+            (clr, clr, "#0f172a")
+        } else {
+            ("#fde68a", "#f59e0b", "#92400e")
+        };
         out.push_str(&format!(
-            "<rect class=\"timing-range\" x=\"{x1}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#fde68a\" opacity=\"0.45\" stroke=\"#f59e0b\" stroke-width=\"1\"/>",
+            "<rect class=\"timing-range\" x=\"{x1}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{fill}\" opacity=\"0.45\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
             y = axis_top,
             h = axis_h_effective + rows_h
         ));
         if !hide_time_axis {
             out.push_str(&format!(
-                "<text class=\"timing-range-label\" x=\"{x}\" y=\"{y}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"#92400e\">{}</text>",
+                "<text class=\"timing-range-label\" x=\"{x}\" y=\"{y}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{text_fill}\">{}</text>",
                 escape_text(label),
                 x = x1 + w / 2,
                 y = axis_top + axis_h - 14
@@ -367,11 +414,17 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         }
 
         // Collect events for this signal, sorted by time.
+        // Events with empty time string (initial-state declarations before any @block)
+        // are treated as occurring at t_min so they seed the waveform from the start.
         let mut sig_events: Vec<(i64, String)> = events
             .iter()
             .filter(|e| e.alias.as_deref() == Some(signal.name.as_str()))
             .filter_map(|e| {
-                let t = e.name.parse::<i64>().ok()?;
+                let t = if e.name.is_empty() {
+                    t_min
+                } else {
+                    e.name.parse::<i64>().ok()?
+                };
                 let state = e
                     .members
                     .first()
@@ -537,8 +590,21 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
 
             FamilyNodeKind::TimingRobust => {
                 // Robust: same as concise but with coloured fills per unique state.
-                // Build unique state → colour map.
-                let mut state_order: Vec<String> = Vec::new();
+                // Build unique state → colour map, respecting §10.27 `has` ordering.
+                let declared_order: Vec<String> = signal
+                    .members
+                    .iter()
+                    .find_map(|m| m.text.strip_prefix("__timing:order:"))
+                    .map(|order| {
+                        order
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut state_order: Vec<String> = declared_order.clone();
                 for (_, state) in &sig_events {
                     let display = timing_state_display(state);
                     if !state_order.contains(&display) {
@@ -688,6 +754,31 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         &time_to_x,
         style,
     );
+
+    // ── Footer / Caption ──────────────────────────────────────────────────────
+    let mut bottom_y = signals_top + rows_h + 20;
+    if let Some(caption) = &doc.caption {
+        for line in caption.lines() {
+            out.push_str(&format!(
+                "<text class=\"timing-caption\" x=\"{x}\" y=\"{bottom_y}\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\" text-anchor=\"middle\" font-style=\"italic\">{}</text>",
+                escape_text(&style.font_color),
+                escape_text(line),
+                x = width / 2
+            ));
+            bottom_y += 16;
+        }
+        bottom_y += 4;
+    }
+    if let Some(footer) = &doc.footer {
+        for line in footer.lines() {
+            out.push_str(&format!(
+                "<text class=\"timing-footer\" x=\"{x}\" y=\"{bottom_y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#94a3b8\" text-anchor=\"middle\">{}</text>",
+                escape_text(line),
+                x = width / 2
+            ));
+            bottom_y += 16;
+        }
+    }
 
     out.push_str("</svg>");
     out

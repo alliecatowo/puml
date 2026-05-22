@@ -1743,6 +1743,33 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 state,
                 note,
             } => {
+                // §10.27: `<signal> has <values>` ordering declaration — append ordering
+                // to the already-created signal node so the renderer can use it.
+                if family_kind == DiagramKind::Timing
+                    && state.is_none()
+                    && note
+                        .as_deref()
+                        .is_some_and(|n| n.starts_with("__timing:order:"))
+                {
+                    if let (Some(sig_name), Some(note_str)) = (&signal, &note) {
+                        let order_payload = note_str
+                            .strip_prefix("__timing:order:")
+                            .unwrap_or("")
+                            .to_string();
+                        if !order_payload.is_empty() {
+                            if let Some(sig_node) = nodes.iter_mut().find(|n| {
+                                matches!(n.kind, FamilyNodeKind::TimingRobust)
+                                    && n.name == *sig_name
+                            }) {
+                                sig_node.members.push(crate::ast::ClassMember {
+                                    text: format!("__timing:order:{order_payload}"),
+                                    modifier: None,
+                                });
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if family_kind == DiagramKind::Timing
                     && signal.is_none()
                     && state.is_none()

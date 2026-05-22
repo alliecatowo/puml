@@ -161,6 +161,10 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
             note: Some(format!("__timing:scale:{}", body.trim())),
         });
     }
+    // §10.27: `<signal> has <val1>,<val2>,...` declares display order for robust states.
+    if let Some(has_stmt) = parse_timing_has(trimmed) {
+        return Some(has_stmt);
+    }
     if let Some((start, end, label)) = parse_timing_highlight(trimmed) {
         return Some(StatementKind::TimingEvent {
             time: start,
@@ -308,6 +312,10 @@ fn parse_timing_oriented_state(line: &str) -> Option<(String, String)> {
 
 fn normalize_timing_state_literal(state: &str) -> String {
     let trimmed = state.trim();
+    // §10.29: strip trailing `: comment` annotation (outside of braces/quotes).
+    // The annotation is freeform text after the first bare colon that follows the
+    // state token (and optional colour spec).  We keep the colour spec (#…) intact.
+    let trimmed = strip_timing_state_annotation(trimmed);
     let (body_raw, style) = split_timing_state_style(trimmed);
     let body_raw = body_raw.trim().trim_matches('"').trim();
     let body = body_raw
@@ -324,6 +332,28 @@ fn normalize_timing_state_literal(state: &str) -> String {
         Some(style) => format!("{normalized} {style}"),
         None => normalized,
     }
+}
+
+/// Strip a trailing `: annotation` from a state literal (§10.29).
+/// Only strips the colon-separated suffix when it appears outside braces and quotes
+/// and is not part of a colour spec (`#color;line:...`).
+fn strip_timing_state_annotation(state: &str) -> &str {
+    let mut depth = 0usize;
+    let mut in_quote = false;
+    let mut in_color = false;
+    for (idx, ch) in state.char_indices() {
+        match ch {
+            '"' => in_quote = !in_quote,
+            '{' if !in_quote => depth += 1,
+            '}' if !in_quote => depth = depth.saturating_sub(1),
+            '#' if !in_quote && depth == 0 => in_color = true,
+            ':' if !in_quote && depth == 0 && !in_color => {
+                return state[..idx].trim_end();
+            }
+            _ => {}
+        }
+    }
+    state
 }
 
 fn split_timing_state_style(state: &str) -> (&str, Option<String>) {
@@ -359,15 +389,17 @@ fn parse_timing_highlight(line: &str) -> Option<(String, String, String)> {
     let idx = lower.find(" to ")?;
     let start = rest[..idx].trim().trim_start_matches('@');
     let after = rest[idx + " to ".len()..].trim();
-    let (end_part, label) = after
-        .split_once(':')
-        .map(|(e, l)| (e.trim(), l.trim()))
-        .unwrap_or((after, ""));
-    let end = end_part
-        .split_whitespace()
+    // §10.16: `end_part` may be `450 #Gold;line:DimGrey` — split label at `:` only when
+    // the colon is NOT inside the colour spec (i.e. after the `#` token).
+    // Strategy: split on ` : ` or find `:` that isn't preceded by a semicolon keyword.
+    let (end_part, label) = split_highlight_end_label(after);
+    // Extract optional colour from end_part: `450 #Gold;line:DimGrey` → end="450", color="#Gold;line:DimGrey"
+    let mut end_tokens = end_part.split_whitespace();
+    let end = end_tokens
         .next()
         .unwrap_or("")
         .trim_start_matches('@');
+    let color_spec = end_tokens.next().filter(|s| s.starts_with('#'));
     if start.is_empty() || end.is_empty() {
         return None;
     }
@@ -376,7 +408,40 @@ fn parse_timing_highlight(line: &str) -> Option<(String, String, String)> {
     } else {
         label.trim_matches('"').to_string()
     };
-    Some((start.to_string(), end.to_string(), label))
+    // Encode colour into label via a `#color` suffix separated by `\x00` so the renderer
+    // can pick it up without changing the label API surface.
+    let label_with_color = match color_spec {
+        Some(c) => format!("{label}\x00{c}"),
+        None => label,
+    };
+    Some((start.to_string(), end.to_string(), label_with_color))
+}
+
+/// Split `highlight … to <end_part> : label` by finding the separator colon that is
+/// NOT part of a `line:Color` or `line.style` colour spec. Returns (end_part, label).
+fn split_highlight_end_label(after: &str) -> (&str, &str) {
+    // Find a ` : ` separator — but only when the colon is outside a colour spec.
+    // A colour spec starts with `#` and continues until whitespace or end.
+    // Simple approach: locate ` : ` or `: ` that appears after any colour tokens.
+    let bytes = after.as_bytes();
+    let mut in_color = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'#' {
+            in_color = true;
+        } else if in_color && (b == b' ') {
+            in_color = false;
+        }
+        if !in_color && b == b':' {
+            // Check it's not `line:` within colour spec
+            let rest = &after[i..];
+            let trimmed = rest.trim_start_matches(':').trim_start();
+            return (after[..i].trim_end(), trimmed);
+        }
+        i += 1;
+    }
+    (after, "")
 }
 
 fn split_is(s: &str) -> Option<(String, String)> {
@@ -388,4 +453,38 @@ fn split_is(s: &str) -> Option<(String, String)> {
         return None;
     }
     Some((lhs.to_string(), rhs.to_string()))
+}
+
+/// §10.27: parse `<signal> has <val1>,<val2>,...` and optionally `<val> as <alias>`.
+/// Returns a TimingEvent with note `__timing:order:<signal>:<val1>,<val2>,...`.
+fn parse_timing_has(line: &str) -> Option<StatementKind> {
+    let (signal, rest) = line.split_once(" has ")?;
+    let signal = signal.trim();
+    let rest = rest.trim();
+    if signal.is_empty() || rest.is_empty() {
+        return None;
+    }
+    // Each value may have an alias: `"35 gpm" as high`. Normalise to display names.
+    let values: Vec<String> = rest
+        .split(',')
+        .map(|token| {
+            let token = token.trim();
+            // strip alias: `"35 gpm" as high` → `high`; `low` → `low`
+            if let Some((_, alias)) = token.split_once(" as ") {
+                alias.trim().trim_matches('"').to_string()
+            } else {
+                token.trim_matches('"').to_string()
+            }
+        })
+        .filter(|v| !v.is_empty())
+        .collect();
+    if values.is_empty() {
+        return None;
+    }
+    Some(StatementKind::TimingEvent {
+        time: String::new(),
+        signal: Some(signal.to_string()),
+        state: None,
+        note: Some(format!("__timing:order:{}", values.join(","))),
+    })
 }
