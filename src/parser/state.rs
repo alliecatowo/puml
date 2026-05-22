@@ -83,6 +83,7 @@ fn parse_state_statement(
                         name: name_raw,
                         alias,
                         stereotype: Some(stereotype.to_string()),
+                        fill_color: None,
                         children: Vec::new(),
                         region_dividers: Vec::new(),
                     }),
@@ -93,14 +94,16 @@ fn parse_state_statement(
     }
 
     // `state Name` or `state Name <<stereotype>>` or `state Name { ... }`
+    // Also handles `state Name #color { ... }` (inline fill color, §9.18/9.21)
     if line.starts_with("state ") {
         let rest = line.strip_prefix("state ").unwrap_or("").trim();
         if rest.is_empty() {
             return Ok(None);
         }
 
-        // Extract optional stereotype `<<...>>`
-        let (name_part, stereotype) = if let Some(idx) = rest.find("<<") {
+        // Extract optional stereotype `<<...>>` — done before color so
+        // `state Foo <<entryPoint>> #pink` works correctly.
+        let (name_color_part, stereotype) = if let Some(idx) = rest.find("<<") {
             let name = rest[..idx].trim();
             let after = &rest[idx + 2..];
             let stereo = after.find(">>").map(|end| after[..end].trim().to_string());
@@ -109,12 +112,13 @@ fn parse_state_statement(
             (rest, None)
         };
 
-        // Check if there's a block
-        let (name_alias_part, has_block) = if name_part.ends_with('{') {
-            (name_part.trim_end_matches('{').trim(), true)
-        } else {
-            (name_part, false)
-        };
+        // Extract optional inline fill color `#color` (§9.18).
+        let (name_alias_stripped, fill_color) = extract_state_fill_color(name_color_part);
+
+        // Check if there's a block: the `{` may appear after the color token.
+        let has_block = name_alias_stripped.ends_with('{')
+            || name_color_part.trim_end().ends_with('{');
+        let name_alias_part = name_alias_stripped.trim_end_matches('{').trim();
 
         // Extract alias
         let (name_raw, alias) = if let Some((lhs, rhs)) = name_alias_part.split_once(" as ") {
@@ -136,6 +140,7 @@ fn parse_state_statement(
                 name: name_raw,
                 alias,
                 stereotype,
+                fill_color,
                 children,
                 region_dividers,
             };
@@ -145,6 +150,7 @@ fn parse_state_statement(
                 name: name_raw,
                 alias,
                 stereotype,
+                fill_color,
                 children: Vec::new(),
                 region_dividers: Vec::new(),
             };
@@ -360,6 +366,38 @@ fn parse_state_bare_internal_action(parent_state: &str, line: &str) -> Option<St
         kind,
         action,
     })
+}
+
+/// Extract an optional inline fill color token from a `state Name [#color] [{ ]` fragment.
+/// Returns `(prefix_before_color, Option<color_string>)`.
+///
+/// Finds the first `#<alnum>` token preceded by whitespace (or start of string),
+/// excluding `##` (border-color). Any `{` after the color is detected by the caller.
+fn extract_state_fill_color(text: &str) -> (&str, Option<String>) {
+    let bytes = text.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] == b'#' {
+            let prev_is_ws = i == 0 || (bytes[i - 1] as char).is_ascii_whitespace();
+            let next_is_alnum = i + 1 < bytes.len()
+                && (bytes[i + 1] as char).is_ascii_alphanumeric();
+            if prev_is_ws && next_is_alnum {
+                let color_start = i;
+                let mut j = i + 1;
+                while j < bytes.len() {
+                    let ch = bytes[j] as char;
+                    if ch.is_ascii_whitespace() || ch == '{' {
+                        break;
+                    }
+                    j += 1;
+                }
+                let color = text[color_start..j].to_string();
+                return (text[..color_start].trim_end(), Some(color));
+            }
+        }
+        i += 1;
+    }
+    (text, None)
 }
 
 fn is_timeline_metadata_statement(kind: &StatementKind) -> bool {

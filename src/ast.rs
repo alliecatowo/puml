@@ -220,6 +220,8 @@ pub struct StateDecl {
     pub name: String,
     pub alias: Option<String>,
     pub stereotype: Option<String>,
+    /// Optional background color from `state Foo #pink { … }` or `state Foo #pink`.
+    pub fill_color: Option<String>,
     pub children: Vec<Statement>,
     pub region_dividers: Vec<usize>, // indices into children where `||` appeared
 }

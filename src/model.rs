@@ -45,6 +45,7 @@ pub struct StateDocument {
     pub kind: DiagramKind,
     pub nodes: Vec<StateNode>,
     pub transitions: Vec<StateTransition>,
+    pub notes: Vec<StateNote>,
     pub title: Option<String>,
     pub header: Option<String>,
     pub footer: Option<String>,
@@ -52,6 +53,20 @@ pub struct StateDocument {
     pub legend: Option<String>,
     pub state_style: StateStyle,
     pub warnings: Vec<Diagnostic>,
+    /// When `hide empty description` is set, states with no internal actions
+    /// are rendered as simple boxes without a description label.
+    pub hide_empty_description: bool,
+}
+
+/// A note attached to a state or floating (no target).
+#[derive(Debug, Clone)]
+pub struct StateNote {
+    /// Position: "left", "right", "top", "bottom", or "over" (on link)
+    pub position: String,
+    /// The state name this note is attached to, or `None` for floating.
+    pub target: Option<String>,
+    /// The note text.
+    pub text: String,
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +78,8 @@ pub struct StateNode {
     pub internal_actions: Vec<StateInternalAction>,
     /// For composite states: children per region (concurrent → multiple vecs)
     pub regions: Vec<Vec<StateNode>>,
+    /// Optional per-state background fill color (from `state Foo #pink { … }`).
+    pub fill_color: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +99,15 @@ pub enum StateNodeKind {
     Choice,
     /// `<<end>>` stereotype — filled circle
     End,
+    /// `<<entryPoint>>` / `<<exitPoint>>` — small circle on composite boundary
+    EntryPoint,
+    ExitPoint,
+    /// `<<inputPin>>` / `<<outputPin>>` — small square
+    InputPin,
+    OutputPin,
+    /// `<<expansionInput>>` / `<<expansionOutput>>` — small square with arrows
+    ExpansionInput,
+    ExpansionOutput,
 }
 
 #[derive(Debug, Clone)]

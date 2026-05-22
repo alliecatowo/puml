@@ -3,6 +3,7 @@ use super::*;
 pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagnostic> {
     let mut nodes: Vec<StateNode> = Vec::new();
     let mut transitions: Vec<ModelStateTransition> = Vec::new();
+    let mut notes: Vec<crate::model::StateNote> = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
@@ -10,6 +11,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
     let mut legend = None;
     let mut state_style = StateStyle::default();
     let mut monochrome_mode = None;
+    let mut hide_empty_description = false;
     let mut warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in &document.statements {
@@ -68,6 +70,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                         stereotype: None,
                         internal_actions: Vec::new(),
                         regions: Vec::new(),
+                        fill_color: None,
                     },
                 );
             }
@@ -93,11 +96,16 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     }
                     continue;
                 }
-                if key.trim().eq_ignore_ascii_case("handwritten") {
+                if key.trim().eq_ignore_ascii_case("handwritten")
+                    || key.trim().eq_ignore_ascii_case("sepia")
+                {
                     match classify_sequence_skinparam(key, value) {
                         SequenceSkinParamSupport::SupportedNoop
                         | SequenceSkinParamSupport::SupportedWithValue(
                             SequenceSkinParamValue::Handwritten(_),
+                        )
+                        | SequenceSkinParamSupport::SupportedWithValue(
+                            SequenceSkinParamValue::Sepia(_),
                         ) => {}
                         _ => warnings.push(
                             Diagnostic::warning(format!(
@@ -164,6 +172,21 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
             | StatementKind::Define { .. }
             | StatementKind::Undef(_) => {}
             StatementKind::StateRegionDivider => {}
+            // §9.15–9.17: notes attached to states (or floating).
+            // Convert to StateNote entries rather than erroring with E_STATE_MIXED.
+            StatementKind::Note(note) => {
+                notes.push(crate::model::StateNote {
+                    position: note.position.clone(),
+                    target: note.target.clone(),
+                    text: note.text.clone(),
+                });
+            }
+            // §9.2: `hide empty description` — render states without actions as plain boxes.
+            StatementKind::HideOption(opt) if opt.eq_ignore_ascii_case("empty description") => {
+                hide_empty_description = true;
+            }
+            // Other hide/show options (class-diagram specific) — silently ignore.
+            StatementKind::HideOption(_) | StatementKind::HideUnlinked => {}
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(format!(
                     "[E_STATE_UNSUPPORTED_SYNTAX] unsupported state diagram syntax: `{}`",
@@ -201,6 +224,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                 stereotype: None,
                 internal_actions: Vec::new(),
                 regions: Vec::new(),
+                fill_color: None,
             };
             nodes.push(final_node);
             // Rewrite all transitions whose target is [*] to point at [*]__end
@@ -220,6 +244,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         kind: document.kind,
         nodes,
         transitions,
+        notes,
         title,
         header,
         footer,
@@ -227,6 +252,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
         legend,
         state_style,
         warnings,
+        hide_empty_description,
     })
 }
 
@@ -280,6 +306,9 @@ fn merge_state_node(existing: &mut StateNode, node: StateNode) {
     if node.display.is_some() && existing.display.is_none() {
         existing.display = node.display;
     }
+    if node.fill_color.is_some() && existing.fill_color.is_none() {
+        existing.fill_color = node.fill_color;
+    }
 }
 
 fn placeholder_state_node(name: &str) -> StateNode {
@@ -308,6 +337,7 @@ fn placeholder_state_node(name: &str) -> StateNode {
         stereotype: None,
         internal_actions: Vec::new(),
         regions: Vec::new(),
+        fill_color: None,
     }
 }
 
@@ -398,6 +428,15 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
         Some("join") => StateNodeKind::Join,
         Some("choice") => StateNodeKind::Choice,
         Some("end") => StateNodeKind::End,
+        // §9.10: entry/exit points
+        Some("entryPoint") => StateNodeKind::EntryPoint,
+        Some("exitPoint") => StateNodeKind::ExitPoint,
+        // §9.11: pins
+        Some("inputPin") => StateNodeKind::InputPin,
+        Some("outputPin") => StateNodeKind::OutputPin,
+        // §9.12: expansion ports
+        Some("expansionInput") => StateNodeKind::ExpansionInput,
+        Some("expansionOutput") => StateNodeKind::ExpansionOutput,
         _ => StateNodeKind::Normal,
     };
 
@@ -438,6 +477,7 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
                         stereotype: None,
                         internal_actions: Vec::new(),
                         regions: Vec::new(),
+                        fill_color: None,
                     },
                 );
             }
@@ -493,6 +533,7 @@ fn state_decl_to_node(decl: &crate::ast::StateDecl) -> StateNode {
         stereotype: decl.stereotype.clone(),
         internal_actions,
         regions,
+        fill_color: decl.fill_color.clone(),
     }
 }
 

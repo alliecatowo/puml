@@ -2254,6 +2254,12 @@ fn state_model_to_json(model: &StateDocument) -> Value {
                 puml::model::StateNodeKind::Join => "Join",
                 puml::model::StateNodeKind::Choice => "Choice",
                 puml::model::StateNodeKind::End => "End",
+                puml::model::StateNodeKind::EntryPoint => "EntryPoint",
+                puml::model::StateNodeKind::ExitPoint => "ExitPoint",
+                puml::model::StateNodeKind::InputPin => "InputPin",
+                puml::model::StateNodeKind::OutputPin => "OutputPin",
+                puml::model::StateNodeKind::ExpansionInput => "ExpansionInput",
+                puml::model::StateNodeKind::ExpansionOutput => "ExpansionOutput",
             },
             "internal_actions": n.internal_actions.iter().map(|a| json!({
                 "kind": a.kind,

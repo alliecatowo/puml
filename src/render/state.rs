@@ -713,6 +713,13 @@ fn compute_node_size(
         StateNodeKind::Choice => (44, 44),
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (34, 34),
         StateNodeKind::StartEnd | StateNodeKind::End => (26, 26),
+        // Pseudo-state pins and expansion nodes — render as small squares (16×16)
+        StateNodeKind::EntryPoint
+        | StateNodeKind::ExitPoint
+        | StateNodeKind::InputPin
+        | StateNodeKind::OutputPin
+        | StateNodeKind::ExpansionInput
+        | StateNodeKind::ExpansionOutput => (16, 16),
         StateNodeKind::Normal => {
             let has_children = node.regions.iter().any(|r| !r.is_empty());
 
@@ -1486,6 +1493,12 @@ fn state_node_kind_name(kind: &StateNodeKind) -> &'static str {
         StateNodeKind::Join => "join",
         StateNodeKind::Choice => "choice",
         StateNodeKind::End => "end",
+        StateNodeKind::EntryPoint => "entry-point",
+        StateNodeKind::ExitPoint => "exit-point",
+        StateNodeKind::InputPin => "input-pin",
+        StateNodeKind::OutputPin => "output-pin",
+        StateNodeKind::ExpansionInput => "expansion-input",
+        StateNodeKind::ExpansionOutput => "expansion-output",
     }
 }
 
@@ -1617,6 +1630,79 @@ fn render_node<'a>(
                 cx, cy + r,
                 cx - r, cy,
                 state_style.background_color, state_style.border_color
+            ));
+        }
+
+        StateNodeKind::EntryPoint => {
+            // Filled circle (smaller than start-end)
+            let cx = x + w / 2;
+            let cy = y + h / 2;
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"9\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                cx, cy, state_style.start_color, state_style.border_color
+            ));
+        }
+
+        StateNodeKind::ExitPoint => {
+            // Circle with X inside
+            let cx = x + w / 2;
+            let cy = y + h / 2;
+            let r = 9i32;
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                cx, cy, r, state_style.background_color, state_style.border_color
+            ));
+            let d = (r as f64 * 0.6).round() as i32;
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                cx - d, cy - d, cx + d, cy + d, state_style.border_color
+            ));
+            out.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                cx + d, cy - d, cx - d, cy + d, state_style.border_color
+            ));
+        }
+
+        StateNodeKind::InputPin | StateNodeKind::OutputPin => {
+            // Small filled square
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x, y, w, h, state_style.start_color, state_style.border_color
+            ));
+        }
+
+        StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => {
+            // Small square with a directional arrow indicator
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                x, y, w, h, state_style.background_color, state_style.border_color
+            ));
+            let cx = x + w / 2;
+            let cy = y + h / 2;
+            let points = if matches!(node.kind, StateNodeKind::ExpansionInput) {
+                format!(
+                    "{},{} {},{} {},{}",
+                    cx - 4,
+                    cy + 3,
+                    cx + 4,
+                    cy + 3,
+                    cx,
+                    cy - 3
+                )
+            } else {
+                format!(
+                    "{},{} {},{} {},{}",
+                    cx - 4,
+                    cy - 3,
+                    cx + 4,
+                    cy - 3,
+                    cx,
+                    cy + 3
+                )
+            };
+            out.push_str(&format!(
+                "<polygon points=\"{}\" fill=\"{}\"/>",
+                points, state_style.start_color
             ));
         }
 
