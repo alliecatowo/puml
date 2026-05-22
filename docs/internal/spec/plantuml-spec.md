@@ -45,7 +45,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 11 | JSON | 7 | 4 | 3 | [ch11-json.md](audit/ch11-json.md) |
 | 12 | YAML | 3 | 1 | 4 | [ch12-yaml.md](audit/ch12-yaml.md) |
 | 13 | nwdiag | 11 | 4 | 2 | [ch13-nwdiag.md](audit/ch13-nwdiag.md) |
-| 14 | Salt (Wireframe) | 10 | 11 | 3 | [ch14-salt.md](audit/ch14-salt.md) |
+| 14 | Salt (Wireframe) | 12 | 9 | 3 | [ch14-salt.md](audit/ch14-salt.md) |
 | 15 | ArchiMate | 6 | 2 | 1 | [ch15-archimate.md](audit/ch15-archimate.md) |
 | 16 | Gantt | 15 | 11 | 13 | [ch16-gantt.md](audit/ch16-gantt.md) |
 | 17 | MindMap | 10 | 3 | 0 | [ch17-mindmap.md](audit/ch17-mindmap.md) |
