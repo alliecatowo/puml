@@ -805,13 +805,24 @@ fn visual_char_count(word: &str) -> usize {
         if chars[i] == '<' {
             // Try to skip a markup tag: collect up to '>'.
             let mut j = i + 1;
-            // Allow at most 32 chars inside the tag to avoid consuming large
+            // Allow longer sprite references such as `<$name{scale=2,color=#2563eb}>`
+            // to stay atomic during wrapping; splitting inside them prevents render-time
+            // sprite substitution.
+            let tag_limit = if i + 1 < len && chars[i + 1] == '$' {
+                96
+            } else {
+                32
+            };
+            // Allow at most tag_limit chars inside the tag to avoid consuming large
             // non-tag `<...` sequences (e.g. math operators).
-            while j < len && j - i <= 32 && chars[j] != '>' {
+            while j < len && j - i <= tag_limit && chars[j] != '>' {
                 j += 1;
             }
             if j < len && chars[j] == '>' {
-                // Consumed a tag — skip it entirely (no visual chars).
+                if i + 1 < len && chars[i + 1] == '$' {
+                    count += 2;
+                }
+                // Consumed a tag — skip it entirely (or as compact sprite width).
                 i = j + 1;
                 continue;
             }

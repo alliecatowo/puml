@@ -1,4 +1,5 @@
 use crate::source::Span;
+use crate::sprites::SpriteDefinition;
 
 #[derive(Debug, Clone)]
 pub struct Document {
@@ -174,6 +175,8 @@ pub enum StatementKind {
     SaltGridRow {
         cells: Vec<SaltCell>,
     },
+    SpriteDef(SpriteDefinition),
+    ListSprites,
     Unknown(String),
 }
 

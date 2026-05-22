@@ -48,4 +48,4 @@ pub use timing::render_timing_svg;
 pub(crate) use family::family_node_label;
 pub(crate) use geometry::compute_edge_anchors_for_direction;
 pub(crate) use relation::render_relation_marker_defs;
-pub(crate) use svg::{creole_text, escape_text};
+pub(crate) use svg::{creole_text, escape_text, render_sprite_sheet, with_sprite_registry};

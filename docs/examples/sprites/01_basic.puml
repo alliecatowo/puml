@@ -1,0 +1,6 @@
+@startuml
+title Sprite reference
+!include <material/folder>
+Alice -> Bob : Open <$ma_folder{scale=2,color=#2563eb}>
+Bob --> Alice : listed with listsprites
+@enduml
