@@ -1,4 +1,8 @@
 use super::*;
+use crate::creole::tokenize_creole;
+
+const MINDMAP_CHAR_PX: i32 = 7;
+const MINDMAP_NODE_PAD_X: i32 = 20;
 
 const MINDMAP_PALETTE: &[&str] = &[
     "#fde68a", // depth 0 — root amber
@@ -17,55 +21,140 @@ fn family_node_fill<'a>(node: &'a crate::model::FamilyNode, fallback: &'a str) -
     node.fill_color.as_deref().unwrap_or(fallback)
 }
 
-/// Emit a centered multi-line `<text>` element. PlantUML supports `\n` in node
-/// labels for explicit line breaks (#560); the parser converts the escape to a
-/// real newline and this helper paints each line as a `<tspan>` centered around
-/// `y_center`.
-fn render_multiline_text(
+fn mindmap_max_chars(maximum_width: Option<i32>) -> Option<usize> {
+    let px = maximum_width.filter(|w| *w > 0)?;
+    let inner = px.saturating_sub(MINDMAP_NODE_PAD_X);
+    Some((inner / MINDMAP_CHAR_PX).max(1) as usize)
+}
+
+/// Word-wrap `text` at `max_chars` per line (monospace heuristic, 7px/char).
+fn wrap_mindmap_label(text: &str, max_chars: usize) -> String {
+    text.split('\n')
+        .flat_map(|line| wrap_mindmap_line(line, max_chars))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn wrap_mindmap_line(line: &str, max_chars: usize) -> Vec<String> {
+    if line.is_empty() {
+        return vec![String::new()];
+    }
+    let words = line.split_whitespace().collect::<Vec<_>>();
+    if words.is_empty() {
+        return vec![String::new()];
+    }
+
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in words {
+        let word_len = word.chars().count();
+        if current.is_empty() {
+            if word_len <= max_chars {
+                current.push_str(word);
+            } else {
+                lines.extend(chunk_mindmap_word(word, max_chars));
+            }
+            continue;
+        }
+        let next_len = current.chars().count() + 1 + word_len;
+        if next_len <= max_chars {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(current);
+            if word_len <= max_chars {
+                current = word.to_string();
+            } else {
+                let mut chunks = chunk_mindmap_word(word, max_chars);
+                let tail = chunks.pop().unwrap_or_default();
+                lines.extend(chunks);
+                current = tail;
+            }
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+fn chunk_mindmap_word(text: &str, max_chars: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for ch in text.chars() {
+        current.push(ch);
+        if current.chars().count() >= max_chars {
+            out.push(current);
+            current = String::new();
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    if out.is_empty() {
+        vec![String::new()]
+    } else {
+        out
+    }
+}
+
+fn prepare_mindmap_label(raw: &str, maximum_width: Option<i32>) -> String {
+    match mindmap_max_chars(maximum_width) {
+        Some(max_chars) => wrap_mindmap_label(raw, max_chars),
+        None => raw.to_string(),
+    }
+}
+
+fn mindmap_label_attrs(font_size: i32, font_family: &str, font_weight: &str) -> String {
+    format!(
+        "text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{font_family}\" font-size=\"{font_size}\" font-weight=\"{font_weight}\""
+    )
+}
+
+/// Emit a centered multi-line `<text>` element with Creole markup support.
+fn render_mindmap_node_label(
     x: i32,
     y_center: i32,
     text: &str,
     font_size: i32,
     font_family: &str,
     font_weight: &str,
+    font_color: &str,
 ) -> String {
+    let attrs = mindmap_label_attrs(font_size, font_family, font_weight);
     let lines: Vec<&str> = text.split('\n').collect();
-    // Single-line case: emit a plain `<text>` element so test helpers that
-    // inspect direct text content keep working.
     if lines.len() <= 1 {
-        return format!(
-            "<text x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">{txt}</text>",
-            x = x,
-            y_center = y_center,
-            ff = font_family,
-            fs = font_size,
-            fw = font_weight,
-            txt = escape_text(text),
-        );
+        return creole_text(x, y_center, &attrs, text, font_color);
     }
-    let n = lines.len() as i32;
+
+    let creole_lines = tokenize_creole(text);
     let line_h = (font_size as f32 * 1.25) as i32;
+    let n = creole_lines.len() as i32;
     let total_h = line_h * (n - 1);
     let start_y = y_center - total_h / 2;
-    let mut out = format!(
-        "<text x=\"{x}\" y=\"{y_center}\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"{fw}\">",
-        x = x,
-        y_center = y_center,
-        ff = font_family,
-        fs = font_size,
-        fw = font_weight,
-    );
-    for (i, line) in lines.iter().enumerate() {
+    let mut out = format!("<text x=\"{x}\" y=\"{start_y}\" {attrs}>");
+    for (i, line) in creole_lines.iter().enumerate() {
         let y = start_y + (i as i32) * line_h;
+        let inner = render_creole_line_to_tspans_inline(line, font_color);
         out.push_str(&format!(
-            "<tspan x=\"{x}\" y=\"{y}\">{}</tspan>",
-            escape_text(line),
+            "<tspan x=\"{x}\" y=\"{y}\">{inner}</tspan>",
             x = x,
-            y = y,
+            y = y
         ));
     }
     out.push_str("</text>");
     out
+}
+
+fn render_creole_line_to_tspans_inline(
+    line: &crate::creole::CreoleLine,
+    default_color: &str,
+) -> String {
+    use crate::creole::render_creole_line_to_tspans;
+    render_creole_line_to_tspans(line, 0, default_color)
 }
 
 /// Width of a multi-line label = the longest line, in monospace char units.
@@ -92,6 +181,13 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     const NODE_H: i32 = 34;
     const MARGIN: i32 = 24;
     const NODE_PAD_X: i32 = 10;
+
+    let maximum_width = doc.maximum_width;
+    let display_names: Vec<String> = doc
+        .nodes
+        .iter()
+        .map(|node| prepare_mindmap_label(&node.name, maximum_width))
+        .collect();
 
     // Separate nodes into root, left-side, right-side subtrees.
     // Depth 0 = root. Depth 1+ inherit side from their nearest depth-1 ancestor.
@@ -196,12 +292,16 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
     let canvas_h = (max_leaves as i32) * Y_STEP + 2 * MARGIN + NODE_H;
 
     // Max text width for nodes — simple heuristic.
-    fn node_width(name: &str) -> i32 {
-        let chars = name.chars().count() as i32;
-        (chars * 7 + 20).clamp(80, 220)
+    fn node_width(name: &str, maximum_width: Option<i32>) -> i32 {
+        let chars = multiline_char_width(name);
+        let heuristic = chars * MINDMAP_CHAR_PX + MINDMAP_NODE_PAD_X;
+        match maximum_width.filter(|w| *w > 0) {
+            Some(max_px) => heuristic.clamp(70, max_px),
+            None => heuristic.clamp(70, 220),
+        }
     }
 
-    let root_w = node_width(&nodes[0].name);
+    let root_w = node_width(&display_names[0], maximum_width);
     let max_right_depth = (0..n)
         .filter(|&i| side[i] == MindMapSide::Right && nodes[i].depth >= 1)
         .map(|i| nodes[i].depth)
@@ -227,15 +327,18 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         assign_y_positions(nodes, &left_roots, &mut y_positions, &mut y_cursor, Y_STEP);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn subtree_bounds(
         nodes: &[crate::model::FamilyNode],
+        display_names: &[String],
         idx: usize,
         node_x_center: i32,
         x_step: i32,
         node_pad_x: i32,
         is_left: bool,
+        maximum_width: Option<i32>,
     ) -> (i32, i32) {
-        let nw = (multiline_char_width(&nodes[idx].name) * 7 + 20).clamp(70, 220);
+        let nw = node_width(&display_names[idx], maximum_width);
         let nx = if is_left {
             node_x_center - nw
         } else {
@@ -250,8 +353,16 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         children
             .iter()
             .fold((nx, nx + nw), |(acc_min, acc_max), &c| {
-                let (child_min, child_max) =
-                    subtree_bounds(nodes, c, next_x_center, x_step, node_pad_x, is_left);
+                let (child_min, child_max) = subtree_bounds(
+                    nodes,
+                    display_names,
+                    c,
+                    next_x_center,
+                    x_step,
+                    node_pad_x,
+                    is_left,
+                    maximum_width,
+                );
                 (acc_min.min(child_min), acc_max.max(child_max))
             })
     }
@@ -264,7 +375,19 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         let right_start = root_cx_prelim + root_w / 2 + X_STEP - NODE_PAD_X;
         right_roots
             .iter()
-            .map(|&i| subtree_bounds(nodes, i, right_start, X_STEP, NODE_PAD_X, false).1)
+            .map(|&i| {
+                subtree_bounds(
+                    nodes,
+                    &display_names,
+                    i,
+                    right_start,
+                    X_STEP,
+                    NODE_PAD_X,
+                    false,
+                    maximum_width,
+                )
+                .1
+            })
             .max()
             .unwrap_or(root_max_x)
     };
@@ -272,7 +395,19 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         let left_start = root_cx_prelim - root_w / 2 - X_STEP + NODE_PAD_X;
         left_roots
             .iter()
-            .map(|&i| subtree_bounds(nodes, i, left_start, X_STEP, NODE_PAD_X, true).0)
+            .map(|&i| {
+                subtree_bounds(
+                    nodes,
+                    &display_names,
+                    i,
+                    left_start,
+                    X_STEP,
+                    NODE_PAD_X,
+                    true,
+                    maximum_width,
+                )
+                .0
+            })
             .min()
             .unwrap_or(root_min_x)
     };
@@ -320,13 +455,14 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         child_count = family_tree_child_indices(nodes, 0).len(),
         fill = escape_text(family_node_fill(&nodes[0], mindmap_node_fill(0)))
     ));
-    out.push_str(&render_multiline_text(
+    out.push_str(&render_mindmap_node_label(
         root_cx,
         root_cy,
-        &nodes[0].name,
+        &display_names[0],
         13,
         "monospace",
         "600",
+        "#111827",
     ));
 
     // Draw right-side branches.
@@ -334,6 +470,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         draw_mindmap_subtree(
             &mut out,
             nodes,
+            &display_names,
             i,
             root_cx + root_w / 2,
             root_cy,
@@ -343,6 +480,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             NODE_H,
             NODE_PAD_X,
             false, // left=false → right
+            maximum_width,
         );
     }
     // Draw left-side branches.
@@ -350,6 +488,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
         draw_mindmap_subtree(
             &mut out,
             nodes,
+            &display_names,
             i,
             root_cx - root_w / 2,
             root_cy,
@@ -359,6 +498,7 @@ pub fn render_mindmap_svg(doc: &FamilyDocument) -> String {
             NODE_H,
             NODE_PAD_X,
             true, // left=true
+            maximum_width,
         );
     }
 
@@ -460,6 +600,7 @@ fn node_sibling_index(nodes: &[crate::model::FamilyNode], idx: usize) -> usize {
 fn draw_mindmap_subtree(
     out: &mut String,
     nodes: &[crate::model::FamilyNode],
+    display_names: &[String],
     idx: usize,
     parent_attach_x: i32,
     parent_attach_y: i32,
@@ -469,11 +610,18 @@ fn draw_mindmap_subtree(
     node_h: i32,
     node_pad_x: i32,
     is_left: bool,
+    maximum_width: Option<i32>,
 ) {
     let node = &nodes[idx];
+    let label = &display_names[idx];
     let ny = y_positions[idx];
-    let nw = (multiline_char_width(&node.name) * 7 + 20).clamp(70, 220);
-    let lines = multiline_line_count(&node.name);
+    let chars = multiline_char_width(label);
+    let heuristic = chars * MINDMAP_CHAR_PX + MINDMAP_NODE_PAD_X;
+    let nw = match maximum_width.filter(|w| *w > 0) {
+        Some(max_px) => heuristic.clamp(70, max_px),
+        None => heuristic.clamp(70, 220),
+    };
+    let lines = multiline_line_count(label);
     let node_h = if lines > 1 {
         (node_h + (lines - 1) * 16).min(node_h * lines.max(1))
     } else {
@@ -517,13 +665,14 @@ fn draw_mindmap_subtree(
         nx = nx, ny_top = ny_top, nw = nw, nh = node_h,
         fill = escape_text(family_node_fill(node, mindmap_node_fill(node.depth)))
     ));
-    out.push_str(&render_multiline_text(
+    out.push_str(&render_mindmap_node_label(
         nx + nw / 2,
         ny,
-        &node.name,
+        label,
         12,
         "monospace",
         "400",
+        "#111827",
     ));
 
     let next_x_center = if is_left {
@@ -536,6 +685,7 @@ fn draw_mindmap_subtree(
         draw_mindmap_subtree(
             out,
             nodes,
+            display_names,
             child_idx,
             from_x,
             ny,
@@ -545,6 +695,7 @@ fn draw_mindmap_subtree(
             node_h,
             node_pad_x,
             is_left,
+            maximum_width,
         );
     }
 }
