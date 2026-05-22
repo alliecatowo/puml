@@ -261,10 +261,19 @@ fn should_color_human_diagnostics(choice: CliColorChoice) -> bool {
 
 fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     let started = Instant::now();
+    let lint_context = LintSubcommandContext {
+        include_root: cli.include_root.clone(),
+        dialect: cli.dialect,
+        compat: cli.compat,
+        determinism: cli.determinism,
+        from_markdown: cli.from_markdown,
+        allow_url_includes: cli.allow_url_includes,
+        inject_vars: cli.defines.iter().cloned().collect(),
+    };
     if let Some(command) = cli.command.take() {
         return match command {
             CliCommand::Format(args) => run_format_command(args),
-            CliCommand::Lint(args) => run_lint_subcommand(args),
+            CliCommand::Lint(args) => run_lint_subcommand(args, lint_context),
         };
     }
 
@@ -863,62 +872,108 @@ struct LintSubcommandSummary {
     warnings: usize,
 }
 
-fn run_lint_subcommand(args: LintArgs) -> Result<(), (u8, String)> {
+#[derive(Debug, Clone)]
+struct LintSubcommandContext {
+    include_root: Option<PathBuf>,
+    dialect: CliDialect,
+    compat: CliCompatMode,
+    determinism: CliDeterminismMode,
+    from_markdown: bool,
+    allow_url_includes: bool,
+    inject_vars: BTreeMap<String, String>,
+}
+
+fn run_lint_subcommand(args: LintArgs, context: LintSubcommandContext) -> Result<(), (u8, String)> {
     let path = &args.file;
     let is_stdin = path == std::path::Path::new("-");
 
-    let (file_label, raw) = if is_stdin {
+    let (file_label, raw, input_path) = if is_stdin {
         let mut buf = String::new();
         std::io::stdin()
             .read_to_string(&mut buf)
             .map_err(|e| (EXIT_IO, format!("failed to read stdin: {e}")))?;
-        ("<stdin>".to_string(), buf)
+        ("<stdin>".to_string(), buf, None)
     } else {
         let content = fs::read_to_string(path)
             .map_err(|e| (EXIT_IO, format!("failed to read '{}': {e}", path.display())))?;
-        (path.display().to_string(), content)
+        (path.display().to_string(), content, Some(path.as_path()))
     };
 
-    let include_root = if is_stdin {
-        None
-    } else {
-        path.parent().map(|p| p.to_path_buf())
-    };
+    let include_root = context
+        .include_root
+        .clone()
+        .or_else(|| input_path.and_then(|p| p.parent().map(|d| d.to_path_buf())));
+    let from_markdown = should_extract_markdown(context.from_markdown, input_path);
+    let markdown_name_prefix = input_path
+        .and_then(|path| path.file_stem())
+        .and_then(|stem| stem.to_str())
+        .map(|stem| stem.to_string());
+    let file_frontend_hint = frontend_hint_for_path(input_path);
 
     // Collect all diagnostics (both parse errors and normalisation warnings).
     let mut diag_entries: Vec<LintDiagnosticEntry> = Vec::new();
     let mut error_count: usize = 0;
     let mut warning_count: usize = 0;
 
-    let options = puml::ParsePipelineOptions {
-        frontend: puml::FrontendSelection::Auto,
-        compat: puml::CompatMode::Strict,
-        determinism: puml::DeterminismMode::Strict,
-        include_root,
-        allow_url_includes: false,
-        inject_vars: std::collections::BTreeMap::new(),
-    };
-
-    let parse_result = puml::parse_with_pipeline_options(&raw, &options);
-
-    match parse_result {
+    let diagrams = match split_diagrams(
+        &raw,
+        from_markdown,
+        markdown_name_prefix.as_deref(),
+        file_frontend_hint,
+    ) {
+        Ok(diagrams) => diagrams,
         Err(d) => {
             error_count += 1;
             diag_entries.push(diagnostic_to_entry(&d, &raw));
+            Vec::new()
         }
-        Ok(doc) => match puml::normalize_family(doc) {
+    };
+    if diagrams.is_empty() && error_count == 0 {
+        error_count += 1;
+        let message = if from_markdown {
+            format!(
+                "no supported markdown diagram fences found; expected one of: {SUPPORTED_MARKDOWN_FENCES}"
+            )
+        } else {
+            "no diagram content provided".to_string()
+        };
+        diag_entries.push(diagnostic_to_entry(&Diagnostic::error(message), &raw));
+    }
+
+    for source in &diagrams {
+        let parse_result = parse_for_cli(
+            &source.source,
+            include_root.clone(),
+            context.dialect,
+            context.compat,
+            context.determinism,
+            source.frontend_hint,
+            context.allow_url_includes,
+            context.inject_vars.clone(),
+        );
+
+        match parse_result {
             Err(d) => {
                 error_count += 1;
+                let d = map_diagnostic_span(d, source.source_span);
                 diag_entries.push(diagnostic_to_entry(&d, &raw));
             }
-            Ok(model) => {
-                let warnings = normalized_warnings(&model);
-                for w in warnings {
-                    warning_count += 1;
-                    diag_entries.push(diagnostic_to_entry(w, &raw));
+            Ok(doc) => match puml::normalize_family(doc) {
+                Err(d) => {
+                    error_count += 1;
+                    let d = map_diagnostic_span(d, source.source_span);
+                    diag_entries.push(diagnostic_to_entry(&d, &raw));
                 }
-            }
-        },
+                Ok(model) => {
+                    let warnings = normalized_warnings(&model);
+                    for w in warnings {
+                        warning_count += 1;
+                        let warning = map_diagnostic_span(w.clone(), source.source_span);
+                        diag_entries.push(diagnostic_to_entry(&warning, &raw));
+                    }
+                }
+            },
+        }
     }
 
     match args.format {

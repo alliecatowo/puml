@@ -8,6 +8,8 @@
 ///   - JSON schema shape (file, diagnostics, summary fields present)
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::fs;
+use tempfile::tempdir;
 
 /// Path to a fixture that is known-good (parses and normalizes without errors).
 const GOOD_FIXTURE: &str = "tests/fixtures/single_valid.puml";
@@ -172,4 +174,42 @@ fn lint_quiet_bad_file_still_emits_errors() {
         .code(1)
         // Errors must still appear on stderr even with --quiet.
         .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn lint_splits_multi_block_files() {
+    Command::cargo_bin("puml")
+        .expect("puml binary must exist")
+        .args(["lint", "tests/fixtures/structure/multi_three.puml"])
+        .assert()
+        .success()
+        .code(0)
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn lint_stdin_honors_global_include_root() {
+    let root = tempdir().expect("tempdir");
+    fs::write(root.path().join("child.puml"), "Alice -> Bob : included\n").unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("puml binary must exist")
+        .args(["--include-root", root.path().to_str().unwrap(), "lint", "-"])
+        .write_stdin("@startuml\n!include child.puml\n@enduml\n")
+        .assert()
+        .success()
+        .code(0)
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn lint_honors_global_define_variables() {
+    Command::cargo_bin("puml")
+        .expect("puml binary must exist")
+        .args(["-D", "SHOW=yes", "lint", "-"])
+        .write_stdin("@startuml\n!if $SHOW == \"yes\"\nAlice -> Bob : shown\n!endif\n@enduml\n")
+        .assert()
+        .success()
+        .code(0)
+        .stderr(predicate::str::is_empty());
 }
