@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-22T03:33:07Z",
+  "generated_at_utc": "2026-05-22T03:45:23Z",
   "summary": {
-    "total": 291,
-    "passed": 288,
+    "total": 292,
+    "passed": 289,
     "excluded": 3,
     "failed": 0
   },
@@ -1081,6 +1081,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/creole/04_monospace.puml",
       "artifact_svg": "docs/examples/creole/04_monospace.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/creole/05_ch22_parity.puml",
+      "artifact_svg": "docs/examples/creole/05_ch22_parity.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

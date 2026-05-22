@@ -1,0 +1,21 @@
+@startuml
+title Chapter 22 Creole parity
+
+Alice -> Bob: <:calendar:> Unicode <U+221E>
+
+note over Alice, Bob
+= Creole Blocks =
+* Bullet item with **bold**
+** Nested bullet with //italic//
+# Numbered item
+.. section ..
+|= Key |<#FF8080> Value |
+<#yellow>| row | color |
+|_ root
+  |_ child
+<code>**literal code**</code>
+<font:serif><back:#ffeeaa><s>legacy</s></back></font> H<sub>2</sub> x<sup>2</sup> <w:green>wave</w>
+Escaped: ~**not bold** and ~[[not a link]]
+Plain: <plain>**plain**</plain> and <u:blue>underlined</u>
+end note
+@enduml
