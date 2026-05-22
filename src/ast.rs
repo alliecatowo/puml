@@ -153,6 +153,12 @@ pub enum StatementKind {
         members: Vec<String>,
         relations: Vec<FamilyRelation>,
     },
+    AssociationClass {
+        left: String,
+        right: String,
+        association: String,
+        arrow: String,
+    },
     SetOption {
         key: String,
         value: String,

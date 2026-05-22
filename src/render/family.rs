@@ -287,10 +287,15 @@ fn class_run_layout(
         }
     }
     let resolve_gl = |name: &str| -> String {
-        gl_name_to_id
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| name.to_string())
+        if let Some(id) = gl_name_to_id.get(name) {
+            return id.clone();
+        }
+        if let Some((owner, _member)) = name.rsplit_once("::") {
+            if let Some(id) = gl_name_to_id.get(owner) {
+                return id.clone();
+            }
+        }
+        name.to_string()
     };
 
     let gl_edges: Vec<GlEdgeSpec> = document
@@ -512,8 +517,10 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
     for (rel_idx, relation) in ctx.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
             normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
-        let from = ctx.node_boxes.get(&from_name);
-        let to = ctx.node_boxes.get(&to_name);
+        let render_from_name = resolve_relation_endpoint_key(&from_name, ctx.node_boxes);
+        let render_to_name = resolve_relation_endpoint_key(&to_name, ctx.node_boxes);
+        let from = ctx.node_boxes.get(&render_from_name);
+        let to = ctx.node_boxes.get(&render_to_name);
         let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
@@ -611,8 +618,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 .join(" ");
             out.push_str(&format!(
                 "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
-                escape_text(&from_name),
-                escape_text(&to_name),
+                escape_text(&relation.from),
+                escape_text(&relation.to),
                 escape_text(&normalized_arrow),
                 pts_str,
                 relation_color, stroke_width,
@@ -701,12 +708,18 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         let from_is_class = ctx
             .nodes
             .iter()
-            .find(|node| node.name == from_name)
+            .find(|node| {
+                node.name == render_from_name
+                    || node.alias.as_deref() == Some(render_from_name.as_str())
+            })
             .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
         let to_is_class = ctx
             .nodes
             .iter()
-            .find(|node| node.name == to_name)
+            .find(|node| {
+                node.name == render_to_name
+                    || node.alias.as_deref() == Some(render_to_name.as_str())
+            })
             .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
         let prefer_side_clearance = pair_label_lane != 0 || (from_is_class && to_is_class);
         if let Some(stereotype) = &relation.stereotype {
@@ -886,11 +899,13 @@ fn class_build_label_overrides(
         }
         let (from_name, to_name, _arrow) =
             normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
-        let from = match node_boxes.get(&from_name) {
+        let from_key = resolve_relation_endpoint_key(&from_name, node_boxes);
+        let to_key = resolve_relation_endpoint_key(&to_name, node_boxes);
+        let from = match node_boxes.get(&from_key) {
             Some(b) => b,
             None => continue,
         };
-        let to = match node_boxes.get(&to_name) {
+        let to = match node_boxes.get(&to_key) {
             Some(b) => b,
             None => continue,
         };
@@ -1068,6 +1083,21 @@ fn class_build_label_overrides(
     }
 
     label_override
+}
+
+fn resolve_relation_endpoint_key(
+    endpoint: &str,
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+) -> String {
+    if node_boxes.contains_key(endpoint) {
+        return endpoint.to_string();
+    }
+    if let Some((owner, _member)) = endpoint.rsplit_once("::") {
+        if node_boxes.contains_key(owner) {
+            return owner.to_string();
+        }
+    }
+    endpoint.to_string()
 }
 
 /// Render Class/Object/UseCase documents as a real SVG with boxed nodes
@@ -2106,6 +2136,11 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
 /// decoded back into cell lists and drawn as a proper wireframe table.
 fn parse_visibility_member(member: &str) -> (Option<&'static str>, &'static str, &str) {
     let trimmed = member.trim();
+    if let Some(rest) = trimmed.strip_prefix('\\') {
+        if matches!(rest.chars().next(), Some('+' | '-' | '#' | '~')) {
+            return (None, "#334155", rest);
+        }
+    }
     match trimmed.chars().next() {
         Some('+') => (Some("+"), "#16a34a", trimmed[1..].trim_start()),
         Some('-') => (Some("-"), "#dc2626", trimmed[1..].trim_start()),

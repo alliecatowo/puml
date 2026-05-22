@@ -727,6 +727,7 @@ pub(super) fn normalize_with_options(
             | StatementKind::TimingEvent { .. }
             | StatementKind::RawBody(_)
             | StatementKind::ClassGroup { .. }
+            | StatementKind::AssociationClass { .. }
             | StatementKind::JsonProjection { .. }
             | StatementKind::YamlProjection { .. }
             | StatementKind::SaltGridRow { .. } => {

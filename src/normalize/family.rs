@@ -30,6 +30,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut note_counter: usize = 0;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
+    let mut last_relation: Option<(String, String)> = None;
 
     for stmt in document.statements {
         match stmt.kind {
@@ -139,6 +140,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 }
                 let mut members = decl.members;
                 let fill_color = extract_family_node_fill_color(&mut members);
+                let source_id = decl.alias.as_deref().unwrap_or(&decl.name).to_string();
+                let heritage_relations =
+                    extract_family_heritage_relations(&mut members, &source_id);
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
@@ -153,6 +157,10 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         fill_color,
                     },
                 );
+                for rel in &heritage_relations {
+                    ensure_family_class_node(&mut nodes, &rel.from);
+                }
+                relations.extend(heritage_relations);
             }
             StatementKind::ObjectDecl(decl) => {
                 if node_kind != FamilyNodeKind::Object {
@@ -220,27 +228,61 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     },
                 );
             }
-            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
-                from: rel.from,
-                to: rel.to,
-                arrow: rel.arrow,
-                label: rel.label,
-                stereotype: rel.stereotype,
-                left_cardinality: rel.left_cardinality,
-                right_cardinality: rel.right_cardinality,
-                left_role: rel.left_role,
-                right_role: rel.right_role,
-                line_color: rel.line_color,
-                dashed: rel.dashed,
-                hidden: rel.hidden,
-                thickness: rel.thickness,
-                direction: rel.direction,
-                left_lollipop: rel.left_lollipop,
-                right_lollipop: rel.right_lollipop,
-            }),
+            StatementKind::FamilyRelation(rel) => {
+                last_relation = Some((rel.from.clone(), rel.to.clone()));
+                relations.push(model_relation_from_ast(rel));
+            }
+            StatementKind::AssociationClass {
+                left,
+                right,
+                association,
+                arrow,
+            } => {
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::Class,
+                        name: association.clone(),
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    },
+                );
+                relations.push(simple_family_relation(left.clone(), right.clone(), arrow));
+                relations.push(simple_family_relation(
+                    association.clone(),
+                    left.clone(),
+                    "..".to_string(),
+                ));
+                relations.push(simple_family_relation(association, right, "..".to_string()));
+            }
             StatementKind::Note(note) => {
                 note_counter += 1;
-                nodes.push(family_note_node(note_counter, note));
+                let target = note.target.clone();
+                let note_node = family_note_node(note_counter, note);
+                let note_name = note_node.name.clone();
+                nodes.push(note_node);
+                if let Some(target) = target {
+                    let target = if target.eq_ignore_ascii_case("on link") {
+                        last_relation
+                            .as_ref()
+                            .map(|(_, to)| to.clone())
+                            .unwrap_or_default()
+                    } else {
+                        target
+                    };
+                    if !target.is_empty() {
+                        relations.push(simple_family_relation(
+                            relation_node_endpoint(&target),
+                            note_name,
+                            "..".to_string(),
+                        ));
+                    }
+                }
             }
             StatementKind::ClassGroup {
                 kind,
@@ -322,24 +364,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     member_ids: group_member_ids,
                 });
                 for rel in group_relations {
-                    relations.push(ModelFamilyRelation {
-                        from: rel.from,
-                        to: rel.to,
-                        arrow: rel.arrow,
-                        label: rel.label,
-                        stereotype: rel.stereotype,
-                        left_cardinality: rel.left_cardinality,
-                        right_cardinality: rel.right_cardinality,
-                        left_role: rel.left_role,
-                        right_role: rel.right_role,
-                        line_color: rel.line_color,
-                        dashed: rel.dashed,
-                        hidden: rel.hidden,
-                        thickness: rel.thickness,
-                        direction: rel.direction,
-                        left_lollipop: rel.left_lollipop,
-                        right_lollipop: rel.right_lollipop,
-                    });
+                    last_relation = Some((rel.from.clone(), rel.to.clone()));
+                    relations.push(model_relation_from_ast(rel));
                 }
             }
             StatementKind::SetOption { key, value } => {
@@ -459,6 +485,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // simple arrow — multiple calls with the same endpoints should coalesce.
     // Only applies to the stub/C4 path; the class/component paths keep separate
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
+    apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
 
     Ok(FamilyDocument {
@@ -594,6 +621,248 @@ fn extract_activity_inline_fill(label: &mut Option<String>) -> Option<String> {
     Some(color.trim().to_string())
 }
 
+fn extract_family_heritage_relations(
+    members: &mut Vec<ClassMember>,
+    source_id: &str,
+) -> Vec<ModelFamilyRelation> {
+    let mut out = Vec::new();
+    members.retain(|member| {
+        let Some(rest) = member.text.strip_prefix("\x1fheritage:") else {
+            return true;
+        };
+        if let Some((arrow, target)) = rest.split_once(':') {
+            let target = target.trim();
+            if !target.is_empty() {
+                out.push(simple_family_relation(
+                    target.to_string(),
+                    source_id.to_string(),
+                    arrow.to_string(),
+                ));
+            }
+        }
+        false
+    });
+    out
+}
+
+fn model_relation_from_ast(rel: crate::ast::FamilyRelation) -> ModelFamilyRelation {
+    ModelFamilyRelation {
+        from: rel.from,
+        to: rel.to,
+        arrow: rel.arrow,
+        label: rel.label,
+        stereotype: rel.stereotype,
+        left_cardinality: rel.left_cardinality,
+        right_cardinality: rel.right_cardinality,
+        left_role: rel.left_role,
+        right_role: rel.right_role,
+        line_color: rel.line_color,
+        dashed: rel.dashed,
+        hidden: rel.hidden,
+        thickness: rel.thickness,
+        direction: rel.direction,
+        left_lollipop: rel.left_lollipop,
+        right_lollipop: rel.right_lollipop,
+    }
+}
+
+fn simple_family_relation(from: String, to: String, arrow: String) -> ModelFamilyRelation {
+    ModelFamilyRelation {
+        from,
+        to,
+        arrow,
+        label: None,
+        stereotype: None,
+        left_cardinality: None,
+        right_cardinality: None,
+        left_role: None,
+        right_role: None,
+        line_color: None,
+        dashed: false,
+        hidden: false,
+        thickness: None,
+        direction: None,
+        left_lollipop: false,
+        right_lollipop: false,
+    }
+}
+
+fn ensure_family_class_node(nodes: &mut Vec<FamilyNode>, name: &str) {
+    if name.is_empty()
+        || nodes
+            .iter()
+            .any(|node| node.name == name || node.alias.as_deref() == Some(name))
+    {
+        return;
+    }
+    nodes.push(FamilyNode {
+        kind: FamilyNodeKind::Class,
+        name: name.to_string(),
+        alias: None,
+        members: Vec::new(),
+        depth: 0,
+        label: None,
+        mindmap_side: MindMapSide::Right,
+        wbs_checkbox: None,
+        fill_color: None,
+    });
+}
+
+fn apply_class_visibility_controls(
+    nodes: &mut Vec<FamilyNode>,
+    relations: &mut Vec<ModelFamilyRelation>,
+    groups: &mut Vec<FamilyGroup>,
+    hide_options: &std::collections::BTreeSet<String>,
+) {
+    if hide_options.is_empty() {
+        return;
+    }
+
+    let removed = collect_filtered_node_names(nodes, relations, hide_options);
+    if !removed.is_empty() {
+        nodes.retain(|node| !node_matches_any_filter(node, &removed));
+        relations.retain(|rel| {
+            !name_matches_any_filter(&relation_node_endpoint(&rel.from), &removed)
+                && !name_matches_any_filter(&relation_node_endpoint(&rel.to), &removed)
+        });
+        for group in groups {
+            group
+                .member_ids
+                .retain(|member_id| !name_matches_any_filter(member_id, &removed));
+        }
+    }
+
+    for node in nodes {
+        let node_key = node
+            .alias
+            .as_deref()
+            .unwrap_or(&node.name)
+            .to_ascii_lowercase();
+        node.members
+            .retain(|member| class_member_visible_for_node(member, &node_key, hide_options));
+    }
+}
+
+fn collect_filtered_node_names(
+    nodes: &[FamilyNode],
+    relations: &[ModelFamilyRelation],
+    hide_options: &std::collections::BTreeSet<String>,
+) -> std::collections::BTreeSet<String> {
+    let mut removed = std::collections::BTreeSet::new();
+    for opt in hide_options {
+        if let Some(name) = opt
+            .strip_prefix("hide node ")
+            .or_else(|| opt.strip_prefix("remove node "))
+        {
+            removed.insert(clean_filter_name(name));
+        }
+    }
+    if hide_options.contains("hide @unlinked") {
+        let mut linked = std::collections::BTreeSet::new();
+        for rel in relations {
+            linked.insert(relation_node_endpoint(&rel.from).to_ascii_lowercase());
+            linked.insert(relation_node_endpoint(&rel.to).to_ascii_lowercase());
+        }
+        for node in nodes {
+            let name = node.name.to_ascii_lowercase();
+            let alias = node.alias.as_deref().map(str::to_ascii_lowercase);
+            if !linked.contains(&name) && alias.as_ref().is_none_or(|a| !linked.contains(a)) {
+                removed.insert(name);
+            }
+        }
+    }
+    for opt in hide_options {
+        if let Some(name) = opt.strip_prefix("restore node ") {
+            removed.remove(&clean_filter_name(name));
+        }
+    }
+    removed
+}
+
+fn class_member_visible_for_node(
+    member: &ClassMember,
+    node_key: &str,
+    hide_options: &std::collections::BTreeSet<String>,
+) -> bool {
+    let text = member.text.trim();
+    if hide_options.contains("stereotype") && text.starts_with("<<") && text.ends_with(">>") {
+        return false;
+    }
+    if hide_options.contains("circle") && text == "()" {
+        return false;
+    }
+    let visibility = member_visibility(text);
+    let kind = member_kind(member);
+    let show_key = format!("show {node_key} {kind}");
+    let show_members_key = format!("show {node_key} members");
+    if hide_options.contains(&show_key) || hide_options.contains(&show_members_key) {
+        return true;
+    }
+    if hide_options.contains("members") || hide_options.contains(&format!("{visibility} members")) {
+        return false;
+    }
+    if hide_options.contains(kind) || hide_options.contains(&format!("{visibility} {kind}")) {
+        return false;
+    }
+    true
+}
+
+fn member_visibility(text: &str) -> &'static str {
+    match text.trim_start().chars().next() {
+        Some('+') => "public",
+        Some('-') => "private",
+        Some('#') => "protected",
+        Some('~') => "package",
+        _ => "public",
+    }
+}
+
+fn member_kind(member: &ClassMember) -> &'static str {
+    match member.modifier {
+        Some(crate::ast::MemberModifier::Method) => "methods",
+        Some(crate::ast::MemberModifier::Field) => "fields",
+        _ => {
+            let text = member
+                .text
+                .trim_start_matches(['+', '-', '#', '~'])
+                .trim_start();
+            if text.contains('(') {
+                "methods"
+            } else {
+                "fields"
+            }
+        }
+    }
+}
+
+fn node_matches_any_filter(
+    node: &FamilyNode,
+    filters: &std::collections::BTreeSet<String>,
+) -> bool {
+    name_matches_any_filter(&node.name, filters)
+        || node
+            .alias
+            .as_deref()
+            .is_some_and(|alias| name_matches_any_filter(alias, filters))
+}
+
+fn name_matches_any_filter(name: &str, filters: &std::collections::BTreeSet<String>) -> bool {
+    filters.contains(&clean_filter_name(name))
+}
+
+fn clean_filter_name(name: &str) -> String {
+    name.trim().trim_matches('"').to_ascii_lowercase()
+}
+
+fn relation_node_endpoint(endpoint: &str) -> String {
+    let trimmed = endpoint.trim();
+    if let Some((owner, member)) = trimmed.rsplit_once("::") {
+        if !owner.is_empty() && !member.is_empty() {
+            return owner.to_string();
+        }
+    }
+    trimmed.to_string()
+}
 pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let mut nodes = Vec::new();
     let mut relations = Vec::new();

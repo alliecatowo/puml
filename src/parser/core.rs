@@ -143,6 +143,15 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i += 1;
                 continue;
             }
+            if detected_kind.is_none()
+                && is_family_common_keyword_before_detection(&kind)
+                && !multiline_note_head
+                && !multiline_text_head
+            {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
         }
 
         if detected_kind.is_none() && looks_like_old_activity_flow(line) {
@@ -270,6 +279,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         }
 
         if let Some(kind) = parse_family_relation(line, detected_kind) {
+            statements.push(Statement { span, kind });
+            i += 1;
+            continue;
+        }
+
+        if let Some(kind) = parse_family_visibility_control(line, detected_kind) {
             statements.push(Statement { span, kind });
             i += 1;
             continue;
