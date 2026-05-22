@@ -202,6 +202,25 @@ pub enum Command {
     /// Useful as a fast pre-commit check. Exits 0 when no errors are found,
     /// 1 when any diagnostic errors are emitted, and 2 on I/O failure.
     Lint(LintArgs),
+    /// Summarize parsed diagram structure as human-readable text or JSON.
+    Stats(StatsArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct StatsArgs {
+    /// PlantUML source file to inspect.
+    #[arg(value_name = "FILE", required = true)]
+    pub file: PathBuf,
+
+    /// Output format for the summary.
+    #[arg(long, value_enum, default_value_t = StatsFormat::Human)]
+    pub format: StatsFormat,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Eq, PartialEq)]
+pub enum StatsFormat {
+    Human,
+    Json,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -402,6 +421,7 @@ mod tests {
             }
             Command::Count(_) => panic!("unexpected count command"),
             Command::Lint(_) => panic!("unexpected lint command"),
+            Command::Stats(_) => panic!("unexpected stats command"),
         }
     }
 
@@ -416,6 +436,7 @@ mod tests {
             }
             Command::Format(_) => panic!("unexpected format command"),
             Command::Lint(_) => panic!("unexpected lint command"),
+            Command::Stats(_) => panic!("unexpected stats command"),
         }
     }
 
@@ -431,6 +452,22 @@ mod tests {
             }
             Command::Count(_) => panic!("unexpected count command"),
             Command::Format(_) => panic!("unexpected format command"),
+            Command::Stats(_) => panic!("unexpected stats command"),
+        }
+    }
+
+    #[test]
+    fn stats_subcommand_parses_file_and_format() {
+        let cli = Cli::try_parse_from(["puml", "stats", "--format", "json", "diag.puml"])
+            .expect("stats subcommand should parse");
+        match cli.command.expect("stats command should be present") {
+            Command::Stats(args) => {
+                assert_eq!(args.file, PathBuf::from("diag.puml"));
+                assert_eq!(args.format, StatsFormat::Json);
+            }
+            Command::Count(_) => panic!("unexpected count command"),
+            Command::Format(_) => panic!("unexpected format command"),
+            Command::Lint(_) => panic!("unexpected lint command"),
         }
     }
 
@@ -445,6 +482,7 @@ mod tests {
             }
             Command::Count(_) => panic!("unexpected count command"),
             Command::Format(_) => panic!("unexpected format command"),
+            Command::Stats(_) => panic!("unexpected stats command"),
         }
     }
 
