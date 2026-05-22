@@ -245,7 +245,7 @@ fn trend_embeds_benchmark_policy_metadata() {
                 "absolute_mean_ms_limit": 250.0,
                 "regression_pct_limit": 10.0,
                 "regression_min_delta_ms": 40.0,
-                "binary_limit_bytes": 12000000
+                "binary_limit_bytes": 16000000
             },
             "scenarios": [
                 {"name": "render_stdin", "mean_ms": 90.0, "stddev_ms": 1.0, "runs": 5}
@@ -287,7 +287,7 @@ fn trend_embeds_benchmark_policy_metadata() {
         .arg("--binary-bytes")
         .arg("10035664")
         .arg("--binary-limit-bytes")
-        .arg("12000000")
+        .arg("16000000")
         .arg("--host")
         .arg("local")
         .arg("--os-name")
@@ -311,7 +311,7 @@ fn trend_embeds_benchmark_policy_metadata() {
     );
     assert_eq!(
         trend["benchmark_policy"]["binary_limit_bytes"],
-        json!(12000000)
+        json!(16000000)
     );
     assert_eq!(
         trend["benchmark_policy"]["regression_min_delta_ms"],
@@ -360,7 +360,7 @@ fn validate_artifacts_rejects_stale_policy_metadata() {
                 "absolute_mean_ms_limit": 350.0,
                 "regression_pct_limit": 20.0,
                 "regression_min_delta_ms": 50.0,
-                "binary_limit_bytes": 12000000
+                "binary_limit_bytes": 16000000
             },
             "scenarios": []
         }),

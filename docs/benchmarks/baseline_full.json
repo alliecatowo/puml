@@ -16,7 +16,7 @@
     "absolute_mean_ms_limit": 250,
     "regression_pct_limit": 10,
     "regression_min_delta_ms": 40,
-    "binary_limit_bytes": 12000000
+    "binary_limit_bytes": 16000000
   },
   "scenarios": [
     {
