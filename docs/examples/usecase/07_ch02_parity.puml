@@ -1,0 +1,11 @@
+@startuml
+left to right direction
+skinparam actorStyle hollow
+
+:Shopper: as S
+(usecase Checkout)/
+actor/ Clerk
+S --> (Checkout) : starts
+newpage
+:Manager: --> (Checkout) : approves
+@enduml
