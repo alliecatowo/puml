@@ -1,0 +1,40 @@
+@startuml
+title State diagram Chapter 9 parity slice
+
+state Active #pink ##[dashed]blue
+Active : waits for input
+
+state Styled #back:lightgreen;line:red;line.bold;text:blue
+
+state Parent {
+  [*] --> Child
+  state Child #LightBlue
+  json $payload {
+    "fruit": "Apple",
+    "count": 3
+  }
+}
+
+state entry1 <<entryPoint>>
+state exit1 <<exitPoint>>
+state in1 <<inputPin>>
+state out1 <<outputPin>>
+state expIn <<expansionInput>>
+state expOut <<expansionOutput>>
+state Done[H*]
+
+Active -[#DD00AA,dashed]-> entry1 : colored
+entry1 --> Parent
+Parent --> exit1
+exit1 --> Styled
+Styled --> Done[H*]
+
+note left of Active: attached note
+note on link: link note
+
+json $cfg {
+  "outer": {
+    "ok": true
+  }
+}
+@enduml

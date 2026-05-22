@@ -85,6 +85,16 @@ PATH | family | source_size_bytes | render_status
 
 Feed these paths to an audit agent as image attachments. The agent can then report on layout quality, alignment, missing elements, or regression relative to a reference.
 
+## Triage Output
+
+Do not commit large dated wave logs. They go stale before v1 and duplicate the
+issue board. After an audit pass:
+
+- file or update live GitHub issues for confirmed visual defects
+- add focused fixtures or visual baselines for defects that should not regress
+- update the relevant spec audit when support status changes
+- discard temporary per-agent notes once the actionable work is captured
+
 ## CLI Invocation Used
 
 ```

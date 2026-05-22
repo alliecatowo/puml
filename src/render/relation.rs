@@ -74,10 +74,12 @@ pub(super) struct ArrowStyle {
 pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
     let trimmed = arrow.trim();
     let dashed = trimmed.contains("..");
+    let ie_start_marker = ie_start_marker(trimmed);
+    let ie_end_marker = ie_end_marker(trimmed);
     // Detect markers at each end
     let head = trimmed.chars().next().unwrap_or(' ');
     let tail = trimmed.chars().last().unwrap_or(' ');
-    let start_marker = match head {
+    let start_marker = ie_start_marker.or(match head {
         '<' => {
             // inheritance reversed if starts with "<|"
             if trimmed.starts_with("<|") {
@@ -88,9 +90,10 @@ pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
         }
         '*' => Some("arrow-diamond-filled"),
         'o' => Some("arrow-diamond-open"),
+        '0' | '(' | ')' => Some("arrow-open"),
         _ => None,
-    };
-    let end_marker = match tail {
+    });
+    let end_marker = ie_end_marker.or(match tail {
         '>' => {
             if trimmed.ends_with("|>") {
                 Some("arrow-triangle")
@@ -100,12 +103,45 @@ pub(super) fn arrow_style(arrow: &str) -> ArrowStyle {
         }
         '*' => Some("arrow-diamond-filled"),
         'o' => Some("arrow-diamond-open"),
+        '0' | '(' | ')' | '@' | '^' | '#' | '+' => Some("arrow-open"),
         _ => None,
-    };
+    });
     ArrowStyle {
         end_marker,
         start_marker,
         dashed,
+    }
+}
+
+pub(super) fn has_ie_endpoint_marker(arrow: &str) -> bool {
+    ie_start_marker(arrow).is_some() || ie_end_marker(arrow).is_some()
+}
+
+fn ie_start_marker(arrow: &str) -> Option<&'static str> {
+    if arrow.starts_with("}o") || arrow.starts_with("o{") {
+        Some("arrow-ie-zero-many")
+    } else if arrow.starts_with("}|") || arrow.starts_with("|{") {
+        Some("arrow-ie-one-many")
+    } else if arrow.starts_with("|o") || arrow.starts_with("o|") {
+        Some("arrow-ie-zero-one")
+    } else if arrow.starts_with("||") {
+        Some("arrow-ie-one")
+    } else {
+        None
+    }
+}
+
+fn ie_end_marker(arrow: &str) -> Option<&'static str> {
+    if arrow.ends_with("o{") || arrow.ends_with("}o") {
+        Some("arrow-ie-zero-many")
+    } else if arrow.ends_with("|{") || arrow.ends_with("}|") {
+        Some("arrow-ie-one-many")
+    } else if arrow.ends_with("o|") || arrow.ends_with("|o") {
+        Some("arrow-ie-zero-one")
+    } else if arrow.ends_with("||") {
+        Some("arrow-ie-one")
+    } else {
+        None
     }
 }
 
@@ -164,6 +200,39 @@ pub(crate) fn render_relation_marker_defs_with_prefix(
          </marker>",
     ));
     out.push_str("</defs>");
+}
+
+pub(crate) fn render_ie_marker_defs(out: &mut String, arrow_stroke: &str) {
+    render_ie_marker_defs_with_prefix(out, arrow_stroke, "");
+}
+
+fn render_ie_marker_defs_with_prefix(out: &mut String, arrow_stroke: &str, prefix: &str) {
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-ie-one\" viewBox=\"0 0 24 16\" refX=\"22\" refY=\"8\" \
+         markerWidth=\"24\" markerHeight=\"16\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M16,2 L16,14\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-ie-zero-one\" viewBox=\"0 0 30 16\" refX=\"28\" refY=\"8\" \
+         markerWidth=\"30\" markerHeight=\"16\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <circle cx=\"10\" cy=\"8\" r=\"4\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         <path d=\"M20,2 L20,14\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-ie-zero-many\" viewBox=\"0 0 34 18\" refX=\"32\" refY=\"9\" \
+         markerWidth=\"34\" markerHeight=\"18\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <circle cx=\"8\" cy=\"9\" r=\"4\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1.5\"/>\
+         <path d=\"M18,9 L31,2 M18,9 L31,9 M18,9 L31,16\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.7\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
+    out.push_str(&format!(
+        "<marker id=\"{prefix}arrow-ie-one-many\" viewBox=\"0 0 34 18\" refX=\"32\" refY=\"9\" \
+         markerWidth=\"34\" markerHeight=\"18\" markerUnits=\"userSpaceOnUse\" orient=\"auto-start-reverse\">\
+         <path d=\"M8,2 L8,16 M18,9 L31,2 M18,9 L31,9 M18,9 L31,16\" fill=\"none\" stroke=\"{arrow_stroke}\" stroke-width=\"1.7\" stroke-linecap=\"round\"/>\
+         </marker>",
+    ));
 }
 
 pub(super) fn render_lollipop_endpoint(out: &mut String, x: i32, y: i32, stroke: &str) {

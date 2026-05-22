@@ -1,13 +1,14 @@
 use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 use super::relation::{
-    normalize_relation_endpoints, render_relation_marker_defs, usecase_dependency_label,
+    has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
+    render_relation_marker_defs, usecase_dependency_label,
 };
-use super::svg::{escape_text, render_actor_stick_figure};
+use super::svg::{creole_text, escape_text, render_actor_stick_figure};
 use crate::ast::MemberModifier;
 use crate::model::{
     FamilyDocument, FamilyGroup, FamilyNode, FamilyNodeKind, FamilyOrientation, FamilyStyle,
 };
-use crate::theme::{ClassStyle, ComponentStyle};
+use crate::theme::{ClassStyle, ComponentStyle, ComponentStyleMode};
 
 /// Emit a centered SVG `<text>` element for a relation label.
 ///
@@ -286,10 +287,15 @@ fn class_run_layout(
         }
     }
     let resolve_gl = |name: &str| -> String {
-        gl_name_to_id
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| name.to_string())
+        if let Some(id) = gl_name_to_id.get(name) {
+            return id.clone();
+        }
+        if let Some((owner, _member)) = name.rsplit_once("::") {
+            if let Some(id) = gl_name_to_id.get(owner) {
+                return id.clone();
+            }
+        }
+        name.to_string()
     };
 
     let gl_edges: Vec<GlEdgeSpec> = document
@@ -511,8 +517,10 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
     for (rel_idx, relation) in ctx.relations.iter().enumerate() {
         let (from_name, to_name, normalized_arrow) =
             normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
-        let from = ctx.node_boxes.get(&from_name);
-        let to = ctx.node_boxes.get(&to_name);
+        let render_from_name = resolve_relation_endpoint_key(&from_name, ctx.node_boxes);
+        let render_to_name = resolve_relation_endpoint_key(&to_name, ctx.node_boxes);
+        let from = ctx.node_boxes.get(&render_from_name);
+        let to = ctx.node_boxes.get(&render_to_name);
         let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
@@ -610,8 +618,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 .join(" ");
             out.push_str(&format!(
                 "<polyline class=\"uml-relation\" data-uml-from=\"{}\" data-uml-to=\"{}\" data-uml-arrow=\"{}\" points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
-                escape_text(&from_name),
-                escape_text(&to_name),
+                escape_text(&relation.from),
+                escape_text(&relation.to),
                 escape_text(&normalized_arrow),
                 pts_str,
                 relation_color, stroke_width,
@@ -700,12 +708,18 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         let from_is_class = ctx
             .nodes
             .iter()
-            .find(|node| node.name == from_name)
+            .find(|node| {
+                node.name == render_from_name
+                    || node.alias.as_deref() == Some(render_from_name.as_str())
+            })
             .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
         let to_is_class = ctx
             .nodes
             .iter()
-            .find(|node| node.name == to_name)
+            .find(|node| {
+                node.name == render_to_name
+                    || node.alias.as_deref() == Some(render_to_name.as_str())
+            })
             .is_some_and(|node| matches!(node.kind, FamilyNodeKind::Class));
         let prefer_side_clearance = pair_label_lane != 0 || (from_is_class && to_is_class);
         if let Some(stereotype) = &relation.stereotype {
@@ -885,11 +899,13 @@ fn class_build_label_overrides(
         }
         let (from_name, to_name, _arrow) =
             normalize_relation_endpoints(&relation.from, &relation.to, &relation.arrow);
-        let from = match node_boxes.get(&from_name) {
+        let from_key = resolve_relation_endpoint_key(&from_name, node_boxes);
+        let to_key = resolve_relation_endpoint_key(&to_name, node_boxes);
+        let from = match node_boxes.get(&from_key) {
             Some(b) => b,
             None => continue,
         };
-        let to = match node_boxes.get(&to_name) {
+        let to = match node_boxes.get(&to_key) {
             Some(b) => b,
             None => continue,
         };
@@ -1069,6 +1085,21 @@ fn class_build_label_overrides(
     label_override
 }
 
+fn resolve_relation_endpoint_key(
+    endpoint: &str,
+    node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
+) -> String {
+    if node_boxes.contains_key(endpoint) {
+        return endpoint.to_string();
+    }
+    if let Some((owner, _member)) = endpoint.rsplit_once("::") {
+        if node_boxes.contains_key(owner) {
+            return owner.to_string();
+        }
+    }
+    endpoint.to_string()
+}
+
 /// Render Class/Object/UseCase documents as a real SVG with boxed nodes
 /// (header + member compartment) laid out in a simple grid, plus arrows
 /// for the document's relations.
@@ -1210,10 +1241,18 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
     let nodes_bottom = canvas.nodes_bottom;
     // gl_canvas_right / gl_canvas_bottom consumed by class_compute_canvas
     let mut out = String::new();
+    let sepia_attr = if document.style.sepia {
+        " style=\"filter:sepia(1)\""
+    } else {
+        ""
+    };
+    let orientation_attr = format!(" data-orientation=\"{}\"", document.orientation.as_str());
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{orientation}{sepia}>",
         w = svg_width,
-        h = svg_height
+        h = svg_height,
+        orientation = orientation_attr,
+        sepia = sepia_attr,
     ));
     out.push_str(&format!(
         "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
@@ -1254,6 +1293,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
+    if document
+        .relations
+        .iter()
+        .any(|relation| has_ie_endpoint_marker(&relation.arrow))
+    {
+        render_ie_marker_defs(&mut out, arrow_stroke);
+    }
     out.push_str("</defs>");
 
     // Title
@@ -1863,9 +1909,16 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
     let width = (max_x + MARGIN).max(760);
     let height = (max_y + MARGIN).max(180);
 
+    let sepia_attr = if document.style.sepia {
+        " style=\"filter:sepia(1)\""
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        width, height, width, height
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{sepia}>",
+        w = width,
+        h = height,
+        sepia = sepia_attr,
     ));
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
@@ -2098,6 +2151,11 @@ pub fn render_family_tree_svg(document: &FamilyDocument) -> String {
 /// decoded back into cell lists and drawn as a proper wireframe table.
 fn parse_visibility_member(member: &str) -> (Option<&'static str>, &'static str, &str) {
     let trimmed = member.trim();
+    if let Some(rest) = trimmed.strip_prefix('\\') {
+        if matches!(rest.chars().next(), Some('+' | '-' | '#' | '~')) {
+            return (None, "#334155", rest);
+        }
+    }
     match trimmed.chars().next() {
         Some('+') => (Some("+"), "#16a34a", trimmed[1..].trim_start()),
         Some('-') => (Some("-"), "#dc2626", trimmed[1..].trim_start()),
@@ -2151,18 +2209,33 @@ pub(crate) fn family_node_label(kind: FamilyNodeKind) -> &'static str {
         FamilyNodeKind::Component => "component",
         FamilyNodeKind::Interface => "interface",
         FamilyNodeKind::Port => "port",
+        FamilyNodeKind::Action => "action",
+        FamilyNodeKind::Agent => "agent",
         FamilyNodeKind::Node => "node",
         FamilyNodeKind::Artifact => "artifact",
+        FamilyNodeKind::Boundary => "boundary",
         FamilyNodeKind::Cloud => "cloud",
+        FamilyNodeKind::Circle => "circle",
+        FamilyNodeKind::Collections => "collections",
         FamilyNodeKind::Frame => "frame",
         FamilyNodeKind::Storage => "storage",
+        FamilyNodeKind::Container => "container",
+        FamilyNodeKind::Control => "control",
         FamilyNodeKind::Database => "database",
+        FamilyNodeKind::Entity => "entity",
         FamilyNodeKind::Package => "package",
         FamilyNodeKind::Rectangle => "rectangle",
         FamilyNodeKind::Folder => "folder",
         FamilyNodeKind::File => "file",
         FamilyNodeKind::Card => "card",
         FamilyNodeKind::Actor => "actor",
+        FamilyNodeKind::Hexagon => "hexagon",
+        FamilyNodeKind::Label => "label",
+        FamilyNodeKind::Person => "person",
+        FamilyNodeKind::Process => "process",
+        FamilyNodeKind::Queue => "queue",
+        FamilyNodeKind::Stack => "stack",
+        FamilyNodeKind::UseCaseDeployment => "usecase",
         FamilyNodeKind::State => "state",
         FamilyNodeKind::StateInitial => "initial",
         FamilyNodeKind::StateFinal => "final",
@@ -2251,6 +2324,18 @@ fn count_header_stereotype_members(members: &[crate::ast::ClassMember]) -> usize
     skip
 }
 
+fn first_user_stereotype_key(node: &crate::model::FamilyNode) -> Option<String> {
+    node.members.iter().find_map(|member| {
+        let text = member.text.trim();
+        is_user_stereotype(text).then(|| {
+            text.trim_start_matches("<<")
+                .trim_end_matches(">>")
+                .trim()
+                .to_ascii_lowercase()
+        })
+    })
+}
+
 fn render_class_node(
     out: &mut String,
     node: &crate::model::FamilyNode,
@@ -2277,11 +2362,21 @@ fn render_class_node(
         return;
     }
 
+    let scoped_style =
+        first_user_stereotype_key(node).and_then(|key| class_style.stereotype_styles.get(&key));
     let fill = node
         .fill_color
         .as_deref()
+        .or_else(|| scoped_style.and_then(|style| style.background_color.as_deref()))
         .unwrap_or(&class_style.background_color);
-    let stroke = &class_style.border_color;
+    let stroke = scoped_style
+        .and_then(|style| style.border_color.as_deref())
+        .unwrap_or(&class_style.border_color);
+    let scoped_font_color = scoped_style
+        .and_then(|style| style.font_color.as_deref())
+        .filter(|color| !color.is_empty());
+    let font_color = scoped_font_color.unwrap_or(&class_style.font_color);
+    let member_color = scoped_font_color.unwrap_or(class_style.member_color.as_str());
     let font_family = class_style.font_name.as_deref().unwrap_or("monospace");
     let title_font_size = class_style.font_size.unwrap_or(13);
     let member_font_size = title_font_size.saturating_sub(2).max(9);
@@ -2298,7 +2393,9 @@ fn render_class_node(
             Some("\u{ab}annotation\u{bb}") => "#fff0cc",  // warm amber for @annotation
             Some("\u{ab}interface\u{bb}") => "#dae8fc",   // light blue for interface
             Some("\u{ab}abstract\u{bb}") => "#f0e6ff",    // light lavender for abstract
-            _ => class_style.header_color.as_str(),
+            _ => scoped_style
+                .and_then(|style| style.header_color.as_deref())
+                .unwrap_or(class_style.header_color.as_str()),
         },
         FamilyNodeKind::Object => "#fef3c7",
         FamilyNodeKind::UseCase => "#dcfce7",
@@ -2318,7 +2415,7 @@ fn render_class_node(
             "<text x=\"{cx}\" y=\"{name_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
             title_font_size,
-            escape_text(&class_style.font_color),
+            escape_text(font_color),
             name = escape_text(&node.name)
         ));
         // Stereotype / extra members below name
@@ -2329,8 +2426,9 @@ fn render_class_node(
                 continue;
             }
             out.push_str(&format!(
-                "<text x=\"{cx}\" y=\"{member_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"11\" fill=\"#334155\">{}</text>",
+                "<text x=\"{cx}\" y=\"{member_y}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"11\" fill=\"{}\">{}</text>",
                 escape_text(font_family),
+                escape_text(member_color),
                 escape_text(text)
             ));
             member_y += 14;
@@ -2379,7 +2477,7 @@ fn render_class_node(
             "<text x=\"{cx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" font-weight=\"600\" fill=\"{}\">{name}</text>",
             escape_text(font_family),
             title_font_size,
-            escape_text(&class_style.font_color),
+            escape_text(font_color),
             ty = cy + 4,
             name = escape_text(uc_display_name)
         ));
@@ -2391,7 +2489,7 @@ fn render_class_node(
                 escape_text(font_family),
                 member_font_size,
                 tx = x + w / 2,
-                mc = class_style.member_color,
+                mc = member_color,
                 m = escape_text(&member.text)
             ));
             my += 14;
@@ -2442,7 +2540,7 @@ fn render_class_node(
             tx = x + w / 2,
             ty = y + 13 + (i as i32) * 14,
             ff = escape_text(font_family),
-            fc = escape_text(&class_style.font_color),
+            fc = escape_text(font_color),
             lbl = escape_text(label)
         ));
     }
@@ -2476,7 +2574,7 @@ fn render_class_node(
         "<text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"{ff}\" font-size=\"{fs}\" font-weight=\"600\" fill=\"{fc}\"{td}{fi}>{txt}</text>",
         ff = escape_text(font_family),
         fs = title_font_size,
-        fc = escape_text(&class_style.font_color),
+        fc = escape_text(font_color),
         tx = x + w / 2,
         ty = name_ty,
         td = text_decoration,
@@ -2574,7 +2672,7 @@ fn render_class_node(
         let effective_color = if vis_sym.is_some() {
             vis_color
         } else {
-            class_style.member_color.as_str()
+            member_color
         };
         // Reconstruct display text: keep visibility prefix + remaining text
         let display_text = if vis_sym.is_some() {
@@ -2589,15 +2687,44 @@ fn render_class_node(
         let modifier_attr = member_modifier_name(member.modifier.as_ref())
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();
-        out.push_str(&format!(
-            "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
-            ff = escape_text(font_family),
-            fs = member_font_size,
-            tx = x + 10,
-            vc = effective_color,
-            sa = style_attrs,
-            m = escape_text(&display_text)
-        ));
+        if let Some(required_text) = display_text.strip_prefix('*') {
+            out.push_str(&format!(
+                "<text class=\"uml-member uml-ie-member\" data-uml-ie-mandatory=\"true\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>\
+                 <tspan font-weight=\"700\">*</tspan><tspan dx=\"4\">{m}</tspan></text>",
+                ff = escape_text(font_family),
+                fs = member_font_size,
+                tx = x + 10,
+                vc = effective_color,
+                sa = style_attrs,
+                m = escape_text(required_text.trim_start())
+            ));
+        } else {
+            if display_text.contains("<$") {
+                out.push_str(&creole_text(
+                    x + 10,
+                    my,
+                    &format!(
+                        "class=\"uml-member\"{visibility_attr}{modifier_attr} font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}",
+                        escape_text(font_family),
+                        member_font_size,
+                        effective_color,
+                        style_attrs
+                    ),
+                    &display_text,
+                    effective_color,
+                ));
+            } else {
+                out.push_str(&format!(
+                    "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
+                    ff = escape_text(font_family),
+                    fs = member_font_size,
+                    tx = x + 10,
+                    vc = effective_color,
+                    sa = style_attrs,
+                    m = escape_text(&display_text)
+                ));
+            }
+        }
         my += 16;
     }
 }
@@ -2610,7 +2737,7 @@ fn c4_node_height(kind: FamilyNodeKind, computed: i32) -> i32 {
         // All other C4 nodes need at least 60px for the label + type label
         k if is_c4_kind(k) => computed.max(60),
         // Usecase actor: stick figure (≈46px) + name label (≈18px) = 64px minimum
-        FamilyNodeKind::Actor => computed.max(64),
+        FamilyNodeKind::Actor | FamilyNodeKind::Person => computed.max(64),
         _ => computed,
     }
 }
@@ -3997,9 +4124,16 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // Start SVG output
     // ─────────────────────────────────────────────────────────────────────────
     let mut out = String::new();
+    let sepia_attr = if doc.style.sepia {
+        " style=\"filter:sepia(1)\""
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">",
-        svg_width, svg_height, svg_width, svg_height
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\"{sepia}>",
+        w = svg_width,
+        h = svg_height,
+        sepia = sepia_attr,
     ));
     out.push_str(&format!(
         "<rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
@@ -4711,6 +4845,14 @@ struct RenderGroupFrame {
     depth: usize,
 }
 
+#[derive(Clone, Copy)]
+struct DeploymentShapeBounds {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+}
+
 impl RenderGroupFrame {
     fn display_label(&self) -> String {
         match self.label.as_deref() {
@@ -4801,6 +4943,112 @@ fn collect_render_group_frames(groups: &[FamilyGroup]) -> Vec<RenderGroupFrame> 
     frames
 }
 
+fn render_deployment_stick_shape(
+    out: &mut String,
+    kind_label: &str,
+    bounds: DeploymentShapeBounds,
+    fill: &str,
+    stroke: &str,
+) {
+    let DeploymentShapeBounds { x, y, w, h } = bounds;
+    let cx = x + w / 2;
+    let head_y = y + 16;
+    out.push_str(&format!(
+        "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" fill-opacity=\"0.16\"/>",
+        kind_label, x, y, w, h, escape_text(fill), stroke
+    ));
+    out.push_str(&format!(
+        "<circle cx=\"{}\" cy=\"{}\" r=\"9\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx,
+        head_y,
+        escape_text(fill),
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{}\" x2=\"{cx}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        head_y + 9,
+        y + h - 24,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        cx - 16,
+        y + 36,
+        cx + 16,
+        y + 36,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        y + h - 24,
+        cx - 12,
+        y + h - 8,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{cx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.8\"/>",
+        y + h - 24,
+        cx + 12,
+        y + h - 8,
+        stroke
+    ));
+}
+
+fn render_deployment_queue_shape(
+    out: &mut String,
+    kind_label: &str,
+    bounds: DeploymentShapeBounds,
+    fill: &str,
+    stroke: &str,
+) {
+    let DeploymentShapeBounds { x, y, w, h } = bounds;
+    let cap = 12;
+    let cx_right = x + w - cap;
+    let cy = y + h / 2;
+    out.push_str(&format!(
+        "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"none\"/>",
+        kind_label,
+        x + cap,
+        y,
+        w - cap * 2,
+        h,
+        escape_text(fill)
+    ));
+    out.push_str(&format!(
+        "<path class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" d=\"M{} {} A{} {} 0 0 0 {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        kind_label,
+        x + cap,
+        y,
+        cap,
+        h / 2,
+        x + cap,
+        y + h,
+        stroke
+    ));
+    out.push_str(&format!(
+        "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        cx_right,
+        cy,
+        cap,
+        h / 2,
+        escape_text(fill),
+        stroke
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/><line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+        x + cap,
+        y,
+        cx_right,
+        y,
+        stroke,
+        x + cap,
+        y + h,
+        cx_right,
+        y + h,
+        stroke
+    ));
+}
+
 /// Styled variant of `render_family_node_shape` that applies `comp_style` for
 /// Component/Interface nodes and falls back to the default for others.
 fn render_family_node_shape_styled(
@@ -4864,32 +5112,74 @@ fn render_family_node_shape_styled(
                 .fill_color
                 .as_deref()
                 .unwrap_or(&comp_style.background_color);
-            out.push_str(&format!(
-                "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x, y, w, h, fill, comp_style.border_color
-            ));
-            // component badges (two small rectangles on the left edge)
-            out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x - 4, y + 12, fill, comp_style.border_color
-            ));
-            out.push_str(&format!(
-                "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                x - 4, y + h - 20, fill, comp_style.border_color
-            ));
+            match comp_style.component_style_mode {
+                ComponentStyleMode::Rectangle => {
+                    // Rectangle style: plain rect, no component icon
+                    out.push_str(&format!(
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"rectangle\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y, w, h, fill, comp_style.border_color
+                    ));
+                }
+                ComponentStyleMode::Uml1 => {
+                    // UML1: rectangle with component icon badges in the top-right corner
+                    out.push_str(&format!(
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" data-component-style=\"uml1\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y, w, h, fill, comp_style.border_color
+                    ));
+                    let bx = x + w - 18;
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        bx, y + 8, fill, comp_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        bx, y + 20, fill, comp_style.border_color
+                    ));
+                }
+                ComponentStyleMode::Uml2 => {
+                    // UML2 (default): rectangle with badge rects on the left edge
+                    out.push_str(&format!(
+                        "<rect class=\"uml-node uml-component\" data-uml-kind=\"component\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x, y, w, h, fill, comp_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x - 4, y + 12, fill, comp_style.border_color
+                    ));
+                    out.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"16\" height=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                        x - 4, y + h - 20, fill, comp_style.border_color
+                    ));
+                }
+            }
         }
-        FamilyNodeKind::Node
+        FamilyNodeKind::Action
+        | FamilyNodeKind::Agent
+        | FamilyNodeKind::Node
         | FamilyNodeKind::Frame
         | FamilyNodeKind::Artifact
+        | FamilyNodeKind::Boundary
         | FamilyNodeKind::Cloud
+        | FamilyNodeKind::Circle
+        | FamilyNodeKind::Collections
         | FamilyNodeKind::Storage
+        | FamilyNodeKind::Container
+        | FamilyNodeKind::Control
         | FamilyNodeKind::Database
+        | FamilyNodeKind::Entity
         | FamilyNodeKind::Package
         | FamilyNodeKind::Rectangle
         | FamilyNodeKind::Folder
         | FamilyNodeKind::File
         | FamilyNodeKind::Card
-        | FamilyNodeKind::Actor => {
+        | FamilyNodeKind::Actor
+        | FamilyNodeKind::Hexagon
+        | FamilyNodeKind::Label
+        | FamilyNodeKind::Person
+        | FamilyNodeKind::Process
+        | FamilyNodeKind::Queue
+        | FamilyNodeKind::Stack
+        | FamilyNodeKind::UseCaseDeployment => {
             let fill = node
                 .fill_color
                 .as_deref()
@@ -4999,6 +5289,123 @@ fn render_family_node_shape_styled(
                         comp_style.border_color
                     ));
                 }
+                FamilyNodeKind::Queue => {
+                    let bounds = DeploymentShapeBounds { x, y, w, h };
+                    render_deployment_queue_shape(
+                        out,
+                        kind_label,
+                        bounds,
+                        fill,
+                        &comp_style.border_color,
+                    );
+                }
+                FamilyNodeKind::Stack | FamilyNodeKind::Collections => {
+                    for offset in [10, 5, 0] {
+                        out.push_str(&format!(
+                            "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            kind_label,
+                            x + offset,
+                            y + offset,
+                            w - 10,
+                            h - 10,
+                            escape_text(fill),
+                            comp_style.border_color
+                        ));
+                    }
+                }
+                FamilyNodeKind::Hexagon => {
+                    out.push_str(&format!(
+                        "<polygon class=\"uml-node uml-deployment-shape\" data-uml-kind=\"hexagon\" points=\"{},{} {},{} {},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        x + 18,
+                        y,
+                        x + w - 18,
+                        y,
+                        x + w,
+                        y + h / 2,
+                        x + w - 18,
+                        y + h,
+                        x + 18,
+                        y + h,
+                        x,
+                        y + h / 2,
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                }
+                FamilyNodeKind::Circle => {
+                    out.push_str(&format!(
+                        "<ellipse class=\"uml-node uml-deployment-shape\" data-uml-kind=\"circle\" cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        cx,
+                        cy,
+                        w / 2,
+                        h / 2,
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                }
+                FamilyNodeKind::UseCaseDeployment => {
+                    out.push_str(&format!(
+                        "<ellipse class=\"uml-node uml-deployment-shape\" data-uml-kind=\"usecase\" cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        cx,
+                        cy,
+                        w / 2,
+                        h / 2,
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                }
+                FamilyNodeKind::Actor | FamilyNodeKind::Person => {
+                    let bounds = DeploymentShapeBounds { x, y, w, h };
+                    render_deployment_stick_shape(
+                        out,
+                        kind_label,
+                        bounds,
+                        fill,
+                        &comp_style.border_color,
+                    );
+                }
+                FamilyNodeKind::Boundary | FamilyNodeKind::Control | FamilyNodeKind::Entity => {
+                    out.push_str(&format!(
+                        "<ellipse class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                        kind_label,
+                        cx,
+                        cy - 4,
+                        (w / 2).saturating_sub(12),
+                        (h / 2).saturating_sub(12),
+                        escape_text(fill),
+                        comp_style.border_color
+                    ));
+                    if matches!(node.kind, FamilyNodeKind::Boundary) {
+                        out.push_str(&format!(
+                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            x + 12,
+                            y + h - 14,
+                            x + w - 12,
+                            y + h - 14,
+                            comp_style.border_color
+                        ));
+                    } else if matches!(node.kind, FamilyNodeKind::Control) {
+                        out.push_str(&format!(
+                            "<path d=\"M{} {} L{} {} L{} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            cx + 6,
+                            cy - 14,
+                            cx + 24,
+                            cy - 22,
+                            cx + 18,
+                            cy - 4,
+                            comp_style.border_color
+                        ));
+                    } else {
+                        out.push_str(&format!(
+                            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
+                            x + 22,
+                            y + h - 18,
+                            x + w - 22,
+                            y + h - 18,
+                            comp_style.border_color
+                        ));
+                    }
+                }
                 _ => {
                     out.push_str(&format!(
                         "<rect class=\"uml-node uml-deployment-shape\" data-uml-kind=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
@@ -5031,13 +5438,16 @@ fn render_family_node_shape_styled(
         _ => y + 14,
     };
     // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525).
+    // For `componentStyle rectangle`, suppress the stereotype text entirely.
     // For Package and Rectangle container nodes, suppress the kind-tag entirely — these
     // shapes display their label in a tab/header already (fix #549).
     let is_package_container = matches!(
         node.kind,
         FamilyNodeKind::Package | FamilyNodeKind::Rectangle | FamilyNodeKind::Folder
     );
-    if !is_package_container {
+    let is_rectangle_style_component = node.kind == FamilyNodeKind::Component
+        && comp_style.component_style_mode == ComponentStyleMode::Rectangle;
+    if !is_package_container && !is_rectangle_style_component {
         let kind_tag_text: std::borrow::Cow<str> = match node.kind {
             FamilyNodeKind::Component => std::borrow::Cow::Borrowed("\u{ab}component\u{bb}"),
             FamilyNodeKind::Interface => std::borrow::Cow::Borrowed("\u{ab}interface\u{bb}"),

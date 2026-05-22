@@ -16,22 +16,26 @@ use crate::model::{
     RegexPattern, RegexToken, RepeatKind, ScaleSpec, SdlDocument, SdlState, SdlStateKind,
     SdlTransition, SequenceDocument, SequenceEvent, SequenceEventKind, SequenceMessageStyle,
     SequencePage, StateDocument, StateInternalAction as ModelStateInternalAction, StateNode,
-    StateNodeKind, StateTransition as ModelStateTransition, TimelineChronologyEvent,
-    TimelineClosedRange, TimelineConstraint, TimelineDocument, TimelineMilestone,
-    TimelineOpenRange, TimelineResourceAllocation, TimelineSeparator, TimelineTask,
+    StateNodeKind, StateNodeStyle, StateTransition as ModelStateTransition,
+    TimelineChronologyEvent, TimelineClosedRange, TimelineConstraint, TimelineDayMarker,
+    TimelineDocument, TimelineMilestone, TimelineNote, TimelineOpenRange,
+    TimelineResourceAllocation, TimelineResourceOffRange, TimelineSeparator, TimelineTask,
     VirtualEndpoint, VirtualEndpointKind, VirtualEndpointSide, WbsCheckbox, YamlDocument,
     YamlTreeNode,
 };
 use crate::scene::TextOverflowPolicy;
 use crate::theme::{
-    activity_style_from_sequence_theme, chart_style_from_sequence_theme,
-    class_style_from_sequence_theme, classify_activity_skinparam, classify_chart_skinparam,
-    classify_class_skinparam, classify_component_skinparam, classify_sequence_skinparam,
-    classify_state_skinparam, classify_timing_skinparam, component_style_from_sequence_theme,
-    resolve_sequence_theme_preset, state_style_from_sequence_theme,
-    timing_style_from_sequence_theme, ActivityStyle, ChartStyle, ClassStyle, ComponentStyle,
-    SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle, SkinParamSupport, StateStyle,
-    TimingStyle,
+    activity_style_from_sequence_theme, apply_monochrome_to_activity_style,
+    apply_monochrome_to_chart_style, apply_monochrome_to_class_style,
+    apply_monochrome_to_component_style, apply_monochrome_to_sequence_style,
+    apply_monochrome_to_state_style, apply_monochrome_to_timing_style,
+    chart_style_from_sequence_theme, class_style_from_sequence_theme, classify_activity_skinparam,
+    classify_chart_skinparam, classify_class_skinparam, classify_component_skinparam,
+    classify_sequence_skinparam, classify_state_skinparam, classify_timing_skinparam,
+    component_style_from_sequence_theme, resolve_sequence_theme_preset,
+    state_style_from_sequence_theme, timing_style_from_sequence_theme, ActivityStyle, ChartStyle,
+    ClassStyle, ComponentStyle, SequenceSkinParamSupport, SequenceSkinParamValue, SequenceStyle,
+    SkinParamSupport, StateStyle, TimingStyle,
 };
 
 mod archimate;

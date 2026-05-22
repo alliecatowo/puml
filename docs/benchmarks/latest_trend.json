@@ -7,14 +7,14 @@
   "baseline_source": "/home/Allie/develop/puml/.worktrees/main-green-consolidation/docs/benchmarks/.baseline.previous.json",
   "benchmark_policy": {
     "absolute_mean_ms_limit": 250.0,
-    "binary_limit_bytes": 12000000,
+    "binary_limit_bytes": 16000000,
     "mode": "full",
     "regression_min_delta_ms": 40.0,
     "regression_pct_limit": 10.0,
     "version": "bench-gate-v2-2026-05-17"
   },
   "binary": {
-    "limit_bytes": 12000000,
+    "limit_bytes": 16000000,
     "path": "/home/Allie/develop/puml/.worktrees/main-green-consolidation/target/release/puml",
     "size_bytes": 11477872,
     "within_limit": true

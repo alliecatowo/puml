@@ -108,6 +108,7 @@ fn render_sequence_text(page: &SequencePage, mode: TextOutputMode) -> String {
                 position,
                 target,
                 text,
+                ..
             } => {
                 let target = target
                     .as_deref()
@@ -732,6 +733,7 @@ fn endpoint_label(
             VirtualEndpointKind::Circle => "circle",
             VirtualEndpointKind::Cross => "cross",
             VirtualEndpointKind::Filled => "filled",
+            VirtualEndpointKind::Short => "short",
         };
         return format!("[{side}:{kind}]");
     }

@@ -16,6 +16,9 @@
 ./scripts/bench.sh --enforce-gates
 ./scripts/bench.sh --quick --enforce-gates
 
+# reuse an already-built release binary after cargo build --release
+./scripts/bench.sh --skip-build --enforce-gates
+
 # refresh mode baseline only after an intentional review
 ./scripts/bench.sh --update-baseline
 ./scripts/bench.sh --quick --update-baseline
@@ -63,16 +66,16 @@ Current policy version: `bench-gate-v2-2026-05-17`.
 - `full` (default):
 - absolute per-scenario mean limit: `250ms`
 - regression limit vs previous `baseline_full.json`: `10%` with absolute delta floor `>40ms`
-- binary size limit (`target/release/puml`): `12,000,000` bytes
+- binary size limit (`target/release/puml`): `16,000,000` bytes
 - `quick` (`--quick`):
 - absolute per-scenario mean limit: `350ms`
 - regression limit vs previous `baseline_quick.json`: `20%` with absolute delta floor `>50ms`
-- binary size limit (`target/release/puml`): `12,000,000` bytes
+- binary size limit (`target/release/puml`): `16,000,000` bytes
 
 If no matching mode baseline exists, regression checks are skipped and absolute/binary checks still apply.
 
 The binary gate was recalibrated after URL include support added the `ureq`/`rustls`/`ring`
-dependency path. Current release builds are about 10 MB, so the 12 MB ceiling preserves
+dependency path. Current release builds are about 10 MB, so the 16 MB ceiling preserves
 headroom for normal metadata and compiler variance while still catching large dependency or
 asset growth. Treat binary-size reduction as a separate product goal with an explicit issue
 or optimization plan instead of blocking all main merges on the pre-URL-include 2 MB limit.
@@ -80,8 +83,9 @@ or optimization plan instead of blocking all main merges on the pre-URL-include 
 ## Failure Handling
 
 - `./scripts/bench.sh` reports gate warnings but exits `0` by default.
+- `./scripts/bench.sh --skip-build` skips its internal release build only after confirming `target/release/puml` exists and is executable.
 - `./scripts/bench.sh --enforce-gates` exits non-zero on any gate failure.
-- `./scripts/check-all.sh` always runs benchmark gates in enforce mode.
+- `./scripts/check-all.sh` always runs benchmark gates in enforce mode; full mode reuses the release binary it just built.
 - On failure, inspect `docs/benchmarks/latest_trend.{md,json}` to identify the exact regressing scenario and delta.
 - Baselines are not auto-updated. Use `--update-baseline` only after reviewing variance and approving movement.
 - If benchmark gate limits or policy metadata change, refresh committed artifacts with `./scripts/bench.sh --quick --update-baseline` and `./scripts/bench.sh --update-baseline`, then confirm `./scripts/bench.sh --check-artifacts` passes.

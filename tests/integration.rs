@@ -5606,6 +5606,57 @@ fn class_visibility_markers_render_colored_symbols() {
 }
 
 #[test]
+fn class_ch03_generics_member_refs_and_controls_render() {
+    let src =
+        fs::read_to_string(fixture("families/valid_class_ch03_parity_controls.puml")).unwrap();
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("families/valid_class_ch03_parity_controls.puml"),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+
+    let svg = render_source_to_svg(&src).expect("class ch03 parity fixture should render");
+    assert!(svg.contains("Repository&lt;T&gt;"));
+    assert!(svg.contains("UserService&lt;T&gt;"));
+    assert!(svg.contains("BaseService"));
+    assert!(svg.contains("Service&lt;T&gt;"));
+    assert!(svg.contains("data-uml-from=\"Repository&lt;T&gt;::cache\""));
+    assert!(svg.contains("data-uml-to=\"UserService&lt;T&gt;::token\""));
+    assert!(svg.contains("member target"));
+    assert!(svg.contains("Enrollment"));
+    assert!(svg.contains("+find(id: ID): T"));
+    assert!(svg.contains("+load(): T"));
+    assert!(svg.contains("~literal"));
+    assert!(!svg.contains("-cache: Map"));
+    assert!(!svg.contains("-token: String"));
+    assert!(!svg.contains("Hidden"));
+    assert!(!svg.contains("Removed"));
+}
+
+#[test]
+fn class_show_overrides_hidden_methods_for_specific_class() {
+    let src = "@startuml\nhide methods\nclass A {\n  +field: int\n  +run()\n}\nclass B {\n  +field: int\n  +run()\n}\nshow B methods\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("show override should render");
+    assert!(
+        svg.matches("+run()").count() == 1,
+        "only B.run should survive the show override: {svg}"
+    );
+}
+
+#[test]
+fn class_note_on_link_attaches_to_recent_relation() {
+    let src =
+        "@startuml\nclass A\nclass B\nA --> B : owns\nnote right on link : link note\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("note on link should render");
+    assert!(svg.contains("link note"));
+    assert!(svg.contains("data-uml-to=\"__note_0001\""));
+}
+
+#[test]
 fn usecase_diagram_renders_ellipse_nodes() {
     let src = fs::read_to_string(fixture("families/valid_usecase_bootstrap.puml")).unwrap();
     let svg = render_source_to_svg(&src).expect("usecase svg should render");
@@ -5833,6 +5884,101 @@ fn component_relations_render_dotted_markers_and_styled_port_shape() {
     assert!(svg.contains("marker-end=\"url(#arrow-open)\""));
     assert!(svg.contains("port"));
     assert!(svg.contains("Adapter"));
+}
+
+#[test]
+fn deployment_ch08_shape_keywords_render_typed_shapes() {
+    let src = r##"@startuml
+node "K8s Cluster" as k8s {
+  queue "Ingress Queue" as q <<durable>> #aliceblue;line:blue;text:navy
+  stack Jobs
+  hexagon Router
+  process Worker
+  artifact app [
+    boot.jar
+    ----
+    signed
+  ]
+  q --> Jobs
+  Jobs --> Router
+  Router --> Worker
+  Worker --> app
+}
+cloud Edge
+database Store
+agent AgentA
+boundary ApiBoundary
+control Controller
+entity Catalog
+collections Bag
+circle Signal
+person Operator
+actor/ AltUser
+:Colon Actor:
+usecase/ LegacyUC
+(Search) as SearchUC
+container Runtime
+label Marker
+action Deploy
+AgentA 0)--(0 Edge : buffers
+Edge -[#2563eb;line.dashed;line.thickness=3]-> Store : writes
+Operator --> AltUser : approves
+AltUser --> ApiBoundary
+ApiBoundary --> Controller
+Controller --> Catalog
+Catalog --> Runtime
+Runtime --> Deploy
+@enduml
+"##;
+    let svg = render_source_to_svg(src).expect("deployment ch08 shape svg should render");
+
+    for kind in [
+        "node",
+        "queue",
+        "stack",
+        "hexagon",
+        "process",
+        "artifact",
+        "cloud",
+        "database",
+        "agent",
+        "boundary",
+        "control",
+        "entity",
+        "collections",
+        "circle",
+        "person",
+        "actor",
+        "usecase",
+        "container",
+        "label",
+        "action",
+    ] {
+        assert!(
+            svg.contains(&format!("data-uml-kind=\"{kind}\"")),
+            "expected deployment shape kind {kind} in SVG: {svg}"
+        );
+    }
+    assert!(svg.contains("durable"));
+    assert!(svg.contains("boot.jar"));
+    assert!(svg.contains("data-uml-arrow=\"0)--(0\""));
+    assert!(svg.contains("stroke=\"#2563eb\""));
+    assert!(svg.contains("stroke-width=\"3\""));
+    assert!(!svg.contains("line:blue"));
+}
+
+#[test]
+fn sequence_queue_participants_still_prefer_sequence_context() {
+    let src = "@startuml\nqueue Jobs as Q\nparticipant Worker\nQ -> Worker : dispatch\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("sequence queue participant should render");
+    assert!(
+        svg.contains("data-uml-role=\"queue\"") || svg.contains("JobQueue") || svg.contains("Jobs"),
+        "queue participant should remain renderable as a sequence diagram"
+    );
+    assert!(
+        !svg.contains("data-uml-kind=\"queue\""),
+        "ambiguous queue participant should not be stolen by deployment parsing"
+    );
 }
 
 #[test]
@@ -6518,6 +6664,37 @@ fn creole_html_i_tag_produces_italic_tspan() {
 }
 
 #[test]
+fn creole_ch22_note_blocks_render_high_impact_constructs() {
+    let src = "@startuml\n\
+Alice -> Bob: <:calendar:> <U+221E>\n\
+note over Alice\n\
+= Creole note =\n\
+* **Bold** item\n\
+[[https://example.com{Open docs} docs]]\n\
+----\n\
+|= Key |<#FF8080> Value |\n\
+|_ leaf\n\
+<code>**raw**</code> H<sub>2</sub> x<sup>2</sup>\n\
+<font:serif><back:yellow><s>old</s></back></font>\n\
+end note\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    assert!(svg.contains("📅 ∞"));
+    assert!(svg.contains("font-size=\"24\""));
+    assert!(svg.contains("font-weight=\"bold\""));
+    assert!(svg.contains("<title>Open docs</title>"));
+    assert!(svg.contains("------------------------"));
+    assert!(svg.contains("data-creole-back=\"#FF8080\""));
+    assert!(svg.contains("`- "));
+    assert!(svg.contains("font-family=\"monospace\""));
+    assert!(svg.contains("baseline-shift=\"sub\""));
+    assert!(svg.contains("baseline-shift=\"super\""));
+    assert!(svg.contains("font-family=\"serif\""));
+    assert!(svg.contains("data-creole-back=\"yellow\""));
+    assert!(svg.contains("line-through"));
+}
+
+#[test]
 fn creole_plain_label_uses_fast_path_without_tspan_wrapper() {
     let src = "@startuml\nAlice -> Bob: plain\n@enduml\n";
     let svg = render_source_to_svg(src).expect("render");
@@ -6527,6 +6704,165 @@ fn creole_plain_label_uses_fast_path_without_tspan_wrapper() {
         svg.contains(plain_text_pattern),
         "expected direct text content for plain label"
     );
+}
+
+#[test]
+fn sprites_hex_grid_render_inline_with_scale_and_color() {
+    let src = "@startuml\n\
+sprite $foo [4x4/16] {\n\
+0FF0\n\
+F00F\n\
+F00F\n\
+0FF0\n\
+}\n\
+Alice -> Bob : Testing <$foo,scale=2,color=orange>\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("sprite should render");
+    assert!(svg.contains("data-creole-sprites=\"true\""));
+    assert!(svg.contains("data-sprite=\"foo\""));
+    assert!(svg.contains("scale(2.000)"));
+    assert!(svg.contains("fill=\"orange\""));
+    assert!(!svg.contains("&lt;$foo"));
+}
+
+#[test]
+fn sprites_encoded_z_payload_decodes_and_listsprites_renders_sheet() {
+    let src = "@startuml\n\
+sprite $printer [15x15/8z] NOtH3W0W208HxFz_kMAhj7lHWpa1XC716sz0Pq4MVPEWfBHIuxP3L6kbTcizR8tAhzaqFvXwvFfPEqm0\n\
+listsprites\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("compressed sprite should render");
+    assert!(svg.contains("data-sprite-list=\"true\""));
+    assert!(svg.contains("data-sprite-count=\"1\""));
+    assert!(svg.contains("$printer"));
+    assert!(svg.contains("data-sprite=\"printer\""));
+}
+
+#[test]
+fn sprites_inline_svg_reference_renders_scaled_svg_fragment() {
+    let src = "@startuml\n\
+sprite folder_svg <svg width=\"4\" height=\"4\" viewBox=\"0 0 4 4\"><path d=\"M0 1h4v3H0z\" fill=\"#0f766e\"/></svg>\n\
+Alice -> Bob : <$folder_svg*2>\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("inline SVG sprite should render");
+    assert!(svg.contains("puml-sprite-svg"));
+    assert!(svg.contains("data-sprite=\"folder_svg\""));
+    assert!(svg.contains("scale(2.000)"));
+    assert!(svg.contains("M0 1h4v3H0z"));
+}
+
+#[test]
+fn sprites_from_stdlib_include_resolve_to_visible_icon() {
+    let src = "@startuml\n\
+!include <material/folder>\n\
+Alice -> Bob : <$ma_folder{scale=2}>\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("stdlib sprite should render");
+    assert!(svg.contains("data-sprite=\"ma_folder\""));
+    assert!(svg.contains("data-sprite-width=\"8\""));
+}
+
+#[test]
+fn sprite_invalid_hex_grid_reports_diagnostic() {
+    let src = "@startuml\n\
+sprite $bad {\n\
+0FG0\n\
+}\n\
+Alice -> Bob : nope\n\
+@enduml\n";
+    let err = render_source_to_svg(src).expect_err("invalid sprite should fail");
+    assert!(err.message.contains("[E_SPRITE_INVALID]"));
+}
+
+#[test]
+fn encodesprite_cli_outputs_compressed_sprite_definition() {
+    let tmp = tempdir().unwrap();
+    let input = tmp.path().join("tiny-icon.png");
+    let mut image = image::RgbaImage::new(2, 2);
+    image.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+    image.put_pixel(1, 0, image::Rgba([255, 255, 255, 255]));
+    image.put_pixel(0, 1, image::Rgba([128, 128, 128, 255]));
+    image.put_pixel(1, 1, image::Rgba([0, 0, 0, 0]));
+    image.save(&input).unwrap();
+
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args(["-encodesprite", "16z", input.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("sprite $tiny-icon [2x2/16z]"));
+}
+
+#[test]
+fn unicode_escape_fixture_checks_cleanly() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("conformance/valid_unicode_escapes.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn unicode_escapes_render_decoded_text_and_preserve_invalid_forms() {
+    let src = fs::read_to_string(fixture("conformance/valid_unicode_escapes.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("render unicode escapes");
+
+    for expected in ["∞", "☃", "📅", "😀", ":not_in_small_map:"] {
+        assert!(
+            svg.contains(expected),
+            "decoded output should contain {expected}: {svg}"
+        );
+    }
+
+    for removed in [
+        "&#8734;",
+        "&amp;#8734;",
+        "&#x2603;",
+        "&amp;#x2603;",
+        "<U+221E>",
+        "&lt;U+221E&gt;",
+        "<:calendar:>",
+        "&lt;:calendar:&gt;",
+        "<:1f600:>",
+        "&lt;:1f600:&gt;",
+    ] {
+        assert!(
+            !svg.contains(removed),
+            "decoded escape text should disappear: {removed}"
+        );
+    }
+
+    assert!(
+        svg.contains("&amp;#xZZ;"),
+        "invalid numeric reference should remain literal but XML-escaped"
+    );
+    assert!(
+        svg.contains("&lt;U+110000&gt;"),
+        "out-of-range codepoint tag should remain literal but XML-escaped"
+    );
+    assert!(
+        svg.contains("&lt;::&gt;"),
+        "empty emoji tag should remain literal but XML-escaped"
+    );
+}
+
+#[test]
+fn unicode_escapes_render_in_family_plain_text_labels() {
+    let src = "@startuml\nclass \"Box <U+221E> &#9731; <:heart:>\" as Box\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("render family unicode escapes");
+
+    assert!(
+        svg.contains("Box ∞ ☃ ❤"),
+        "family label should decode unicode escapes: {svg}"
+    );
+    assert!(!svg.contains("&lt;U+221E&gt;"));
+    assert!(!svg.contains("&amp;#9731;"));
+    assert!(!svg.contains("&lt;:heart:&gt;"));
 }
 
 #[test]
@@ -6574,6 +6910,37 @@ fn class_hide_options_are_recorded_in_model() {
     assert!(family.hide_options.contains("circle"));
     assert!(family.hide_options.contains("stereotype"));
     assert!(family.hide_options.contains("empty members"));
+}
+
+#[test]
+fn ie_entity_blocks_render_mandatory_markers_and_crows_feet() {
+    let src = fs::read_to_string(fixture("families/valid_ie_information_engineering.puml"))
+        .expect("fixture");
+    let svg = render_source_to_svg(&src).expect("rendered svg");
+    assert!(
+        svg.contains("data-uml-ie-mandatory=\"true\""),
+        "mandatory IE attributes should be marked in SVG"
+    );
+    assert!(
+        svg.contains("customer_id : number"),
+        "entity attribute text should render"
+    );
+    assert!(
+        svg.matches("<line x1=").count() >= 3,
+        "entity compartments should render separator lines"
+    );
+    assert!(
+        svg.contains("arrow-ie-one") && svg.contains("arrow-ie-zero-many"),
+        "IE relation marker definitions should render"
+    );
+    assert!(
+        svg.contains("data-uml-arrow=\"||--o{") && svg.contains("data-uml-arrow=\"||..|{"),
+        "crow's-foot relation glyphs should be preserved in relation metadata"
+    );
+    assert!(
+        svg.contains("stroke-dasharray=\"5 3\""),
+        "dotted IE relation should render dashed"
+    );
 }
 
 #[test]
@@ -8260,6 +8627,97 @@ fn skinparam_class_background_color_appears_in_svg() {
     assert!(
         svg.contains("#0284c7"),
         "ClassArrowColor #0284c7 should appear in SVG"
+    );
+}
+
+#[test]
+fn skinparam_ch24_sequence_keys_are_accepted_and_rendered() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_ch24_sequence.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let src = fs::read_to_string(fixture("styling/valid_skinparam_ch24_sequence.puml")).unwrap();
+    let svg = render_source_to_svg(&src).expect("ch24 sequence skinparam svg should render");
+    assert!(
+        svg.contains("id=\"sketch\""),
+        "handwritten true should enable the sketch filter"
+    );
+    assert!(
+        svg.contains("stroke=\"#000000\""),
+        "monochrome true should force strokes to black"
+    );
+    assert!(
+        svg.contains("fill=\"#ffffff\""),
+        "monochrome true should force fills/background to white"
+    );
+    assert!(
+        svg.contains("text-anchor=\"start\""),
+        "sequenceMessageAlign direction should behave like left/start"
+    );
+    assert!(
+        !svg.contains("#334155"),
+        "monochrome should override explicit participant font color"
+    );
+}
+
+#[test]
+fn skinparam_ch24_reverse_monochrome_and_reverse_direction_render() {
+    let src = "@startuml\nskinparam monochrome reverse\nskinparam sequenceMessageAlign reverseDirection\nAlice -> Bob : dark mode\n@enduml\n";
+    let svg = render_source_to_svg(src).expect("reverse monochrome sequence should render");
+    assert!(
+        svg.contains("<rect width=\"100%\" height=\"100%\" fill=\"#000000\""),
+        "monochrome reverse should force a black background"
+    );
+    assert!(
+        svg.contains("stroke=\"#ffffff\""),
+        "monochrome reverse should force strokes to white"
+    );
+    assert!(
+        svg.contains("text-anchor=\"end\""),
+        "sequenceMessageAlign reverseDirection should behave like right/end"
+    );
+}
+
+#[test]
+fn skinparam_ch24_class_stereotype_scope_renders() {
+    Command::cargo_bin("puml")
+        .expect("binary")
+        .args([
+            "--check",
+            &fixture("styling/valid_skinparam_ch24_stereotype_class.puml"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+    let src = fs::read_to_string(fixture(
+        "styling/valid_skinparam_ch24_stereotype_class.puml",
+    ))
+    .unwrap();
+    let svg = render_source_to_svg(&src).expect("class stereotype skinparam svg should render");
+    assert!(
+        svg.contains("fill=\"#fee2e2\""),
+        "stereotype-scoped class background should render"
+    );
+    assert!(
+        svg.contains("stroke=\"#b91c1c\""),
+        "stereotype-scoped class border should render"
+    );
+    assert!(
+        svg.contains("fill=\"#fecaca\""),
+        "stereotype-scoped class header should render"
+    );
+    assert!(
+        svg.contains("fill=\"#7f1d1d\""),
+        "stereotype-scoped class font color should render"
     );
 }
 

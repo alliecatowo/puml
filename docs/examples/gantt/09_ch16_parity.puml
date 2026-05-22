@@ -1,0 +1,23 @@
+@startgantt
+title Chapter 16 Gantt Parity
+Project starts the 20th of september 2020
+projectscale weekly with calendar date
+hide resources footbox
+saturday are closed
+sunday are closed
+2020/09/22 is closed
+2020/09/24 is open
+2020/09/21 to 2020/09/22 are named [Prep window]
+2020/09/23 is colored in salmon
+
+[SameTaskName] as [T1] on {Alice} requires 3 days and is colored in Lavender/LightBlue
+note bottom
+Prototype kickoff notes
+end note
+then [SameTaskName] as [T2] on {Bob:50%} requires 2 days and is 40% completed
+[T2] starts 2 working days after [T1]'s end
+[T2] is colored in Coral/Green
+{Bob} is off on 2020/09/25
+[Launch] happens at [T2]'s end
+[T1] -> [T2]
+@endgantt

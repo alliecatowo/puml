@@ -1,5 +1,12 @@
 # PlantUML Frontend Conformance Matrix
 
+> **Scope-narrowed.** Broad PlantUML language support is now tracked in
+> [`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md) and
+> [`docs/internal/spec/audit/`](../spec/audit/). This matrix is retained as a
+> deterministic runtime contract for the implemented frontend slice (block
+> boundaries, directives, comments, multi-block extraction) and is enforced by
+> `tests/plantuml_frontend_conformance_audit.rs`.
+
 Issue lane: #130  
 Last updated: 2026-05-17 (America/Los_Angeles)
 
@@ -9,10 +16,11 @@ It is scoped to exercised frontend behaviors only. `puml` is the Rust renderer
 binary/engine, PlantUML is the compatibility target, PicoUML is the project-owned
 frontend surface, and Mermaid is an adapter frontend for selected families. This
 matrix does not assert full PlantUML 1:1 parity; use
-[`docs/audits/plantuml_parity_source_of_truth.md`](audits/plantuml_parity_source_of_truth.md)
-as the canonical current implemented/partial/missing status. Rows here are
-runtime contract checks for selected frontend behavior, not a broader language
-support source of truth.
+[`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md) and the
+per-chapter audits under [`docs/internal/spec/audit/`](../spec/audit/) as the
+authoritative implemented/partial/missing status. Rows here are runtime contract
+checks for selected frontend behavior, not a broader language support source of
+truth.
 
 ## Matrix
 
@@ -56,3 +64,6 @@ support source of truth.
 - Matrix rows are intentionally fixture-first so each behavior is executable in CI.
 - This matrix is not a broad PlantUML language parity claim; it is a deterministic runtime contract for the implemented frontend slice.
 - Fixture and example coverage here should be treated as coverage seeds, not exhaustive parity proof.
+- Oracle and benchmark rows are executable evidence hooks only. Generated
+  artifacts under `docs/benchmarks/` are snapshots of specific runs, not the
+  source of truth for PlantUML support status.

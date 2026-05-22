@@ -1,25 +1,5 @@
 fn parse_component_decl(line: &str) -> Option<StatementKind> {
-    use crate::ast::ComponentNodeKind as K;
-    let keywords: &[(&str, K)] = &[
-        ("component", K::Component),
-        ("interface", K::Interface),
-        ("portin", K::Port),
-        ("portout", K::Port),
-        ("port", K::Port),
-        ("node", K::Node),
-        ("database", K::Database),
-        ("cloud", K::Cloud),
-        ("frame", K::Frame),
-        ("storage", K::Storage),
-        ("package", K::Package),
-        ("rectangle", K::Rectangle),
-        ("folder", K::Folder),
-        ("file", K::File),
-        ("card", K::Card),
-        ("artifact", K::Artifact),
-        ("actor", K::Actor),
-    ];
-    for (kw, kind) in keywords.iter().copied() {
+    for (kw, kind) in component_decl_keywords().iter().copied() {
         let trimmed = line.trim();
         if !trimmed.starts_with(kw) {
             continue;
@@ -28,9 +8,6 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         if rest_raw.is_empty() {
             return None;
         }
-        // If the rest ends with `{`, this is a scoping block declaration (e.g.
-        // `rectangle "System" { ... }`), not a flat component declaration.
-        // Let parse_component_scoping_block handle it instead.
         if rest_raw.ends_with('{') {
             continue;
         }
@@ -40,21 +17,13 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         if rest_raw.starts_with('-') || rest_raw.starts_with('.') || rest_raw.starts_with('<') {
             return None;
         }
-        // Must be followed by whitespace OR the rest is a non-identifier prefix; require space.
-        if !line
+        if !trimmed
             .as_bytes()
             .get(kw.len())
             .copied()
             .is_some_and(|b| b == b' ' || b == b'\t')
         {
-            // For the very first char after kw, ensure it's whitespace.
-            // (line is already trimmed by caller; recompute on trimmed)
-            let bytes = trimmed.as_bytes();
-            if let Some(&b) = bytes.get(kw.len()) {
-                if !(b == b' ' || b == b'\t') {
-                    continue;
-                }
-            }
+            continue;
         }
         let rest = rest_raw.trim_end_matches('{').trim();
         let (rest, fill_color) = split_declaration_inline_fill(rest);
@@ -102,6 +71,14 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
                 text: "<<portout>>".to_string(),
                 modifier: None,
             }),
+            "actor/" => members.push(ClassMember {
+                text: "<<actor/>>".to_string(),
+                modifier: None,
+            }),
+            "usecase/" => members.push(ClassMember {
+                text: "<<usecase/>>".to_string(),
+                modifier: None,
+            }),
             _ => {}
         }
         append_inline_fill_member(&mut members, fill_color);
@@ -113,107 +90,258 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
             members,
         });
     }
-    // Anonymous shorthand: `[Name]` declares a component, `() Name` declares an interface.
+
     let trimmed = line.trim();
-    if let Some(rest) = trimmed.strip_prefix('[') {
-        if let Some(end) = rest.find(']') {
-            let inner = rest[..end].trim();
-            let suffix = rest[end + 1..].trim();
-            if !suffix.is_empty() && !suffix.starts_with("as ") {
-                return None;
-            }
-            let bracketed_inner = format!("[{inner}]");
-            if normalize_virtual_endpoint(&bracketed_inner).is_some()
-                || matches!(inner, "*" | "H" | "H*")
-            {
-                return None;
-            }
-            let alias = suffix
-                .strip_prefix("as ")
-                .map(str::trim)
-                .map(clean_ident)
-                .filter(|v| !v.is_empty());
-            if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
-                let name = alias.clone().unwrap_or_else(|| clean_ident(inner));
-                let label = alias.as_ref().map(|_| inner.to_string());
-                return Some(StatementKind::ComponentDecl {
-                    kind: ComponentNodeKind::Component,
-                    name,
-                    alias,
-                    label,
-                    members: Vec::new(),
-                });
-            }
-        }
+    if let Some(kind) = parse_component_bracketed_shorthand(trimmed) {
+        return Some(kind);
     }
-    if let Some(rest) = trimmed.strip_prefix("()") {
-        let rest = rest.trim();
-        if !rest.is_empty() {
-            let (label, rest_after_label) = if rest.starts_with('"') {
-                let stripped = rest.strip_prefix('"')?;
-                let end = stripped.find('"')?;
-                (
-                    Some(stripped[..end].to_string()),
-                    stripped[end + 1..].trim(),
-                )
-            } else {
-                (None, rest)
-            };
-            let (name_raw, alias) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
-                (
-                    label.as_deref().unwrap_or("").trim(),
-                    Some(clean_ident(alias.trim())),
-                )
-            } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
-                (lhs.trim(), Some(clean_ident(rhs.trim())))
-            } else {
-                (rest_after_label, None)
-            };
-            let name = alias
-                .clone()
-                .filter(|v| !v.is_empty())
-                .unwrap_or_else(|| clean_ident(name_raw));
-            if !name.is_empty() {
-                return Some(StatementKind::ComponentDecl {
-                    kind: ComponentNodeKind::Interface,
-                    name,
-                    alias: alias.filter(|v| !v.is_empty()),
-                    label,
-                    members: Vec::new(),
-                });
-            }
-        }
+    if let Some(kind) = parse_actor_colon_shorthand(trimmed) {
+        return Some(kind);
     }
-    if let Some(inner) = trimmed.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
-        let bracketed_inner = format!("[{inner}]");
-        if normalize_virtual_endpoint(&bracketed_inner).is_none()
-            && !matches!(inner, "*" | "H" | "H*")
-            && !inner.is_empty()
-            && !inner.contains('[')
-            && !inner.contains(']')
-        {
-            return Some(StatementKind::ComponentDecl {
-                kind: ComponentNodeKind::Component,
-                name: clean_ident(inner),
-                alias: None,
-                label: None,
-                members: Vec::new(),
-            });
-        }
+    if let Some(kind) = parse_component_parenthesized_usecase_shorthand(trimmed) {
+        return Some(kind);
     }
-    if let Some(rest) = trimmed.strip_prefix("()") {
-        let rest = rest.trim();
-        if !rest.is_empty() {
-            return Some(StatementKind::ComponentDecl {
-                kind: ComponentNodeKind::Interface,
-                name: clean_ident(rest),
-                alias: None,
-                label: None,
-                members: Vec::new(),
-            });
-        }
+    if let Some(kind) = parse_component_interface_shorthand(trimmed) {
+        return Some(kind);
     }
     None
+}
+
+fn component_decl_keywords() -> &'static [(&'static str, ComponentNodeKind)] {
+    use crate::ast::ComponentNodeKind as K;
+    &[
+        ("component", K::Component),
+        ("interface", K::Interface),
+        ("portin", K::Port),
+        ("portout", K::Port),
+        ("port", K::Port),
+        ("node", K::Node),
+        ("database", K::Database),
+        ("cloud", K::Cloud),
+        ("frame", K::Frame),
+        ("storage", K::Storage),
+        ("package", K::Package),
+        ("rectangle", K::Rectangle),
+        ("folder", K::Folder),
+        ("file", K::File),
+        ("card", K::Card),
+        ("artifact", K::Artifact),
+        ("actor/", K::Actor),
+        ("actor", K::Actor),
+        ("agent", K::Agent),
+        ("boundary", K::Boundary),
+        ("circle", K::Circle),
+        ("collections", K::Collections),
+        ("container", K::Container),
+        ("control", K::Control),
+        ("entity", K::Entity),
+        ("hexagon", K::Hexagon),
+        ("label", K::Label),
+        ("person", K::Person),
+        ("process", K::Process),
+        ("queue", K::Queue),
+        ("stack", K::Stack),
+        ("action", K::Action),
+        ("usecase/", K::UseCase),
+    ]
+}
+
+fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind)> {
+    let trimmed = line.trim_start();
+    component_decl_keywords().iter().copied().find(|(kw, _)| {
+        trimmed.starts_with(kw)
+            && trimmed
+                .as_bytes()
+                .get(kw.len())
+                .copied()
+                .is_some_and(|b| b == b' ' || b == b'\t')
+    })
+}
+
+fn is_component_container_keyword(keyword: &str) -> bool {
+    matches!(
+        keyword,
+        "action"
+            | "artifact"
+            | "card"
+            | "cloud"
+            | "component"
+            | "container"
+            | "database"
+            | "file"
+            | "folder"
+            | "frame"
+            | "hexagon"
+            | "node"
+            | "package"
+            | "process"
+            | "queue"
+            | "rectangle"
+            | "stack"
+            | "storage"
+    )
+}
+
+fn is_ambiguous_sequence_participant_keyword(keyword: &str) -> bool {
+    matches!(
+        keyword,
+        "actor" | "boundary" | "control" | "entity" | "collections" | "queue"
+    )
+}
+
+fn is_ambiguous_activity_keyword(keyword: &str) -> bool {
+    matches!(keyword, "action" | "label")
+}
+
+fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
+    let rest = trimmed.strip_prefix('[')?;
+    let end = rest.find(']')?;
+    let inner = rest[..end].trim();
+    let suffix = rest[end + 1..].trim();
+    if !suffix.is_empty() && !suffix.starts_with("as ") {
+        return None;
+    }
+    let bracketed_inner = format!("[{inner}]");
+    if normalize_virtual_endpoint(&bracketed_inner).is_some() || matches!(inner, "*" | "H" | "H*")
+    {
+        return None;
+    }
+    let alias = suffix
+        .strip_prefix("as ")
+        .map(str::trim)
+        .map(clean_ident)
+        .filter(|v| !v.is_empty());
+    if !inner.is_empty() && !inner.contains('[') && !inner.contains(']') {
+        let name = alias.clone().unwrap_or_else(|| clean_ident(inner));
+        let label = alias.as_ref().map(|_| inner.to_string());
+        return Some(StatementKind::ComponentDecl {
+            kind: ComponentNodeKind::Component,
+            name,
+            alias,
+            label,
+            members: Vec::new(),
+        });
+    }
+    None
+}
+
+fn parse_actor_colon_shorthand(trimmed: &str) -> Option<StatementKind> {
+    let inner = trimmed.strip_prefix(':')?.strip_suffix(':')?.trim();
+    if inner.is_empty() || inner.contains(':') {
+        return None;
+    }
+    Some(StatementKind::ComponentDecl {
+        kind: ComponentNodeKind::Actor,
+        name: clean_ident(inner),
+        alias: None,
+        label: Some(inner.to_string()),
+        members: Vec::new(),
+    })
+}
+
+fn parse_component_parenthesized_usecase_shorthand(trimmed: &str) -> Option<StatementKind> {
+    let rest = trimmed.strip_prefix('(')?;
+    let end = rest.find(')')?;
+    let inner = rest[..end].trim();
+    if inner.is_empty() || inner.contains('(') || inner.contains(')') {
+        return None;
+    }
+    let suffix = rest[end + 1..].trim();
+    if !suffix.is_empty() && !suffix.starts_with("as ") {
+        return None;
+    }
+    let alias = suffix
+        .strip_prefix("as ")
+        .map(str::trim)
+        .map(clean_ident)
+        .filter(|value| !value.is_empty());
+    Some(StatementKind::ComponentDecl {
+        kind: ComponentNodeKind::UseCase,
+        name: alias.clone().unwrap_or_else(|| clean_ident(inner)),
+        alias,
+        label: Some(inner.to_string()),
+        members: Vec::new(),
+    })
+}
+
+fn parse_component_interface_shorthand(trimmed: &str) -> Option<StatementKind> {
+    let rest = trimmed.strip_prefix("()")?.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let (label, rest_after_label) = if rest.starts_with('"') {
+        let stripped = rest.strip_prefix('"')?;
+        let end = stripped.find('"')?;
+        (
+            Some(stripped[..end].to_string()),
+            stripped[end + 1..].trim(),
+        )
+    } else {
+        (None, rest)
+    };
+    let (name_raw, alias) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
+        (
+            label.as_deref().unwrap_or("").trim(),
+            Some(clean_ident(alias.trim())),
+        )
+    } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
+        (lhs.trim(), Some(clean_ident(rhs.trim())))
+    } else {
+        (rest_after_label, None)
+    };
+    let name = alias
+        .clone()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| clean_ident(name_raw));
+    if name.is_empty() {
+        return None;
+    }
+    Some(StatementKind::ComponentDecl {
+        kind: ComponentNodeKind::Interface,
+        name,
+        alias: alias.filter(|v| !v.is_empty()),
+        label,
+        members: Vec::new(),
+    })
+}
+
+fn parse_component_multiline_decl(
+    lines: &[(&str, Span)],
+    start: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    let trimmed = line.trim();
+    let Some(_) = component_decl_keyword(trimmed) else {
+        return Ok(None);
+    };
+    let Some(open_idx) = trimmed.rfind('[') else {
+        return Ok(None);
+    };
+    if !trimmed[open_idx + 1..].trim().is_empty() {
+        return Ok(None);
+    }
+    let prefix = trimmed[..open_idx].trim();
+    if prefix.is_empty() {
+        return Ok(None);
+    }
+    let Some(mut kind) = parse_component_decl(prefix) else {
+        return Ok(None);
+    };
+    let mut body = Vec::new();
+    for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
+        let text = strip_inline_plantuml_comment(raw).trim();
+        if text == "]" {
+            if let StatementKind::ComponentDecl { label, .. } = &mut kind {
+                *label = Some(body.join("\n"));
+            }
+            return Ok(Some((kind, idx)));
+        }
+        body.push(text.to_string());
+    }
+    Err(Diagnostic::error(
+        "[E_COMPONENT_DECL_UNCLOSED] unclosed component declaration body: missing `]`",
+    )
+    .with_span(lines[start].1))
 }
 
 fn looks_like_family_relation_tail(rest: &str) -> bool {

@@ -1,10 +1,10 @@
-/// Truncates the string to at most `max_chars` charaters, appending an
+/// Truncates the string to at most `max_chars` characters, appending an
 /// ellipsis (`…`) when truncation occurs.
 ///
 /// If the string's length is less than or equal to `max_chars`, it is returned
 /// unchanged.  Otherwise the string is shortened and `…` is appended.
 pub fn truncate_ellipsis(s: &str, max_chars: usize) -> String {
-    if s.len() <= max_chars {
+    if s.chars().count() <= max_chars {
         return s.to_string();
     }
     s.chars().take(max_chars).collect::<String>() + "…"
@@ -31,8 +31,13 @@ mod tests {
         let result = truncate_ellipsis("hello world", 5);
         // Expect first 5 chars + ellipsis: "hello…"
         assert_eq!(result, "hello…");
-        // Check total visible characters: 5 chars + 1 ellipsis symbol = 6 chars
+        // Byte length: "hello" (5 bytes) + "…" (3 bytes, U+2026) = 8 bytes.
         assert_eq!(result.len(), 8);
+    }
+
+    #[test]
+    fn unicode_exact_length_unchanged() {
+        assert_eq!(truncate_ellipsis("café", 4), "café");
     }
 
     #[test]

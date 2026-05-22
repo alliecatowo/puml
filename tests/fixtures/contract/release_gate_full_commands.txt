@@ -3,3 +3,4 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 cargo llvm-cov --all-features --workspace --fail-under-lines 87
 cargo build --release
+./scripts/bench.sh --skip-build --enforce-gates

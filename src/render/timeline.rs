@@ -36,7 +36,9 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .unwrap_or(0);
     let has_calendar_notes = !document.closed_weekdays.is_empty()
         || !document.closed_ranges.is_empty()
-        || !document.open_ranges.is_empty();
+        || !document.open_ranges.is_empty()
+        || !document.day_markers.is_empty()
+        || !document.resource_off_ranges.is_empty();
     let calendar_h = if !has_calendar_notes { 0 } else { 18 };
     let scale_h = if document.scale.is_some() { 18 } else { 0 };
 
@@ -44,7 +46,12 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         (document.tasks.len() + document.milestones.len() + document.separators.len()) as i32;
     let chart_top = 40 + title_h + calendar_h + scale_h + header_h;
     let chart_h = (row_count.max(1)) * (bar_height + row_gap) + 20;
-    let total_h = chart_top + chart_h + 40;
+    let annotation_h = if document.notes.is_empty() {
+        0
+    } else {
+        (document.constraints.len() as i32) * 14 + (document.notes.len() as i32) * 48
+    };
+    let total_h = chart_top + chart_h + 50 + annotation_h;
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -55,8 +62,9 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     out.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
     if let Some(scale) = &document.scale {
         out.push_str(&format!(
-            "<metadata data-gantt-scale=\"{}\"/>",
-            escape_text(scale)
+            "<metadata data-gantt-scale=\"{}\" data-gantt-scale-options=\"{}\"/>",
+            escape_text(scale),
+            escape_text(&document.scale_options.join("; "))
         ));
     }
     let resource_count = document
@@ -70,8 +78,11 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .collect::<std::collections::BTreeSet<_>>()
         .len();
     out.push_str(&format!(
-        "<metadata data-gantt-resource-count=\"{resource_count}\" data-gantt-separator-count=\"{}\"/>",
-        document.separators.len()
+        "<metadata data-gantt-resource-count=\"{resource_count}\" data-gantt-separator-count=\"{}\" data-gantt-hide-footbox=\"{}\" data-gantt-hide-resource-names=\"{}\" data-gantt-hide-resource-footbox=\"{}\"/>",
+        document.separators.len(),
+        document.hide_footbox,
+        document.hide_resource_names,
+        document.hide_resource_footbox
     ));
 
     // Title
@@ -111,6 +122,25 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 format!("{} to {}", range.start_date, range.end_date)
             }
         }));
+        labels.extend(document.day_markers.iter().filter_map(|marker| {
+            marker.label.as_ref().map(|label| {
+                if marker.start_date == marker.end_date {
+                    format!("{} named {label}", marker.start_date)
+                } else {
+                    format!("{} to {} named {label}", marker.start_date, marker.end_date)
+                }
+            })
+        }));
+        labels.extend(document.resource_off_ranges.iter().map(|range| {
+            if range.start_date == range.end_date {
+                format!("{} off {}", range.resource, range.start_date)
+            } else {
+                format!(
+                    "{} off {} to {}",
+                    range.resource, range.start_date, range.end_date
+                )
+            }
+        }));
         let mut label = if labels.is_empty() {
             String::new()
         } else {
@@ -143,11 +173,17 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         ));
     }
     if let Some(scale) = &document.scale {
+        let options = if document.scale_options.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", document.scale_options.join("; "))
+        };
         out.push_str(&format!(
-            "<text class=\"gantt-scale\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">Scale: {scale}</text>",
+            "<text class=\"gantt-scale\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#334155\">Scale: {scale}{options}</text>",
             x = margin_x,
             y = 42 + title_h + calendar_h,
-            scale = escape_text(scale)
+            scale = escape_text(scale),
+            options = escape_text(&options)
         ));
     }
 
@@ -165,7 +201,8 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     let mut row_index: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
     let mut row_counter: i32 = 0;
     for task in &ordered_tasks {
-        row_index.insert(task.name.clone(), row_counter);
+        row_index.insert(gantt_task_key(task), row_counter);
+        row_index.entry(task.name.clone()).or_insert(row_counter);
         row_counter += 1;
     }
     let task_count = document.tasks.len() as i32;
@@ -183,7 +220,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         .iter()
         .map(|t| {
             (
-                t.name.as_str(),
+                gantt_task_key_ref(t),
                 (
                     t.start_day,
                     t.start_day.saturating_add(t.duration_days.max(1)),
@@ -262,7 +299,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             } else {
                 default_end
             };
-            (task.name.as_str(), (task.start_day, visual_end))
+            (gantt_task_key_ref(task), (task.start_day, visual_end))
         })
         .collect();
     let max_day_exclusive = document
@@ -335,7 +372,7 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
     };
     let bar_geom = |task: &TimelineTask| -> (i32, i32) {
         let (start_day, end_day) = visual_task_bounds
-            .get(task.name.as_str())
+            .get(gantt_task_key_ref(task))
             .copied()
             .unwrap_or((
                 task.start_day,
@@ -383,6 +420,35 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
             y = chart_top,
             h = chart_h
         ));
+    }
+    for marker in &document.day_markers {
+        if marker.end_day < min_day || marker.start_day > max_day_exclusive {
+            continue;
+        }
+        let start = marker.start_day.max(min_day);
+        let end = marker.end_day.saturating_add(1).min(max_day_exclusive);
+        let x = day_to_x(start);
+        let w = (day_to_x(end) - x).max(2);
+        if let Some(color) = &marker.color {
+            out.push_str(&format!(
+                "<rect class=\"gantt-day-marker\" data-gantt-day-marker=\"{}\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"{}\" opacity=\"0.48\"/>",
+                escape_text(&marker.label.clone().unwrap_or_else(|| format!(
+                    "{} to {}",
+                    marker.start_date, marker.end_date
+                ))),
+                escape_text(color),
+                y = chart_top,
+                h = chart_h
+            ));
+        }
+        if let Some(label) = &marker.label {
+            out.push_str(&format!(
+                "<text class=\"gantt-day-marker-label\" x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" fill=\"#334155\">{}</text>",
+                (x + 4).min(chart_right - 100),
+                chart_top + 12,
+                escape_text(label)
+            ));
+        }
     }
     if !document.closed_weekdays.is_empty() {
         let mut day = min_day;
@@ -482,26 +548,54 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         } else {
             ""
         };
-        let fill = if task.is_critical {
+        let fill = if let Some(fill) = &task.fill_color {
+            fill.as_str()
+        } else if task.is_critical {
             "#ef4444"
         } else {
             "#3b82f6"
         };
-        let stroke = if task.is_critical {
+        let stroke = if let Some(stroke) = &task.stroke_color {
+            stroke.as_str()
+        } else if task.is_critical {
             "#991b1b"
         } else {
             "#1e40af"
         };
+        let deleted_attrs = if task.is_deleted {
+            " opacity=\"0.42\" stroke-dasharray=\"4 3\""
+        } else {
+            ""
+        };
         out.push_str(&format!(
-            "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{}\" data-gantt-workload=\"{}\" data-gantt-duration=\"{}\" data-gantt-resources=\"{}\" data-gantt-load=\"{}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+            "<rect class=\"gantt-task{critical_class}\" data-gantt-start=\"{}\" data-gantt-workload=\"{}\" data-gantt-duration=\"{}\" data-gantt-resources=\"{}\" data-gantt-load=\"{}\" data-gantt-completion=\"{}\" data-gantt-deleted=\"{}\" x=\"{bx}\" y=\"{y}\" width=\"{bw}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"{deleted_attrs}/>",
             escape_text(&format_gantt_axis_label(task.start_day, min_day, date_axis)),
             task.workload_days,
             task.duration_days,
             escape_text(&task.resources.join(", ")),
             escape_text(&resource_load),
+            task.completion_percent.unwrap_or(0),
+            task.is_deleted,
             bh = bar_height
         ));
-        if !task.resources.is_empty() {
+        if let Some(percent) = task.completion_percent {
+            let complete_w = (bw * percent.min(100) as i32) / 100;
+            if complete_w > 0 {
+                out.push_str(&format!(
+                    "<rect class=\"gantt-task-completion\" x=\"{bx}\" y=\"{y}\" width=\"{complete_w}\" height=\"{bh}\" rx=\"3\" ry=\"3\" fill=\"#0f172a\" opacity=\"0.22\"/>",
+                    bh = bar_height
+                ));
+            }
+        }
+        if task.is_deleted {
+            out.push_str(&format!(
+                "<line class=\"gantt-task-deleted\" x1=\"{bx}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#7f1d1d\" stroke-width=\"1.5\"/>",
+                y + bar_height / 2,
+                bx + bw,
+                y + bar_height / 2
+            ));
+        }
+        if !document.hide_resource_names && !task.resources.is_empty() {
             let resource_label = task.resources.join(", ");
             let pill_w = ((resource_label.len() as i32) * 7 + 14).min((bw - 6).max(0));
             if pill_w > 26 {
@@ -609,8 +703,14 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
                 chart_top + from_row * (bar_height + row_gap) + row_gap / 2 + bar_height / 2;
             let target_y =
                 chart_top + to_row * (bar_height + row_gap) + row_gap / 2 + bar_height / 2;
-            let from_task = document.tasks.iter().find(|t| t.name == constraint.subject);
-            let to_task = document.tasks.iter().find(|t| t.name == normalized_target);
+            let from_task = document
+                .tasks
+                .iter()
+                .find(|t| gantt_task_matches(t, &constraint.subject));
+            let to_task = document
+                .tasks
+                .iter()
+                .find(|t| gantt_task_matches(t, &normalized_target));
             let x2 = timeline_entity_x(
                 from_task,
                 document
@@ -676,6 +776,32 @@ fn render_gantt_svg(document: &TimelineDocument) -> String {
         ));
         note_y += 14;
     }
+    for note in &document.notes {
+        let text = note.text.lines().collect::<Vec<_>>();
+        let h = 24 + (text.len().max(1) as i32 - 1) * 13;
+        let target_label = note
+            .target
+            .as_deref()
+            .map(|target| format!(" [{target}]"))
+            .unwrap_or_default();
+        out.push_str(&format!(
+            "<rect class=\"gantt-note\" data-gantt-note-position=\"{}\" data-gantt-note-target=\"{}\" x=\"{x}\" y=\"{y}\" width=\"360\" height=\"{h}\" rx=\"3\" ry=\"3\" fill=\"#fff7ed\" stroke=\"#fdba74\" stroke-width=\"1\"/>",
+            escape_text(&note.position),
+            escape_text(note.target.as_deref().unwrap_or("")),
+            x = margin_x,
+            y = note_y
+        ));
+        for (line_idx, line) in text.iter().enumerate() {
+            out.push_str(&format!(
+                "<text class=\"gantt-note-text\" x=\"{x}\" y=\"{y}\" font-family=\"monospace\" font-size=\"11\" fill=\"#7c2d12\">{}{}</text>",
+                escape_text(line),
+                escape_text(if line_idx == 0 { &target_label } else { "" }),
+                x = margin_x + 8,
+                y = note_y + 16 + line_idx as i32 * 13
+            ));
+        }
+        note_y += h + 8;
+    }
 
     out.push_str("</svg>");
     out
@@ -696,6 +822,18 @@ fn resource_lane_label(task: &TimelineTask) -> String {
     } else {
         task.resources.join(", ")
     }
+}
+
+fn gantt_task_key(task: &TimelineTask) -> String {
+    task.alias.clone().unwrap_or_else(|| task.name.clone())
+}
+
+fn gantt_task_key_ref(task: &TimelineTask) -> &str {
+    task.alias.as_deref().unwrap_or(&task.name)
+}
+
+fn gantt_task_matches(task: &TimelineTask, reference: &str) -> bool {
+    task.alias.as_deref() == Some(reference) || task.name == reference
 }
 
 fn should_expand_gantt_task_visual_span(task: &TimelineTask) -> bool {
@@ -911,7 +1049,8 @@ fn is_gantt_closed_weekday_number(day: u32, closed_weekdays: &[String]) -> bool 
 }
 
 fn parse_iso_date_tuple(raw: &str) -> Option<(i32, i32, i32)> {
-    let mut parts = raw.trim().split('-');
+    let normalized = raw.trim().replace('/', "-");
+    let mut parts = normalized.split('-');
     let y = parts.next()?.parse::<i32>().ok()?;
     let m = parts.next()?.parse::<i32>().ok()?;
     let d = parts.next()?.parse::<i32>().ok()?;

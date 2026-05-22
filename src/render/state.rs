@@ -21,6 +21,10 @@ const STATE_LABEL_CHAR_W: i32 = 7;
 const STATE_LABEL_NODE_CLEARANCE: i32 = 12;
 const STATE_LABEL_LABEL_CLEARANCE: i32 = 8;
 const STATE_LABEL_WRAP_COLS: usize = 24;
+const STATE_NOTE_FILL: &str = "#fff8c4";
+const STATE_NOTE_BORDER: &str = "#111111";
+const STATE_NOTE_PAD_X: i32 = 10;
+const STATE_NOTE_PAD_Y: i32 = 10;
 
 /// A placed node entry in the flat coord map.
 /// Stores the node's top-left (x, y) and its full rendered size (w, h).
@@ -712,7 +716,32 @@ fn compute_node_size(
         StateNodeKind::Fork | StateNodeKind::Join => (STATE_NODE_W, 8),
         StateNodeKind::Choice => (44, 44),
         StateNodeKind::HistoryShallow | StateNodeKind::HistoryDeep => (34, 34),
+        StateNodeKind::EntryPoint | StateNodeKind::ExitPoint => (26, 26),
+        StateNodeKind::InputPin | StateNodeKind::OutputPin => (34, 34),
+        StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => (46, 30),
         StateNodeKind::StartEnd | StateNodeKind::End => (26, 26),
+        StateNodeKind::Note => {
+            let lines = node_display_lines(node);
+            let max_cols = lines
+                .iter()
+                .map(|line| line.chars().count())
+                .max()
+                .unwrap_or(4);
+            let w = (max_cols as i32 * STATE_LABEL_CHAR_W + STATE_NOTE_PAD_X * 2).max(96);
+            let h = (lines.len() as i32 * STATE_LABEL_LINE_H + STATE_NOTE_PAD_Y * 2).max(44);
+            (w, h)
+        }
+        StateNodeKind::JsonProjection => {
+            let lines = node_display_lines(node);
+            let max_cols = lines
+                .iter()
+                .map(|line| line.chars().count())
+                .max()
+                .unwrap_or(6);
+            let w = (max_cols as i32 * STATE_LABEL_CHAR_W + STATE_NOTE_PAD_X * 2).max(150);
+            let h = (lines.len() as i32 * STATE_LABEL_LINE_H + STATE_NOTE_PAD_Y * 2).max(58);
+            (w, h)
+        }
         StateNodeKind::Normal => {
             let has_children = node.regions.iter().any(|r| !r.is_empty());
 
@@ -764,6 +793,21 @@ fn compute_region_size(
         }
     }
     (max_w, total_h)
+}
+
+fn node_display_lines(node: &StateNode) -> Vec<String> {
+    let text = node.display.as_deref().unwrap_or(&node.name);
+    let lines: Vec<String> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToString::to_string)
+        .collect();
+    if lines.is_empty() {
+        vec![node.name.clone()]
+    } else {
+        lines
+    }
 }
 
 fn concurrent_region_metrics(
@@ -1486,6 +1530,14 @@ fn state_node_kind_name(kind: &StateNodeKind) -> &'static str {
         StateNodeKind::Join => "join",
         StateNodeKind::Choice => "choice",
         StateNodeKind::End => "end",
+        StateNodeKind::EntryPoint => "entry-point",
+        StateNodeKind::ExitPoint => "exit-point",
+        StateNodeKind::InputPin => "input-pin",
+        StateNodeKind::OutputPin => "output-pin",
+        StateNodeKind::ExpansionInput => "expansion-input",
+        StateNodeKind::ExpansionOutput => "expansion-output",
+        StateNodeKind::Note => "note",
+        StateNodeKind::JsonProjection => "json-projection",
     }
 }
 
@@ -1509,6 +1561,122 @@ fn state_direction_attr(direction: Option<&str>) -> String {
     direction
         .map(|d| format!(" data-state-direction=\"{}\"", escape_text(d)))
         .unwrap_or_default()
+}
+
+fn state_node_fill(node: &StateNode, state_style: &crate::theme::StateStyle) -> String {
+    escape_text(
+        node.style
+            .fill_color
+            .as_deref()
+            .unwrap_or(&state_style.background_color),
+    )
+}
+
+fn state_node_border(node: &StateNode, state_style: &crate::theme::StateStyle) -> String {
+    escape_text(
+        node.style
+            .border_color
+            .as_deref()
+            .unwrap_or(&state_style.border_color),
+    )
+}
+
+fn state_node_text(node: &StateNode, state_style: &crate::theme::StateStyle) -> String {
+    escape_text(
+        node.style
+            .text_color
+            .as_deref()
+            .unwrap_or(&state_style.font_color),
+    )
+}
+
+fn state_node_border_dash(node: &StateNode) -> &'static str {
+    if node.style.border_dashed {
+        " stroke-dasharray=\"5 3\""
+    } else {
+        ""
+    }
+}
+
+fn state_node_stroke_width(node: &StateNode, fallback: f32) -> String {
+    node.style
+        .border_thickness
+        .map(|value| value.clamp(1, 8).to_string())
+        .unwrap_or_else(|| {
+            if fallback.fract() == 0.0 {
+                format!("{}", fallback as i32)
+            } else {
+                fallback.to_string()
+            }
+        })
+}
+
+fn render_state_note(out: &mut String, node: &StateNode, x: i32, y: i32, w: i32, h: i32) {
+    let fold = 12;
+    out.push_str(&format!(
+        "<path class=\"state-note\" d=\"M {x} {y} H {} L {} {} V {} H {x} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+        x + w - fold,
+        x + w,
+        y + fold,
+        y + h,
+        STATE_NOTE_FILL,
+        STATE_NOTE_BORDER
+    ));
+    out.push_str(&format!(
+        "<path class=\"state-note-fold\" d=\"M {} {y} V {} H {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1\"/>",
+        x + w - fold,
+        y + fold,
+        x + w,
+        STATE_NOTE_BORDER
+    ));
+    for (idx, line) in node_display_lines(node).iter().enumerate() {
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" fill=\"#111111\">{}</text>",
+            x + STATE_NOTE_PAD_X,
+            y + STATE_NOTE_PAD_Y + 11 + idx as i32 * STATE_LABEL_LINE_H,
+            escape_text(line)
+        ));
+    }
+}
+
+fn render_state_json_projection(
+    out: &mut String,
+    node: &StateNode,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    state_style: &crate::theme::StateStyle,
+) {
+    let fill = node
+        .style
+        .fill_color
+        .as_deref()
+        .map(escape_text)
+        .unwrap_or_else(|| "#eef6ff".to_string());
+    let border = state_node_border(node, state_style);
+    out.push_str(&format!(
+        "<rect class=\"state-json-projection\" data-state-json=\"true\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"{} />",
+        x,
+        y,
+        w,
+        h,
+        fill,
+        border,
+        state_node_border_dash(node)
+    ));
+    let lines = node_display_lines(node);
+    for (idx, line) in lines.iter().enumerate() {
+        let weight = if idx == 0 { "600" } else { "400" };
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"11\" font-weight=\"{}\" fill=\"{}\">{}</text>",
+            x + STATE_NOTE_PAD_X,
+            y + STATE_NOTE_PAD_Y + 11 + idx as i32 * STATE_LABEL_LINE_H,
+            weight,
+            state_node_text(node, state_style),
+            escape_text(line)
+        ));
+    }
 }
 
 /// Render a single state node (and its children recursively).
@@ -1620,6 +1788,72 @@ fn render_node<'a>(
             ));
         }
 
+        StateNodeKind::EntryPoint | StateNodeKind::ExitPoint => {
+            let cx = x + w / 2;
+            let cy = y + h / 2;
+            let border = state_node_border(node, state_style);
+            let fill = state_node_fill(node, state_style);
+            out.push_str(&format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"10\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                cx, cy, fill, border
+            ));
+            if node.kind == StateNodeKind::ExitPoint {
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    cx - 5, cy - 5, cx + 5, cy + 5, border
+                ));
+                out.push_str(&format!(
+                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"2\"/>",
+                    cx + 5, cy - 5, cx - 5, cy + 5, border
+                ));
+            }
+        }
+
+        StateNodeKind::InputPin | StateNodeKind::OutputPin => {
+            let fill = state_node_fill(node, state_style);
+            let border = state_node_border(node, state_style);
+            let sw = state_node_stroke_width(node, 1.5);
+            out.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{} />",
+                x + 5,
+                y + 5,
+                w - 10,
+                h - 10,
+                fill,
+                border,
+                sw,
+                state_node_border_dash(node)
+            ));
+        }
+
+        StateNodeKind::ExpansionInput | StateNodeKind::ExpansionOutput => {
+            let fill = state_node_fill(node, state_style);
+            let border = state_node_border(node, state_style);
+            let sw = state_node_stroke_width(node, 1.5);
+            let segment_w = (w - 8) / 3;
+            for idx in 0..3 {
+                out.push_str(&format!(
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{} />",
+                    x + 4 + idx * segment_w,
+                    y + 5,
+                    segment_w,
+                    h - 10,
+                    fill,
+                    border,
+                    sw,
+                    state_node_border_dash(node)
+                ));
+            }
+        }
+
+        StateNodeKind::Note => {
+            render_state_note(out, node, x, y, w, h);
+        }
+
+        StateNodeKind::JsonProjection => {
+            render_state_json_projection(out, node, x, y, w, h, state_style);
+        }
+
         StateNodeKind::Normal => {
             let has_children = node.regions.iter().any(|r| !r.is_empty());
             let display = node.display.as_deref().unwrap_or(&node.name);
@@ -1627,14 +1861,18 @@ fn render_node<'a>(
             if has_children {
                 // ── Composite state ──────────────────────────────────────────
                 // Draw the enclosing rounded-rect box
+                let fill = state_node_fill(node, state_style);
+                let border = state_node_border(node, state_style);
+                let text = state_node_text(node, state_style);
+                let sw = state_node_stroke_width(node, 1.5);
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                    x, y, w, h, state_style.background_color, state_style.border_color
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                    x, y, w, h, fill, border, sw, state_node_border_dash(node)
                 ));
                 // Composite name label at top-center
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    x + w / 2, y + 20, state_style.font_color, escape_text(display)
+                    x + w / 2, y + 20, text, escape_text(display)
                 ));
 
                 // Draw concurrent region dividers (dashed vertical lines)
@@ -1849,12 +2087,19 @@ fn render_node<'a>(
             } else {
                 // ── Simple state box ─────────────────────────────────────────
                 out.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
-                    x, y, w, h, state_style.background_color, state_style.border_color
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
+                    x,
+                    y,
+                    w,
+                    h,
+                    state_node_fill(node, state_style),
+                    state_node_border(node, state_style),
+                    state_node_stroke_width(node, 1.5),
+                    state_node_border_dash(node)
                 ));
                 out.push_str(&format!(
                     "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" text-anchor=\"middle\" fill=\"{}\">{}</text>",
-                    x + w / 2, y + 24, state_style.font_color, escape_text(display)
+                    x + w / 2, y + 24, state_node_text(node, state_style), escape_text(display)
                 ));
                 // Internal actions
                 if !node.internal_actions.is_empty() {
@@ -1871,7 +2116,7 @@ fn render_node<'a>(
                         };
                         out.push_str(&format!(
                             "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-style=\"italic\" fill=\"{}\">{}</text>",
-                            x + 6, ay + 10, state_style.font_color, escape_text(&text)
+                            x + 6, ay + 10, state_node_text(node, state_style), escape_text(&text)
                         ));
                     }
                 }

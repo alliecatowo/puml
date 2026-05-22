@@ -3,22 +3,21 @@
 This directory is the canonical docs-as-tests corpus consumed by `scripts/render_check.py`.
 The corpus is executable documentation and parity evidence, but it is not proof
 of full PlantUML 1:1 parity and is not the source of truth for support status.
-The canonical current status is
-[`docs/internal/parity/plantuml_parity_source_of_truth.md`](../internal/parity/plantuml_parity_source_of_truth.md),
-where support is tracked conservatively as `implemented`, `partial`, or `missing`.
+The authoritative current status is
+[`docs/internal/spec/plantuml-spec.md`](../internal/spec/plantuml-spec.md) plus
+the per-chapter audits under [`docs/internal/spec/audit/`](../internal/spec/audit/).
 
 ## Corpus location and size
 
 - Root: `docs/examples/`
-- Diagram sources: `255` `*.puml` files
-- Render artifacts: `258` `*.svg` files
-- Site gallery manifest: `248` paired family examples across `31` family directories
+- Diagram sources: `293` `*.puml` files
+- Render artifacts: `297` `*.svg` files
+- Site gallery manifest: `287` paired family examples across `32` family directories
 - Additional docs/index files are also present in this tree
 
 ## Primary indexes
 
 - [GALLERY.md](GALLERY.md): family-by-family browse index for examples and renders
-- [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md): current behavior gaps (feature-depth limits, not family rejection)
 - [supported_primitives.md](supported_primitives.md): primitive-level quick reference
 
 ## Coverage evidence summary (high level)
@@ -33,5 +32,5 @@ where support is tracked conservatively as `implemented`, `partial`, or `missing
 
 - This corpus is intentionally larger than minimal fixtures; it is used as executable documentation evidence.
 - Examples are coverage seeds for implemented behavior, not exhaustive proof of PlantUML compatibility.
-- If an example and the audit table appear to disagree, treat the audit table as authoritative and update the stale artifact or wording.
+- If an example and the spec audit appear to disagree, treat the spec audit as authoritative and update the stale artifact or wording.
 - When behavior changes, update the corresponding `.svg` artifacts in the same change.

@@ -9,17 +9,38 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("folder ")
         || line.starts_with("file ")
         || line.starts_with("card ")
+        || line.starts_with("container ")
         || line.starts_with("actor ")
+        // `[Name]` shorthand for component — not [*]/[H]/[H*] pseudo-states
+        || (line.starts_with('[')
+            && !line.starts_with("[*]")
+            && !line.starts_with("[H]")
+            && !line.starts_with("[H*]"))
     {
         return Some(DiagramKind::Component);
     }
 
     if line.starts_with("node ")
+        || line.starts_with("action ")
+        || line.starts_with("agent ")
         || line.starts_with("artifact ")
+        || line.starts_with("actor/ ")
+        || line.starts_with("boundary ")
         || line.starts_with("cloud ")
+        || line.starts_with("circle ")
+        || line.starts_with("collections ")
+        || line.starts_with("control ")
+        || line.starts_with("entity ")
         || line.starts_with("frame ")
+        || line.starts_with("hexagon ")
+        || line.starts_with("label ")
+        || line.starts_with("person ")
+        || line.starts_with("process ")
+        || line.starts_with("queue ")
+        || line.starts_with("stack ")
         || line.starts_with("storage ")
         || line.starts_with("database ")
+        || line.starts_with("usecase/ ")
     {
         return Some(DiagramKind::Deployment);
     }

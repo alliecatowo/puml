@@ -53,6 +53,27 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             i += 1;
             continue;
         }
+        if let Some((kind, end_idx)) = parse_sprite_statement(&lines, i, line)? {
+            statements.push(Statement {
+                span: Span::new(span.start, lines[end_idx].1.end),
+                kind,
+            });
+            i = end_idx + 1;
+            continue;
+        }
+        if line.eq_ignore_ascii_case("listsprite") || line.eq_ignore_ascii_case("listsprites") {
+            detected_kind = Some(select_diagram_kind(
+                detected_kind,
+                DiagramKind::Sequence,
+                span,
+            )?);
+            statements.push(Statement {
+                span,
+                kind: StatementKind::ListSprites,
+            });
+            i += 1;
+            continue;
+        }
         if let Some((start_kind, qualifier)) = parse_start_block_kind_with_qualifier(line) {
             if in_block {
                 return Err(Diagnostic::error(
@@ -102,6 +123,16 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        // Skinparam block form: `skinparam <prefix> { Key Value ... }`
+        // Expand to individual SkinParam statements with concatenated keys.
+        if let Some((skinparam_kinds, end_idx)) = parse_skinparam_block(&lines, i, line) {
+            for kind in skinparam_kinds {
+                statements.push(Statement { span, kind });
+            }
+            i = end_idx + 1;
+            continue;
+        }
+
         if let Some(kind) = parse_keyword(line) {
             let multiline_note_head =
                 matches!(&kind, StatementKind::Note(_)) && note_block_continues(&lines, i, line);
@@ -115,6 +146,17 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             ) && text_block_continues(&lines, i, line);
             if detected_kind.is_some()
                 && is_family_common_keyword(&kind)
+                && !(matches!(detected_kind, Some(DiagramKind::Gantt))
+                    && matches!(&kind, StatementKind::Note(_)))
+                && !multiline_note_head
+                && !multiline_text_head
+            {
+                statements.push(Statement { span, kind });
+                i += 1;
+                continue;
+            }
+            if detected_kind.is_none()
+                && is_family_common_keyword_before_detection(&kind)
                 && !multiline_note_head
                 && !multiline_text_head
             {
@@ -141,6 +183,18 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                     || line.contains('"')
                     || later_lines_contain_usecase_family_declaration(&lines, i)
                     || later_lines_contain_sequence_family_keywords(&lines, i));
+            let ambiguous_sequence_participant_prefers_sequence = detected_kind.is_none()
+                && component_decl_keyword(line).is_some_and(|(kw, _)| {
+                    is_ambiguous_sequence_participant_keyword(kw)
+                        && later_lines_contain_sequence_family_keywords(&lines, i)
+                });
+            let ambiguous_activity_keyword_prefers_activity = detected_kind.is_none()
+                && component_decl_keyword(line).is_some_and(|(kw, _)| {
+                    is_ambiguous_activity_keyword(kw) && later_lines_contain_activity_context(&lines, i)
+                });
+            let ambiguous_usecase_prefers_usecase = detected_kind.is_none()
+                && (line.starts_with("usecase ") || line.starts_with('('))
+                && later_lines_contain_usecase_family_declaration(&lines, i);
             let ambiguous_class_scope = detected_kind.is_none()
                 && (line.starts_with("package ") || line.starts_with("namespace "))
                 && line.trim_end().ends_with('{')
@@ -152,7 +206,27 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                             || group_body_contains_usecase_family(&lines, i, end_idx))
                 };
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
-                let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
+                let is_deployment_scope = matches!(detected_kind, Some(DiagramKind::Deployment))
+                    || matches!(
+                    &kind,
+                    StatementKind::ClassGroup { kind, .. }
+                        if matches!(
+                            kind.as_str(),
+                            "action"
+                                | "artifact"
+                                | "cloud"
+                                | "container"
+                                | "database"
+                                | "frame"
+                                | "hexagon"
+                                | "node"
+                                | "process"
+                                | "queue"
+                                | "stack"
+                                | "storage"
+                        )
+                );
+                let family = if is_deployment_scope {
                     DiagramKind::Deployment
                 } else {
                     DiagramKind::Component
@@ -162,8 +236,24 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 i = end_idx + 1;
                 continue;
             }
-            if !ambiguous_class_interface && !actor_prefers_non_component && !ambiguous_class_scope
+            if !ambiguous_class_interface
+                && !actor_prefers_non_component
+                && !ambiguous_sequence_participant_prefers_sequence
+                && !ambiguous_activity_keyword_prefers_activity
+                && !ambiguous_usecase_prefers_usecase
+                && !ambiguous_class_scope
             {
+                if let Some((kind, end_idx)) = parse_component_multiline_decl(&lines, i, line)? {
+                    let family = if matches!(detected_kind, Some(DiagramKind::Component)) {
+                        DiagramKind::Component
+                    } else {
+                        DiagramKind::Deployment
+                    };
+                    detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
+                    statements.push(Statement { span, kind });
+                    i = end_idx + 1;
+                    continue;
+                }
                 if let Some(kind) = parse_component_decl(line) {
                     let family = if matches!(detected_kind, Some(DiagramKind::Deployment)) {
                         DiagramKind::Deployment
@@ -172,16 +262,31 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                             StatementKind::ComponentDecl {
                                 kind:
                                     ComponentNodeKind::Node
+                                    | ComponentNodeKind::Action
+                                    | ComponentNodeKind::Agent
                                     | ComponentNodeKind::Artifact
+                                    | ComponentNodeKind::Boundary
                                     | ComponentNodeKind::Cloud
+                                    | ComponentNodeKind::Circle
+                                    | ComponentNodeKind::Collections
+                                    | ComponentNodeKind::Container
+                                    | ComponentNodeKind::Control
                                     | ComponentNodeKind::Frame
                                     | ComponentNodeKind::Storage
                                     | ComponentNodeKind::Database
+                                    | ComponentNodeKind::Entity
                                     | ComponentNodeKind::Package
                                     | ComponentNodeKind::Rectangle
                                     | ComponentNodeKind::Folder
                                     | ComponentNodeKind::File
-                                    | ComponentNodeKind::Card,
+                                    | ComponentNodeKind::Card
+                                    | ComponentNodeKind::Hexagon
+                                    | ComponentNodeKind::Label
+                                    | ComponentNodeKind::Person
+                                    | ComponentNodeKind::Process
+                                    | ComponentNodeKind::Queue
+                                    | ComponentNodeKind::Stack
+                                    | ComponentNodeKind::UseCase,
                                 ..
                             } => DiagramKind::Deployment,
                             _ => DiagramKind::Component,
@@ -254,6 +359,12 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             continue;
         }
 
+        if let Some(kind) = parse_family_visibility_control(line, detected_kind) {
+            statements.push(Statement { span, kind });
+            i += 1;
+            continue;
+        }
+
         if matches!(
             detected_kind,
             None | Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)
@@ -303,7 +414,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
 
         if detected_kind.is_none() {
             if let Some(kind) = detect_non_sequence_family(line) {
-                detected_kind = Some(kind);
+                let ambiguous_sequence_participant = matches!(kind, DiagramKind::Deployment)
+                    && component_decl_keyword(line).is_some_and(|(kw, _)| {
+                        is_ambiguous_sequence_participant_keyword(kw)
+                            && later_lines_contain_sequence_family_keywords(&lines, i)
+                    });
+                if !ambiguous_sequence_participant {
+                    detected_kind = Some(kind);
+                }
             } else if parse_component_decl(line).is_some() {
                 detected_kind = Some(DiagramKind::Component);
             } else if looks_like_unsupported_family_syntax(line) {
@@ -317,6 +435,11 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
             Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
         ) {
             if let Some((kind, end_idx)) = parse_component_scoping_block(&lines, i, line)? {
+                statements.push(Statement { span, kind });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some((kind, end_idx)) = parse_component_multiline_decl(&lines, i, line)? {
                 statements.push(Statement { span, kind });
                 i = end_idx + 1;
                 continue;
@@ -405,6 +528,14 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                 continue;
             }
             if let Some((kind, end_idx)) = parse_multiline_keyword_block(&lines, i, line) {
+                statements.push(Statement {
+                    span: Span::new(span.start, lines[end_idx].1.end),
+                    kind,
+                });
+                i = end_idx + 1;
+                continue;
+            }
+            if let Some((kind, end_idx)) = parse_multiline_note_block(&lines, i, line) {
                 statements.push(Statement {
                     span: Span::new(span.start, lines[end_idx].1.end),
                     kind,
@@ -615,4 +746,227 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
         statements,
     })
 }
+/// Parse a skinparam block: `skinparam <prefix> { Key Value ... }`.
+///
+/// Expands the block into individual `SkinParam` statements where the key is
+/// the concatenation of `prefix + innerKey`. For example:
+/// ```text
+/// skinparam class {
+///   BackgroundColor Yellow
+///   BorderColor<<Abstract>> Red
+/// }
+/// ```
+/// becomes:
+/// - `SkinParam { key: "classBackgroundColor", value: "Yellow" }`
+/// - `SkinParam { key: "classBackgroundColor<<Abstract>>", value: "Yellow" }` (if stereotype scoped)
+///
+/// Returns `None` if the line is not a block-form skinparam opener.
+fn parse_skinparam_block(
+    lines: &[(&str, Span)],
+    start_idx: usize,
+    line: &str,
+) -> Option<(Vec<StatementKind>, usize)> {
+    let lower = line.to_ascii_lowercase();
+    let rest = lower.strip_prefix("skinparam ")?;
+    // The block form ends with `{` (possibly separated by whitespace or not).
+    let rest_trimmed = rest.trim_end();
+    if !rest_trimmed.ends_with('{') {
+        return None;
+    }
+    // Extract the prefix: everything between "skinparam " and the final `{`.
+    let prefix_raw = rest_trimmed.trim_end_matches('{').trim();
+    if prefix_raw.is_empty() {
+        return None;
+    }
+    // Preserve original casing from the source line for the prefix.
+    let original_rest = line["skinparam ".len()..].trim_end();
+    let original_prefix = original_rest.trim_end_matches('{').trim();
 
+    // Scan for the closing `}`.
+    let mut kinds: Vec<StatementKind> = Vec::new();
+    let mut end_idx = start_idx;
+    for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
+        let inner = strip_inline_plantuml_comment(raw).trim();
+        if inner == "}" {
+            end_idx = idx;
+            break;
+        }
+        if inner.is_empty() {
+            continue;
+        }
+        // Each inner line is expected to be: `InnerKey Value` or just be ignored.
+        // Split on the first whitespace to get key and value parts.
+        let (inner_key, inner_value) = inner
+            .split_once(|c: char| c.is_whitespace())
+            .map(|(k, v)| (k.trim(), v.trim()))
+            .unwrap_or((inner, ""));
+        if inner_key.is_empty() {
+            continue;
+        }
+        // Combine prefix with inner key: "class" + "BackgroundColor" → "classBackgroundColor".
+        // Handle stereotype-scoped inner keys: "BackgroundColor<<Abstract>>" stays as-is after prefix.
+        let combined_key = format!("{original_prefix}{inner_key}");
+        kinds.push(StatementKind::SkinParam {
+            key: combined_key,
+            value: inner_value.to_string(),
+        });
+        // Track the last line we successfully read as end_idx
+        end_idx = idx;
+    }
+    Some((kinds, end_idx))
+}
+
+fn parse_sprite_statement(
+    lines: &[(&str, Span)],
+    start_idx: usize,
+    line: &str,
+) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
+    let Some(rest) = line.strip_prefix("sprite ") else {
+        return Ok(None);
+    };
+    let mut parts = rest.split_whitespace();
+    let Some(raw_name) = parts.next() else {
+        return Err(Diagnostic::error("[E_SPRITE_INVALID] sprite name is missing")
+            .with_span(lines[start_idx].1));
+    };
+    let after_name = rest[raw_name.len()..].trim();
+    if after_name.is_empty() {
+        return Err(Diagnostic::error("[E_SPRITE_INVALID] sprite body is missing")
+            .with_span(lines[start_idx].1));
+    }
+
+    if after_name.starts_with("jar:") {
+        let sprite = crate::sprites::builtin_sprite(raw_name, after_name);
+        return Ok(Some((StatementKind::SpriteDef(sprite), start_idx)));
+    }
+
+    if after_name.to_ascii_lowercase().starts_with("<svg") {
+        let mut svg_lines = vec![after_name.to_string()];
+        let mut end_idx = start_idx;
+        if !after_name.to_ascii_lowercase().contains("</svg>") {
+            let mut found = false;
+            for (idx, (raw, _span)) in lines.iter().enumerate().skip(start_idx + 1) {
+                svg_lines.push((*raw).to_string());
+                end_idx = idx;
+                if raw.to_ascii_lowercase().contains("</svg>") {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return Err(Diagnostic::error(
+                    "[E_SPRITE_INVALID] inline SVG sprite is missing </svg>",
+                )
+                .with_span(lines[start_idx].1));
+            }
+        }
+        let sprite = crate::sprites::parse_svg_sprite(raw_name, &svg_lines.join("\n"))
+            .map_err(|d| d.with_span(lines[start_idx].1))?;
+        return Ok(Some((StatementKind::SpriteDef(sprite), end_idx)));
+    }
+
+    let (spec, after_spec) = if after_name.starts_with('[') {
+        let Some(close) = after_name.find(']') else {
+            return Err(Diagnostic::error("[E_SPRITE_INVALID] sprite size spec is not closed")
+                .with_span(lines[start_idx].1));
+        };
+        (&after_name[..=close], after_name[close + 1..].trim())
+    } else {
+        ("", after_name)
+    };
+    let parsed_spec = if spec.is_empty() {
+        None
+    } else {
+        Some(crate::sprites::parse_sprite_header_spec(spec).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "[E_SPRITE_INVALID] invalid sprite size/depth spec `{spec}`"
+            ))
+            .with_span(lines[start_idx].1)
+        })?)
+    };
+
+    if let Some(first_payload) = after_spec.strip_prefix('{') {
+        let mut rows: Vec<String> = Vec::new();
+        let mut end_idx = start_idx;
+        let inline_after_open = first_payload.trim();
+        if let Some(before_close) = inline_after_open.strip_suffix('}') {
+            let compact = before_close.trim();
+            if !compact.is_empty() {
+                rows.extend(compact.split_whitespace().map(str::to_string));
+            }
+        } else {
+            if !inline_after_open.is_empty() {
+                rows.extend(inline_after_open.split_whitespace().map(str::to_string));
+            }
+            let mut found = false;
+            for (idx, (raw, span)) in lines.iter().enumerate().skip(start_idx + 1) {
+                let trimmed = strip_inline_plantuml_comment(raw).trim();
+                if trimmed == "}" {
+                    end_idx = idx;
+                    found = true;
+                    break;
+                }
+                if let Some(before_close) = trimmed.strip_suffix('}') {
+                    let compact = before_close.trim();
+                    if !compact.is_empty() {
+                        rows.extend(compact.split_whitespace().map(str::to_string));
+                    }
+                    end_idx = idx;
+                    found = true;
+                    break;
+                }
+                if trimmed.is_empty() {
+                    end_idx = idx;
+                    continue;
+                }
+                if trimmed.chars().any(char::is_whitespace) {
+                    return Err(Diagnostic::error(
+                        "[E_SPRITE_INVALID] sprite rows cannot contain whitespace",
+                    )
+                    .with_span(*span));
+                }
+                rows.push(trimmed.to_string());
+                end_idx = idx;
+            }
+            if !found {
+                return Err(Diagnostic::error(
+                    "[E_SPRITE_INVALID] sprite block is missing closing `}`",
+                )
+                .with_span(lines[start_idx].1));
+            }
+        }
+        let (width, height, levels, _compressed) =
+            parsed_spec.unwrap_or((0, 0, 16, false));
+        let sprite = crate::sprites::parse_hex_grid_sprite(
+            raw_name,
+            (width > 0).then_some(width),
+            (height > 0).then_some(height),
+            levels,
+            &rows,
+        )
+        .map_err(|d| d.with_span(lines[start_idx].1))?;
+        return Ok(Some((StatementKind::SpriteDef(sprite), end_idx)));
+    }
+
+    if let Some((width, height, levels, compressed)) = parsed_spec {
+        if after_spec.is_empty() {
+            return Err(Diagnostic::error("[E_SPRITE_INVALID] encoded sprite payload is missing")
+                .with_span(lines[start_idx].1));
+        }
+        let sprite = crate::sprites::parse_packed_sprite(
+            raw_name,
+            width,
+            height,
+            levels,
+            compressed,
+            after_spec,
+        )
+        .map_err(|d| d.with_span(lines[start_idx].1))?;
+        return Ok(Some((StatementKind::SpriteDef(sprite), start_idx)));
+    }
+
+    Err(Diagnostic::error(format!(
+        "[E_SPRITE_INVALID] unsupported sprite syntax `{line}`"
+    ))
+    .with_span(lines[start_idx].1))
+}

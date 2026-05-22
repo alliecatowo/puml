@@ -205,6 +205,7 @@ where
                 expanded.push(OsString::from("--format"));
                 expanded.push(OsString::from("utxt"));
             }
+            Some("-encodesprite") => expanded.push(OsString::from("--encodesprite")),
             _ => expanded.push(arg),
         }
     }
@@ -284,6 +285,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 cli.charset
             ),
         ));
+    }
+    if !cli.encodesprite.is_empty() {
+        return run_encodesprite(&cli.encodesprite);
     }
     if cli.dump_capabilities {
         println!(
@@ -697,6 +701,77 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
     }
 
     Err((EXIT_INTERNAL, "unexpected stdin output mode".to_string()))
+}
+
+fn run_encodesprite(args: &[String]) -> Result<(), (u8, String)> {
+    let [format, image_path] = args else {
+        return Err((
+            EXIT_VALIDATION,
+            "encodesprite requires a format and image path".to_string(),
+        ));
+    };
+    let (gray_levels, compressed) = parse_sprite_encode_format(format)?;
+    let path = Path::new(image_path);
+    let image = image::open(path)
+        .map_err(|e| {
+            (
+                EXIT_IO,
+                format!("failed to read image '{}': {e}", path.display()),
+            )
+        })?
+        .to_rgba8();
+    let width = image.width();
+    let height = image.height();
+    let mut pixels = Vec::with_capacity((width * height) as usize);
+    for pixel in image.pixels() {
+        let [r, g, b, a] = pixel.0;
+        let luminance = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+        let alpha = a as f32 / 255.0;
+        let darkness = (255_u8.saturating_sub(luminance)) as f32 / 255.0;
+        pixels.push(((darkness * alpha * 15.0).round() as u8).min(15));
+    }
+    let name = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("sprite")
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let encoded =
+        puml::sprites::encode_pixels(&name, width, height, gray_levels, compressed, &pixels)
+            .map_err(|d| (EXIT_VALIDATION, d.message))?;
+    println!("{encoded}");
+    Ok(())
+}
+
+fn parse_sprite_encode_format(raw: &str) -> Result<(u8, bool), (u8, String)> {
+    let trimmed = raw.trim();
+    let compressed = trimmed.ends_with('z') || trimmed.ends_with('Z');
+    let level_text = if compressed {
+        &trimmed[..trimmed.len().saturating_sub(1)]
+    } else {
+        trimmed
+    };
+    let gray_levels = level_text.parse::<u8>().map_err(|_| {
+        (
+            EXIT_VALIDATION,
+            format!("invalid encodesprite format `{raw}`; expected 4, 8, 16, 4z, 8z, or 16z"),
+        )
+    })?;
+    if matches!(gray_levels, 4 | 8 | 16) {
+        Ok((gray_levels, compressed))
+    } else {
+        Err((
+            EXIT_VALIDATION,
+            format!("invalid encodesprite format `{raw}`; expected 4, 8, 16, 4z, 8z, or 16z"),
+        ))
+    }
 }
 
 fn run_format_command(args: FormatArgs) -> Result<(), (u8, String)> {
@@ -1979,8 +2054,20 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::StateRegionDivider => json!("StateRegionDivider"),
         StatementKind::StateHistory { deep } => json!({"StateHistory": {"deep": deep}}),
         StatementKind::GanttTaskDecl {
-            name, resources, ..
-        } => json!({"GanttTaskDecl": {"name": name, "resources": resources}}),
+            name,
+            alias,
+            resources,
+            ..
+        } => json!({"GanttTaskDecl": {"name": name, "alias": alias, "resources": resources}}),
+        StatementKind::GanttCompound {
+            name,
+            alias,
+            resources,
+            clauses,
+            after_previous,
+        } => {
+            json!({"GanttCompound": {"name": name, "alias": alias, "resources": resources, "clauses": clauses, "after_previous": after_previous}})
+        }
         StatementKind::GanttMilestoneDecl { name, happens_on } => {
             json!({"GanttMilestoneDecl": {"name": name, "happens_on": happens_on}})
         }
@@ -2046,6 +2133,15 @@ fn statement_kind_to_json(kind: &StatementKind) -> Value {
         StatementKind::Include(v) => json!({"Include": v}),
         StatementKind::Define { name, value } => json!({"Define": {"name": name, "value": value}}),
         StatementKind::Undef(v) => json!({"Undef": v}),
+        StatementKind::SpriteDef(sprite) => json!({
+            "SpriteDef": {
+                "name": sprite.name,
+                "width": sprite.width,
+                "height": sprite.height,
+                "gray_levels": sprite.gray_levels
+            }
+        }),
+        StatementKind::ListSprites => json!("ListSprites"),
         StatementKind::Unknown(v) => json!({"Unknown": v}),
         StatementKind::JsonProjection { alias, body } => json!({
             "JsonProjection": {"alias": alias, "body": body}
@@ -2079,6 +2175,7 @@ fn message_to_json(m: &Message) -> Value {
                 puml::ast::VirtualEndpointKind::Circle => "circle",
                 puml::ast::VirtualEndpointKind::Cross => "cross",
                 puml::ast::VirtualEndpointKind::Filled => "filled",
+                puml::ast::VirtualEndpointKind::Short => "short",
             }
         });
     }
@@ -2093,6 +2190,7 @@ fn message_to_json(m: &Message) -> Value {
                 puml::ast::VirtualEndpointKind::Circle => "circle",
                 puml::ast::VirtualEndpointKind::Cross => "cross",
                 puml::ast::VirtualEndpointKind::Filled => "filled",
+                puml::ast::VirtualEndpointKind::Short => "short",
             }
         });
     }
@@ -2158,6 +2256,21 @@ fn state_model_to_json(model: &StateDocument) -> Value {
                 puml::model::StateNodeKind::Join => "Join",
                 puml::model::StateNodeKind::Choice => "Choice",
                 puml::model::StateNodeKind::End => "End",
+                puml::model::StateNodeKind::EntryPoint => "EntryPoint",
+                puml::model::StateNodeKind::ExitPoint => "ExitPoint",
+                puml::model::StateNodeKind::InputPin => "InputPin",
+                puml::model::StateNodeKind::OutputPin => "OutputPin",
+                puml::model::StateNodeKind::ExpansionInput => "ExpansionInput",
+                puml::model::StateNodeKind::ExpansionOutput => "ExpansionOutput",
+                puml::model::StateNodeKind::Note => "Note",
+                puml::model::StateNodeKind::JsonProjection => "JsonProjection",
+            },
+            "style": {
+                "fill_color": n.style.fill_color,
+                "border_color": n.style.border_color,
+                "border_dashed": n.style.border_dashed,
+                "border_thickness": n.style.border_thickness,
+                "text_color": n.style.text_color,
             },
             "internal_actions": n.internal_actions.iter().map(|a| json!({
                 "kind": a.kind,
@@ -2335,6 +2448,7 @@ fn model_event_kind_to_json(kind: &SequenceEventKind) -> Value {
             position,
             target,
             text,
+            ..
         } => {
             json!({"Note": {"kind": format!("{:?}", kind), "position": position, "target": target, "text": text}})
         }
@@ -2374,6 +2488,7 @@ fn virtual_endpoint_to_json(ep: VirtualEndpoint) -> Value {
             VirtualEndpointKind::Circle => "circle",
             VirtualEndpointKind::Cross => "cross",
             VirtualEndpointKind::Filled => "filled",
+            VirtualEndpointKind::Short => "short",
         }
     })
 }

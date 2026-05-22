@@ -4,6 +4,7 @@ use crate::ast::{ClassMember, DiagramKind, NoteKind};
 use crate::diagnostic::Diagnostic;
 use crate::scene::TextOverflowPolicy;
 use crate::source::Span;
+use crate::sprites::SpriteRegistry;
 use crate::theme::{
     ActivityStyle, ChartStyle, ClassStyle, ComponentStyle, SequenceStyle, StateStyle, TimingStyle,
 };
@@ -59,9 +60,19 @@ pub struct StateNode {
     pub display: Option<String>,
     pub kind: StateNodeKind,
     pub stereotype: Option<String>,
+    pub style: StateNodeStyle,
     pub internal_actions: Vec<StateInternalAction>,
     /// For composite states: children per region (concurrent → multiple vecs)
     pub regions: Vec<Vec<StateNode>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StateNodeStyle {
+    pub fill_color: Option<String>,
+    pub border_color: Option<String>,
+    pub border_dashed: bool,
+    pub border_thickness: Option<u8>,
+    pub text_color: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +92,19 @@ pub enum StateNodeKind {
     Choice,
     /// `<<end>>` stereotype — filled circle
     End,
+    /// `<<entryPoint>>` / `<<exitPoint>>` boundary pseudo-states
+    EntryPoint,
+    ExitPoint,
+    /// `<<inputPin>>` / `<<outputPin>>` pin pseudo-states
+    InputPin,
+    OutputPin,
+    /// `<<expansionInput>>` / `<<expansionOutput>>` expansion port pseudo-states
+    ExpansionInput,
+    ExpansionOutput,
+    /// Attached or floating state note
+    Note,
+    /// Inline `json $alias { ... }` projection in a state diagram
+    JsonProjection,
 }
 
 #[derive(Debug, Clone)]
@@ -436,7 +460,10 @@ pub struct TimelineDocument {
     pub closed_weekdays: Vec<String>,
     pub closed_ranges: Vec<TimelineClosedRange>,
     pub open_ranges: Vec<TimelineOpenRange>,
+    pub day_markers: Vec<TimelineDayMarker>,
+    pub resource_off_ranges: Vec<TimelineResourceOffRange>,
     pub scale: Option<String>,
+    pub scale_options: Vec<String>,
     pub project_start: Option<String>,
     pub project_start_day: Option<u32>,
     pub title: Option<String>,
@@ -444,12 +471,17 @@ pub struct TimelineDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    pub notes: Vec<TimelineNote>,
+    pub hide_footbox: bool,
+    pub hide_resource_names: bool,
+    pub hide_resource_footbox: bool,
     pub warnings: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone)]
 pub struct TimelineTask {
     pub name: String,
+    pub alias: Option<String>,
     pub start_day: u32,
     pub workload_days: u32,
     pub duration_days: u32,
@@ -458,6 +490,10 @@ pub struct TimelineTask {
     pub baseline_start_day: Option<u32>,
     pub baseline_duration_days: Option<u32>,
     pub is_critical: bool,
+    pub fill_color: Option<String>,
+    pub stroke_color: Option<String>,
+    pub completion_percent: Option<u32>,
+    pub is_deleted: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -494,6 +530,32 @@ pub struct TimelineOpenRange {
     pub end_date: String,
     pub start_day: u32,
     pub end_day: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineDayMarker {
+    pub start_date: String,
+    pub end_date: String,
+    pub start_day: u32,
+    pub end_day: u32,
+    pub label: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineResourceOffRange {
+    pub resource: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub start_day: u32,
+    pub end_day: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineNote {
+    pub target: Option<String>,
+    pub position: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone)]
@@ -544,6 +606,10 @@ pub struct FamilyDocument {
     /// Family-specific style overrides (class/state/component/activity).
     pub family_style: Option<FamilyStyle>,
     pub text_overflow_policy: TextOverflowPolicy,
+    /// MindMap/WBS: auto word-wrap node labels at this pixel width (`skinparam MaximumWidth`).
+    pub maximum_width: Option<i32>,
+    pub sprites: SpriteRegistry,
+    pub list_sprites: bool,
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -622,18 +688,33 @@ pub enum FamilyNodeKind {
     Interface,
     Port,
     // Deployment-family
+    Action,
+    Agent,
     Node,
     Artifact,
+    Boundary,
     Cloud,
+    Circle,
+    Collections,
     Frame,
     Storage,
+    Container,
+    Control,
     Database,
+    Entity,
     Package,
     Rectangle,
     Folder,
     File,
     Card,
     Actor,
+    Hexagon,
+    Label,
+    Person,
+    Process,
+    Queue,
+    Stack,
+    UseCaseDeployment,
     // State family
     State,
     StateInitial,
@@ -715,6 +796,10 @@ pub struct SequenceDocument {
     pub hide_unlinked: bool,
     /// IDs of participants that were removed by the `hide unlinked` filter.
     pub hidden_participants: Vec<String>,
+    pub sprites: SpriteRegistry,
+    pub list_sprites: bool,
+    /// Optional mainframe title (`mainframe <text>` keyword — feature 1.43).
+    pub mainframe: Option<String>,
 }
 
 impl Default for SequenceDocument {
@@ -738,6 +823,9 @@ impl Default for SequenceDocument {
             warnings: Vec::new(),
             hide_unlinked: false,
             hidden_participants: Vec::new(),
+            sprites: SpriteRegistry::new(),
+            list_sprites: false,
+            mainframe: None,
         }
     }
 }
@@ -764,6 +852,10 @@ pub struct SequencePage {
     pub hide_unlinked: bool,
     /// IDs of participants that were removed by the `hide unlinked` filter.
     pub hidden_participants: Vec<String>,
+    pub sprites: SpriteRegistry,
+    pub list_sprites: bool,
+    /// Optional mainframe title (`mainframe <text>` keyword — feature 1.43).
+    pub mainframe: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -815,6 +907,8 @@ pub enum SequenceEventKind {
         position: String,
         target: Option<String>,
         text: String,
+        /// When `true`, align this note at the same y level as the preceding note.
+        aligned: bool,
     },
     GroupStart {
         kind: String,
@@ -872,4 +966,6 @@ pub enum VirtualEndpointKind {
     Circle,
     Cross,
     Filled,
+    /// Short arrow (`?->` / `->?`) — stub from the diagram edge (feature 1.30).
+    Short,
 }

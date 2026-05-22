@@ -1,0 +1,26 @@
+@startjson
+#highlight "phoneNumbers" / "0" / "number" <<hot>>
+#highlight "empty"
+<style>
+jsonDiagram {
+  highlight {
+    BackGroundColor #fde68a
+    FontColor #111827
+    FontStyle bold
+  }
+}
+.hot {
+  BackGroundColor #dc2626
+  FontColor white
+  FontStyle italic
+}
+</style>
+{
+  "empty": [],
+  "lastName": "**Smith**",
+  "phoneNumbers": [
+    { "type": "home", "number": "<b>212 555-1234" },
+    { "type": "office", "number": "646 555-4567" }
+  ]
+}
+@endjson

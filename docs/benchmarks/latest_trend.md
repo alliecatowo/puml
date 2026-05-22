@@ -5,7 +5,7 @@
 - Baseline source: `/home/Allie/develop/puml/.worktrees/main-green-consolidation/docs/benchmarks/.baseline.previous.json`
 - Baseline mode match: `true`
 - Baseline timestamp (UTC): `2026-05-18T00:17:52Z`
-- Binary: `11477872` bytes (limit `12000000`)
+- Binary: `11477872` bytes (limit `16000000`)
 - Regression gate: delta > `10.000%` and `>40.000ms`
 
 | Scenario | Current Mean (ms) | Previous Mean (ms) | Delta (ms) | Delta (%) |

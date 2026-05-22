@@ -1,12 +1,12 @@
 # Supported Sequence Primitives
 
-This page is a docs-as-tests index for currently exercised sequence primitives.
-Each example links source and rendered SVG artifacts committed in-repo.
-These examples are coverage seeds for the currently exercised sequence subset,
-not an exhaustive claim of full PlantUML sequence parity and not the canonical
-support matrix. See
-[`docs/internal/parity/plantuml_parity_source_of_truth.md`](../internal/parity/plantuml_parity_source_of_truth.md)
-for canonical implemented/partial/missing status.
+For the canonical, per-chapter support matrix, see
+[`docs/internal/spec/plantuml-spec.md`](../internal/spec/plantuml-spec.md) and the
+sequence chapter audit at
+[`docs/internal/spec/audit/ch01-sequence.md`](../internal/spec/audit/ch01-sequence.md).
+
+The rendered example artifacts below remain as docs-as-tests coverage seeds, not
+as the authoritative status surface.
 
 ## Participants And Messages
 

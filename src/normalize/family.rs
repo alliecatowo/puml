@@ -26,11 +26,23 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut caption = None;
     let mut legend = None;
     let mut class_style = ClassStyle::default();
+    let mut class_monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
+    let mut last_relation: Option<(String, String)> = None;
+    let mut orientation = FamilyOrientation::TopToBottom;
+    let mut sepia = false;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::SkinParam { key, value } => {
                 if family_kind == DiagramKind::Salt {
                     nodes.push(FamilyNode {
@@ -75,13 +87,54 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                             ClassSkinParamValue::FontName(n) => {
                                 class_style.font_name = Some(n);
                             }
+                            ClassSkinParamValue::Monochrome(mode) => {
+                                class_monochrome_mode = Some(mode);
+                            }
+                            ClassSkinParamValue::StereotypeBackgroundColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .background_color = Some(c);
+                            }
+                            ClassSkinParamValue::StereotypeBorderColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .border_color = Some(c);
+                            }
+                            ClassSkinParamValue::StereotypeHeaderBackgroundColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .header_color = Some(c);
+                            }
+                            ClassSkinParamValue::StereotypeFontColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .font_color = Some(c);
+                            }
                         }
                     }
                     SkinParamSupport::UnsupportedKey => {
                         // Class diagrams accept generic sequence keys silently
                         // (PlantUML applies them across all families).
-                        use crate::theme::{classify_sequence_skinparam, SequenceSkinParamSupport};
-                        if !matches!(
+                        use crate::theme::{
+                            classify_sequence_skinparam, SequenceSkinParamSupport,
+                            SequenceSkinParamValue,
+                        };
+                        if key.trim().eq_ignore_ascii_case("sepia") {
+                            if let SequenceSkinParamSupport::SupportedWithValue(
+                                SequenceSkinParamValue::Sepia(enabled),
+                            ) = classify_sequence_skinparam(&key, &value)
+                            {
+                                sepia = enabled;
+                            }
+                        } else if !matches!(
                             classify_sequence_skinparam(&key, &value),
                             SequenceSkinParamSupport::UnsupportedKey
                         ) {
@@ -131,6 +184,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 }
                 let mut members = decl.members;
                 let fill_color = extract_family_node_fill_color(&mut members);
+                let source_id = decl.alias.as_deref().unwrap_or(&decl.name).to_string();
+                let heritage_relations =
+                    extract_family_heritage_relations(&mut members, &source_id);
                 upsert_family_node(
                     &mut nodes,
                     FamilyNode {
@@ -145,6 +201,10 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                         fill_color,
                     },
                 );
+                for rel in &heritage_relations {
+                    ensure_family_class_node(&mut nodes, &rel.from);
+                }
+                relations.extend(heritage_relations);
             }
             StatementKind::ObjectDecl(decl) => {
                 if node_kind != FamilyNodeKind::Object {
@@ -212,27 +272,61 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     },
                 );
             }
-            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
-                from: rel.from,
-                to: rel.to,
-                arrow: rel.arrow,
-                label: rel.label,
-                stereotype: rel.stereotype,
-                left_cardinality: rel.left_cardinality,
-                right_cardinality: rel.right_cardinality,
-                left_role: rel.left_role,
-                right_role: rel.right_role,
-                line_color: rel.line_color,
-                dashed: rel.dashed,
-                hidden: rel.hidden,
-                thickness: rel.thickness,
-                direction: rel.direction,
-                left_lollipop: rel.left_lollipop,
-                right_lollipop: rel.right_lollipop,
-            }),
+            StatementKind::FamilyRelation(rel) => {
+                last_relation = Some((rel.from.clone(), rel.to.clone()));
+                relations.push(model_relation_from_ast(rel));
+            }
+            StatementKind::AssociationClass {
+                left,
+                right,
+                association,
+                arrow,
+            } => {
+                upsert_family_node(
+                    &mut nodes,
+                    FamilyNode {
+                        kind: FamilyNodeKind::Class,
+                        name: association.clone(),
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: None,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    },
+                );
+                relations.push(simple_family_relation(left.clone(), right.clone(), arrow));
+                relations.push(simple_family_relation(
+                    association.clone(),
+                    left.clone(),
+                    "..".to_string(),
+                ));
+                relations.push(simple_family_relation(association, right, "..".to_string()));
+            }
             StatementKind::Note(note) => {
                 note_counter += 1;
-                nodes.push(family_note_node(note_counter, note));
+                let target = note.target.clone();
+                let note_node = family_note_node(note_counter, note);
+                let note_name = note_node.name.clone();
+                nodes.push(note_node);
+                if let Some(target) = target {
+                    let target = if target.eq_ignore_ascii_case("on link") {
+                        last_relation
+                            .as_ref()
+                            .map(|(_, to)| to.clone())
+                            .unwrap_or_default()
+                    } else {
+                        target
+                    };
+                    if !target.is_empty() {
+                        relations.push(simple_family_relation(
+                            relation_node_endpoint(&target),
+                            note_name,
+                            "..".to_string(),
+                        ));
+                    }
+                }
             }
             StatementKind::ClassGroup {
                 kind,
@@ -314,24 +408,8 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                     member_ids: group_member_ids,
                 });
                 for rel in group_relations {
-                    relations.push(ModelFamilyRelation {
-                        from: rel.from,
-                        to: rel.to,
-                        arrow: rel.arrow,
-                        label: rel.label,
-                        stereotype: rel.stereotype,
-                        left_cardinality: rel.left_cardinality,
-                        right_cardinality: rel.right_cardinality,
-                        left_role: rel.left_role,
-                        right_role: rel.right_role,
-                        line_color: rel.line_color,
-                        dashed: rel.dashed,
-                        hidden: rel.hidden,
-                        thickness: rel.thickness,
-                        direction: rel.direction,
-                        left_lollipop: rel.left_lollipop,
-                        right_lollipop: rel.right_lollipop,
-                    });
+                    last_relation = Some((rel.from.clone(), rel.to.clone()));
+                    relations.push(model_relation_from_ast(rel));
                 }
             }
             StatementKind::SetOption { key, value } => {
@@ -411,6 +489,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                 });
             }
             StatementKind::Unknown(line) => {
+                // Handle `left to right direction` / `top to bottom direction`
+                if let Some(dir) = parse_family_orientation_directive(&line) {
+                    orientation = dir;
+                    continue;
+                }
                 if family_kind == DiagramKind::Salt {
                     let text = line.trim();
                     if !text.is_empty() {
@@ -451,7 +534,11 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // simple arrow — multiple calls with the same endpoints should coalesce.
     // Only applies to the stub/C4 path; the class/component paths keep separate
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
+    apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
+    if let Some(mode) = class_monochrome_mode {
+        apply_monochrome_to_class_style(&mut class_style, mode);
+    }
 
     Ok(FamilyDocument {
         kind: family_kind,
@@ -466,10 +553,16 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
         footer,
         caption,
         legend,
-        orientation: FamilyOrientation::TopToBottom,
-        style: SequenceStyle::default(),
+        orientation,
+        style: SequenceStyle {
+            sepia,
+            ..SequenceStyle::default()
+        },
         family_style: Some(FamilyStyle::Class(class_style)),
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        maximum_width: None,
+        sprites,
+        list_sprites,
         warnings,
     })
 }
@@ -569,6 +662,279 @@ fn extract_family_node_fill_color(members: &mut Vec<ClassMember>) -> Option<Stri
     });
     fill_color
 }
+
+fn extract_activity_inline_fill(label: &mut Option<String>) -> Option<String> {
+    let value = label.take()?;
+    let Some(rest) = value.strip_prefix("\x1fstyle:fill:") else {
+        *label = Some(value);
+        return None;
+    };
+    let Some((color, display)) = rest.split_once('\x1f') else {
+        *label = Some(value);
+        return None;
+    };
+    *label = (!display.is_empty()).then(|| display.to_string());
+    Some(color.trim().to_string())
+}
+
+/// Extract a SDL action shape marker (`\x1fsdl:<shape>\x1f<body>`) from the label.
+/// Returns the shape name and leaves the display label in `label`.
+fn extract_activity_sdl_shape(label: &mut Option<String>) -> Option<String> {
+    let value = label.take()?;
+    let Some(rest) = value.strip_prefix("\x1fsdl:") else {
+        *label = Some(value);
+        return None;
+    };
+    let Some((shape, display)) = rest.split_once('\x1f') else {
+        *label = Some(value);
+        return None;
+    };
+    *label = (!display.is_empty()).then(|| display.to_string());
+    Some(shape.trim().to_string())
+}
+
+fn extract_family_heritage_relations(
+    members: &mut Vec<ClassMember>,
+    source_id: &str,
+) -> Vec<ModelFamilyRelation> {
+    let mut out = Vec::new();
+    members.retain(|member| {
+        let Some(rest) = member.text.strip_prefix("\x1fheritage:") else {
+            return true;
+        };
+        if let Some((arrow, target)) = rest.split_once(':') {
+            let target = target.trim();
+            if !target.is_empty() {
+                out.push(simple_family_relation(
+                    target.to_string(),
+                    source_id.to_string(),
+                    arrow.to_string(),
+                ));
+            }
+        }
+        false
+    });
+    out
+}
+
+fn model_relation_from_ast(rel: crate::ast::FamilyRelation) -> ModelFamilyRelation {
+    ModelFamilyRelation {
+        from: rel.from,
+        to: rel.to,
+        arrow: rel.arrow,
+        label: rel.label,
+        stereotype: rel.stereotype,
+        left_cardinality: rel.left_cardinality,
+        right_cardinality: rel.right_cardinality,
+        left_role: rel.left_role,
+        right_role: rel.right_role,
+        line_color: rel.line_color,
+        dashed: rel.dashed,
+        hidden: rel.hidden,
+        thickness: rel.thickness,
+        direction: rel.direction,
+        left_lollipop: rel.left_lollipop,
+        right_lollipop: rel.right_lollipop,
+    }
+}
+
+fn simple_family_relation(from: String, to: String, arrow: String) -> ModelFamilyRelation {
+    ModelFamilyRelation {
+        from,
+        to,
+        arrow,
+        label: None,
+        stereotype: None,
+        left_cardinality: None,
+        right_cardinality: None,
+        left_role: None,
+        right_role: None,
+        line_color: None,
+        dashed: false,
+        hidden: false,
+        thickness: None,
+        direction: None,
+        left_lollipop: false,
+        right_lollipop: false,
+    }
+}
+
+fn ensure_family_class_node(nodes: &mut Vec<FamilyNode>, name: &str) {
+    if name.is_empty()
+        || nodes
+            .iter()
+            .any(|node| node.name == name || node.alias.as_deref() == Some(name))
+    {
+        return;
+    }
+    nodes.push(FamilyNode {
+        kind: FamilyNodeKind::Class,
+        name: name.to_string(),
+        alias: None,
+        members: Vec::new(),
+        depth: 0,
+        label: None,
+        mindmap_side: MindMapSide::Right,
+        wbs_checkbox: None,
+        fill_color: None,
+    });
+}
+
+fn apply_class_visibility_controls(
+    nodes: &mut Vec<FamilyNode>,
+    relations: &mut Vec<ModelFamilyRelation>,
+    groups: &mut Vec<FamilyGroup>,
+    hide_options: &std::collections::BTreeSet<String>,
+) {
+    if hide_options.is_empty() {
+        return;
+    }
+
+    let removed = collect_filtered_node_names(nodes, relations, hide_options);
+    if !removed.is_empty() {
+        nodes.retain(|node| !node_matches_any_filter(node, &removed));
+        relations.retain(|rel| {
+            !name_matches_any_filter(&relation_node_endpoint(&rel.from), &removed)
+                && !name_matches_any_filter(&relation_node_endpoint(&rel.to), &removed)
+        });
+        for group in groups {
+            group
+                .member_ids
+                .retain(|member_id| !name_matches_any_filter(member_id, &removed));
+        }
+    }
+
+    for node in nodes {
+        let node_key = node
+            .alias
+            .as_deref()
+            .unwrap_or(&node.name)
+            .to_ascii_lowercase();
+        node.members
+            .retain(|member| class_member_visible_for_node(member, &node_key, hide_options));
+    }
+}
+
+fn collect_filtered_node_names(
+    nodes: &[FamilyNode],
+    relations: &[ModelFamilyRelation],
+    hide_options: &std::collections::BTreeSet<String>,
+) -> std::collections::BTreeSet<String> {
+    let mut removed = std::collections::BTreeSet::new();
+    for opt in hide_options {
+        if let Some(name) = opt
+            .strip_prefix("hide node ")
+            .or_else(|| opt.strip_prefix("remove node "))
+        {
+            removed.insert(clean_filter_name(name));
+        }
+    }
+    if hide_options.contains("hide @unlinked") {
+        let mut linked = std::collections::BTreeSet::new();
+        for rel in relations {
+            linked.insert(relation_node_endpoint(&rel.from).to_ascii_lowercase());
+            linked.insert(relation_node_endpoint(&rel.to).to_ascii_lowercase());
+        }
+        for node in nodes {
+            let name = node.name.to_ascii_lowercase();
+            let alias = node.alias.as_deref().map(str::to_ascii_lowercase);
+            if !linked.contains(&name) && alias.as_ref().is_none_or(|a| !linked.contains(a)) {
+                removed.insert(name);
+            }
+        }
+    }
+    for opt in hide_options {
+        if let Some(name) = opt.strip_prefix("restore node ") {
+            removed.remove(&clean_filter_name(name));
+        }
+    }
+    removed
+}
+
+fn class_member_visible_for_node(
+    member: &ClassMember,
+    node_key: &str,
+    hide_options: &std::collections::BTreeSet<String>,
+) -> bool {
+    let text = member.text.trim();
+    if hide_options.contains("stereotype") && text.starts_with("<<") && text.ends_with(">>") {
+        return false;
+    }
+    if hide_options.contains("circle") && text == "()" {
+        return false;
+    }
+    let visibility = member_visibility(text);
+    let kind = member_kind(member);
+    let show_key = format!("show {node_key} {kind}");
+    let show_members_key = format!("show {node_key} members");
+    if hide_options.contains(&show_key) || hide_options.contains(&show_members_key) {
+        return true;
+    }
+    if hide_options.contains("members") || hide_options.contains(&format!("{visibility} members")) {
+        return false;
+    }
+    if hide_options.contains(kind) || hide_options.contains(&format!("{visibility} {kind}")) {
+        return false;
+    }
+    true
+}
+
+fn member_visibility(text: &str) -> &'static str {
+    match text.trim_start().chars().next() {
+        Some('+') => "public",
+        Some('-') => "private",
+        Some('#') => "protected",
+        Some('~') => "package",
+        _ => "public",
+    }
+}
+
+fn member_kind(member: &ClassMember) -> &'static str {
+    match member.modifier {
+        Some(crate::ast::MemberModifier::Method) => "methods",
+        Some(crate::ast::MemberModifier::Field) => "fields",
+        _ => {
+            let text = member
+                .text
+                .trim_start_matches(['+', '-', '#', '~'])
+                .trim_start();
+            if text.contains('(') {
+                "methods"
+            } else {
+                "fields"
+            }
+        }
+    }
+}
+
+fn node_matches_any_filter(
+    node: &FamilyNode,
+    filters: &std::collections::BTreeSet<String>,
+) -> bool {
+    name_matches_any_filter(&node.name, filters)
+        || node
+            .alias
+            .as_deref()
+            .is_some_and(|alias| name_matches_any_filter(alias, filters))
+}
+
+fn name_matches_any_filter(name: &str, filters: &std::collections::BTreeSet<String>) -> bool {
+    filters.contains(&clean_filter_name(name))
+}
+
+fn clean_filter_name(name: &str) -> String {
+    name.trim().trim_matches('"').to_ascii_lowercase()
+}
+
+fn relation_node_endpoint(endpoint: &str) -> String {
+    let trimmed = endpoint.trim();
+    if let Some((owner, member)) = trimmed.rsplit_once("::") {
+        if !owner.is_empty() && !member.is_empty() {
+            return owner.to_string();
+        }
+    }
+    trimmed.to_string()
+}
 pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
@@ -582,12 +948,23 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     let mut warnings = Vec::new();
     let mut orientation = FamilyOrientation::TopToBottom;
     let mut style = SequenceStyle::default();
+    let mut monochrome_mode = None;
     let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
+    let mut maximum_width: Option<i32> = None;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
     // MindMap: track whether subsequent depth-1 nodes should go on the left side.
     let mut mindmap_left_side_mode = false;
+    let mut mindmap_multiline: Option<MindmapMultilineDraft> = None;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::Title(v) => title = Some(v),
             StatementKind::Header(v) => header = Some(v),
             StatementKind::Footer(v) => footer = Some(v),
@@ -601,6 +978,17 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     &mut warnings,
                     stmt.span,
                 ) {
+                    continue;
+                }
+                if family_kind == DiagramKind::MindMap
+                    && handle_mindmap_maximum_width_skinparam(
+                        &key,
+                        &value,
+                        &mut maximum_width,
+                        &mut warnings,
+                        stmt.span,
+                    )
+                {
                     continue;
                 }
                 match classify_sequence_skinparam(&key, &value) {
@@ -627,6 +1015,11 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                         SequenceSkinParamValue::ParticipantBorderColor(color),
                     ) => {
                         style.participant_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantFontColor(color),
+                    ) => {
+                        style.participant_font_color = Some(color);
                     }
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::NoteBackgroundColor(color),
@@ -728,6 +1121,26 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                     ) => {
                         style.group_header_font_style = s;
                     }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Monochrome(mode),
+                    ) => {
+                        monochrome_mode = Some(mode);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Handwritten(enabled),
+                    ) => {
+                        style.hand_drawn = enabled;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineNoSolid(nosolid),
+                    ) => {
+                        style.lifeline_nosolid = nosolid;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Sepia(enabled),
+                    ) => {
+                        style.sepia = enabled;
+                    }
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -796,6 +1209,13 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                         continue;
                     }
                 }
+                if let Some(ref mut draft) = mindmap_multiline {
+                    if let Some(node) = draft.append_line(&line) {
+                        nodes.push(node);
+                        mindmap_multiline = None;
+                    }
+                    continue;
+                }
                 if let Some(mut node_info) = parse_mindmap_or_wbs_node(&line) {
                     let kind = match family_kind {
                         DiagramKind::MindMap => FamilyNodeKind::MindMap,
@@ -811,6 +1231,21 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                         if !has_explicit && mindmap_left_side_mode {
                             node_info.side = MindMapSide::Left;
                         }
+                    }
+                    if let Some(body) = node_info.name.strip_prefix(':') {
+                        let first = body.trim_start();
+                        if !first.contains(';') {
+                            mindmap_multiline = Some(MindmapMultilineDraft {
+                                kind,
+                                depth: node_info.depth,
+                                name: first.to_string(),
+                                side: node_info.side,
+                                checkbox: node_info.checkbox,
+                                fill_color: node_info.fill_color,
+                            });
+                            continue;
+                        }
+                        node_info.name = first.trim_end_matches(';').trim_end().to_string();
                     }
                     nodes.push(FamilyNode {
                         kind,
@@ -843,6 +1278,9 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
 
     build_family_tree_relations(&mut nodes, &mut relations);
     normalize_family_tree_warnings(&mut warnings);
+    if let Some(mode) = monochrome_mode {
+        apply_monochrome_to_sequence_style(&mut style, mode);
+    }
 
     Ok(FamilyDocument {
         kind: family_kind,
@@ -857,6 +1295,9 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
         style,
         family_style: None,
         text_overflow_policy,
+        maximum_width,
+        sprites,
+        list_sprites,
         warnings,
         groups: Vec::new(),
         json_projections: Vec::new(),
@@ -902,6 +1343,74 @@ fn build_family_tree_relations(nodes: &mut [FamilyNode], relations: &mut Vec<Mod
         }
         parents.push(idx);
     }
+}
+
+struct MindmapMultilineDraft {
+    kind: FamilyNodeKind,
+    depth: usize,
+    name: String,
+    side: MindMapSide,
+    checkbox: Option<WbsCheckbox>,
+    fill_color: Option<String>,
+}
+
+impl MindmapMultilineDraft {
+    /// Append `line` to the in-progress multiline body. Returns `Some(node)` when the
+    /// block ends on a line containing `;` (PlantUML ch17.4 / ch18.4).
+    fn append_line(&mut self, line: &str) -> Option<FamilyNode> {
+        let trimmed_end = line.trim_end();
+        if trimmed_end.ends_with(';') {
+            let tail = trimmed_end.trim_end_matches(';').trim_end();
+            if !tail.is_empty() {
+                if !self.name.is_empty() {
+                    self.name.push('\n');
+                }
+                self.name.push_str(tail);
+            }
+            return Some(FamilyNode {
+                kind: self.kind,
+                name: self.name.clone(),
+                alias: None,
+                members: Vec::new(),
+                depth: self.depth,
+                label: None,
+                mindmap_side: self.side,
+                wbs_checkbox: self.checkbox.clone(),
+                fill_color: self.fill_color.clone(),
+            });
+        }
+        let piece = line.trim();
+        if !piece.is_empty() {
+            if !self.name.is_empty() {
+                self.name.push('\n');
+            }
+            self.name.push_str(piece);
+        }
+        None
+    }
+}
+
+fn handle_mindmap_maximum_width_skinparam(
+    key: &str,
+    value: &str,
+    maximum_width: &mut Option<i32>,
+    warnings: &mut Vec<Diagnostic>,
+    span: crate::source::Span,
+) -> bool {
+    if !key.trim().eq_ignore_ascii_case("maximumwidth") {
+        return false;
+    }
+    match value.trim().parse::<i32>() {
+        Ok(n) if n > 0 => *maximum_width = Some(n),
+        _ => warnings.push(
+            Diagnostic::warning(format!(
+                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                value, key
+            ))
+            .with_span(span),
+        ),
+    }
+    true
 }
 
 fn handle_family_overflow_skinparam(
@@ -1084,20 +1593,35 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut hide_options: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut activity_step_counter: usize = 0;
     let mut activity_active_partition: Option<String> = None;
     let mut activity_fork_depth: usize = 0;
     let mut activity_fork_branch: usize = 0;
     let mut timing_current_time: Option<String> = None;
     let mut timing_current_signal: Option<String> = None;
+    let mut timing_anchors = std::collections::BTreeMap::new();
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
     let mut timing_style = TimingStyle::default();
+    let mut component_monochrome_mode = None;
+    let mut activity_monochrome_mode = None;
+    let mut timing_monochrome_mode = None;
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
+    let mut orientation = FamilyOrientation::TopToBottom;
+    let mut sepia = false;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::ComponentDecl {
                 kind,
                 name,
@@ -1134,9 +1658,13 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 activity_step_counter += 1;
                 let kind = activity_step_node_kind(&step.kind);
                 let name = format!("__act_{activity_step_counter:04}");
+                let mut label = step.label;
+                let fill_color = extract_activity_inline_fill(&mut label);
+                let sdl_shape = extract_activity_sdl_shape(&mut label);
+                let is_activity_note_step = matches!(step.kind, ActivityStepKind::Note);
                 match step.kind {
                     ActivityStepKind::PartitionStart => {
-                        activity_active_partition = step.label.clone();
+                        activity_active_partition = label.clone();
                     }
                     ActivityStepKind::PartitionEnd => {
                         activity_active_partition = None;
@@ -1154,23 +1682,34 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     }
                     _ => {}
                 }
-                let lane = activity_active_partition
-                    .clone()
-                    .unwrap_or_else(|| "default".to_string());
-                let alias = format!(
-                    "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
-                    step.kind, lane, activity_fork_depth, activity_fork_branch
-                );
+                let lane = if is_activity_note_step {
+                    "default".to_string()
+                } else {
+                    activity_active_partition
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string())
+                };
+                let alias = if let Some(shape) = &sdl_shape {
+                    format!(
+                        "activity::{:?}|lane={}|fork_depth={}|fork_branch={}|sdl={}",
+                        step.kind, lane, activity_fork_depth, activity_fork_branch, shape
+                    )
+                } else {
+                    format!(
+                        "activity::{:?}|lane={}|fork_depth={}|fork_branch={}",
+                        step.kind, lane, activity_fork_depth, activity_fork_branch
+                    )
+                };
                 nodes.push(FamilyNode {
                     kind,
                     name,
                     alias: Some(alias),
                     members: Vec::new(),
                     depth: 0,
-                    label: step.label,
+                    label,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
-                    fill_color: None,
+                    fill_color,
                 });
             }
             StatementKind::TimingDecl {
@@ -1204,6 +1743,39 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 state,
                 note,
             } => {
+                if family_kind == DiagramKind::Timing
+                    && signal.is_none()
+                    && state.is_none()
+                    && note.as_deref().is_some_and(|n| n.starts_with("__timing:"))
+                {
+                    let normalized_time = normalize_timing_time(
+                        &time,
+                        timing_current_time.as_deref(),
+                        &timing_anchors,
+                    );
+                    if let Some(anchor) = note
+                        .as_deref()
+                        .and_then(|n| n.strip_prefix("__timing:anchor:"))
+                    {
+                        if !normalized_time.is_empty() {
+                            timing_anchors.insert(anchor.to_string(), normalized_time.clone());
+                            timing_current_time = Some(normalized_time);
+                        }
+                        continue;
+                    }
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::TimingEvent,
+                        name: normalized_time,
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: note,
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                    continue;
+                }
                 let mut signal = signal;
                 if family_kind == DiagramKind::Timing
                     && signal.is_none()
@@ -1230,8 +1802,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 {
                     timing_current_time.clone().unwrap_or_default()
                 } else {
-                    let normalized_time =
-                        normalize_timing_time(&time, timing_current_time.as_deref());
+                    let normalized_time = normalize_timing_time(
+                        &time,
+                        timing_current_time.as_deref(),
+                        &timing_anchors,
+                    );
                     timing_current_time = Some(normalized_time.clone());
                     normalized_time
                 };
@@ -1262,27 +1837,101 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     fill_color: None,
                 });
             }
-            StatementKind::FamilyRelation(rel) => relations.push(ModelFamilyRelation {
-                from: rel.from,
-                to: rel.to,
-                arrow: rel.arrow,
-                label: rel.label,
-                stereotype: rel.stereotype,
-                left_cardinality: rel.left_cardinality,
-                right_cardinality: rel.right_cardinality,
-                left_role: rel.left_role,
-                right_role: rel.right_role,
-                line_color: rel.line_color,
-                dashed: rel.dashed,
-                hidden: rel.hidden,
-                thickness: rel.thickness,
-                direction: rel.direction,
-                left_lollipop: rel.left_lollipop,
-                right_lollipop: rel.right_lollipop,
-            }),
+            StatementKind::FamilyRelation(rel) => {
+                let (from, to) = if family_kind == DiagramKind::Timing {
+                    (
+                        normalize_timing_endpoint(
+                            &rel.from,
+                            timing_current_time.as_deref(),
+                            &timing_anchors,
+                        ),
+                        normalize_timing_endpoint(
+                            &rel.to,
+                            timing_current_time.as_deref(),
+                            &timing_anchors,
+                        ),
+                    )
+                } else {
+                    (rel.from, rel.to)
+                };
+                // Component/Deployment: auto-create nodes for relation endpoints
+                // declared only via bracket shorthand (e.g. `[WebServer] --> [DB]`).
+                if matches!(
+                    family_kind,
+                    DiagramKind::Component | DiagramKind::Deployment
+                ) {
+                    for endpoint in [&from, &to] {
+                        if !endpoint.is_empty()
+                            && !nodes.iter().any(|n| {
+                                n.name == *endpoint || n.alias.as_deref() == Some(endpoint.as_str())
+                            })
+                        {
+                            let node_kind = if family_kind == DiagramKind::Component {
+                                FamilyNodeKind::Component
+                            } else {
+                                FamilyNodeKind::Node
+                            };
+                            nodes.push(FamilyNode {
+                                kind: node_kind,
+                                name: endpoint.clone(),
+                                alias: None,
+                                members: Vec::new(),
+                                depth: 0,
+                                label: None,
+                                mindmap_side: MindMapSide::Right,
+                                wbs_checkbox: None,
+                                fill_color: None,
+                            });
+                        }
+                    }
+                }
+                relations.push(ModelFamilyRelation {
+                    from,
+                    to,
+                    arrow: rel.arrow,
+                    label: rel.label,
+                    stereotype: rel.stereotype,
+                    left_cardinality: rel.left_cardinality,
+                    right_cardinality: rel.right_cardinality,
+                    left_role: rel.left_role,
+                    right_role: rel.right_role,
+                    line_color: rel.line_color,
+                    dashed: rel.dashed,
+                    hidden: rel.hidden,
+                    thickness: rel.thickness,
+                    direction: rel.direction,
+                    left_lollipop: rel.left_lollipop,
+                    right_lollipop: rel.right_lollipop,
+                });
+            }
             StatementKind::Note(note) => {
                 note_counter += 1;
-                nodes.push(family_note_node(note_counter, note));
+                if family_kind == DiagramKind::Activity {
+                    activity_step_counter += 1;
+                    let position = note.position.trim().to_string();
+                    let text = note.text.trim();
+                    let label = if text.is_empty() {
+                        "note".to_string()
+                    } else {
+                        text.to_string()
+                    };
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::Note,
+                        name: format!("__act_{activity_step_counter:04}"),
+                        alias: Some(format!(
+                            "activity::Note|position={}|lane={}|fork_depth={}|fork_branch={}",
+                            position, "default", activity_fork_depth, activity_fork_branch
+                        )),
+                        members: Vec::new(),
+                        depth: 0,
+                        label: Some(label),
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                } else {
+                    nodes.push(family_note_node(note_counter, note));
+                }
             }
             StatementKind::ClassGroup {
                 kind,
@@ -1366,6 +2015,56 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::SkinParam { key, value } => {
                 let mut handled = false;
+                if key.trim().eq_ignore_ascii_case("monochrome") {
+                    handled = true;
+                    match classify_sequence_skinparam(&key, &value) {
+                        SequenceSkinParamSupport::SupportedNoop => {}
+                        SequenceSkinParamSupport::SupportedWithValue(
+                            SequenceSkinParamValue::Monochrome(mode),
+                        ) => match family_kind {
+                            DiagramKind::Component | DiagramKind::Deployment => {
+                                component_monochrome_mode = Some(mode);
+                            }
+                            DiagramKind::Activity => {
+                                activity_monochrome_mode = Some(mode);
+                            }
+                            DiagramKind::Timing => {
+                                timing_monochrome_mode = Some(mode);
+                            }
+                            _ => {}
+                        },
+                        _ => ext_warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        ),
+                    }
+                } else if key.trim().eq_ignore_ascii_case("handwritten") {
+                    handled = true;
+                    match classify_sequence_skinparam(&key, &value) {
+                        SequenceSkinParamSupport::SupportedNoop
+                        | SequenceSkinParamSupport::SupportedWithValue(
+                            SequenceSkinParamValue::Handwritten(_),
+                        ) => {}
+                        _ => ext_warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        ),
+                    }
+                } else if key.trim().eq_ignore_ascii_case("sepia") {
+                    handled = true;
+                    if let SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Sepia(enabled),
+                    ) = classify_sequence_skinparam(&key, &value)
+                    {
+                        sepia = enabled;
+                    }
+                }
                 if matches!(
                     family_kind,
                     DiagramKind::Component | DiagramKind::Deployment
@@ -1392,6 +2091,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                                 }
                                 ComponentSkinParamValue::ArrowColor(c) => {
                                     component_style.arrow_color = c;
+                                }
+                                ComponentSkinParamValue::StyleMode(mode) => {
+                                    component_style.component_style_mode = mode;
                                 }
                             }
                         }
@@ -1536,13 +2238,36 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     format: "yaml".to_string(),
                 });
             }
+            StatementKind::HideOption(opt) => {
+                hide_options.insert(opt.to_ascii_lowercase());
+            }
             StatementKind::Pragma(_)
             | StatementKind::Include(_)
             | StatementKind::Define { .. }
             | StatementKind::Undef(_)
-            | StatementKind::Scale(_)
             | StatementKind::LegendPos(_) => {}
+            StatementKind::Scale(body) => {
+                if family_kind == DiagramKind::Timing && body.contains(" as ") {
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::TimingEvent,
+                        name: String::new(),
+                        alias: None,
+                        members: Vec::new(),
+                        depth: 0,
+                        label: Some(format!("__timing:scale:{body}")),
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                }
+            }
             StatementKind::Unknown(line) => {
+                // Handle `left to right direction` / `top to bottom direction`
+                // (and reverse variants) for component/state/activity diagrams.
+                if let Some(dir) = parse_family_orientation_directive(&line) {
+                    orientation = dir;
+                    continue;
+                }
                 if family_kind == DiagramKind::Activity {
                     let trimmed = line.trim();
                     if trimmed.is_empty() {
@@ -1594,12 +2319,45 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
 
     let family_style = match family_kind {
         DiagramKind::Component | DiagramKind::Deployment => {
+            if let Some(mode) = component_monochrome_mode {
+                apply_monochrome_to_component_style(&mut component_style, mode);
+            }
             Some(FamilyStyle::Component(component_style))
         }
-        DiagramKind::Activity => Some(FamilyStyle::Activity(activity_style)),
-        DiagramKind::Timing => Some(FamilyStyle::Timing(timing_style)),
+        DiagramKind::Activity => {
+            if let Some(mode) = activity_monochrome_mode {
+                apply_monochrome_to_activity_style(&mut activity_style, mode);
+            }
+            Some(FamilyStyle::Activity(activity_style))
+        }
+        DiagramKind::Timing => {
+            if let Some(mode) = timing_monochrome_mode {
+                apply_monochrome_to_timing_style(&mut timing_style, mode);
+            }
+            Some(FamilyStyle::Timing(timing_style))
+        }
         _ => None,
     };
+
+    // Apply hide/remove @unlinked for component and deployment diagrams.
+    // A node is "unlinked" if neither its name nor alias appears in any relation endpoint.
+    if matches!(
+        family_kind,
+        DiagramKind::Component | DiagramKind::Deployment
+    ) && (hide_options.contains("hide @unlinked") || hide_options.contains("remove @unlinked"))
+    {
+        let mut linked: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for rel in &relations {
+            linked.insert(rel.from.to_ascii_lowercase());
+            linked.insert(rel.to.to_ascii_lowercase());
+        }
+        nodes.retain(|node| {
+            let name_lc = node.name.to_ascii_lowercase();
+            let alias_lc = node.alias.as_deref().map(str::to_ascii_lowercase);
+            linked.contains(&name_lc) || alias_lc.as_ref().is_some_and(|a| linked.contains(a))
+        });
+    }
+
     Ok(FamilyDocument {
         kind: family_kind,
         nodes,
@@ -1609,14 +2367,20 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         footer,
         caption,
         legend,
-        orientation: FamilyOrientation::TopToBottom,
-        style: SequenceStyle::default(),
+        orientation,
+        style: SequenceStyle {
+            sepia,
+            ..SequenceStyle::default()
+        },
         family_style,
         text_overflow_policy: TextOverflowPolicy::WrapAndGrow,
+        maximum_width: None,
+        sprites,
+        list_sprites,
         warnings: ext_warnings,
         groups,
         json_projections,
-        hide_options: std::collections::BTreeSet::new(),
+        hide_options,
         namespace_separator: None,
     })
 }
@@ -1628,21 +2392,36 @@ fn extract_inline_stereotype_members(label: &str) -> Vec<crate::ast::ClassMember
 
 fn scoped_component_kind_hint(kind: &str) -> Option<FamilyNodeKind> {
     Some(match kind {
+        "action" => FamilyNodeKind::Action,
+        "agent" => FamilyNodeKind::Agent,
         "component" => FamilyNodeKind::Component,
         "interface" => FamilyNodeKind::Interface,
         "port" => FamilyNodeKind::Port,
         "node" => FamilyNodeKind::Node,
         "artifact" => FamilyNodeKind::Artifact,
+        "boundary" => FamilyNodeKind::Boundary,
         "cloud" => FamilyNodeKind::Cloud,
+        "circle" => FamilyNodeKind::Circle,
+        "collections" => FamilyNodeKind::Collections,
         "frame" => FamilyNodeKind::Frame,
         "storage" => FamilyNodeKind::Storage,
+        "container" => FamilyNodeKind::Container,
+        "control" => FamilyNodeKind::Control,
         "database" => FamilyNodeKind::Database,
+        "entity" => FamilyNodeKind::Entity,
         "package" => FamilyNodeKind::Package,
         "rectangle" => FamilyNodeKind::Rectangle,
         "folder" => FamilyNodeKind::Folder,
         "file" => FamilyNodeKind::File,
         "card" => FamilyNodeKind::Card,
         "actor" => FamilyNodeKind::Actor,
+        "hexagon" => FamilyNodeKind::Hexagon,
+        "label" => FamilyNodeKind::Label,
+        "person" => FamilyNodeKind::Person,
+        "process" => FamilyNodeKind::Process,
+        "queue" => FamilyNodeKind::Queue,
+        "stack" => FamilyNodeKind::Stack,
+        "usecase" => FamilyNodeKind::UseCaseDeployment,
         _ => return None,
     })
 }
@@ -1678,8 +2457,15 @@ fn declaration_stereotype_members(stereotypes: Vec<String>) -> Vec<crate::ast::C
         .collect()
 }
 
-fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
+fn normalize_timing_time(
+    raw: &str,
+    current: Option<&str>,
+    anchors: &std::collections::BTreeMap<String, String>,
+) -> String {
     let trimmed = raw.trim().trim_start_matches('@');
+    if let Some(anchor_expr) = trimmed.strip_prefix(':') {
+        return normalize_timing_anchor_expr(anchor_expr, current, anchors);
+    }
     if let Some((_, multiplier)) = trimmed.split_once('*') {
         if let Ok(n) = multiplier.trim().parse::<i64>() {
             return n.to_string();
@@ -1702,31 +2488,94 @@ fn normalize_timing_time(raw: &str, current: Option<&str>) -> String {
     trimmed.to_string()
 }
 
+fn normalize_timing_anchor_expr(
+    raw: &str,
+    current: Option<&str>,
+    anchors: &std::collections::BTreeMap<String, String>,
+) -> String {
+    let trimmed = raw.trim();
+    let split_idx = trimmed
+        .char_indices()
+        .skip(1)
+        .find(|(_, ch)| *ch == '+' || *ch == '-')
+        .map(|(idx, _)| idx);
+    let (name, offset) = match split_idx {
+        Some(idx) => (&trimmed[..idx], Some(&trimmed[idx..])),
+        None => (trimmed, None),
+    };
+    let base = anchors
+        .get(name)
+        .cloned()
+        .unwrap_or_else(|| current.unwrap_or_default().to_string());
+    let Some(offset) = offset else {
+        return base;
+    };
+    let base_num = base.parse::<i64>().unwrap_or(0);
+    let delta = offset.parse::<i64>().unwrap_or(0);
+    base_num.saturating_add(delta).to_string()
+}
+
+fn normalize_timing_endpoint(
+    raw: &str,
+    current: Option<&str>,
+    anchors: &std::collections::BTreeMap<String, String>,
+) -> String {
+    let trimmed = raw.trim();
+    let Some((signal, time)) = trimmed.split_once('@') else {
+        return current
+            .filter(|time| !time.is_empty())
+            .map(|time| format!("{trimmed}@{time}"))
+            .unwrap_or_else(|| trimmed.to_string());
+    };
+    let normalized_time = normalize_timing_time(time, current, anchors);
+    format!("{}@{}", signal.trim(), normalized_time)
+}
+
 fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {
     match kind {
+        ComponentNodeKind::Action => FamilyNodeKind::Action,
+        ComponentNodeKind::Agent => FamilyNodeKind::Agent,
         ComponentNodeKind::Component => FamilyNodeKind::Component,
         ComponentNodeKind::Interface => FamilyNodeKind::Interface,
         ComponentNodeKind::Port => FamilyNodeKind::Port,
         ComponentNodeKind::Node => FamilyNodeKind::Node,
         ComponentNodeKind::Artifact => FamilyNodeKind::Artifact,
+        ComponentNodeKind::Boundary => FamilyNodeKind::Boundary,
         ComponentNodeKind::Cloud => FamilyNodeKind::Cloud,
+        ComponentNodeKind::Circle => FamilyNodeKind::Circle,
+        ComponentNodeKind::Collections => FamilyNodeKind::Collections,
         ComponentNodeKind::Frame => FamilyNodeKind::Frame,
         ComponentNodeKind::Storage => FamilyNodeKind::Storage,
+        ComponentNodeKind::Container => FamilyNodeKind::Container,
+        ComponentNodeKind::Control => FamilyNodeKind::Control,
         ComponentNodeKind::Database => FamilyNodeKind::Database,
+        ComponentNodeKind::Entity => FamilyNodeKind::Entity,
         ComponentNodeKind::Package => FamilyNodeKind::Package,
         ComponentNodeKind::Rectangle => FamilyNodeKind::Rectangle,
         ComponentNodeKind::Folder => FamilyNodeKind::Folder,
         ComponentNodeKind::File => FamilyNodeKind::File,
         ComponentNodeKind::Card => FamilyNodeKind::Card,
         ComponentNodeKind::Actor => FamilyNodeKind::Actor,
+        ComponentNodeKind::Hexagon => FamilyNodeKind::Hexagon,
+        ComponentNodeKind::Label => FamilyNodeKind::Label,
+        ComponentNodeKind::Person => FamilyNodeKind::Person,
+        ComponentNodeKind::Process => FamilyNodeKind::Process,
+        ComponentNodeKind::Queue => FamilyNodeKind::Queue,
+        ComponentNodeKind::Stack => FamilyNodeKind::Stack,
+        ComponentNodeKind::UseCase => FamilyNodeKind::UseCaseDeployment,
     }
 }
 
 fn activity_step_node_kind(kind: &ActivityStepKind) -> FamilyNodeKind {
     match kind {
         ActivityStepKind::Start => FamilyNodeKind::ActivityStart,
-        ActivityStepKind::Stop | ActivityStepKind::End => FamilyNodeKind::ActivityStop,
+        ActivityStepKind::Stop
+        | ActivityStepKind::End
+        | ActivityStepKind::Kill
+        | ActivityStepKind::Detach => FamilyNodeKind::ActivityStop,
         ActivityStepKind::Action => FamilyNodeKind::ActivityAction,
+        ActivityStepKind::Connector => FamilyNodeKind::ActivityAction,
+        ActivityStepKind::Note => FamilyNodeKind::Note,
         ActivityStepKind::IfStart
         | ActivityStepKind::WhileStart
         | ActivityStepKind::RepeatWhile => FamilyNodeKind::ActivityDecision,
@@ -1736,9 +2585,9 @@ fn activity_step_node_kind(kind: &ActivityStepKind) -> FamilyNodeKind {
         ActivityStepKind::Fork | ActivityStepKind::ForkAgain => FamilyNodeKind::ActivityFork,
         ActivityStepKind::EndFork => FamilyNodeKind::ActivityForkEnd,
         ActivityStepKind::RepeatStart => FamilyNodeKind::ActivityMerge,
-        ActivityStepKind::PartitionStart | ActivityStepKind::PartitionEnd => {
-            FamilyNodeKind::ActivityPartition
-        }
+        ActivityStepKind::Arrow
+        | ActivityStepKind::PartitionStart
+        | ActivityStepKind::PartitionEnd => FamilyNodeKind::ActivityPartition,
     }
 }
 

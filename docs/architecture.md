@@ -64,7 +64,7 @@ This page documents the internal structure of `puml` using diagrams that were au
 
 **Why it matters.** The honest status map is the single most useful communication tool for contributors and users. It sets expectations, identifies where help is most needed, and acts as a regression anchor — if a family moves backward in depth, that should be visible here.
 
-**Key files.** `docs/parity-roadmap.md`, `docs/plantuml_frontend_conformance_matrix.md`, `src/normalize/family.rs`, `src/parser/family.rs`.
+**Key files.** `docs/internal/spec/plantuml-spec.md` (canonical support matrix), `docs/internal/spec/audit/` (per-chapter audits), `src/normalize/family.rs`, `src/parser/family.rs`.
 
 ---
 

@@ -1,5 +1,13 @@
 fn parse_timing_decl(line: &str) -> Option<StatementKind> {
-    let trimmed = line.trim();
+    let mut trimmed = line.trim();
+    let mut compact = false;
+    if let Some(rest) = trimmed.strip_prefix("compact ") {
+        compact = true;
+        trimmed = rest.trim();
+    }
+    if let Some(rest) = trimmed.strip_prefix("analog ") {
+        return parse_timing_analog_decl(rest, compact);
+    }
     let kinds: &[(&str, TimingDeclKind)] = &[
         ("concise", TimingDeclKind::Concise),
         ("robust", TimingDeclKind::Robust),
@@ -31,6 +39,10 @@ fn parse_timing_decl(line: &str) -> Option<StatementKind> {
             if name.is_empty() {
                 return None;
             }
+            let mut controls = controls;
+            if compact {
+                controls.push("__timing:compact".to_string());
+            }
             return Some(StatementKind::TimingDecl {
                 kind,
                 name,
@@ -40,6 +52,60 @@ fn parse_timing_decl(line: &str) -> Option<StatementKind> {
         }
     }
     None
+}
+
+fn parse_timing_analog_decl(rest: &str, compact: bool) -> Option<StatementKind> {
+    let (label, remainder) = if rest.starts_with('"') {
+        let stripped = rest.strip_prefix('"')?;
+        let end = stripped.find('"')?;
+        (
+            Some(stripped[..end].to_string()),
+            stripped[end + 1..].trim().to_string(),
+        )
+    } else {
+        (None, rest.trim().to_string())
+    };
+
+    let lower = remainder.to_ascii_lowercase();
+    let mut controls = vec!["__timing:analog".to_string()];
+    let name_raw = if let Some(between_rest) = lower.strip_prefix("between ") {
+        let source_between = &remainder[remainder.len() - between_rest.len()..];
+        let lower_between = source_between.to_ascii_lowercase();
+        let (range, after_range) = lower_between
+            .find(" as ")
+            .map(|idx| (&source_between[..idx], source_between[idx + 4..].trim()))
+            .unwrap_or((source_between, ""));
+        let mut parts = range.split_whitespace();
+        let min = parts.next()?.trim();
+        let and_kw = parts.next()?.trim();
+        let max = parts.next()?.trim();
+        if !and_kw.eq_ignore_ascii_case("and") {
+            return None;
+        }
+        controls.push(format!("__timing:analog_between {min} {max}"));
+        after_range
+    } else if let Some((lhs, rhs)) = remainder.split_once(" as ") {
+        if label.is_none() {
+            controls.push(format!("__timing:analog_label {}", lhs.trim()));
+        }
+        rhs.trim()
+    } else {
+        remainder.trim()
+    };
+
+    let name = clean_ident(name_raw);
+    if name.is_empty() {
+        return None;
+    }
+    if compact {
+        controls.push("__timing:compact".to_string());
+    }
+    Some(StatementKind::TimingDecl {
+        kind: TimingDeclKind::Robust,
+        name,
+        label,
+        controls,
+    })
 }
 
 fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
@@ -60,6 +126,41 @@ fn split_timing_decl_controls(input: &str) -> (String, Vec<String>) {
 
 fn parse_timing_event(line: &str) -> Option<StatementKind> {
     let trimmed = line.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "mode compact" => {
+            return Some(StatementKind::TimingEvent {
+                time: String::new(),
+                signal: None,
+                state: None,
+                note: Some("__timing:mode:compact".to_string()),
+            });
+        }
+        "hide time-axis" => {
+            return Some(StatementKind::TimingEvent {
+                time: String::new(),
+                signal: None,
+                state: None,
+                note: Some("__timing:hide-time-axis".to_string()),
+            });
+        }
+        "manual time-axis" => {
+            return Some(StatementKind::TimingEvent {
+                time: String::new(),
+                signal: None,
+                state: None,
+                note: Some("__timing:manual-time-axis".to_string()),
+            });
+        }
+        _ => {}
+    }
+    if let Some(body) = trimmed.strip_prefix("scale ").filter(|body| body.contains(" as ")) {
+        return Some(StatementKind::TimingEvent {
+            time: String::new(),
+            signal: None,
+            state: None,
+            note: Some(format!("__timing:scale:{}", body.trim())),
+        });
+    }
     if let Some((start, end, label)) = parse_timing_highlight(trimmed) {
         return Some(StatementKind::TimingEvent {
             time: start,
@@ -92,6 +193,14 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
                 note: None,
             });
         }
+        if let Some(anchor) = parse_timing_anchor(after) {
+            return Some(StatementKind::TimingEvent {
+                time,
+                signal: None,
+                state: None,
+                note: Some(format!("__timing:anchor:{anchor}")),
+            });
+        }
         if let Some((end, label)) = parse_timing_range_after_time(after) {
             return Some(StatementKind::TimingEvent {
                 time,
@@ -116,6 +225,9 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
             note: Some(after.to_string()),
         });
     }
+    if let Some(kind) = parse_timing_relation(trimmed) {
+        return Some(kind);
+    }
     if let Some((time, state)) = parse_timing_oriented_state(trimmed) {
         return Some(StatementKind::TimingEvent {
             time,
@@ -135,6 +247,51 @@ fn parse_timing_event(line: &str) -> Option<StatementKind> {
     None
 }
 
+fn parse_timing_anchor(after_time: &str) -> Option<String> {
+    let anchor = after_time.trim().strip_prefix("as ")?.trim();
+    let anchor = anchor.strip_prefix(':').unwrap_or(anchor).trim();
+    if anchor.is_empty() {
+        None
+    } else {
+        Some(anchor.to_string())
+    }
+}
+
+fn parse_timing_relation(line: &str) -> Option<StatementKind> {
+    let (core, label) = line
+        .split_once(':')
+        .map(|(lhs, rhs)| (lhs.trim(), Some(rhs.trim().trim_matches('"').to_string())))
+        .unwrap_or((line.trim(), None));
+    for arrow in ["<->", "-->", "<--", "->", "<-"] {
+        if let Some((from, to)) = core.split_once(arrow) {
+            let from = from.trim();
+            let to = to.trim();
+            if from.is_empty() || to.is_empty() {
+                return None;
+            }
+            return Some(StatementKind::FamilyRelation(FamilyRelation {
+                from: from.to_string(),
+                to: to.to_string(),
+                arrow: arrow.to_string(),
+                label,
+                stereotype: None,
+                left_cardinality: None,
+                right_cardinality: None,
+                left_role: None,
+                right_role: None,
+                line_color: None,
+                dashed: arrow.contains("--"),
+                hidden: false,
+                thickness: None,
+                direction: None,
+                left_lollipop: false,
+                right_lollipop: false,
+            }));
+        }
+    }
+    None
+}
+
 fn parse_timing_oriented_state(line: &str) -> Option<(String, String)> {
     let (time, state) = split_is(line)?;
     if time.trim().is_empty()
@@ -150,17 +307,37 @@ fn parse_timing_oriented_state(line: &str) -> Option<(String, String)> {
 }
 
 fn normalize_timing_state_literal(state: &str) -> String {
-    let trimmed = state.trim().trim_matches('"').trim();
-    let body = trimmed
+    let trimmed = state.trim();
+    let (body_raw, style) = split_timing_state_style(trimmed);
+    let body_raw = body_raw.trim().trim_matches('"').trim();
+    let body = body_raw
         .strip_prefix('{')
         .and_then(|v| v.strip_suffix('}'))
-        .unwrap_or(trimmed)
+        .unwrap_or(body_raw)
         .trim();
-    match body.to_ascii_lowercase().as_str() {
+    let normalized = match body.to_ascii_lowercase().as_str() {
         "up" | "hi" | "high" | "on" | "true" => "high".to_string(),
         "down" | "lo" | "low" | "off" | "false" => "low".to_string(),
         _ => body.to_string(),
+    };
+    match style {
+        Some(style) => format!("{normalized} {style}"),
+        None => normalized,
     }
+}
+
+fn split_timing_state_style(state: &str) -> (&str, Option<String>) {
+    let mut in_quote = false;
+    for (idx, ch) in state.char_indices() {
+        if ch == '"' {
+            in_quote = !in_quote;
+            continue;
+        }
+        if !in_quote && ch == '#' && idx > 0 && state[..idx].ends_with(char::is_whitespace) {
+            return (state[..idx].trim_end(), Some(state[idx..].trim().to_string()));
+        }
+    }
+    (state, None)
 }
 
 fn parse_timing_range_after_time(after: &str) -> Option<(String, String)> {
@@ -206,11 +383,7 @@ fn split_is(s: &str) -> Option<(String, String)> {
     let needle = " is ";
     let idx = s.find(needle)?;
     let lhs = s[..idx].trim();
-    let rhs = s[idx + needle.len()..]
-        .trim()
-        .trim_matches('"')
-        .trim_matches('{')
-        .trim_matches('}');
+    let rhs = s[idx + needle.len()..].trim();
     if lhs.is_empty() || rhs.is_empty() {
         return None;
     }

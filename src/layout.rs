@@ -324,18 +324,24 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                 target,
                 text,
                 position,
+                aligned,
             } => {
                 let (content_width, text_lines) = multiline_metrics(text);
                 let width_from_text =
                     content_width + (options.note_padding * 2) + NOTE_TEXT_WIDTH_GUARD_PX;
                 let width = options.note_width.max(width_from_text);
                 let height = (text_lines * TEXT_LINE_HEIGHT) + (options.note_padding * 2);
-                let y = note_vertical_position_y(
-                    position,
-                    events_top + (event_rows * options.message_row_height),
-                    height,
-                    events_top,
-                );
+                // For `/ note` (aligned), reuse the y of the most-recently placed note
+                // so that the two notes appear side-by-side at the same vertical level.
+                let base_y: i32 = if *aligned {
+                    notes
+                        .last()
+                        .map(|last_note: &NoteBox| last_note.y)
+                        .unwrap_or_else(|| events_top + (event_rows * options.message_row_height))
+                } else {
+                    events_top + (event_rows * options.message_row_height)
+                };
+                let y = note_vertical_position_y(position, base_y, height, events_top);
                 let (x, width) = note_horizontal_bounds(
                     position,
                     target.as_deref(),
@@ -355,7 +361,10 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
                     height,
                     text: text.clone(),
                 });
-                event_rows += row_units_for_height(height, options.message_row_height);
+                // Aligned notes don't advance the row counter.
+                if !aligned {
+                    event_rows += row_units_for_height(height, options.message_row_height);
+                }
             }
             SequenceEventKind::GroupStart { kind, label } => {
                 let y = events_top + (event_rows * options.message_row_height);
@@ -731,6 +740,7 @@ fn layout_page(document: &SequencePage, options: LayoutOptions) -> Scene {
         legend_text: document.legend.clone(),
         legend_halign: document.legend_halign,
         legend_valign: document.legend_valign,
+        mainframe: document.mainframe.clone(),
     }
 }
 
@@ -805,13 +815,24 @@ fn visual_char_count(word: &str) -> usize {
         if chars[i] == '<' {
             // Try to skip a markup tag: collect up to '>'.
             let mut j = i + 1;
-            // Allow at most 32 chars inside the tag to avoid consuming large
+            // Allow longer sprite references such as `<$name{scale=2,color=#2563eb}>`
+            // to stay atomic during wrapping; splitting inside them prevents render-time
+            // sprite substitution.
+            let tag_limit = if i + 1 < len && chars[i + 1] == '$' {
+                96
+            } else {
+                32
+            };
+            // Allow at most tag_limit chars inside the tag to avoid consuming large
             // non-tag `<...` sequences (e.g. math operators).
-            while j < len && j - i <= 32 && chars[j] != '>' {
+            while j < len && j - i <= tag_limit && chars[j] != '>' {
                 j += 1;
             }
             if j < len && chars[j] == '>' {
-                // Consumed a tag — skip it entirely (no visual chars).
+                if i + 1 < len && chars[i + 1] == '$' {
+                    count += 2;
+                }
+                // Consumed a tag — skip it entirely (or as compact sprite width).
                 i = j + 1;
                 continue;
             }

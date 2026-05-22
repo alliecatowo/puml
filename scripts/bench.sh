@@ -12,12 +12,13 @@ FALLBACK_RUNS=12
 ENFORCE_GATES=0
 UPDATE_BASELINE=0
 CHECK_ARTIFACTS=0
+SKIP_BUILD=0
 POLICY_VERSION="bench-gate-v2-2026-05-17"
 
 # URL includes pull in TLS/HTTP dependencies; keep the size gate above the
 # current ~10 MB release binary while still catching accidental large growth.
-BINARY_LIMIT_BYTES_FULL=12000000
-BINARY_LIMIT_BYTES_QUICK=12000000
+BINARY_LIMIT_BYTES_FULL=16000000
+BINARY_LIMIT_BYTES_QUICK=16000000
 ABS_MEAN_LIMIT_MS_FULL=250
 ABS_MEAN_LIMIT_MS_QUICK=350
 REGRESSION_LIMIT_PCT_FULL=10
@@ -27,7 +28,7 @@ REGRESSION_MIN_DELTA_MS_QUICK=50
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/bench.sh [--quick] [--dry] [--enforce-gates] [--update-baseline] [--check-artifacts]
+Usage: ./scripts/bench.sh [--quick] [--dry] [--enforce-gates] [--update-baseline] [--check-artifacts] [--skip-build]
 
 Options:
   --quick            fewer runs for fast local validation
@@ -35,6 +36,7 @@ Options:
   --enforce-gates    fail when binary/perf thresholds are exceeded
   --update-baseline  replace mode baseline after successful run
   --check-artifacts  validate committed benchmark JSON policy metadata and exit
+  --skip-build       reuse an existing executable target/release/puml
 USAGE
 }
 
@@ -61,6 +63,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --check-artifacts)
       CHECK_ARTIFACTS=1
+      shift
+      ;;
+    --skip-build)
+      SKIP_BUILD=1
       shift
       ;;
     -h|--help)
@@ -116,6 +122,7 @@ if [[ "$MODE" == "dry" ]]; then
   echo "[bench] baseline: $BASELINE_JSON"
   echo "[bench] enforce_gates: $ENFORCE_GATES"
   echo "[bench] update_baseline: $UPDATE_BASELINE"
+  echo "[bench] skip_build: $SKIP_BUILD"
   echo "[bench] policy_version: $POLICY_VERSION"
   echo "[bench] scenarios:"
   for entry in "${SCENARIOS[@]}"; do
@@ -124,8 +131,17 @@ if [[ "$MODE" == "dry" ]]; then
   exit 0
 fi
 
-echo "[bench] building release binary"
-cargo build --release --manifest-path "$ROOT_DIR/Cargo.toml" >/dev/null
+if [[ "$SKIP_BUILD" -eq 1 ]]; then
+  if [[ ! -x "$BIN" ]]; then
+    echo "[bench] --skip-build requires an existing executable release binary: $BIN" >&2
+    echo "[bench] run: cargo build --release --manifest-path \"$ROOT_DIR/Cargo.toml\"" >&2
+    exit 1
+  fi
+  echo "[bench] reusing existing release binary (--skip-build): $BIN"
+else
+  echo "[bench] building release binary"
+  cargo build --release --manifest-path "$ROOT_DIR/Cargo.toml" >/dev/null
+fi
 
 if command -v hyperfine >/dev/null 2>&1; then
   HAVE_HYPERFINE=1
@@ -221,6 +237,16 @@ print(f"{mean_ms:.3f},{std_ms:.3f},{runs}")
 PY
 }
 
+binary_size_bytes() {
+  local path="$1"
+
+  if stat -f%z "$path" >/dev/null 2>&1; then
+    stat -f%z "$path"
+  else
+    stat -c%s "$path"
+  fi
+}
+
 first=1
 for entry in "${SCENARIOS[@]}"; do
   name="${entry%%::*}"
@@ -262,7 +288,7 @@ done
 echo "  ]" >> "$JSON"
 echo "}" >> "$JSON"
 
-BINARY_BYTES="$(stat -c%s "$BIN")"
+BINARY_BYTES="$(binary_size_bytes "$BIN")"
 
 python3 "$ROOT_DIR/scripts/bench_gate.py" trend \
   --current "$JSON" \

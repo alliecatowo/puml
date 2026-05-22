@@ -5,11 +5,16 @@ fn parse_family_declaration(
 ) -> Result<Option<(StatementKind, usize)>, Diagnostic> {
     for (keyword, marker) in [
         ("abstract class", Some("<<abstract class>>")),
+        ("exception", Some("<<exception>>")),
+        ("metaclass", Some("<<metaclass>>")),
+        ("stereotype", Some("<<stereotype>>")),
         ("interface", Some("<<interface>>")),
         ("enum", Some("<<enum>>")),
         ("annotation", Some("<<annotation>>")),
         ("protocol", Some("<<protocol>>")),
         ("struct", Some("<<struct>>")),
+        ("circle", Some("<<circle>>")),
+        ("diamond", Some("<<diamond>>")),
         ("abstract", Some("<<abstract>>")),
         ("class", None),
     ] {
@@ -22,6 +27,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            heritage,
         } = decl;
         let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
@@ -48,6 +54,7 @@ fn parse_family_declaration(
             declaration_marker_members(marker, stereotypes)
         };
         append_inline_fill_member(&mut members, fill_color);
+        append_heritage_members(&mut members, heritage);
         return Ok(Some((
             StatementKind::ClassDecl(ClassDecl {
                 name,
@@ -62,6 +69,48 @@ fn parse_family_declaration(
         )));
     }
 
+    if let Some(decl) = parse_named_family_decl(line, "entity") {
+        let FamilyDeclParts {
+            name,
+            alias,
+            has_block,
+            stereotypes,
+            fill_color,
+            heritage,
+        } = decl;
+        if has_block || later_lines_contain_ie_family_context(lines, start) {
+            let mut members = if has_block {
+                let mut members = parse_family_decl_members(lines, start, "entity", &name)?;
+                for stereotype in stereotypes.iter().rev() {
+                    members.insert(
+                        0,
+                        ClassMember {
+                            text: format!("<<{stereotype}>>"),
+                            modifier: None,
+                        },
+                    );
+                }
+                members
+            } else {
+                declaration_marker_members(None, stereotypes)
+            };
+            append_inline_fill_member(&mut members, fill_color);
+            append_heritage_members(&mut members, heritage);
+            return Ok(Some((
+                StatementKind::ClassDecl(ClassDecl {
+                    name,
+                    alias,
+                    members,
+                }),
+                if has_block {
+                    find_family_decl_end(lines, start)
+                } else {
+                    start
+                },
+            )));
+        }
+    }
+
     for (keyword, marker) in [("map", Some("<<map>>")), ("object", None)] {
         let Some(decl) = parse_named_family_decl(line, keyword) else {
             continue;
@@ -72,6 +121,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            ..
         } = decl;
         let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
@@ -112,6 +162,10 @@ fn parse_family_declaration(
         )));
     }
 
+    if let Some(kind) = parse_association_class_relation(line) {
+        return Ok(Some((kind, start)));
+    }
+
     if let Some(decl) = parse_parenthesized_usecase_decl(line) {
         let FamilyDeclParts {
             name,
@@ -146,6 +200,7 @@ fn parse_family_declaration(
             has_block,
             stereotypes,
             fill_color,
+            ..
         } = decl;
         let mut members = if has_block {
             let mut members = parse_family_decl_members(lines, start, keyword, &name)?;
@@ -194,17 +249,42 @@ fn later_lines_contain_class_family_declaration(lines: &[(&str, Span)], start: u
         line.starts_with("abstract class ")
             || line.starts_with("abstract ")
             || line.starts_with("annotation ")
+            || line.starts_with("circle ")
             || line.starts_with("class ")
+            || line.starts_with("diamond ")
             || line.starts_with("enum ")
+            || line.starts_with("exception ")
+            || line.starts_with("metaclass ")
             || line.starts_with("protocol ")
+            || line.starts_with("stereotype ")
             || line.starts_with("struct ")
+            || (line.starts_with("entity ") && line.ends_with('{'))
     })
+}
+
+fn later_lines_contain_ie_family_context(lines: &[(&str, Span)], start: usize) -> bool {
+    lines.iter().skip(start + 1).any(|(raw, _)| {
+        let line = raw.trim();
+        line.starts_with("entity ") && line.ends_with('{') || line_contains_ie_relation_token(line)
+    })
+}
+
+fn line_contains_ie_relation_token(line: &str) -> bool {
+    [
+        "||--", "||..", "|o--", "|o..", "}o--", "}o..", "}|--", "}|..", "--||", "..||", "--o|",
+        "..o|", "--o{", "..o{", "--|{", "..|{",
+    ]
+    .iter()
+    .any(|token| line.contains(token))
 }
 
 fn later_lines_contain_usecase_family_declaration(lines: &[(&str, Span)], start: usize) -> bool {
     lines.iter().skip(start + 1).any(|(raw, _)| {
         let line = raw.trim();
-        line.starts_with("usecase ") || line.starts_with("usecase(")
+        line.starts_with("usecase ")
+            || line.starts_with("usecase(")
+            || line.starts_with('(')
+            || line.starts_with("actor ")
     })
 }
 
@@ -244,8 +324,16 @@ fn later_lines_contain_sequence_family_keywords(lines: &[(&str, Span)], start: u
             || lower.starts_with("critical ")
             || lower == "critical"
             || lower.starts_with("ref over ")
-            || lower.starts_with("ref over\t");
+            || lower.starts_with("ref over\t")
+            || (lower.starts_with("==") && lower.ends_with("==") && lower.len() >= 4);
         has_sequence_arrow || is_sequence_keyword
+    })
+}
+
+fn later_lines_contain_activity_context(lines: &[(&str, Span)], start: usize) -> bool {
+    lines.iter().skip(start + 1).any(|(raw, _)| {
+        let line = raw.trim();
+        looks_like_old_activity_flow(line) || parse_activity_step(line).is_some()
     })
 }
 
@@ -256,6 +344,13 @@ struct FamilyDeclParts {
     has_block: bool,
     stereotypes: Vec<String>,
     fill_color: Option<String>,
+    heritage: Vec<FamilyHeritage>,
+}
+
+#[derive(Debug, Clone)]
+struct FamilyHeritage {
+    arrow: String,
+    target: String,
 }
 
 fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts> {
@@ -290,7 +385,8 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         (trimmed, None)
     };
 
-    let (name_without_stereotypes, stereotypes) = strip_declaration_stereotypes(name_raw);
+    let (name_raw, heritage) = split_declaration_heritage(name_raw);
+    let (name_without_stereotypes, stereotypes) = strip_declaration_stereotypes(&name_raw);
     let name = clean_ident(&name_without_stereotypes);
     if name.is_empty() {
         return None;
@@ -302,7 +398,138 @@ fn parse_named_family_decl(line: &str, keyword: &str) -> Option<FamilyDeclParts>
         has_block,
         stereotypes,
         fill_color,
+        heritage,
     })
+}
+
+fn append_heritage_members(members: &mut Vec<ClassMember>, heritage: Vec<FamilyHeritage>) {
+    for item in heritage {
+        members.push(ClassMember {
+            text: format!("\x1fheritage:{}:{}", item.arrow, item.target),
+            modifier: None,
+        });
+    }
+}
+
+fn split_declaration_heritage(input: &str) -> (String, Vec<FamilyHeritage>) {
+    let trimmed = input.trim();
+    let Some((base, clause)) = split_at_first_top_level_heritage_keyword(trimmed) else {
+        return (trimmed.to_string(), Vec::new());
+    };
+
+    let mut heritage = Vec::new();
+    let mut rest = clause.trim();
+    loop {
+        let lower = rest.to_ascii_lowercase();
+        if lower.starts_with("extends ") {
+            rest = rest[8..].trim_start();
+            let (targets, next) = take_heritage_targets(rest);
+            for target in split_heritage_targets(targets) {
+                heritage.push(FamilyHeritage {
+                    arrow: "<|--".to_string(),
+                    target,
+                });
+            }
+            rest = next.trim_start();
+        } else if lower.starts_with("implements ") {
+            rest = rest[11..].trim_start();
+            let (targets, next) = take_heritage_targets(rest);
+            for target in split_heritage_targets(targets) {
+                heritage.push(FamilyHeritage {
+                    arrow: "<|..".to_string(),
+                    target,
+                });
+            }
+            rest = next.trim_start();
+        } else {
+            break;
+        }
+        if rest.is_empty() {
+            break;
+        }
+    }
+
+    (base.trim().to_string(), heritage)
+}
+
+fn split_at_first_top_level_heritage_keyword(input: &str) -> Option<(&str, &str)> {
+    let extends = find_top_level_keyword(input, " extends ");
+    let implements = find_top_level_keyword(input, " implements ");
+    let idx = match (extends, implements) {
+        (Some(a), Some(b)) => a.min(b),
+        (Some(a), None) | (None, Some(a)) => a,
+        (None, None) => return None,
+    };
+    Some((&input[..idx], input[idx + 1..].trim_start()))
+}
+
+fn take_heritage_targets(input: &str) -> (&str, &str) {
+    let extends = find_top_level_keyword(input, " extends ");
+    let implements = find_top_level_keyword(input, " implements ");
+    let idx = match (extends, implements) {
+        (Some(a), Some(b)) => a.min(b),
+        (Some(a), None) | (None, Some(a)) => a,
+        (None, None) => return (input, ""),
+    };
+    (&input[..idx], input[idx + 1..].trim_start())
+}
+
+fn split_heritage_targets(input: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut angle_depth = 0i32;
+    let mut in_quote = false;
+    for (idx, ch) in input.char_indices() {
+        match ch {
+            '"' => in_quote = !in_quote,
+            '<' if !in_quote => angle_depth += 1,
+            '>' if !in_quote => angle_depth = angle_depth.saturating_sub(1),
+            ',' if !in_quote && angle_depth == 0 => {
+                let target = clean_ident(&input[start..idx]);
+                if !target.is_empty() {
+                    out.push(target);
+                }
+                start = idx + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    let target = clean_ident(&input[start..]);
+    if !target.is_empty() {
+        out.push(target);
+    }
+    out
+}
+
+fn find_top_level_keyword(input: &str, keyword: &str) -> Option<usize> {
+    let lower = input.to_ascii_lowercase();
+    let needle = keyword.to_ascii_lowercase();
+    let mut search_from = 0usize;
+    while let Some(rel) = lower[search_from..].find(&needle) {
+        let idx = search_from + rel;
+        if is_top_level_span(input, idx) {
+            return Some(idx);
+        }
+        search_from = idx + needle.len();
+    }
+    None
+}
+
+fn is_top_level_span(input: &str, byte_idx: usize) -> bool {
+    let mut angle_depth = 0i32;
+    let mut in_quote = false;
+    for (idx, ch) in input.char_indices() {
+        if idx >= byte_idx {
+            break;
+        }
+        match ch {
+            '"' => in_quote = !in_quote,
+            '<' if !in_quote => angle_depth += 1,
+            '>' if !in_quote => angle_depth = angle_depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    !in_quote && angle_depth == 0
 }
 
 fn append_inline_fill_member(members: &mut Vec<ClassMember>, fill_color: Option<String>) {
@@ -341,7 +568,9 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
     let after = &trimmed[hash_idx..];
     let token_len = after
         .char_indices()
-        .take_while(|(_, ch)| ch.is_ascii_alphanumeric() || matches!(ch, '#' | '_' | '-' | ':'))
+        .take_while(|(_, ch)| {
+            ch.is_ascii_alphanumeric() || matches!(ch, '#' | '_' | '-' | ':' | ';' | '.')
+        })
         .map(|(idx, ch)| idx + ch.len_utf8())
         .last()
         .unwrap_or(0);
@@ -349,7 +578,12 @@ fn split_declaration_inline_fill(input: &str) -> (String, Option<String>) {
         return (trimmed.to_string(), None);
     }
     let token = &after[..token_len];
-    let Some(color) = parse_relation_color_token(token) else {
+    let fill_token = token
+        .split(';')
+        .find(|part| !part.trim().is_empty())
+        .unwrap_or(token)
+        .trim();
+    let Some(color) = parse_relation_color_token(fill_token) else {
         return (trimmed.to_string(), None);
     };
     let before = trimmed[..hash_idx].trim_end();
@@ -429,6 +663,7 @@ fn parse_parenthesized_usecase_decl(line: &str) -> Option<FamilyDeclParts> {
         has_block,
         stereotypes: Vec::new(),
         fill_color,
+        heritage: Vec::new(),
     })
 }
 
@@ -627,10 +862,17 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
     let (rhs_core, right_cardinality, right_role) = parse_relation_side_annotations(rhs, false);
     let (lhs_core, left_lollipop) = strip_lollipop_endpoint(&lhs_core);
     let (rhs_core, right_lollipop) = strip_lollipop_endpoint(&rhs_core);
+    // Component/Deployment diagrams use `[Name]` bracket syntax for nodes, so
+    // `looks_like_virtual_endpoint_syntax` (which rejects any `[`/`]`) must be
+    // skipped for those families.
+    let is_bracket_family = matches!(
+        family,
+        Some(DiagramKind::Component) | Some(DiagramKind::Deployment)
+    );
     if normalize_virtual_endpoint(&lhs_core).is_some()
         || normalize_virtual_endpoint(&rhs_core).is_some()
-        || looks_like_virtual_endpoint_syntax(&lhs_core)
-        || looks_like_virtual_endpoint_syntax(&rhs_core)
+        || (!is_bracket_family && looks_like_virtual_endpoint_syntax(&lhs_core))
+        || (!is_bracket_family && looks_like_virtual_endpoint_syntax(&rhs_core))
     {
         return None;
     }
@@ -657,6 +899,33 @@ fn parse_family_relation(line: &str, family: Option<DiagramKind>) -> Option<Stat
         left_lollipop,
         right_lollipop,
     }))
+}
+
+fn parse_association_class_relation(line: &str) -> Option<StatementKind> {
+    let trimmed = line.trim();
+    let after_open = trimmed.strip_prefix('(')?;
+    let close = after_open.find(')')?;
+    let pair = &after_open[..close];
+    let (left_raw, right_raw) = pair.split_once(',')?;
+    let left = clean_ident(left_raw);
+    let right = clean_ident(right_raw);
+    if left.is_empty() || right.is_empty() {
+        return None;
+    }
+    let rest = after_open[close + 1..].trim();
+    let arrow_len = family_arrow_token_len(rest)?;
+    let arrow = normalize_family_arrow_token(&rest[..arrow_len]);
+    let association_raw = rest[arrow_len..].trim();
+    let association = clean_bracketed_ident(association_raw);
+    if association.is_empty() {
+        return None;
+    }
+    Some(StatementKind::AssociationClass {
+        left,
+        right,
+        association,
+        arrow,
+    })
 }
 
 fn strip_lollipop_endpoint(side: &str) -> (String, bool) {
@@ -749,6 +1018,75 @@ fn parse_family_member_row(line: &str, family: Option<DiagramKind>) -> Option<St
             members,
         }),
     })
+}
+
+fn parse_family_visibility_control(
+    line: &str,
+    family: Option<DiagramKind>,
+) -> Option<StatementKind> {
+    let lower = line.to_ascii_lowercase();
+    // `hide @unlinked` and `remove @unlinked` are component/deployment-specific
+    // but may appear before the diagram family is detected (family == None).
+    // Handle them before the family gate so they are not misinterpreted.
+    if lower == "hide @unlinked" || lower == "remove @unlinked" {
+        let is_component_family = matches!(
+            family,
+            None | Some(DiagramKind::Component | DiagramKind::Deployment)
+        );
+        if is_component_family {
+            let keyword = if lower.starts_with("hide") {
+                "hide @unlinked"
+            } else {
+                "remove @unlinked"
+            };
+            return Some(StatementKind::HideOption(keyword.to_string()));
+        }
+    }
+    if !matches!(
+        family,
+        Some(
+            DiagramKind::Class
+                | DiagramKind::Object
+                | DiagramKind::UseCase
+                | DiagramKind::Component
+                | DiagramKind::Deployment
+        )
+    ) {
+        return None;
+    }
+    if lower.starts_with("hide ") {
+        let rest = line.strip_prefix("hide ").unwrap_or("").trim();
+        if rest.eq_ignore_ascii_case("@unlinked") {
+            return Some(StatementKind::HideOption("hide @unlinked".to_string()));
+        }
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("hide node {rest}")));
+        }
+    }
+    if lower.starts_with("remove ") {
+        let rest = line.strip_prefix("remove ").unwrap_or("").trim();
+        if rest.eq_ignore_ascii_case("@unlinked") {
+            // `remove @unlinked` is synonymous with `hide @unlinked` — both drop
+            // all nodes that have no relation edges.
+            return Some(StatementKind::HideOption("hide @unlinked".to_string()));
+        }
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("remove node {rest}")));
+        }
+    }
+    if lower.starts_with("restore ") {
+        let rest = line.strip_prefix("restore ").unwrap_or("").trim();
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("restore node {rest}")));
+        }
+    }
+    if lower.starts_with("show ") {
+        let rest = line.strip_prefix("show ").unwrap_or("").trim();
+        if !rest.is_empty() {
+            return Some(StatementKind::HideOption(format!("show {rest}")));
+        }
+    }
+    None
 }
 
 fn parse_relation_side_annotations(
@@ -886,7 +1224,27 @@ fn split_family_arrow_styled(
         if in_quote {
             continue;
         }
-        if !matches!(ch, '-' | '.' | '<' | '*' | 'o' | '+' | '|') {
+        if !matches!(
+            ch,
+            '-' | '.'
+                | '<'
+                | '*'
+                | 'o'
+                | '+'
+                | '|'
+                | '{'
+                | '}'
+                | '>'
+                | '0'
+                | '('
+                | ')'
+                | '@'
+                | '^'
+                | '#'
+                | '\\'
+                | '/'
+                | ':'
+        ) {
             continue;
         }
         let rest = &core[idx..];
@@ -896,12 +1254,28 @@ fn split_family_arrow_styled(
         if len == 1 {
             continue;
         }
-        let lhs = core[..idx].trim();
-        let rhs = core[idx + len..].trim();
+        let mut arrow_start = idx;
+        let mut arrow_len = len;
+        let raw_candidate = &rest[..len];
+        if raw_candidate.starts_with("()") && raw_candidate[2..].contains('-') {
+            arrow_start += 2;
+            arrow_len = arrow_len.saturating_sub(2);
+        }
+        if arrow_len > 2
+            && core[arrow_start..arrow_start + arrow_len].ends_with("()")
+            && core[arrow_start..arrow_start + arrow_len - 2].contains('-')
+        {
+            arrow_len -= 2;
+        }
+        if arrow_len == 1 {
+            continue;
+        }
+        let lhs = core[..arrow_start].trim();
+        let rhs = core[arrow_start + arrow_len..].trim();
         if lhs.is_empty() || rhs.is_empty() {
             continue;
         }
-        let raw_arrow = &rest[..len];
+        let raw_arrow = &core[arrow_start..arrow_start + arrow_len];
         let arrow = normalize_family_arrow_token(raw_arrow);
         if arrow.is_empty() {
             continue;
@@ -1005,7 +1379,29 @@ fn family_arrow_token_len(s: &str) -> Option<usize> {
 
     let len = s
         .char_indices()
-        .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|' | '*' | 'o' | '+'))
+        .take_while(|(_, ch)| {
+            matches!(
+                ch,
+                '-' | '.'
+                    | '<'
+                    | '>'
+                    | '|'
+                    | '*'
+                    | 'o'
+                    | '+'
+                    | '{'
+                    | '}'
+                    | '0'
+                    | '('
+                    | ')'
+                    | '@'
+                    | '^'
+                    | '#'
+                    | '\\'
+                    | '/'
+                    | ':'
+            )
+        })
         .map(|(idx, ch)| idx + ch.len_utf8())
         .last()?;
     let token = &s[..len];
@@ -1034,7 +1430,27 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
                 let dir_len = after_with_optional_dir.len().saturating_sub(after.len());
                 let suffix_len = after
                     .char_indices()
-                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|'))
+                    .take_while(|(_, ch)| {
+                        matches!(
+                            ch,
+                            '-' | '.'
+                                | '<'
+                                | '>'
+                                | '|'
+                                | '{'
+                                | '}'
+                                | 'o'
+                                | '0'
+                                | '('
+                                | ')'
+                                | '@'
+                                | '^'
+                                | '#'
+                                | '\\'
+                                | '/'
+                                | ':'
+                        )
+                    })
                     .map(|(idx, ch)| idx + ch.len_utf8())
                     .last()
                     .unwrap_or(0);
@@ -1047,7 +1463,27 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
             if let Some(after_dir) = after_prefix.strip_prefix(dir) {
                 let suffix_len = after_dir
                     .char_indices()
-                    .take_while(|(_, ch)| matches!(ch, '-' | '.' | '<' | '>' | '|'))
+                    .take_while(|(_, ch)| {
+                        matches!(
+                            ch,
+                            '-' | '.'
+                                | '<'
+                                | '>'
+                                | '|'
+                                | '{'
+                                | '}'
+                                | 'o'
+                                | '0'
+                                | '('
+                                | ')'
+                                | '@'
+                                | '^'
+                                | '#'
+                                | '\\'
+                                | '/'
+                                | ':'
+                        )
+                    })
                     .map(|(idx, ch)| idx + ch.len_utf8())
                     .last()
                     .unwrap_or(0);
@@ -1061,7 +1497,7 @@ fn directional_family_arrow_token_len(s: &str) -> Option<usize> {
 }
 
 fn is_family_arrow_token(token: &str) -> bool {
-    token.contains('-') || token.contains('<') || token.contains('>') || token.contains("..")
+    token.contains('-') || token.contains('.')
 }
 
 fn normalize_family_arrow_token(token: &str) -> String {
@@ -1317,10 +1753,15 @@ fn collect_scoped_class_group_content(
         let declaration_keywords = [
             "abstract class",
             "annotation",
+            "circle",
             "interface",
             "abstract",
+            "diamond",
             "enum",
+            "exception",
+            "metaclass",
             "protocol",
+            "stereotype",
             "struct",
             "class",
             "object",
@@ -1389,10 +1830,15 @@ fn collect_scoped_class_group_content(
         for keyword in [
             "abstract class",
             "annotation",
+            "circle",
             "interface",
             "abstract",
+            "diamond",
             "enum",
+            "exception",
+            "metaclass",
             "protocol",
+            "stereotype",
             "struct",
             "class",
             "object",
@@ -1529,22 +1975,7 @@ fn group_body_contains_component_family(
 ) -> bool {
     lines[start + 1..end_idx].iter().any(|(raw, _)| {
         let line = strip_inline_plantuml_comment(raw).trim();
-        let lower = line.to_ascii_lowercase();
-        lower.starts_with("component ")
-            || lower.starts_with("interface ")
-            || lower.starts_with("node ")
-            || lower.starts_with("artifact ")
-            || lower.starts_with("database ")
-            || lower.starts_with("cloud ")
-            || lower.starts_with("frame ")
-            || lower.starts_with("storage ")
-            || lower.starts_with("rectangle ")
-            || lower.starts_with("folder ")
-            || lower.starts_with("file ")
-            || lower.starts_with("card ")
-            || lower.starts_with("port ")
-            || lower.starts_with("portin ")
-            || lower.starts_with("portout ")
+        component_decl_keyword(line).is_some()
     })
 }
 
@@ -1557,9 +1988,15 @@ fn group_body_contains_class_family(lines: &[(&str, Span)], start: usize, end_id
             || lower.starts_with("interface ")
             || lower.starts_with("abstract ")
             || lower.starts_with("enum ")
+            || lower.starts_with("exception ")
+            || lower.starts_with("metaclass ")
+            || lower.starts_with("stereotype ")
+            || lower.starts_with("circle ")
+            || lower.starts_with("diamond ")
             || lower.starts_with("protocol ")
             || lower.starts_with("struct ")
             || lower.starts_with("class ")
+            || (lower.starts_with("entity ") && lower.ends_with('{'))
     })
 }
 

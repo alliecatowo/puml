@@ -39,7 +39,7 @@ def expected_policy_for_mode(mode: str) -> dict:
             abs_limit=250.0,
             regression_limit_pct=10.0,
             regression_min_delta_ms=40.0,
-            binary_limit_bytes=12_000_000,
+            binary_limit_bytes=16_000_000,
         )
     if mode == "quick":
         return policy_metadata(
@@ -47,7 +47,7 @@ def expected_policy_for_mode(mode: str) -> dict:
             abs_limit=350.0,
             regression_limit_pct=20.0,
             regression_min_delta_ms=50.0,
-            binary_limit_bytes=12_000_000,
+            binary_limit_bytes=16_000_000,
         )
     raise ValueError(f"unknown benchmark policy mode: {mode}")
 

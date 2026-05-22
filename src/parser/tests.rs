@@ -1320,6 +1320,68 @@ mod tests {
     }
 
     #[test]
+    fn parses_ie_entity_blocks_as_class_family_with_crows_feet() {
+        let doc = parse_with_options(
+            "skinparam linetype ortho\nentity CUSTOMER {\n  *customer_id : number <<generated>>\n  --\n  *name : text\n}\nentity ORDER {\n  *order_id : number <<generated>>\n}\nCUSTOMER ||--o{ ORDER : places\nORDER }|..|| CUSTOMER : owned by\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        assert!(matches!(
+            doc.statements[0].kind,
+            StatementKind::SkinParam { .. }
+        ));
+        match &doc.statements[1].kind {
+            StatementKind::ClassDecl(decl) => {
+                assert_eq!(decl.name, "CUSTOMER");
+                assert_eq!(decl.members[0].text, "*customer_id : number <<generated>>");
+                assert_eq!(decl.members[1].text, "--");
+                assert_eq!(decl.members[2].text, "*name : text");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[3].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "CUSTOMER");
+                assert_eq!(rel.to, "ORDER");
+                assert_eq!(rel.arrow, "||--o{");
+                assert_eq!(rel.label.as_deref(), Some("places"));
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+        match &doc.statements[4].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "ORDER");
+                assert_eq!(rel.to, "CUSTOMER");
+                assert_eq!(rel.arrow, "}|..||");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_ie_endpoint_pairs_and_dotted_variants() {
+        let doc = parse_with_options(
+            "entity A {\n}\nentity B {\n}\nA |o--|| B\nA ||..|| B\nA }o--|| B\nA }|..|| B\nB ||--o{ A\nB ||..|{ A\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Class);
+        let arrows: Vec<&str> = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::FamilyRelation(rel) => Some(rel.arrow.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            arrows,
+            vec!["|o--||", "||..||", "}o--||", "}|..||", "||--o{", "||..|{"]
+        );
+    }
+
+    #[test]
     fn parses_component_namespace_groups_and_lollipop_endpoint_cleanup() {
         let doc = parse_with_options(
             "@startuml\nnamespace Edge {\n  component API\n  interface \"Orders\" as Orders\n}\nAPI --() Orders: provides\n@enduml\n",
@@ -1485,8 +1547,57 @@ mod tests {
                 && step.label.as_deref() == Some("backward retry path")));
         assert!(steps
             .iter()
-            .any(|step| step.kind == ActivityStepKind::Stop
+            .any(|step| step.kind == ActivityStepKind::Detach
                 && step.label.as_deref() == Some("detach")));
+    }
+
+    #[test]
+    fn parses_activity_new_metadata_steps() {
+        let doc = parse_with_options(
+            "@startuml\nstart\n#LightBlue:Collect;\n-[#red,dashed]-> reviewed;\n:Review;\nnote right: keep evidence\n#pink:(A)\ngroup Audit\n:Log;\nend group\npartition #LightYellow Ops {\n:Ship;\n}\nkill\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Activity);
+        let steps = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::ActivityStep(step) => Some(step),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("\u{1f}style:fill:LightBlue\u{1f}Collect")
+        }));
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::Arrow
+                && step
+                    .label
+                    .as_deref()
+                    .is_some_and(|label| label.contains("color:red") && label.contains("dashed:1"))
+        }));
+        assert!(doc.statements.iter().any(|stmt| matches!(
+            &stmt.kind,
+            StatementKind::Note(note) if note.text == "keep evidence"
+        )));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Connector
+                && step.label.as_deref() == Some("\u{1f}style:fill:pink\u{1f}(A)")));
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::PartitionStart
+                && step.label.as_deref() == Some("\u{1f}style:fill:LightYellow\u{1f}Ops")
+        }));
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::PartitionStart
+                && step.label.as_deref() == Some("Audit")
+        }));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Kill
+                && step.label.as_deref() == Some("kill")));
     }
 
     #[test]
@@ -1571,12 +1682,11 @@ mod tests {
         ));
         assert!(matches!(
             doc.statements[2].kind,
-            StatementKind::GanttTaskDecl {
+            StatementKind::GanttCompound {
                 ref name,
-                start_date: Some(ref d),
-                duration_days: Some(14),
+                ref clauses,
                 ..
-            } if name == "Test" && d == "2026-05-06"
+            } if name == "Test" && clauses == "starts 2026-05-06 and lasts 2 weeks"
         ));
     }
 

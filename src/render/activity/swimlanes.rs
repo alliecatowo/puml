@@ -18,17 +18,24 @@ pub(super) fn emit_lanes(
     lane_header_h: i32,
     height: i32,
     act_style: &ActivityStyle,
+    lane_fills: &std::collections::BTreeMap<String, String>,
 ) {
     let lane_left = |idx: i32| -> i32 { lane_area_x + idx * lane_w };
 
     for (idx, lane) in lanes.iter().enumerate() {
         let lx = lane_left(idx as i32);
-        let bg = if idx % 2 == 0 {
-            act_style.background_color.as_str()
-        } else {
-            "#f1f5f9"
-        };
-        let header_fill = if idx % 2 == 0 { "#e2e8f0" } else { "#dde5ef" };
+        let bg = lane_fills
+            .get(lane)
+            .map(String::as_str)
+            .unwrap_or(if idx % 2 == 0 {
+                act_style.background_color.as_str()
+            } else {
+                "#f1f5f9"
+            });
+        let header_fill = lane_fills
+            .get(lane)
+            .map(String::as_str)
+            .unwrap_or(if idx % 2 == 0 { "#e2e8f0" } else { "#dde5ef" });
 
         if sequential_partition_lanes {
             let Some((span_top, span_bottom)) = lane_spans[idx] else {

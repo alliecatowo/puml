@@ -42,6 +42,16 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
     if lanes.is_empty() {
         lanes.push("default".to_string());
     }
+    let mut lane_fills = std::collections::BTreeMap::new();
+    for (node, meta) in doc.nodes.iter().zip(metas.iter()) {
+        if meta.step_kind == "PartitionStart" && meta.lane_name != "default" {
+            if let Some(fill) = &node.fill_color {
+                lane_fills
+                    .entry(meta.lane_name.clone())
+                    .or_insert(fill.clone());
+            }
+        }
+    }
 
     // -----------------------------------------------------------------------
     // 4. Canvas sizing
@@ -266,6 +276,7 @@ pub fn render_activity_svg(doc: &FamilyDocument) -> String {
         lane_header_h,
         height,
         &act_style,
+        &lane_fills,
     );
 
     // Pass 2: nodes + arrows

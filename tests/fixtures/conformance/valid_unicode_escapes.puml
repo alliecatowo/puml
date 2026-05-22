@@ -1,0 +1,10 @@
+@startuml
+Alice -> Bob: decimal &#8734;
+Bob -> Alice: hex &#x2603;
+Alice -> Bob: tag <U+221E>
+Bob -> Alice: emoji <:calendar:> code <:1f600:>
+Alice -> Bob: fallback <:not_in_small_map:>
+note right of Bob
+Invalid stays literal: &#xZZ; <U+110000> <::>
+end note
+@enduml

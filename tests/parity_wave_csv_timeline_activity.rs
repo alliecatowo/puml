@@ -504,6 +504,126 @@ Separator just 1 day before [Build]'s start
 }
 
 #[test]
+fn gantt_ch16_verbal_slash_relative_dates_then_and_working_lag_render() {
+    let src = r#"@startgantt
+Project starts the 20th of september 2020
+projectscale weekly with week numbering from 1
+saturday are closed
+sunday are closed
+2020/09/22 is closed
+[Prototype design] as [TASK1] requires 3 days and is colored in Lavender/LightBlue
+then [Testing] requires 2 days
+[Deploy] starts 2 working days after [Testing]'s end and requires 1 days
+2020/09/21 to 2020/09/22 are named [Prep window]
+2020/09/23 is colored in salmon
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("data-gantt-scale=\"weekly\""));
+    assert!(svg.contains("week numbering from 1"));
+    assert!(svg.contains("Prep window"));
+    assert!(svg.contains("class=\"gantt-day-marker\""));
+    assert!(svg.contains("fill=\"Lavender\""));
+    assert!(svg.contains("stroke=\"LightBlue\""));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.project_start.as_deref(), Some("2020-09-20"));
+    assert_eq!(model.scale.as_deref(), Some("weekly"));
+    assert_eq!(model.scale_options, vec!["with week numbering from 1"]);
+    assert_eq!(model.closed_ranges[0].start_date, "2020-09-22");
+    assert_eq!(model.day_markers.len(), 2);
+    let design = model
+        .tasks
+        .iter()
+        .find(|task| task.alias.as_deref() == Some("TASK1"))
+        .unwrap();
+    let testing = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Testing")
+        .unwrap();
+    let deploy = model
+        .tasks
+        .iter()
+        .find(|task| task.name == "Deploy")
+        .unwrap();
+    assert_eq!(testing.start_day, design.start_day + design.duration_days);
+    assert!(deploy.start_day > testing.start_day + testing.duration_days);
+}
+
+#[test]
+fn gantt_ch16_completion_notes_resource_off_and_hide_options_render() {
+    let src = r#"@startgantt
+Project starts 2022-06-27
+hide resources names
+hide resources footbox
+[task1] on {Alice} starts D+0 and requires 1 week and is 40% completed
+note bottom
+handoff memo
+end note
+{Alice} is off on 2022/06/29 to 2022/06/30
+[task2] on {Alice:50%} starts 2 working days after [task1]'s end and requires 3 days
+[task2] is deleted
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("data-gantt-hide-resource-names=\"true\""));
+    assert!(svg.contains("data-gantt-hide-resource-footbox=\"true\""));
+    assert!(svg.contains("data-gantt-completion=\"40\""));
+    assert!(svg.contains("class=\"gantt-task-completion\""));
+    assert!(svg.contains("class=\"gantt-note\""));
+    assert!(svg.contains("handoff memo"));
+    assert!(svg.contains("data-gantt-deleted=\"true\""));
+
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert!(model.hide_resource_names);
+    assert!(model.hide_resource_footbox);
+    assert_eq!(model.resource_off_ranges.len(), 1);
+    assert_eq!(model.notes.len(), 1);
+    assert_eq!(model.tasks[0].completion_percent, Some(40));
+    assert!(model
+        .tasks
+        .iter()
+        .any(|task| task.name == "task2" && task.is_deleted));
+}
+
+#[test]
+fn gantt_ch16_same_display_name_aliases_remain_distinct() {
+    let src = r#"@startgantt
+[SameTaskName] as [T1] lasts 7 days and is colored in pink
+[SameTaskName] as [T2] lasts 3 days and is colored in orange
+[T1] -> [T2]
+@endgantt
+"#;
+    let svg = puml::render_source_to_svg(src).expect("gantt render");
+    assert!(svg.contains("fill=\"pink\""));
+    assert!(svg.contains("fill=\"orange\""));
+    assert!(svg.contains("data-gantt-from=\"T1\" data-gantt-to=\"T2\""));
+    let doc = parse_with_options(src, &ParseOptions::default()).expect("parse gantt");
+    let NormalizedDocument::Timeline(model) = puml::normalize_family(doc).expect("normalize gantt")
+    else {
+        panic!("expected timeline model");
+    };
+    assert_eq!(model.tasks.len(), 2);
+    assert!(model
+        .tasks
+        .iter()
+        .any(|task| task.alias.as_deref() == Some("T1")));
+    assert!(model
+        .tasks
+        .iter()
+        .any(|task| task.alias.as_deref() == Some("T2")));
+}
+
+#[test]
 fn chronology_sorts_iso_dates_and_renders_event_cards() {
     let src = r#"@startchronology
 GA happens on 2026-10-01

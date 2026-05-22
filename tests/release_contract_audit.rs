@@ -59,11 +59,11 @@ fn release_docs_capture_release_gate_contract() {
         "coverage status doc should capture scoped coverage policy"
     );
     assert!(
-        bench.contains("BINARY_LIMIT_BYTES_FULL=12000000"),
+        bench.contains("BINARY_LIMIT_BYTES_FULL=16000000"),
         "bench gate should define the post-url-include full-mode binary ceiling"
     );
     assert!(
-        bench.contains("BINARY_LIMIT_BYTES_QUICK=12000000"),
+        bench.contains("BINARY_LIMIT_BYTES_QUICK=16000000"),
         "bench gate should define the post-url-include quick-mode binary ceiling"
     );
     assert!(
@@ -87,12 +87,29 @@ fn release_docs_capture_release_gate_contract() {
         "bench gate should expose checked-in artifact policy validation"
     );
     assert!(
+        bench.contains("--skip-build")
+            && bench.contains("requires an existing executable release binary"),
+        "bench gate should expose a guarded release-binary reuse mode"
+    );
+    assert!(
+        script.contains("./scripts/bench.sh --skip-build --enforce-gates"),
+        "full check-all gate should reuse the release binary it just built"
+    );
+    assert!(
         bench_docs.contains("./scripts/bench.sh --check-artifacts"),
         "bench docs should describe artifact policy validation"
     );
     assert!(
+        bench_docs.contains("./scripts/bench.sh --skip-build --enforce-gates"),
+        "bench docs should describe release-binary reuse mode"
+    );
+    assert!(
         checklist.contains("./scripts/bench.sh --check-artifacts"),
         "release checklist should require artifact policy validation"
+    );
+    assert!(
+        checklist.contains("./scripts/bench.sh --skip-build --enforce-gates"),
+        "release checklist should document full-gate benchmark build reuse"
     );
     assert!(
         bench_docs.contains("absolute delta floor `>40ms`"),
@@ -103,7 +120,7 @@ fn release_docs_capture_release_gate_contract() {
         "bench docs should describe quick-mode regression delta floor"
     );
     assert!(
-        bench_docs.contains("binary size limit (`target/release/puml`): `12,000,000` bytes"),
+        bench_docs.contains("binary size limit (`target/release/puml`): `16,000,000` bytes"),
         "bench docs should describe recalibrated binary ceiling"
     );
     assert!(

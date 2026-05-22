@@ -1,0 +1,46 @@
+@startuml
+title Chapter 8 Deployment Keyword Parity
+
+node "K8s Cluster" as k8s {
+  queue "Ingress Queue" as q <<durable>> #aliceblue;line:blue;text:navy
+  stack Jobs
+  hexagon Router
+  process Worker
+  artifact app [
+    boot.jar
+    ----
+    signed
+  ]
+  q --> Jobs
+  Jobs --> Router
+  Router --> Worker
+  Worker --> app
+}
+
+cloud Edge
+database Store
+agent AgentA
+boundary ApiBoundary
+control Controller
+entity Catalog
+collections Bag
+circle Signal
+person Operator
+actor/ AltUser
+:Colon Actor:
+usecase/ LegacyUC
+(Search) as SearchUC
+container Runtime
+label Marker
+action Deploy
+
+AgentA 0)--(0 Edge : buffers
+Edge -[#2563eb;line.dashed;line.thickness=3]-> Store : writes
+Operator --> Deploy : approves
+AltUser --> ApiBoundary
+ApiBoundary --> Controller
+Controller --> Catalog
+Catalog --> Runtime
+Runtime --> Deploy
+Worker --> Store : updates
+@enduml

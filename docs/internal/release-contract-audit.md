@@ -10,14 +10,15 @@ Audit date: `2026-05-15` (America/Los_Angeles)
 1. `cargo fmt --check`
 2. `cargo clippy --all-targets --all-features -- -D warnings`
 3. `cargo test`
-4. `cargo llvm-cov --all-features --workspace --fail-under-lines 85 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'`
+4. `cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'`
 5. `cargo build --release`
-6. `./scripts/bench.sh --enforce-gates`
+6. `./scripts/bench.sh --skip-build --enforce-gates`
 
 Quick mode contract:
 
 - `./scripts/check-all.sh --quick` skips coverage + release build.
 - Quick mode still enforces benchmark perf and binary-size gates.
+- Full mode reuses the executable release binary built by `cargo build --release` when invoking `bench.sh`; `bench.sh --skip-build` fails if `target/release/puml` is missing or not executable.
 - Regression gate semantics are two-part: percentage (`10%` full / `20%` quick) plus absolute slowdown floors (`>40ms` full / `>50ms` quick).
 - Regression baselines are mode-scoped (`docs/benchmarks/baseline_full.json`, `docs/benchmarks/baseline_quick.json`) to prevent cross-mode noise.
 - Baselines only move with explicit `--update-baseline`.
@@ -26,7 +27,8 @@ Quick mode contract:
 
 - Script gate enforcement:
   - [x] `scripts/check-all.sh` full mode now includes `cargo build --release`.
-  - [x] `scripts/check-all.sh` full mode scopes coverage to core workspace files and excludes CLI entrypoint binaries and the library facade (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`) while keeping the 85% line gate.
+  - [x] `scripts/check-all.sh` full mode invokes `scripts/bench.sh --skip-build --enforce-gates` to avoid rebuilding the release binary immediately after validation.
+  - [x] `scripts/check-all.sh` full mode scopes coverage to core workspace files and excludes CLI entrypoint binaries and the library facade (`src/main.rs`, `src/bin/puml-lsp.rs`, `src/lib.rs`) while keeping the 87% line gate.
 - Deterministic regression checks:
   - [x] `tests/release_contract_audit.rs` validates required full-gate command ordering.
   - [x] `tests/release_contract_audit.rs` verifies release docs mention coverage + release build contract and pins scoped coverage regex.
@@ -38,7 +40,10 @@ Quick mode contract:
 
 ## Epic #30 Closure Evidence
 
-- `./scripts/check-all.sh` passed end-to-end (fmt, clippy, tests, scoped 85% coverage gate, release build, full benchmark gates).
+- `./scripts/check-all.sh` passed end-to-end at the gate in effect for this
+  historical audit (fmt, clippy, tests, scoped coverage gate, release build,
+  full benchmark gates). The current release contract above is the 87% scoped
+  coverage gate.
 - `./scripts/check-all.sh --quick` passed end-to-end (fmt, clippy, tests, quick benchmark gates).
 - `./scripts/harness-check.sh` passed (agent-pack contracts, MCP smoke checks, render check).
 - `tests/svg_bounds_audit.rs` now enforces docs-example render closure with `summary.failed == 0`.

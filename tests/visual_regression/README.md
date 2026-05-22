@@ -23,11 +23,14 @@ fixture to SVG via the `puml` binary using stdin/stdout, so tracked
 
 ### PNG baseline-diff sweeps
 
-The default `png_regression_all_fixtures` test compares every fixture in
-`manifest.json` against a reviewed PNG baseline committed under
+On Linux, the default `png_regression_all_fixtures` test compares every fixture
+in `manifest.json` against a reviewed PNG baseline committed under
 `tests/visual_baselines/`. `png_regression_committed_baselines` remains as a
 focused guard for the set of PNGs currently present on disk, but every current
-manifest fixture is expected to have a reviewed PNG.
+manifest fixture is expected to have a reviewed PNG. On non-Linux local
+machines, the PNG sweeps skip by default because system font rasterization can
+produce noisy whole-corpus pixel diffs against the Linux-blessed baselines. Set
+`PUML_RUN_PNG_BASELINES=1` to force the PNG sweep locally.
 
 For every fixture in `manifest.json`:
 
@@ -52,6 +55,9 @@ broken, swimlanes collapsed, etc.
 ```sh
 # Run the default visual tests, including the full text sweep and committed baselines.
 cargo test --test visual_regression
+
+# Force Linux-blessed PNG baseline sweeps on non-Linux machines.
+PUML_RUN_PNG_BASELINES=1 cargo test --test visual_regression png_regression_all_fixtures
 
 # Run only the full text-content sweep used by PR Gate.
 cargo test --test visual_regression visual_regression_all_fixtures
@@ -182,7 +188,7 @@ cargo test
 cargo test --test visual_regression visual_regression_all_fixtures
 ```
 
-The default Rust test suite now includes both PNG sweeps:
+The default Rust test suite on Linux includes both PNG sweeps:
 `png_regression_committed_baselines` and `png_regression_all_fixtures`. The
 named full text sweep remains in PR Gate so text-specific failures produce
 `target/visual-diff/*.svg` artifacts even when the broader test suite is

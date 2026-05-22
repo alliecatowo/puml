@@ -264,6 +264,7 @@ fn diagram_kind_name(kind: DiagramKind) -> &'static str {
 fn family_for_declaration(kind: &StatementKind) -> DiagramKind {
     match kind {
         StatementKind::ClassDecl(_) => DiagramKind::Class,
+        StatementKind::AssociationClass { .. } => DiagramKind::Class,
         StatementKind::ObjectDecl(_) => DiagramKind::Object,
         StatementKind::UseCaseDecl(_) => DiagramKind::UseCase,
         _ => DiagramKind::Unknown,

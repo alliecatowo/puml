@@ -65,3 +65,26 @@ root:
     assert!(text.contains("ok: true"));
     assert!(text.contains("bad: [unterminated"));
 }
+
+#[test]
+fn invalid_yaml_strips_highlight_and_style_before_fallback() {
+    let src = r##"@startyaml
+#highlight "root" <<bad>>
+<style>
+.bad {
+  BackGroundColor #dc2626
+}
+</style>
+root:
+  bad: [unterminated
+@endyaml
+"##;
+
+    let text = render_source_to_text(src, TextOutputMode::Txt)
+        .expect("invalid YAML should strip controls before fallback rendering");
+
+    assert!(!text.contains("#highlight"));
+    assert!(!text.contains("<style>"));
+    assert!(text.contains("root:"));
+    assert!(text.contains("bad: [unterminated"));
+}

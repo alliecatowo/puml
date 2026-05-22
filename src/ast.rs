@@ -1,4 +1,5 @@
 use crate::source::Span;
+use crate::sprites::SpriteDefinition;
 
 #[derive(Debug, Clone)]
 pub struct Document {
@@ -58,10 +59,18 @@ pub enum StatementKind {
     },
     GanttTaskDecl {
         name: String,
+        alias: Option<String>,
         start_date: Option<String>,
         duration_days: Option<u32>,
         depends_on: Vec<String>,
         resources: Vec<String>,
+    },
+    GanttCompound {
+        name: String,
+        alias: Option<String>,
+        resources: Vec<String>,
+        clauses: String,
+        after_previous: bool,
     },
     GanttMilestoneDecl {
         name: String,
@@ -152,12 +161,20 @@ pub enum StatementKind {
         members: Vec<String>,
         relations: Vec<FamilyRelation>,
     },
+    AssociationClass {
+        left: String,
+        right: String,
+        association: String,
+        arrow: String,
+    },
     SetOption {
         key: String,
         value: String,
     },
     HideOption(String),
     HideUnlinked,
+    /// `mainframe <title>` — draws a UML mainframe border around the whole diagram.
+    Mainframe(String),
     /// `json $alias { ... }` inline block inside a `@startuml`/`@enduml` block.
     /// The body is the raw JSON text (everything between the outer braces).
     JsonProjection {
@@ -174,6 +191,8 @@ pub enum StatementKind {
     SaltGridRow {
         cells: Vec<SaltCell>,
     },
+    SpriteDef(SpriteDefinition),
+    ListSprites,
     Unknown(String),
 }
 
@@ -203,8 +222,18 @@ pub struct StateDecl {
     pub name: String,
     pub alias: Option<String>,
     pub stereotype: Option<String>,
+    pub style: StateDeclStyle,
     pub children: Vec<Statement>,
     pub region_dividers: Vec<usize>, // indices into children where `||` appeared
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StateDeclStyle {
+    pub fill_color: Option<String>,
+    pub border_color: Option<String>,
+    pub border_dashed: bool,
+    pub border_thickness: Option<u8>,
+    pub text_color: Option<String>,
 }
 
 /// A state transition: `From --> To` or `From --> To : label`
@@ -272,21 +301,36 @@ pub struct UseCaseDecl {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComponentNodeKind {
+    Action,
+    Agent,
     Component,
     Interface,
     Port,
     Node,
     Artifact,
+    Boundary,
     Cloud,
+    Circle,
+    Collections,
     Frame,
     Storage,
+    Container,
+    Control,
     Database,
+    Entity,
     Package,
     Rectangle,
     Folder,
     File,
     Card,
     Actor,
+    Hexagon,
+    Label,
+    Person,
+    Process,
+    Queue,
+    Stack,
+    UseCase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -309,6 +353,11 @@ pub enum ActivityStepKind {
     Stop,
     End,
     Action,
+    Arrow,
+    Connector,
+    Note,
+    Kill,
+    Detach,
     IfStart,
     Else,
     EndIf,
@@ -403,6 +452,8 @@ pub enum VirtualEndpointKind {
     Circle,
     Cross,
     Filled,
+    /// Short arrow (`?->` / `->?`) — stub from the diagram edge (feature 1.30).
+    Short,
 }
 
 #[derive(Debug, Clone)]
@@ -411,6 +462,9 @@ pub struct Note {
     pub position: String,
     pub target: Option<String>,
     pub text: String,
+    /// When `true`, the note is rendered aligned with the previous note at the
+    /// same vertical level (PlantUML `/ note` syntax — feature 1.18).
+    pub aligned: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

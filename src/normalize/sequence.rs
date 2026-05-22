@@ -44,6 +44,9 @@ fn page_from(
         warnings: document.warnings.clone(),
         hide_unlinked: document.hide_unlinked,
         hidden_participants: document.hidden_participants.clone(),
+        sprites: document.sprites.clone(),
+        list_sprites: document.list_sprites,
+        mainframe: document.mainframe.clone(),
     }
 }
 
@@ -89,6 +92,7 @@ pub(super) fn normalize_with_options(
     let mut skinparams = Vec::new();
     let mut footbox_visible = true;
     let mut style = SequenceStyle::default();
+    let mut monochrome_mode = None;
     let mut scale: Option<ScaleSpec> = None;
     let mut legend_halign = LegendHAlign::default();
     let mut legend_valign = LegendVAlign::default();
@@ -102,11 +106,23 @@ pub(super) fn normalize_with_options(
     let mut last_message: Option<(String, String)> = None;
     let mut ignore_newpage = false;
     let mut hide_unlinked = false;
+    let mut sprites = crate::sprites::SpriteRegistry::new();
+    let mut list_sprites = false;
+    let mut mainframe: Option<String> = None;
 
     for stmt in document.statements {
         match stmt.kind {
+            StatementKind::SpriteDef(sprite) => {
+                sprites.insert(sprite.name.clone(), sprite);
+            }
+            StatementKind::ListSprites => {
+                list_sprites = true;
+            }
             StatementKind::HideUnlinked => {
                 hide_unlinked = true;
+            }
+            StatementKind::Mainframe(title_text) => {
+                mainframe = Some(title_text.clone());
             }
             StatementKind::Participant(p) => {
                 mark_group_content(&mut group_stack);
@@ -213,6 +229,7 @@ pub(super) fn normalize_with_options(
                         position: n.position,
                         target: n.target,
                         text: n.text,
+                        aligned: n.aligned,
                     },
                 });
             }
@@ -395,6 +412,9 @@ pub(super) fn normalize_with_options(
                         SequenceSkinParamValue::ParticipantBorderColor(color),
                     ) => style.participant_border_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantFontColor(color),
+                    ) => style.participant_font_color = Some(color),
+                    SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::NoteBackgroundColor(color),
                     ) => style.note_background_color = color,
                     SequenceSkinParamSupport::SupportedWithValue(
@@ -454,6 +474,18 @@ pub(super) fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::GroupHeaderFontStyle(fs),
                     ) => style.group_header_font_style = fs,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Monochrome(mode),
+                    ) => monochrome_mode = Some(mode),
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Handwritten(enabled),
+                    ) => style.hand_drawn = enabled,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::LifelineNoSolid(nosolid),
+                    ) => style.lifeline_nosolid = nosolid,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Sepia(enabled),
+                    ) => style.sepia = enabled,
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
@@ -704,6 +736,7 @@ pub(super) fn normalize_with_options(
             | StatementKind::StateRegionDivider
             | StatementKind::StateHistory { .. }
             | StatementKind::GanttTaskDecl { .. }
+            | StatementKind::GanttCompound { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
             | StatementKind::GanttCalendarClosed { .. }
@@ -717,6 +750,7 @@ pub(super) fn normalize_with_options(
             | StatementKind::TimingEvent { .. }
             | StatementKind::RawBody(_)
             | StatementKind::ClassGroup { .. }
+            | StatementKind::AssociationClass { .. }
             | StatementKind::JsonProjection { .. }
             | StatementKind::YamlProjection { .. }
             | StatementKind::SaltGridRow { .. } => {
@@ -857,6 +891,10 @@ pub(super) fn normalize_with_options(
         (a.message.as_str(), sa).cmp(&(b.message.as_str(), sb))
     });
 
+    if let Some(mode) = monochrome_mode {
+        apply_monochrome_to_sequence_style(&mut style, mode);
+    }
+
     Ok(SequenceDocument {
         participants,
         participant_groups,
@@ -876,6 +914,9 @@ pub(super) fn normalize_with_options(
         warnings,
         hide_unlinked,
         hidden_participants,
+        sprites,
+        list_sprites,
+        mainframe,
     })
 }
 
@@ -1109,7 +1150,7 @@ fn map_role(role: AstRole) -> ParticipantRole {
 }
 
 fn is_virtual_endpoint(id: &str) -> bool {
-    matches!(id, "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]")
+    matches!(id, "[*]" | "[" | "]" | "[o" | "o]" | "[x" | "x]" | "?")
 }
 
 fn virtual_endpoint(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
@@ -1127,6 +1168,15 @@ fn virtual_endpoint(id: &str, is_from: bool) -> Option<VirtualEndpoint> {
                 VirtualEndpointSide::Right
             },
             VirtualEndpointKind::Filled,
+        ),
+        // `?` short arrow endpoint (feature 1.30): stub from diagram edge.
+        "?" => (
+            if is_from {
+                VirtualEndpointSide::Left
+            } else {
+                VirtualEndpointSide::Right
+            },
+            VirtualEndpointKind::Short,
         ),
         _ => return None,
     };
