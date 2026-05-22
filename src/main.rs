@@ -1,4 +1,5 @@
 mod cli;
+mod cli_diff;
 mod cli_hash;
 
 use clap::{CommandFactory, FromArgMatches};
@@ -265,6 +266,11 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
         return match command {
             CliCommand::Format(args) => run_format_command(args),
             CliCommand::Hash(args) => match cli_hash::run_hash(&args) {
+                Ok(0) => Ok(()),
+                Ok(code) => Err((code as u8, String::new())),
+                Err((code, msg)) => Err((code as u8, msg)),
+            },
+            CliCommand::Diff(args) => match cli_diff::run_diff(&args) {
                 Ok(0) => Ok(()),
                 Ok(code) => Err((code as u8, String::new())),
                 Err((code, msg)) => Err((code as u8, msg)),
