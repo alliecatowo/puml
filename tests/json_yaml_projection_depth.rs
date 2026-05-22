@@ -75,3 +75,103 @@ fn yaml_nested_maps_arrays_render_depth_metadata_and_geometry() {
     assert_eq!(region_item_x - regions_x, 18);
     assert_eq!(replica_x - region_item_x, 18);
 }
+
+#[test]
+fn json_highlight_paths_styles_and_creole_scalars_render() {
+    let src = include_str!("fixtures/structured/valid_json_highlight_projection.puml");
+
+    let svg = puml::render_source_to_svg(src).expect("json highlight render");
+
+    assert!(svg.contains("data-projection=\"json\""));
+    assert!(!svg.contains("#highlight"));
+    assert!(!svg.contains("&lt;style&gt;"));
+    assert!(svg.contains("data-json-path=\"/phoneNumbers/0/number\""));
+    assert!(svg.contains("data-json-highlight=\"true\""));
+    assert!(svg.contains("data-json-highlight-class=\"hot\""));
+    assert!(svg.contains("fill=\"#dc2626\""));
+    assert!(svg.contains("font-style=\"italic\""));
+    assert!(svg.contains("data-json-path=\"/empty\""));
+    assert!(svg.contains("data-json-label=\"empty: []\""));
+    assert!(svg.contains("Smith"));
+    assert!(
+        svg.contains("font-weight"),
+        "Creole-like bold scalar content should render with styled tspans: {svg}"
+    );
+}
+
+#[test]
+fn yaml_highlight_paths_styles_and_creole_scalars_render() {
+    let src = include_str!("fixtures/structured/valid_yaml_highlight_projection.puml");
+
+    let svg = puml::render_source_to_svg(src).expect("yaml highlight render");
+
+    assert!(svg.contains("data-projection=\"yaml\""));
+    assert!(!svg.contains("#highlight"));
+    assert!(!svg.contains("&lt;style&gt;"));
+    assert!(svg.contains("data-yaml-path=\"/xmas-fifth-day/partridges\""));
+    assert!(svg.contains("data-yaml-highlight=\"true\""));
+    assert!(svg.contains("data-yaml-highlight-class=\"h2\""));
+    assert!(svg.contains("fill=\"#16a34a\""));
+    assert!(svg.contains("font-style=\"italic\""));
+    assert!(svg.contains("data-yaml-path=\"/french-hens\""));
+    assert!(svg.contains("fill=\"#fde68a\""));
+    assert!(svg.contains("pear"));
+    assert!(
+        svg.contains("font-weight"),
+        "Creole-like bold scalar content should render with styled tspans: {svg}"
+    );
+}
+
+#[test]
+fn invalid_json_strips_highlight_and_style_before_fallback() {
+    let src = r##"@startjson
+#highlight "root" <<bad>>
+<style>
+.bad {
+  BackGroundColor #dc2626
+}
+</style>
+{
+  "ok": true,
+  "bad":
+}
+@endjson
+"##;
+
+    let text = puml::render_source_to_text(src, puml::TextOutputMode::Txt)
+        .expect("invalid JSON should strip controls before fallback rendering");
+
+    assert!(!text.contains("#highlight"));
+    assert!(!text.contains("<style>"));
+    assert!(text.contains("\"ok\": true"));
+    assert!(text.contains("\"bad\":"));
+}
+
+#[test]
+fn json_and_yaml_root_arrays_keep_index_paths_for_highlight() {
+    let json = r##"@startjson
+#highlight "1"
+["alpha", "beta", "gamma"]
+@endjson
+"##;
+    let yaml = r##"@startyaml
+#highlight "1"
+- alpha
+- beta
+- gamma
+@endyaml
+"##;
+
+    let json_svg = puml::render_source_to_svg(json).expect("json root array render");
+    let yaml_svg = puml::render_source_to_svg(yaml).expect("yaml root array render");
+
+    assert!(json_svg.contains("data-json-label=\"[...]\""));
+    assert!(json_svg.contains("data-json-path=\"/1\""));
+    assert!(json_svg.contains("data-json-label=\"[1]: &quot;beta&quot;\""));
+    assert!(json_svg.contains("data-json-highlight=\"true\""));
+
+    assert!(yaml_svg.contains("data-yaml-label=\"[...]\""));
+    assert!(yaml_svg.contains("data-yaml-path=\"/1\""));
+    assert!(yaml_svg.contains("data-yaml-label=\"[1]: beta\""));
+    assert!(yaml_svg.contains("data-yaml-highlight=\"true\""));
+}

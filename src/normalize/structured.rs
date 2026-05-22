@@ -2,13 +2,14 @@ use super::*;
 
 pub(super) fn normalize_json_document(document: Document) -> Result<JsonDocument, Diagnostic> {
     let (raw, title) = collect_raw_block(&document);
-    let nodes = match serde_json::from_str::<serde_json::Value>(raw.trim()) {
+    let payload = structured_payload(&raw);
+    let nodes = match serde_json::from_str::<serde_json::Value>(payload.trim()) {
         Ok(value) => {
             let mut out = Vec::new();
             flatten_json_value(&value, None, 0, &mut out);
             out
         }
-        Err(_) => raw
+        Err(_) => payload
             .lines()
             .map(|line| JsonTreeNode {
                 depth: 0,
@@ -86,7 +87,8 @@ fn flatten_json_value(
 
 pub(super) fn normalize_yaml_document(document: Document) -> Result<YamlDocument, Diagnostic> {
     let (raw, title) = collect_raw_block(&document);
-    let nodes = match yaml_rust2::YamlLoader::load_from_str(raw.trim()) {
+    let payload = structured_payload(&raw);
+    let nodes = match yaml_rust2::YamlLoader::load_from_str(payload.trim()) {
         Ok(docs) => {
             let mut out = Vec::new();
             for doc in docs
@@ -97,7 +99,7 @@ pub(super) fn normalize_yaml_document(document: Document) -> Result<YamlDocument
             }
             out
         }
-        Err(_) => flatten_yaml_by_indent(&raw),
+        Err(_) => flatten_yaml_by_indent(&payload),
     };
     Ok(YamlDocument {
         raw,
@@ -105,6 +107,30 @@ pub(super) fn normalize_yaml_document(document: Document) -> Result<YamlDocument
         title,
         warnings: Vec::new(),
     })
+}
+
+fn structured_payload(raw: &str) -> String {
+    let mut lines = Vec::new();
+    let mut in_style = false;
+    for line in raw.lines() {
+        let trimmed = line.trim_start();
+        if in_style {
+            if trimmed.to_ascii_lowercase().contains("</style>") {
+                in_style = false;
+            }
+            continue;
+        }
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("<style") {
+            in_style = !lower.contains("</style>");
+            continue;
+        }
+        if trimmed.starts_with("#highlight") {
+            continue;
+        }
+        lines.push(line);
+    }
+    lines.join("\n")
 }
 
 fn flatten_yaml_value(
