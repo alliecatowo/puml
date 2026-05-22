@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-19T22:02:34Z",
+  "generated_at_utc": "2026-05-22T01:53:53Z",
   "summary": {
-    "total": 286,
-    "passed": 283,
+    "total": 287,
+    "passed": 284,
     "excluded": 3,
     "failed": 0
   },
@@ -2966,6 +2966,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/timing/06_robust_states_value_annotations.puml",
       "artifact_svg": "docs/examples/timing/06_robust_states_value_annotations.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/timing/07_chapter10_parity.puml",
+      "artifact_svg": "docs/examples/timing/07_chapter10_parity.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
