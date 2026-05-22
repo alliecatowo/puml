@@ -1,4 +1,8 @@
 use super::geometry::{compute_edge_anchors_for_direction, pick_port};
+use super::layout_constants::{
+    COMPONENT_BOX_HEIGHT, COMPONENT_BOX_WIDTH, COMPONENT_CANVAS_MARGIN, PKG_INNER_GAP, PKG_PADDING,
+    PKG_TAB_HEIGHT,
+};
 use super::relation::{
     has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
     render_relation_marker_defs, usecase_dependency_label,
@@ -569,7 +573,7 @@ fn class_compute_canvas(
         }
         let depth_outset = (max_group_depth.saturating_sub(group.depth) as i32) * 18;
         let pad = 16 + depth_outset;
-        let label_header = 40 + depth_outset;
+        let label_header = PKG_TAB_HEIGHT + depth_outset;
         let fx = gx_min - pad;
         let fy = gy_min - pad - label_header;
         let fw = (gx_max - gx_min) + pad * 2;
@@ -4205,13 +4209,13 @@ fn render_box_grid_svg(doc: &FamilyDocument, family: &str) -> String {
     // ─────────────────────────────────────────────────────────────────────────
     // Layout constants
     // ─────────────────────────────────────────────────────────────────────────
-    let cell_w = 200i32; // component box width
-    let cell_h = 80i32; // component box height
+    let cell_w = COMPONENT_BOX_WIDTH; // component box width
+    let cell_h = COMPONENT_BOX_HEIGHT; // component box height
     let inner_cols = 3i32; // columns inside a package
-    let inner_gap = 40i32; // gap between nodes inside a package
-    let pkg_pad = 24i32; // padding inside package frame
-    let pkg_tab = 40i32; // height of the package label tab at top (was 28; bumped to clear first-child node)
-    let canvas_margin = 40i32;
+    let inner_gap = PKG_INNER_GAP; // gap between nodes inside a package
+    let pkg_pad = PKG_PADDING; // padding inside package frame
+    let pkg_tab = PKG_TAB_HEIGHT; // height of the package label tab at top (was 28; bumped to clear first-child node)
+    let canvas_margin = COMPONENT_CANVAS_MARGIN;
     let pkg_gap = 32i32; // gap between packages on the canvas
                          // outer_cols was used by the old 2-column grid layout; now superseded by hierarchical layout.
     let _outer_cols = 2i32;

@@ -1,3 +1,4 @@
+use super::super::layout_constants::ACTIVITY_ARROW_OUT_OFFSET;
 use super::arrows::fork_branch_cx;
 use super::arrows::ActivityArrowStyle;
 use crate::model::{FamilyDocument, FamilyNodeKind};
@@ -177,7 +178,7 @@ pub(super) fn compute_layout(
         *fork_col_w,
         *lane_w,
     );
-    const ARROW_OUT: i32 = 42;
+    const ARROW_OUT: i32 = ACTIVITY_ARROW_OUT_OFFSET;
 
     let mut node_layouts: Vec<NodeLayout> = Vec::with_capacity(doc.nodes.len());
     let mut fork_bar_half_widths: std::collections::HashMap<usize, i32> = Default::default();
