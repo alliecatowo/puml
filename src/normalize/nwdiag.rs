@@ -4,6 +4,8 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
     let (raw, title) = collect_raw_block(&document);
     let mut networks: Vec<NwdiagNetwork> = Vec::new();
     let mut groups: Vec<NwdiagGroup> = Vec::new();
+    let mut peer_links: Vec<(String, String)> = Vec::new();
+    let mut top_level_nodes: Vec<NwdiagNode> = Vec::new();
     let mut current: Option<NwdiagNetwork> = None;
     let mut current_group: Option<NwdiagGroup> = None;
     for line in raw.lines() {
@@ -32,6 +34,7 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                 color: None,
                 shape: None,
                 style: None,
+                width_full: false,
                 nodes: Vec::new(),
             });
             continue;
@@ -88,6 +91,7 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                     "description" | "label" => net.label = Some(value),
                     "shape" => net.shape = Some(value),
                     "style" => net.style = Some(value),
+                    "width" if value.eq_ignore_ascii_case("full") => net.width_full = true,
                     _ => {}
                 }
                 continue;
@@ -121,6 +125,33 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
                     group.nodes.push(name.to_string());
                 }
             }
+            continue;
+        }
+
+        let stmt = trimmed.trim_end_matches(';').trim();
+        if stmt.is_empty() || stmt.starts_with('}') {
+            continue;
+        }
+
+        if stmt.contains(" -- ") {
+            let parts: Vec<&str> = stmt.split(" -- ").map(str::trim).collect();
+            for pair in parts.windows(2) {
+                let from = peer_link_name(pair[0]);
+                let to = peer_link_name(pair[1]);
+                if !from.is_empty() && !to.is_empty() {
+                    peer_links.push((from.to_string(), to.to_string()));
+                }
+            }
+            continue;
+        }
+
+        if let Some(node) = parse_nwdiag_node_entry(stmt) {
+            if !top_level_nodes
+                .iter()
+                .any(|existing| existing.name == node.name)
+            {
+                top_level_nodes.push(node);
+            }
         }
     }
     if let Some(net) = current.take() {
@@ -129,9 +160,16 @@ pub(super) fn normalize_nwdiag_document(document: Document) -> Result<NwdiagDocu
     if let Some(group) = current_group.take() {
         groups.push(group);
     }
+    top_level_nodes.retain(|node| {
+        !networks
+            .iter()
+            .any(|network| network.nodes.iter().any(|member| member.name == node.name))
+    });
     Ok(NwdiagDocument {
         networks,
         groups,
+        peer_links,
+        top_level_nodes,
         title,
         warnings: Vec::new(),
     })
@@ -260,4 +298,13 @@ fn split_nwdiag_attr_args(s: &str) -> Vec<String> {
         out.push(item.to_string());
     }
     out
+}
+
+fn peer_link_name(segment: &str) -> &str {
+    segment
+        .split_once('[')
+        .map(|(name, _)| name)
+        .unwrap_or(segment)
+        .trim()
+        .trim_matches('"')
 }
