@@ -1,5 +1,6 @@
 mod cli;
 mod cli_count;
+mod cli_env;
 mod cli_stats;
 mod cli_watch;
 
@@ -278,6 +279,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
             CliCommand::Count(args) => cli_count::run_count(&args)
                 .map(|_| ())
                 .map_err(|(code, msg)| (code as u8, msg)),
+            CliCommand::Env(args) => cli_env::run_env(&args)
+                .map(|_| ())
+                .map_err(|msg| (EXIT_VALIDATION, msg)),
             CliCommand::Format(args) => run_format_command(args),
             CliCommand::Lint(args) => run_lint_subcommand(args, lint_context),
             CliCommand::Stats(args) => cli_stats::run_stats(&args)
