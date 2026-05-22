@@ -1120,6 +1120,7 @@ mod tests {
                 style: Default::default(),
                 internal_actions: vec![],
                 regions: vec![],
+                fill_color: None,
             },
             StateNode {
                 name: "Active".to_string(),
@@ -1129,6 +1130,7 @@ mod tests {
                 style: Default::default(),
                 internal_actions: vec![],
                 regions: vec![],
+                fill_color: None,
             },
         ];
         let violations = check_pseudo_state_dedup(&nodes, "root");
@@ -1147,6 +1149,7 @@ mod tests {
                 style: Default::default(),
                 internal_actions: vec![],
                 regions: vec![],
+                fill_color: None,
             },
             StateNode {
                 name: "[*]_dup".to_string(),
@@ -1156,6 +1159,7 @@ mod tests {
                 style: Default::default(),
                 internal_actions: vec![],
                 regions: vec![],
+                fill_color: None,
             },
         ];
         let violations = check_pseudo_state_dedup(&nodes, "root");

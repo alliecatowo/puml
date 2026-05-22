@@ -28,8 +28,13 @@ pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String,
     let mut include_once_seen = BTreeSet::new();
     let mut expanded = String::new();
 
+    // Strip PlantUML block comments (`/' ... '/`) before line-by-line processing.
+    // Block comments can span multiple lines; we replace consumed content with
+    // spaces/newlines to preserve line numbers for span/diagnostic accuracy.
+    let stripped = strip_block_comments(source);
+
     preprocess_text(
-        source,
+        &stripped,
         options,
         &mut state,
         &mut include_stack,
@@ -40,6 +45,51 @@ pub(crate) fn preprocess(source: &str, options: &ParseOptions) -> Result<String,
     )?;
 
     Ok(expanded)
+}
+
+/// Strip PlantUML block comments of the form `/' ... '/`.
+/// Comments may span multiple lines. Each consumed line is replaced with an
+/// empty line so that span/line-number information stays correct for
+/// error reporting.
+fn strip_block_comments(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let bytes = source.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+
+    while i < len {
+        // Look for block comment open: `/'`
+        if i + 1 < len && bytes[i] == b'/' && bytes[i + 1] == b'\'' {
+            // Consume `/'`, then scan forward for matching `'/`
+            i += 2;
+            loop {
+                if i >= len {
+                    // Unterminated block comment — consume the rest; normalizer
+                    // will handle any resulting empty input gracefully.
+                    break;
+                }
+                if i + 1 < len && bytes[i] == b'\'' && bytes[i + 1] == b'/' {
+                    // Consume closing `'/`
+                    i += 2;
+                    break;
+                }
+                // Keep newlines so that line numbers stay accurate; drop
+                // all other content inside the block comment.
+                if bytes[i] == b'\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+        } else {
+            // Regular character — emit as-is.
+            // Advance by full char width to avoid splitting multi-byte sequences.
+            let ch = source[i..].chars().next().unwrap_or('\0');
+            out.push(ch);
+            i += ch.len_utf8();
+        }
+    }
+
+    out
 }
 
 #[allow(clippy::too_many_arguments)]

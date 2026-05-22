@@ -1017,10 +1017,36 @@ fn parse_family_visibility_control(
     line: &str,
     family: Option<DiagramKind>,
 ) -> Option<StatementKind> {
-    if !matches!(family, Some(DiagramKind::Class | DiagramKind::Object | DiagramKind::UseCase)) {
+    let lower = line.to_ascii_lowercase();
+    // `hide @unlinked` and `remove @unlinked` are component/deployment-specific
+    // but may appear before the diagram family is detected (family == None).
+    // Handle them before the family gate so they are not misinterpreted.
+    if lower == "hide @unlinked" || lower == "remove @unlinked" {
+        let is_component_family = matches!(
+            family,
+            None | Some(DiagramKind::Component | DiagramKind::Deployment)
+        );
+        if is_component_family {
+            let keyword = if lower.starts_with("hide") {
+                "hide @unlinked"
+            } else {
+                "remove @unlinked"
+            };
+            return Some(StatementKind::HideOption(keyword.to_string()));
+        }
+    }
+    if !matches!(
+        family,
+        Some(
+            DiagramKind::Class
+                | DiagramKind::Object
+                | DiagramKind::UseCase
+                | DiagramKind::Component
+                | DiagramKind::Deployment
+        )
+    ) {
         return None;
     }
-    let lower = line.to_ascii_lowercase();
     if lower.starts_with("hide ") {
         let rest = line.strip_prefix("hide ").unwrap_or("").trim();
         if rest.eq_ignore_ascii_case("@unlinked") {
