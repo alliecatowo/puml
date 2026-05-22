@@ -75,6 +75,7 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: write
+      actions: write
     outputs:
       pushed_regen_commit: ${{ steps.commit.outputs.pushed_regen_commit }}
 
@@ -102,6 +103,8 @@ jobs:
       - name: Commit regenerated artifacts when drift is detected
         id: commit
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -116,6 +119,7 @@ jobs:
           git add docs/examples docs/diagrams
           git commit -m "chore(ci): regenerate diagram artifacts"
           git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          gh workflow run pr-gate.yml --ref "${{ github.event.pull_request.head.ref }}"
           echo "pushed_regen_commit=true" >> "${GITHUB_OUTPUT}"
 
   skip_after_regen_push:
@@ -387,6 +391,7 @@ jobs:
     name: fmt-clippy-test-coverage-quick
     needs:
       - changes
+      - artifact_regen
       - fmt
       - clippy
       - test
@@ -402,8 +407,10 @@ jobs:
       RUN_DOCS_EXAMPLES_DRIFT: ${{ needs.changes.outputs.run_docs_examples_drift }}
       RUN_WASM_CHECK: ${{ needs.changes.outputs.run_wasm_check }}
       RUN_SITE_SMOKE: ${{ needs.changes.outputs.run_site_smoke }}
+      REGEN_PUSHED: ${{ needs.artifact_regen.outputs.pushed_regen_commit }}
       IS_BOT_DEP_UPDATER: ${{ github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]' }}
       CHANGES_RESULT: ${{ needs.changes.result }}
+      ARTIFACT_REGEN_RESULT: ${{ needs.artifact_regen.result }}
       FMT_RESULT: ${{ needs.fmt.result }}
       CLIPPY_RESULT: ${{ needs.clippy.result }}
       TEST_RESULT: ${{ needs.test.result }}
@@ -423,6 +430,8 @@ jobs:
           echo "run_docs_examples_drift=${RUN_DOCS_EXAMPLES_DRIFT}"
           echo "run_wasm_check=${RUN_WASM_CHECK}"
           echo "run_site_smoke=${RUN_SITE_SMOKE}"
+          echo "regen_pushed=${REGEN_PUSHED}"
+          echo "artifact_regen=${ARTIFACT_REGEN_RESULT}"
           echo "fmt=${FMT_RESULT}"
           echo "clippy=${CLIPPY_RESULT}"
           echo "test=${TEST_RESULT}"
@@ -442,6 +451,12 @@ jobs:
           }
 
           require_success "changes" "${CHANGES_RESULT}"
+
+          if [[ "${REGEN_PUSHED}" == "true" ]]; then
+            require_success "artifact regen" "${ARTIFACT_REGEN_RESULT}"
+            echo "Artifact regeneration pushed a follow-up commit; a workflow_dispatch rerun has been queued for the updated head SHA."
+            exit 0
+          fi
 
           if [[ "${RUN_FULL_GATE}" == "true" ]]; then
             require_success "fmt" "${FMT_RESULT}"
