@@ -27,6 +27,16 @@ NewYork --> CapitalCity::USA
 @enduml
 "##;
 
+const MEMBER_ANCHOR_SRC: &str = r##"@startuml
+object Account {
+  id = 42
+  name = "A"
+}
+object Audit
+Audit --> Account::id
+@enduml
+"##;
+
 #[test]
 fn object_ch04_normalizes_diamond_map_and_qualified_relation() {
     let document = puml::parser::parse(DIAMOND_HUB_SRC).expect("parse ch04 diamond hub");
@@ -121,6 +131,50 @@ fn qualified_map_link_anchors_to_the_named_row() {
     );
 }
 
+#[test]
+fn qualified_map_row_ports_enter_and_exit_horizontally() {
+    let svg = puml::render_source_to_svg(MAP_ROWS_SRC).expect("render qualified map row ports");
+
+    let usa_target = svg_relation_tag_with(&svg, "data-uml-to=\"CapitalCity::USA\"")
+        .expect("external qualified relation");
+    assert!(
+        relation_final_segment_is_horizontal(usa_target),
+        "external relation should enter the USA row horizontally: {usa_target}"
+    );
+
+    for row in ["UK", "USA", "Germany"] {
+        let needle = format!("data-uml-from=\"CapitalCity::{row}\"");
+        let rel_tag = svg_relation_tag_with(&svg, &needle)
+            .unwrap_or_else(|| panic!("map-body relation for {row}"));
+        assert!(
+            relation_initial_segment_is_horizontal(rel_tag),
+            "map-body relation should leave the {row} row horizontally: {rel_tag}"
+        );
+    }
+
+    for object in ["London", "Washington", "Berlin"] {
+        let needle = format!("data-uml-to=\"{object}\"");
+        let rel_tag =
+            svg_relation_tag_with(&svg, &needle).unwrap_or_else(|| panic!("relation to {object}"));
+        assert!(
+            relation_final_segment_is_vertical(rel_tag),
+            "map-body relation should enter {object} through a visible top/bottom port: {rel_tag}"
+        );
+    }
+}
+
+#[test]
+fn qualified_member_row_target_enters_horizontally() {
+    let svg = puml::render_source_to_svg(MEMBER_ANCHOR_SRC).expect("render member row anchor");
+    let rel_tag = svg_relation_tag_with(&svg, "data-uml-to=\"Account::id\"")
+        .expect("member-qualified relation");
+
+    assert!(
+        relation_final_segment_is_horizontal(rel_tag),
+        "member-qualified relation should enter the member row horizontally: {rel_tag}"
+    );
+}
+
 fn svg_text_tag_with<'a>(svg: &'a str, needle: &str) -> Option<&'a str> {
     let idx = svg.find(needle)?;
     let start = svg[..idx].rfind("<text ")?;
@@ -141,19 +195,61 @@ fn svg_relation_end_y(tag: &str) -> i32 {
     if tag.starts_with("<line ") {
         return svg_attr_i32(tag, "y2");
     }
-    let points = tag
-        .split("points=\"")
+    svg_relation_points(tag)
+        .last()
+        .map(|(_, y)| *y)
+        .unwrap_or_else(|| panic!("empty points attr in {tag}"))
+}
+
+fn relation_initial_segment_is_horizontal(tag: &str) -> bool {
+    let points = svg_relation_points(tag);
+    points
+        .windows(2)
+        .next()
+        .is_some_and(|segment| segment[0].1 == segment[1].1)
+}
+
+fn relation_final_segment_is_horizontal(tag: &str) -> bool {
+    let points = svg_relation_points(tag);
+    points
+        .windows(2)
+        .last()
+        .is_some_and(|segment| segment[0].1 == segment[1].1)
+}
+
+fn relation_final_segment_is_vertical(tag: &str) -> bool {
+    let points = svg_relation_points(tag);
+    points
+        .windows(2)
+        .last()
+        .is_some_and(|segment| segment[0].0 == segment[1].0)
+}
+
+fn svg_relation_points(tag: &str) -> Vec<(i32, i32)> {
+    if tag.starts_with("<line ") {
+        return vec![
+            (svg_attr_i32(tag, "x1"), svg_attr_i32(tag, "y1")),
+            (svg_attr_i32(tag, "x2"), svg_attr_i32(tag, "y2")),
+        ];
+    }
+    tag.split("points=\"")
         .nth(1)
         .and_then(|rest| rest.split('"').next())
-        .unwrap_or_else(|| panic!("missing points attr in {tag}"));
-    let last = points
+        .unwrap_or_else(|| panic!("missing points attr in {tag}"))
         .split_whitespace()
-        .last()
-        .unwrap_or_else(|| panic!("empty points attr in {tag}"));
-    last.split(',')
-        .nth(1)
-        .and_then(|value| value.parse::<i32>().ok())
-        .unwrap_or_else(|| panic!("missing final point y in {tag}"))
+        .map(|point| {
+            let mut coords = point.split(',');
+            let x = coords
+                .next()
+                .and_then(|value| value.parse::<i32>().ok())
+                .unwrap_or_else(|| panic!("missing point x in {tag}"));
+            let y = coords
+                .next()
+                .and_then(|value| value.parse::<i32>().ok())
+                .unwrap_or_else(|| panic!("missing point y in {tag}"));
+            (x, y)
+        })
+        .collect()
 }
 
 fn svg_attr_i32(tag: &str, attr: &str) -> i32 {

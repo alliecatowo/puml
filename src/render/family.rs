@@ -103,6 +103,135 @@ struct ClassNodeBox {
     header_h: i32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ClassPortSide {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Copy)]
+struct ClassEndpointAnchor {
+    x: i32,
+    y: i32,
+    side: ClassPortSide,
+    is_row_port: bool,
+}
+
+impl ClassEndpointAnchor {
+    fn point(self) -> (i32, i32) {
+        (self.x, self.y)
+    }
+}
+
+fn class_port_side_from_box_anchor(x: i32, y: i32, node_box: &ClassNodeBox) -> ClassPortSide {
+    let distances = [
+        (ClassPortSide::Left, (x - node_box.x).abs()),
+        (ClassPortSide::Right, (x - (node_box.x + node_box.w)).abs()),
+        (ClassPortSide::Top, (y - node_box.y).abs()),
+        (ClassPortSide::Bottom, (y - (node_box.y + node_box.h)).abs()),
+    ];
+    distances
+        .into_iter()
+        .min_by_key(|(_, distance)| *distance)
+        .map(|(side, _)| side)
+        .unwrap_or(ClassPortSide::Bottom)
+}
+
+fn class_port_normal(side: ClassPortSide) -> (i32, i32) {
+    match side {
+        ClassPortSide::Left => (-1, 0),
+        ClassPortSide::Right => (1, 0),
+        ClassPortSide::Top => (0, -1),
+        ClassPortSide::Bottom => (0, 1),
+    }
+}
+
+fn class_box_anchor_toward_point(
+    node_box: &ClassNodeBox,
+    point: (i32, i32),
+) -> ClassEndpointAnchor {
+    let cx = node_box.x + node_box.w / 2;
+    let cy = node_box.y + node_box.h / 2;
+    let (px, py) = point;
+    let (x, y, side) = if py < node_box.y {
+        (cx, node_box.y, ClassPortSide::Top)
+    } else if py > node_box.y + node_box.h {
+        (cx, node_box.y + node_box.h, ClassPortSide::Bottom)
+    } else if px < cx {
+        (node_box.x, cy, ClassPortSide::Left)
+    } else {
+        (node_box.x + node_box.w, cy, ClassPortSide::Right)
+    };
+    ClassEndpointAnchor {
+        x,
+        y,
+        side,
+        is_row_port: false,
+    }
+}
+
+fn class_row_port_stub(
+    anchor: ClassEndpointAnchor,
+    original_adjacent: Option<(i32, i32)>,
+) -> (i32, i32) {
+    const ROW_PORT_STUB: i32 = 40;
+    if anchor.is_row_port {
+        let (nx, ny) = class_port_normal(anchor.side);
+        return (anchor.x + nx * ROW_PORT_STUB, anchor.y + ny * ROW_PORT_STUB);
+    }
+    if let Some((ax, ay)) = original_adjacent {
+        return match anchor.side {
+            ClassPortSide::Left | ClassPortSide::Right => (ax, anchor.y),
+            ClassPortSide::Top | ClassPortSide::Bottom => (anchor.x, ay),
+        };
+    }
+    let (nx, ny) = class_port_normal(anchor.side);
+    (anchor.x + nx * ROW_PORT_STUB, anchor.y + ny * ROW_PORT_STUB)
+}
+
+fn class_dedup_consecutive_points(points: Vec<(i32, i32)>) -> Vec<(i32, i32)> {
+    let mut deduped = Vec::with_capacity(points.len());
+    for point in points {
+        if deduped.last().copied() != Some(point) {
+            deduped.push(point);
+        }
+    }
+    deduped
+}
+
+fn class_route_with_row_ports(
+    start: ClassEndpointAnchor,
+    end: ClassEndpointAnchor,
+    original_points: Option<&[(i32, i32)]>,
+) -> Option<Vec<(i32, i32)>> {
+    if !start.is_row_port && !end.is_row_port {
+        return None;
+    }
+    let start_adjacent = original_points.and_then(|points| points.get(1).copied());
+    let end_adjacent = original_points.and_then(|points| {
+        points
+            .len()
+            .checked_sub(2)
+            .and_then(|idx| points.get(idx).copied())
+    });
+    let start_stub = class_row_port_stub(start, start_adjacent);
+    let end_stub = class_row_port_stub(end, end_adjacent);
+
+    let mut points = vec![start.point(), start_stub];
+    if start_stub.0 != end_stub.0 && start_stub.1 != end_stub.1 {
+        let bend = match start.side {
+            ClassPortSide::Left | ClassPortSide::Right => (start_stub.0, end_stub.1),
+            ClassPortSide::Top | ClassPortSide::Bottom => (end_stub.0, start_stub.1),
+        };
+        points.push(bend);
+    }
+    points.push(end_stub);
+    points.push(end.point());
+    Some(class_dedup_consecutive_points(points))
+}
+
 /// Render the group/package/namespace frames for a class diagram.
 ///
 /// Draws labeled frame rectangles (with optional tab headers) behind all node
@@ -544,13 +673,32 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
         } else {
             pick_port((from.x, from.y, from.w, from.h), (to.x, to.y, to.w, to.h))
         };
-        if let Some((qx, qy)) = qualified_row_anchor(&from_name, ctx.nodes, ctx.node_boxes, to) {
-            x1 = qx;
-            y1 = qy;
+        let mut from_anchor = ClassEndpointAnchor {
+            x: x1,
+            y: y1,
+            side: class_port_side_from_box_anchor(x1, y1, from),
+            is_row_port: false,
+        };
+        let mut to_anchor = ClassEndpointAnchor {
+            x: x2,
+            y: y2,
+            side: class_port_side_from_box_anchor(x2, y2, to),
+            is_row_port: false,
+        };
+        if let Some(anchor) = qualified_row_anchor(&from_name, ctx.nodes, ctx.node_boxes, to) {
+            from_anchor = anchor;
+            (x1, y1) = anchor.point();
         }
-        if let Some((qx, qy)) = qualified_row_anchor(&to_name, ctx.nodes, ctx.node_boxes, from) {
-            x2 = qx;
-            y2 = qy;
+        if let Some(anchor) = qualified_row_anchor(&to_name, ctx.nodes, ctx.node_boxes, from) {
+            to_anchor = anchor;
+            (x2, y2) = anchor.point();
+        }
+        if from_anchor.is_row_port && !to_anchor.is_row_port {
+            to_anchor = class_box_anchor_toward_point(to, from_anchor.point());
+            (x2, y2) = to_anchor.point();
+        } else if to_anchor.is_row_port && !from_anchor.is_row_port {
+            from_anchor = class_box_anchor_toward_point(from, to_anchor.point());
+            (x1, y1) = from_anchor.point();
         }
 
         let lat_offset = ctx.parallel_offset.get(&rel_idx).copied().unwrap_or(0);
@@ -562,6 +710,10 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
             (lat_offset, 0)
         };
         let (x1, y1, x2, y2) = (x1 + off_x, y1 + off_y, x2 + off_x, y2 + off_y);
+        from_anchor.x = x1;
+        from_anchor.y = y1;
+        to_anchor.x = x2;
+        to_anchor.y = y2;
         let relation_color = relation.line_color.as_deref().unwrap_or(ctx.arrow_stroke);
         let stroke_width = relation.thickness.unwrap_or(2).clamp(1, 8);
         let stroke_dash = if style.dashed || relation.dashed {
@@ -600,6 +752,11 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
             } else {
                 None
             };
+        if let Some(row_port_pts) =
+            class_route_with_row_ports(from_anchor, to_anchor, ortho_pts.as_deref())
+        {
+            ortho_pts = Some(row_port_pts);
+        }
 
         let (label_mx, label_my);
 
@@ -615,7 +772,7 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 *last = (x2, y2);
             }
             let cn = pts.len();
-            if cn >= 3 {
+            if cn >= 3 && !from_anchor.is_row_port && !to_anchor.is_row_port {
                 pts[1].0 = x1;
                 if cn > 3 {
                     pts[cn - 2].0 = x2;
@@ -2424,12 +2581,60 @@ fn map_row_anchor_y(
     None
 }
 
+fn qualified_member_anchor_y(
+    node: &crate::model::FamilyNode,
+    member_key: &str,
+    y: i32,
+    header_h: i32,
+) -> Option<i32> {
+    let member_key = member_key.trim();
+    if member_key.is_empty() {
+        return None;
+    }
+    if node.kind == FamilyNodeKind::Map {
+        return map_row_anchor_y(node, member_key, y, header_h);
+    }
+
+    let header_skip = count_header_stereotype_members(&node.members);
+    let mut row_idx = 0;
+    for member in node.members.iter().skip(header_skip) {
+        let text = member.text.trim();
+        if text == "--" || text == ".." {
+            continue;
+        }
+        if text.is_empty() {
+            row_idx += 1;
+            continue;
+        }
+        if member_anchor_matches(text, member_key) {
+            return Some(y + header_h + 16 + row_idx * 16);
+        }
+        row_idx += 1;
+    }
+    None
+}
+
+fn member_anchor_matches(member_text: &str, member_key: &str) -> bool {
+    let (_visibility, _color, after_visibility) = parse_visibility_member(member_text.trim());
+    let (_style, clean_text) = parse_member_modifiers(after_visibility.trim());
+    let clean_text = clean_text.trim();
+    if clean_text == member_key {
+        return true;
+    }
+    let name = clean_text
+        .split(['(', ':', '='])
+        .next()
+        .unwrap_or(clean_text)
+        .trim();
+    name == member_key
+}
+
 fn qualified_row_anchor(
     endpoint: &str,
     nodes: &[crate::model::FamilyNode],
     node_boxes: &std::collections::BTreeMap<String, ClassNodeBox>,
     other: &ClassNodeBox,
-) -> Option<(i32, i32)> {
+) -> Option<ClassEndpointAnchor> {
     let (owner, row_key) = endpoint.rsplit_once("::")?;
     let owner_key = resolve_relation_endpoint_key(owner, node_boxes);
     let owner_box = node_boxes.get(&owner_key)?;
@@ -2439,18 +2644,20 @@ fn qualified_row_anchor(
             || node.name == owner_key
             || node.alias.as_deref() == Some(owner_key.as_str())
     })?;
-    if owner_node.kind != FamilyNodeKind::Map {
-        return None;
-    }
-    let y = map_row_anchor_y(owner_node, row_key, owner_box.y, owner_box.header_h)?;
+    let y = qualified_member_anchor_y(owner_node, row_key, owner_box.y, owner_box.header_h)?;
     let owner_cx = owner_box.x + owner_box.w / 2;
     let other_cx = other.x + other.w / 2;
-    let x = if other_cx < owner_cx {
-        owner_box.x
+    let (x, side) = if other_cx < owner_cx {
+        (owner_box.x, ClassPortSide::Left)
     } else {
-        owner_box.x + owner_box.w
+        (owner_box.x + owner_box.w, ClassPortSide::Right)
     };
-    Some((x, y))
+    Some(ClassEndpointAnchor {
+        x,
+        y,
+        side,
+        is_row_port: true,
+    })
 }
 
 struct MapRenderCtx<'a> {
