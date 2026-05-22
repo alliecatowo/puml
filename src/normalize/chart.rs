@@ -15,6 +15,7 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
     let mut horizontal = false;
     let mut stacked = false;
     let mut style = ChartStyle::default();
+    let mut monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut first_non_empty = true;
     for line in body {
@@ -35,6 +36,32 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
             let mut parts = rest.splitn(2, char::is_whitespace);
             let key = parts.next().unwrap_or("").trim();
             let value = parts.next().unwrap_or("").trim();
+            if key.eq_ignore_ascii_case("monochrome") {
+                match classify_sequence_skinparam(key, value) {
+                    SequenceSkinParamSupport::SupportedNoop => {}
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Monochrome(mode),
+                    ) => monochrome_mode = Some(mode),
+                    _ => warnings.push(Diagnostic::warning(format!(
+                        "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                        value, key
+                    ))),
+                }
+                continue;
+            }
+            if key.eq_ignore_ascii_case("handwritten") {
+                match classify_sequence_skinparam(key, value) {
+                    SequenceSkinParamSupport::SupportedNoop
+                    | SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Handwritten(_),
+                    ) => {}
+                    _ => warnings.push(Diagnostic::warning(format!(
+                        "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                        value, key
+                    ))),
+                }
+                continue;
+            }
             use crate::theme::ChartSkinParamValue;
             match classify_chart_skinparam(key, value) {
                 SkinParamSupport::SupportedNoop => {}
@@ -190,6 +217,9 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
             label: Some("Value".to_string()),
             ..ChartAxis::default()
         });
+    }
+    if let Some(mode) = monochrome_mode {
+        apply_monochrome_to_chart_style(&mut style, mode);
     }
     Ok(ChartDocument {
         title,

@@ -1,0 +1,16 @@
+@startuml
+skinparam monochrome true
+skinparam handwritten true
+skinparam sequenceMessageAlign direction
+skinparam sequenceReferenceAlign reverseDirection
+skinparam defaultFontName Fira Code
+skinparam defaultFontSize 15
+skinparam ParticipantFontColor #334155
+skinparam ParticipantFontSize 14
+skinparam ParticipantFontName Fira Sans
+Alice -> Bob : request
+ref over Alice, Bob
+  shared flow
+end ref
+Bob --> Alice : response
+@enduml

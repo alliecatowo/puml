@@ -9,6 +9,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
     let mut caption = None;
     let mut legend = None;
     let mut state_style = StateStyle::default();
+    let mut monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
 
     for stmt in &document.statements {
@@ -76,6 +77,38 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
             StatementKind::Caption(v) => caption = Some(v.clone()),
             StatementKind::Legend(v) => legend = Some(v.clone()),
             StatementKind::SkinParam { key, value } => {
+                if key.trim().eq_ignore_ascii_case("monochrome") {
+                    match classify_sequence_skinparam(key, value) {
+                        SequenceSkinParamSupport::SupportedNoop => {}
+                        SequenceSkinParamSupport::SupportedWithValue(
+                            SequenceSkinParamValue::Monochrome(mode),
+                        ) => monochrome_mode = Some(mode),
+                        _ => warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        ),
+                    }
+                    continue;
+                }
+                if key.trim().eq_ignore_ascii_case("handwritten") {
+                    match classify_sequence_skinparam(key, value) {
+                        SequenceSkinParamSupport::SupportedNoop
+                        | SequenceSkinParamSupport::SupportedWithValue(
+                            SequenceSkinParamValue::Handwritten(_),
+                        ) => {}
+                        _ => warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        ),
+                    }
+                    continue;
+                }
                 use crate::theme::StateSkinParamValue;
                 match classify_state_skinparam(key, value) {
                     SkinParamSupport::SupportedNoop => {}
@@ -177,6 +210,10 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                 }
             }
         }
+    }
+
+    if let Some(mode) = monochrome_mode {
+        apply_monochrome_to_state_style(&mut state_style, mode);
     }
 
     Ok(StateDocument {

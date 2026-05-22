@@ -1,0 +1,14 @@
+@startuml
+skinparam ClassBackgroundColor<<service>> #fee2e2
+skinparam ClassBorderColor<<service>> #b91c1c
+skinparam ClassHeaderBackgroundColor<<service>> #fecaca
+skinparam ClassFontColor<<service>> #7f1d1d
+skinparam shadowing<<service>> false
+class Api <<service>> {
+  +call()
+}
+class Plain {
+  +id: int
+}
+Api --> Plain
+@enduml

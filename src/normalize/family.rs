@@ -26,6 +26,7 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     let mut caption = None;
     let mut legend = None;
     let mut class_style = ClassStyle::default();
+    let mut class_monochrome_mode = None;
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
     let mut sprites = crate::sprites::SpriteRegistry::new();
@@ -83,6 +84,37 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                             }
                             ClassSkinParamValue::FontName(n) => {
                                 class_style.font_name = Some(n);
+                            }
+                            ClassSkinParamValue::Monochrome(mode) => {
+                                class_monochrome_mode = Some(mode);
+                            }
+                            ClassSkinParamValue::StereotypeBackgroundColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .background_color = Some(c);
+                            }
+                            ClassSkinParamValue::StereotypeBorderColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .border_color = Some(c);
+                            }
+                            ClassSkinParamValue::StereotypeHeaderBackgroundColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .header_color = Some(c);
+                            }
+                            ClassSkinParamValue::StereotypeFontColor(stereotype, c) => {
+                                class_style
+                                    .stereotype_styles
+                                    .entry(stereotype)
+                                    .or_default()
+                                    .font_color = Some(c);
                             }
                         }
                     }
@@ -487,6 +519,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
     // edges intentionally (e.g. bidirectional cardinality pairs). (#425)
     apply_class_visibility_controls(&mut nodes, &mut relations, &mut groups, &hide_options);
     let relations = merge_duplicate_rel_labels(relations);
+    if let Some(mode) = class_monochrome_mode {
+        apply_monochrome_to_class_style(&mut class_style, mode);
+    }
 
     Ok(FamilyDocument {
         kind: family_kind,
@@ -876,6 +911,7 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
     let mut warnings = Vec::new();
     let mut orientation = FamilyOrientation::TopToBottom;
     let mut style = SequenceStyle::default();
+    let mut monochrome_mode = None;
     let mut text_overflow_policy = TextOverflowPolicy::WrapAndGrow;
     let mut sprites = crate::sprites::SpriteRegistry::new();
     let mut list_sprites = false;
@@ -929,6 +965,11 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                         SequenceSkinParamValue::ParticipantBorderColor(color),
                     ) => {
                         style.participant_border_color = color;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::ParticipantFontColor(color),
+                    ) => {
+                        style.participant_font_color = Some(color);
                     }
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::NoteBackgroundColor(color),
@@ -1029,6 +1070,16 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
                         SequenceSkinParamValue::GroupHeaderFontStyle(s),
                     ) => {
                         style.group_header_font_style = s;
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Monochrome(mode),
+                    ) => {
+                        monochrome_mode = Some(mode);
+                    }
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Handwritten(enabled),
+                    ) => {
+                        style.hand_drawn = enabled;
                     }
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
@@ -1145,6 +1196,9 @@ pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument
 
     build_family_tree_relations(&mut nodes, &mut relations);
     normalize_family_tree_warnings(&mut warnings);
+    if let Some(mode) = monochrome_mode {
+        apply_monochrome_to_sequence_style(&mut style, mode);
+    }
 
     Ok(FamilyDocument {
         kind: family_kind,
@@ -1398,6 +1452,9 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
     let mut component_style = ComponentStyle::default();
     let mut activity_style = ActivityStyle::default();
     let mut timing_style = TimingStyle::default();
+    let mut component_monochrome_mode = None;
+    let mut activity_monochrome_mode = None;
+    let mut timing_monochrome_mode = None;
     let mut ext_warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter: usize = 0;
     let mut sprites = crate::sprites::SpriteRegistry::new();
@@ -1765,6 +1822,48 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::SkinParam { key, value } => {
                 let mut handled = false;
+                if key.trim().eq_ignore_ascii_case("monochrome") {
+                    handled = true;
+                    match classify_sequence_skinparam(&key, &value) {
+                        SequenceSkinParamSupport::SupportedNoop => {}
+                        SequenceSkinParamSupport::SupportedWithValue(
+                            SequenceSkinParamValue::Monochrome(mode),
+                        ) => match family_kind {
+                            DiagramKind::Component | DiagramKind::Deployment => {
+                                component_monochrome_mode = Some(mode);
+                            }
+                            DiagramKind::Activity => {
+                                activity_monochrome_mode = Some(mode);
+                            }
+                            DiagramKind::Timing => {
+                                timing_monochrome_mode = Some(mode);
+                            }
+                            _ => {}
+                        },
+                        _ => ext_warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        ),
+                    }
+                } else if key.trim().eq_ignore_ascii_case("handwritten") {
+                    handled = true;
+                    match classify_sequence_skinparam(&key, &value) {
+                        SequenceSkinParamSupport::SupportedNoop
+                        | SequenceSkinParamSupport::SupportedWithValue(
+                            SequenceSkinParamValue::Handwritten(_),
+                        ) => {}
+                        _ => ext_warnings.push(
+                            Diagnostic::warning(format!(
+                                "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",
+                                value, key
+                            ))
+                            .with_span(stmt.span),
+                        ),
+                    }
+                }
                 if matches!(
                     family_kind,
                     DiagramKind::Component | DiagramKind::Deployment
@@ -2007,10 +2106,23 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
 
     let family_style = match family_kind {
         DiagramKind::Component | DiagramKind::Deployment => {
+            if let Some(mode) = component_monochrome_mode {
+                apply_monochrome_to_component_style(&mut component_style, mode);
+            }
             Some(FamilyStyle::Component(component_style))
         }
-        DiagramKind::Activity => Some(FamilyStyle::Activity(activity_style)),
-        DiagramKind::Timing => Some(FamilyStyle::Timing(timing_style)),
+        DiagramKind::Activity => {
+            if let Some(mode) = activity_monochrome_mode {
+                apply_monochrome_to_activity_style(&mut activity_style, mode);
+            }
+            Some(FamilyStyle::Activity(activity_style))
+        }
+        DiagramKind::Timing => {
+            if let Some(mode) = timing_monochrome_mode {
+                apply_monochrome_to_timing_style(&mut timing_style, mode);
+            }
+            Some(FamilyStyle::Timing(timing_style))
+        }
         _ => None,
     };
     Ok(FamilyDocument {
