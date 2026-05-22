@@ -167,6 +167,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     let right_pad: i32 =
         (chart_w as f64 * 0.05) as i32 + tail_extra + max_label_half_w + right_gutter;
     let width: i32 = left_pad + chart_w + right_pad;
+    let axis_panel_w: i32 = width - left_pad - max_label_half_w - right_gutter;
 
     // 22px title lines + 14px subtitle + 10px padding
     let title_h: i32 = doc
@@ -264,7 +265,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             escape_text(&style.grid_color),
             x = left_pad,
             y = axis_top,
-            w = chart_w,
+            w = axis_panel_w,
             h = axis_h
         ));
     }
