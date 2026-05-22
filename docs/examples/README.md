@@ -10,15 +10,14 @@ the per-chapter audits under [`docs/internal/spec/audit/`](../internal/spec/audi
 ## Corpus location and size
 
 - Root: `docs/examples/`
-- Diagram sources: `255` `*.puml` files
-- Render artifacts: `258` `*.svg` files
-- Site gallery manifest: `248` paired family examples across `31` family directories
+- Diagram sources: `293` `*.puml` files
+- Render artifacts: `297` `*.svg` files
+- Site gallery manifest: `287` paired family examples across `32` family directories
 - Additional docs/index files are also present in this tree
 
 ## Primary indexes
 
 - [GALLERY.md](GALLERY.md): family-by-family browse index for examples and renders
-- [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md): current behavior gaps (feature-depth limits, not family rejection)
 - [supported_primitives.md](supported_primitives.md): primitive-level quick reference
 
 ## Coverage evidence summary (high level)
