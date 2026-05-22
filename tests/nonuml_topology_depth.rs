@@ -231,16 +231,25 @@ nwdiag {
 "#;
     let svg = puml::render_source_to_svg(src).expect("nwdiag render");
 
-    let network_x =
-        svg_rect_attr_before_text(&svg, "class=\"nwdiag-network\"", "network public (10.0.0.x)", "x")
-            .expect("network x");
-    let network_width =
-        svg_rect_attr_before_text(&svg, "class=\"nwdiag-network\"", "network public (10.0.0.x)", "width")
-            .expect("network width");
+    let network_x = svg_rect_attr_before_text(
+        &svg,
+        "class=\"nwdiag-network\"",
+        "network public (10.0.0.x)",
+        "x",
+    )
+    .expect("network x");
+    let network_width = svg_rect_attr_before_text(
+        &svg,
+        "class=\"nwdiag-network\"",
+        "network public (10.0.0.x)",
+        "width",
+    )
+    .expect("network width");
     let label_x = svg_text_attr(&svg, "network public (10.0.0.x)", "x").expect("label x");
 
     assert!(
-        label_x + approx_text_width("network public (10.0.0.x)", 13) <= network_x + network_width - 8,
+        label_x + approx_text_width("network public (10.0.0.x)", 13)
+            <= network_x + network_width - 8,
         "network bar should widen to contain its own label without requiring width=full"
     );
 }
