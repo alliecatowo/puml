@@ -246,10 +246,13 @@ pub(super) fn emit_predecessor_arrow(
         prev_idx -= 1;
     }
 
-    if matches!(
-        metas[prev_idx].step_kind.as_str(),
-        "Stop" | "End" | "Kill" | "Detach"
-    ) {
+    let current_is_note = matches!(doc.nodes[i].kind, FamilyNodeKind::Note);
+    if !current_is_note
+        && matches!(
+            metas[prev_idx].step_kind.as_str(),
+            "Stop" | "End" | "Kill" | "Detach"
+        )
+    {
         return;
     }
 

@@ -35,7 +35,7 @@ fn activity_ch06_metadata_survives_normalization() {
     let note = model
         .nodes
         .iter()
-        .find(|node| node.label.as_deref() == Some("note right: keep evidence"))
+        .find(|node| node.label.as_deref() == Some("keep evidence"))
         .expect("activity note node");
     assert_eq!(note.kind, FamilyNodeKind::Note);
 
@@ -76,5 +76,42 @@ fn activity_ch06_render_applies_arrow_color_note_connector_and_detach() {
     assert!(
         !svg.contains("y1=\"488\""),
         "detach should suppress the outgoing arrow into the following action"
+    );
+}
+
+#[test]
+fn activity_inline_note_renders_payload_without_directive_prefix() {
+    let src = include_str!("fixtures/non_sequence/valid_activity_inline_note_text.puml");
+
+    let document = puml::parser::parse(src).expect("parse activity inline note");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize activity inline note")
+    else {
+        panic!("activity should normalize as a family document");
+    };
+    let note = model
+        .nodes
+        .iter()
+        .find(|node| node.kind == FamilyNodeKind::Note)
+        .expect("activity note node");
+    assert_eq!(note.label.as_deref(), Some("baseline note"));
+    assert!(
+        note.alias.as_deref().is_some_and(|alias| {
+            alias.contains("activity::Note")
+                && alias.contains("position=right")
+                && alias.contains("lane=default")
+        }),
+        "activity notes should stay out of the active partition lane"
+    );
+
+    let svg = puml::render_source_to_svg(src).expect("render activity inline note");
+    assert!(svg.contains("data-activity-kind=\"Note\" data-activity-lane=\"default\""));
+    assert!(svg.contains(">baseline note<"));
+    assert!(!svg.contains(">note right: baseline note<"));
+    assert!(
+        svg.contains("<line x1=\"344\" y1=\"406\" x2=\"344\" y2=\"415\"")
+            && svg.contains("<line x1=\"344\" y1=\"415\" x2=\"136\" y2=\"415\"")
+            && svg.contains("<line x1=\"136\" y1=\"415\" x2=\"136\" y2=\"424\""),
+        "annotation connector should route from detach to the out-of-lane note"
     );
 }

@@ -342,7 +342,7 @@ stop
         activity_svg.contains("yes / fast"),
         "then-guard should float on outgoing arrow"
     );
-    assert!(activity_svg.contains("note right: manual review"));
+    assert!(activity_svg.contains("manual review"));
     assert!(
         activity_svg.contains("again?"),
         "repeat condition should appear in diamond"
