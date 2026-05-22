@@ -128,25 +128,31 @@ fn parse_multiline_note_block(
     }
     let (head, inline) = tail.split_once(':').unwrap_or((tail, ""));
     let (position, target) = parse_state_note_head(head.trim());
+    if position.eq_ignore_ascii_case("of") || !is_valid_note_position(&position) {
+        return None;
+    }
     if matches!(position.to_ascii_lowercase().as_str(), "left" | "right") && target.is_none() {
         return None;
     }
     let mut body = Vec::new();
     if !inline.trim().is_empty() {
-        return Some((
-            StatementKind::Note(Note {
-                kind: note_kind_from_keyword(note_kw),
-                position,
-                target,
-                text: inline.trim().to_string(),
-                aligned,
-            }),
-            start,
-        ));
+        body.push(inline.trim().to_string());
     }
 
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
         let trimmed = raw.trim();
+        if !body.is_empty() && is_inline_note_boundary(trimmed) {
+            return Some((
+                StatementKind::Note(Note {
+                    kind: note_kind_from_keyword(note_kw),
+                    position,
+                    target,
+                    text: body.join("\n"),
+                    aligned,
+                }),
+                start,
+            ));
+        }
         if trimmed.eq_ignore_ascii_case("end note") {
             return Some((
                 StatementKind::Note(Note {
@@ -175,6 +181,35 @@ fn parse_multiline_note_block(
     }
 
     None
+}
+
+fn is_inline_note_boundary(line: &str) -> bool {
+    if line.is_empty() || line.contains("-->") || line.starts_with('@') {
+        return true;
+    }
+    let lower = line.to_ascii_lowercase();
+    is_valid_note_head_line(line, &lower)
+        || lower.starts_with("state ")
+        || lower.starts_with("json ")
+        || lower.starts_with("yaml ")
+}
+
+fn is_valid_note_head_line(line: &str, lower: &str) -> bool {
+    let Some(note_kw) = (if lower.starts_with("note ") {
+        Some("note")
+    } else if lower.starts_with("hnote ") {
+        Some("hnote")
+    } else if lower.starts_with("rnote ") {
+        Some("rnote")
+    } else {
+        None
+    }) else {
+        return false;
+    };
+    let tail = line[note_kw.len()..].trim();
+    let (head, _) = tail.split_once(':').unwrap_or((tail, ""));
+    let (position, _) = parse_state_note_head(head.trim());
+    is_valid_note_position(&position)
 }
 
 fn parse_state_note_head(head: &str) -> (String, Option<String>) {
