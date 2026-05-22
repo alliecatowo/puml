@@ -4097,8 +4097,20 @@ fn render_box_grid_relations_and_labels(
             let (bx, by) = points[points.len() - 1];
             (bx, by, bx - ax, by - ay)
         };
+    let labels_overlap = |left: &BoxGridPendingLabel, right: &BoxGridPendingLabel| {
+        let left_half_w = ((left.text.chars().count() as i32) * 7 + 2) / 2;
+        let right_half_w = ((right.text.chars().count() as i32) * 7 + 2) / 2;
+        left.x + left_half_w + LABEL_CLEARANCE_X >= right.x - right_half_w - LABEL_CLEARANCE_X
+            && right.x + right_half_w + LABEL_CLEARANCE_X
+                >= left.x - left_half_w - LABEL_CLEARANCE_X
+            && left.y + 4 + LABEL_CLEARANCE_Y
+                >= right.y - LABEL_TEXT_HALF_HEIGHT - LABEL_CLEARANCE_Y
+            && right.y + 4 + LABEL_CLEARANCE_Y
+                >= left.y - LABEL_TEXT_HALF_HEIGHT - LABEL_CLEARANCE_Y
+    };
 
-    // Fan labels that originate at the same node along their actual rendered edge path.
+    // Fan only same-source labels that truly collide; otherwise keep the
+    // branch-midpoint placement, which is usually the most readable position.
     let mut by_source: std::collections::BTreeMap<String, Vec<usize>> =
         std::collections::BTreeMap::new();
     for (i, pl) in pending_labels.iter().enumerate() {
@@ -4112,6 +4124,14 @@ fn render_box_grid_relations_and_labels(
         }
         let mut sorted = indices;
         sorted.sort_by_key(|&i| pending_labels[i].to_name.clone());
+        let has_overlap = sorted.iter().enumerate().any(|(pos, &left_idx)| {
+            sorted.iter().skip(pos + 1).any(|&right_idx| {
+                labels_overlap(&pending_labels[left_idx], &pending_labels[right_idx])
+            })
+        });
+        if !has_overlap {
+            continue;
+        }
         let count = sorted.len();
         let denom = (count - 1).max(1);
         for (slot, &raw_idx) in sorted.iter().enumerate() {
