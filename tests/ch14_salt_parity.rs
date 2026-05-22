@@ -26,7 +26,7 @@ fn salt_open_droplist_inside_table_cell_renders_expanded_list() {
 
 #[test]
 fn salt_creole_cell_layout_grows_for_visual_lines_not_raw_markup() {
-    let src = "@startsalt\n{\n| = Notes |\n| <color:blue>**Primary**\\\\n//Secondary//</color> |\n}\n@endsalt\n";
+    let src = "@startsalt\n{\n| = Notes |\n| <color:blue>**Primary**\\n//Secondary//</color> |\n}\n@endsalt\n";
     let svg = puml::render_source_to_svg(src).expect("salt creole cell should render");
 
     assert!(svg.contains("data-salt-creole=\"true\""));
