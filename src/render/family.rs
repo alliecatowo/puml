@@ -2385,7 +2385,9 @@ fn parse_map_row(text: &str) -> Option<MapRow<'_>> {
             });
         }
     }
-    for marker in ["*-->", "*--", "*->", "-->", "--", "..>", ".."] {
+    for marker in [
+        "*--->", "*-->", "*---", "*--", "*->", "-->", "---", "--", "..>", "...", "..",
+    ] {
         if let Some((lhs, rhs)) = trimmed.split_once(marker) {
             return Some(MapRow {
                 key: lhs.trim(),
