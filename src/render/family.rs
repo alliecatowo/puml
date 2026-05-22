@@ -1,6 +1,7 @@
 use super::geometry::{compute_edge_anchors_for_direction, pick_port};
 use super::relation::{
-    normalize_relation_endpoints, render_relation_marker_defs, usecase_dependency_label,
+    has_ie_endpoint_marker, normalize_relation_endpoints, render_ie_marker_defs,
+    render_relation_marker_defs, usecase_dependency_label,
 };
 use super::svg::{escape_text, render_actor_stick_figure};
 use crate::ast::MemberModifier;
@@ -1254,6 +1255,13 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
          <path d=\"M0,5 L7,0 L14,5 L7,10 z\" fill=\"#ffffff\" stroke=\"{arrow_stroke}\" stroke-width=\"1\"/>\
          </marker>",
     ));
+    if document
+        .relations
+        .iter()
+        .any(|relation| has_ie_endpoint_marker(&relation.arrow))
+    {
+        render_ie_marker_defs(&mut out, arrow_stroke);
+    }
     out.push_str("</defs>");
 
     // Title
@@ -2589,15 +2597,28 @@ fn render_class_node(
         let modifier_attr = member_modifier_name(member.modifier.as_ref())
             .map(|name| format!(" data-uml-modifier=\"{name}\""))
             .unwrap_or_default();
-        out.push_str(&format!(
-            "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
-            ff = escape_text(font_family),
-            fs = member_font_size,
-            tx = x + 10,
-            vc = effective_color,
-            sa = style_attrs,
-            m = escape_text(&display_text)
-        ));
+        if let Some(required_text) = display_text.strip_prefix('*') {
+            out.push_str(&format!(
+                "<text class=\"uml-member uml-ie-member\" data-uml-ie-mandatory=\"true\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>\
+                 <tspan font-weight=\"700\">*</tspan><tspan dx=\"4\">{m}</tspan></text>",
+                ff = escape_text(font_family),
+                fs = member_font_size,
+                tx = x + 10,
+                vc = effective_color,
+                sa = style_attrs,
+                m = escape_text(required_text.trim_start())
+            ));
+        } else {
+            out.push_str(&format!(
+                "<text class=\"uml-member\"{visibility_attr}{modifier_attr} x=\"{tx}\" y=\"{my}\" font-family=\"{ff}\" font-size=\"{fs}\" fill=\"{vc}\"{sa}>{m}</text>",
+                ff = escape_text(font_family),
+                fs = member_font_size,
+                tx = x + 10,
+                vc = effective_color,
+                sa = style_attrs,
+                m = escape_text(&display_text)
+            ));
+        }
         my += 16;
     }
 }

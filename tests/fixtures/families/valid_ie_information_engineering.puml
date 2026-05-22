@@ -1,0 +1,27 @@
+@startuml
+title Information Engineering Entities
+skinparam linetype ortho
+
+entity CUSTOMER {
+  *customer_id : number <<generated>>
+  --
+  *name : text
+  phone : text
+}
+
+entity ORDER {
+  *order_id : number <<generated>>
+  --
+  *order_date : date
+}
+
+entity LINE_ITEM {
+  *line_id : number <<generated>>
+  --
+  quantity : number
+}
+
+CUSTOMER ||--o{ ORDER : places
+ORDER ||..|{ LINE_ITEM : contains
+CUSTOMER |o--|| CUSTOMER : referred_by
+@enduml
