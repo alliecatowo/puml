@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-22T04:01:58Z",
+  "generated_at_utc": "2026-05-22T21:57:10Z",
   "summary": {
-    "total": 294,
-    "passed": 291,
+    "total": 301,
+    "passed": 298,
     "excluded": 3,
     "failed": 0
   },
@@ -1046,6 +1046,28 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/component/09_style_uml2.puml",
+      "artifact_svg": "docs/examples/component/09_style_uml2.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/component/10_style_rectangle.puml",
+      "artifact_svg": "docs/examples/component/10_style_rectangle.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/creole/01_bold_italic.puml",
       "artifact_svg": "docs/examples/creole/01_bold_italic.svg",
       "artifact_exists": true,
@@ -1563,6 +1585,28 @@
     },
     {
       "source_kind": "source_file",
+      "source_ref": "docs/examples/object/05_ch04_parity.puml",
+      "artifact_svg": "docs/examples/object/05_ch04_parity.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/object/06_map_qualified_anchor.puml",
+      "artifact_svg": "docs/examples/object/06_map_qualified_anchor.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
       "source_ref": "docs/examples/preprocessor/01_define.puml",
       "artifact_svg": "docs/examples/preprocessor/01_define.svg",
       "artifact_exists": true,
@@ -1697,6 +1741,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/salt/04_tabs.puml",
       "artifact_svg": "docs/examples/salt/04_tabs.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/salt/05_settings_dialog_showcase.puml",
+      "artifact_svg": "docs/examples/salt/05_settings_dialog_showcase.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,
@@ -3054,6 +3109,28 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/timing/07_chapter10_parity.puml",
       "artifact_svg": "docs/examples/timing/07_chapter10_parity.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/timing/08_clock_anchor_messages.puml",
+      "artifact_svg": "docs/examples/timing/08_clock_anchor_messages.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/timing/09_date_time_axis_values.puml",
+      "artifact_svg": "docs/examples/timing/09_date_time_axis_values.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

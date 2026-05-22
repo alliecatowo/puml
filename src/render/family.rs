@@ -3546,6 +3546,7 @@ struct BoxGridPendingLabel {
     color: String,
     from_name: String,
     to_name: String,
+    edge_points: Vec<(i32, i32)>,
 }
 
 /// Render all edges (Phase 2) and de-collide their labels (Phase 3) for
@@ -3694,6 +3695,7 @@ fn render_box_grid_relations_and_labels(
 
         let label_color = "#1e293b";
         let (label_mx, label_my);
+        let mut label_edge_points: Vec<(i32, i32)> = vec![(x1, y1), (x2, y2)];
 
         // Prefer orthogonal path from layout engine; fall back to L/Z router.
         let ortho_path: Option<Vec<(i32, i32)>> = if rel.direction.is_none() && !rel.hidden {
@@ -3756,6 +3758,7 @@ fn render_box_grid_relations_and_labels(
             };
             label_mx = lmx;
             label_my = lmy;
+            label_edge_points = orth_pts;
         } else {
             // ── Legacy L/Z-shape routing ─────────────────────────────────────
             let rel_obstacles: Vec<(i32, i32, i32, i32)> = {
@@ -3947,6 +3950,7 @@ fn render_box_grid_relations_and_labels(
                 };
                 label_mx = lmx;
                 label_my = lmy;
+                label_edge_points = best_pts;
             }
         }
 
@@ -3973,6 +3977,7 @@ fn render_box_grid_relations_and_labels(
                 color: label_color.to_string(),
                 from_name: from_name.clone(),
                 to_name: to_name.clone(),
+                edge_points: label_edge_points,
             });
         }
         if let Some(left) = &rel.left_cardinality {
@@ -4040,6 +4045,85 @@ fn render_box_grid_relations_and_labels(
                 pending_labels[raw_idx].text.clone(),
                 pending_labels[raw_idx].color.clone(),
             ));
+        }
+    }
+
+    let point_on_polyline_at_fraction =
+        |points: &[(i32, i32)], frac: f64| -> (i32, i32, i32, i32) {
+            if points.is_empty() {
+                return (0, 0, 0, 0);
+            }
+            if points.len() == 1 {
+                let (x, y) = points[0];
+                return (x, y, 0, 0);
+            }
+
+            let total_len: f64 = points
+                .windows(2)
+                .map(|seg| {
+                    let dx = (seg[1].0 - seg[0].0) as f64;
+                    let dy = (seg[1].1 - seg[0].1) as f64;
+                    (dx * dx + dy * dy).sqrt()
+                })
+                .sum();
+            if total_len <= f64::EPSILON {
+                let (x, y) = points[0];
+                return (x, y, 0, 0);
+            }
+
+            let mut remaining = total_len * frac.clamp(0.0, 1.0);
+            for seg in points.windows(2) {
+                let (ax, ay) = seg[0];
+                let (bx, by) = seg[1];
+                let dx = (bx - ax) as f64;
+                let dy = (by - ay) as f64;
+                let seg_len = (dx * dx + dy * dy).sqrt();
+                if seg_len <= f64::EPSILON {
+                    continue;
+                }
+                if remaining <= seg_len {
+                    let t = remaining / seg_len;
+                    return (
+                        (ax as f64 + dx * t).round() as i32,
+                        (ay as f64 + dy * t).round() as i32,
+                        bx - ax,
+                        by - ay,
+                    );
+                }
+                remaining -= seg_len;
+            }
+
+            let (ax, ay) = points[points.len() - 2];
+            let (bx, by) = points[points.len() - 1];
+            (bx, by, bx - ax, by - ay)
+        };
+
+    // Fan labels that originate at the same node along their actual rendered edge path.
+    let mut by_source: std::collections::BTreeMap<String, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, pl) in pending_labels.iter().enumerate() {
+        if adjusted_labels[i].is_none() {
+            by_source.entry(pl.from_name.clone()).or_default().push(i);
+        }
+    }
+    for (_from_name, indices) in by_source {
+        if indices.len() < 2 {
+            continue;
+        }
+        let mut sorted = indices;
+        sorted.sort_by_key(|&i| pending_labels[i].to_name.clone());
+        let count = sorted.len();
+        let denom = (count - 1).max(1);
+        for (slot, &raw_idx) in sorted.iter().enumerate() {
+            let pl = &pending_labels[raw_idx];
+            let frac = 0.3 + (slot as f64 / denom as f64) * 0.4;
+            let (px, py, dx, dy) = point_on_polyline_at_fraction(&pl.edge_points, frac);
+            let (lx, ly) = if dx.abs() < dy.abs() {
+                (px + 14, py)
+            } else {
+                (px, py - 14)
+            };
+            adjusted_labels[raw_idx] = Some((lx, ly, pl.text.clone(), pl.color.clone()));
         }
     }
 
