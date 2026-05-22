@@ -206,3 +206,41 @@ fn state_ch09_render_emits_visual_shapes_styles_and_labels() {
     assert!(svg.contains("stroke=\"#dd00aa\""));
     assert!(svg.contains(">colored<"));
 }
+
+#[test]
+fn state_history_endpoints_scope_to_composite_owner() {
+    let src = r##"@startuml
+state Running
+state Session {
+  [*] --> Idle
+  Idle --> Busy
+}
+Running --> Session[H] : resume
+Session[H*] --> Running : deep-resume
+@enduml
+"##;
+    let document = puml::parser::parse(src).expect("parse scoped history slice");
+    let NormalizedDocument::State(model) =
+        puml::normalize_family(document).expect("normalize scoped history slice")
+    else {
+        panic!("state should normalize as a state document");
+    };
+
+    let session = model
+        .nodes
+        .iter()
+        .find(|node| node.name == "Session")
+        .expect("Session composite");
+    let region_nodes: Vec<&str> = session
+        .regions
+        .iter()
+        .flatten()
+        .map(|node| node.name.as_str())
+        .collect();
+    assert!(region_nodes.contains(&"Session[H]"));
+    assert!(region_nodes.contains(&"Session[H*]"));
+
+    let svg = puml::render_source_to_svg(src).expect("render scoped history slice");
+    assert!(svg.contains("data-state-from=\"Running\" data-state-to=\"Session[H]\""));
+    assert!(svg.contains("data-state-from=\"Session[H*]\" data-state-to=\"Running\""));
+}
