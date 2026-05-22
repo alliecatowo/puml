@@ -168,6 +168,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
         (chart_w as f64 * 0.05) as i32 + tail_extra + max_label_half_w + right_gutter;
     let width: i32 = left_pad + chart_w + right_pad;
     let axis_panel_w: i32 = width - left_pad - max_label_half_w - right_gutter;
+    let content_x_max: i32 = left_pad + axis_panel_w;
 
     // 22px title lines + 14px subtitle + 10px padding
     let title_h: i32 = doc
@@ -505,7 +506,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 let mut cur_hi = false;
                 for (ts, te, hi) in &segments {
                     let x1 = time_to_x(*ts);
-                    let x2 = time_to_x(*te);
+                    let x2 = time_to_x(*te).min(content_x_max);
                     let cy = if *hi { wave_y_hi } else { wave_y_lo };
                     if first_seg {
                         path.push_str(&format!("{x1},{cy} "));
@@ -575,7 +576,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     .unwrap_or(true);
                 // Clock waveform is clamped to the canvas right edge so that extra
                 // half-periods never bleed outside the viewBox.
-                let x_max = width;
+                let x_max = content_x_max;
                 let x0 = time_to_x(cur_t).min(x_max);
                 let y0 = if cur_hi { clock_y_hi } else { clock_y_lo };
                 path_pts.push_str(&format!("{x0},{y0}"));
@@ -640,7 +641,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     out.push_str(&format!(
                         "<line x1=\"{x1}\" y1=\"{wave_mid}\" x2=\"{x2}\" y2=\"{wave_mid}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>",
                         x1 = time_to_x(t_min),
-                        x2 = time_to_x(end_t)
+                        x2 = time_to_x(end_t).min(content_x_max)
                     ));
                 } else {
                     // Render coloured state boxes with slanted transitions.
@@ -648,7 +649,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                         let (t_start, ref state) = sig_events[i];
                         let t_end = sig_events.get(i + 1).map(|(t, _)| *t).unwrap_or(end_t);
                         let x1 = time_to_x(t_start);
-                        let x2 = time_to_x(t_end);
+                        let x2 = time_to_x(t_end).min(content_x_max);
                         if timing_state_hidden(state) {
                             out.push_str(&format!(
                                 "<line class=\"timing-hidden-state\" x1=\"{x1}\" y1=\"{wave_mid}\" x2=\"{x2}\" y2=\"{wave_mid}\" stroke=\"#cbd5e1\" stroke-width=\"1.2\" stroke-dasharray=\"5 4\"/>",
@@ -702,7 +703,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                     out.push_str(&format!(
                         "<line x1=\"{x1}\" y1=\"{wave_mid}\" x2=\"{x2}\" y2=\"{wave_mid}\" stroke=\"#94a3b8\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/>",
                         x1 = time_to_x(t_min),
-                        x2 = time_to_x(end_t)
+                        x2 = time_to_x(end_t).min(content_x_max)
                     ));
                 } else {
                     // Top and bottom border lines for each segment.
@@ -710,7 +711,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                         let (t_start, ref state) = sig_events[i];
                         let t_end = sig_events.get(i + 1).map(|(t, _)| *t).unwrap_or(end_t);
                         let x1 = time_to_x(t_start);
-                        let x2 = time_to_x(t_end);
+                        let x2 = time_to_x(t_end).min(content_x_max);
                         if timing_state_hidden(state) {
                             out.push_str(&format!(
                                 "<line class=\"timing-hidden-state\" x1=\"{x1}\" y1=\"{wave_mid}\" x2=\"{x2}\" y2=\"{wave_mid}\" stroke=\"#cbd5e1\" stroke-width=\"1.2\" stroke-dasharray=\"5 4\"/>",
@@ -754,7 +755,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                         ));
                     }
                     // Right closing edge
-                    let last_x = time_to_x(end_t);
+                    let last_x = time_to_x(end_t).min(content_x_max);
                     out.push_str(&format!(
                         "<line x1=\"{last_x}\" y1=\"{wave_y_hi}\" x2=\"{last_x}\" y2=\"{wave_y_lo}\" stroke=\"#0f172a\" stroke-width=\"1.5\"/>",
                     ));
