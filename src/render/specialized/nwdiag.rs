@@ -11,6 +11,11 @@ struct NodeRect {
     h: i32,
 }
 
+struct BoxSpan {
+    x: i32,
+    w: i32,
+}
+
 pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     let mut node_columns = Vec::new();
     for net in &document.networks {
@@ -159,6 +164,7 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         style: String,
         label: String,
         shape: String,
+        connector_xs: Vec<i32>,
     }
     let mut overlays: Vec<GroupOverlay> = Vec::new();
     for group in &document.groups {
@@ -179,15 +185,29 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         if min_x == i32::MAX {
             continue;
         }
+        let label = group.label.clone().unwrap_or_else(|| group.name.clone());
+        let label_width = text_width(&format!("group {label}"), 10) + 12;
+        let base_x = min_x - group_pad_x;
+        let base_width = (max_x - min_x) + group_pad_x * 2;
+        let span = expand_span_to_fit(base_x, base_width, label_width, 24, inner_width);
+        let mut connector_xs = BTreeSet::new();
+        for member in &group.nodes {
+            if let Some(rects) = node_rects.get(member) {
+                for rect in rects {
+                    connector_xs.insert(rect.x + (rect.w / 2));
+                }
+            }
+        }
         overlays.push(GroupOverlay {
-            x: min_x - group_pad_x,
+            x: span.x,
             y: min_y - group_header_height,
-            w: (max_x - min_x) + group_pad_x * 2,
+            w: span.w,
             h: (max_y - min_y) + group_header_height + group_pad_bottom,
             color: group.color.clone().unwrap_or_else(|| "#fef3c7".to_string()),
             style: group.style.clone().unwrap_or_else(|| "solid".to_string()),
-            label: group.label.clone().unwrap_or_else(|| group.name.clone()),
+            label,
             shape: group.shape.clone().unwrap_or_else(|| "box".to_string()),
+            connector_xs: connector_xs.into_iter().collect(),
         });
     }
 
@@ -214,12 +234,6 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             radius,
             escape_text(&overlay.color),
             dashed
-        ));
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-weight=\"600\" fill=\"#92400e\">group {}</text>",
-            overlay.x + 4,
-            overlay.y + 15,
-            escape_text(&overlay.label)
         ));
     }
 
@@ -428,6 +442,17 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             to_y
         ));
     }
+    for overlay in &overlays {
+        let label_text = format!("group {}", overlay.label);
+        let label_width = text_width(&label_text, 10);
+        let label_x = label_chip_x(overlay.x, overlay.w, label_width, &overlay.connector_xs);
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"10\" font-weight=\"600\" fill=\"#92400e\">group {}</text>",
+            label_x,
+            overlay.y + 15,
+            escape_text(&overlay.label)
+        ));
+    }
     out.push_str("</svg>");
     out
 }
@@ -468,8 +493,10 @@ fn network_geometry(
     }
     let padded_x = (min_x - 24).max(24);
     let padded_right = (max_x + 24).min(24 + inner_width);
-    let network_width = (padded_right - padded_x).max(120);
-    (padded_x, network_width)
+    let base_width = (padded_right - padded_x).max(120);
+    let label_width = text_width(&network_label(network), 13) + 16;
+    let span = expand_span_to_fit(padded_x, base_width, label_width, 24, inner_width);
+    (span.x, span.w)
 }
 
 fn network_label(network: &NwdiagNetwork) -> String {
@@ -480,4 +507,65 @@ fn network_label(network: &NwdiagNetwork) -> String {
         (false, Some(address)) => format!("network {name} ({address})"),
         (false, None) => format!("network {name}"),
     }
+}
+
+fn expand_span_to_fit(
+    base_x: i32,
+    base_width: i32,
+    min_width: i32,
+    frame_left: i32,
+    inner_width: i32,
+) -> BoxSpan {
+    let max_right = frame_left + inner_width;
+    let target_width = min_width.max(base_width);
+    if target_width <= base_width {
+        return BoxSpan {
+            x: base_x,
+            w: base_width,
+        };
+    }
+
+    let extra = target_width - base_width;
+    let mut x = base_x - (extra / 2);
+    x = x.max(frame_left).min(max_right - target_width);
+    let right = (x + target_width).min(max_right);
+    BoxSpan {
+        x,
+        w: (right - x).max(base_width),
+    }
+}
+
+fn text_width(text: &str, font_size: i32) -> i32 {
+    let glyphs = text.chars().count() as i32;
+    ((glyphs * font_size * 3) + 4) / 5
+}
+
+fn label_chip_x(overlay_x: i32, overlay_width: i32, chip_width: i32, connector_xs: &[i32]) -> i32 {
+    let left = overlay_x + 4;
+    let right = overlay_x + overlay_width - 4;
+    if connector_xs.is_empty() {
+        return left;
+    }
+
+    let mut gaps = Vec::new();
+    let mut cursor = left;
+    for &connector_x in connector_xs {
+        let gap_right = connector_x - 6;
+        if gap_right - cursor >= chip_width {
+            gaps.push((cursor, gap_right));
+        }
+        cursor = (connector_x + 6).max(cursor);
+    }
+    if right - cursor >= chip_width {
+        gaps.push((cursor, right));
+    }
+    if let Some((gap_left, gap_right)) = gaps
+        .into_iter()
+        .max_by_key(|(gap_left, gap_right)| (gap_right - gap_left, -(*gap_left - left).abs()))
+    {
+        let centered = gap_left + ((gap_right - gap_left - chip_width) / 2);
+        return centered.clamp(left, right - chip_width);
+    }
+
+    left
 }

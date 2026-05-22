@@ -30,11 +30,27 @@ nwdiag {
             .expect("group height");
     let group_y = svg_rect_attr_before_text(&svg, "class=\"nwdiag-group\"", "group frontend", "y")
         .expect("group y");
+    let group_width =
+        svg_rect_attr_before_text(&svg, "class=\"nwdiag-group\"", "group frontend", "width")
+            .expect("group width");
+    let group_x = svg_rect_attr_before_text(&svg, "class=\"nwdiag-group\"", "group frontend", "x")
+        .expect("group x");
     let label_y = svg_text_attr(&svg, "group frontend", "y").expect("group label y");
+    let label_x = svg_text_attr(&svg, "group frontend", "x").expect("group label x");
+    let connector_x = svg_line_attr_for_node(&svg, "web01", "x1").expect("web01 connector x");
     assert!(
         group_y + group_height - label_y >= 6,
         "group label should sit inside a dedicated header lane instead of clipping against the border"
     );
+    assert!(
+        label_x + approx_text_width("group frontend", 10) <= group_x + group_width - 4,
+        "group box should expand to fit its label instead of clipping or overflowing it"
+    );
+    assert!(
+        connector_x < label_x || connector_x > label_x + approx_text_width("group frontend", 10),
+        "group label should avoid sitting directly on top of a member connector column"
+    );
+    assert!(!svg.contains("class=\"nwdiag-group-label-chip\""));
 }
 
 #[test]
@@ -200,6 +216,33 @@ Rel_Serving_Down(source, j1, "down route")
     assert!(svg.contains(
         "data-archimate-kind=\"serving\" data-archimate-direction=\"down\" data-archimate-style=\"\""
     ));
+}
+
+#[test]
+fn nwdiag_network_bar_expands_to_fit_long_label_without_width_full() {
+    let src = r#"@startnwdiag
+nwdiag {
+  network public {
+    address = "10.0.0.x"
+    lb;
+  }
+}
+@endnwdiag
+"#;
+    let svg = puml::render_source_to_svg(src).expect("nwdiag render");
+
+    let network_x =
+        svg_rect_attr_before_text(&svg, "class=\"nwdiag-network\"", "network public (10.0.0.x)", "x")
+            .expect("network x");
+    let network_width =
+        svg_rect_attr_before_text(&svg, "class=\"nwdiag-network\"", "network public (10.0.0.x)", "width")
+            .expect("network width");
+    let label_x = svg_text_attr(&svg, "network public (10.0.0.x)", "x").expect("label x");
+
+    assert!(
+        label_x + approx_text_width("network public (10.0.0.x)", 13) <= network_x + network_width - 8,
+        "network bar should widen to contain its own label without requiring width=full"
+    );
 }
 
 #[test]
@@ -391,6 +434,19 @@ fn svg_text_attr(svg: &str, text: &str, attr: &str) -> Option<i32> {
     let tag_ix = svg[..text_ix].rfind("<text ")?;
     let tag = svg[tag_ix..].split_once('>')?.0;
     svg_attr_i32(tag, attr)
+}
+
+fn svg_line_attr_for_node(svg: &str, node: &str, attr: &str) -> Option<i32> {
+    let needle = format!("data-nwdiag-node=\"{node}\"");
+    let tag_ix = svg.find(&needle)?;
+    let line_ix = svg[..tag_ix].rfind("<line ")?;
+    let tag = svg[line_ix..].split_once('>')?.0;
+    svg_attr_i32(tag, attr)
+}
+
+fn approx_text_width(text: &str, font_size: i32) -> i32 {
+    let glyphs = text.chars().count() as i32;
+    ((glyphs * font_size * 3) + 4) / 5
 }
 
 fn svg_attr_i32(tag: &str, attr: &str) -> Option<i32> {
