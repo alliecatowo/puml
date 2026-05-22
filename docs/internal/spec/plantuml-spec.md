@@ -33,7 +33,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | # | Chapter | ✅ | 🟡 | ❌ | Audit |
 |---|---------|----|----|----|-------|
 | 1 | Sequence Diagram | 28 | 14 | 6 | [ch01-sequence.md](audit/ch01-sequence.md) |
-| 2 | Use Case Diagram | 12 | 3 | 2 | [ch02-usecase.md](audit/ch02-usecase.md) |
+| 2 | Use Case Diagram | 13 | 3 | 2 | [ch02-usecase.md](audit/ch02-usecase.md) |
 | 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
 | 4 | Object Diagram | 5 | 2 | 1 | [ch04-object.md](audit/ch04-object.md) |
 | 5 | Activity (legacy) | 0 | 2 | 10 | [ch05-activity-legacy.md](audit/ch05-activity-legacy.md) |
@@ -53,7 +53,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 19 | Math | 3 | 1 | 1 | [ch19-math.md](audit/ch19-math.md) |
 | 20 | Information Engineering | 1 | 2 | 2 | [ch20-ie.md](audit/ch20-ie.md) |
 | 21 | Common Commands | 12 | 6 | 4 | [ch21-common.md](audit/ch21-common.md) |
-| 22 | Creole | 12 | 3 | 16 | [ch22-creole.md](audit/ch22-creole.md) |
+| 22 | Creole | 14 | 4 | 16+ | [ch22-creole.md](audit/ch22-creole.md) |
 | 23 | Sprites | 0 | 1 | 7 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
 | 25 | Preprocessing | 18 | 8 | 2 | [ch25-preproc.md](audit/ch25-preproc.md) |
@@ -71,7 +71,7 @@ closing implementation work from these notes.
 2. **Preprocessing** — 18✅/28 (64%). The repo's strongest large area: full `!if/!elseif/!ifdef/!while/!foreach/!function/!procedure` with `!local/!global/!unquoted`, broad builtin set, `!include/_many/_once/url/import`.
 3. **MindMap** — 9✅/14 (64%).
 4. **Math** — 3✅/5 (60%).
-5. **Use Case** — 11✅/17 (65%).
+5. **Use Case** — 13✅/18 (72%).
 6. **JSON** — 7✅/14 (50%). serde_json + block parsing both solid.
 7. **WBS** — 6✅/12 (50%).
 8. **nwdiag** — 11✅/17 (65%). Networks/groups/addresses/peer links solid; global styling and full shape parity still lag.
@@ -84,7 +84,7 @@ closing implementation work from these notes.
 15. **YAML** — 3✅/8 (38%).
 16. **Skinparam** — 5✅/14 (36%).
 17. **Component** — 12✅/19 (63%).
-18. **Creole** — 12✅/31 (39%). Inline only; all block-level formatting missing.
+18. **Creole** — 14✅/34+ (41%). Core inline formatting and Unicode escapes work; block-level formatting remains missing.
 19. **State** — 7✅/25 (28%) in the baseline. Recent state-note and state-data-projection work means the headline percentage is stale; trust `ch09-state.md` for current evidence.
 20. **Class** — 9✅/45 (20%). Generics, member-qualified refs, hide/remove, and a large stereotype-skin matrix all missing.
 21. **Information Engineering** — 1✅/5 (20%). `entity` routed to sequence parser.

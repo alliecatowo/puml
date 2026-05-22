@@ -5,7 +5,7 @@ Spec date: PlantUML Language Reference Guide 1.2025.0
 
 Status legend: ✅ supported · 🟡 partial · ❌ not supported
 
-Core implementation: `src/creole.rs` (668 lines). Module docstring:
+Core implementation: `src/creole.rs`. Module docstring:
 > Supports: **bold**, //italic//, ""mono"", __underline__, --strikethrough--, [[url label]] hyperlinks, <color:X>text</color>, <size:N>text</size>, <b>, <i>, <u> HTML tags, \n line breaks, and <&icon> placeholders.
 
 ---

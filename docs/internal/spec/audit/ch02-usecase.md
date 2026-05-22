@@ -134,6 +134,6 @@ Audited against repo at `/Users/allison.coleman/Develop/puml` (Wave-21+).
 ---
 
 ## Tally — Chapter 2
-- ✅ Supported: **12** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.16)
+- ✅ Supported: **13** (2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.14, 2.16)
 - 🟡 Partial: **3** (2.4, 2.13, 2.17)
 - ❌ Missing: **2** (2.15, 2.18)
