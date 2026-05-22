@@ -29,6 +29,7 @@ jobs:
       run_full_gate: ${{ steps.changes.outputs.run_full_gate }}
       docs_examples_changed: ${{ steps.changes.outputs.docs_examples_changed }}
       run_docs_examples_drift: ${{ steps.changes.outputs.run_docs_examples_drift }}
+      run_artifact_regen: ${{ steps.changes.outputs.run_artifact_regen }}
       run_wasm_check: ${{ steps.changes.outputs.run_wasm_check }}
       run_site_smoke: ${{ steps.changes.outputs.run_site_smoke }}
       run_wasm_site_smoke: ${{ steps.changes.outputs.run_wasm_site_smoke }}
@@ -66,10 +67,79 @@ jobs:
           echo "Docs-only change set detected outside docs/examples; skipping Rust, coverage, wasm, visual, and docs-example drift gates."
           echo "Site graph-toggle smoke will still run when documentation/site files can affect rendered docs."
 
+  artifact_regen:
+    name: artifact regen
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.run_artifact_regen == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+      actions: write
+    outputs:
+      pushed_regen_commit: ${{ steps.commit.outputs.pushed_regen_commit }}
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-gate-ubuntu-stable
+          cache-on-failure: true
+
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Build puml CLI binary for artifact regen
+        run: cargo build --release --bin puml
+
+      - name: Regenerate committed diagram artifacts
+        run: ./scripts/regen-artifacts.sh --force
+
+      - name: Commit regenerated artifacts when drift is detected
+        id: commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- docs/examples docs/diagrams; then
+            echo "No regenerated artifact drift detected."
+            echo "pushed_regen_commit=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/examples docs/diagrams
+          git commit -m "chore(ci): regenerate diagram artifacts"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          gh workflow run pr-gate.yml --ref "${{ github.event.pull_request.head.ref }}"
+          echo "pushed_regen_commit=true" >> "${GITHUB_OUTPUT}"
+
+  skip_after_regen_push:
+    name: skip after regen push
+    needs: [changes, artifact_regen]
+    if: always() && needs.artifact_regen.outputs.pushed_regen_commit == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why the heavy gate is skipped
+        run: |
+          echo "Artifact regeneration produced a commit on the PR branch."
+          echo "The synchronize rerun will execute the expensive CI checks once against the updated branch."
+
   fmt:
     name: fmt
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -96,8 +166,8 @@ jobs:
 
   clippy:
     name: clippy
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -124,8 +194,8 @@ jobs:
 
   test:
     name: test
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -170,8 +240,8 @@ jobs:
 
   wasm:
     name: wasm
-    needs: changes
-    if: needs.changes.outputs.run_wasm_check == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_wasm_check == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -198,8 +268,8 @@ jobs:
 
   coverage:
     name: coverage
-    needs: changes
-    if: needs.changes.outputs.run_full_gate == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_full_gate == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true' && github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -229,8 +299,8 @@ jobs:
 
   docs_examples_drift:
     name: docs examples drift
-    needs: changes
-    if: needs.changes.outputs.run_docs_examples_drift == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_docs_examples_drift == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -255,8 +325,8 @@ jobs:
 
   site_smoke:
     name: site graph toggle smoke
-    needs: changes
-    if: needs.changes.outputs.run_site_smoke == 'true'
+    needs: [changes, artifact_regen]
+    if: always() && needs.changes.outputs.run_site_smoke == 'true' && needs.artifact_regen.outputs.pushed_regen_commit != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -324,6 +394,7 @@ jobs:
     name: fmt-clippy-test-coverage-quick
     needs:
       - changes
+      - artifact_regen
       - fmt
       - clippy
       - test
@@ -334,13 +405,20 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      statuses: write
     env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       RUN_FULL_GATE: ${{ needs.changes.outputs.run_full_gate }}
       RUN_DOCS_EXAMPLES_DRIFT: ${{ needs.changes.outputs.run_docs_examples_drift }}
       RUN_WASM_CHECK: ${{ needs.changes.outputs.run_wasm_check }}
       RUN_SITE_SMOKE: ${{ needs.changes.outputs.run_site_smoke }}
+      REGEN_PUSHED: ${{ needs.artifact_regen.outputs.pushed_regen_commit }}
       IS_BOT_DEP_UPDATER: ${{ github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]' }}
       CHANGES_RESULT: ${{ needs.changes.result }}
+      ARTIFACT_REGEN_RESULT: ${{ needs.artifact_regen.result }}
       FMT_RESULT: ${{ needs.fmt.result }}
       CLIPPY_RESULT: ${{ needs.clippy.result }}
       TEST_RESULT: ${{ needs.test.result }}
@@ -351,6 +429,7 @@ jobs:
 
     steps:
       - name: Summarize PR gate shards
+        id: summarize
         shell: bash
         run: |
           set -euo pipefail
@@ -360,6 +439,8 @@ jobs:
           echo "run_docs_examples_drift=${RUN_DOCS_EXAMPLES_DRIFT}"
           echo "run_wasm_check=${RUN_WASM_CHECK}"
           echo "run_site_smoke=${RUN_SITE_SMOKE}"
+          echo "regen_pushed=${REGEN_PUSHED}"
+          echo "artifact_regen=${ARTIFACT_REGEN_RESULT}"
           echo "fmt=${FMT_RESULT}"
           echo "clippy=${CLIPPY_RESULT}"
           echo "test=${TEST_RESULT}"
@@ -379,6 +460,15 @@ jobs:
           }
 
           require_success "changes" "${CHANGES_RESULT}"
+
+          if [[ "${REGEN_PUSHED}" == "true" ]]; then
+            require_success "artifact regen" "${ARTIFACT_REGEN_RESULT}"
+            if (( ${#failures[@]} == 0 )); then
+              echo "state=success" >> "${GITHUB_OUTPUT}"
+              echo "description=Artifact regeneration pushed a follow-up commit; rerun queued for updated head SHA." >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+          fi
 
           if [[ "${RUN_FULL_GATE}" == "true" ]]; then
             require_success "fmt" "${FMT_RESULT}"
@@ -402,9 +492,34 @@ jobs:
           fi
 
           if (( ${#failures[@]} > 0 )); then
-            printf 'PR gate failed:\n' >&2
-            printf '  - %s\n' "${failures[@]}" >&2
-            exit 1
+            echo "state=failure" >> "${GITHUB_OUTPUT}"
+            echo "description=PR gate failed; inspect workflow summary." >> "${GITHUB_OUTPUT}"
+          else
+            echo "state=success" >> "${GITHUB_OUTPUT}"
+            echo "description=PR gate passed." >> "${GITHUB_OUTPUT}"
           fi
 
-          echo "PR gate passed."
+      - name: Publish required status context
+        shell: bash
+        env:
+          STATUS_STATE: ${{ steps.summarize.outputs.state }}
+          STATUS_DESCRIPTION: ${{ steps.summarize.outputs.description }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            --method POST \
+            "repos/${{ github.repository }}/statuses/${TARGET_SHA}" \
+            -f state="${STATUS_STATE}" \
+            -f context="fmt-clippy-test-coverage-quick" \
+            -f description="${STATUS_DESCRIPTION}" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Fail when any required shard failed
+        if: steps.summarize.outputs.state != 'success'
+        shell: bash
+        env:
+          STATUS_DESCRIPTION: ${{ steps.summarize.outputs.description }}
+        run: |
+          printf 'PR gate failed:\n  - %s\n' "${STATUS_DESCRIPTION}" >&2
+          exit 1
