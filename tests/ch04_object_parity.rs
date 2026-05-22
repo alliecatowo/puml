@@ -14,11 +14,14 @@ Sale --> Fulfillment
 "##;
 
 const MAP_ROWS_SRC: &str = r##"@startuml
+object London
+object Washington
+object Berlin
 object NewYork
 map CapitalCity {
-  UK => London
+  UK *-> London
   USA *--> Washington
-  Germany => Berlin
+  Germany *---> Berlin
 }
 NewYork --> CapitalCity::USA
 @enduml
@@ -60,6 +63,19 @@ fn object_ch04_normalizes_diamond_map_and_qualified_relation() {
             .any(|rel| rel.from == "NewYork" && rel.to == "CapitalCity::USA"),
         "qualified map-row endpoint should be preserved on the relation"
     );
+    assert!(
+        model.relations.iter().any(|rel| {
+            rel.from == "CapitalCity::USA" && rel.to == "Washington" && rel.arrow == "*-->"
+        }),
+        "map row link syntax should normalize as a relation from the qualified row"
+    );
+    assert!(
+        model
+            .relations
+            .iter()
+            .any(|rel| rel.from == "CapitalCity::UK" && rel.to == "London" && rel.arrow == "*->"),
+        "short map row link syntax should normalize as a relation from the qualified row"
+    );
 }
 
 #[test]
@@ -99,6 +115,10 @@ fn qualified_map_link_anchors_to_the_named_row() {
         rel_y, row_y,
         "qualified link should terminate at the USA row center"
     );
+    assert!(
+        svg.contains("data-uml-from=\"CapitalCity::USA\" data-uml-to=\"Washington\""),
+        "map row link syntax should render a relation from the USA row to Washington"
+    );
 }
 
 fn svg_text_tag_with<'a>(svg: &'a str, needle: &str) -> Option<&'a str> {
@@ -110,9 +130,9 @@ fn svg_text_tag_with<'a>(svg: &'a str, needle: &str) -> Option<&'a str> {
 
 fn svg_relation_tag_with<'a>(svg: &'a str, needle: &str) -> Option<&'a str> {
     let idx = svg.find(needle)?;
-    let start = svg[..idx]
-        .rfind("<line ")
-        .or_else(|| svg[..idx].rfind("<polyline "))?;
+    let line_start = svg[..idx].rfind("<line ");
+    let polyline_start = svg[..idx].rfind("<polyline ");
+    let start = line_start.into_iter().chain(polyline_start).max()?;
     let end = svg[idx..].find("/>")?;
     Some(&svg[start..idx + end + 2])
 }
