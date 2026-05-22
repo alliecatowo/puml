@@ -1745,7 +1745,11 @@ fn render_salt_cell_svg(
             let divider_x = x + pad + combo_w - 11;
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
-                divider_x, y + 2, divider_x, y + 2 + combo_h, style.border_color
+                divider_x,
+                y + 2,
+                divider_x,
+                y + 2 + combo_h,
+                style.border_color
             ));
             out.push_str(&format!(
                 "<polygon points=\"{},{} {},{} {},{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
