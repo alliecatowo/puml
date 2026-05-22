@@ -4,8 +4,8 @@ This gallery indexes the docs-as-tests corpus under `docs/examples/`.
 
 ## Corpus totals
 
-- `293` source diagrams (`*.puml`)
-- `297` render artifacts (`*.svg`)
+- `298` source diagrams (`*.puml`)
+- `302` render artifacts (`*.svg`)
 - Location: `docs/examples/` and its family subdirectories
 
 ## Layout-Stressing Fixtures

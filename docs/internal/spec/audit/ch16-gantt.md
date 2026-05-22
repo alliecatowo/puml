@@ -1,6 +1,6 @@
 # Chapter 16 — Gantt Chart Audit
 
-Tally: 15 ✅ / 11 🟡 / 13 ❌
+Tally: 16 ✅ / 11 🟡 / 12 ❌
 
 ### 16.1.1 Workload (requires N days/weeks) — ✅
 **Feature:** `[Task] requires N days` (also weeks; combined `1 week and 4 days`)
@@ -53,11 +53,11 @@ Tally: 15 ✅ / 11 🟡 / 13 ❌
 **Evidence:** timeline.rs:36-51 upserts by name (merges duplicates rather than creating second task)
 **Notes:** Same-name + alias must create distinct tasks; current logic UPDATES first match → second `[SameTaskName] as [T2]` would overwrite, not split.
 
-### 16.6 / 16.34 is colored in (task and legend) — 🟡
+### 16.6 / 16.34 is colored in (task bars; legend color partial) — ✅/🟡
 **Feature:** `[Task] is colored in Fuchsia/FireBrick`
-**Status:** 🟡 (pending PR #899 merge)
-**Evidence:** Not in main branch; PR #899 (OPEN) adds `GanttTaskColor` AST variant and color resolution in render/timeline.rs
-**Notes:** Branch ships fix but not merged at audit time.
+**Status:** ✅ Supported for task bars
+**Evidence:** `src/parser/gantt.rs` parses task color metadata, `src/normalize/timeline.rs` applies fill/stroke colors, and `src/render/timeline.rs` emits colored Gantt task bars. Covered by `gantt_issue_779_named_date_marker_and_task_color_render` in `tests/parity_wave_csv_timeline_activity.rs` and `docs/examples/gantt/09_ch16_parity.puml`.
+**Notes:** Legend text itself renders, but full PlantUML legend cell-color fidelity still depends on broader Creole/table support.
 
 ### 16.7 Completion percentage — ❌
 **Feature:** `[foo] is 40% completed` / `is 40% complete` / `requires N days and is 10% complete`
@@ -83,11 +83,11 @@ Tally: 15 ✅ / 11 🟡 / 13 ❌
 **Evidence:** gantt.rs:14-28 only accepts ISO `YYYY-MM-DD` after stripping "on "/"the "
 **Notes:** "20th of september 2017" not parsed. Only ISO works.
 
-### 16.11 Coloring days `2020/09/07 is colored in salmon` — ❌
+### 16.11 Coloring / naming days `2020/09/07 is colored in salmon` — 🟡
 **Feature:** Single-date and range colors for days, plus `are named [...]` naming
-**Status:** ❌ (named pending PR #899)
-**Evidence:** No `colored in` for date in main branch. PR #899 adds `GanttNamedDate` (named only) and named-date rendering.
-**Notes:** Spec also uses `YYYY/MM/DD` (slash) — parser requires hyphens (gantt.rs:451-471).
+**Status:** 🟡 Partial
+**Evidence:** Named date/range markers render via `GanttNamedDate` support covered by `gantt_issue_779_named_date_marker_and_task_color_render` and `docs/examples/gantt/09_ch16_parity.puml`.
+**Notes:** Named ranges are supported; single-day color bands remain less complete than PlantUML's full calendar-color semantics.
 
 ### 16.12 Scale (printscale/projectscale/ganttscale + daily/weekly/monthly/quarterly/yearly) — 🟡
 **Feature:** `printscale weekly`, `projectscale monthly`, scale values
@@ -212,7 +212,10 @@ Tally: 15 ✅ / 11 🟡 / 13 ❌
 **Status:** ✅
 **Evidence:** timeline.rs:170-179 handles Title/Header/Footer/Caption/Legend
 
-### 16.34 Add color on legend — see 16.6/16.33 (legend supported; coloring relies on PR #899 task colors plus creole `|<#color>|`)
+### 16.34 Add color on legend — 🟡
+**Feature:** Colored legend rows/cells in Gantt diagrams.
+**Status:** 🟡 Partial
+**Evidence:** Legend blocks render via the timeline common-command path, and task color support is now present (see 16.6). Full PlantUML colored legend fidelity still depends on broader Creole table/cell-color support.
 
 ### 16.35 hide footbox — 🟡
 **Feature:** Remove footer date row
