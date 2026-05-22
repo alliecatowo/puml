@@ -1,4 +1,5 @@
 use super::arrows::fork_branch_cx;
+use super::arrows::ActivityArrowStyle;
 use crate::model::{FamilyDocument, FamilyNodeKind};
 
 // ---------------------------------------------------------------------------
@@ -9,6 +10,7 @@ pub(super) struct NodeMeta {
     pub step_kind: String,
     pub lane_name: String,
     pub fork_branch: usize,
+    pub arrow_style: Option<ActivityArrowStyle>,
 }
 
 pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
@@ -33,13 +35,39 @@ pub(super) fn parse_node_metas(doc: &FamilyDocument) -> Vec<NodeMeta> {
                     }
                 }
             }
+            let arrow_style = node.label.as_deref().and_then(parse_activity_arrow_style);
             NodeMeta {
                 step_kind,
                 lane_name,
                 fork_branch,
+                arrow_style,
             }
         })
         .collect()
+}
+
+fn parse_activity_arrow_style(label: &str) -> Option<ActivityArrowStyle> {
+    let mut parts = label.split('\x1f');
+    if !parts.next()?.is_empty() || parts.next()? != "activity:arrow" {
+        return None;
+    }
+    let mut style = ActivityArrowStyle::default();
+    for part in parts {
+        if let Some(value) = part.strip_prefix("color:") {
+            style.color = Some(value.to_string());
+        } else if let Some(value) = part.strip_prefix("label:") {
+            style.label = Some(value.to_string());
+        } else if part == "dashed:1" {
+            style.dashed = true;
+        } else if part == "hidden:1" {
+            style.hidden = true;
+        } else if part == "bold:1" {
+            style.bold = true;
+        } else if part == "no_head:1" {
+            style.no_head = true;
+        }
+    }
+    Some(style)
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +453,7 @@ pub(super) fn compute_layout(
                 // Partition/swimlane markers: zero-height layout nodes
                 let is_partition_marker = meta.step_kind == "PartitionStart"
                     || meta.step_kind == "PartitionEnd"
+                    || meta.step_kind == "Arrow"
                     || meta.step_kind == "OldStyle";
                 if is_partition_marker
                     && matches!(doc.nodes[i].kind, FamilyNodeKind::ActivityPartition)

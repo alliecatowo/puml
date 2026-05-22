@@ -1,9 +1,9 @@
 {
   "schema_version": "2.0.0",
-  "generated_at_utc": "2026-05-22T01:53:53Z",
+  "generated_at_utc": "2026-05-22T02:28:12Z",
   "summary": {
-    "total": 287,
-    "passed": 284,
+    "total": 288,
+    "passed": 285,
     "excluded": 3,
     "failed": 0
   },
@@ -265,6 +265,17 @@
       "source_kind": "source_file",
       "source_ref": "docs/examples/activity_new/06_partition.puml",
       "artifact_svg": "docs/examples/activity_new/06_partition.svg",
+      "artifact_exists": true,
+      "artifact_up_to_date": true,
+      "excluded": false,
+      "exclusion_reason": null,
+      "status": "pass",
+      "notes": []
+    },
+    {
+      "source_kind": "source_file",
+      "source_ref": "docs/examples/activity_new/07_ch06_parity.puml",
+      "artifact_svg": "docs/examples/activity_new/07_ch06_parity.svg",
       "artifact_exists": true,
       "artifact_up_to_date": true,
       "excluded": false,

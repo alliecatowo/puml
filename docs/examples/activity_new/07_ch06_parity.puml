@@ -1,0 +1,14 @@
+@startuml
+title Activity New Chapter 6 Parity Slice
+start
+#LightBlue:Collect request;
+-[#red,dashed]-> reviewed;
+:Review request;
+note right: capture audit evidence
+#pink:(A)
+partition #LightYellow Ops {
+  :Ship release;
+}
+detach
+:Detached follow-up;
+@enduml

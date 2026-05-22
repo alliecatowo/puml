@@ -1547,8 +1547,57 @@ mod tests {
                 && step.label.as_deref() == Some("backward retry path")));
         assert!(steps
             .iter()
-            .any(|step| step.kind == ActivityStepKind::Stop
+            .any(|step| step.kind == ActivityStepKind::Detach
                 && step.label.as_deref() == Some("detach")));
+    }
+
+    #[test]
+    fn parses_activity_new_metadata_steps() {
+        let doc = parse_with_options(
+            "@startuml\nstart\n#LightBlue:Collect;\n-[#red,dashed]-> reviewed;\n:Review;\nnote right: keep evidence\n#pink:(A)\ngroup Audit\n:Log;\nend group\npartition #LightYellow Ops {\n:Ship;\n}\nkill\n@enduml\n",
+            &ParseOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(doc.kind, DiagramKind::Activity);
+        let steps = doc
+            .statements
+            .iter()
+            .filter_map(|stmt| match &stmt.kind {
+                StatementKind::ActivityStep(step) => Some(step),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::Action
+                && step.label.as_deref() == Some("\u{1f}style:fill:LightBlue\u{1f}Collect")
+        }));
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::Arrow
+                && step
+                    .label
+                    .as_deref()
+                    .is_some_and(|label| label.contains("color:red") && label.contains("dashed:1"))
+        }));
+        assert!(doc.statements.iter().any(|stmt| matches!(
+            &stmt.kind,
+            StatementKind::Note(note) if note.text == "keep evidence"
+        )));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Connector
+                && step.label.as_deref() == Some("\u{1f}style:fill:pink\u{1f}(A)")));
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::PartitionStart
+                && step.label.as_deref() == Some("\u{1f}style:fill:LightYellow\u{1f}Ops")
+        }));
+        assert!(steps.iter().any(|step| {
+            step.kind == ActivityStepKind::PartitionStart
+                && step.label.as_deref() == Some("Audit")
+        }));
+        assert!(steps
+            .iter()
+            .any(|step| step.kind == ActivityStepKind::Kill
+                && step.label.as_deref() == Some("kill")));
     }
 
     #[test]

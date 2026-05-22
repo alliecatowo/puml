@@ -569,6 +569,21 @@ fn extract_family_node_fill_color(members: &mut Vec<ClassMember>) -> Option<Stri
     });
     fill_color
 }
+
+fn extract_activity_inline_fill(label: &mut Option<String>) -> Option<String> {
+    let value = label.take()?;
+    let Some(rest) = value.strip_prefix("\x1fstyle:fill:") else {
+        *label = Some(value);
+        return None;
+    };
+    let Some((color, display)) = rest.split_once('\x1f') else {
+        *label = Some(value);
+        return None;
+    };
+    *label = (!display.is_empty()).then(|| display.to_string());
+    Some(color.trim().to_string())
+}
+
 pub(super) fn normalize_family_tree(document: Document) -> Result<FamilyDocument, Diagnostic> {
     let mut nodes = Vec::new();
     let mut relations = Vec::new();
@@ -1135,9 +1150,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                 activity_step_counter += 1;
                 let kind = activity_step_node_kind(&step.kind);
                 let name = format!("__act_{activity_step_counter:04}");
+                let mut label = step.label;
+                let fill_color = extract_activity_inline_fill(&mut label);
                 match step.kind {
                     ActivityStepKind::PartitionStart => {
-                        activity_active_partition = step.label.clone();
+                        activity_active_partition = label.clone();
                     }
                     ActivityStepKind::PartitionEnd => {
                         activity_active_partition = None;
@@ -1168,10 +1185,10 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
                     alias: Some(alias),
                     members: Vec::new(),
                     depth: 0,
-                    label: step.label,
+                    label,
                     mindmap_side: MindMapSide::Right,
                     wbs_checkbox: None,
-                    fill_color: None,
+                    fill_color,
                 });
             }
             StatementKind::TimingDecl {
@@ -1337,7 +1354,35 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
             }
             StatementKind::Note(note) => {
                 note_counter += 1;
-                nodes.push(family_note_node(note_counter, note));
+                if family_kind == DiagramKind::Activity {
+                    activity_step_counter += 1;
+                    let lane = activity_active_partition
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string());
+                    let position = note.position.trim().to_string();
+                    let text = note.text.trim();
+                    let label = if text.is_empty() {
+                        format!("note {position}")
+                    } else {
+                        format!("note {position}: {text}")
+                    };
+                    nodes.push(FamilyNode {
+                        kind: FamilyNodeKind::Note,
+                        name: format!("__act_{activity_step_counter:04}"),
+                        alias: Some(format!(
+                            "activity::Note|lane={}|fork_depth={}|fork_branch={}",
+                            lane, activity_fork_depth, activity_fork_branch
+                        )),
+                        members: Vec::new(),
+                        depth: 0,
+                        label: Some(label),
+                        mindmap_side: MindMapSide::Right,
+                        wbs_checkbox: None,
+                        fill_color: None,
+                    });
+                } else {
+                    nodes.push(family_note_node(note_counter, note));
+                }
             }
             StatementKind::ClassGroup {
                 kind,
@@ -1844,8 +1889,13 @@ fn component_node_kind(kind: ComponentNodeKind) -> FamilyNodeKind {
 fn activity_step_node_kind(kind: &ActivityStepKind) -> FamilyNodeKind {
     match kind {
         ActivityStepKind::Start => FamilyNodeKind::ActivityStart,
-        ActivityStepKind::Stop | ActivityStepKind::End => FamilyNodeKind::ActivityStop,
+        ActivityStepKind::Stop
+        | ActivityStepKind::End
+        | ActivityStepKind::Kill
+        | ActivityStepKind::Detach => FamilyNodeKind::ActivityStop,
         ActivityStepKind::Action => FamilyNodeKind::ActivityAction,
+        ActivityStepKind::Connector => FamilyNodeKind::ActivityAction,
+        ActivityStepKind::Note => FamilyNodeKind::Note,
         ActivityStepKind::IfStart
         | ActivityStepKind::WhileStart
         | ActivityStepKind::RepeatWhile => FamilyNodeKind::ActivityDecision,
@@ -1855,9 +1905,9 @@ fn activity_step_node_kind(kind: &ActivityStepKind) -> FamilyNodeKind {
         ActivityStepKind::Fork | ActivityStepKind::ForkAgain => FamilyNodeKind::ActivityFork,
         ActivityStepKind::EndFork => FamilyNodeKind::ActivityForkEnd,
         ActivityStepKind::RepeatStart => FamilyNodeKind::ActivityMerge,
-        ActivityStepKind::PartitionStart | ActivityStepKind::PartitionEnd => {
-            FamilyNodeKind::ActivityPartition
-        }
+        ActivityStepKind::Arrow
+        | ActivityStepKind::PartitionStart
+        | ActivityStepKind::PartitionEnd => FamilyNodeKind::ActivityPartition,
     }
 }
 
