@@ -38,7 +38,7 @@ trust the per-chapter audit evidence over these aggregate percentages.
 | 4 | Object Diagram | 5 | 2 | 1 | [ch04-object.md](audit/ch04-object.md) |
 | 5 | Activity (legacy) | 0 | 2 | 10 | [ch05-activity-legacy.md](audit/ch05-activity-legacy.md) |
 | 6 | Activity (new) | 6 | 12 | 12 | [ch06-activity-new.md](audit/ch06-activity-new.md) |
-| 7 | Component | 10 | 6 | 3 | [ch07-component.md](audit/ch07-component.md) |
+| 7 | Component | 12 | 5 | 2 | [ch07-component.md](audit/ch07-component.md) |
 | 8 | Deployment | 14 kw + 5 sec | 10 sec | 15 kw + 2 sec | [ch08-deployment.md](audit/ch08-deployment.md) |
 | 9 | State | 7 | 7 | 11 | [ch09-state.md](audit/ch09-state.md) |
 | 10 | Timing | 3 | 11 | 15 | [ch10-timing.md](audit/ch10-timing.md) |
@@ -83,7 +83,7 @@ closing implementation work from these notes.
 14. **Object** — 3✅/8 (38%).
 15. **YAML** — 3✅/8 (38%).
 16. **Skinparam** — 5✅/14 (36%).
-17. **Component** — 6✅/18 (33%).
+17. **Component** — 12✅/19 (63%).
 18. **Creole** — 12✅/31 (39%). Inline only; all block-level formatting missing.
 19. **State** — 7✅/25 (28%). `note … of` is a hard error.
 20. **Class** — 9✅/45 (20%). Generics, member-qualified refs, hide/remove, and a large stereotype-skin matrix all missing.
@@ -110,9 +110,9 @@ PlantUML's modern theming language (CSS-like selectors inside `<style>...</style
 
 `skinparam class<<Trait>> { … }` and equivalents on usecase/object/component/state are dropped — only the unscoped form is applied.
 
-### 4. Hide / remove / `$tag` / `@unlinked` model-pruning system
+### 4. Hide / remove model-pruning system outside component `$tag` controls
 
-Class, component, deployment all support `hide @unlinked`, `remove $tag`, `hide <Foo>`. None of this is wired. Major gap for filtered diagrams.
+Component diagrams now support `hide`/`remove`/`restore $tag` and `@unlinked` pruning. Class and broader deployment-specific filtered forms still need follow-up, including full `hide <Foo>` parity where applicable.
 
 ### 5. Creole block-level
 

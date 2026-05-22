@@ -2436,23 +2436,11 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         _ => None,
     };
 
-    // Apply hide/remove @unlinked for component and deployment diagrams.
-    // A node is "unlinked" if neither its name nor alias appears in any relation endpoint.
     if matches!(
         family_kind,
         DiagramKind::Component | DiagramKind::Deployment
-    ) && (hide_options.contains("hide @unlinked") || hide_options.contains("remove @unlinked"))
-    {
-        let mut linked: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-        for rel in &relations {
-            linked.insert(rel.from.to_ascii_lowercase());
-            linked.insert(rel.to.to_ascii_lowercase());
-        }
-        nodes.retain(|node| {
-            let name_lc = node.name.to_ascii_lowercase();
-            let alias_lc = node.alias.as_deref().map(str::to_ascii_lowercase);
-            linked.contains(&name_lc) || alias_lc.as_ref().is_some_and(|a| linked.contains(a))
-        });
+    ) {
+        apply_component_visibility_controls(&mut nodes, &mut relations, &hide_options);
     }
 
     Ok(FamilyDocument {
@@ -2480,6 +2468,123 @@ pub(super) fn normalize_extended_family(document: Document) -> Result<FamilyDocu
         hide_options,
         namespace_separator: None,
     })
+}
+
+fn apply_component_visibility_controls(
+    nodes: &mut Vec<FamilyNode>,
+    relations: &mut Vec<ModelFamilyRelation>,
+    hide_options: &std::collections::BTreeSet<String>,
+) {
+    let node_tags: Vec<std::collections::BTreeSet<String>> =
+        nodes.iter_mut().map(extract_component_node_tags).collect();
+
+    if hide_options.is_empty() {
+        return;
+    }
+
+    let hidden_nodes: std::collections::BTreeSet<String> = nodes
+        .iter()
+        .zip(node_tags.iter())
+        .filter(|(node, tags)| component_node_hidden(node, tags, hide_options))
+        .flat_map(|(node, _)| component_node_match_keys(node))
+        .collect();
+    if !hidden_nodes.is_empty() {
+        nodes.retain(|node| !component_node_matches_any(node, &hidden_nodes));
+        relations.retain(|rel| {
+            !hidden_nodes.contains(&rel.from.to_ascii_lowercase())
+                && !hidden_nodes.contains(&rel.to.to_ascii_lowercase())
+        });
+    }
+
+    // Apply hide/remove @unlinked for component and deployment diagrams.
+    // A node is "unlinked" if neither its name nor alias appears in any relation endpoint.
+    if hide_options.contains("hide @unlinked") || hide_options.contains("remove @unlinked") {
+        let mut linked: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for rel in relations.iter() {
+            linked.insert(rel.from.to_ascii_lowercase());
+            linked.insert(rel.to.to_ascii_lowercase());
+        }
+        nodes.retain(|node| {
+            let name_lc = node.name.to_ascii_lowercase();
+            let alias_lc = node.alias.as_deref().map(str::to_ascii_lowercase);
+            linked.contains(&name_lc) || alias_lc.as_ref().is_some_and(|a| linked.contains(a))
+        });
+    }
+}
+
+fn extract_component_node_tags(node: &mut FamilyNode) -> std::collections::BTreeSet<String> {
+    let mut tags = std::collections::BTreeSet::new();
+    node.members.retain(|member| {
+        let Some(tag) = member.text.strip_prefix("\x1fcomponent:tag:") else {
+            return true;
+        };
+        tags.insert(tag.to_ascii_lowercase());
+        false
+    });
+    tags
+}
+
+fn component_node_hidden(
+    node: &FamilyNode,
+    tags: &std::collections::BTreeSet<String>,
+    hide_options: &std::collections::BTreeSet<String>,
+) -> bool {
+    let mut hidden = hide_options.contains("hide node *") || hide_options.contains("remove node *");
+
+    for tag in tags {
+        let hide_tag = format!("hide node {tag}");
+        let remove_tag = format!("remove node {tag}");
+        if hide_options.contains(&hide_tag) || hide_options.contains(&remove_tag) {
+            hidden = true;
+        }
+    }
+
+    for key in component_node_match_keys(node) {
+        if key.starts_with('$') {
+            continue;
+        }
+        let hide_node = format!("hide node {key}");
+        let remove_node = format!("remove node {key}");
+        if hide_options.contains(&hide_node) || hide_options.contains(&remove_node) {
+            hidden = true;
+        }
+    }
+
+    if hide_options.contains("restore node *") {
+        hidden = false;
+    }
+    for tag in tags {
+        if hide_options.contains(&format!("restore node {tag}")) {
+            hidden = false;
+        }
+    }
+    for key in component_node_match_keys(node) {
+        if key.starts_with('$') {
+            continue;
+        }
+        if hide_options.contains(&format!("restore node {key}")) {
+            hidden = false;
+        }
+    }
+
+    hidden
+}
+
+fn component_node_match_keys(node: &FamilyNode) -> std::collections::BTreeSet<String> {
+    let mut keys = std::collections::BTreeSet::from([node.name.to_ascii_lowercase()]);
+    if let Some(alias) = &node.alias {
+        keys.insert(alias.to_ascii_lowercase());
+    }
+    keys
+}
+
+fn component_node_matches_any(
+    node: &FamilyNode,
+    keys: &std::collections::BTreeSet<String>,
+) -> bool {
+    component_node_match_keys(node)
+        .iter()
+        .any(|key| keys.contains(key))
 }
 
 fn extract_inline_stereotype_members(label: &str) -> Vec<crate::ast::ClassMember> {
