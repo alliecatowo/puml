@@ -437,7 +437,10 @@ pub struct TimelineDocument {
     pub closed_weekdays: Vec<String>,
     pub closed_ranges: Vec<TimelineClosedRange>,
     pub open_ranges: Vec<TimelineOpenRange>,
+    pub day_markers: Vec<TimelineDayMarker>,
+    pub resource_off_ranges: Vec<TimelineResourceOffRange>,
     pub scale: Option<String>,
+    pub scale_options: Vec<String>,
     pub project_start: Option<String>,
     pub project_start_day: Option<u32>,
     pub title: Option<String>,
@@ -445,12 +448,17 @@ pub struct TimelineDocument {
     pub footer: Option<String>,
     pub caption: Option<String>,
     pub legend: Option<String>,
+    pub notes: Vec<TimelineNote>,
+    pub hide_footbox: bool,
+    pub hide_resource_names: bool,
+    pub hide_resource_footbox: bool,
     pub warnings: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone)]
 pub struct TimelineTask {
     pub name: String,
+    pub alias: Option<String>,
     pub start_day: u32,
     pub workload_days: u32,
     pub duration_days: u32,
@@ -459,6 +467,10 @@ pub struct TimelineTask {
     pub baseline_start_day: Option<u32>,
     pub baseline_duration_days: Option<u32>,
     pub is_critical: bool,
+    pub fill_color: Option<String>,
+    pub stroke_color: Option<String>,
+    pub completion_percent: Option<u32>,
+    pub is_deleted: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -495,6 +507,32 @@ pub struct TimelineOpenRange {
     pub end_date: String,
     pub start_day: u32,
     pub end_day: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineDayMarker {
+    pub start_date: String,
+    pub end_date: String,
+    pub start_day: u32,
+    pub end_day: u32,
+    pub label: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineResourceOffRange {
+    pub resource: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub start_day: u32,
+    pub end_day: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineNote {
+    pub target: Option<String>,
+    pub position: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone)]

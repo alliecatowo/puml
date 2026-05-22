@@ -11,63 +11,77 @@ pub(super) fn normalize_timeline_baseline(
     let mut closed_weekdays = Vec::new();
     let mut closed_ranges = Vec::new();
     let mut open_ranges = Vec::new();
+    let mut day_markers = Vec::new();
+    let mut resource_off_ranges = Vec::new();
     let mut scale = None;
+    let mut scale_options = Vec::new();
     let mut title = None;
     let mut header = None;
     let mut footer = None;
     let mut caption = None;
     let mut legend = None;
+    let mut notes = Vec::new();
+    let mut hide_footbox = false;
+    let mut hide_resource_names = false;
+    let mut hide_resource_footbox = false;
+    let mut last_task_ref: Option<String> = None;
 
     for stmt in document.statements {
         match stmt.kind {
             StatementKind::GanttTaskDecl {
                 name,
+                alias,
                 start_date,
                 duration_days,
                 resources,
                 ..
             } => {
-                let parsed_start_day = start_date.as_deref().and_then(parse_iso_date_day);
-                // If a task with this name already exists, update it rather than
-                // creating a duplicate.  PlantUML allows splitting the declaration
-                // across multiple lines, e.g.:
-                //   [Design]
-                //   [Design] starts 2026-01-02
-                if let Some(existing) = tasks.iter_mut().find(|t| t.name == name) {
-                    if let Some(day) = parsed_start_day {
-                        existing.start_day = day;
+                let task_ref = gantt_task_ref(&name, alias.as_deref());
+                upsert_gantt_task(
+                    &mut tasks,
+                    name,
+                    alias,
+                    start_date.as_deref(),
+                    duration_days,
+                    resources,
+                );
+                if let Some(start_date) = start_date {
+                    if parse_iso_date_day(&start_date).is_none() {
+                        constraints.push(TimelineConstraint {
+                            subject: task_ref.clone(),
+                            kind: "starts".to_string(),
+                            target: start_date,
+                        });
                     }
-                    if let Some(d) = duration_days {
-                        let workload = d.max(1);
-                        let new_allocs = parse_timeline_resource_allocations(&resources);
-                        existing.workload_days = workload;
-                        existing.duration_days = resource_adjusted_work_days(workload, &new_allocs);
-                        if !new_allocs.is_empty() {
-                            existing.resource_allocations = new_allocs;
-                        }
-                    }
-                    if !resources.is_empty() {
-                        existing.resources = resources;
-                    }
-                } else {
-                    // Default to 14 working days when no explicit duration is given, so task
-                    // bars are visually readable on a date-axis gantt (#481).
-                    let workload_days = duration_days.unwrap_or(14).max(1);
-                    let resource_allocations = parse_timeline_resource_allocations(&resources);
-                    let duration_days =
-                        resource_adjusted_work_days(workload_days, &resource_allocations);
-                    tasks.push(TimelineTask {
-                        name,
-                        start_day: parsed_start_day.unwrap_or(0),
-                        workload_days,
-                        duration_days,
-                        resources,
-                        resource_allocations,
-                        baseline_start_day: None,
-                        baseline_duration_days: None,
-                        is_critical: false,
-                    });
                 }
+                last_task_ref = Some(task_ref);
+            }
+            StatementKind::GanttCompound {
+                name,
+                alias,
+                resources,
+                clauses,
+                after_previous,
+            } => {
+                let task_ref = gantt_task_ref(&name, alias.as_deref());
+                upsert_gantt_task(&mut tasks, name, alias, None, None, resources.clone());
+                if after_previous {
+                    if let Some(previous) = &last_task_ref {
+                        constraints.push(TimelineConstraint {
+                            subject: task_ref.clone(),
+                            kind: "starts".to_string(),
+                            target: format!("[{previous}]'s end"),
+                        });
+                    }
+                }
+                apply_gantt_compound_clauses(
+                    &mut tasks,
+                    &mut constraints,
+                    &task_ref,
+                    &clauses,
+                    &resources,
+                );
+                last_task_ref = Some(task_ref);
             }
             StatementKind::GanttMilestoneDecl { name, happens_on } => {
                 if let Some(target) = &happens_on {
@@ -89,7 +103,9 @@ pub(super) fn normalize_timeline_baseline(
                 target,
             } => {
                 if subject.eq_ignore_ascii_case("Project") && kind.eq_ignore_ascii_case("scale") {
-                    scale = Some(target);
+                    let (value, options) = split_gantt_scale_target(&target);
+                    scale = Some(value);
+                    scale_options.extend(options);
                 } else if kind.eq_ignore_ascii_case("separator") {
                     separators.push(TimelineSeparator {
                         label: subject
@@ -98,6 +114,14 @@ pub(super) fn normalize_timeline_baseline(
                             .to_string(),
                         target: (!target.trim().is_empty()).then(|| target.trim().to_string()),
                     });
+                } else if kind.eq_ignore_ascii_case("day_color")
+                    || kind.eq_ignore_ascii_case("day_name")
+                {
+                    upsert_gantt_day_marker(&mut day_markers, &subject, &kind, &target);
+                } else if kind.eq_ignore_ascii_case("resource_off") {
+                    if let Some(range) = parse_gantt_resource_off_constraint(&subject, &target) {
+                        resource_off_ranges.push(range);
+                    }
                 } else {
                     constraints.push(TimelineConstraint {
                         subject,
@@ -174,6 +198,13 @@ pub(super) fn normalize_timeline_baseline(
             StatementKind::Legend(v) => {
                 legend = Some(sequence::strip_legend_pos_prefix(&v));
             }
+            StatementKind::Note(note) => {
+                notes.push(TimelineNote {
+                    target: note.target.or_else(|| last_task_ref.clone()),
+                    position: note.position,
+                    text: note.text,
+                });
+            }
             StatementKind::Separator(label) => {
                 separators.push(TimelineSeparator {
                     label: label.unwrap_or_else(|| "Separator".to_string()),
@@ -185,12 +216,19 @@ pub(super) fn normalize_timeline_baseline(
                     scale = Some(v);
                 }
             }
+            StatementKind::Footbox(show) => {
+                hide_footbox = !show;
+            }
             StatementKind::SkinParam { .. }
             | StatementKind::Theme(_)
             | StatementKind::Pragma(_)
             | StatementKind::LegendPos(_)
-            | StatementKind::SetOption { .. }
-            | StatementKind::HideOption(_) => {}
+            | StatementKind::SetOption { .. } => {}
+            StatementKind::HideOption(option) => match option.as_str() {
+                "resources names" | "resource names" => hide_resource_names = true,
+                "resources footbox" | "resource footbox" => hide_resource_footbox = true,
+                _ => {}
+            },
             StatementKind::Unknown(line) => {
                 return Err(Diagnostic::error(line).with_span(stmt.span));
             }
@@ -235,6 +273,7 @@ pub(super) fn normalize_timeline_baseline(
             }
         }
         apply_gantt_task_metadata(&mut tasks, &mut milestones, &constraints);
+        apply_gantt_absolute_constraints(&mut tasks, &constraints, fallback_anchor);
         apply_gantt_task_reference_constraints(
             &mut tasks,
             &constraints,
@@ -269,7 +308,10 @@ pub(super) fn normalize_timeline_baseline(
         closed_weekdays,
         closed_ranges,
         open_ranges,
+        day_markers,
+        resource_off_ranges,
         scale,
+        scale_options,
         project_start,
         project_start_day,
         title,
@@ -277,8 +319,304 @@ pub(super) fn normalize_timeline_baseline(
         footer,
         caption,
         legend,
+        notes,
+        hide_footbox,
+        hide_resource_names,
+        hide_resource_footbox,
         warnings: Vec::new(),
     })
+}
+
+fn gantt_task_ref(name: &str, alias: Option<&str>) -> String {
+    alias.unwrap_or(name).to_string()
+}
+
+fn gantt_task_matches(task: &TimelineTask, reference: &str) -> bool {
+    task.alias.as_deref() == Some(reference) || task.name == reference
+}
+
+fn upsert_gantt_task(
+    tasks: &mut Vec<TimelineTask>,
+    name: String,
+    alias: Option<String>,
+    start_date: Option<&str>,
+    duration_days: Option<u32>,
+    resources: Vec<String>,
+) {
+    let parsed_start_day = start_date.and_then(parse_iso_date_day);
+    let task_ref = gantt_task_ref(&name, alias.as_deref());
+    if let Some(existing) = tasks
+        .iter_mut()
+        .find(|task| gantt_task_matches(task, &task_ref))
+    {
+        if existing.alias.is_none() {
+            existing.alias = alias;
+        }
+        if let Some(day) = parsed_start_day {
+            existing.start_day = day;
+        }
+        if let Some(d) = duration_days {
+            let workload = d.max(1);
+            let new_allocs = parse_timeline_resource_allocations(&resources);
+            existing.workload_days = workload;
+            existing.duration_days = resource_adjusted_work_days(workload, &new_allocs);
+            if !new_allocs.is_empty() {
+                existing.resource_allocations = new_allocs;
+            }
+        }
+        if !resources.is_empty() {
+            existing.resources = resources;
+        }
+        return;
+    }
+
+    let workload_days = duration_days.unwrap_or(14).max(1);
+    let resource_allocations = parse_timeline_resource_allocations(&resources);
+    let duration_days = resource_adjusted_work_days(workload_days, &resource_allocations);
+    tasks.push(TimelineTask {
+        name,
+        alias,
+        start_day: parsed_start_day.unwrap_or(0),
+        workload_days,
+        duration_days,
+        resources,
+        resource_allocations,
+        baseline_start_day: None,
+        baseline_duration_days: None,
+        is_critical: false,
+        fill_color: None,
+        stroke_color: None,
+        completion_percent: None,
+        is_deleted: false,
+    });
+}
+
+fn apply_gantt_compound_clauses(
+    tasks: &mut [TimelineTask],
+    constraints: &mut Vec<TimelineConstraint>,
+    subject: &str,
+    clauses: &str,
+    resources: &[String],
+) {
+    let lower_clauses = clauses.to_ascii_lowercase();
+    if let Some(target) = lower_clauses
+        .strip_prefix("baseline ")
+        .and_then(|_| clauses.get("baseline ".len()..))
+        .or_else(|| {
+            lower_clauses
+                .strip_prefix("has baseline ")
+                .and_then(|_| clauses.get("has baseline ".len()..))
+        })
+        .or_else(|| {
+            lower_clauses
+                .strip_prefix("planned ")
+                .and_then(|_| clauses.get("planned ".len()..))
+        })
+    {
+        constraints.push(TimelineConstraint {
+            subject: subject.to_string(),
+            kind: "baseline".to_string(),
+            target: target.trim().to_string(),
+        });
+        return;
+    }
+    let normalized = clauses.replace(" and ", "\n");
+    for clause in normalized
+        .lines()
+        .map(str::trim)
+        .filter(|clause| !clause.is_empty())
+    {
+        let lower = clause.to_ascii_lowercase();
+        if let Some(days) = parse_timeline_duration_days(clause) {
+            if lower.starts_with("lasts ") || lower.starts_with("requires ") {
+                if let Some(task) = tasks
+                    .iter_mut()
+                    .find(|task| gantt_task_matches(task, subject))
+                {
+                    task.workload_days = days.max(1);
+                    let allocations = if resources.is_empty() {
+                        task.resource_allocations.clone()
+                    } else {
+                        parse_timeline_resource_allocations(resources)
+                    };
+                    task.duration_days = resource_adjusted_work_days(days, &allocations);
+                    if !allocations.is_empty() {
+                        task.resource_allocations = allocations;
+                    }
+                }
+                continue;
+            }
+        }
+        if let Some(color) = lower
+            .strip_prefix("is colored in ")
+            .and_then(|_| clause.get("is colored in ".len()..))
+        {
+            constraints.push(TimelineConstraint {
+                subject: subject.to_string(),
+                kind: "color".to_string(),
+                target: color.trim().to_string(),
+            });
+            continue;
+        }
+        if let Some(percent) = parse_gantt_completion_percent(clause) {
+            constraints.push(TimelineConstraint {
+                subject: subject.to_string(),
+                kind: "completion".to_string(),
+                target: percent.to_string(),
+            });
+            continue;
+        }
+        if lower == "is deleted" || lower == "deleted" {
+            constraints.push(TimelineConstraint {
+                subject: subject.to_string(),
+                kind: "deleted".to_string(),
+                target: "true".to_string(),
+            });
+            continue;
+        }
+        if let Some(target) = lower
+            .strip_prefix("baseline ")
+            .and_then(|_| clause.get("baseline ".len()..))
+            .or_else(|| {
+                lower
+                    .strip_prefix("has baseline ")
+                    .and_then(|_| clause.get("has baseline ".len()..))
+            })
+            .or_else(|| {
+                lower
+                    .strip_prefix("planned ")
+                    .and_then(|_| clause.get("planned ".len()..))
+            })
+        {
+            constraints.push(TimelineConstraint {
+                subject: subject.to_string(),
+                kind: "baseline".to_string(),
+                target: target.trim().to_string(),
+            });
+            continue;
+        }
+        for kind in ["starts", "ends", "requires"] {
+            if lower.starts_with(kind) {
+                let target = clause[kind.len()..]
+                    .trim()
+                    .strip_prefix("at ")
+                    .unwrap_or_else(|| clause[kind.len()..].trim())
+                    .trim()
+                    .to_string();
+                constraints.push(TimelineConstraint {
+                    subject: subject.to_string(),
+                    kind: kind.to_string(),
+                    target,
+                });
+                break;
+            }
+        }
+    }
+}
+
+fn parse_gantt_completion_percent(clause: &str) -> Option<u32> {
+    let lower = clause.to_ascii_lowercase();
+    let percent_idx = lower.find('%')?;
+    let value = lower[..percent_idx].split_whitespace().last()?;
+    let suffix = lower[percent_idx + 1..].trim();
+    matches!(suffix, "complete" | "completed")
+        .then(|| value.parse::<u32>().ok().map(|n| n.min(100)))
+        .flatten()
+}
+
+fn split_gantt_scale_target(target: &str) -> (String, Vec<String>) {
+    let mut parts = target.split(';');
+    let scale = parts.next().unwrap_or(target).trim().to_string();
+    let options = parts
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(str::to_string)
+        .collect();
+    (scale, options)
+}
+
+fn upsert_gantt_day_marker(
+    markers: &mut Vec<TimelineDayMarker>,
+    subject: &str,
+    kind: &str,
+    target: &str,
+) {
+    let Some((start_date, end_date)) = parse_gantt_day_marker_subject(subject) else {
+        return;
+    };
+    let Some(start_day) = parse_iso_date_day(&start_date) else {
+        return;
+    };
+    let Some(end_day) = parse_iso_date_day(&end_date) else {
+        return;
+    };
+    let (start_date, end_date, start_day, end_day) = if start_day <= end_day {
+        (start_date, end_date, start_day, end_day)
+    } else {
+        (end_date, start_date, end_day, start_day)
+    };
+    if let Some(existing) = markers
+        .iter_mut()
+        .find(|marker| marker.start_day == start_day && marker.end_day == end_day)
+    {
+        if kind.eq_ignore_ascii_case("day_color") {
+            existing.color = Some(target.to_string());
+        } else {
+            existing.label = Some(target.to_string());
+        }
+        return;
+    }
+    markers.push(TimelineDayMarker {
+        start_date,
+        end_date,
+        start_day,
+        end_day,
+        label: kind
+            .eq_ignore_ascii_case("day_name")
+            .then(|| target.to_string()),
+        color: kind
+            .eq_ignore_ascii_case("day_color")
+            .then(|| target.to_string()),
+    });
+}
+
+fn parse_gantt_day_marker_subject(subject: &str) -> Option<(String, String)> {
+    let rest = subject.strip_prefix("__day::")?;
+    let mut parts = rest.split("::");
+    Some((parts.next()?.to_string(), parts.next()?.to_string()))
+}
+
+fn parse_gantt_resource_off_constraint(
+    subject: &str,
+    target: &str,
+) -> Option<TimelineResourceOffRange> {
+    let resource = subject.strip_prefix("__resource::")?.to_string();
+    let (start_date, end_date) = parse_gantt_target_range(target)?;
+    let start_day = parse_iso_date_day(&start_date)?;
+    let end_day = parse_iso_date_day(&end_date)?;
+    let (start_date, end_date, start_day, end_day) = if start_day <= end_day {
+        (start_date, end_date, start_day, end_day)
+    } else {
+        (end_date, start_date, end_day, start_day)
+    };
+    Some(TimelineResourceOffRange {
+        resource,
+        start_date,
+        end_date,
+        start_day,
+        end_day,
+    })
+}
+
+fn parse_gantt_target_range(target: &str) -> Option<(String, String)> {
+    let lower = target.to_ascii_lowercase();
+    if let Some(idx) = lower.find(" to ") {
+        return Some((
+            target[..idx].trim().to_string(),
+            target[idx + " to ".len()..].trim().to_string(),
+        ));
+    }
+    Some((target.trim().to_string(), target.trim().to_string()))
 }
 
 fn infer_gantt_anchor_day(
@@ -319,7 +657,8 @@ fn gantt_constraint_absolute_days(target: &str) -> Vec<u32> {
 }
 
 fn parse_iso_date_day(raw: &str) -> Option<u32> {
-    let mut parts = raw.trim().split('-');
+    let normalized = raw.trim().replace('/', "-");
+    let mut parts = normalized.split('-');
     let y = parts.next()?.parse::<i64>().ok()?;
     let m = parts.next()?.parse::<i64>().ok()?;
     let d = parts.next()?.parse::<i64>().ok()?;
@@ -337,6 +676,46 @@ fn parse_iso_date_day(raw: &str) -> Option<u32> {
         return None;
     }
     u32::try_from(days).ok()
+}
+
+fn parse_relative_day(raw: &str) -> Option<u32> {
+    let trimmed = raw.trim();
+    let rest = trimmed
+        .strip_prefix("D+")
+        .or_else(|| trimmed.strip_prefix("d+"))?;
+    rest.trim().parse::<u32>().ok()
+}
+
+fn resolve_gantt_absolute_day(target: &str, anchor_day: u32) -> Option<u32> {
+    parse_iso_date_day(target)
+        .or_else(|| parse_relative_day(target).map(|day| anchor_day.saturating_add(day)))
+}
+
+fn apply_gantt_absolute_constraints(
+    tasks: &mut [TimelineTask],
+    constraints: &[TimelineConstraint],
+    anchor_day: u32,
+) {
+    for constraint in constraints {
+        let kind = constraint.kind.to_ascii_lowercase();
+        if !matches!(kind.as_str(), "starts" | "ends") {
+            continue;
+        }
+        let Some(day) = resolve_gantt_absolute_day(&constraint.target, anchor_day) else {
+            continue;
+        };
+        let Some(task) = tasks
+            .iter_mut()
+            .find(|task| gantt_task_matches(task, &constraint.subject))
+        else {
+            continue;
+        };
+        task.start_day = if kind == "ends" {
+            day.saturating_sub(task.duration_days)
+        } else {
+            day
+        };
+    }
 }
 
 fn scheduled_gantt_span_days(
@@ -379,14 +758,20 @@ fn apply_gantt_task_reference_constraints(
             if !matches!(kind.as_str(), "starts" | "ends" | "requires") {
                 continue;
             }
-            let Some(subject_idx) = tasks.iter().position(|t| t.name == constraint.subject) else {
+            let Some(subject_idx) = tasks
+                .iter()
+                .position(|task| gantt_task_matches(task, &constraint.subject))
+            else {
                 continue;
             };
             let Some((target_name, endpoint)) = parse_gantt_task_reference(&constraint.target)
             else {
                 continue;
             };
-            let Some(target) = tasks.iter().find(|t| t.name == target_name) else {
+            let Some(target) = tasks
+                .iter()
+                .find(|task| gantt_task_matches(task, &target_name))
+            else {
                 continue;
             };
             let mut target_day = match endpoint {
@@ -395,10 +780,18 @@ fn apply_gantt_task_reference_constraints(
                 _ => continue,
             };
             if let Some(offset) = parse_gantt_reference_day_offset(&constraint.target) {
-                target_day = if offset.is_negative() {
-                    target_day.saturating_sub(offset.unsigned_abs())
+                target_day = if offset.working_days {
+                    add_gantt_working_days(
+                        target_day,
+                        offset.days,
+                        closed_weekdays,
+                        closed_ranges,
+                        open_ranges,
+                    )
+                } else if offset.days.is_negative() {
+                    target_day.saturating_sub(offset.days.unsigned_abs())
                 } else {
-                    target_day.saturating_add(offset as u32)
+                    target_day.saturating_add(offset.days as u32)
                 };
             }
             let next_start = if kind == "ends" {
@@ -425,16 +818,29 @@ fn apply_gantt_task_reference_constraints(
     }
 }
 
-fn parse_gantt_reference_day_offset(target: &str) -> Option<i32> {
+struct GanttReferenceOffset {
+    days: i32,
+    working_days: bool,
+}
+
+fn parse_gantt_reference_day_offset(target: &str) -> Option<GanttReferenceOffset> {
     let lower = target.to_ascii_lowercase();
-    let (sign, marker) = if let Some(idx) = lower.find(" days after ") {
-        (1, idx)
+    let (sign, marker, working_days) = if let Some(idx) = lower.find(" working days after ") {
+        (1, idx, true)
+    } else if let Some(idx) = lower.find(" working day after ") {
+        (1, idx, true)
+    } else if let Some(idx) = lower.find(" working days before ") {
+        (-1, idx, true)
+    } else if let Some(idx) = lower.find(" working day before ") {
+        (-1, idx, true)
+    } else if let Some(idx) = lower.find(" days after ") {
+        (1, idx, false)
     } else if let Some(idx) = lower.find(" day after ") {
-        (1, idx)
+        (1, idx, false)
     } else if let Some(idx) = lower.find(" days before ") {
-        (-1, idx)
+        (-1, idx, false)
     } else if let Some(idx) = lower.find(" day before ") {
-        (-1, idx)
+        (-1, idx, false)
     } else {
         return None;
     };
@@ -442,7 +848,36 @@ fn parse_gantt_reference_day_offset(target: &str) -> Option<i32> {
         .split_whitespace()
         .last()
         .and_then(|n| n.parse::<i32>().ok())
-        .map(|n| n.saturating_mul(sign))
+        .map(|n| GanttReferenceOffset {
+            days: n.saturating_mul(sign),
+            working_days,
+        })
+}
+
+fn add_gantt_working_days(
+    start_day: u32,
+    offset: i32,
+    closed_weekdays: &[String],
+    closed_ranges: &[TimelineClosedRange],
+    open_ranges: &[TimelineOpenRange],
+) -> u32 {
+    if offset == 0 {
+        return start_day;
+    }
+    let mut day = start_day;
+    let mut remaining = offset.unsigned_abs();
+    let forward = offset > 0;
+    while remaining > 0 {
+        day = if forward {
+            day.saturating_add(1)
+        } else {
+            day.saturating_sub(1)
+        };
+        if !is_gantt_closed_day(day, closed_weekdays, closed_ranges, open_ranges) {
+            remaining -= 1;
+        }
+    }
+    day
 }
 
 fn parse_gantt_task_reference(target: &str) -> Option<(String, &'static str)> {
@@ -560,7 +995,7 @@ fn apply_gantt_task_metadata(
         if constraint.kind.eq_ignore_ascii_case("critical") {
             if let Some(task) = tasks
                 .iter_mut()
-                .find(|task| task.name == constraint.subject)
+                .find(|task| gantt_task_matches(task, &constraint.subject))
             {
                 task.is_critical = true;
             }
@@ -578,13 +1013,47 @@ fn apply_gantt_task_metadata(
             };
             if let Some(task) = tasks
                 .iter_mut()
-                .find(|task| task.name == constraint.subject)
+                .find(|task| gantt_task_matches(task, &constraint.subject))
             {
                 task.baseline_start_day = Some(start_day);
                 task.baseline_duration_days = Some(duration_days);
             }
         }
+        if constraint.kind.eq_ignore_ascii_case("color") {
+            if let Some(task) = tasks
+                .iter_mut()
+                .find(|task| gantt_task_matches(task, &constraint.subject))
+            {
+                let (fill, stroke) = parse_gantt_color_pair(&constraint.target);
+                task.fill_color = fill;
+                task.stroke_color = stroke;
+            }
+        }
+        if constraint.kind.eq_ignore_ascii_case("completion") {
+            if let Some(task) = tasks
+                .iter_mut()
+                .find(|task| gantt_task_matches(task, &constraint.subject))
+            {
+                task.completion_percent = constraint.target.parse::<u32>().ok().map(|n| n.min(100));
+            }
+        }
+        if constraint.kind.eq_ignore_ascii_case("deleted") {
+            if let Some(task) = tasks
+                .iter_mut()
+                .find(|task| gantt_task_matches(task, &constraint.subject))
+            {
+                task.is_deleted = true;
+            }
+        }
     }
+}
+
+fn parse_gantt_color_pair(raw: &str) -> (Option<String>, Option<String>) {
+    let (fill, stroke) = raw.split_once('/').unwrap_or((raw, ""));
+    (
+        (!fill.trim().is_empty()).then(|| fill.trim().to_string()),
+        (!stroke.trim().is_empty()).then(|| stroke.trim().to_string()),
+    )
 }
 
 fn parse_gantt_baseline_target(target: &str) -> Option<(u32, u32)> {
@@ -655,10 +1124,13 @@ fn mark_inferred_gantt_critical_path(
     let mut stack: Vec<String> = tasks
         .iter()
         .filter(|task| task.start_day.saturating_add(task.duration_days) == latest_end)
-        .map(|task| task.name.clone())
+        .map(|task| gantt_task_ref(&task.name, task.alias.as_deref()))
         .collect();
     while let Some(name) = stack.pop() {
-        let Some(task) = tasks.iter_mut().find(|task| task.name == name) else {
+        let Some(task) = tasks
+            .iter_mut()
+            .find(|task| gantt_task_matches(task, &name))
+        else {
             continue;
         };
         if task.is_critical {

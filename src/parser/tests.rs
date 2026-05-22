@@ -1682,12 +1682,11 @@ mod tests {
         ));
         assert!(matches!(
             doc.statements[2].kind,
-            StatementKind::GanttTaskDecl {
+            StatementKind::GanttCompound {
                 ref name,
-                start_date: Some(ref d),
-                duration_days: Some(14),
+                ref clauses,
                 ..
-            } if name == "Test" && d == "2026-05-06"
+            } if name == "Test" && clauses == "starts 2026-05-06 and lasts 2 weeks"
         ));
     }
 

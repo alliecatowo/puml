@@ -714,6 +714,7 @@ pub(super) fn normalize_with_options(
             | StatementKind::StateRegionDivider
             | StatementKind::StateHistory { .. }
             | StatementKind::GanttTaskDecl { .. }
+            | StatementKind::GanttCompound { .. }
             | StatementKind::GanttMilestoneDecl { .. }
             | StatementKind::GanttConstraint { .. }
             | StatementKind::GanttCalendarClosed { .. }
