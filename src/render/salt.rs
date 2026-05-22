@@ -1,20 +1,19 @@
 use super::*;
 
 pub fn render_salt_svg(document: &FamilyDocument) -> String {
-    const CELL_H: i32 = 20;
     const CELL_PAD_X: i32 = 10;
     const MARGIN: i32 = 6;
     const MIN_CELL_W: i32 = 80;
 
     // Parse rows from the encoded node names.
-    let mut rows: Vec<Vec<SaltCellRender>> = Vec::new();
+    let mut rows: Vec<SaltRow> = Vec::new();
     let mut salt_state = SaltTransformState::default();
     let mut style = SaltRenderStyle::default();
     for node in &document.nodes {
         if let Some(rest) = node.name.strip_prefix("SALT_ROW\x1f") {
             let cells: Vec<SaltCellRender> = rest.split('\x1e').map(decode_salt_cell).collect();
-            if let Some(cells) = transform_salt_row(cells, &mut salt_state, &mut style) {
-                rows.push(cells);
+            if let Some(row) = transform_salt_row(cells, &mut salt_state, &mut style) {
+                rows.push(row);
             }
         }
     }
@@ -25,13 +24,15 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     }
 
     // Compute number of columns from the max row width.
-    let col_count = rows.iter().map(|r| r.len()).max().unwrap_or(1);
-    let table_like = rows.iter().flatten().any(SaltCellRender::is_table_like);
+    let col_count = rows.iter().map(|r| r.cells.len()).max().unwrap_or(1);
+    let table_like = rows
+        .iter()
+        .any(|row| row.grid_style.is_some() || row.cells.iter().any(SaltCellRender::is_table_like));
 
     // First pass: compute per-column minimum widths based on text content.
     let mut col_widths: Vec<i32> = vec![MIN_CELL_W; col_count];
     for row in &rows {
-        for (col_idx, cell) in row.iter().enumerate() {
+        for (col_idx, cell) in row.cells.iter().enumerate() {
             let text_w = cell
                 .intrinsic_width()
                 .max(estimate_text_width(cell.text()) + CELL_PAD_X);
@@ -42,11 +43,16 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
     }
 
     let total_w = col_widths.iter().sum::<i32>() + MARGIN * 2;
-    let total_h = (rows.len() as i32) * CELL_H + MARGIN * 2;
-
-    // Title height
-    let title_h = document.title.as_deref().map(|_| 28i32).unwrap_or(0);
-    let svg_h = total_h + title_h;
+    let row_heights: Vec<i32> = rows.iter().map(SaltRow::height).collect();
+    let body_h = row_heights.iter().sum::<i32>();
+    let header_h = document.header.as_deref().map(salt_meta_block_height).unwrap_or(0);
+    let title_h = document.title.as_deref().map(salt_title_height).unwrap_or(0);
+    let legend_h = document.legend.as_deref().map(salt_legend_height).unwrap_or(0);
+    let caption_h = document.caption.as_deref().map(salt_meta_block_height).unwrap_or(0);
+    let footer_h = document.footer.as_deref().map(salt_meta_block_height).unwrap_or(0);
+    let body_top = MARGIN + header_h + title_h;
+    let body_bottom = body_top + body_h + MARGIN * 2;
+    let svg_h = body_bottom + caption_h + footer_h + legend_h.max(0);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -63,41 +69,57 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
         out.push_str(&format!(
             "<rect data-salt-style=\"panel\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
             MARGIN,
-            MARGIN + title_h,
+            body_top,
             total_w - MARGIN * 2,
-            total_h - MARGIN * 2,
+            body_h,
             style.panel_fill,
             style.border_color
         ));
     }
 
-    if let Some(title) = &document.title {
-        out.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" font-family=\"{}\" font-size=\"13\" font-weight=\"600\" fill=\"{}\">{}</text>",
+    if let Some(header) = &document.header {
+        render_salt_meta_text(
+            &mut out,
+            header,
             MARGIN,
-            MARGIN - 6,
-            style.font_family,
-            style.text_color,
-            escape_text(title)
-        ));
+            MARGIN + 12,
+            "data-salt-meta=\"header\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\"",
+            "#475569",
+        );
+    }
+
+    if let Some(title) = &document.title {
+        render_salt_meta_text(
+            &mut out,
+            title,
+            MARGIN,
+            MARGIN + header_h + 16,
+            &format!(
+                "data-salt-meta=\"title\" font-family=\"{}\" font-size=\"14\" font-weight=\"600\" fill=\"{}\"",
+                style.font_family, style.text_color
+            ),
+            &style.text_color,
+        );
     }
 
     // Draw rows and cells.
-    for (row_idx, cells) in rows.iter().enumerate() {
-        let row_y = MARGIN + title_h + (row_idx as i32) * CELL_H;
-        if is_salt_separator_row(cells) {
+    let mut row_y = body_top;
+    for (row_idx, row) in rows.iter().enumerate() {
+        let row_h = row_heights[row_idx];
+        if is_salt_separator_row(&row.cells) {
             out.push_str(&format!(
                 "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.5\"/>",
                 MARGIN + 4,
-                row_y + CELL_H / 2,
+                row_y + row_h / 2,
                 total_w - MARGIN - 4,
-                row_y + CELL_H / 2,
+                row_y + row_h / 2,
                 style.border_color
             ));
+            row_y += row_h;
             continue;
         }
         let mut col_x = MARGIN;
-        let rendered_cells = salt_row_layout(cells, &col_widths, MIN_CELL_W);
+        let rendered_cells = salt_row_layout(&row.cells, &col_widths, MIN_CELL_W);
 
         for cell in rendered_cells {
             render_salt_cell_svg(
@@ -107,7 +129,7 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
                     x: col_x,
                     y: row_y,
                     w: cell.width,
-                    h: CELL_H,
+                    h: row_h,
                 },
                 cell.colspan,
                 &style,
@@ -115,40 +137,97 @@ pub fn render_salt_svg(document: &FamilyDocument) -> String {
             col_x += cell.width;
         }
 
-        // Row separator line (skip the last row)
-        if table_like && row_idx + 1 < rows.len() {
+        if let Some(grid_style) = row.grid_style {
+            render_salt_vertical_grid_lines(
+                &mut out,
+                &row.cells,
+                &col_widths,
+                row_y,
+                row_h,
+                grid_style,
+                &style,
+            );
+        }
+
+        if table_like
+            && row_idx + 1 < rows.len()
+            && row
+                .grid_style
+                .map(|grid| grid.horizontal)
+                .unwrap_or(false)
+        {
             out.push_str(&format!(
-                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                "<line data-salt-grid=\"horizontal\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
                 MARGIN,
-                row_y + CELL_H,
+                row_y + row_h,
                 total_w - MARGIN,
-                row_y + CELL_H,
+                row_y + row_h,
                 style.grid_color
             ));
         }
+        row_y += row_h;
     }
 
-    // Column separator lines
-    if table_like {
-        let mut col_x = MARGIN;
-        for (col_idx, w) in col_widths.iter().enumerate() {
-            col_x += w;
-            if col_idx + 1 < col_count {
-                out.push_str(&format!(
-                    "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
-                    col_x,
-                    MARGIN + title_h,
-                    col_x,
-                    MARGIN + title_h + total_h - MARGIN * 2,
-                    style.grid_color
-                ));
-            }
-        }
+    if let Some(legend) = &document.legend {
+        render_salt_legend(&mut out, legend, total_w, body_bottom + 8);
+    }
+    if let Some(caption) = &document.caption {
+        render_salt_meta_text(
+            &mut out,
+            caption,
+            total_w / 2,
+            body_bottom + legend_h + 16,
+            "data-salt-meta=\"caption\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\"",
+            "#475569",
+        );
+    }
+    if let Some(footer) = &document.footer {
+        render_salt_meta_text(
+            &mut out,
+            footer,
+            MARGIN,
+            body_bottom + legend_h + caption_h + 16,
+            "data-salt-meta=\"footer\" font-family=\"monospace\" font-size=\"11\" fill=\"#475569\"",
+            "#475569",
+        );
     }
 
     out.push_str("</svg>");
     out
 }
+
+#[derive(Clone, Copy, Debug, Default)]
+struct SaltGridStyle {
+    vertical: bool,
+    horizontal: bool,
+    outer: bool,
+    tree: bool,
+}
+
+#[derive(Debug, Clone)]
+struct SaltRow {
+    cells: Vec<SaltCellRender>,
+    grid_style: Option<SaltGridStyle>,
+}
+
+impl SaltRow {
+    fn plain(cells: Vec<SaltCellRender>) -> Self {
+        Self {
+            cells,
+            grid_style: None,
+        }
+    }
+
+    fn height(&self) -> i32 {
+        self.cells
+            .iter()
+            .map(SaltCellRender::intrinsic_height)
+            .max()
+            .unwrap_or(CELL_H_FALLBACK)
+    }
+}
+
+const CELL_H_FALLBACK: i32 = 20;
 
 struct SaltRenderedCell<'a> {
     cell: &'a SaltCellRender,
@@ -426,7 +505,10 @@ enum SaltCellRender {
     SpriteRef(String),
     Input(String),
     Button(String),
-    Combo(String),
+    Combo {
+        label: String,
+        open_items: Vec<String>,
+    },
     CheckboxChecked(String),
     CheckboxUnchecked(String),
     RadioOn(String),
@@ -442,6 +524,10 @@ enum SaltCellRender {
     },
     GroupBox(String),
     MenuBar(Vec<String>),
+    MenuPopup {
+        anchor: String,
+        items: Vec<String>,
+    },
     TabBar {
         tabs: Vec<String>,
         active: usize,
@@ -459,11 +545,11 @@ impl SaltCellRender {
             | Self::Header(t)
             | Self::Input(t)
             | Self::Button(t)
-            | Self::Combo(t)
             | Self::CheckboxChecked(t)
             | Self::CheckboxUnchecked(t)
             | Self::RadioOn(t)
             | Self::RadioOff(t) => t,
+            Self::Combo { label, .. } => label,
             Self::TableEmpty => "",
             Self::TableSpan => "span",
             Self::SpriteDef(name) | Self::SpriteRef(name) => name,
@@ -471,6 +557,7 @@ impl SaltCellRender {
             Self::TextAreaLine { text, .. } => text,
             Self::GroupBox(label) => label,
             Self::MenuBar(items) => items.first().map(String::as_str).unwrap_or("menu"),
+            Self::MenuPopup { anchor, .. } => anchor,
             Self::TabBar { tabs, .. } => tabs.first().map(String::as_str).unwrap_or("tab"),
             Self::ScrollBar { .. } => "scrollbar",
         }
@@ -480,7 +567,14 @@ impl SaltCellRender {
         match self {
             Self::Input(text) => estimate_text_width(text) + 29,
             Self::Button(text) => (estimate_text_width(text) + 16).max(36),
-            Self::Combo(text) => estimate_text_width(text) + 23,
+            Self::Combo { label, open_items } => {
+                let popup_w = open_items
+                    .iter()
+                    .map(|item| estimate_text_width(item) + 24)
+                    .max()
+                    .unwrap_or(0);
+                (estimate_text_width(label) + 23).max(popup_w)
+            }
             Self::CheckboxChecked(text) | Self::CheckboxUnchecked(text) => {
                 20 + estimate_text_width(text)
             }
@@ -500,12 +594,30 @@ impl SaltCellRender {
             Self::SpriteRef(_) => 48,
             Self::TableEmpty => 24,
             Self::TableSpan => 42,
+            Self::MenuPopup { items, .. } => items
+                .iter()
+                .map(|item| estimate_text_width(item) + 20)
+                .max()
+                .unwrap_or(120),
             _ => estimate_text_width(self.text()) + 20,
         }
     }
 
+    fn intrinsic_height(&self) -> i32 {
+        match self {
+            Self::Combo { open_items, .. } if !open_items.is_empty() => {
+                20 + (open_items.len() as i32 * 18) + 8
+            }
+            Self::MenuPopup { items, .. } => 8 + (items.len() as i32 * 18) + 4,
+            _ => CELL_H_FALLBACK,
+        }
+    }
+
     fn is_table_like(&self) -> bool {
-        matches!(self, Self::Header(_) | Self::TableEmpty | Self::TableSpan)
+        matches!(
+            self,
+            Self::Header(_) | Self::TableEmpty | Self::TableSpan | Self::TreeItem { .. }
+        )
     }
 }
 
@@ -517,13 +629,15 @@ struct SaltTransformState {
     in_sprite_def: bool,
     style_scope: Option<String>,
     table_header_pending: bool,
+    current_grid_style: Option<SaltGridStyle>,
+    pending_menu_items: Option<Vec<String>>,
 }
 
 fn transform_salt_row(
     cells: Vec<SaltCellRender>,
     state: &mut SaltTransformState,
     style: &mut SaltRenderStyle,
-) -> Option<Vec<SaltCellRender>> {
+) -> Option<SaltRow> {
     if cells.len() != 1 {
         return Some(transform_salt_grid_cells(cells, state));
     }
@@ -575,29 +689,33 @@ fn transform_salt_row(
             state.in_text_area = false;
             state.in_sprite_def = false;
             state.table_header_pending = false;
+            state.current_grid_style = None;
+            state.pending_menu_items = None;
         }
         return None;
     }
 
-    if lower.starts_with("{#") || lower.starts_with("{!") {
-        state.table_header_pending = true;
-        state.in_text_area = false;
+    if let Some(grid_style) = parse_salt_grid_style(trimmed) {
+        state.table_header_pending = grid_style.vertical || grid_style.horizontal;
+        state.in_text_area = lower.starts_with("{+");
+        state.in_tree = grid_style.tree;
+        state.current_grid_style = Some(grid_style);
         return None;
     }
 
     if let Some(name) = parse_salt_sprite_def(trimmed) {
         state.in_sprite_def = true;
-        return Some(vec![SaltCellRender::SpriteDef(name)]);
+        return Some(SaltRow::plain(vec![SaltCellRender::SpriteDef(name)]));
     }
 
     if lower.starts_with("{+") {
         state.in_text_area = true;
         state.in_tree = false;
-        return Some(vec![SaltCellRender::TextAreaLine {
+        return Some(SaltRow::plain(vec![SaltCellRender::TextAreaLine {
             text: String::new(),
             scroll_vertical: false,
             scroll_horizontal: false,
-        }]);
+        }]));
     }
 
     if lower.starts_with("{^") {
@@ -607,28 +725,45 @@ fn transform_salt_row(
             .trim_matches('}')
             .trim()
             .to_string();
-        return Some(vec![SaltCellRender::GroupBox(label)]);
+        return Some(SaltRow::plain(vec![SaltCellRender::GroupBox(label)]));
     }
 
     // Structural block widgets ({/ tabs, {* menu) must be recognised even when
     // in_text_area is active — they can appear inside a bordered {+ container.
     if let Some((tabs, active)) = parse_salt_tab_bar(trimmed) {
         state.in_text_area = false;
-        return Some(vec![SaltCellRender::TabBar { tabs, active }]);
+        state.pending_menu_items = None;
+        return Some(SaltRow::plain(vec![SaltCellRender::TabBar { tabs, active }]));
     }
 
     if let Some(items) = parse_salt_items(trimmed, &["{*", "menu"]) {
         state.in_text_area = false;
-        return Some(vec![SaltCellRender::MenuBar(items)]);
+        state.pending_menu_items = Some(items.clone());
+        return Some(SaltRow::plain(vec![SaltCellRender::MenuBar(items)]));
+    }
+
+    if let Some(anchor_items) = state.pending_menu_items.as_ref() {
+        if let Some(items) = parse_salt_popup_items(trimmed) {
+            if let Some(anchor) = items.first().cloned() {
+                if anchor_items.iter().any(|item| item == &anchor) && items.len() > 1 {
+                    state.pending_menu_items = None;
+                    return Some(SaltRow::plain(vec![SaltCellRender::MenuPopup {
+                        anchor,
+                        items: items[1..].to_vec(),
+                    }]));
+                }
+            }
+        }
+        state.pending_menu_items = None;
     }
 
     if state.in_text_area {
         let text = if trimmed == "." { "" } else { trimmed };
-        return Some(vec![SaltCellRender::TextAreaLine {
+        return Some(SaltRow::plain(vec![SaltCellRender::TextAreaLine {
             text: text.to_string(),
             scroll_vertical: false,
             scroll_horizontal: false,
-        }]);
+        }]));
     }
 
     if lower.starts_with("{t") || lower == "tree" || lower.starts_with("tree ") {
@@ -637,30 +772,30 @@ fn transform_salt_row(
     }
 
     if let Some((depth, label)) = parse_salt_tree_line(trimmed) {
-        return Some(vec![SaltCellRender::TreeItem { depth, label }]);
+        return Some(SaltRow::plain(vec![SaltCellRender::TreeItem { depth, label }]));
     }
 
     // Bare `tab`/`tabs` keyword tab-bar (outside text areas).
     if let Some(items) = parse_salt_items(trimmed, &["tab", "tabs"]) {
         if items.len() > 1 || trimmed.contains('|') {
-            return Some(vec![SaltCellRender::TabBar {
+            return Some(SaltRow::plain(vec![SaltCellRender::TabBar {
                 tabs: items,
                 active: 0,
-            }]);
+            }]));
         }
     }
 
     if let Some(scroll) = parse_salt_scroll_container(trimmed) {
         state.in_text_area = true;
-        return Some(vec![SaltCellRender::TextAreaLine {
+        return Some(SaltRow::plain(vec![SaltCellRender::TextAreaLine {
             text: String::new(),
             scroll_vertical: scroll.0,
             scroll_horizontal: scroll.1,
-        }]);
+        }]));
     }
 
     if let Some((vertical, percent)) = parse_salt_scrollbar(trimmed) {
-        return Some(vec![SaltCellRender::ScrollBar { vertical, percent }]);
+        return Some(SaltRow::plain(vec![SaltCellRender::ScrollBar { vertical, percent }]));
     }
 
     if state.in_tree {
@@ -673,16 +808,24 @@ fn transform_salt_row(
 fn transform_salt_grid_cells(
     cells: Vec<SaltCellRender>,
     state: &mut SaltTransformState,
-) -> Vec<SaltCellRender> {
+) -> SaltRow {
     let header_row = state.table_header_pending;
     state.table_header_pending = false;
-    cells
+    let mut rendered: Vec<SaltCellRender> = cells
         .into_iter()
-        .map(|cell| transform_salt_table_cell(cell, header_row))
-        .collect()
+        .enumerate()
+        .map(|(idx, cell)| transform_salt_table_cell(cell, header_row, state.in_tree && idx == 0))
+        .collect();
+    if state.in_tree && rendered.iter().all(|cell| !matches!(cell, SaltCellRender::TreeItem { .. })) {
+        state.in_tree = false;
+    }
+    SaltRow {
+        cells: std::mem::take(&mut rendered),
+        grid_style: state.current_grid_style,
+    }
 }
 
-fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool) -> SaltCellRender {
+fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool, tree_cell: bool) -> SaltCellRender {
     match cell {
         SaltCellRender::Label(text) => {
             let trimmed = text.trim();
@@ -690,6 +833,12 @@ fn transform_salt_table_cell(cell: SaltCellRender, header_row: bool) -> SaltCell
                 SaltCellRender::TableEmpty
             } else if trimmed == "*" {
                 SaltCellRender::TableSpan
+            } else if tree_cell {
+                if let Some((depth, label)) = parse_salt_tree_line(trimmed) {
+                    SaltCellRender::TreeItem { depth, label }
+                } else {
+                    promote_salt_header_cell(SaltCellRender::Label(text))
+                }
             } else if let Some(name) = parse_salt_sprite_ref(trimmed) {
                 SaltCellRender::SpriteRef(name)
             } else if header_row {
@@ -863,6 +1012,85 @@ fn parse_salt_scroll_container(line: &str) -> Option<(bool, bool)> {
     }
 }
 
+fn parse_salt_grid_style(line: &str) -> Option<SaltGridStyle> {
+    let lower = line.trim().to_ascii_lowercase();
+    let marker = lower.strip_prefix('{')?;
+    Some(match marker {
+        "#" => SaltGridStyle {
+            vertical: true,
+            horizontal: true,
+            outer: true,
+            tree: false,
+        },
+        "!" => SaltGridStyle {
+            vertical: true,
+            horizontal: false,
+            outer: true,
+            tree: false,
+        },
+        "-" => SaltGridStyle {
+            vertical: false,
+            horizontal: true,
+            outer: true,
+            tree: false,
+        },
+        "t" => SaltGridStyle {
+            vertical: false,
+            horizontal: false,
+            outer: false,
+            tree: true,
+        },
+        "t!" => SaltGridStyle {
+            vertical: true,
+            horizontal: false,
+            outer: true,
+            tree: true,
+        },
+        "t-" => SaltGridStyle {
+            vertical: false,
+            horizontal: true,
+            outer: true,
+            tree: true,
+        },
+        "t+" => SaltGridStyle {
+            vertical: false,
+            horizontal: false,
+            outer: true,
+            tree: true,
+        },
+        "t#" => SaltGridStyle {
+            vertical: true,
+            horizontal: true,
+            outer: true,
+            tree: true,
+        },
+        _ => return None,
+    })
+}
+
+fn parse_salt_combo(text: &str) -> (String, Vec<String>) {
+    let parts: Vec<String> = text
+        .split('^')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(str::to_string)
+        .collect();
+    if parts.is_empty() {
+        (text.trim().to_string(), Vec::new())
+    } else {
+        (parts[0].clone(), parts[1..].to_vec())
+    }
+}
+
+fn parse_salt_popup_items(line: &str) -> Option<Vec<String>> {
+    let items: Vec<String> = line
+        .split('|')
+        .map(|item| item.trim().trim_matches('"').to_string())
+        .filter(|item| !item.is_empty())
+        .collect();
+    if items.len() > 1 { Some(items) } else { None }
+}
+
 /// Decode a salt cell from the encoded string `"X:text"`.
 fn decode_salt_cell(s: &str) -> SaltCellRender {
     if let Some(rest) = s.strip_prefix("I:") {
@@ -870,7 +1098,8 @@ fn decode_salt_cell(s: &str) -> SaltCellRender {
     } else if let Some(rest) = s.strip_prefix("B:") {
         SaltCellRender::Button(rest.to_string())
     } else if let Some(rest) = s.strip_prefix("C:") {
-        SaltCellRender::Combo(rest.to_string())
+        let (label, open_items) = parse_salt_combo(rest);
+        SaltCellRender::Combo { label, open_items }
     } else if let Some(rest) = s.strip_prefix("CX:") {
         SaltCellRender::CheckboxChecked(rest.to_string())
     } else if let Some(rest) = s.strip_prefix("CU:") {
@@ -901,6 +1130,78 @@ fn salt_button_width(text: &str) -> i32 {
 
 fn salt_combo_width(text: &str) -> i32 {
     estimate_text_width(text) + 23
+}
+
+fn salt_meta_block_height(text: &str) -> i32 {
+    (text.lines().count().max(1) as i32 * 14) + 4
+}
+
+fn salt_title_height(text: &str) -> i32 {
+    (text.lines().count().max(1) as i32 * 18) + 4
+}
+
+fn salt_legend_height(text: &str) -> i32 {
+    (text.lines().count().max(1) as i32 * 14) + 18
+}
+
+fn render_salt_meta_text(
+    out: &mut String,
+    text: &str,
+    x: i32,
+    y: i32,
+    attrs: &str,
+    color: &str,
+) {
+    for (idx, line) in text.lines().enumerate() {
+        salt_text(out, x, y + (idx as i32 * 14), attrs, line, color);
+    }
+}
+
+fn render_salt_legend(out: &mut String, legend: &str, total_w: i32, y: i32) {
+    let width = 150;
+    let height = salt_legend_height(legend);
+    let x = total_w - width - 10;
+    out.push_str(&format!(
+        "<g data-salt-meta=\"legend\"><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"4\" ry=\"4\" fill=\"#f8fafc\" stroke=\"#94a3b8\" stroke-width=\"1\"/>",
+        x, y, width, height
+    ));
+    render_salt_meta_text(
+        out,
+        legend,
+        x + 8,
+        y + 16,
+        "font-family=\"monospace\" font-size=\"11\" fill=\"#475569\"",
+        "#475569",
+    );
+    out.push_str("</g>");
+}
+
+fn render_salt_vertical_grid_lines(
+    out: &mut String,
+    cells: &[SaltCellRender],
+    col_widths: &[i32],
+    row_y: i32,
+    row_h: i32,
+    grid_style: SaltGridStyle,
+    style: &SaltRenderStyle,
+) {
+    if !grid_style.vertical {
+        return;
+    }
+    let mut col_x = 6;
+    for (col_idx, cell) in cells.iter().enumerate() {
+        col_x += col_widths.get(col_idx).copied().unwrap_or(80);
+        if col_idx + 1 < cells.len() && !matches!(cell, SaltCellRender::TableSpan) {
+            out.push_str(&format!(
+                "<line data-salt-grid=\"vertical\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                col_x,
+                row_y,
+                col_x,
+                row_y + row_h,
+                style.grid_color
+            ));
+        }
+    }
 }
 
 fn salt_text(out: &mut String, x: i32, y: i32, attrs: &str, text: &str, color: &str) {
@@ -1137,12 +1438,13 @@ fn render_salt_cell_svg(
                 &style.button_text_color,
             );
         }
-        SaltCellRender::Combo(label) => {
+        SaltCellRender::Combo { label, open_items } => {
             let combo_w = salt_combo_width(label).min(w - pad * 2).max(28);
             let combo_h = 19;
-            let combo_y = y + ((h - combo_h) / 2).max(0);
+            let combo_y = y + 1;
             out.push_str(&format!(
-                "<rect data-salt-widget=\"combo\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                "<rect data-salt-widget=\"combo\" data-salt-open=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                !open_items.is_empty(),
                 x + pad,
                 combo_y,
                 combo_w,
@@ -1181,6 +1483,33 @@ fn render_salt_cell_svg(
                 style.border_color,
                 style.border_color
             ));
+            if !open_items.is_empty() {
+                let popup_y = combo_y + combo_h;
+                let popup_h = (open_items.len() as i32 * 18) + 4;
+                out.push_str(&format!(
+                    "<rect data-salt-widget=\"combo-popup\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/>",
+                    x + pad,
+                    popup_y,
+                    combo_w,
+                    popup_h,
+                    style.panel_fill,
+                    style.border_color
+                ));
+                for (idx, item) in open_items.iter().enumerate() {
+                    let item_y = popup_y + 14 + (idx as i32 * 18);
+                    salt_text(
+                        out,
+                        x + pad + 4,
+                        item_y,
+                        &format!(
+                            "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                            style.font_family, style.text_color
+                        ),
+                        item,
+                        &style.text_color,
+                    );
+                }
+            }
         }
         SaltCellRender::CheckboxChecked(label) => {
             let bx = x + pad;
@@ -1423,6 +1752,44 @@ fn render_salt_cell_svg(
                     &style.text_color,
                 );
                 item_x += estimate_text_width(item) + 24;
+            }
+        }
+        SaltCellRender::MenuPopup { anchor, items } => {
+            let popup_h = (items.len() as i32 * 18) + 8;
+            out.push_str(&format!(
+                "<g data-salt-widget=\"menu\" data-salt-open=\"true\" data-salt-menu-anchor=\"{}\"><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1\"/></g>",
+                escape_text(anchor),
+                x + 12,
+                y + 2,
+                w.saturating_sub(24),
+                popup_h,
+                style.panel_fill,
+                style.border_color
+            ));
+            for (idx, item) in items.iter().enumerate() {
+                let item_y = y + 16 + (idx as i32 * 18);
+                if item.trim() == "-" {
+                    out.push_str(&format!(
+                        "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>",
+                        x + 18,
+                        item_y - 5,
+                        x + w - 18,
+                        item_y - 5,
+                        style.grid_color
+                    ));
+                } else {
+                    salt_text(
+                        out,
+                        x + 18,
+                        item_y,
+                        &format!(
+                            "font-family=\"{}\" font-size=\"12\" fill=\"{}\"",
+                            style.font_family, style.text_color
+                        ),
+                        item,
+                        &style.text_color,
+                    );
+                }
             }
         }
         SaltCellRender::TabBar { tabs, active } => {
