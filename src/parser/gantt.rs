@@ -45,6 +45,9 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             target: color,
         });
     }
+    if let Some(kind) = parse_gantt_named_date(trimmed) {
+        return Some(kind);
+    }
     if let Some((start_date, end_date, label)) = parse_gantt_day_name(trimmed) {
         return Some(StatementKind::GanttConstraint {
             subject: format!("__day::{start_date}::{end_date}"),
@@ -97,9 +100,6 @@ fn parse_gantt_baseline_statement(line: &str) -> Option<StatementKind> {
             kind: "separator".to_string(),
             target,
         });
-    }
-    if let Some(kind) = parse_gantt_named_date(trimmed) {
-        return Some(kind);
     }
     if let Some(compound) = parse_gantt_then_statement(trimmed) {
         return Some(compound);
