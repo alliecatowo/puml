@@ -221,3 +221,30 @@ Alice -> Bob: call
     // May return Ok (warning is non-fatal) or Err; either way no panic.
     let _ = result;
 }
+
+/// `box` colors accept both PlantUML named (`#LightBlue`) and hex forms.
+#[test]
+fn sequence_box_colors_named_and_hex_render() {
+    let svg = svg_of(
+        r#"@startuml
+box "Named" #LightBlue
+participant A
+end box
+
+box "Hex" #e0f2fe
+participant B
+end box
+
+A -> B: ping
+@enduml"#,
+    );
+
+    assert!(
+        svg.contains("fill=\"#add8e6\""),
+        "expected #LightBlue to normalize to SVG hex"
+    );
+    assert!(
+        svg.contains("fill=\"#e0f2fe\""),
+        "expected hex box color to render unchanged"
+    );
+}

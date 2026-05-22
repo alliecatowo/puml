@@ -943,8 +943,8 @@ fn parse_participant_group_label(raw: Option<&str>) -> (Option<String>, Option<S
     let mut label = raw;
     let mut color = None;
     if let Some(last) = raw.split_whitespace().last() {
-        if last.starts_with('#') && last.len() > 1 {
-            color = Some(last.to_string());
+        if let Some(parsed) = parse_sequence_box_color(last) {
+            color = Some(parsed);
             label = raw[..raw.len() - last.len()].trim_end();
         }
     }
@@ -957,6 +957,25 @@ fn parse_participant_group_label(raw: Option<&str>) -> (Option<String>, Option<S
         .trim();
 
     ((!label.is_empty()).then_some(label.to_string()), color)
+}
+
+fn parse_sequence_box_color(token: &str) -> Option<String> {
+    let value = token.strip_prefix('#')?;
+    if value.is_empty() {
+        return None;
+    }
+
+    let is_hex = matches!(value.len(), 3 | 4 | 6 | 8)
+        && value.bytes().all(|b| b.is_ascii_hexdigit());
+    if is_hex {
+        return Some(format!("#{}", value.to_ascii_lowercase()));
+    }
+
+    if value.bytes().all(|b| b.is_ascii_alphabetic()) {
+        return Some(value.to_ascii_lowercase());
+    }
+
+    None
 }
 
 /// Strip the LEGEND_POS prefix from a packed legend value, returning just the text.
