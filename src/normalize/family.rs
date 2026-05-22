@@ -318,9 +318,13 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
             }
             StatementKind::FamilyRelation(rel) => {
                 if family_kind == DiagramKind::UseCase {
-                    ensure_usecase_relation_endpoint(&mut nodes, &rel.from);
-                    ensure_usecase_relation_endpoint(&mut nodes, &rel.to);
                     let mut rel = rel;
+                    if usecase_relation_uses_bracket_syntax(&rel.from) {
+                        ensure_usecase_relation_endpoint(&mut nodes, &rel.from);
+                    }
+                    if usecase_relation_uses_bracket_syntax(&rel.to) {
+                        ensure_usecase_relation_endpoint(&mut nodes, &rel.to);
+                    }
                     rel.from = clean_usecase_relation_endpoint(&rel.from);
                     rel.to = clean_usecase_relation_endpoint(&rel.to);
                     last_relation = Some((rel.from.clone(), rel.to.clone()));
@@ -705,6 +709,12 @@ fn clean_usecase_relation_endpoint(endpoint: &str) -> String {
     usecase_endpoint_node_spec(endpoint).0
 }
 
+fn usecase_relation_uses_bracket_syntax(endpoint: &str) -> bool {
+    let trimmed = endpoint.trim();
+    (trimmed.starts_with(':') && trimmed.ends_with(':'))
+        || (trimmed.starts_with('(') && trimmed.ends_with(')'))
+}
+
 fn ensure_usecase_relation_endpoint(nodes: &mut Vec<FamilyNode>, endpoint: &str) {
     let trimmed = endpoint.trim();
     if trimmed.is_empty() {
@@ -742,7 +752,10 @@ fn usecase_endpoint_matches_node(endpoint: &str, node: &FamilyNode) -> bool {
         return true;
     }
     let (name, _) = usecase_endpoint_node_spec(trimmed);
-    node.name == name || node.alias.as_deref() == Some(name.as_str())
+    if node.name == name || node.alias.as_deref() == Some(name.as_str()) {
+        return true;
+    }
+    node.name.ends_with(&format!("::{name}"))
 }
 
 fn usecase_endpoint_node_spec(endpoint: &str) -> (String, FamilyNodeKind) {
