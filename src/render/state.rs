@@ -102,7 +102,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // In all cases, sort nodes by BFS depth from initial states.
     let top_level_nodes: Vec<&StateNode> = nodes
         .iter()
-        .filter(|n| !child_node_names.contains(n.name.as_str()))
+        .filter(|n| !child_node_names.contains(n.name.as_str()) && n.kind != StateNodeKind::Note)
         .collect();
     let top_level_count = top_level_nodes.len();
     let has_fork_join_choice = nodes.iter().any(|n| {
@@ -184,6 +184,7 @@ pub fn render_state_svg(document: &StateDocument) -> String {
     // all of their incoming branches, which avoids clipped/crossing terminal arrows.
     let name_to_orig: std::collections::BTreeMap<&str, usize> = nodes
         .iter()
+        .filter(|n| n.kind != StateNodeKind::Note)
         .enumerate()
         .map(|(i, n)| (n.name.as_str(), i))
         .collect();
@@ -289,6 +290,8 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         }
     }
 
+    position_state_notes(nodes, transitions, &node_sizes, &mut placed);
+
     // Build edge/kind lookup tables needed for both the gutter pre-pass and Phase 2.
     // Build a set of all (from, to) pairs to detect bidirectional edges
     let edge_set: std::collections::BTreeSet<(&str, &str)> = transitions
@@ -354,6 +357,14 @@ pub fn render_state_svg(document: &StateDocument) -> String {
                 if let Some(p) = placed.get_mut(&name) {
                     p.x += required_shift;
                 }
+            }
+        }
+    }
+    if let Some(min_y) = placed.values().map(|p| p.y).min() {
+        let required_shift = (STATE_MARGIN - min_y).max(0);
+        if required_shift > 0 {
+            for p in placed.values_mut() {
+                p.y += required_shift;
             }
         }
     }
@@ -562,6 +573,21 @@ pub fn render_state_svg(document: &StateDocument) -> String {
         let from_p = placed.get(&t.from);
         let to_p = placed.get(&t.to);
         if let (Some(fp), Some(tp)) = (from_p, to_p) {
+            if matches!(
+                node_kinds.get(t.to.as_str()).copied(),
+                Some(StateNodeKind::Note)
+            ) {
+                emit_state_note_connector(
+                    &mut out,
+                    t,
+                    fp,
+                    tp,
+                    &placed,
+                    &node_kinds,
+                    &state_style.arrow_color,
+                );
+                continue;
+            }
             // Check if the reverse edge also exists (bidirectional pair)
             let has_reverse =
                 t.from != t.to && edge_set.contains(&(t.to.as_str(), t.from.as_str()));
@@ -906,6 +932,94 @@ fn place_node(
     }
 }
 
+fn position_state_notes(
+    nodes: &[StateNode],
+    transitions: &[StateTransition],
+    sizes: &std::collections::BTreeMap<String, (i32, i32)>,
+    placed: &mut std::collections::BTreeMap<String, PlacedNode>,
+) {
+    let note_names: std::collections::BTreeSet<&str> = nodes
+        .iter()
+        .filter(|node| node.kind == StateNodeKind::Note)
+        .map(|node| node.name.as_str())
+        .collect();
+
+    for t in transitions {
+        if !note_names.contains(t.to.as_str()) {
+            continue;
+        }
+        let (note_w, note_h) = sizes
+            .get(&t.to)
+            .copied()
+            .unwrap_or((STATE_NODE_W, STATE_NODE_H));
+
+        let mut link_segment = None;
+        let (position, anchor_x, anchor_y, target_box) = if let Some((position, target)) =
+            parse_state_note_on_link_direction(t.direction.as_deref())
+        {
+            let Some(from_p) = placed.get(&t.from) else {
+                continue;
+            };
+            let Some(to_p) = placed.get(target) else {
+                continue;
+            };
+            let (x1, y1, x2, y2) = edge_anchors(from_p, to_p);
+            link_segment = Some((x1, y1, x2, y2));
+            (position, (x1 + x2) / 2, (y1 + y2) / 2, None)
+        } else {
+            let Some(target_p) = placed.get(&t.from) else {
+                continue;
+            };
+            (
+                t.direction.as_deref().unwrap_or("right"),
+                target_p.x + target_p.w / 2,
+                target_p.y + target_p.h / 2,
+                Some(*target_p),
+            )
+        };
+
+        let gap = 28;
+        let (x, mut y) = if let Some(target_p) = target_box {
+            match position.to_ascii_lowercase().as_str() {
+                "left" => (target_p.x - note_w - gap, anchor_y - note_h / 2),
+                "top" | "over" => (anchor_x - note_w / 2, target_p.y - note_h - gap),
+                "bottom" => (anchor_x - note_w / 2, target_p.y + target_p.h + gap),
+                _ => (target_p.x + target_p.w + gap, anchor_y - note_h / 2),
+            }
+        } else {
+            let vertical_link = link_segment
+                .map(|(x1, y1, x2, y2)| (y2 - y1).abs() >= (x2 - x1).abs())
+                .unwrap_or(false);
+            match position.to_ascii_lowercase().as_str() {
+                "left" => (anchor_x - note_w - gap, anchor_y - note_h / 2),
+                "top" | "over" if vertical_link => (anchor_x + gap, anchor_y - note_h / 2),
+                "top" | "over" => (anchor_x - note_w / 2, anchor_y - note_h - gap),
+                "bottom" => (anchor_x - note_w / 2, anchor_y + gap),
+                _ => (anchor_x + gap, anchor_y - note_h / 2),
+            }
+        };
+        while placed
+            .iter()
+            .any(|(name, other)| name != &t.to && rects_overlap(x, y, note_w, note_h, other))
+        {
+            y += note_h + 12;
+        }
+        placed.insert(
+            t.to.clone(),
+            PlacedNode {
+                x,
+                y,
+                w: note_w,
+                h: note_h,
+            },
+        );
+    }
+}
+
+fn rects_overlap(x: i32, y: i32, w: i32, h: i32, other: &PlacedNode) -> bool {
+    x < other.x + other.w && x + w > other.x && y < other.y + other.h && y + h > other.y
+}
+
 fn compute_top_level_depths<'a>(
     top_level_nodes: &[&'a StateNode],
     transitions: &'a [StateTransition],
@@ -1188,6 +1302,67 @@ fn emit_state_orthogonal_path(
         style.dash,
         style.hidden,
         style.dir
+    ));
+}
+
+fn parse_state_note_on_link_direction(direction: Option<&str>) -> Option<(&str, &str)> {
+    let direction = direction?;
+    let mut parts = direction.splitn(3, '|');
+    if parts.next()? != "on-link" {
+        return None;
+    }
+    let position = parts.next().unwrap_or("over");
+    let target = parts.next()?;
+    Some((position, target))
+}
+
+fn emit_state_note_connector(
+    out: &mut String,
+    transition: &StateTransition,
+    from_p: &PlacedNode,
+    note_p: &PlacedNode,
+    placed: &std::collections::BTreeMap<String, PlacedNode>,
+    node_kinds: &std::collections::BTreeMap<&str, &StateNodeKind>,
+    fallback_stroke: &str,
+) {
+    let stroke = escape_text(transition.line_color.as_deref().unwrap_or(fallback_stroke));
+    let sw = transition.thickness.unwrap_or(1).clamp(1, 8);
+    let (x1, y1) = if let Some((_, target)) =
+        parse_state_note_on_link_direction(transition.direction.as_deref())
+    {
+        if let Some(target_p) = placed.get(target) {
+            let (ex1, ey1, ex2, ey2) = edge_anchors_for_kinds(
+                node_kinds.get(transition.from.as_str()).copied(),
+                from_p,
+                node_kinds.get(target).copied(),
+                target_p,
+            );
+            ((ex1 + ex2) / 2, (ey1 + ey2) / 2)
+        } else {
+            (from_p.x + from_p.w / 2, from_p.y + from_p.h / 2)
+        }
+    } else {
+        (from_p.x + from_p.w / 2, from_p.y + from_p.h / 2)
+    };
+    let (_, _, x2, y2) = edge_anchors(
+        &PlacedNode {
+            x: x1,
+            y: y1,
+            w: 1,
+            h: 1,
+        },
+        note_p,
+    );
+    out.push_str(&format!(
+        "<path class=\"state-note-connector\" data-state-from=\"{}\" data-state-to=\"{}\" d=\"M {} {} L {} {}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"5 3\"/>",
+        escape_text(&transition.from),
+        escape_text(&transition.to),
+        x1,
+        y1,
+        x2,
+        y2,
+        stroke,
+        sw
     ));
 }
 

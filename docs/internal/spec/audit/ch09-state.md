@@ -100,23 +100,23 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Evidence:** `src/parser/state.rs:306-311` captures `line_color`, `dashed`, `hidden`, `thickness` via `split_family_arrow_styled`.
 **Notes:** `dotted` and `bold` rendering on edges is family-arrow logic shared with class diagrams; for state edges these are applied through `src/render/relation.rs`. `hidden` is honored (transitions skipped). Verify `dotted` reaches state renderer.
 
-### 9.15 Note (`note left of`, `note right of`, `note top of`, `note bottom of`, multi-line, floating) — ❌
+### 9.15 Note (`note left of`, `note right of`, `note top of`, `note bottom of`, multi-line, floating) — 🟡
 **Feature:** Floating and attached notes on states
 **Syntax example:** `note left of Active : this is a short note`
-**Status:** ❌
-**Evidence:** `StatementKind::Note` is produced by the parser (`src/parser/multiline.rs:118`), but `src/normalize/state.rs` has no `Note(_)` arm in its match — it falls into the wildcard `_ =>` which returns `E_STATE_MIXED` (`src/normalize/state.rs:141-146`). State diagrams currently error out on any `note` statement.
-**Notes:** Hard error, not silent drop. This is a parity blocker for §9.15–9.17.
+**Status:** 🟡
+**Evidence:** `StatementKind::Note` is produced by the parser (`src/parser/multiline.rs`), normalized into `StateNodeKind::Note` (`src/normalize/state.rs`), and rendered as folded note shapes with dashed connectors (`src/render/state.rs`). Covered by `tests/state_ch09_parity.rs`.
+**Notes:** Attached notes render adjacent to the target state for `left` / `right` / `top` / `bottom`. Floating notes without a target are not yet separately laid out.
 
-### 9.16 Note on link — ❌
+### 9.16 Note on link — ✅
 **Feature:** `note on link … end note` attached to the most recent transition
 **Syntax example:** `State1 --> State2` then `note on link` block
-**Status:** ❌
-**Evidence:** No `note on link` recognition in parser; would parse as Unknown or Note and then state normalizer errors.
+**Status:** ✅
+**Evidence:** `note on link` / `<side> on link` is recognized in `src/parser/multiline.rs`, normalized as a note connector to the previous transition in `src/normalize/state.rs`, and rendered next to the transition midpoint in `src/render/state.rs`. Covered by `tests/state_ch09_parity.rs`.
 
-### 9.17 Note on composite state — ❌
+### 9.17 Note on composite state — ✅
 **Feature:** `note right of NotShooting : This is a note on a composite state`
-**Status:** ❌
-**Evidence:** Same as §9.15 — state normalizer rejects all Notes.
+**Status:** ✅
+**Evidence:** Composite states are normal `StateNode`s in the state model, so attached notes use the same normalization and renderer placement as simple states.
 
 ### 9.18 Inline color (`state Foo #pink { … }`) — ❌
 **Feature:** Background color on state, including gradients (`#red-green`) and inside composites

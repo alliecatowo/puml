@@ -31,6 +31,13 @@ exit1 --> Styled
 Styled --> Done[H*]
 note left of Active: attached note
 note on link: link note
+note right on link: second link note
+note right of Styled
+  multiline attached note
+end note
+note on link
+  multiline link note
+end note
 json $cfg {
   "outer": {
     "ok": true
@@ -103,6 +110,35 @@ fn state_ch09_metadata_preserves_notes_ports_styles_and_json() {
     assert!(model
         .nodes
         .iter()
+        .any(|node| node.kind == StateNodeKind::Note
+            && node.display.as_deref() == Some("second link note")));
+    assert!(model
+        .nodes
+        .iter()
+        .any(|node| node.kind == StateNodeKind::Note
+            && node.display.as_deref() == Some("multiline attached note")));
+    assert!(model
+        .nodes
+        .iter()
+        .any(|node| node.kind == StateNodeKind::Note
+            && node.display.as_deref() == Some("multiline link note")));
+    assert!(model.transitions.iter().any(|transition| {
+        transition.to.starts_with("__state_note_")
+            && transition
+                .direction
+                .as_deref()
+                .is_some_and(|direction| direction.starts_with("on-link|over|"))
+    }));
+    assert!(model.transitions.iter().any(|transition| {
+        transition.to.starts_with("__state_note_")
+            && transition
+                .direction
+                .as_deref()
+                .is_some_and(|direction| direction.starts_with("on-link|right|"))
+    }));
+    assert!(model
+        .nodes
+        .iter()
         .any(|node| node.kind == StateNodeKind::JsonProjection
             && node
                 .display
@@ -153,8 +189,12 @@ fn state_ch09_render_emits_visual_shapes_styles_and_labels() {
     assert!(svg.contains("data-state-kind=\"expansion-output\""));
     assert!(svg.contains("data-state-kind=\"history-deep\""));
     assert!(svg.contains("class=\"state-note\""));
+    assert!(svg.contains("class=\"state-note-connector\""));
     assert!(svg.contains(">attached note<"));
     assert!(svg.contains(">link note<"));
+    assert!(svg.contains(">second link note<"));
+    assert!(svg.contains(">multiline attached note<"));
+    assert!(svg.contains(">multiline link note<"));
     assert!(svg.contains("class=\"state-json-projection\""));
     assert!(svg.contains("data-state-projection-format=\"json\""));
     assert!(svg.contains("data-state-projection-format=\"yaml\""));

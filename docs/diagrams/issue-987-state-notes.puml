@@ -1,0 +1,15 @@
+@startuml
+title Issue 987 state notes
+state Idle
+state Active
+state Done
+
+Idle --> Active : start
+note left of Active: attached state note
+
+Active --> Done : finish
+note on link
+  note centered on transition
+end note
+note right on link: right link note
+@enduml
