@@ -16,8 +16,8 @@ pub mod render;
 pub mod scene;
 pub mod source;
 pub mod specialized;
-pub mod text_truncate;
 pub mod sprites;
+pub mod text_truncate;
 pub mod theme;
 
 pub use ast::Document;
