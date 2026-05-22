@@ -47,6 +47,8 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         } else {
             (None, rest)
         };
+        let (rest_after_label, tags) = split_component_trailing_tags(rest_after_label);
+        let rest_after_label = rest_after_label.as_str();
         let (name_raw, alias_raw) = if let Some(alias) = rest_after_label.strip_prefix("as ") {
             (label.as_deref().unwrap_or("").trim(), Some(alias.trim()))
         } else if let Some((lhs, rhs)) = rest_after_label.split_once(" as ") {
@@ -62,6 +64,7 @@ fn parse_component_decl(line: &str) -> Option<StatementKind> {
         }
         let alias = alias_raw.map(clean_ident).filter(|v| !v.is_empty());
         let mut members = declaration_marker_members(None, stereotypes);
+        append_component_tag_members(&mut members, tags);
         match kw {
             "portin" => members.push(ClassMember {
                 text: "<<portin>>".to_string(),
@@ -158,6 +161,52 @@ fn component_decl_keyword(line: &str) -> Option<(&'static str, ComponentNodeKind
     })
 }
 
+fn split_component_trailing_tags(input: &str) -> (String, Vec<String>) {
+    let mut rest = input.trim_end();
+    let mut tags = Vec::new();
+    while let Some((start, token)) = last_component_token(rest) {
+        if !is_component_tag_token(token) {
+            break;
+        }
+        tags.push(token.to_string());
+        rest = rest[..start].trim_end();
+    }
+    tags.reverse();
+    (rest.trim().to_string(), tags)
+}
+
+fn last_component_token(input: &str) -> Option<(usize, &str)> {
+    let trimmed = input.trim_end();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let start = trimmed
+        .char_indices()
+        .rev()
+        .find_map(|(idx, ch)| ch.is_whitespace().then_some(idx + ch.len_utf8()))
+        .unwrap_or(0);
+    Some((start, &trimmed[start..]))
+}
+
+fn is_component_tag_token(token: &str) -> bool {
+    let Some(rest) = token.strip_prefix('$') else {
+        return false;
+    };
+    !rest.is_empty()
+        && rest
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn append_component_tag_members(members: &mut Vec<ClassMember>, tags: Vec<String>) {
+    for tag in tags {
+        members.push(ClassMember {
+            text: format!("\x1fcomponent:tag:{tag}"),
+            modifier: None,
+        });
+    }
+}
+
 fn is_component_container_keyword(keyword: &str) -> bool {
     matches!(
         keyword,
@@ -198,6 +247,8 @@ fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
     let end = rest.find(']')?;
     let inner = rest[..end].trim();
     let suffix = rest[end + 1..].trim();
+    let (suffix_without_tags, tags) = split_component_trailing_tags(suffix);
+    let suffix = suffix_without_tags.trim();
     if !suffix.is_empty() && !suffix.starts_with("as ") {
         return None;
     }
@@ -219,7 +270,11 @@ fn parse_component_bracketed_shorthand(trimmed: &str) -> Option<StatementKind> {
             name,
             alias,
             label,
-            members: Vec::new(),
+            members: {
+                let mut members = Vec::new();
+                append_component_tag_members(&mut members, tags);
+                members
+            },
         });
     }
     None

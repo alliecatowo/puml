@@ -5,6 +5,7 @@
 ///   7.9        `skinparam componentStyle uml1`   (badges in top-right corner)
 ///   7.14       `skinparam componentStyle rectangle` (plain rect, no badges, no «component»)
 ///   7.15       `hide @unlinked` / `remove @unlinked` (filter orphan nodes)
+///   7.16       `hide` / `remove` / `restore $tag` (component tags)
 use puml::render_source_to_svg;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -232,5 +233,100 @@ A -> B : hello
     assert!(
         svg.contains("hello"),
         "sequence message should still render"
+    );
+}
+
+// ── 7.16  hide/remove/restore $tag ───────────────────────────────────────────
+
+#[test]
+fn hide_component_tag_removes_tagged_nodes_and_edges() {
+    let src = "\
+@startuml
+[Frontend] $public
+[Backend] $internal
+[Frontend] --> [Backend] : calls
+hide $internal
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("Frontend"),
+        "untagged-visible node should remain"
+    );
+    assert!(
+        !svg.contains("Backend"),
+        "node tagged $internal should be hidden"
+    );
+    assert!(
+        !svg.contains("calls"),
+        "relations touching hidden tagged nodes should also be hidden"
+    );
+}
+
+#[test]
+fn remove_component_tag_removes_all_matching_nodes() {
+    let src = "\
+@startuml
+component [Gateway] $edge
+component [Worker] $internal
+remove $internal
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("Gateway"),
+        "non-matching tagged node should remain"
+    );
+    assert!(
+        !svg.contains("Worker"),
+        "node tagged $internal should be removed"
+    );
+}
+
+#[test]
+fn restore_component_tag_after_hide_all_keeps_tagged_nodes() {
+    let src = "\
+@startuml
+component [Gateway] $edge
+component [Worker] $internal
+hide *
+restore $edge
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(svg.contains("Gateway"), "restored tag should render");
+    assert!(
+        !svg.contains("Worker"),
+        "non-restored tag should stay hidden after hide *"
+    );
+}
+
+#[test]
+fn dollar_named_component_is_not_treated_as_tag_without_tag_marker() {
+    let src = "\
+@startuml
+component [$C1]
+hide $C1
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(
+        svg.contains("$C1"),
+        "a bracketed component named $C1 should not be hidden as a tag"
+    );
+}
+
+#[test]
+fn component_tags_do_not_render_as_member_text() {
+    let src = "\
+@startuml
+[Gateway] $edge
+@enduml
+";
+    let svg = render_svg(src);
+    assert!(svg.contains("Gateway"), "tagged component should render");
+    assert!(
+        !svg.contains("$edge"),
+        "component tag metadata should not render as visible text"
     );
 }

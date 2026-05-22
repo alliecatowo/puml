@@ -15,12 +15,12 @@ Legend: ✅ supported · 🟡 partial · ❌ missing
 **Evidence:** `src/parser/component.rs:4` (keyword table), `:64-93` (label/`as` parsing), `:116-148` (anonymous `[Name]` shorthand). `ComponentNodeKind::Component` at `src/ast.rs:275`.
 **Notes:** `\n` literal handling in labels not specifically verified; relies on generic label pass-through.
 
-### 7.1.1 Naming exceptions (`$` tag vs component name) — 🟡
+### 7.1.1 Naming exceptions (`$` tag vs component name) — ✅
 **Feature:** `component [$C1]` declares component named `$C1`; `remove $C1` would match the tag, not the component, unless aliased.
 **Syntax example:** `component [$C2] $C2` then `remove dollarC2`
-**Status:** 🟡
-**Evidence:** No `$tag` handling found in component parser. `grep '\$tag\|@unlinked'` returned no matches in `src/`.
-**Notes:** Component naming itself works; the tag-vs-name disambiguation behavior (and `hide $tag`/`remove $tag`) is not implemented — see 7.15/7.16.
+**Status:** ✅
+**Evidence:** `src/parser/component.rs` preserves `$` inside bracketed component names while collecting trailing `$tag` tokens into component metadata. `src/normalize/family.rs` applies tag metadata only for component/deployment visibility controls. Tests: `tests/ch07_component_parity.rs` (`dollar_named_component_is_not_treated_as_tag_without_tag_marker`, plus tagged hide/remove/restore coverage).
+**Notes:** `$`-prefixed bracketed names and trailing `$tag` markers are now intentionally disambiguated.
 
 ### 7.2 Interfaces — ✅
 **Feature:** `() Name`, `() "label" as alias`, `interface Name`, `interface "label" as alias`.
@@ -104,9 +104,9 @@ See 7.8/7.9. `uml2` is now the explicit default; `uml1` and `rectangle` are also
 **Status:** ✅
 **Evidence:** `src/normalize/family.rs` handles `hide @unlinked` and `remove @unlinked` directives, filtering out orphan nodes (those with no edges) from the component graph before rendering. Tests: `tests/ch07_component_parity.rs` (`hide_unlinked_removes_orphan_nodes`, `remove_unlinked_removes_orphan_nodes`, `hide_unlinked_keeps_all_when_all_linked`, `hide_unlinked_does_not_affect_sequence_diagrams`).
 
-### 7.16 Hide/Remove/Restore tagged (`$tag`, `*`) — ❌
-**Status:** ❌
-**Evidence:** `grep -E 'hide \\\$|remove \\\$|restore'` in `src/` returns no hits. Component declarations accept `$Name` as a name token but tag membership is not tracked.
+### 7.16 Hide/Remove/Restore tagged (`$tag`, `*`) — ✅
+**Status:** ✅
+**Evidence:** `src/parser/component.rs` records trailing component `$tag` tokens as non-rendered metadata; `src/parser/family.rs` parses `hide`/`remove`/`restore` controls; `src/normalize/family.rs` filters tagged component/deployment nodes and incident relations, with `restore $tag` after `hide *` support. Tests: `tests/ch07_component_parity.rs` (`hide_component_tag_removes_tagged_nodes_and_edges`, `remove_component_tag_removes_all_matching_nodes`, `restore_component_tag_after_hide_all_keeps_tagged_nodes`, `component_tags_do_not_render_as_member_text`).
 
 ### 7.17 Display JSON Data (`allowmixing` + `json`) — ❌
 **Status:** ❌
@@ -125,8 +125,8 @@ See 7.8/7.9. `uml2` is now the explicit default; `uml1` and `rectangle` are also
 
 | Status | Count |
 |---|---|
-| ✅ Supported | 10 (§7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.8, 7.9, 7.14, 7.15) |
-| 🟡 Partial | 6 (§7.1.1, 7.7, 7.10, 7.11, 7.13, 7.18) |
-| ❌ Missing | 3 (§7.12, 7.16, 7.17) |
+| ✅ Supported | 12 (§7.1, 7.1.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.8, 7.9, 7.14, 7.15, 7.16) |
+| 🟡 Partial | 5 (§7.7, 7.10, 7.11, 7.13, 7.18) |
+| ❌ Missing | 2 (§7.12, 7.17) |
 
-**Headline gaps:** `$tag` hide/remove/restore tagging; sprites in stereotypes; `allowmixing` + JSON; multi-line bracketed component bodies.
+**Headline gaps:** sprites in stereotypes; `allowmixing` + JSON; multi-line bracketed component bodies; UML2 interface/port visual fidelity.
