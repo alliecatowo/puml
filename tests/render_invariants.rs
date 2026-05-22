@@ -276,6 +276,7 @@ fn invariant5_synthetic_duplicate_initial_is_caught() {
             style: Default::default(),
             internal_actions: vec![],
             regions: vec![],
+            fill_color: None,
         },
         StateNode {
             name: "[*]_extra".to_string(),
@@ -285,6 +286,7 @@ fn invariant5_synthetic_duplicate_initial_is_caught() {
             style: Default::default(),
             internal_actions: vec![],
             regions: vec![],
+            fill_color: None,
         },
         StateNode {
             name: "Active".to_string(),
@@ -294,6 +296,7 @@ fn invariant5_synthetic_duplicate_initial_is_caught() {
             style: Default::default(),
             internal_actions: vec![],
             regions: vec![],
+            fill_color: None,
         },
     ];
     let violations = validate::check_pseudo_state_dedup(&nodes, "root");
