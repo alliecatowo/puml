@@ -97,6 +97,44 @@ fn relation_pair_label_lane_map(
     lanes
 }
 
+fn relation_source_label_lane_map(
+    document: &FamilyDocument,
+) -> std::collections::BTreeMap<usize, i32> {
+    let mut source_labeled_indices: std::collections::BTreeMap<String, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    let mut lanes = std::collections::BTreeMap::new();
+
+    for (idx, relation) in document.relations.iter().enumerate() {
+        let has_label = relation
+            .label
+            .as_deref()
+            .is_some_and(|label| !label.trim().is_empty())
+            || relation
+                .stereotype
+                .as_deref()
+                .is_some_and(|label| !label.trim().is_empty());
+        if has_label {
+            source_labeled_indices
+                .entry(relation.from.clone())
+                .or_default()
+                .push(idx);
+        }
+    }
+
+    for indices in source_labeled_indices.values() {
+        if indices.len() <= 1 {
+            continue;
+        }
+        let count = indices.len() as i32;
+        for (slot, rel_idx) in indices.iter().enumerate() {
+            let _ = count; // keep shape explicit for future non-linear spacing.
+            lanes.insert(*rel_idx, (slot as i32) * 20);
+        }
+    }
+
+    lanes
+}
+
 /// Box geometry for a single class/node box used by `render_class_svg`.
 #[derive(Clone, Copy)]
 struct ClassNodeBox {
@@ -630,6 +668,7 @@ struct ClassRelationCtx<'a> {
     label_override: &'a std::collections::BTreeMap<usize, (i32, i32)>,
     parallel_offset: &'a std::collections::BTreeMap<usize, i32>,
     relation_pair_label_lanes: &'a std::collections::BTreeMap<usize, i32>,
+    relation_source_label_lanes: &'a std::collections::BTreeMap<usize, i32>,
     class_style: &'a crate::theme::ClassStyle,
     arrow_stroke: &'a str,
     margin_x: i32,
@@ -876,6 +915,12 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
             .get(&rel_idx)
             .copied()
             .unwrap_or(0);
+        let source_label_lane = ctx
+            .relation_source_label_lanes
+            .get(&rel_idx)
+            .copied()
+            .unwrap_or(0);
+        let combined_label_lane = pair_label_lane + source_label_lane;
         let from_is_class = ctx
             .nodes
             .iter()
@@ -900,7 +945,8 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                     .get(&rel_idx)
                     .copied()
                     .unwrap_or((label_mx, label_my));
-                let sy = base_sy - if relation.label.is_some() { 24 } else { 14 } + pair_label_lane;
+                let sy =
+                    base_sy - if relation.label.is_some() { 24 } else { 14 } + combined_label_lane;
                 out.push_str(&format!(
                     "<text x=\"{sx}\" y=\"{sy}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"10\" fill=\"{member_color}\">&lt;&lt;{txt}&gt;&gt;</text>",
                     member_color = ctx.class_style.member_color,
@@ -958,7 +1004,7 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 ctx.margin_x + 8 + label_half_w,
                 ctx.svg_width - ctx.margin_x - 8 - label_half_w,
             );
-            let ly = (ly + pair_label_lane).max(ctx.margin_top + 10);
+            let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
             out.push_str(&relation_label_svg(
                 lx,
@@ -1020,7 +1066,7 @@ fn render_class_relations(out: &mut String, ctx: &ClassRelationCtx<'_>) {
                 ctx.margin_x + 8 + label_half_w,
                 ctx.svg_width - ctx.margin_x - 8 - label_half_w,
             );
-            let ly = (ly + pair_label_lane).max(ctx.margin_top + 10);
+            let ly = (ly + combined_label_lane).max(ctx.margin_top + 10);
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, ctx.node_boxes);
             out.push_str(&relation_label_svg(
                 lx,
@@ -1188,6 +1234,7 @@ fn class_build_label_overrides(
         let mut sorted = group.clone();
         sorted.sort_unstable();
         let count = sorted.len();
+        let mut tentative: Vec<(usize, i32, i32, i32)> = Vec::with_capacity(count);
         for (slot, &raw_idx) in sorted.iter().enumerate() {
             let rl = &raw_labels[raw_idx];
             let frac = 0.3 + (slot as f64 / count as f64) * 0.4;
@@ -1201,8 +1248,28 @@ fn class_build_label_overrides(
                 (lx, ly - 2)
             };
             let label_half_w = ((rl.text.chars().count() as i32) * 3).max(18);
+            tentative.push((rl.rel_idx, lx, ly, label_half_w));
+        }
+
+        // Only introduce extra lane spacing when sibling labels from the same
+        // source would actually overlap, so we avoid broad overcorrection.
+        let has_overlap = tentative.iter().enumerate().any(|(i, (_, _lx_i, ly_i, _hw_i))| {
+            tentative.iter().skip(i + 1).any(|(_, _lx_j, ly_j, _hw_j)| {
+                // Treat near-stacked labels as a collision even when x-ranges
+                // only partially overlap, because forked C4 edges can still
+                // read as "overlapped" at split points.
+                (ly_i - ly_j).abs() < 28
+            })
+        });
+
+        for (slot, (rel_idx, lx, ly, label_half_w)) in tentative.into_iter().enumerate() {
+            let lane_offset = if has_overlap {
+                ((slot as i32) * 2 - (count as i32 - 1)) * 10
+            } else {
+                0
+            };
             let (lx, ly) = class_nudge_label_y(lx, ly, label_half_w, node_boxes);
-            label_override.insert(rl.rel_idx, (lx, ly));
+            label_override.insert(rel_idx, (lx, ly + lane_offset));
         }
     }
 
@@ -1351,6 +1418,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
         ((max_group_depth as i32) + 1) * 52
     };
     let relation_pair_label_lanes = relation_pair_label_lane_map(document);
+    let relation_source_label_lanes = relation_source_label_lane_map(document);
 
     let title_block_height = document
         .title
@@ -1546,6 +1614,7 @@ pub fn render_class_svg(document: &FamilyDocument) -> String {
             label_override: &label_override,
             parallel_offset: &parallel_offset,
             relation_pair_label_lanes: &relation_pair_label_lanes,
+            relation_source_label_lanes: &relation_source_label_lanes,
             class_style: &class_style,
             arrow_stroke: arrow_stroke.as_str(),
             margin_x,
