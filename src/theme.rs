@@ -1653,7 +1653,19 @@ pub fn classify_class_skinparam(key: &str, value: &str) -> SkinParamSupport<Clas
         | "actorstereotypefontcolor"
         | "linetype"
         | "roundcorner"
-        | "shadowing" => SkinParamSupport::SupportedNoop,
+        | "shadowing"
+        // Package visual style and layout skinparams — accepted as noop (shape not yet rendered).
+        | "packagestyle"
+        | "packagebackgroundcolor"
+        | "packagebordercolor"
+        | "packagefontcolor"
+        | "packagefontsize"
+        | "packagefontname"
+        | "packagestereotypefontcolor"
+        | "namespaceseparator"
+        | "groupinheritance"
+        // Generic skinparams used in class diagrams accepted as noop.
+        | "genericdisplay" => SkinParamSupport::SupportedNoop,
         _ => SkinParamSupport::UnsupportedKey,
     }
 }
