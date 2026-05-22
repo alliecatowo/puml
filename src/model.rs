@@ -38,6 +38,15 @@ pub enum LegendVAlign {
     Top,
 }
 
+/// Horizontal alignment for common header/footer metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetadataHAlign {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
 // ─── State diagram model ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -787,7 +796,9 @@ pub struct SequenceDocument {
     pub teoz: bool,
     pub title: Option<String>,
     pub header: Option<String>,
+    pub header_align: MetadataHAlign,
     pub footer: Option<String>,
+    pub footer_align: MetadataHAlign,
     pub caption: Option<String>,
     pub legend: Option<String>,
     pub skinparams: Vec<(String, String)>,
@@ -816,7 +827,9 @@ impl Default for SequenceDocument {
             teoz: false,
             title: None,
             header: None,
+            header_align: MetadataHAlign::default(),
             footer: None,
+            footer_align: MetadataHAlign::default(),
             caption: None,
             legend: None,
             skinparams: Vec::new(),
@@ -843,7 +856,9 @@ pub struct SequencePage {
     pub teoz: bool,
     pub title: Option<String>,
     pub header: Option<String>,
+    pub header_align: MetadataHAlign,
     pub footer: Option<String>,
+    pub footer_align: MetadataHAlign,
     pub caption: Option<String>,
     pub legend: Option<String>,
     pub skinparams: Vec<(String, String)>,

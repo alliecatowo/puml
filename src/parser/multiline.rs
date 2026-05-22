@@ -16,8 +16,8 @@ fn parse_multiline_keyword_block(
 ) -> Option<(StatementKind, usize)> {
     let lower = line.to_ascii_lowercase();
     // Check for "legend" (alone or with positioning qualifiers: "legend left", etc.)
-    let (key, legend_pos) = if lower == "legend" {
-        ("legend", None)
+    let (key, legend_pos, metadata_align) = if lower == "legend" {
+        ("legend", None, None)
     } else if lower.starts_with("legend ") {
         // Collect any position tokens after "legend"
         let pos_part = line[7..].trim();
@@ -27,28 +27,47 @@ fn parse_multiline_keyword_block(
             .split_whitespace()
             .all(|t| matches!(t, "left" | "right" | "center" | "top" | "bottom"));
         if all_pos && !pos_part.is_empty() {
-            ("legend", Some(pos_part.to_string()))
+            ("legend", Some(pos_part.to_string()), None)
         } else {
             return None;
         }
     } else {
-        let k = ["title", "header", "footer", "caption"]
+        let aligned_metadata = ["left", "center", "right"]
             .into_iter()
-            .find(|k| lower.as_str().eq(*k))?;
-        (k, None)
+            .find_map(|align| {
+                let rest = lower.strip_prefix(&(align.to_string() + " "))?;
+                matches!(rest, "header" | "footer").then_some((rest, align))
+            });
+        if let Some((k, align)) = aligned_metadata {
+            (k, None, Some(align))
+        } else {
+            let k = ["title", "header", "footer", "caption"]
+                .into_iter()
+                .find(|k| lower.as_str().eq(*k))?;
+            (k, None, None)
+        }
     };
 
     let end_marker = format!("end {key}");
+    let compact_end_marker = format!("end{key}");
     let mut body = Vec::new();
 
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
         let trimmed = raw.trim();
-        if trimmed.eq_ignore_ascii_case(&end_marker) {
+        if trimmed.eq_ignore_ascii_case(&end_marker)
+            || trimmed.eq_ignore_ascii_case(&compact_end_marker)
+        {
             let text = body.join("\n");
             let kind = match key {
                 "title" => StatementKind::Title(text),
-                "header" => StatementKind::Header(text),
-                "footer" => StatementKind::Footer(text),
+                "header" => StatementKind::Header(match metadata_align {
+                    Some(align) => pack_aligned_metadata(align, &text),
+                    None => text,
+                }),
+                "footer" => StatementKind::Footer(match metadata_align {
+                    Some(align) => pack_aligned_metadata(align, &text),
+                    None => text,
+                }),
                 "caption" => StatementKind::Caption(text),
                 "legend" => {
                     // Emit Legend first; if there's position info emit LegendPos separately.
