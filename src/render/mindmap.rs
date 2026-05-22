@@ -983,6 +983,103 @@ pub fn render_wbs_svg(doc: &FamilyDocument) -> String {
         }
     }
 
+    let mut id_to_idx: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
+    for (idx, node) in nodes.iter().enumerate() {
+        id_to_idx.entry(node.name.clone()).or_insert(idx);
+        if let Some(alias) = &node.alias {
+            id_to_idx.entry(alias.clone()).or_insert(idx);
+        }
+    }
+
+    // Draw explicit relation arrows (cross-tree links), resolved by alias or name.
+    // Tree parent→child relations are filtered out to avoid duplicate connectors.
+    for rel in &doc.relations {
+        let Some(&from_idx) = id_to_idx.get(&rel.from) else {
+            continue;
+        };
+        let Some(&to_idx) = id_to_idx.get(&rel.to) else {
+            continue;
+        };
+        if from_idx == to_idx {
+            continue;
+        }
+        if parent_of[to_idx] == Some(from_idx) {
+            continue;
+        }
+        let from_w = wbs_node_width(&nodes[from_idx]);
+        let to_w = wbs_node_width(&nodes[to_idx]);
+        let (sx, sy, ex, ey) = match doc.orientation {
+            FamilyOrientation::TopToBottom | FamilyOrientation::BottomToTop => {
+                if x_positions[from_idx] <= x_positions[to_idx] {
+                    (
+                        x_positions[from_idx] + from_w / 2,
+                        y_positions[from_idx],
+                        x_positions[to_idx] - to_w / 2,
+                        y_positions[to_idx],
+                    )
+                } else {
+                    (
+                        x_positions[from_idx] - from_w / 2,
+                        y_positions[from_idx],
+                        x_positions[to_idx] + to_w / 2,
+                        y_positions[to_idx],
+                    )
+                }
+            }
+            FamilyOrientation::LeftToRight | FamilyOrientation::RightToLeft => {
+                if y_positions[from_idx] <= y_positions[to_idx] {
+                    (
+                        x_positions[from_idx],
+                        y_positions[from_idx] + NODE_H / 2,
+                        x_positions[to_idx],
+                        y_positions[to_idx] - NODE_H / 2,
+                    )
+                } else {
+                    (
+                        x_positions[from_idx],
+                        y_positions[from_idx] - NODE_H / 2,
+                        x_positions[to_idx],
+                        y_positions[to_idx] + NODE_H / 2,
+                    )
+                }
+            }
+        };
+
+        out.push_str(&format!(
+            "<line class=\"wbs-relation-edge\" data-wbs-relation-from=\"{from}\" data-wbs-relation-to=\"{to}\" x1=\"{sx}\" y1=\"{sy}\" x2=\"{ex}\" y2=\"{ey}\" stroke=\"#334155\" stroke-width=\"1.5\"/>",
+            from = escape_text(&rel.from),
+            to = escape_text(&rel.to),
+            sx = sx,
+            sy = sy,
+            ex = ex,
+            ey = ey
+        ));
+        // Arrowhead at relation destination.
+        let dx = ex - sx;
+        let dy = ey - sy;
+        let len = ((dx * dx + dy * dy) as f64).sqrt();
+        if len >= 1.0 {
+            let ux = dx as f64 / len;
+            let uy = dy as f64 / len;
+            let head_len = 10.0_f64;
+            let wing = 4.0_f64;
+            let lx = ex as f64 - ux * head_len + uy * wing;
+            let ly = ey as f64 - uy * head_len - ux * wing;
+            let rx = ex as f64 - ux * head_len - uy * wing;
+            let ry = ey as f64 - uy * head_len + ux * wing;
+            out.push_str(&format!(
+                "<path class=\"wbs-relation-arrowhead\" d=\"M {ex} {ey} L {lx:.2} {ly:.2} L {rx:.2} {ry:.2} Z\" fill=\"#334155\"/>",
+                ex = ex,
+                ey = ey,
+                lx = lx,
+                ly = ly,
+                rx = rx,
+                ry = ry
+            ));
+        }
+    }
+
     // Draw nodes.
     for i in 0..n {
         let node = &nodes[i];

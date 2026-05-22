@@ -1848,6 +1848,24 @@ mod tests {
     }
 
     #[test]
+    fn parses_wbs_cross_tree_alias_relation() {
+        let doc = parse_with_options(
+            "@startwbs\n* Root\n** (a) Build\n** (b) Launch\na -> b\n@endwbs\n",
+            &ParseOptions::default(),
+        )
+        .expect("wbs alias relation should parse");
+        assert_eq!(doc.kind, DiagramKind::Wbs);
+        match &doc.statements[3].kind {
+            StatementKind::FamilyRelation(rel) => {
+                assert_eq!(rel.from, "a");
+                assert_eq!(rel.to, "b");
+                assert_eq!(rel.arrow, "->");
+            }
+            other => panic!("unexpected statement: {other:?}"),
+        }
+    }
+
+    #[test]
     fn parses_activity_oldstyle_baseline_statements() {
         let doc = parse_with_options(
             "@startuml\n|Build|\n(*) --> \"Init\"\n#gold:Compile;\n-->[next] right of \"Test\"\n\"Test\" --> (*)\ndetach\n@enduml\n",

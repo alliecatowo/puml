@@ -427,3 +427,31 @@ fn wbs_left_to_right_progress_and_colors_are_asserted_by_geometry() {
         progress_track.attr_i32("width") * 80 / 100
     );
 }
+
+#[test]
+fn wbs_alias_cross_tree_relation_renders_relation_edge() {
+    let src = read_fixture("valid_wbs_alias_relations.puml");
+    let svg = render_source_to_svg(&src).expect("wbs alias relation fixture should render");
+
+    let build = rect_containing_text(&svg, "Build", "wbs-node");
+    let launch = rect_containing_text(&svg, "Launch", "wbs-node");
+    assert!(build.attr_i32("x") < launch.attr_i32("x"));
+
+    let relation = lines(&svg)
+        .into_iter()
+        .find(|line| {
+            line.class_contains("wbs-relation-edge")
+                && line.attr("data-wbs-relation-from") == "a"
+                && line.attr("data-wbs-relation-to") == "b"
+        })
+        .expect("cross-tree relation edge should render");
+    assert!(relation.attr_i32("x1") < relation.attr_i32("x2"));
+
+    let arrowhead_exists = paths(&svg)
+        .into_iter()
+        .any(|path| path.class_contains("wbs-relation-arrowhead"));
+    assert!(
+        arrowhead_exists,
+        "cross-tree relation arrowhead should render"
+    );
+}
