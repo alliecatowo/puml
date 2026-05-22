@@ -63,6 +63,13 @@ jobs:
           cargo metadata --format-version 1
           cargo check --workspace --all-features
 
+      - name: Hide test-only Rust targets from CodeQL extraction
+        run: |
+          set -euo pipefail
+          if [[ -d tests ]]; then
+            mv tests "${RUNNER_TEMP}/codeql-skipped-tests"
+          fi
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
