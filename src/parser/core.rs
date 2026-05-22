@@ -324,7 +324,9 @@ fn parse_preprocessed(source: &str) -> Result<Document, Diagnostic> {
                     && !line.contains("<<")
                     && !later_lines_contain_usecase_family_declaration(&lines, i))))
         {
-            if let Some((kind, end_idx)) = parse_family_declaration(&lines, i, line)? {
+            if let Some((kind, end_idx)) =
+                parse_family_declaration(&lines, i, line, detected_kind)?
+            {
                 let family = family_for_declaration(&kind);
                 detected_kind = Some(select_diagram_kind(detected_kind, family, span)?);
                 let block_span = Span::new(span.start, lines[end_idx].1.end);

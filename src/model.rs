@@ -677,6 +677,10 @@ pub struct FamilyNode {
 pub enum FamilyNodeKind {
     Class,
     Object,
+    /// Object-diagram associative array (`map Name { key => value }`).
+    Map,
+    /// Object-diagram n-ary association hub (`diamond NAME`).
+    Diamond,
     UseCase,
     Salt,
     MindMap,

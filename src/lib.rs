@@ -336,7 +336,10 @@ fn render_document_for_family(
             )),
         },
         DiagramFamily::Salt => match normalize::normalize_family(document)? {
-            model::NormalizedDocument::Family(family_doc) => Ok(vec![render_family_document_svg(&family_doc)]),
+            model::NormalizedDocument::Family(family_doc) => Ok(normalize::paginate_family(&family_doc)
+                .into_iter()
+                .map(|page| render_family_document_svg(&page))
+                .collect()),
             _ => Err(Diagnostic::error(
                 "[E_FAMILY_STUB_INTERNAL] unexpected model during salt render",
             )),
@@ -490,7 +493,10 @@ pub fn render_svg_pages_from_model(model: &NormalizedDocument) -> Vec<String> {
                 }
             })
         }
-        NormalizedDocument::Family(family) => vec![render_family_document_svg(family)],
+        NormalizedDocument::Family(family) => normalize::paginate_family(family)
+            .into_iter()
+            .map(|page| render_family_document_svg(&page))
+            .collect(),
         NormalizedDocument::Timeline(timeline) => vec![render::render_timeline_svg(timeline)],
         NormalizedDocument::State(state) => vec![render::render_state_svg(state)],
         NormalizedDocument::Json(doc) => vec![render::render_json_svg(doc)],
