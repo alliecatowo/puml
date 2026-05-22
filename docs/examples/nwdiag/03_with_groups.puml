@@ -9,11 +9,9 @@ nwdiag {
     app02;
   }
   network dmz {
-    width = full
     web01; web02;
   }
   network internal {
-    width = full
     app01; app02;
   }
 }
