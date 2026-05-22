@@ -233,6 +233,10 @@ puml --from-markdown --check notes.md    # lint all fenced puml blocks in a Mark
 puml count hello.puml                    # → "4 nodes, 3 edges"
 puml count --by-kind hello.puml          # → summary + per-kind breakdown
 
+# Structural stats
+puml stats hello.puml                    # AST node/edge/kind summary
+puml stats --format json hello.puml      # machine-readable summary
+
 # Pipeline inspection (for debugging and tooling)
 puml --dump ast hello.puml
 puml --dump model hello.puml

@@ -1,5 +1,6 @@
 mod cli;
 mod cli_count;
+mod cli_stats;
 mod cli_watch;
 
 use clap::{CommandFactory, FromArgMatches};
@@ -279,6 +280,9 @@ fn run(mut cli: Cli) -> Result<(), (u8, String)> {
                 .map_err(|(code, msg)| (code as u8, msg)),
             CliCommand::Format(args) => run_format_command(args),
             CliCommand::Lint(args) => run_lint_subcommand(args, lint_context),
+            CliCommand::Stats(args) => cli_stats::run_stats(&args)
+                .map(|_| ())
+                .map_err(|(code, msg)| (code as u8, msg)),
         };
     }
 
