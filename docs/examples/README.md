@@ -3,9 +3,9 @@
 This directory is the canonical docs-as-tests corpus consumed by `scripts/render_check.py`.
 The corpus is executable documentation and parity evidence, but it is not proof
 of full PlantUML 1:1 parity and is not the source of truth for support status.
-The canonical current status is
-[`docs/internal/parity/plantuml_parity_source_of_truth.md`](../internal/parity/plantuml_parity_source_of_truth.md),
-where support is tracked conservatively as `implemented`, `partial`, or `missing`.
+The authoritative current status is
+[`docs/internal/spec/plantuml-spec.md`](../internal/spec/plantuml-spec.md) plus
+the per-chapter audits under [`docs/internal/spec/audit/`](../internal/spec/audit/).
 
 ## Corpus location and size
 
@@ -33,5 +33,5 @@ where support is tracked conservatively as `implemented`, `partial`, or `missing
 
 - This corpus is intentionally larger than minimal fixtures; it is used as executable documentation evidence.
 - Examples are coverage seeds for implemented behavior, not exhaustive proof of PlantUML compatibility.
-- If an example and the audit table appear to disagree, treat the audit table as authoritative and update the stale artifact or wording.
+- If an example and the spec audit appear to disagree, treat the spec audit as authoritative and update the stale artifact or wording.
 - When behavior changes, update the corresponding `.svg` artifacts in the same change.

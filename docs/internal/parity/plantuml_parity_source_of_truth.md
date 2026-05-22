@@ -1,20 +1,27 @@
-# PlantUML Parity Source of Truth
+# PlantUML Legacy Parity Compatibility Table
 
-> **Superseded as the canonical status surface.** The new canonical PlantUML support
-> matrix is [`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md), backed
-> by 27 per-chapter audits under [`docs/internal/spec/audit/`](../spec/audit/). This
-> file is retained because `tests/parity_csv_audit.rs` parses its markdown table
-> rows; treat the new spec as authoritative when status disagrees.
+> **Legacy compatibility table.** This file is retained because
+> `tests/parity_csv_audit.rs` and related tooling parse its markdown table rows.
+> It is not the canonical support surface. The authoritative PlantUML status lives
+> in [`docs/internal/spec/plantuml-spec.md`](../spec/plantuml-spec.md), backed by
+> the per-chapter audits under [`docs/internal/spec/audit/`](../spec/audit/).
+> When status disagrees, update and trust the spec matrix plus chapter audit first.
 
 Status date: 2026-05-17  
 Legacy machine-readable parity table (kept for tooling/test compatibility).
 
 ## Contract
 
-- This markdown table is the canonical human/planning parity source of truth.
-- Status vocabulary is strict: `implemented`, `partial`, `missing`.
-- `docs/audits/parity_gap_core.csv` and `docs/audits/parity_gap_nonuml.csv` are secondary aligned exports for tooling compatibility.
-- `docs/audits/post_blitz_gap_table.md` is the post-blitz planning companion for remaining partial rows, exact evidence, GitHub project status, and next implementation slices.
+- This markdown table is a legacy machine-readable compatibility table for tests
+  and tooling, not a human planning source of truth.
+- Status vocabulary remains strict for parser/tooling compatibility:
+  `implemented`, `partial`, `missing`.
+- `docs/internal/parity/parity_gap_core.csv` and
+  `docs/internal/parity/parity_gap_nonuml.csv` are secondary aligned exports for
+  tooling compatibility; they do not supersede the spec audit.
+- Historical post-blitz planning notes may be useful context, but current
+  implementation status should be checked against `docs/internal/spec/plantuml-spec.md`
+  and `docs/internal/spec/audit/`.
 - **Measured parity evidence**: the authoritative measured source for "what is actually matching at parse/render level" is the latest JAR-backed oracle report produced by `.github/workflows/oracle.yml` and uploaded as the `oracle-report-<run>` CI artifact. When `PUML_ORACLE_JAR` is set, `scripts/oracle.sh` runs fixture-by-fixture SVG diff against PlantUML JAR v1.2024.7 (Temurin JDK 17) and writes `docs/benchmarks/oracle_report.json` in that job workspace or local checkout.
 - The committed `docs/benchmarks/oracle_report.json` may intentionally be a local skip sentinel such as `{"skipped":true,"reason":"PUML_ORACLE_JAR not set"}`. Treat that sentinel as "comparison not run", not as measured pass/fail evidence. Use the latest CI artifact, or a freshly generated local JAR-backed report, when measured oracle numbers matter.
 - Examples, closed issues, and merged PRs are evidence inputs only; they do not override this table.

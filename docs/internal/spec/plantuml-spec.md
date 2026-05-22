@@ -12,14 +12,21 @@
 | 🟡 | Partial — parses but renders degraded, OR only some sub-forms work |
 | ❌ | Missing — parser rejects, drops silently, or there is no code path |
 
-## Headline numbers
+## Baseline Numbers
 
-Across the 27 chapters the audits scored roughly:
+The counts below are the historical baseline produced by the initial fan-out
+audit. They are useful for orientation, but they are not a live release
+dashboard. Recent merged work may make individual chapter rows stale until the
+matching per-chapter audit file is refreshed.
+
+Across the 27 chapters the initial audits scored roughly:
 - **~178 ✅ fully supported features**
 - **~145 🟡 partial features**
 - **~190 ❌ missing features**
 
-≈ 63% of documented PlantUML features have at least partial code support; only ≈ 35% are confidently 1:1.
+At that snapshot, roughly 63% of documented PlantUML features had at least
+partial code support, and roughly 35% were confidently 1:1. For current planning,
+trust the per-chapter audit evidence over these aggregate percentages.
 
 ## Per-chapter support matrix
 
@@ -53,7 +60,12 @@ Across the 27 chapters the audits scored roughly:
 | 26 | Unicode | 1 | 1 | 3 | [ch26-unicode.md](audit/ch26-unicode.md) |
 | 27 | Standard Library | 7/16 bundled | — | 9/16 missing | [ch27-stdlib.md](audit/ch27-stdlib.md) |
 
-## Strength ranking (best → weakest by ✅% of audited features)
+## Historical Strength Notes
+
+This section preserves the original audit's relative strengths for planning
+context. It is not a live ranking, and some denominators or chapter rows may lag
+recent merged work. Re-check the linked per-chapter audit before opening or
+closing implementation work from these notes.
 
 1. **ArchiMate** — 6✅/9 (67%).
 2. **Preprocessing** — 18✅/28 (64%). The repo's strongest large area: full `!if/!elseif/!ifdef/!while/!foreach/!function/!procedure` with `!local/!global/!unquoted`, broad builtin set, `!include/_many/_once/url/import`.
@@ -136,7 +148,9 @@ Sequence (`-//`, `->o`, `->x`, doubled-slash forms), class (`#--`, `x--`, `}--`,
 
 ## Top remediation priorities
 
-Ranked by leverage (features unlocked per unit of work):
+Ranked by cross-cutting leverage from the audit baseline. These remain useful
+themes, but recent merged work may have narrowed some rows; verify the relevant
+chapter audit before treating an item as still open.
 
 1. **Sprite system** (ch23) — biggest single unlock. Enables 5+ stdlib libraries.
 2. **`<style>` block parser + selector engine** (ch21, ch24) — unlocks modern theming across all families.
