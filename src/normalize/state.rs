@@ -13,7 +13,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
     let mut warnings: Vec<Diagnostic> = Vec::new();
     let mut note_counter = 0usize;
     let mut projection_counter = 0usize;
-    let mut last_transition_target: Option<String> = None;
+    let mut last_transition: Option<(String, String)> = None;
 
     for stmt in &document.statements {
         match &stmt.kind {
@@ -37,7 +37,7 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     thickness: t.thickness,
                     direction: t.direction.clone(),
                 });
-                last_transition_target = Some(t.to.clone());
+                last_transition = Some((t.from.clone(), t.to.clone()));
             }
             StatementKind::StateInternalAction(a) => {
                 ensure_state_node(&mut nodes, &a.state);
@@ -94,14 +94,24 @@ pub(super) fn normalize_state(document: Document) -> Result<StateDocument, Diagn
                     regions: Vec::new(),
                 });
 
-                let target = note.target.as_ref().and_then(|target| {
-                    if target.eq_ignore_ascii_case("on link") {
-                        last_transition_target.clone()
-                    } else {
-                        Some(target.clone())
+                if note
+                    .target
+                    .as_deref()
+                    .is_some_and(|target| target.eq_ignore_ascii_case("on link"))
+                {
+                    if let Some((from, to)) = &last_transition {
+                        transitions.push(ModelStateTransition {
+                            from: from.clone(),
+                            to: note_name,
+                            label: None,
+                            line_color: Some("#6b7280".to_string()),
+                            dashed: true,
+                            hidden: false,
+                            thickness: Some(1),
+                            direction: Some(format!("on-link|{}|{}", note.position, to)),
+                        });
                     }
-                });
-                if let Some(target) = target {
+                } else if let Some(target) = note.target.clone() {
                     ensure_state_node(&mut nodes, &target);
                     transitions.push(ModelStateTransition {
                         from: target,

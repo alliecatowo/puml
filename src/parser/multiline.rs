@@ -127,13 +127,22 @@ fn parse_multiline_note_block(
         return None;
     }
     let (head, inline) = tail.split_once(':').unwrap_or((tail, ""));
-    let (position, target) = parse_note_head(head.trim());
+    let (position, target) = parse_state_note_head(head.trim());
     if matches!(position.to_ascii_lowercase().as_str(), "left" | "right") && target.is_none() {
         return None;
     }
     let mut body = Vec::new();
     if !inline.trim().is_empty() {
-        body.push(inline.trim().to_string());
+        return Some((
+            StatementKind::Note(Note {
+                kind: note_kind_from_keyword(note_kw),
+                position,
+                target,
+                text: inline.trim().to_string(),
+                aligned,
+            }),
+            start,
+        ));
     }
 
     for (idx, (raw, _)) in lines.iter().enumerate().skip(start + 1) {
@@ -166,6 +175,19 @@ fn parse_multiline_note_block(
     }
 
     None
+}
+
+fn parse_state_note_head(head: &str) -> (String, Option<String>) {
+    let lower = head.trim().to_ascii_lowercase();
+    if lower == "on link" {
+        return ("over".to_string(), Some("on link".to_string()));
+    }
+    for position in ["left", "right", "top", "bottom"] {
+        if lower == format!("{position} on link") {
+            return (position.to_string(), Some("on link".to_string()));
+        }
+    }
+    parse_note_head(head)
 }
 
 fn parse_multiline_ref_block(
