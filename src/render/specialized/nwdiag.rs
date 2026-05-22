@@ -82,10 +82,15 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
     // Extra row for top-level nodes (peer endpoints outside any network).
     let top_level_row_height = if document.top_level_nodes.is_empty()
         && document.peer_links.iter().all(|(a, b)| {
-            document
+            let a_in_net = document
                 .networks
                 .iter()
-                .any(|net| net.nodes.iter().any(|n| &n.name == a || &n.name == b))
+                .any(|net| net.nodes.iter().any(|n| &n.name == a));
+            let b_in_net = document
+                .networks
+                .iter()
+                .any(|net| net.nodes.iter().any(|n| &n.name == b));
+            a_in_net && b_in_net
         }) {
         0
     } else {
@@ -265,17 +270,24 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
         for net in &document.networks {
             let net_fill = net.color.as_deref().unwrap_or("#e0f2fe");
             let net_style = net.style.as_deref().unwrap_or("solid");
+            let net_x = if net.width_full { 24 } else { topology_x };
+            let net_width = if net.width_full {
+                inner_width
+            } else {
+                topology_width
+            };
             let net_dash = if net_style.eq_ignore_ascii_case("dashed") {
                 " stroke-dasharray=\"5 3\""
             } else {
                 ""
             };
             out.push_str(&format!(
-                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"24\" y=\"{}\" width=\"{}\" height=\"22\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
+                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"22\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
                 escape_text(net_style),
                 escape_text(net.shape.as_deref().unwrap_or("swimlane")),
+                net_x,
                 y,
-                inner_width,
+                net_width,
                 escape_text(net_fill),
                 net_dash
             ));
@@ -291,11 +303,12 @@ pub fn render_nwdiag_svg(document: &NwdiagDocument) -> String {
             ));
             let bar_y = y + 24;
             out.push_str(&format!(
-                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"24\" y=\"{}\" width=\"{}\" height=\"12\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
+                "<rect class=\"nwdiag-network\" data-nwdiag-style=\"{}\" data-nwdiag-shape=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"12\" rx=\"6\" ry=\"6\" fill=\"{}\" stroke=\"#0284c7\" stroke-width=\"1\"{} />",
                 escape_text(net_style),
                 escape_text(net.shape.as_deref().unwrap_or("swimlane")),
+                net_x,
                 bar_y,
-                inner_width,
+                net_width,
                 escape_text(net_fill),
                 net_dash
             ));
