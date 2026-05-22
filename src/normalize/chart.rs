@@ -49,11 +49,14 @@ pub(super) fn normalize_chart(document: Document) -> Result<ChartDocument, Diagn
                 }
                 continue;
             }
-            if key.eq_ignore_ascii_case("handwritten") {
+            if key.eq_ignore_ascii_case("handwritten") || key.eq_ignore_ascii_case("sepia") {
                 match classify_sequence_skinparam(key, value) {
                     SequenceSkinParamSupport::SupportedNoop
                     | SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::Handwritten(_),
+                    )
+                    | SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Sepia(_),
                     ) => {}
                     _ => warnings.push(Diagnostic::warning(format!(
                         "[W_SKINPARAM_UNSUPPORTED_VALUE] unsupported value `{}` for skinparam `{}`",

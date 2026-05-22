@@ -27,11 +27,11 @@ Across the 27 chapters the audits scored roughly:
 |---|---------|----|----|----|-------|
 | 1 | Sequence Diagram | 28 | 14 | 6 | [ch01-sequence.md](audit/ch01-sequence.md) |
 | 2 | Use Case Diagram | 10 | 4 | 3 | [ch02-usecase.md](audit/ch02-usecase.md) |
-| 3 | Class Diagram | 9 | 12 | 24 | [ch03-class.md](audit/ch03-class.md) |
+| 3 | Class Diagram | 16 | 13 | 16 | [ch03-class.md](audit/ch03-class.md) |
 | 4 | Object Diagram | 3 | 3 | 2 | [ch04-object.md](audit/ch04-object.md) |
 | 5 | Activity (legacy) | 0 | 2 | 10 | [ch05-activity-legacy.md](audit/ch05-activity-legacy.md) |
-| 6 | Activity (new) | 3 | 13 | 14 | [ch06-activity-new.md](audit/ch06-activity-new.md) |
-| 7 | Component | 6 | 6 | 6 | [ch07-component.md](audit/ch07-component.md) |
+| 6 | Activity (new) | 6 | 12 | 12 | [ch06-activity-new.md](audit/ch06-activity-new.md) |
+| 7 | Component | 10 | 6 | 3 | [ch07-component.md](audit/ch07-component.md) |
 | 8 | Deployment | 14 kw + 5 sec | 10 sec | 15 kw + 2 sec | [ch08-deployment.md](audit/ch08-deployment.md) |
 | 9 | State | 7 | 7 | 11 | [ch09-state.md](audit/ch09-state.md) |
 | 10 | Timing | 1 | 9 | 19 | [ch10-timing.md](audit/ch10-timing.md) |
@@ -45,7 +45,7 @@ Across the 27 chapters the audits scored roughly:
 | 18 | WBS | 6 | 4 | 2 | [ch18-wbs.md](audit/ch18-wbs.md) |
 | 19 | Math | 3 | 1 | 1 | [ch19-math.md](audit/ch19-math.md) |
 | 20 | Information Engineering | 1 | 2 | 2 | [ch20-ie.md](audit/ch20-ie.md) |
-| 21 | Common Commands | 9 | 5 | 7 | [ch21-common.md](audit/ch21-common.md) |
+| 21 | Common Commands | 12 | 6 | 4 | [ch21-common.md](audit/ch21-common.md) |
 | 22 | Creole | 12 | 3 | 16 | [ch22-creole.md](audit/ch22-creole.md) |
 | 23 | Sprites | 0 | 1 | 7 | [ch23-sprites.md](audit/ch23-sprites.md) |
 | 24 | Skinparam | 5 | 4 | 5 | [ch24-skinparam.md](audit/ch24-skinparam.md) |
@@ -77,7 +77,7 @@ Across the 27 chapters the audits scored roughly:
 20. **Class** — 9✅/45 (20%). Generics, member-qualified refs, hide/remove, and a large stereotype-skin matrix all missing.
 21. **Information Engineering** — 1✅/5 (20%). `entity` routed to sequence parser.
 22. **Unicode** — 1✅/5 (20%). All three escape forms missing.
-23. **Activity (new)** — 3✅/30 (10%).
+23. **Activity (new)** — 6✅/30 (20%). SDL terminators (6.21.2), kill/detach shapes (6.5, 6.20) added 2026-05-21.
 24. **Timing** — 1✅/29 (3%). MVP-only.
 25. **Activity (legacy)** — 0✅/12 (0%). Effectively unsupported — migrate to new syntax.
 26. **Sprites** — 0✅/8 (0%). Cascades into stdlib icons (see cross-cutting #1 below).

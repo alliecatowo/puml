@@ -11,6 +11,11 @@ fn detect_non_sequence_family(line: &str) -> Option<DiagramKind> {
         || line.starts_with("card ")
         || line.starts_with("container ")
         || line.starts_with("actor ")
+        // `[Name]` shorthand for component — not [*]/[H]/[H*] pseudo-states
+        || (line.starts_with('[')
+            && !line.starts_with("[*]")
+            && !line.starts_with("[H]")
+            && !line.starts_with("[H*]"))
     {
         return Some(DiagramKind::Component);
     }

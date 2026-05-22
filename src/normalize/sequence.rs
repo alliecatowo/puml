@@ -483,6 +483,9 @@ pub(super) fn normalize_with_options(
                     SequenceSkinParamSupport::SupportedWithValue(
                         SequenceSkinParamValue::LifelineNoSolid(nosolid),
                     ) => style.lifeline_nosolid = nosolid,
+                    SequenceSkinParamSupport::SupportedWithValue(
+                        SequenceSkinParamValue::Sepia(enabled),
+                    ) => style.sepia = enabled,
                     SequenceSkinParamSupport::UnsupportedValue => {
                         warnings.push(
                             Diagnostic::warning(format!(
