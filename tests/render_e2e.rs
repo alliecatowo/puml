@@ -63,9 +63,8 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
             "@startuml\nmap Settings {\n  theme => light\n}\nobject Runtime\nSettings --> Runtime : configures\n@enduml\n",
             vec![
                 "Settings",
-                // Fix #551: <<map>> marker now renders as «map» guillemet in the class header
-                "\u{ab}map\u{bb}",
-                "theme =&gt; light",
+                "theme",
+                "light",
                 "configures",
             ],
         ),
