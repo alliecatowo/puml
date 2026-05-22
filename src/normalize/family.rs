@@ -87,6 +87,9 @@ pub(super) fn normalize_stub_family(document: Document) -> Result<FamilyDocument
                             ClassSkinParamValue::FontName(n) => {
                                 class_style.font_name = Some(n);
                             }
+                            ClassSkinParamValue::ActorStyle(style) => {
+                                class_style.actor_style = style;
+                            }
                             ClassSkinParamValue::Monochrome(mode) => {
                                 class_monochrome_mode = Some(mode);
                             }
