@@ -5016,10 +5016,10 @@ fn wrap_text(
     policy: crate::scene::TextOverflowPolicy,
 ) -> Vec<String> {
     match policy {
-        crate::scene::TextOverflowPolicy::EllipsisSingleLine => {
-            let one_line = text.replace('\n', " ");
-            vec![ellipsize(one_line, max_chars)]
-        }
+        crate::scene::TextOverflowPolicy::EllipsisSingleLine => text
+            .lines()
+            .map(|line| ellipsize(line.to_string(), max_chars))
+            .collect::<Vec<_>>(),
         crate::scene::TextOverflowPolicy::WrapAndGrow => text
             .lines()
             .flat_map(|line| wrap_line(line, max_chars))
@@ -5172,6 +5172,59 @@ fn ellipsize(text: String, max_chars: usize) -> String {
     }
 
     text.chars().take(max_chars - 3).collect::<String>() + "..."
+}
+
+fn render_centered_multiline_text(
+    out: &mut String,
+    x: i32,
+    y: i32,
+    font_size: i32,
+    font_weight: &str,
+    fill: Option<&str>,
+    text: &str,
+) -> i32 {
+    let lines = text.lines().collect::<Vec<_>>();
+    let lines = if lines.is_empty() { vec![""] } else { lines };
+    if lines.len() == 1 {
+        let fill_attr = fill.map_or(String::new(), |value| format!(" fill=\"{}\"", value));
+        out.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"{}\"{}>{}</text>",
+            x,
+            y,
+            font_size,
+            font_weight,
+            fill_attr,
+            escape_text(lines[0])
+        ));
+        return y;
+    }
+    let line_height = 16;
+    let start_y = y - (((lines.len() as i32) - 1) * line_height / 2);
+    out.push_str(&format!(
+        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"{}\" font-weight=\"{}\"{}>",
+        x,
+        start_y,
+        font_size,
+        font_weight,
+        fill.map_or(String::new(), |value| format!(" fill=\"{}\"", value))
+    ));
+    out.push_str(&format!(
+        "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
+        x,
+        start_y,
+        escape_text(lines[0])
+    ));
+    for (idx, line) in lines.iter().enumerate().skip(1) {
+        let y = start_y + (idx as i32 * line_height);
+        out.push_str(&format!(
+            "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
+            x,
+            y,
+            escape_text(line)
+        ));
+    }
+    out.push_str("</text>");
+    start_y + ((lines.len() as i32 - 1) * line_height)
 }
 
 fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32, w: i32, h: i32) {
@@ -5368,17 +5421,13 @@ fn render_family_node_shape(out: &mut String, node: &FamilyNode, x: i32, y: i32,
         | FamilyNodeKind::StateHistory => (cx, cy + 28),
         _ => (cx, cy + 6),
     };
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\">{}</text>",
-        label_x,
-        label_y,
-        escape_text(&display)
-    ));
+    let label_last_y =
+        render_centered_multiline_text(out, label_x, label_y, 13, "600", None, &display);
     let kind_tag_y = match node.kind {
         FamilyNodeKind::Interface
         | FamilyNodeKind::StateInitial
         | FamilyNodeKind::StateFinal
-        | FamilyNodeKind::StateHistory => label_y + 14,
+        | FamilyNodeKind::StateHistory => label_last_y + 14,
         _ => y + 14,
     };
     // Suppress the kind-tag for package/rectangle/folder container nodes — they already
@@ -6034,15 +6083,17 @@ fn render_family_node_shape_styled(
         FamilyNodeKind::Interface | FamilyNodeKind::Port => (cx, cy + 28),
         _ => (cx, cy + 6),
     };
-    out.push_str(&format!(
-        "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"13\" font-weight=\"600\" fill=\"{}\">{}</text>",
+    let label_last_y = render_centered_multiline_text(
+        out,
         label_x,
         label_y,
-        escape_text(&comp_style.font_color),
-        escape_text(&display)
-    ));
+        13,
+        "600",
+        Some(&comp_style.font_color),
+        &display,
+    );
     let kind_tag_y = match node.kind {
-        FamilyNodeKind::Interface | FamilyNodeKind::Port => label_y + 14,
+        FamilyNodeKind::Interface | FamilyNodeKind::Port => label_last_y + 14,
         _ => y + 14,
     };
     // For Component, show «component» guillemet stereotype instead of raw "component" (fix #525).
