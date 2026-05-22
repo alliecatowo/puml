@@ -87,12 +87,29 @@ fn release_docs_capture_release_gate_contract() {
         "bench gate should expose checked-in artifact policy validation"
     );
     assert!(
+        bench.contains("--skip-build")
+            && bench.contains("requires an existing executable release binary"),
+        "bench gate should expose a guarded release-binary reuse mode"
+    );
+    assert!(
+        script.contains("./scripts/bench.sh --skip-build --enforce-gates"),
+        "full check-all gate should reuse the release binary it just built"
+    );
+    assert!(
         bench_docs.contains("./scripts/bench.sh --check-artifacts"),
         "bench docs should describe artifact policy validation"
     );
     assert!(
+        bench_docs.contains("./scripts/bench.sh --skip-build --enforce-gates"),
+        "bench docs should describe release-binary reuse mode"
+    );
+    assert!(
         checklist.contains("./scripts/bench.sh --check-artifacts"),
         "release checklist should require artifact policy validation"
+    );
+    assert!(
+        checklist.contains("./scripts/bench.sh --skip-build --enforce-gates"),
+        "release checklist should document full-gate benchmark build reuse"
     );
     assert!(
         bench_docs.contains("absolute delta floor `>40ms`"),

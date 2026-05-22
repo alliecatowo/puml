@@ -27,7 +27,7 @@ ensure_cargo_tool() {
   if cargo "$tool" --version >/dev/null 2>&1; then
     echo "[setup] cargo-$tool already installed"
   else
-    echo "[setup] installing cargo-$crate_name"
+    echo "[setup] installing $crate_name"
     cargo install "$crate_name"
   fi
 }
@@ -43,7 +43,7 @@ ensure_component clippy
 ensure_component llvm-tools-preview
 
 echo "[setup] preparing cargo tooling"
-ensure_cargo_tool llvm-cov llvm-cov
+ensure_cargo_tool llvm-cov cargo-llvm-cov
 
 echo "[setup] fetching and building workspace"
 cargo fetch

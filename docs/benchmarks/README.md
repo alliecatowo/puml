@@ -16,6 +16,9 @@
 ./scripts/bench.sh --enforce-gates
 ./scripts/bench.sh --quick --enforce-gates
 
+# reuse an already-built release binary after cargo build --release
+./scripts/bench.sh --skip-build --enforce-gates
+
 # refresh mode baseline only after an intentional review
 ./scripts/bench.sh --update-baseline
 ./scripts/bench.sh --quick --update-baseline
@@ -80,8 +83,9 @@ or optimization plan instead of blocking all main merges on the pre-URL-include 
 ## Failure Handling
 
 - `./scripts/bench.sh` reports gate warnings but exits `0` by default.
+- `./scripts/bench.sh --skip-build` skips its internal release build only after confirming `target/release/puml` exists and is executable.
 - `./scripts/bench.sh --enforce-gates` exits non-zero on any gate failure.
-- `./scripts/check-all.sh` always runs benchmark gates in enforce mode.
+- `./scripts/check-all.sh` always runs benchmark gates in enforce mode; full mode reuses the release binary it just built.
 - On failure, inspect `docs/benchmarks/latest_trend.{md,json}` to identify the exact regressing scenario and delta.
 - Baselines are not auto-updated. Use `--update-baseline` only after reviewing variance and approving movement.
 - If benchmark gate limits or policy metadata change, refresh committed artifacts with `./scripts/bench.sh --quick --update-baseline` and `./scripts/bench.sh --update-baseline`, then confirm `./scripts/bench.sh --check-artifacts` passes.

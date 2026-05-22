@@ -6,7 +6,7 @@
 - [ ] Run setup if this machine is fresh: `./scripts/setup.sh`.
 - [ ] Run full gate: `./scripts/check-all.sh`.
 - [ ] Confirm full gate command contract executed in order:
-  `cargo fmt --check` -> `cargo clippy --all-targets --all-features -- -D warnings` -> `cargo test` -> `cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'` -> `cargo build --release`.
+  `cargo fmt --check` -> `cargo clippy --all-targets --all-features -- -D warnings` -> `cargo test` -> `cargo llvm-cov --all-features --workspace --fail-under-lines 87 --ignore-filename-regex 'src/(main|bin/puml-lsp|lib|parser|preproc|normalize|render|specialized)\.rs|src/(frontend|normalize|parser|render|specialized)/.*\.rs'` -> `cargo build --release` -> `./scripts/bench.sh --skip-build --enforce-gates`.
 - [ ] Confirm baseline coverage command string remains visible for contract compatibility: `cargo llvm-cov --all-features --workspace --fail-under-lines 87`.
 - [ ] Run quick gate once for local perf sanity: `./scripts/check-all.sh --quick`.
 - [ ] If benchmark gates fail, inspect `docs/benchmarks/latest_trend.{md,json}` and either optimize or document/approve baseline movement before rerun.
@@ -23,12 +23,12 @@
 
 ## Benchmark / Perf / Size Contract
 
-- [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>40ms`, binary size `<=12,000,000` bytes).
-- [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%` with delta floor `>50ms`, binary size `<=12,000,000` bytes).
+- [ ] Confirm full gate thresholds were applied (abs mean `<=250ms`, regression `<=10%` with delta floor `>40ms`, binary size `<=16,000,000` bytes).
+- [ ] Confirm quick gate thresholds were applied (abs mean `<=350ms`, regression `<=20%` with delta floor `>50ms`, binary size `<=16,000,000` bytes).
 - [ ] Confirm checked-in benchmark JSON artifacts match the current gate policy: `./scripts/bench.sh --check-artifacts`.
 - [ ] Confirm mode baseline files exist and are reviewed: `docs/benchmarks/baseline_full.json`, `docs/benchmarks/baseline_quick.json`.
 - [ ] Confirm regression comparisons are mode-scoped (full vs full baseline, quick vs quick baseline).
-- [ ] Confirm full gate includes release binary validation via `cargo build --release`.
+- [ ] Confirm full gate includes release binary validation via `cargo build --release`, then invokes `./scripts/bench.sh --skip-build --enforce-gates` to avoid rebuilding the same binary.
 - [ ] Review `docs/benchmarks/latest.{md,csv,json}` for raw measurements.
 - [ ] Review deterministic trend artifacts: `docs/benchmarks/latest_trend.{md,json}`.
 - [ ] If performance movement is intentional, refresh only the affected baseline with `./scripts/bench.sh [--quick] --update-baseline` and document rationale in PR notes.
