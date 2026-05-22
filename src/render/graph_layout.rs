@@ -1114,32 +1114,33 @@ fn route_edges(
             }
         }
 
-        let assign_fan_offsets = |groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>>,
-                                  out: &mut BTreeMap<String, f64>,
-                                  opposite_group_size: &BTreeMap<String, usize>| {
-            for (_, mut group) in groups {
-                if group.len() <= 1 {
-                    continue;
-                }
-                group.sort_by(|(ea, xa), (eb, xb)| {
-                    xa.partial_cmp(xb)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                        .then_with(|| ea.edge_id.cmp(&eb.edge_id))
-                });
-                let n = group.len() as f64;
-                for (idx, (ei, _)) in group.iter().enumerate() {
-                    // Only fan true shared-channel endpoint ambiguity where the
-                    // opposite endpoint is also shared (K2,2-style bipartite).
-                    if opposite_group_size.get(&ei.edge_id).copied().unwrap_or(1) <= 1 {
+        let assign_fan_offsets =
+            |groups: BTreeMap<(String, usize), Vec<(&EdgeInfo, f64)>>,
+             out: &mut BTreeMap<String, f64>,
+             opposite_group_size: &BTreeMap<String, usize>| {
+                for (_, mut group) in groups {
+                    if group.len() <= 1 {
                         continue;
                     }
-                    let lane = idx as f64 - (n - 1.0) / 2.0;
-                    let dx = (lane * EDGE_PORT_FAN_SPACING)
-                        .clamp(-EDGE_PORT_FAN_MAX_SHIFT, EDGE_PORT_FAN_MAX_SHIFT);
-                    out.insert(ei.edge_id.clone(), dx);
+                    group.sort_by(|(ea, xa), (eb, xb)| {
+                        xa.partial_cmp(xb)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                            .then_with(|| ea.edge_id.cmp(&eb.edge_id))
+                    });
+                    let n = group.len() as f64;
+                    for (idx, (ei, _)) in group.iter().enumerate() {
+                        // Only fan true shared-channel endpoint ambiguity where the
+                        // opposite endpoint is also shared (K2,2-style bipartite).
+                        if opposite_group_size.get(&ei.edge_id).copied().unwrap_or(1) <= 1 {
+                            continue;
+                        }
+                        let lane = idx as f64 - (n - 1.0) / 2.0;
+                        let dx = (lane * EDGE_PORT_FAN_SPACING)
+                            .clamp(-EDGE_PORT_FAN_MAX_SHIFT, EDGE_PORT_FAN_MAX_SHIFT);
+                        out.insert(ei.edge_id.clone(), dx);
+                    }
                 }
-            }
-        };
+            };
         assign_fan_offsets(tgt_groups, &mut edge_tgt_port_dx, &src_group_size_by_edge);
     }
 
