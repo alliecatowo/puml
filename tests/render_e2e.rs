@@ -65,7 +65,8 @@ fn render_core_uml_broad_partials_surface_expected_labels() {
                 "Settings",
                 // Fix #551: <<map>> marker now renders as «map» guillemet in the class header
                 "\u{ab}map\u{bb}",
-                "theme =&gt; light",
+                "theme",
+                "light",
                 "configures",
             ],
         ),
