@@ -4,4 +4,6 @@ component UserService
 component ProductService
 Gateway --> UserService
 Gateway --> ProductService
+note right of Gateway: public facade
+note right on link: retry policy
 @enduml
