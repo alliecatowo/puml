@@ -1,8 +1,9 @@
 /// Creole inline text formatting for PlantUML labels.
 ///
 /// Supports: **bold**, //italic//, ""mono"", __underline__, --strikethrough--,
-/// [[url label]] hyperlinks, <color:X>text</color>, <size:N>text</size>,
-/// <b>, <i>, <u> HTML tags, \n line breaks, and <&icon> placeholders.
+/// ~~wave underline~~, [[url label]] hyperlinks, <color:X>text</color>,
+/// <size:N>text</size>, legacy HTML-style tags, \n line breaks, basic block
+/// Creole line forms, and <&icon> placeholders.
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CreoleSpan {
@@ -12,9 +13,15 @@ pub struct CreoleSpan {
     pub mono: bool,
     pub underline: bool,
     pub strike: bool,
+    pub wave: bool,
     pub color: Option<String>,
+    pub background: Option<String>,
     pub size: Option<u32>,
+    pub font: Option<String>,
+    pub baseline_shift: Option<String>,
+    pub decoration_color: Option<String>,
     pub link: Option<String>,
+    pub link_tooltip: Option<String>,
 }
 
 /// A line is a list of spans. Multiple lines come from \n splits.
@@ -34,6 +41,7 @@ pub fn decode_unicode_escapes(text: &str) -> String {
         && !text.contains("<U+")
         && !text.contains("<u+")
         && !text.contains("<:")
+        && !text.contains("<#")
     {
         return text.to_string();
     }
@@ -61,6 +69,12 @@ pub fn decode_unicode_escapes(text: &str) -> String {
             continue;
         }
 
+        if let Some((decoded, consumed)) = decode_colored_emoji_tag(rest) {
+            out.push_str(&decoded);
+            i += consumed;
+            continue;
+        }
+
         let ch = rest.chars().next().expect("non-empty rest");
         out.push(ch);
         i += ch.len_utf8();
@@ -80,7 +94,7 @@ pub fn tokenize_creole(text: &str) -> Vec<CreoleLine> {
 
     let mut all_lines: Vec<CreoleLine> = Vec::new();
     for raw_line in normalized.split('\n') {
-        all_lines.push(parse_inline(raw_line));
+        all_lines.push(parse_block_line(raw_line));
     }
     all_lines
 }
@@ -106,6 +120,9 @@ pub fn render_creole_line_to_tspans(
                 "<a xlink:href=\"{}\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
                 escape_attr(url)
             ));
+            if let Some(tooltip) = &span.link_tooltip {
+                out.push_str(&format!("<title>{}</title>", escape_xml(tooltip)));
+            }
         }
 
         let mut style_parts: Vec<String> = Vec::new();
@@ -118,6 +135,9 @@ pub fn render_creole_line_to_tspans(
         if span.mono {
             style_parts.push("font-family=\"monospace\"".to_string());
         }
+        if let Some(font) = &span.font {
+            style_parts.push(format!("font-family=\"{}\"", escape_attr(font)));
+        }
 
         let mut text_decorations: Vec<&str> = Vec::new();
         if span.underline || span.link.is_some() {
@@ -126,10 +146,20 @@ pub fn render_creole_line_to_tspans(
         if span.strike {
             text_decorations.push("line-through");
         }
+        if span.wave {
+            text_decorations.push("underline");
+            style_parts.push("text-decoration-style=\"wavy\"".to_string());
+        }
         if !text_decorations.is_empty() {
             style_parts.push(format!(
                 "text-decoration=\"{}\"",
                 text_decorations.join(" ")
+            ));
+        }
+        if let Some(decoration_color) = &span.decoration_color {
+            style_parts.push(format!(
+                "text-decoration-color=\"{}\"",
+                escape_attr(decoration_color)
             ));
         }
 
@@ -146,6 +176,22 @@ pub fn render_creole_line_to_tspans(
 
         if let Some(size) = span.size {
             style_parts.push(format!("font-size=\"{}\"", size));
+        }
+        if let Some(background) = &span.background {
+            style_parts.push(format!(
+                "data-creole-back=\"{}\" style=\"background-color:{}\"",
+                escape_attr(background),
+                escape_attr(background)
+            ));
+        }
+        if let Some(baseline_shift) = &span.baseline_shift {
+            style_parts.push(format!(
+                "baseline-shift=\"{}\"",
+                escape_attr(baseline_shift)
+            ));
+            if span.size.is_none() {
+                style_parts.push("font-size=\"80%\"".to_string());
+            }
         }
 
         let attrs = if style_parts.is_empty() {
@@ -251,8 +297,103 @@ struct InlineState {
     mono: bool,
     underline: bool,
     strike: bool,
+    wave: bool,
     color: Option<String>,
+    background: Option<String>,
     size: Option<u32>,
+    font: Option<String>,
+    baseline_shift: Option<String>,
+    decoration_color: Option<String>,
+    plain: bool,
+}
+
+fn span_from_state(text: String, state: &InlineState) -> CreoleSpan {
+    if state.plain {
+        return CreoleSpan {
+            text,
+            ..Default::default()
+        };
+    }
+
+    CreoleSpan {
+        text,
+        bold: state.bold,
+        italic: state.italic,
+        mono: state.mono,
+        underline: state.underline,
+        strike: state.strike,
+        wave: state.wave,
+        color: state.color.clone(),
+        background: state.background.clone(),
+        size: state.size,
+        font: state.font.clone(),
+        baseline_shift: state.baseline_shift.clone(),
+        decoration_color: state.decoration_color.clone(),
+        link: None,
+        link_tooltip: None,
+    }
+}
+
+fn parse_block_line(raw_line: &str) -> CreoleLine {
+    let trimmed = raw_line.trim();
+    if trimmed.is_empty() {
+        return parse_inline(raw_line);
+    }
+
+    if let Some((level, text)) = parse_heading_line(trimmed) {
+        let mut line = parse_inline(text);
+        let size = match level {
+            1 => 24,
+            2 => 20,
+            3 => 16,
+            _ => 14,
+        };
+        for span in &mut line {
+            span.bold = true;
+            span.size = Some(size);
+        }
+        return line;
+    }
+
+    if let Some(text) = parse_horizontal_rule_line(trimmed) {
+        return vec![CreoleSpan {
+            text,
+            mono: true,
+            color: Some("#64748b".to_string()),
+            ..Default::default()
+        }];
+    }
+
+    if let Some((prefix, rest)) = parse_list_line(raw_line) {
+        let mut line = parse_inline(rest);
+        line.insert(
+            0,
+            CreoleSpan {
+                text: prefix,
+                ..Default::default()
+            },
+        );
+        return line;
+    }
+
+    if let Some((prefix, rest)) = parse_tree_line(raw_line) {
+        let mut line = parse_inline(rest);
+        line.insert(
+            0,
+            CreoleSpan {
+                text: prefix,
+                mono: true,
+                ..Default::default()
+            },
+        );
+        return line;
+    }
+
+    if let Some(line) = parse_table_line(trimmed) {
+        return line;
+    }
+
+    parse_inline(raw_line)
 }
 
 fn parse_inline(text: &str) -> CreoleLine {
@@ -266,25 +407,48 @@ fn parse_inline(text: &str) -> CreoleLine {
     macro_rules! flush {
         () => {
             if !buf.is_empty() {
-                spans.push(CreoleSpan {
-                    text: buf.clone(),
-                    bold: state.bold,
-                    italic: state.italic,
-                    mono: state.mono,
-                    underline: state.underline,
-                    strike: state.strike,
-                    color: state.color.clone(),
-                    size: state.size,
-                    link: None,
-                });
+                spans.push(span_from_state(buf.clone(), &state));
                 buf.clear();
             }
         };
     }
 
     while i < len {
+        let rest: String = chars[i..].iter().collect();
+
+        if state.plain {
+            if rest.to_ascii_lowercase().starts_with("</plain>") {
+                flush!();
+                state.plain = false;
+                i += 8;
+            } else {
+                buf.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+
+        // --- ~ escape: keep the next Creole metacharacter literal. ---
+        if chars[i] == '~' && i + 1 < len && chars[i + 1] != '~' {
+            if i + 2 < len && is_creole_pair(chars[i + 1], chars[i + 2]) {
+                buf.push(chars[i + 1]);
+                buf.push(chars[i + 2]);
+                i += 3;
+            } else {
+                buf.push(chars[i + 1]);
+                i += 2;
+            }
+            continue;
+        }
+
         // --- **bold** ---
         if chars[i] == '*' && i + 1 < len && chars[i + 1] == '*' {
+            if !state.bold && !pair_exists_after(&chars, i + 2, '*', '*') && buf.contains("**") {
+                buf.push('*');
+                buf.push('*');
+                i += 2;
+                continue;
+            }
             flush!();
             state.bold = !state.bold;
             i += 2;
@@ -293,6 +457,12 @@ fn parse_inline(text: &str) -> CreoleLine {
 
         // --- //italic// ---
         if chars[i] == '/' && i + 1 < len && chars[i + 1] == '/' {
+            if !state.italic && !pair_exists_after(&chars, i + 2, '/', '/') && buf.contains("//") {
+                buf.push('/');
+                buf.push('/');
+                i += 2;
+                continue;
+            }
             flush!();
             state.italic = !state.italic;
             i += 2;
@@ -301,6 +471,12 @@ fn parse_inline(text: &str) -> CreoleLine {
 
         // --- ""mono"" ---
         if chars[i] == '"' && i + 1 < len && chars[i + 1] == '"' {
+            if !state.mono && !pair_exists_after(&chars, i + 2, '"', '"') && buf.contains("\"\"") {
+                buf.push('"');
+                buf.push('"');
+                i += 2;
+                continue;
+            }
             flush!();
             state.mono = !state.mono;
             i += 2;
@@ -309,6 +485,13 @@ fn parse_inline(text: &str) -> CreoleLine {
 
         // --- __underline__ ---
         if chars[i] == '_' && i + 1 < len && chars[i + 1] == '_' {
+            if !state.underline && !pair_exists_after(&chars, i + 2, '_', '_') && buf.contains("__")
+            {
+                buf.push('_');
+                buf.push('_');
+                i += 2;
+                continue;
+            }
             flush!();
             state.underline = !state.underline;
             i += 2;
@@ -317,8 +500,28 @@ fn parse_inline(text: &str) -> CreoleLine {
 
         // --- --strike-- ---
         if chars[i] == '-' && i + 1 < len && chars[i + 1] == '-' {
+            if !state.strike && !pair_exists_after(&chars, i + 2, '-', '-') && buf.contains("--") {
+                buf.push('-');
+                buf.push('-');
+                i += 2;
+                continue;
+            }
             flush!();
             state.strike = !state.strike;
+            i += 2;
+            continue;
+        }
+
+        // --- ~~wave underline~~ ---
+        if chars[i] == '~' && i + 1 < len && chars[i + 1] == '~' {
+            if !state.wave && !pair_exists_after(&chars, i + 2, '~', '~') && buf.contains("~~") {
+                buf.push('~');
+                buf.push('~');
+                i += 2;
+                continue;
+            }
+            flush!();
+            state.wave = !state.wave;
             i += 2;
             continue;
         }
@@ -334,22 +537,13 @@ fn parse_inline(text: &str) -> CreoleLine {
             }
             if j + 1 < len {
                 let inner: String = chars[start..j].iter().collect();
-                let (url, label) = if let Some(sp) = inner.find(' ') {
-                    (inner[..sp].to_string(), inner[sp + 1..].to_string())
-                } else {
-                    (inner.clone(), inner)
-                };
-                spans.push(CreoleSpan {
-                    text: label,
-                    bold: state.bold,
-                    italic: state.italic,
-                    mono: state.mono,
-                    underline: true,
-                    strike: state.strike,
-                    color: Some("blue".to_string()),
-                    size: state.size,
-                    link: Some(url),
-                });
+                let (url, tooltip, label) = parse_link_inner(&inner);
+                let mut span = span_from_state(label, &state);
+                span.underline = true;
+                span.color = Some("blue".to_string());
+                span.link = Some(url);
+                span.link_tooltip = tooltip;
+                spans.push(span);
                 i = j + 2;
             } else {
                 // Malformed — treat as literal
@@ -362,24 +556,30 @@ fn parse_inline(text: &str) -> CreoleLine {
 
         // --- HTML / Creole tags starting with '<' ---
         if chars[i] == '<' {
-            let rest: String = chars[i..].iter().collect();
-
             // <&icon>  — require non-empty icon name
             if let Some(inner) = strip_tag_prefix(&rest, "<&", ">").filter(|s| !s.is_empty()) {
                 flush!();
-                spans.push(CreoleSpan {
-                    text: format!("[{}]", inner.trim()),
-                    bold: state.bold,
-                    italic: state.italic,
-                    mono: state.mono,
-                    underline: state.underline,
-                    strike: state.strike,
-                    color: state.color.clone(),
-                    size: state.size,
-                    link: None,
-                });
+                spans.push(span_from_state(format!("[{}]", inner.trim()), &state));
                 i += 2 + inner.len() + 1;
                 continue;
+            }
+
+            // <code>...</code> is inline verbatim monospaced text.
+            if rest.to_ascii_lowercase().starts_with("<code>") {
+                if let Some(close) = find_case_insensitive(&rest, "</code>") {
+                    flush!();
+                    let inner = &rest[6..close];
+                    let mut code_state = state.clone();
+                    code_state.mono = true;
+                    code_state.bold = false;
+                    code_state.italic = false;
+                    code_state.underline = false;
+                    code_state.strike = false;
+                    code_state.wave = false;
+                    spans.push(span_from_state(inner.to_string(), &code_state));
+                    i += close + 7;
+                    continue;
+                }
             }
 
             // <color:X>
@@ -417,6 +617,38 @@ fn parse_inline(text: &str) -> CreoleLine {
                 continue;
             }
 
+            // <font:Name>
+            if let Some(after) = parse_open_tag_with_value(&rest, "font") {
+                flush!();
+                state.font = Some(after.0.to_string());
+                i += after.1;
+                continue;
+            }
+
+            // </font>
+            if rest.to_ascii_lowercase().starts_with("</font>") {
+                flush!();
+                state.font = None;
+                i += 7;
+                continue;
+            }
+
+            // <back:X>
+            if let Some(after) = parse_open_tag_with_value(&rest, "back") {
+                flush!();
+                state.background = Some(after.0.to_string());
+                i += after.1;
+                continue;
+            }
+
+            // </back>
+            if rest.to_ascii_lowercase().starts_with("</back>") {
+                flush!();
+                state.background = None;
+                i += 7;
+                continue;
+            }
+
             // <b>
             if rest.to_ascii_lowercase().starts_with("<b>") {
                 flush!();
@@ -449,11 +681,18 @@ fn parse_inline(text: &str) -> CreoleLine {
                 continue;
             }
 
-            // <u>
+            // <u> / <u:color>
             if rest.to_ascii_lowercase().starts_with("<u>") {
                 flush!();
                 state.underline = true;
                 i += 3;
+                continue;
+            }
+            if let Some(after) = parse_open_tag_with_value(&rest, "u") {
+                flush!();
+                state.underline = true;
+                state.decoration_color = Some(after.0.to_string());
+                i += after.1;
                 continue;
             }
 
@@ -461,7 +700,90 @@ fn parse_inline(text: &str) -> CreoleLine {
             if rest.to_ascii_lowercase().starts_with("</u>") {
                 flush!();
                 state.underline = false;
+                if !state.strike && !state.wave {
+                    state.decoration_color = None;
+                }
                 i += 4;
+                continue;
+            }
+
+            // <s> / <s:color>
+            if rest.to_ascii_lowercase().starts_with("<s>") {
+                flush!();
+                state.strike = true;
+                i += 3;
+                continue;
+            }
+            if let Some(after) = parse_open_tag_with_value(&rest, "s") {
+                flush!();
+                state.strike = true;
+                state.decoration_color = Some(after.0.to_string());
+                i += after.1;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</s>") {
+                flush!();
+                state.strike = false;
+                if !state.underline && !state.wave {
+                    state.decoration_color = None;
+                }
+                i += 4;
+                continue;
+            }
+
+            // <w> / <w:color>
+            if rest.to_ascii_lowercase().starts_with("<w>") {
+                flush!();
+                state.wave = true;
+                i += 3;
+                continue;
+            }
+            if let Some(after) = parse_open_tag_with_value(&rest, "w") {
+                flush!();
+                state.wave = true;
+                state.decoration_color = Some(after.0.to_string());
+                i += after.1;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</w>") {
+                flush!();
+                state.wave = false;
+                if !state.underline && !state.strike {
+                    state.decoration_color = None;
+                }
+                i += 4;
+                continue;
+            }
+
+            if rest.to_ascii_lowercase().starts_with("<plain>") {
+                flush!();
+                state.plain = true;
+                i += 7;
+                continue;
+            }
+
+            if rest.to_ascii_lowercase().starts_with("<sub>") {
+                flush!();
+                state.baseline_shift = Some("sub".to_string());
+                i += 5;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</sub>") {
+                flush!();
+                state.baseline_shift = None;
+                i += 6;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("<sup>") {
+                flush!();
+                state.baseline_shift = Some("super".to_string());
+                i += 5;
+                continue;
+            }
+            if rest.to_ascii_lowercase().starts_with("</sup>") {
+                flush!();
+                state.baseline_shift = None;
+                i += 6;
                 continue;
             }
 
@@ -483,6 +805,206 @@ fn parse_inline(text: &str) -> CreoleLine {
         });
     }
     spans
+}
+
+fn parse_heading_line(line: &str) -> Option<(usize, &str)> {
+    let level = line.chars().take_while(|&ch| ch == '=').count();
+    if !(1..=4).contains(&level) {
+        return None;
+    }
+
+    let rest = line.get(level..)?;
+    if !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+
+    let mut text = rest.trim();
+    let suffix = "=".repeat(level);
+    if text.ends_with(&suffix) {
+        text = text[..text.len() - suffix.len()].trim_end();
+    }
+    if text.is_empty() {
+        return None;
+    }
+    Some((level, text))
+}
+
+fn parse_horizontal_rule_line(line: &str) -> Option<String> {
+    if line.len() >= 4
+        && matches!(line.as_bytes().first(), Some(b'-' | b'=' | b'_'))
+        && line.bytes().all(|b| b == line.as_bytes()[0])
+    {
+        return Some("------------------------".to_string());
+    }
+
+    if line.len() >= 4 && line.starts_with("..") && line.ends_with("..") {
+        let title = line[2..line.len() - 2].trim();
+        if title.is_empty() {
+            return Some("------------------------".to_string());
+        }
+        return Some(format!("---------- {title} ----------"));
+    }
+
+    None
+}
+
+fn parse_list_line(line: &str) -> Option<(String, &str)> {
+    let trimmed_start = line.trim_start();
+    let leading_spaces = line.len().saturating_sub(trimmed_start.len());
+    let marker = trimmed_start.chars().next()?;
+    if marker != '*' && marker != '#' {
+        return None;
+    }
+
+    let depth = trimmed_start.chars().take_while(|&ch| ch == marker).count();
+    if depth == 0 {
+        return None;
+    }
+
+    let rest = trimmed_start.get(depth..)?;
+    if !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+
+    let prefix = format!(
+        "{}{}{}",
+        " ".repeat(leading_spaces + depth.saturating_sub(1) * 2),
+        if marker == '*' { "- " } else { "1. " },
+        ""
+    );
+    Some((prefix, rest.trim_start()))
+}
+
+fn parse_tree_line(line: &str) -> Option<(String, &str)> {
+    let trimmed_start = line.trim_start();
+    let leading_spaces = line.len().saturating_sub(trimmed_start.len());
+    let rest = trimmed_start.strip_prefix("|_")?;
+    if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+
+    Some((
+        format!("{}{} ", " ".repeat(leading_spaces), "`-"),
+        rest.trim_start(),
+    ))
+}
+
+fn parse_table_line(line: &str) -> Option<CreoleLine> {
+    let (row_background, body) = parse_row_background(line);
+    if !body.starts_with('|') {
+        return None;
+    }
+
+    let cells = body
+        .split('|')
+        .skip(1)
+        .filter(|cell| !cell.is_empty())
+        .collect::<Vec<_>>();
+    if cells.is_empty() {
+        return None;
+    }
+
+    let mut line = Vec::new();
+    for (idx, raw_cell) in cells.iter().enumerate() {
+        if idx > 0 {
+            line.push(CreoleSpan {
+                text: " | ".to_string(),
+                mono: true,
+                ..Default::default()
+            });
+        }
+
+        let (cell_background, cell) = parse_cell_background(raw_cell.trim());
+        let (header, text) = if let Some(rest) = cell.strip_prefix('=') {
+            (true, rest.trim())
+        } else {
+            (false, cell.trim())
+        };
+        let mut spans = parse_inline(text);
+        for span in &mut spans {
+            span.bold |= header;
+            span.mono = true;
+            span.background = cell_background
+                .clone()
+                .or_else(|| row_background.clone())
+                .or_else(|| span.background.clone());
+        }
+        line.extend(spans);
+    }
+
+    Some(line)
+}
+
+fn parse_row_background(line: &str) -> (Option<String>, &str) {
+    if let Some(rest) = line.strip_prefix("<#") {
+        if let Some(close) = rest.find('>') {
+            let color = &rest[..close];
+            let body = &rest[close + 1..];
+            if body.starts_with('|') && !color.is_empty() {
+                return (Some(creole_hash_color(color)), body);
+            }
+        }
+    }
+    (None, line)
+}
+
+fn parse_cell_background(cell: &str) -> (Option<String>, &str) {
+    if let Some(rest) = cell.strip_prefix("<#") {
+        if let Some(close) = rest.find('>') {
+            let color = &rest[..close];
+            let body = rest[close + 1..].trim_start();
+            if !color.is_empty() {
+                return (Some(creole_hash_color(color)), body);
+            }
+        }
+    }
+    (None, cell)
+}
+
+fn parse_link_inner(inner: &str) -> (String, Option<String>, String) {
+    if let Some(open) = inner.find('{') {
+        if let Some(relative_close) = inner[open + 1..].find('}') {
+            let close = open + 1 + relative_close;
+            let url = inner[..open].trim().to_string();
+            if !url.is_empty() {
+                let tooltip = inner[open + 1..close].to_string();
+                let label = inner[close + 1..].trim();
+                let label = if label.is_empty() {
+                    url.clone()
+                } else {
+                    label.to_string()
+                };
+                return (url, Some(tooltip), label);
+            }
+        }
+    }
+
+    let (target, label) = if let Some(sp) = inner.find(char::is_whitespace) {
+        (&inner[..sp], inner[sp..].trim_start().to_string())
+    } else {
+        (inner, inner.to_string())
+    };
+
+    (target.to_string(), None, label)
+}
+
+fn find_case_insensitive(haystack: &str, needle: &str) -> Option<usize> {
+    haystack
+        .to_ascii_lowercase()
+        .find(&needle.to_ascii_lowercase())
+}
+
+fn is_creole_pair(a: char, b: char) -> bool {
+    matches!(
+        (a, b),
+        ('*', '*') | ('/', '/') | ('"', '"') | ('_', '_') | ('-', '-') | ('~', '~') | ('[', '[')
+    )
+}
+
+fn pair_exists_after(chars: &[char], start: usize, a: char, b: char) -> bool {
+    chars
+        .get(start..)
+        .is_some_and(|tail| tail.windows(2).any(|pair| pair[0] == a && pair[1] == b))
 }
 
 /// Try to match `<tagname:value>` at the start of `s` (case-insensitive).
@@ -556,6 +1078,23 @@ fn decode_emoji_tag(s: &str) -> Option<(String, usize)> {
     Some((decoded, token_end + 2))
 }
 
+fn decode_colored_emoji_tag(s: &str) -> Option<(String, usize)> {
+    if !s.starts_with("<#") {
+        return None;
+    }
+
+    let close = s.find(":>")?;
+    let inner = &s[2..close];
+    let token_start = inner.rfind(':')? + 1;
+    let token = &inner[token_start..];
+    if token.is_empty() {
+        return None;
+    }
+
+    let decoded = decode_emoji_token(token)?;
+    Some((decoded, close + 2))
+}
+
 fn decode_emoji_token(token: &str) -> Option<String> {
     if valid_codepoint_hex(token) {
         let value = u32::from_str_radix(token, 16).ok()?;
@@ -583,6 +1122,14 @@ fn decode_emoji_token(token: &str) -> Option<String> {
         _ => return None,
     };
     Some(mapped.to_string())
+}
+
+fn creole_hash_color(color: &str) -> String {
+    if color.chars().all(|ch| ch.is_ascii_hexdigit()) && matches!(color.len(), 3 | 6 | 8) {
+        format!("#{color}")
+    } else {
+        color.to_string()
+    }
 }
 
 fn valid_codepoint_hex(s: &str) -> bool {
@@ -823,8 +1370,8 @@ mod tests {
     #[test]
     fn decodes_small_emoji_map_and_deterministic_fallback() {
         assert_eq!(
-            decode_unicode_escapes("<:calendar:> <:1f600:> <:not_in_small_map:>"),
-            "📅 😀 :not_in_small_map:"
+            decode_unicode_escapes("<:calendar:> <:1f600:> <:not_in_small_map:> <#green:sunny:>"),
+            "📅 😀 :not_in_small_map: ☀"
         );
     }
 
@@ -843,5 +1390,134 @@ mod tests {
         assert!(!out.contains("&#9731;"));
         assert!(!out.contains("&lt;U+221E&gt;"));
         assert!(!out.contains("&lt;:calendar:&gt;"));
+    }
+
+    #[test]
+    fn tilde_escapes_creole_markers() {
+        let line = single_line("~**literal** and ~[[x]]");
+        assert_eq!(line.len(), 1);
+        assert_eq!(line[0].text, "**literal** and [[x]]");
+        assert!(!line[0].bold);
+        assert!(line[0].link.is_none());
+    }
+
+    #[test]
+    fn wave_underline_creole_and_html_tag_render() {
+        let creole = single_line("~~wave~~");
+        assert!(creole[0].wave);
+
+        let html = single_line("<w:red>wave</w>");
+        assert!(html[0].wave);
+        assert_eq!(html[0].decoration_color.as_deref(), Some("red"));
+
+        let out = render_creole_line_to_tspans(&html, 0, "black");
+        assert!(out.contains("text-decoration-style=\"wavy\""));
+        assert!(out.contains("text-decoration-color=\"red\""));
+    }
+
+    #[test]
+    fn link_tooltip_renders_svg_title() {
+        let line = single_line("[[https://example.com{Open docs} docs]]");
+        assert_eq!(line[0].link.as_deref(), Some("https://example.com"));
+        assert_eq!(line[0].link_tooltip.as_deref(), Some("Open docs"));
+        assert_eq!(line[0].text, "docs");
+
+        let out = render_creole_line_to_tspans(&line, 0, "black");
+        assert!(out.contains("<title>Open docs</title>"));
+    }
+
+    #[test]
+    fn headings_become_bold_sized_lines() {
+        let lines = tokenize_creole("= Main title =\n=== Minor");
+        assert_eq!(lines[0][0].text, "Main title");
+        assert!(lines[0][0].bold);
+        assert_eq!(lines[0][0].size, Some(24));
+        assert_eq!(lines[1][0].size, Some(16));
+    }
+
+    #[test]
+    fn list_lines_add_indented_prefixes_without_triggering_bold() {
+        let lines = tokenize_creole("* Bullet\n** Nested\n# Numbered\n## Nested number");
+        assert_eq!(lines[0][0].text, "- ");
+        assert_eq!(lines[0][1].text, "Bullet");
+        assert_eq!(lines[1][0].text, "  - ");
+        assert_eq!(lines[2][0].text, "1. ");
+        assert_eq!(lines[3][0].text, "  1. ");
+        assert!(!lines[1][1].bold);
+    }
+
+    #[test]
+    fn horizontal_rule_lines_render_as_rule_text() {
+        let lines = tokenize_creole("----\n.. Section ..");
+        assert_eq!(lines[0][0].text, "------------------------");
+        assert!(lines[0][0].mono);
+        assert_eq!(lines[1][0].text, "---------- Section ----------");
+    }
+
+    #[test]
+    fn code_tag_is_verbatim_monospace() {
+        let line = single_line("<code>**not bold** & raw</code>");
+        assert_eq!(line[0].text, "**not bold** & raw");
+        assert!(line[0].mono);
+        assert!(!line[0].bold);
+    }
+
+    #[test]
+    fn table_lines_mark_headers_and_cell_backgrounds() {
+        let line = single_line("|= Name |<#FF8080> Value |");
+        assert_eq!(line[0].text, "Name");
+        assert!(line[0].bold);
+        assert!(line[0].mono);
+        assert_eq!(line[2].text, "Value");
+        assert_eq!(line[2].background.as_deref(), Some("#FF8080"));
+    }
+
+    #[test]
+    fn row_background_applies_to_table_cells() {
+        let line = single_line("<#yellow>| a | b |");
+        assert_eq!(line[0].background.as_deref(), Some("yellow"));
+        assert_eq!(line[2].background.as_deref(), Some("yellow"));
+    }
+
+    #[test]
+    fn tree_lines_use_text_tree_prefix() {
+        let line = single_line("  |_ child");
+        assert_eq!(line[0].text, "  `- ");
+        assert!(line[0].mono);
+        assert_eq!(line[1].text, "child");
+    }
+
+    #[test]
+    fn remaining_html_tags_set_span_state() {
+        let strike = single_line("<s:green>gone</s>");
+        assert!(strike[0].strike);
+        assert_eq!(strike[0].decoration_color.as_deref(), Some("green"));
+
+        let plain = single_line("<b><plain>**literal**</plain></b>");
+        assert_eq!(plain[0].text, "**literal**");
+        assert!(!plain[0].bold);
+
+        let back = single_line("<back:#ffeeaa>highlight</back>");
+        assert_eq!(back[0].background.as_deref(), Some("#ffeeaa"));
+
+        let font = single_line("<font:serif>face</font>");
+        assert_eq!(font[0].font.as_deref(), Some("serif"));
+
+        let sub = single_line("H<sub>2</sub>O");
+        assert_eq!(sub[1].baseline_shift.as_deref(), Some("sub"));
+
+        let sup = single_line("x<sup>2</sup>");
+        assert_eq!(sup[1].baseline_shift.as_deref(), Some("super"));
+    }
+
+    #[test]
+    fn render_remaining_html_tag_attributes() {
+        let lines =
+            tokenize_creole("<font:serif><back:yellow><sub>x</sub></back></font> <s>gone</s>");
+        let out = render_creole_line_to_tspans(&lines[0], 0, "black");
+        assert!(out.contains("font-family=\"serif\""));
+        assert!(out.contains("data-creole-back=\"yellow\""));
+        assert!(out.contains("baseline-shift=\"sub\""));
+        assert!(out.contains("line-through"));
     }
 }

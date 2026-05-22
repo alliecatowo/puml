@@ -6569,6 +6569,37 @@ fn creole_html_i_tag_produces_italic_tspan() {
 }
 
 #[test]
+fn creole_ch22_note_blocks_render_high_impact_constructs() {
+    let src = "@startuml\n\
+Alice -> Bob: <:calendar:> <U+221E>\n\
+note over Alice\n\
+= Creole note =\n\
+* **Bold** item\n\
+[[https://example.com{Open docs} docs]]\n\
+----\n\
+|= Key |<#FF8080> Value |\n\
+|_ leaf\n\
+<code>**raw**</code> H<sub>2</sub> x<sup>2</sup>\n\
+<font:serif><back:yellow><s>old</s></back></font>\n\
+end note\n\
+@enduml\n";
+    let svg = render_source_to_svg(src).expect("render");
+    assert!(svg.contains("📅 ∞"));
+    assert!(svg.contains("font-size=\"24\""));
+    assert!(svg.contains("font-weight=\"bold\""));
+    assert!(svg.contains("<title>Open docs</title>"));
+    assert!(svg.contains("------------------------"));
+    assert!(svg.contains("data-creole-back=\"#FF8080\""));
+    assert!(svg.contains("`- "));
+    assert!(svg.contains("font-family=\"monospace\""));
+    assert!(svg.contains("baseline-shift=\"sub\""));
+    assert!(svg.contains("baseline-shift=\"super\""));
+    assert!(svg.contains("font-family=\"serif\""));
+    assert!(svg.contains("data-creole-back=\"yellow\""));
+    assert!(svg.contains("line-through"));
+}
+
+#[test]
 fn creole_plain_label_uses_fast_path_without_tspan_wrapper() {
     let src = "@startuml\nAlice -> Bob: plain\n@enduml\n";
     let svg = render_source_to_svg(src).expect("render");

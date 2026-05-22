@@ -68,19 +68,40 @@ pub(crate) fn creole_text(
         || label.contains("\"\"")
         || label.contains("__")
         || label.contains("--")
+        || label.contains("~~")
+        || label.contains('~')
         || label.contains("[[")
+        || (!is_centered_sequence_divider_label(label, extra_attrs)
+            && has_creole_block_line(label))
         || label_lower.contains("<color")
         || label_lower.contains("</color")
         || label_lower.contains("<size")
         || label_lower.contains("</size")
         || label_lower.contains("<font")
         || label_lower.contains("</font")
+        || label_lower.contains("<back")
+        || label_lower.contains("</back")
+        || label_lower.contains("<code>")
+        || label_lower.contains("</code>")
+        || label_lower.contains("<plain>")
+        || label_lower.contains("</plain>")
         || label_lower.contains("<b>")
         || label_lower.contains("</b>")
         || label_lower.contains("<i>")
         || label_lower.contains("</i>")
         || label_lower.contains("<u>")
+        || label_lower.contains("<u:")
         || label_lower.contains("</u>")
+        || label_lower.contains("<s>")
+        || label_lower.contains("<s:")
+        || label_lower.contains("</s>")
+        || label_lower.contains("<w>")
+        || label_lower.contains("<w:")
+        || label_lower.contains("</w>")
+        || label_lower.contains("<sub>")
+        || label_lower.contains("</sub>")
+        || label_lower.contains("<sup>")
+        || label_lower.contains("</sup>")
         || label.contains("<&");
 
     if !has_markup && lines.len() == 1 {
@@ -132,6 +153,58 @@ pub(crate) fn creole_text(
         },
         inner
     )
+}
+
+fn is_centered_sequence_divider_label(label: &str, extra_attrs: &str) -> bool {
+    let trimmed = label.trim();
+    extra_attrs.contains("text-anchor=\"middle\"")
+        && trimmed.starts_with("==")
+        && trimmed.ends_with("==")
+        && trimmed.len() > 4
+}
+
+fn has_creole_block_line(label: &str) -> bool {
+    label.lines().any(|line| {
+        let trimmed = line.trim();
+        let trimmed_start = line.trim_start();
+        if trimmed_start.starts_with("|_") || trimmed_start.starts_with('|') {
+            return true;
+        }
+        if let Some(rest) = trimmed_start.strip_prefix("<#") {
+            if let Some(close) = rest.find('>') {
+                if rest[close + 1..].starts_with('|') {
+                    return true;
+                }
+            }
+        }
+        if trimmed.len() >= 4
+            && matches!(trimmed.as_bytes().first(), Some(b'-' | b'=' | b'_'))
+            && trimmed.bytes().all(|b| b == trimmed.as_bytes()[0])
+        {
+            return true;
+        }
+        if trimmed.len() >= 4 && trimmed.starts_with("..") && trimmed.ends_with("..") {
+            return true;
+        }
+
+        let marker = trimmed_start.chars().next();
+        if matches!(marker, Some('*' | '#')) {
+            let marker = marker.unwrap_or_default();
+            let depth = trimmed_start.chars().take_while(|&ch| ch == marker).count();
+            if trimmed_start
+                .get(depth..)
+                .is_some_and(|rest| rest.starts_with(char::is_whitespace))
+            {
+                return true;
+            }
+        }
+
+        let level = trimmed_start.chars().take_while(|&ch| ch == '=').count();
+        (1..=4).contains(&level)
+            && trimmed_start
+                .get(level..)
+                .is_some_and(|rest| rest.starts_with(char::is_whitespace))
+    })
 }
 
 fn active_sprite_count() -> usize {
