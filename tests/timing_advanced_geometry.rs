@@ -395,3 +395,119 @@ fn timing_ch10_parity_renders_messages_hidden_colors_axis_scale_and_analog() {
     assert!(svg.contains("class=\"timing-analog\""));
     assert!(svg.contains("class=\"timing-analog-point\""));
 }
+
+#[test]
+fn timing_by_clock_ticks_resolve_using_clock_period() {
+    let src = r#"@startuml
+clock "clk" as clk with period 50
+concise "Signal1" as S1
+@clk*0
+S1 is 0
+@clk*1
+S1 is 1
+@clk*3
+S1 is 2
+@enduml
+"#;
+    let document = puml::parse(src).expect("parse timing clock fixture");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize timing clock fixture")
+    else {
+        panic!("timing clock fixture should normalize as family model");
+    };
+
+    let event_times = model
+        .nodes
+        .iter()
+        .filter(|node| {
+            matches!(node.kind, FamilyNodeKind::TimingEvent) && node.alias.as_deref() == Some("S1")
+        })
+        .map(|node| node.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(event_times, vec!["0", "50", "150"]);
+
+    let svg = puml::render_source_to_svg(src).expect("render timing clock fixture");
+    assert!(svg.contains(">@50</text>"));
+    assert!(svg.contains(">@150</text>"));
+}
+
+#[test]
+fn timing_anchor_referenced_messages_resolve_to_absolute_ticks() {
+    let src = r#"@startuml
+scale 5 as 150 pixels
+clock clk with period 1
+binary "enable" as en
+concise "dataBus" as db
+concise "address bus" as addr
+@6 as :write_beg
+@10 as :write_end
+@0
+en is low
+db is "0x0"
+addr is "0x03f"
+@:write_beg-1
+en is high
+@:write_beg
+db is "0xDEADBEEF"
+@:write_end
+en is low
+db@:write_beg-1 -> addr@:write_end+1 : hold
+@enduml
+"#;
+    let document = puml::parse(src).expect("parse anchored message fixture");
+    let NormalizedDocument::Family(model) =
+        puml::normalize_family(document).expect("normalize anchored message fixture")
+    else {
+        panic!("anchored message fixture should normalize as family model");
+    };
+
+    assert!(model.relations.iter().any(|rel| {
+        rel.from == "db@5" && rel.to == "addr@11" && rel.label.as_deref() == Some("hold")
+    }));
+    let svg = puml::render_source_to_svg(src).expect("render anchored message fixture");
+    assert!(svg.contains("class=\"timing-message\""));
+    assert!(svg.contains(">hold</text>"));
+}
+
+#[test]
+fn timing_distributed_trace_fixture_renders_cross_lane_messages_and_cache_window() {
+    let src = include_str!("fixtures/families/valid_timing_distributed_trace.puml");
+    let svg = puml::render_source_to_svg(src).expect("render distributed trace timing fixture");
+
+    let message_count = svg.matches("class=\"timing-message\"").count();
+    assert!(
+        message_count >= 4,
+        "expected four distributed trace messages"
+    );
+    assert!(svg.contains("GET"));
+    assert!(svg.contains("If-Modified-Since: 150"));
+    assert!(svg.contains("200 OK"));
+    assert!(svg.contains("304 Not Modified"));
+    assert!(svg.contains("no need to re-request from server"));
+    assert!(svg.contains("fresh"));
+    assert!(svg.contains("stale"));
+}
+
+#[test]
+fn timing_date_axis_values_render_as_ticks_and_states() {
+    let src = r#"@startuml
+robust "Web Browser" as WB
+concise "Web User" as WU
+@2019/07/02
+WU is Idle
+WB is Idle
+@2019/07/04
+WU is Waiting
+WB is Processing
+@2019/07/05
+WB is Waiting
+@enduml
+"#;
+    let svg = puml::render_source_to_svg(src).expect("render dated timing fixture");
+
+    assert!(svg.contains("@2019/07/02"));
+    assert!(svg.contains("@2019/07/04"));
+    assert!(svg.contains("@2019/07/05"));
+    assert!(svg.contains("Waiting"));
+    assert!(svg.contains("Processing"));
+}

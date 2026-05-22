@@ -62,13 +62,22 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     let hide_time_axis = timing_options.contains("hide-time-axis");
     let manual_time_axis = timing_options.contains("manual-time-axis");
     let compact_mode = timing_options.contains("mode:compact");
+    let mut time_labels = std::collections::BTreeMap::<i64, String>::new();
+    for event in &events {
+        let Some(value) = timing_time_value(&event.name) else {
+            continue;
+        };
+        time_labels
+            .entry(value)
+            .or_insert_with(|| format!("@{}", event.name.trim().trim_start_matches('@')));
+    }
     let global_events: Vec<(i64, String)> = events
         .iter()
         .filter_map(|e| {
             if e.alias.is_some() {
                 return None;
             }
-            let t = e.name.parse::<i64>().ok()?;
+            let t = timing_time_value(&e.name)?;
             let txt = e
                 .label
                 .clone()
@@ -94,7 +103,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             if e.alias.is_some() {
                 return None;
             }
-            let start = e.name.parse::<i64>().ok()?;
+            let start = timing_time_value(&e.name)?;
             let txt = e
                 .label
                 .clone()
@@ -115,7 +124,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     // Collect unique numeric time values, sort them.
     let mut time_vals: Vec<i64> = events
         .iter()
-        .filter_map(|e| e.name.parse::<i64>().ok())
+        .filter_map(|e| timing_time_value(&e.name))
         .collect();
     time_vals.extend(timing_ranges.iter().map(|(_, end, _, _)| *end));
     for relation in &doc.relations {
@@ -289,8 +298,8 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
     }
     let mut manual_tick_values: Vec<i64> = events
         .iter()
-        .filter(|e| e.alias.is_some() && e.name.parse::<i64>().is_ok())
-        .filter_map(|e| e.name.parse::<i64>().ok())
+        .filter(|e| e.alias.is_some())
+        .filter_map(|e| timing_time_value(&e.name))
         .collect();
     manual_tick_values.sort();
     manual_tick_values.dedup();
@@ -311,9 +320,14 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 y2 = axis_top + axis_h
             ));
             if !manual_time_axis || manual_tick_values.contains(&t) {
+                let tick_label = time_labels
+                    .get(&t)
+                    .cloned()
+                    .unwrap_or_else(|| format!("@{t}"));
                 out.push_str(&format!(
-                    "<text class=\"timing-tick\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">@{t}</text>",
+                    "<text class=\"timing-tick\" x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"11\" fill=\"{}\">{}</text>",
                     escape_text(&style.font_color),
+                    escape_text(&tick_label),
                     ty = axis_top + 20
                 ));
             }
@@ -423,7 +437,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 let t = if e.name.is_empty() {
                     t_min
                 } else {
-                    e.name.parse::<i64>().ok()?
+                    timing_time_value(&e.name)?
                 };
                 let state = e
                     .members
@@ -526,6 +540,9 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
             FamilyNodeKind::TimingClock => {
                 // Clock: square wave. If edge events exist for this signal, use
                 // their spacing as the period baseline; otherwise fallback.
+                let clock_swing = (wave_h / 4).max(8);
+                let clock_y_hi = wave_mid - clock_swing;
+                let clock_y_lo = wave_mid + clock_swing;
                 let controlled_period = timing_control_i64(signal, "period");
                 let controlled_pulse = timing_control_i64(signal, "pulse");
                 let controlled_offset = timing_control_i64(signal, "offset").unwrap_or(0);
@@ -559,17 +576,17 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 // half-periods never bleed outside the viewBox.
                 let x_max = width;
                 let x0 = time_to_x(cur_t).min(x_max);
-                let y0 = if cur_hi { wave_y_hi } else { wave_y_lo };
+                let y0 = if cur_hi { clock_y_hi } else { clock_y_lo };
                 path_pts.push_str(&format!("{x0},{y0}"));
                 while cur_t < t_end {
                     let next_t = cur_t + half;
                     let x1 = time_to_x(next_t).min(x_max);
                     // Horizontal segment
-                    let cur_y = if cur_hi { wave_y_hi } else { wave_y_lo };
+                    let cur_y = if cur_hi { clock_y_hi } else { clock_y_lo };
                     path_pts.push_str(&format!(" {x1},{cur_y}"));
                     // Vertical transition
                     cur_hi = !cur_hi;
-                    let next_y = if cur_hi { wave_y_hi } else { wave_y_lo };
+                    let next_y = if cur_hi { clock_y_hi } else { clock_y_lo };
                     path_pts.push_str(&format!(" {x1},{next_y}"));
                     cur_t = next_t;
                     if x1 >= x_max {
@@ -584,7 +601,7 @@ pub fn render_timing_svg(doc: &FamilyDocument) -> String {
                 out.push_str(&format!(
                     "<text x=\"{x}\" y=\"{ty}\" font-family=\"monospace\" font-size=\"10\" fill=\"#64748b\">clk</text>",
                     x = time_to_x(t_min) + 4,
-                    ty = wave_y_hi - 4
+                    ty = clock_y_hi - 4
                 ));
             }
 
@@ -867,7 +884,7 @@ fn timing_state_hidden(state: &str) -> bool {
 fn timing_relation_time(endpoint: &str) -> Option<i64> {
     endpoint
         .split_once('@')
-        .and_then(|(_, time)| time.trim().parse::<i64>().ok())
+        .and_then(|(_, time)| timing_time_value(time.trim()))
 }
 
 fn timing_scaled_chart_width(
@@ -896,7 +913,7 @@ fn timing_scaled_chart_width(
 
 fn timing_relation_endpoint(endpoint: &str) -> Option<(&str, i64)> {
     let (signal, time) = endpoint.split_once('@')?;
-    Some((signal.trim(), time.trim().parse::<i64>().ok()?))
+    Some((signal.trim(), timing_time_value(time.trim())?))
 }
 
 fn render_timing_relations(
@@ -923,6 +940,14 @@ fn render_timing_relations(
         };
         let x1 = time_to_x(from_time);
         let x2 = time_to_x(to_time);
+        let lane_inset = 16;
+        let (y1, y2) = if y2 > y1 {
+            (y1 + lane_inset, y2 - lane_inset)
+        } else if y2 < y1 {
+            (y1 - lane_inset, y2 + lane_inset)
+        } else {
+            (y1, y2)
+        };
         let color = relation.line_color.as_deref().unwrap_or(&style.arrow_color);
         let dash = if relation.dashed {
             " stroke-dasharray=\"6 4\""
@@ -1050,11 +1075,57 @@ fn render_timing_analog_signal(out: &mut String, ctx: TimingAnalogRender<'_>) {
 fn parse_timing_range_note(note: &str) -> Option<(i64, String)> {
     let rest = note.strip_prefix("range:")?;
     let (end, label) = rest.split_once(':').unwrap_or((rest, ""));
-    let end = end.trim().trim_start_matches('@').parse::<i64>().ok()?;
+    let end = timing_time_value(end.trim().trim_start_matches('@'))?;
     let label = if label.trim().is_empty() {
         "range".to_string()
     } else {
         label.trim().to_string()
     };
     Some((end, label))
+}
+
+fn timing_time_value(raw: &str) -> Option<i64> {
+    let trimmed = raw.trim().trim_start_matches('@');
+    if let Ok(value) = trimmed.parse::<i64>() {
+        return Some(value);
+    }
+    parse_timing_hms(trimmed).or_else(|| parse_timing_date(trimmed))
+}
+
+fn parse_timing_hms(raw: &str) -> Option<i64> {
+    let parts = raw
+        .split(':')
+        .map(str::trim)
+        .map(|part| part.parse::<i64>().ok())
+        .collect::<Option<Vec<_>>>()?;
+    match parts.as_slice() {
+        [hours, minutes, seconds] => Some(
+            hours
+                .saturating_mul(3600)
+                .saturating_add(minutes.saturating_mul(60))
+                .saturating_add(*seconds),
+        ),
+        _ => None,
+    }
+}
+
+fn parse_timing_date(raw: &str) -> Option<i64> {
+    let mut parts = raw.split('/').map(str::trim);
+    let year = parts.next()?.parse::<i64>().ok()?;
+    let month = parts.next()?.parse::<i64>().ok()?;
+    let day = parts.next()?.parse::<i64>().ok()?;
+    if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    Some(days_from_civil(year, month, day).saturating_mul(86_400))
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = year - i64::from(month <= 2);
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let yoe = year - era * 400;
+    let mp = month + if month > 2 { -3 } else { 9 };
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
 }

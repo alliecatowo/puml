@@ -1,0 +1,16 @@
+@startuml
+title Absolute date/time axis values
+robust "Web Browser" as WB
+concise "Web User" as WU
+
+@2019/07/02
+WU is Idle
+WB is Idle
+
+@2019/07/04
+WU is Waiting
+WB is Processing
+
+@2019/07/05
+WB is Waiting
+@enduml

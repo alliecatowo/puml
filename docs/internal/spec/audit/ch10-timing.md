@@ -19,11 +19,11 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Status:** ✅
 **Evidence:** `src/parser/timing.rs:3-8` (kinds), `src/render/timing.rs:347-403` (binary waveform), `src/render/timing.rs:405-468` (clock waveform with period/pulse/offset honored via `timing_control_i64`)
 
-### 10.3 Adding message (`WU -> WB : URL`) — ❌
+### 10.3 Adding message (`WU -> WB : URL`) — ✅
 **Feature:** Arrow between two lanes at a given time
 **Syntax example:** `WU -> WB : URL` inside a `@100` block
-**Status:** ❌
-**Evidence:** `src/render/timing.rs` only references `arrow_color` for tick/event dots (lines 170, 252). No lane-to-lane message arrow rendering. Inter-lane `->` lines are likely parsed as a `FamilyRelation` or `Unknown` and dropped by the timing normalizer.
+**Status:** ✅
+**Evidence:** `parse_timing_relation` in `src/parser/timing.rs:260-297` accepts timing arrows without mis-parsing `@:anchor` endpoints; `normalize_timing_endpoint` in `src/normalize/family.rs:2554-2568` resolves endpoint-relative `Signal@+N` forms; `render_timing_relations` in `src/render/timing.rs:825-880` emits the arrow line, head, and label; exercised by `tests/timing_advanced_geometry.rs:473-486`.
 
 ### 10.4 Relative time (`@+N`, `@+50`, `WB -> DNS@+50`) — 🟡
 **Feature:** Relative time offsets and per-message relative offsets
@@ -32,11 +32,12 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Evidence:** `normalize_timing_time` is called (`src/normalize/family.rs:1233-1236`) and tracks `timing_current_time` so successive `@+N` resolves to absolute. `@+N` as a standalone block tick works.
 **Notes:** `target@+N` syntax on a message arrow has no rendering path (see §10.3). Negative offsets like `@-3` (§10.29) are accepted by the parser regex but produce negative tick positions that may push outside the chart.
 
-### 10.5 Anchor Points (`@5 as :name`, `@:name+6`) — ❌
+### 10.5 Anchor Points (`@5 as :name`, `@:name+6`) — 🟡
 **Feature:** Named anchor times referenced as `@:anchor`, `@:anchor+N`, `@:anchor-N`
 **Syntax example:** `@5 as :en_high` then `@:en_high-2 as :en_highMinus2` and `@:en_high`
-**Evidence:** No `:` anchor symbol handling in `src/parser/timing.rs` or `src/normalize/family.rs`. `@:name` would split at whitespace and the resulting `time = ":name"` would fail `parse::<i64>()` in render (`src/render/timing.rs:100`) — events silently dropped.
-**Status:** ❌
+**Evidence:** `parse_timing_anchor` plus `normalize_timing_anchor_expr` in `src/parser/timing.rs:250-257` and `src/normalize/family.rs:2527-2552` resolve named anchors and `+/-` offsets; `normalize_timing_endpoint` in `src/normalize/family.rs:2554-2568` applies them inside cross-lane message endpoints; exercised by `tests/timing_advanced_geometry.rs:435-470` and `tests/timing_advanced_geometry.rs:321-368`.
+**Status:** 🟡
+**Notes:** Numeric anchor references and anchored message endpoints work. Anchored highlight/constraint bands still lag exact PlantUML behavior.
 
 ### 10.6 Participant oriented (`@WB` then `0 is idle`, `+200 is Proc.`) — 🟡
 **Feature:** Declare events grouped by participant, with `0 is …`, `+N is …` relative shorthand
@@ -70,10 +71,11 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Status:** ❌
 **Evidence:** No `time-axis` / `time_axis` reference in `src/render/timing.rs`. `HideOption` may accept the string but renderer always emits the axis (`src/render/timing.rs:196-273`).
 
-### 10.12 Using Time and Date (`@2019/07/02`, `@1:15:00`) — ❌
+### 10.12 Using Time and Date (`@2019/07/02`, `@1:15:00`) — 🟡
 **Feature:** Use absolute date or wall-clock time as tick label
-**Status:** ❌
-**Evidence:** `src/render/timing.rs:100` uses `e.name.parse::<i64>()` for tick values. ISO dates and `HH:MM:SS` strings fail to parse and are dropped from `time_vals`.
+**Status:** 🟡
+**Evidence:** `timing_time_value`, `parse_timing_hms`, and `parse_timing_date` in `src/render/timing.rs:985-1029` map `HH:MM:SS` and `YYYY/MM/DD` values into chart positions while `time_labels` preserves the original axis text in `src/render/timing.rs:65-73` and `276-285`; exercised by `tests/timing_advanced_geometry.rs:489-510`.
+**Notes:** Absolute time/date ticks render, but `use date format` still remains separate work.
 
 ### 10.13 Change Date Format (`use date format "YY-MM-dd"`) — ❌
 **Feature:** Format dates on the axis
@@ -110,12 +112,14 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 ### 10.19 Complete example (mixed @Client/@Server/@Cache + `+N is …` + cross-lane arrows + range) — 🟡
 **Feature:** End-to-end realistic timing diagram
 **Status:** 🟡
-**Evidence:** Participant-oriented blocks work (§10.6). Cross-lane arrows (§10.3) and range constraints (§10.15) gaps make complete fidelity impossible.
+**Evidence:** The chapter example now renders as a fixture at `tests/fixtures/families/valid_timing_distributed_trace.puml` and is asserted in `tests/timing_advanced_geometry.rs:473-486`, including multiple cross-lane request/response arrows and the cache-freshness interval.
+**Notes:** The scenario is now covered end-to-end, but constraint/highlight styling is still not 1:1 with PlantUML.
 
-### 10.20 Digital Example (binary + concise mix with `:anchor` references and constraint arrows) — ❌
+### 10.20 Digital Example (binary + concise mix with `:anchor` references and constraint arrows) — 🟡
 **Feature:** Multi-signal digital protocol diagram with anchored constraints (`@:write_beg-3`, `db@:write_beg-1 <-> @:write_end : setup time`, `db@:write_beg-1 -> addr@:write_end+1 : hold`)
-**Status:** ❌
-**Evidence:** Anchors (§10.5) and signal-prefixed message arrows are both unsupported; this example will not render correctly.
+**Status:** 🟡
+**Evidence:** Anchored point references and anchored cross-lane messages now resolve through `normalize_timing_anchor_expr` / `normalize_timing_endpoint` (`src/normalize/family.rs:2527-2568`) and render through `render_timing_relations` (`src/render/timing.rs:825-880`); exercised by `tests/timing_advanced_geometry.rs:435-470`.
+**Notes:** The anchored message portion now works. Constraint-arrow rendering and anchored highlight bands still remain partial.
 
 ### 10.21 Adding color (`LR is AtPlace #palegreen`, per-event `100 is Lowered #pink`) — ❌
 **Feature:** Per-state-segment background colour
@@ -152,10 +156,10 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 **Status:** ❌
 **Evidence:** `has` keyword is not handled by `src/parser/timing.rs` — would parse as Unknown. Without ordering, robust signal value rows are assigned by first-seen order in `state_order` (`src/render/timing.rs:473-478`).
 
-### 10.28 Defining a timing diagram (by clock `@clk*N`, by signal `@S1`, by time `@T`) — 🟡
+### 10.28 Defining a timing diagram (by clock `@clk*N`, by signal `@S1`, by time `@T`) — ✅
 **Feature:** Three event-block addressing modes
-**Status:** 🟡
-**Evidence:** By-time and by-signal (`@SignalName`) modes work via `timing_current_signal` tracking (`src/normalize/family.rs:1208-1225`). **By-clock `@clk*N` is NOT specifically parsed** — `clk*0` would split at whitespace and `time = "clk*0"` fails `parse::<i64>()`, dropping the event.
+**Status:** ✅
+**Evidence:** By-signal blocks still route through `timing_current_signal` in `src/normalize/family.rs:1798-1832`; by-clock `@clk*N` now resolves via the per-clock period map in `src/normalize/family.rs:1722-1737` and `2490-2509`; rendered tick positions are asserted in `tests/timing_advanced_geometry.rs:399-432`.
 
 ### 10.29 Annotate signal with comment (`D is low: idle`, `R is lo: idle`, `@-3` negative time) — 🟡
 **Feature:** Per-event trailing `: comment` annotation, negative-time events
@@ -169,16 +173,15 @@ Legend: ✅ supported · 🟡 partial / cosmetic gaps · ❌ not implemented
 
 | Status | Count |
 |--------|-------|
-| ✅ supported | 1 |
-| 🟡 partial | 9 |
-| ❌ missing | 19 |
+| ✅ supported | 3 |
+| 🟡 partial | 11 |
+| ❌ missing | 15 |
 
 Top gaps blocking parity:
 
 1. **`analog` participant kind (§10.1, 10.25, 10.26)** — missing variant entirely; documents break.
-2. **Cross-lane message arrows (§10.3, 10.19, 10.20)** — no `Signal -> Signal : label` rendering path.
-3. **Anchor points (§10.5)** and **`@clk*N` (§10.28)** — non-integer `time` strings silently drop events from `time_vals`/`sig_events`.
-4. **Date/time axis values (§10.12, 10.13, 10.14)** — renderer is integer-only; `use date format` and `manual time-axis` are no-ops.
+2. **Anchor-heavy constraint/highlight cases (§10.5, 10.15, 10.20)** — anchored messages work, but constraint-arrow rendering and anchored highlight-band fidelity still lag PlantUML.
+3. **Date/time axis formatting controls (§10.12, 10.13, 10.14)** — absolute date/time ticks now render, but `use date format` remains unsupported and manual/date-label semantics are still partial.
 5. **Inline per-event color (§10.21) and brace states `{-}`/`{hidden}` (§10.9, 10.10)** — `#` and `{}` modifiers are absorbed into state label text.
 6. **Constraint arrows vs highlight bands (§10.15)** — currently rendered as a yellow band, not a constraint with end caps.
 7. **`hide time-axis`, `scale N as N pixels`, `mode compact` (§10.7, 10.11, 10.24)** — global layout switches all ignored.
